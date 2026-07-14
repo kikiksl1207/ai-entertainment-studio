@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { createHash } from 'crypto';
@@ -28,6 +29,7 @@ import {
   validatePrivateCustomChoice,
 } from './story-progress-control.policy';
 import { sessionKeyHash } from './story-lifecycle.policy';
+import { StoryEconomicsService } from './story-economics.service';
 
 type ResetPlan = {
   targetSceneId: string;
@@ -41,6 +43,7 @@ export class StoryProgressControlService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly moderation: ModerationService,
+    @Optional() private readonly economics?: StoryEconomicsService,
   ) {}
 
   async submitCustomChoice(
@@ -50,7 +53,7 @@ export class StoryProgressControlService {
     idempotencyKey?: string,
   ) {
     const key = this.requireIdempotencyKey('story-custom-choice', idempotencyKey);
-    const validation = validatePrivateCustomChoice(body.input);
+    const validation = validatePrivateCustomChoice(body.input, this.economics ? 2000 : 500);
     if (!validation.accepted) {
       throw new BadRequestException({
         code: `STORY_CUSTOM_CHOICE_${validation.reason.toUpperCase()}`,
@@ -74,19 +77,33 @@ export class StoryProgressControlService {
           retryable: false,
         });
       }
-      return this.customChoiceReceipt(existing);
+      return this.economics
+        ? this.economics.customChoiceReplay(userId, existing, validation.contentHash)
+        : this.customChoiceReceipt(existing);
     }
 
     const context = await this.progressContext(userId, progressId);
     if (context.progress.progressRevision !== body.expectedRevision) {
       this.throwStaleRevision(context.progress.progressRevision);
     }
-    const canUseCustomChoice =
+    const prepared = this.economics
+      ? await this.economics.prepareCustomChoice(
+          userId,
+          context,
+          validation.normalized,
+        )
+      : null;
+    const legacyCanUseCustomChoice =
+      !this.economics &&
       context.work.customChoiceEnabled &&
       !context.work.priceLumina.isZero() &&
       context.progress.storyVersion === context.work.publishedVersion &&
-      (await this.hasActivePaidEntitlement(userId, context.work.id, context.part.id));
-    if (!canUseCustomChoice) {
+      (await this.hasActivePaidEntitlement(
+        userId,
+        context.work.id,
+        context.part.id,
+      ));
+    if (!this.economics && !legacyCanUseCustomChoice) {
       throw new ForbiddenException({
         code: 'STORY_CUSTOM_CHOICE_ENTITLEMENT_REQUIRED',
         messageKey: STORY_PROGRESS_MESSAGE_KEYS.customChoiceDenied,
@@ -120,6 +137,18 @@ export class StoryProgressControlService {
         code: 'STORY_CUSTOM_CHOICE_MODERATION_REJECTED',
         messageKey: STORY_PROGRESS_MESSAGE_KEYS.customChoiceRejected,
         retryable: true,
+      });
+    }
+
+    if (this.economics && prepared) {
+      return this.economics.requestCustomChoice({
+        userId,
+        context,
+        normalizedInput: validation.normalized,
+        contentHash: validation.contentHash,
+        moderationDecision: moderation.decision,
+        idempotencyKey: key,
+        prepared,
       });
     }
 
@@ -223,6 +252,10 @@ export class StoryProgressControlService {
     query: StoryResetPreviewQueryDto,
   ) {
     const context = await this.progressContext(userId, progressId);
+    const configuredLimits = await this.resetLimits(
+      context.progress.activeReleaseId,
+      context.progress.capabilityRevision,
+    );
     await this.assertStoryAccess(userId, context.work.id, context.part.id, context.work.priceLumina.isZero());
     const plan = await this.buildResetPlan(
       this.prisma,
@@ -235,7 +268,7 @@ export class StoryProgressControlService {
     const bucket = await this.prisma.storyResetQuotaBucket.findUnique({
       where: { userId_workId_scopeKey: { userId, workId: context.work.id, scopeKey } },
     });
-    const limit = bucket?.limitCount ?? STORY_RESET_LIMITS[query.target];
+    const limit = bucket?.limitCount ?? configuredLimits[query.target];
     const remaining = storyResetRemaining(query.target, bucket?.usedCount ?? 0, limit);
     return {
       target: query.target,
@@ -279,11 +312,25 @@ export class StoryProgressControlService {
       return this.resetCommandProjection(existing, true);
     }
 
+    const pendingProgress = this.economics
+      ? await this.prisma.storyReaderProgress.findFirst({
+          where: { id: progressId, userId },
+          select: { activeReleaseId: true, capabilityRevision: true },
+        })
+      : null;
+    const configuredLimits = await this.resetLimits(
+      pendingProgress?.activeReleaseId,
+      pendingProgress?.capabilityRevision,
+    );
+
     const result = await this.prisma.$transaction(async (tx) => {
       const progress = await tx.storyReaderProgress.findFirst({
         where: { id: progressId, userId },
       });
       if (!progress) throw new NotFoundException('Story progress not found');
+      if (progress.status === 'ai_pending') {
+        throw new ConflictException('Story progress is awaiting AI continuation');
+      }
       if (progress.progressRevision !== body.expectedRevision) {
         this.throwStaleRevision(progress.progressRevision);
       }
@@ -318,7 +365,7 @@ export class StoryProgressControlService {
         body.actNumber,
       );
       const scopeKey = storyResetScopeKey(body.target, plan.targetAct);
-      const limit = STORY_RESET_LIMITS[body.target];
+      const limit = configuredLimits[body.target];
       const bucket = await tx.storyResetQuotaBucket.upsert({
         where: { userId_workId_scopeKey: { userId, workId: work.id, scopeKey } },
         create: { userId, workId: work.id, scopeKey, limitCount: limit },
@@ -436,12 +483,23 @@ export class StoryProgressControlService {
       where: { id: workId, status: 'published', fixtureSource: false },
     });
     if (!work) throw new NotFoundException('Published story not found');
-    const [progress, paidEntitled] = await Promise.all([
+    const [progress, paidEntitled, configuredCapability] = await Promise.all([
       this.prisma.storyReaderProgress.findUnique({
         where: { userId_workId: { userId, workId } },
       }),
       this.hasActivePaidEntitlement(userId, workId),
+      this.economics ? this.economics.readerCapability(userId, workId) : null,
     ]);
+    const configuredLimits = configuredCapability
+      ? {
+          full: configuredCapability.resetPolicy.fullLimit,
+          act: configuredCapability.resetPolicy.actLimit,
+        }
+      : STORY_RESET_LIMITS;
+    const capabilityMatches =
+      !this.economics ||
+      !progress ||
+      progress.capabilityRevision === configuredCapability?.revision;
     const storyAccess = {
       isFree: work.priceLumina.isZero(),
       entitled: work.priceLumina.isZero() || paidEntitled,
@@ -451,13 +509,14 @@ export class StoryProgressControlService {
         statusKey: STORY_PROGRESS_MESSAGE_KEYS.noProgress,
         canResume: false,
         checkpointLabel: null,
-        fullResetRemaining: STORY_RESET_LIMITS.full,
-        actResetRemaining: STORY_RESET_LIMITS.act,
+        fullResetRemaining: configuredLimits.full,
+        actResetRemaining: configuredLimits.act,
         resetTargetSummary: null,
         storyAccess,
         canFullReset: false,
         canActReset: false,
         customChoiceCapability: false,
+        releaseCapability: configuredCapability,
         localeSlots: STORY_PROGRESS_LOCALE_SLOTS,
       };
     }
@@ -477,9 +536,13 @@ export class StoryProgressControlService {
     const fullRemaining = storyResetRemaining(
       'full',
       full?.usedCount ?? 0,
-      full?.limitCount,
+      full?.limitCount ?? configuredLimits.full,
     );
-    const actRemaining = storyResetRemaining('act', act?.usedCount ?? 0, act?.limitCount);
+    const actRemaining = storyResetRemaining(
+      'act',
+      act?.usedCount ?? 0,
+      act?.limitCount ?? configuredLimits.act,
+    );
     const versionMatches = progress.storyVersion === work.publishedVersion;
     return {
       statusKey: storyProgressStatusKey({
@@ -507,15 +570,28 @@ export class StoryProgressControlService {
         },
       },
       storyAccess,
-      canFullReset: storyAccess.entitled && fullRemaining > 0,
-      canActReset: storyAccess.entitled && actRemaining > 0 && versionMatches,
+      canFullReset:
+        storyAccess.entitled &&
+        fullRemaining > 0 &&
+        progress.status !== 'ai_pending' &&
+        capabilityMatches,
+      canActReset:
+        storyAccess.entitled &&
+        actRemaining > 0 &&
+        versionMatches &&
+        progress.status !== 'ai_pending' &&
+        capabilityMatches,
       customChoiceCapability:
-        work.customChoiceEnabled &&
-        !work.priceLumina.isZero() &&
+        (configuredCapability
+          ? configuredCapability.customChoiceEnabled &&
+            configuredCapability.aiAllowanceRemaining > 0
+          : work.customChoiceEnabled && !work.priceLumina.isZero()) &&
         paidEntitled &&
         versionMatches &&
         Boolean(progress.currentSceneId) &&
-        progress.status === 'active',
+        progress.status === 'active' &&
+        capabilityMatches,
+      releaseCapability: configuredCapability,
       localeSlots: STORY_PROGRESS_LOCALE_SLOTS,
     };
   }
@@ -738,6 +814,25 @@ export class StoryProgressControlService {
       select: { id: true },
     });
     return Boolean(entitlement);
+  }
+
+  private async resetLimits(
+    releaseId: string | null | undefined,
+    capabilityRevision?: number | null,
+  ) {
+    if (!this.economics) return STORY_RESET_LIMITS;
+    const capability = await this.economics.capabilityByRelease(releaseId);
+    if (!capability || capability.revision !== capabilityRevision) {
+      throw new ForbiddenException({
+        code: 'STORY_RELEASE_CAPABILITY_REQUIRED',
+        messageKey: 'story.progress.reset.capabilityRequired',
+        retryable: false,
+      });
+    }
+    return {
+      full: capability.fullResetLimit,
+      act: capability.actResetLimit,
+    };
   }
 
   private checkpointProjection(checkpoint: {

@@ -292,11 +292,11 @@
   }
 
   function tr(key) {
-    return COPY[state.locale]?.[key] || COPY.ko[key] || key;
+    return COPY[state.locale]?.[key] || COPY.ko[key] || "";
   }
 
   function controlTr(key) {
-    return STORY_CONTROL_COPY[state.locale]?.[key] || STORY_CONTROL_COPY.ko[key] || key;
+    return STORY_CONTROL_COPY[state.locale]?.[key] || STORY_CONTROL_COPY.ko[key] || "";
   }
 
   function escapeHtml(value) {

@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
@@ -31,6 +32,7 @@ import {
   projectLocalizedValue,
 } from './story-production.policy';
 import { sessionKeyHash, storyPathSignature } from './story-lifecycle.policy';
+import { StoryEconomicsService } from './story-economics.service';
 
 const STORY_ENTITLEMENT_TYPES = [
   'story_work',
@@ -42,7 +44,10 @@ const CURRENCY = 'LUMINA';
 
 @Injectable()
 export class StoryProductionService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly economics?: StoryEconomicsService,
+  ) {}
 
   async catalog(userId: string | undefined, query: StoryCatalogQueryDto) {
     const rows = await this.prisma.storyWork.findMany({
@@ -89,6 +94,16 @@ export class StoryProductionService {
       userId,
       page.map((row) => row.id),
     );
+    const capabilities = this.economics
+      ? new Map(
+          await Promise.all(
+            page.map(async (row) => [
+              row.id,
+              await this.economics!.publicCapabilityByRelease(row.activeReleaseId),
+            ] as const),
+          ),
+        )
+      : null;
 
     return {
       items: page.map((row) => {
@@ -107,6 +122,7 @@ export class StoryProductionService {
             priceLumina: entitled ? null : row.priceLumina.toString(),
             purchaseAction: entitled ? null : 'purchase',
           },
+          releaseCapability: capabilities?.get(row.id) ?? null,
         };
       }),
       nextCursor: safeRows.length > query.limit ? page.at(-1)?.id ?? null : null,
@@ -163,6 +179,9 @@ export class StoryProductionService {
           distinct: ['endingKey'],
         })
       : [];
+    const releaseCapability = this.economics
+      ? await this.economics.publicCapabilityByRelease(work.activeReleaseId)
+      : null;
 
     return {
       id: work.id,
@@ -196,10 +215,14 @@ export class StoryProductionService {
             checkpoint: Boolean(progress?.checkpointSceneId),
             branchReplay: workEntitled,
             chargeRequired: false,
-            newAiPathGeneration: { separateUsage: true },
+            newAiPathGeneration: {
+              separateUsage: true,
+              enabled: releaseCapability?.customChoiceEnabled ?? false,
+            },
           }
         : null,
       endingRecords,
+      releaseCapability,
     };
   }
 
@@ -341,6 +364,10 @@ export class StoryProductionService {
       throw new BadRequestException('Checkpoint is not available');
     }
     const targetSceneId = firstScene.id;
+    const sessionPin =
+      this.economics && work.activeReleaseId
+        ? await this.economics.releaseSessionPin(work.activeReleaseId)
+        : null;
     const progress = await this.prisma.storyReaderProgress.create({
       data: {
         userId,
@@ -350,6 +377,8 @@ export class StoryProductionService {
         currentAct: parts.find((part) => part.id === firstScene.partId)?.actNumber ?? 1,
         storyVersion: work.publishedVersion,
         activeReleaseId: work.activeReleaseId,
+        aiRateCardId: sessionPin?.aiRateCardId,
+        capabilityRevision: sessionPin?.capabilityRevision,
         checkpointSceneId: targetSceneId,
         seenSceneIds: [targetSceneId],
         pathSummary: [],
@@ -402,6 +431,9 @@ export class StoryProductionService {
     });
     if (!progress?.currentSceneId) {
       throw new NotFoundException('Active story progress not found');
+    }
+    if (progress.status !== 'active') {
+      throw new ConflictException('Story progress is not ready for beat updates');
     }
     if (progress.progressRevision !== body.expectedRevision) {
       throw new ConflictException({
@@ -456,6 +488,9 @@ export class StoryProductionService {
     await this.prisma.$transaction(async (tx) => {
       const progress = await tx.storyReaderProgress.findFirst({ where: { id: progressId, userId } });
       if (!progress?.currentSceneId) throw new NotFoundException('Active story progress not found');
+      if (progress.status !== 'active') {
+        throw new ConflictException('Story progress is awaiting another command');
+      }
       if (progress.progressRevision !== expectedRevision) {
         throw new ConflictException({
           code: 'STORY_PROGRESS_STALE_REVISION',
@@ -715,6 +750,8 @@ export class StoryProductionService {
       currentAct: number;
       progressRevision: number;
       storyVersion: number;
+      activeReleaseId?: string | null;
+      capabilityRevision?: number | null;
       pathSummary: Prisma.JsonValue;
       status: string;
     },
@@ -727,11 +764,18 @@ export class StoryProductionService {
     const part = await this.prisma.storyPart.findUnique({ where: { id: scene.partId } });
     const work = part ? await this.prisma.storyWork.findUnique({ where: { id: part.workId } }) : null;
     if (!part || !work || work.status !== 'published' || part.status !== 'published') throw new NotFoundException('Published story scene not found');
-    const [beats, choices] = await Promise.all([
+    const [beats, choices, releaseCapability] = await Promise.all([
       this.prisma.storyBeat.findMany({ where: { sceneId: scene.id }, orderBy: { position: 'asc' }, take: 40 }),
       this.prisma.storyChoice.findMany({ where: { sceneId: scene.id }, orderBy: { position: 'asc' }, take: 12 }),
+      this.economics
+        ? this.economics.capabilityByRelease(progress.activeReleaseId)
+        : null,
     ]);
-    const nextIds = choices.map((choice) => choice.targetSceneId).filter((id): id is string => Boolean(id));
+    const visibleChoices =
+      progress.status === 'active'
+        ? choices.slice(0, releaseCapability?.fixedChoiceCount ?? 12)
+        : [];
+    const nextIds = visibleChoices.map((choice) => choice.targetSceneId).filter((id): id is string => Boolean(id));
     const nextScenes = await this.prisma.storyScene.findMany({ where: { id: { in: nextIds }, status: 'published', fixtureSource: false }, select: { id: true, title: true, visualManifest: true } });
     const nextById = new Map(nextScenes.filter((next) => isPublicStorySourceSafe({ manifest: next.visualManifest })).map((next) => [next.id, next]));
     return {
@@ -749,7 +793,7 @@ export class StoryProductionService {
         visualManifest: scene.visualManifest,
         endingType: scene.endingType,
       },
-      choices: choices.filter((choice) => !choice.targetSceneId || nextById.has(choice.targetSceneId)).map((choice) => {
+      choices: visibleChoices.filter((choice) => !choice.targetSceneId || nextById.has(choice.targetSceneId)).map((choice) => {
         const next = choice.targetSceneId ? nextById.get(choice.targetSceneId) : null;
         return {
           id: choice.id,
@@ -760,6 +804,23 @@ export class StoryProductionService {
         };
       }),
       path: boundedPath(jsonArray(progress.pathSummary)),
+      releaseCapability:
+        releaseCapability &&
+        progress.capabilityRevision === releaseCapability.revision
+        ? {
+            fixedChoices: releaseCapability.fixedChoiceCount,
+            customChoiceEnabled: releaseCapability.customChoiceEnabled,
+            customChoiceMaxLength: releaseCapability.customChoiceMaxLength,
+            source: 'pinned_release_capability',
+          }
+        : this.economics
+          ? {
+              fixedChoices: 3,
+              customChoiceEnabled: false,
+              customChoiceMaxLength: 0,
+              source: 'fail_closed',
+            }
+          : null,
     };
   }
 
