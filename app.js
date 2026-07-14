@@ -674,6 +674,307 @@ const I18N_DICT = {
     "zh-CN": "高额打赏仅限已完成身份确认的账号。",
     "zh-Hant": "高額打賞僅限已完成身分確認的帳號。"
   },
+  "chat.donation.metaDescription": {
+    "ko-KR": "Lumina Stage 프리미엄 채팅 후원 안내",
+    "ja-JP": "Lumina Stage プレミアムチャット応援のご案内",
+    "en-US": "Lumina Stage premium chat support information.",
+    "zh-CN": "Lumina Stage 高级聊天打赏说明",
+    "zh-Hant": "Lumina Stage 進階聊天打賞說明"
+  },
+  "chat.donation.documentTitle": {
+    "ko-KR": "프리미엄 채팅 후원 | Lumina Stage",
+    "ja-JP": "プレミアムチャット応援 | Lumina Stage",
+    "en-US": "Premium Chat Support | Lumina Stage",
+    "zh-CN": "高级聊天打赏 | Lumina Stage",
+    "zh-Hant": "進階聊天打賞 | Lumina Stage"
+  },
+  "chat.donation.eyebrow": {
+    "ko-KR": "프리미엄 채팅",
+    "ja-JP": "プレミアムチャット",
+    "en-US": "Premium Chat",
+    "zh-CN": "高级聊天",
+    "zh-Hant": "進階聊天"
+  },
+  "chat.donation.heading": {
+    "ko-KR": "후원 안내",
+    "ja-JP": "応援のご案内",
+    "en-US": "Support information",
+    "zh-CN": "打赏说明",
+    "zh-Hant": "打賞說明"
+  },
+  "chat.donation.description": {
+    "ko-KR": "후원 금액과 이용 조건을 확인할 수 있어요.",
+    "ja-JP": "応援金額とご利用条件を確認できます。",
+    "en-US": "Review support amounts and eligibility.",
+    "zh-CN": "可查看打赏金额和使用条件。",
+    "zh-Hant": "可查看打賞金額和使用條件。"
+  },
+  "chat.donation.backToChat": {
+    "ko-KR": "캐릭터챗으로 돌아가기",
+    "ja-JP": "キャラクターチャットに戻る",
+    "en-US": "Back to Character Chat",
+    "zh-CN": "返回角色聊天",
+    "zh-Hant": "返回角色聊天"
+  },
+  "chat.donation.panelAria": {
+    "ko-KR": "프리미엄챗 후원 안내",
+    "ja-JP": "プレミアムチャット応援のご案内",
+    "en-US": "Premium chat support information",
+    "zh-CN": "高级聊天打赏说明",
+    "zh-Hant": "進階聊天打賞說明"
+  },
+  "chat.donation.steps": {
+    "ko-KR": "후원 단계",
+    "ja-JP": "応援の手順",
+    "en-US": "Support steps",
+    "zh-CN": "打赏步骤",
+    "zh-Hant": "打賞步驟"
+  },
+  "chat.donation.step.amount": {
+    "ko-KR": "금액 선택",
+    "ja-JP": "金額を選択",
+    "en-US": "Choose amount",
+    "zh-CN": "选择金额",
+    "zh-Hant": "選擇金額"
+  },
+  "chat.donation.step.review": {
+    "ko-KR": "내용 확인",
+    "ja-JP": "内容を確認",
+    "en-US": "Review details",
+    "zh-CN": "确认内容",
+    "zh-Hant": "確認內容"
+  },
+  "chat.donation.step.complete": {
+    "ko-KR": "후원 완료",
+    "ja-JP": "応援完了",
+    "en-US": "Support complete",
+    "zh-CN": "打赏完成",
+    "zh-Hant": "打賞完成"
+  },
+  "chat.donation.fixed.legend": {
+    "ko-KR": "고정 후원 금액",
+    "ja-JP": "定額の応援金額",
+    "en-US": "Suggested amounts",
+    "zh-CN": "固定打赏金额",
+    "zh-Hant": "固定打賞金額"
+  },
+  "chat.donation.fixed.aria": {
+    "ko-KR": "고정 후원 금액 선택",
+    "ja-JP": "定額の応援金額を選択",
+    "en-US": "Choose a suggested amount",
+    "zh-CN": "选择固定打赏金额",
+    "zh-Hant": "選擇固定打賞金額"
+  },
+  "chat.donation.custom.legend": {
+    "ko-KR": "직접 입력",
+    "ja-JP": "金額を入力",
+    "en-US": "Enter an amount",
+    "zh-CN": "输入金额",
+    "zh-Hant": "輸入金額"
+  },
+  "chat.donation.custom.label": {
+    "ko-KR": "후원 금액 (L)",
+    "ja-JP": "応援金額 (L)",
+    "en-US": "Support amount (L)",
+    "zh-CN": "打赏金额 (L)",
+    "zh-Hant": "打賞金額 (L)"
+  },
+  "chat.donation.custom.placeholder": {
+    "ko-KR": "1 ~ 50,000",
+    "ja-JP": "1〜50,000",
+    "en-US": "1 to 50,000",
+    "zh-CN": "1 至 50,000",
+    "zh-Hant": "1 至 50,000"
+  },
+  "chat.donation.message.legend": {
+    "ko-KR": "메시지",
+    "ja-JP": "メッセージ",
+    "en-US": "Message",
+    "zh-CN": "留言",
+    "zh-Hant": "留言"
+  },
+  "chat.donation.message.placeholder": {
+    "ko-KR": "응원 메시지를 작성할 수 있어요.",
+    "ja-JP": "応援メッセージを入力できます。",
+    "en-US": "Write a message of support.",
+    "zh-CN": "可以写下支持留言。",
+    "zh-Hant": "可以寫下支持留言。"
+  },
+  "chat.donation.message.hint": {
+    "ko-KR": "현재는 후원 요청을 보낼 수 없어요.",
+    "ja-JP": "現在は応援リクエストを送信できません。",
+    "en-US": "Support requests are unavailable right now.",
+    "zh-CN": "目前无法发送打赏请求。",
+    "zh-Hant": "目前無法送出打賞請求。"
+  },
+  "chat.donation.policy.blocked": {
+    "ko-KR": "신고 또는 운영 검토 중인 방에서는 후원이 잠길 수 있어요.",
+    "ja-JP": "通報または運営確認中のルームでは応援が利用できない場合があります。",
+    "en-US": "Support may be unavailable in rooms under review.",
+    "zh-CN": "正在审核的聊天室可能无法打赏。",
+    "zh-Hant": "正在審核的聊天室可能無法打賞。"
+  },
+  "chat.donation.policy.unanswered": {
+    "ko-KR": "24시간 미응답 상태는 환불 검토 대상입니다.",
+    "ja-JP": "24時間以内に返信がない場合は返金確認の対象になります。",
+    "en-US": "No reply within 24 hours may qualify for a refund review.",
+    "zh-CN": "24 小时未回复的情况可能进入退款审核。",
+    "zh-Hant": "24 小時未回覆的情況可能進入退款審核。"
+  },
+  "chat.donation.policy.refund": {
+    "ko-KR": "정책 사유 발생 시 환불 금액은 조건에 따라 제한될 수 있어요.",
+    "ja-JP": "ポリシー上の理由により、返金額が制限される場合があります。",
+    "en-US": "Refund amounts may be limited depending on the policy conditions.",
+    "zh-CN": "根据政策条件，退款金额可能会受限。",
+    "zh-Hant": "依政策條件，退款金額可能會受限。"
+  },
+  "chat.donation.hub": {
+    "ko-KR": "허브 보기",
+    "ja-JP": "ハブを見る",
+    "en-US": "View hub",
+    "zh-CN": "查看中心",
+    "zh-Hant": "查看中心"
+  },
+  "chat.donation.confirm.title": {
+    "ko-KR": "고액 후원 확인",
+    "ja-JP": "高額応援の確認",
+    "en-US": "Confirm high-value support",
+    "zh-CN": "确认高额打赏",
+    "zh-Hant": "確認高額打賞"
+  },
+  "chat.donation.confirm.body": {
+    "ko-KR": "아래 금액의 후원 조건을 확인합니다.",
+    "ja-JP": "以下の金額で応援する条件を確認します。",
+    "en-US": "Review the conditions for the amount below.",
+    "zh-CN": "确认以下金额的打赏条件。",
+    "zh-Hant": "確認以下金額的打賞條件。"
+  },
+  "chat.donation.confirm.identity": {
+    "ko-KR": "본인확인이 필요한 금액입니다.",
+    "ja-JP": "本人確認が必要な金額です。",
+    "en-US": "This amount requires identity verification.",
+    "zh-CN": "该金额需要完成身份验证。",
+    "zh-Hant": "此金額需要完成身分確認。"
+  },
+  "chat.donation.confirm.daily": {
+    "ko-KR": "일일 한도 안에서만 진행됩니다.",
+    "ja-JP": "1日の上限内でのみご利用いただけます。",
+    "en-US": "This is limited by your daily allowance.",
+    "zh-CN": "仅可在每日限额内进行。",
+    "zh-Hant": "僅可在每日限額內進行。"
+  },
+  "chat.donation.confirm.note": {
+    "ko-KR": "현재는 후원 진행이 잠겨 있어요.",
+    "ja-JP": "現在は応援の手続きがロックされています。",
+    "en-US": "Support is currently unavailable.",
+    "zh-CN": "目前无法进行打赏。",
+    "zh-Hant": "目前無法進行打賞。"
+  },
+  "chat.donation.confirm.cancel": {
+    "ko-KR": "다시 보기",
+    "ja-JP": "戻る",
+    "en-US": "Go back",
+    "zh-CN": "返回",
+    "zh-Hant": "返回"
+  },
+  "chat.donation.input.integer": {
+    "ko-KR": "정수만 입력할 수 있어요.",
+    "ja-JP": "整数のみ入力できます。",
+    "en-US": "Enter a whole number.",
+    "zh-CN": "只能输入整数。",
+    "zh-Hant": "只能輸入整數。"
+  },
+  "chat.donation.input.max": {
+    "ko-KR": "직접 입력은 1L ~ {max}L까지 가능해요.",
+    "ja-JP": "直接入力は1L〜{max}Lまで可能です。",
+    "en-US": "Enter an amount from 1L to {max}L.",
+    "zh-CN": "可直接输入 1L 至 {max}L。",
+    "zh-Hant": "可直接輸入 1L 至 {max}L。"
+  },
+  "chat.donation.summary.amount": {
+    "ko-KR": "{amount}L 후원 금액",
+    "ja-JP": "応援金額 {amount}L",
+    "en-US": "Support amount: {amount}L",
+    "zh-CN": "打赏金额：{amount}L",
+    "zh-Hant": "打賞金額：{amount}L"
+  },
+  "chat.donation.summary.highValue": {
+    "ko-KR": "고액 후원 - 본인확인 필요",
+    "ja-JP": "高額応援 - 本人確認が必要",
+    "en-US": "High-value support - identity verification required",
+    "zh-CN": "高额打赏 - 需要身份验证",
+    "zh-Hant": "高額打賞 - 需要身分確認"
+  },
+  "chat.donation.summary.empty": {
+    "ko-KR": "금액을 선택하면 합계가 표시됩니다.",
+    "ja-JP": "金額を選択すると合計が表示されます。",
+    "en-US": "Choose an amount to see the total.",
+    "zh-CN": "选择金额后将显示合计。",
+    "zh-Hant": "選擇金額後將顯示合計。"
+  },
+  "chat.donation.action.info": {
+    "ko-KR": "후원 안내 확인",
+    "ja-JP": "応援案内を確認",
+    "en-US": "Review support information",
+    "zh-CN": "查看打赏说明",
+    "zh-Hant": "查看打賞說明"
+  },
+  "chat.donation.action.selectAmount": {
+    "ko-KR": "금액을 먼저 선택하세요",
+    "ja-JP": "先に金額を選択してください。",
+    "en-US": "Choose an amount first.",
+    "zh-CN": "请先选择金额。",
+    "zh-Hant": "請先選擇金額。"
+  },
+  "chat.donation.action.support": {
+    "ko-KR": "{amount}L 후원하기",
+    "ja-JP": "{amount}Lを応援する",
+    "en-US": "Support {amount}L",
+    "zh-CN": "打赏 {amount}L",
+    "zh-Hant": "打賞 {amount}L"
+  },
+  "chat.donation.action.select": {
+    "ko-KR": "금액 선택",
+    "ja-JP": "金額を選択",
+    "en-US": "Choose amount",
+    "zh-CN": "选择金额",
+    "zh-Hant": "選擇金額"
+  },
+  "chat.donation.policy.highValue": {
+    "ko-KR": "{amount}L 이상 후원은 본인확인이 끝난 계정만 진행할 수 있어요.",
+    "ja-JP": "{amount}L以上の応援は本人確認済みのアカウントのみ利用できます。",
+    "en-US": "Support of {amount}L or more requires an identity-verified account.",
+    "zh-CN": "打赏 {amount}L 及以上需要已完成身份验证的账号。",
+    "zh-Hant": "打賞 {amount}L 以上需要已完成身分確認的帳號。"
+  },
+  "chat.donation.policy.dailyLimit": {
+    "ko-KR": "하루 후원 합계는 {amount}L까지로 제한돼요.",
+    "ja-JP": "1日の応援合計は{amount}Lまでです。",
+    "en-US": "Daily support is limited to {amount}L.",
+    "zh-CN": "每日打赏总额上限为 {amount}L。",
+    "zh-Hant": "每日打賞總額上限為 {amount}L。"
+  },
+  "chat.donation.policy.customAmount": {
+    "ko-KR": "최소 {min}L, 최대 {max}L까지 입력할 수 있어요. 정수만 가능합니다.",
+    "ja-JP": "{min}Lから{max}Lまで入力できます。整数のみ利用できます。",
+    "en-US": "Enter a whole amount from {min}L to {max}L.",
+    "zh-CN": "可输入 {min}L 至 {max}L 的整数金额。",
+    "zh-Hant": "可輸入 {min}L 至 {max}L 的整數金額。"
+  },
+  "chat.donation.proceed": {
+    "ko-KR": "진행하기",
+    "ja-JP": "進む",
+    "en-US": "Continue",
+    "zh-CN": "继续",
+    "zh-Hant": "繼續"
+  },
+  "chat.donation.proceedLocked": {
+    "ko-KR": "후원 준비 중",
+    "ja-JP": "応援は準備中です",
+    "en-US": "Support unavailable",
+    "zh-CN": "打赏暂不可用",
+    "zh-Hant": "打賞暫不可用"
+  },
   "common.tag.paid": {
     "ko-KR": "유료",
     "ja-JP": "有料",
