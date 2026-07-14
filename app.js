@@ -1835,6 +1835,11 @@ async function setLocale(locale) {
   if (typeof document !== "undefined") document.documentElement.lang = normalizedLocale;
   try { localStorage.setItem(I18N_STORAGE_KEY, normalizedLocale); } catch (_) {}
   applyI18n();
+  try {
+    window.dispatchEvent(new CustomEvent("lumina:localechange", {
+      detail: { locale: publicLocale(normalizedLocale), regionalLocale: normalizedLocale }
+    }));
+  } catch (_) {}
   // 로그인 사용자만 서버 저장 (실패해도 로컬 적용 유지)
   if (isLoggedIn()) {
     try {
