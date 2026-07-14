@@ -50,10 +50,10 @@ export function normalizePrivateCustomChoice(input: string) {
   return input.normalize('NFKC').trim().replace(/\s+/g, ' ');
 }
 
-export function validatePrivateCustomChoice(input: string) {
+export function validatePrivateCustomChoice(input: string, maxLength = 500) {
   const normalized = normalizePrivateCustomChoice(input);
   if (!normalized) return { accepted: false as const, reason: 'empty' as const };
-  if (normalized.length > 500) {
+  if (normalized.length > maxLength) {
     return { accepted: false as const, reason: 'too_long' as const };
   }
   if (/^(.)\1{11,}$/u.test(normalized)) {

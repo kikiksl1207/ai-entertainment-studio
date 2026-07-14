@@ -28,6 +28,7 @@
     "qa:story-production-release": "node scripts/verify-story-production-release-guard.mjs",
     "qa:story-progress-controls": "node scripts/verify-story-progress-controls.mjs",
     "qa:story-lifecycle-release": "node scripts/verify-story-lifecycle-release.mjs",
+    "qa:story-ai-economics": "node scripts/verify-story-ai-economics.mjs",
     "render:start": "npm run prisma:deploy && npm run start:prod",
     "render:start:seed": "npm run prisma:deploy && npm run prisma:seed:fast && npm run start:prod",
     "verify:object-storage": "node scripts/verify-object-storage-upload.mjs",
