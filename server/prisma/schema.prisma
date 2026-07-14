@@ -1663,6 +1663,479 @@ model UserEntitlement {
   @@map("user_entitlements")
 }
 
+model StoryWork {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ownerUserId         String    @map("owner_user_id") @db.Uuid
+  slug                String    @unique
+  status              String    @default("draft")
+  defaultLocale       String    @default("ko") @map("default_locale")
+  supportedLocales    Json      @default("[]") @map("supported_locales")
+  title               Json
+  summary             Json
+  coverManifest       Json      @default("{}") @map("cover_manifest")
+  priceLumina         Decimal   @default(0) @map("price_lumina") @db.Decimal(18, 2)
+  fixtureSource       Boolean   @default(false) @map("fixture_source")
+  publishedVersion    Int       @default(1) @map("published_version")
+  customChoiceEnabled Boolean   @default(false) @map("custom_choice_enabled")
+  activeReleaseId     String?   @map("active_release_id") @db.Uuid
+  releaseRevision     Int       @default(1) @map("release_revision")
+  publishedAt         DateTime? @map("published_at") @db.Timestamptz(6)
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@index([status, publishedAt, id], map: "idx_story_works_public_catalog")
+  @@index([ownerUserId, updatedAt], map: "idx_story_works_owner_updated")
+  @@map("story_works")
+}
+
+model StoryPart {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workId        String    @map("work_id") @db.Uuid
+  seasonKey     String    @default("season-1") @map("season_key")
+  actNumber     Int       @default(1) @map("act_number")
+  position      Int
+  status        String    @default("draft")
+  title         Json
+  priceLumina   Decimal   @default(0) @map("price_lumina") @db.Decimal(18, 2)
+  fixtureSource Boolean   @default(false) @map("fixture_source")
+  publishedAt   DateTime? @map("published_at") @db.Timestamptz(6)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([workId, position])
+  @@index([workId, seasonKey, status, position], map: "idx_story_parts_work_season")
+  @@map("story_parts")
+}
+
+model StoryScene {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  partId         String   @map("part_id") @db.Uuid
+  sceneKey       String   @map("scene_key")
+  position       Int
+  status         String   @default("draft")
+  title          Json
+  visualManifest Json     @default("{}") @map("visual_manifest")
+  endingType     String?  @map("ending_type")
+  fixtureSource  Boolean  @default(false) @map("fixture_source")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([partId, sceneKey])
+  @@index([partId, status, position], map: "idx_story_scenes_part_position")
+  @@map("story_scenes")
+}
+
+model StoryBeat {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sceneId   String   @map("scene_id") @db.Uuid
+  position  Int
+  beatType  String   @map("beat_type")
+  content   Json
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([sceneId, position])
+  @@index([sceneId, position], map: "idx_story_beats_scene_position")
+  @@map("story_beats")
+}
+
+model StoryChoice {
+  id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sceneId               String   @map("scene_id") @db.Uuid
+  choiceKey             String   @map("choice_key")
+  position              Int
+  label                 Json
+  targetSceneId         String?  @map("target_scene_id") @db.Uuid
+  targetEndingKey       String?  @map("target_ending_key")
+  declaredRejoinSceneId String?  @map("declared_rejoin_scene_id") @db.Uuid
+  routeKind             String   @default("branch") @map("route_kind")
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([sceneId, choiceKey])
+  @@index([sceneId, position], map: "idx_story_choices_scene_position")
+  @@index([targetSceneId], map: "idx_story_choices_target_scene")
+  @@map("story_choices")
+}
+
+model StoryReaderProgress {
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId              String   @map("user_id") @db.Uuid
+  workId              String   @map("work_id") @db.Uuid
+  currentSceneId      String?  @map("current_scene_id") @db.Uuid
+  currentBeatPosition Int      @default(0) @map("current_beat_position")
+  currentAct          Int      @default(1) @map("current_act")
+  progressRevision    Int      @default(1) @map("progress_revision")
+  storyVersion        Int      @default(1) @map("story_version")
+  activeReleaseId     String?  @map("active_release_id") @db.Uuid
+  checkpointSceneId   String?  @map("checkpoint_scene_id") @db.Uuid
+  pathSummary         Json     @default("[]") @map("path_summary")
+  seenSceneIds        Json     @default("[]") @map("seen_scene_ids")
+  visitedEndingKeys   Json     @default("[]") @map("visited_ending_keys")
+  status              String   @default("active")
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([userId, workId])
+  @@index([userId, updatedAt], map: "idx_story_progress_user_updated")
+  @@map("story_reader_progress")
+}
+
+model StoryChoiceEvent {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  progressId     String    @map("progress_id") @db.Uuid
+  sceneId        String    @map("scene_id") @db.Uuid
+  choiceId       String    @map("choice_id") @db.Uuid
+  targetSceneId  String?   @map("target_scene_id") @db.Uuid
+  endingKey      String?   @map("ending_key")
+  endingType     String?   @map("ending_type")
+  explicitRejoin Boolean   @default(false) @map("explicit_rejoin")
+  invalidatedAt  DateTime? @map("invalidated_at") @db.Timestamptz(6)
+  resetCommandId String?   @map("reset_command_id") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([progressId, createdAt], map: "idx_story_choice_events_progress")
+  @@map("story_choice_events")
+}
+
+model StoryProgressCheckpoint {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  progressId        String   @map("progress_id") @db.Uuid
+  progressRevision  Int      @map("progress_revision")
+  storyVersion      Int      @map("story_version")
+  sceneId           String   @map("scene_id") @db.Uuid
+  beatPosition      Int      @map("beat_position")
+  actNumber         Int      @map("act_number")
+  visitedEndingKeys Json     @default("[]") @map("visited_ending_keys")
+  checkpointStatus  String   @default("confirmed") @map("checkpoint_status")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([progressId, progressRevision])
+  @@index([progressId, createdAt], map: "idx_story_checkpoints_progress_created")
+  @@map("story_progress_checkpoints")
+}
+
+model StoryResetQuotaBucket {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  workId     String   @map("work_id") @db.Uuid
+  scopeKey   String   @map("scope_key")
+  usedCount  Int      @default(0) @map("used_count")
+  limitCount Int      @map("limit_count")
+  revision   Int      @default(1)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([userId, workId, scopeKey])
+  @@index([userId, workId], map: "idx_story_reset_quota_user_work")
+  @@map("story_reset_quota_buckets")
+}
+
+model StoryResetQuotaAdjustment {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  quotaBucketId  String   @map("quota_bucket_id") @db.Uuid
+  adminUserId    String   @map("admin_user_id") @db.Uuid
+  idempotencyKey String   @unique @map("idempotency_key")
+  addedUses      Int      @map("added_uses")
+  beforeLimit    Int      @map("before_limit")
+  afterLimit     Int      @map("after_limit")
+  reason         String
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([quotaBucketId, createdAt], map: "idx_story_reset_adjustments_bucket")
+  @@map("story_reset_quota_adjustments")
+}
+
+model StoryResetCommand {
+  id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  progressId            String   @map("progress_id") @db.Uuid
+  userId                String   @map("user_id") @db.Uuid
+  idempotencyKey        String   @unique @map("idempotency_key")
+  targetType            String   @map("target_type")
+  targetAct             Int?     @map("target_act")
+  beforeRevision        Int      @map("before_revision")
+  afterRevision         Int      @map("after_revision")
+  invalidatedEventCount Int      @default(0) @map("invalidated_event_count")
+  status                String   @default("completed")
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([progressId, createdAt], map: "idx_story_reset_commands_progress")
+  @@map("story_reset_commands")
+}
+
+model StoryCustomChoice {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  progressId         String   @map("progress_id") @db.Uuid
+  userId             String   @map("user_id") @db.Uuid
+  workId             String   @map("work_id") @db.Uuid
+  sceneId            String   @map("scene_id") @db.Uuid
+  idempotencyKey     String   @unique @map("idempotency_key")
+  contentHash        String   @map("content_hash")
+  privateInput       String   @map("private_input")
+  moderationDecision String   @map("moderation_decision")
+  status             String   @default("accepted")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([progressId, createdAt], map: "idx_story_custom_choices_progress")
+  @@map("story_custom_choices")
+}
+
+model StoryRelease {
+  id                       String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workId                   String    @map("work_id") @db.Uuid
+  version                  Int
+  status                   String    @default("candidate")
+  manuscriptVersionId      String    @map("manuscript_version_id") @db.Uuid
+  branchGraphSnapshot      Json      @map("branch_graph_snapshot")
+  endingSetSnapshot        Json      @map("ending_set_snapshot")
+  sceneAssetManifest       Json      @map("scene_asset_manifest")
+  localizedDisplaySnapshot Json      @map("localized_display_snapshot")
+  checksum                 String
+  validationSummary        Json      @default("{}") @map("validation_summary")
+  diffSummary              Json      @default("{}") @map("diff_summary")
+  createdByUserId          String    @map("created_by_user_id") @db.Uuid
+  activatedAt              DateTime? @map("activated_at") @db.Timestamptz(6)
+  retiredAt                DateTime? @map("retired_at") @db.Timestamptz(6)
+  createdAt                DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([workId, version])
+  @@unique([workId, checksum])
+  @@index([workId, status, createdAt], map: "idx_story_releases_work_status")
+  @@map("story_releases")
+}
+
+model StoryPublicationTransition {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workId         String   @map("work_id") @db.Uuid
+  releaseId      String?  @map("release_id") @db.Uuid
+  actorUserId    String   @map("actor_user_id") @db.Uuid
+  idempotencyKey String   @unique @map("idempotency_key")
+  fromStatus     String   @map("from_status")
+  toStatus       String   @map("to_status")
+  beforeRevision Int      @map("before_revision")
+  afterRevision  Int      @map("after_revision")
+  publicSummary  Json     @default("{}") @map("public_summary")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([workId, createdAt], map: "idx_story_publication_transitions_work")
+  @@map("story_publication_transitions")
+}
+
+model StorySaveSlot {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String    @map("user_id") @db.Uuid
+  workId       String    @map("work_id") @db.Uuid
+  slotNumber   Int       @map("slot_number")
+  releaseId    String    @map("release_id") @db.Uuid
+  checkpointId String?   @map("checkpoint_id") @db.Uuid
+  label        String?
+  revision     Int       @default(1)
+  status       String    @default("active")
+  savedAt      DateTime  @default(now()) @map("saved_at") @db.Timestamptz(6)
+  clearedAt    DateTime? @map("cleared_at") @db.Timestamptz(6)
+
+  @@unique([userId, workId, slotNumber])
+  @@index([userId, workId, savedAt], map: "idx_story_save_slots_user_work")
+  @@map("story_save_slots")
+}
+
+model StoryEndingDiscovery {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId        String   @map("user_id") @db.Uuid
+  workId        String   @map("work_id") @db.Uuid
+  releaseId     String   @map("release_id") @db.Uuid
+  endingKey     String   @map("ending_key")
+  endingKind    String   @map("ending_kind")
+  pathSignature String   @map("path_signature")
+  provenance    String
+  firstSeenAt   DateTime @default(now()) @map("first_seen_at") @db.Timestamptz(6)
+  lastSeenAt    DateTime @default(now()) @map("last_seen_at") @db.Timestamptz(6)
+
+  @@unique([userId, releaseId, endingKey, pathSignature])
+  @@index([userId, workId, firstSeenAt], map: "idx_story_endings_user_work")
+  @@map("story_ending_discoveries")
+}
+
+model StoryMemoryRecord {
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workId              String   @map("work_id") @db.Uuid
+  analysisJobId       String   @map("analysis_job_id") @db.Uuid
+  manuscriptVersionId String   @map("manuscript_version_id") @db.Uuid
+  memoryType          String   @map("memory_type")
+  memoryKey           String   @map("memory_key")
+  partKey             String?  @map("part_key")
+  content             Json
+  evidenceIds         Json     @default("[]") @map("evidence_ids")
+  provenance          String   @default("writer_original")
+  status              String   @default("approved")
+  revision            Int      @default(1)
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([analysisJobId, memoryType, memoryKey])
+  @@index([workId, memoryType, partKey], map: "idx_story_memory_work_type_part")
+  @@map("story_memory_records")
+}
+
+model StoryMemoryRetrievalRun {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workId            String    @map("work_id") @db.Uuid
+  analysisJobId     String    @map("analysis_job_id") @db.Uuid
+  idempotencyKey    String    @unique @map("idempotency_key")
+  currentPartKey    String    @map("current_part_key")
+  retrievalTypes    Json      @map("retrieval_types")
+  selectedMemoryIds Json      @default("[]") @map("selected_memory_ids")
+  checkpoint        String    @default("started")
+  status            String    @default("running")
+  completedAt       DateTime? @map("completed_at") @db.Timestamptz(6)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([workId, analysisJobId, createdAt], map: "idx_story_memory_runs_work_analysis")
+  @@map("story_memory_retrieval_runs")
+}
+
+model StoryWriterReview {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workId              String    @map("work_id") @db.Uuid
+  ownerUserId         String    @map("owner_user_id") @db.Uuid
+  manuscriptVersionId String    @map("manuscript_version_id") @db.Uuid
+  analysisJobId       String    @map("analysis_job_id") @db.Uuid
+  state               String    @default("editing")
+  revision            Int       @default(1)
+  decisions           Json      @default("{}")
+  finalSummary        Json      @default("{}") @map("final_summary")
+  submittedAt         DateTime? @map("submitted_at") @db.Timestamptz(6)
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([workId, manuscriptVersionId, analysisJobId])
+  @@index([ownerUserId, updatedAt], map: "idx_story_writer_reviews_owner")
+  @@map("story_writer_reviews")
+}
+
+model StoryFinalSubmission {
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reviewId            String   @unique @map("review_id") @db.Uuid
+  manuscriptVersionId String   @map("manuscript_version_id") @db.Uuid
+  idempotencyKey      String   @unique @map("idempotency_key")
+  checksum            String
+  status              String   @default("submitted")
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("story_final_submissions")
+}
+
+model StoryQualityEvent {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workId         String   @map("work_id") @db.Uuid
+  releaseId      String?  @map("release_id") @db.Uuid
+  sessionKeyHash String   @map("session_key_hash")
+  eventType      String   @map("event_type")
+  metricBucket   String   @map("metric_bucket")
+  dimensions     Json     @default("{}")
+  numericValue   Decimal? @map("numeric_value") @db.Decimal(18, 6)
+  idempotencyKey String   @unique @map("idempotency_key")
+  occurredAt     DateTime @default(now()) @map("occurred_at") @db.Timestamptz(6)
+
+  @@index([workId, releaseId, eventType, occurredAt], map: "idx_story_quality_events_work_release")
+  @@map("story_quality_events")
+}
+
+model StoryQualityAggregate {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workId        String   @map("work_id") @db.Uuid
+  releaseId     String   @map("release_id") @db.Uuid
+  metricKey     String   @map("metric_key")
+  sampleCount   Int      @map("sample_count")
+  numerator     Decimal? @db.Decimal(18, 6)
+  denominator   Decimal? @db.Decimal(18, 6)
+  measuredValue Decimal? @map("measured_value") @db.Decimal(18, 6)
+  measuredAt    DateTime @default(now()) @map("measured_at") @db.Timestamptz(6)
+
+  @@unique([workId, releaseId, metricKey])
+  @@index([workId, measuredAt], map: "idx_story_quality_aggregates_work")
+  @@map("story_quality_aggregates")
+}
+
+model StoryManuscriptVersion {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workId         String   @map("work_id") @db.Uuid
+  ownerUserId    String   @map("owner_user_id") @db.Uuid
+  version        Int
+  locale         String
+  contentHash    String   @map("content_hash")
+  structuredBody Json     @map("structured_body")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([workId, version])
+  @@unique([workId, contentHash])
+  @@index([ownerUserId, createdAt], map: "idx_story_manuscripts_owner_created")
+  @@map("story_manuscript_versions")
+}
+
+model StoryAnalysisJob {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  manuscriptVersionId String    @map("manuscript_version_id") @db.Uuid
+  analysisVersion     Int       @map("analysis_version")
+  idempotencyKey      String    @unique @map("idempotency_key")
+  status              String    @default("queued")
+  result              Json      @default("{}")
+  errorCode           String?   @map("error_code")
+  startedAt           DateTime? @map("started_at") @db.Timestamptz(6)
+  completedAt         DateTime? @map("completed_at") @db.Timestamptz(6)
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([manuscriptVersionId, analysisVersion])
+  @@index([manuscriptVersionId, createdAt], map: "idx_story_analysis_manuscript")
+  @@map("story_analysis_jobs")
+}
+
+model StoryAnalysisEvidence {
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  analysisJobId        String   @map("analysis_job_id") @db.Uuid
+  evidenceType         String   @map("evidence_type")
+  sourcePartKey        String   @map("source_part_key")
+  sourceParagraphIndex Int      @map("source_paragraph_index")
+  payload              Json
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([analysisJobId, evidenceType], map: "idx_story_analysis_evidence_job_type")
+  @@map("story_analysis_evidence")
+}
+
+model StoryContinuityEntry {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workId        String   @map("work_id") @db.Uuid
+  analysisJobId String   @map("analysis_job_id") @db.Uuid
+  entryType     String   @map("entry_type")
+  ledgerKey     String   @map("ledger_key")
+  label         String
+  evidenceIds   Json     @default("[]") @map("evidence_ids")
+  state         String   @default("observed")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([analysisJobId, entryType, ledgerKey])
+  @@index([workId, entryType, state], map: "idx_story_continuity_entries_work")
+  @@map("story_continuity_entries")
+}
+
+model StoryContinuityIssue {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workId          String    @map("work_id") @db.Uuid
+  analysisJobId   String    @map("analysis_job_id") @db.Uuid
+  issueKey        String    @map("issue_key")
+  severity        String
+  status          String    @default("open")
+  summary         String
+  evidenceIds     Json      @default("[]") @map("evidence_ids")
+  authorDecision  String?   @map("author_decision")
+  decidedByUserId String?   @map("decided_by_user_id") @db.Uuid
+  decidedAt       DateTime? @map("decided_at") @db.Timestamptz(6)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([analysisJobId, issueKey])
+  @@index([workId, severity, status], map: "idx_story_continuity_issues_publish")
+  @@map("story_continuity_issues")
+}
+
 model AuditEvent {
   id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   actorUserId String?  @map("actor_user_id") @db.Uuid

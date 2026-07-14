@@ -29,6 +29,7 @@ import { ShortformsModule } from './public/shortforms/shortforms.module';
 import { RewardsModule } from './rewards/rewards.module';
 import { SiteContentModule } from './site-content/site-content.module';
 import { StoryUploadModule } from './story-upload/story-upload.module';
+import { StoryProductionModule } from './story-production/story-production.module';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { UserGiftsModule } from './user-gifts/user-gifts.module';
 import { WalletModule } from './wallet/wallet.module';
@@ -73,6 +74,7 @@ import { WalletModule } from './wallet/wallet.module';
     RewardsModule,
     SiteContentModule,
     StoryUploadModule,
+    StoryProductionModule,
     UserGiftsModule,
   ],
   controllers: [HealthController],
