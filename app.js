@@ -303,6 +303,13 @@ const I18N_DICT = {
   "footer.terms": { "ko-KR": "이용약관", "ja-JP": "利用規約", "en-US": "Terms of Service", "zh-CN": "服务条款", "zh-Hant": "服務條款" },
   "footer.privacy": { "ko-KR": "개인정보처리방침", "ja-JP": "プライバシーポリシー", "en-US": "Privacy Policy", "zh-CN": "隐私政策", "zh-Hant": "隱私權政策" },
   "footer.refund": { "ko-KR": "환불 정책", "ja-JP": "返金ポリシー", "en-US": "Refund Policy", "zh-CN": "退款政策", "zh-Hant": "退款政策" },
+  "footer.tagline": {
+    "ko-KR": "아티스트와 팬이 같은 무대에서 만나는 공간입니다.",
+    "en-US": "Where artists and fans meet on the same stage.",
+    "ja-JP": "アーティストとファンが同じステージで出会う場所です。",
+    "zh-CN": "艺人与粉丝在同一舞台相遇的地方。",
+    "zh-Hant": "藝人與粉絲在同一舞台相遇的地方。"
+  },
   "footer.businessInquiry": { "ko-KR": "Business Inquiry", "ja-JP": "Business Inquiry", "en-US": "Business Inquiry", "zh-CN": "商务合作", "zh-Hant": "商務合作" },
   "footer.businessInquiry.helper": {
     "ko-KR": "브랜드 협업, IP 제휴, 제작 문의는 Lumina Stage 비즈니스 채널로 연결됩니다.",
