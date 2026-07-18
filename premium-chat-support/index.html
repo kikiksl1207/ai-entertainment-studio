@@ -3,13 +3,13 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Premium Chat Support | Lumina Stage</title>
+    <title data-i18n="chat.donation.documentTitle">Premium Chat Support | Lumina Stage</title>
     <link rel="canonical" href="https://www.lumina-stage.com/premium-chat-support" />
     <script>(function(){if(window.history&&history.replaceState&&location.pathname.length>1&&location.pathname.charAt(location.pathname.length-1)==="/"){history.replaceState(null,"",location.pathname.slice(0,-1)+location.search+location.hash);}})();</script>
     <link rel="stylesheet" href="/styles.css" />
     <link rel="stylesheet" href="/styles/character-chat.css" />
     <link rel="stylesheet" href="/styles/premium-chat-support.css" />
-    <meta name="description" content="Lumina Stage premium chat support preview." />
+    <meta name="description" content="Lumina Stage premium chat support information." data-i18n-attr="content:chat.donation.metaDescription" />
     <meta name="robots" content="noindex, nofollow" />
   </head>
   <body class="page-character-chat premium-chat-support-page is-booting">
@@ -39,19 +39,19 @@
 
     <main class="premium-support-main">
       <section class="premium-support-head" aria-labelledby="premiumSupportTitle">
-        <p class="premium-support-eyebrow">Premium Chat</p>
-        <h1 id="premiumSupportTitle">후원 안내 미리보기</h1>
-        <p>프리미엄 채팅의 후원 금액, 본인확인 조건, 환불 안내를 읽기 전용으로 확인합니다.</p>
-        <a class="premium-support-link" href="/character-chat">캐릭터챗으로 돌아가기</a>
+        <p class="premium-support-eyebrow" data-i18n="chat.donation.eyebrow">프리미엄 채팅</p>
+        <h1 id="premiumSupportTitle" data-i18n="chat.donation.heading">후원 안내</h1>
+        <p data-i18n="chat.donation.description">후원 금액과 이용 조건을 확인할 수 있어요.</p>
+        <a class="premium-support-link" href="/character-chat" data-i18n="chat.donation.backToChat">캐릭터챗으로 돌아가기</a>
       </section>
 
-      <section class="premium-support-panel" aria-label="프리미엄챗 후원 상태">
-        <div class="donation-step-bar" id="donationStepBar" aria-label="후원 단계">
-          <span class="ds-step is-active" id="donationStep1">금액 선택</span>
+      <section class="premium-support-panel" aria-label="프리미엄챗 후원 안내" data-i18n-aria="chat.donation.panelAria">
+        <div class="donation-step-bar" id="donationStepBar" aria-label="후원 단계" data-i18n-aria="chat.donation.steps">
+          <span class="ds-step is-active" id="donationStep1" data-i18n="chat.donation.step.amount">금액 선택</span>
           <span class="ds-arrow" aria-hidden="true">→</span>
-          <span class="ds-step" id="donationStep2">내용 확인</span>
+          <span class="ds-step" id="donationStep2" data-i18n="chat.donation.step.review">내용 확인</span>
           <span class="ds-arrow" aria-hidden="true">→</span>
-          <span class="ds-step" id="donationStep3">후원 완료</span>
+          <span class="ds-step" id="donationStep3" data-i18n="chat.donation.step.complete">후원 완료</span>
         </div>
 
         <div class="donation-status" id="donationStatusBanner" data-state="loading" aria-live="polite">
@@ -60,45 +60,45 @@
         </div>
 
         <fieldset class="donation-fixed">
-          <legend>고정 후원 금액</legend>
-          <div class="donation-fixed-grid" id="donationFixedAmounts" role="radiogroup" aria-label="고정 후원 금액 선택"></div>
+          <legend data-i18n="chat.donation.fixed.legend">고정 후원 금액</legend>
+          <div class="donation-fixed-grid" id="donationFixedAmounts" role="radiogroup" aria-label="고정 후원 금액 선택" data-i18n-aria="chat.donation.fixed.aria"></div>
         </fieldset>
 
         <fieldset class="donation-custom">
-          <legend>직접 입력</legend>
+          <legend data-i18n="chat.donation.custom.legend">직접 입력</legend>
           <label class="donation-custom-field">
-            <span>후원 금액 (L)</span>
-            <input type="number" id="donationCustomAmount" min="1" max="50000" step="1" inputmode="numeric" placeholder="1 ~ 50,000" aria-describedby="donationCustomHint" />
+            <span data-i18n="chat.donation.custom.label">후원 금액 (L)</span>
+            <input type="number" id="donationCustomAmount" min="1" max="50000" step="1" inputmode="numeric" placeholder="1 ~ 50,000" data-i18n-attr="placeholder:chat.donation.custom.placeholder" aria-describedby="donationCustomHint" />
           </label>
           <p class="donation-custom-hint" id="donationCustomHint">최소 1L, 최대 50,000L까지 정수만 입력할 수 있어요.</p>
         </fieldset>
 
         <fieldset class="donation-message">
-          <legend>메시지</legend>
+          <legend data-i18n="chat.donation.message.legend">메시지</legend>
           <label class="donation-message-field">
-            <textarea id="donationMessage" maxlength="200" rows="3" placeholder="응원 메시지를 미리 작성해 볼 수 있어요." aria-describedby="donationMessageHint"></textarea>
+            <textarea id="donationMessage" maxlength="200" rows="3" placeholder="응원 메시지를 작성할 수 있어요." data-i18n-attr="placeholder:chat.donation.message.placeholder" aria-describedby="donationMessageHint"></textarea>
             <span class="donation-message-counter" id="donationMessageCounter" aria-live="polite">0 / 200</span>
           </label>
-          <p class="donation-message-hint" id="donationMessageHint">이 화면은 preview입니다. 실제 제출은 열리지 않습니다.</p>
+          <p class="donation-message-hint" id="donationMessageHint" data-i18n="chat.donation.message.hint">현재는 후원 요청을 보낼 수 없어요.</p>
         </fieldset>
 
         <div class="donation-summary" id="donationSummary" aria-live="polite">
-          <span class="donation-summary-amount">금액을 선택하면 합계가 표시됩니다.</span>
+          <span class="donation-summary-amount" data-i18n="chat.donation.summary.empty">금액을 선택하면 합계가 표시됩니다.</span>
         </div>
 
         <div class="donation-policy" id="donationPolicyInfo">
           <ul>
             <li id="donationPolicyHighValue">10,000L 이상은 본인확인 안내가 필요합니다.</li>
-            <li id="donationPolicyBlockedStates">신고 또는 운영 검토 중인 방에서는 후원이 잠길 수 있어요.</li>
-            <li id="donationPolicy24h">24시간 미응답 상태는 환불 검토 대상입니다.</li>
-            <li id="donationPolicyRefundRate">정책 사유 발생 시 환불 금액은 조건에 따라 제한될 수 있어요.</li>
+            <li id="donationPolicyBlockedStates" data-i18n="chat.donation.policy.blocked">신고 또는 운영 검토 중인 방에서는 후원이 잠길 수 있어요.</li>
+            <li id="donationPolicy24h" data-i18n="chat.donation.policy.unanswered">24시간 미응답 상태는 환불 검토 대상입니다.</li>
+            <li id="donationPolicyRefundRate" data-i18n="chat.donation.policy.refund">정책 사유 발생 시 환불 금액은 조건에 따라 제한될 수 있어요.</li>
           </ul>
         </div>
 
         <footer class="premium-support-actions">
-          <a class="dm-sheet-secondary" href="/premium-chat-hub">허브 보기</a>
+          <a class="dm-sheet-secondary" href="/premium-chat-hub" data-i18n="chat.donation.hub">허브 보기</a>
           <button type="button" class="dm-sheet-primary" id="donationConfirmBtn" disabled aria-disabled="true">
-            <span id="donationConfirmLabel">후원 안내 확인</span>
+            <span id="donationConfirmLabel" data-i18n="chat.donation.action.info">후원 안내 확인</span>
           </button>
         </footer>
       </section>
@@ -107,21 +107,21 @@
     <div class="dm-modal-backdrop" id="donationConfirmBackdrop" hidden></div>
     <div class="dm-modal donation-confirm-modal" id="donationConfirmModal" role="dialog" aria-modal="true" aria-labelledby="donationConfirmTitle" hidden>
       <header class="dm-modal-head">
-        <h2 id="donationConfirmTitle">고액 후원 확인</h2>
+        <h2 id="donationConfirmTitle" data-i18n="chat.donation.confirm.title">고액 후원 확인</h2>
       </header>
       <div class="dm-modal-body">
-        <p>아래 금액으로 후원할지 확인합니다.</p>
+        <p data-i18n="chat.donation.confirm.body">아래 금액의 후원 조건을 확인합니다.</p>
         <p class="donation-confirm-amount" id="donationConfirmAmount">0L</p>
         <ul class="donation-confirm-checks">
-          <li id="donationConfirmIdentity">본인확인이 필요한 금액입니다.</li>
-          <li id="donationConfirmDaily">일일 한도 안에서만 진행됩니다.</li>
-          <li>정책 사유가 있으면 환불 범위가 제한될 수 있어요.</li>
+          <li id="donationConfirmIdentity" data-i18n="chat.donation.confirm.identity">본인확인이 필요한 금액입니다.</li>
+          <li id="donationConfirmDaily" data-i18n="chat.donation.confirm.daily">일일 한도 안에서만 진행됩니다.</li>
+          <li data-i18n="chat.donation.policy.refund">정책 사유가 있으면 환불 범위가 제한될 수 있어요.</li>
         </ul>
-        <p class="donation-confirm-note" id="donationConfirmNote">preview에서는 진행 버튼이 잠겨 있습니다.</p>
+        <p class="donation-confirm-note" id="donationConfirmNote" data-i18n="chat.donation.confirm.note">현재는 후원 진행이 잠겨 있어요.</p>
       </div>
       <footer class="dm-modal-foot">
-        <button type="button" class="dm-sheet-secondary" data-donation-confirm-cancel>다시 보기</button>
-        <button type="button" class="dm-sheet-primary" id="donationConfirmProceed" disabled aria-disabled="true">진행 잠금</button>
+        <button type="button" class="dm-sheet-secondary" data-donation-confirm-cancel data-i18n="chat.donation.confirm.cancel">다시 보기</button>
+        <button type="button" class="dm-sheet-primary" id="donationConfirmProceed" disabled aria-disabled="true" data-i18n="chat.donation.proceedLocked">후원 준비 중</button>
       </footer>
     </div>
 
@@ -129,7 +129,7 @@
       <div class="shell footer-inner">
         <div>
           <strong>Lumina Stage</strong>
-          <p>Artists and fans meet on the same stage.</p>
+          <p data-i18n="footer.tagline">아티스트와 팬이 같은 무대에서 만나는 공간입니다.</p>
         </div>
         <div class="footer-links">
           <a href="/characters" data-i18n="footer.artistRoster">Artist Roster</a>
