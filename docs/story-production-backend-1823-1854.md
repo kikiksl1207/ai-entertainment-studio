@@ -6,6 +6,7 @@ This delivery turns the existing Story Stage contracts into server-owned product
 
 - `GET /api/v1/stories` returns a cursor-bounded published catalog with five-locale fallback.
 - `GET /api/v1/stories/:slug` returns published parts, entitlement-aware actions, replay state, and ending records.
+- `GET /api/v1/me/stories/:workId/access` returns the authenticated reader's server-priced access, purchase/resume/reset/ending actions, and AI allowance without performing a mutation.
 - `POST /api/v1/stories/:workId/purchase` grants a server entitlement through an atomic, idempotent wallet debit.
 - `POST /api/v1/stories/:workId/progress` supports continue, restart, and previously seen checkpoints without replay charges.
 - `GET /api/v1/me/story-progress/:progressId` returns only the current scene's short beats, visual manifest, visible choices, direct-next hints, and a bounded path tail.
@@ -16,6 +17,7 @@ Only `published`, non-fixture works, parts, scenes, and public asset manifests c
 
 ## Creator APIs
 
+- `GET /api/v1/me/creator-studio/stories` returns only the authenticated owner's non-fixture works as title-centered selector items with creator permissions. The UI must bind the returned `workId`; it must not ask for a manually entered work ID.
 - `GET /api/v1/stories/:workId/graph` is owner-only and returns a bounded neighbourhood around one scene.
 - `POST /api/v1/me/creator-studio/stories/:workId/manuscripts` stores an immutable structured paste with stable content hashing.
 - `POST /api/v1/me/creator-studio/manuscripts/:manuscriptId/analyses` runs idempotent versioned structural analysis.
@@ -27,4 +29,4 @@ Structured analysis recognizes paragraph and dialogue boundaries plus explicit `
 
 ## Verification
 
-Run `npm run build`, the story production tests, and `npm run qa:story-production-release`. The release command emits only a run ID, public path, status, and boolean checks. Applying migration `0048_story_production_backend` and exercising a real published story require a configured staging database and an approved non-secret test identity; no credential material belongs in reports.
+Run `npm run build`, the story production tests, `npm run qa:story-production-release`, and `npm run qa:story-access-projections`. The QA commands emit only a run ID, public path, status, boolean checks, and mutation status. Applying migration `0048_story_production_backend` and exercising a real published story require a configured staging database and an approved non-secret test identity; no credential material belongs in reports.

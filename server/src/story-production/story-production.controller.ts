@@ -49,6 +49,25 @@ export class StoryProductionController {
     return this.stories.catalog(request.user?.id, query);
   }
 
+  @Get('me/creator-studio/stories')
+  @UseGuards(JwtAuthGuard)
+  creatorCatalog(
+    @CurrentUser() user: AuthUser,
+    @Query() query: StoryCatalogQueryDto,
+  ) {
+    return this.stories.creatorCatalog(user.id, query);
+  }
+
+  @Get('me/stories/:workId/access')
+  @UseGuards(JwtAuthGuard)
+  readerAccess(
+    @CurrentUser() user: AuthUser,
+    @Param('workId') workId: string,
+    @Query() query: StoryLocaleQueryDto,
+  ) {
+    return this.stories.readerAccess(user.id, workId, query);
+  }
+
   @Get('stories/:workId/graph')
   @UseGuards(JwtAuthGuard)
   graph(

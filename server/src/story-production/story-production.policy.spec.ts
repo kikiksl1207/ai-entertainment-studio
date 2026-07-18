@@ -2,11 +2,13 @@ import {
   analyzeStructuredManuscript,
   assertPublicProjectionHasNoFixtureMarkers,
   boundedPath,
+  creatorStorySelectionPermissions,
   deriveContinuityLedger,
   hasActiveEntitlement,
   isPublicStorySourceSafe,
   manuscriptContentHash,
   projectLocalizedValue,
+  projectStoryAccess,
 } from './story-production.policy';
 
 describe('story production policy', () => {
@@ -98,5 +100,62 @@ describe('story production policy', () => {
         now,
       ),
     ).toBe(false);
+  });
+
+  it('projects free, purchased, and signed-out actions without client inference', () => {
+    expect(
+      projectStoryAccess({
+        authenticated: true,
+        entitled: false,
+        isFree: true,
+        priceLumina: '0',
+      }),
+    ).toMatchObject({
+      status: 'free',
+      accessible: true,
+      pricing: { amountLumina: '0', currencyCode: 'LUMINA', free: true },
+      actions: { primary: 'start', canPurchase: false, canStart: true },
+    });
+    expect(
+      projectStoryAccess({
+        authenticated: true,
+        entitled: true,
+        isFree: false,
+        priceLumina: '120',
+        hasProgress: true,
+        endingCount: 2,
+      }),
+    ).toMatchObject({
+      status: 'entitled',
+      actions: {
+        primary: 'continue',
+        canContinue: true,
+        canReset: true,
+        canViewEndings: true,
+      },
+      endingCount: 2,
+    });
+    expect(
+      projectStoryAccess({
+        authenticated: false,
+        entitled: false,
+        isFree: false,
+        priceLumina: '120',
+      }),
+    ).toMatchObject({
+      status: 'sign_in_required',
+      actions: { primary: 'sign_in', authenticationRequired: true },
+    });
+  });
+
+  it('keeps publication outside the creator work selection permission set', () => {
+    expect(creatorStorySelectionPermissions()).toEqual({
+      createManuscript: true,
+      requestAnalysis: true,
+      reviewContinuity: true,
+      openFinalReview: true,
+      publish: false,
+      finalSubmissionRequiresReviewState: true,
+    });
   });
 });
