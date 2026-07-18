@@ -118,6 +118,20 @@ export const STORY_SCENE_ALLOWED_RESPONSE_FIELDS = [
   'fallbackKey',
 ] as const;
 
+export const STORY_PRODUCTION_CURRENT_SCENE_ALLOWED_RESPONSE_FIELDS = [
+  'progressId',
+  'status',
+  'revision',
+  'storyVersion',
+  'currentAct',
+  'currentBeatPosition',
+  'part',
+  'scene',
+  'choices',
+  'path',
+  'releaseCapability',
+] as const;
+
 export const STORY_SCENE_ALLOWED_BACKGROUND_ASSET_FIELDS = [
   'assetId',
   'url',
@@ -351,20 +365,20 @@ export function getStorySceneFixtureReadModel(
 
 export const STORY_SCENE_CURRENT_SCENE_ENDPOINT_DELTA_CONTRACT = {
   version: '2026-06-30.story-scene-current-scene-endpoint-delta.v1',
-  status: 'read_endpoint_delta_contract',
+  status: 'production_read_endpoint',
   endpoint: {
     method: 'GET',
     path: '/api/v1/story-sessions/:sessionId/current-scene',
-    enabled: false,
+    enabled: true,
     authRequired: true,
-    response: 'StorySceneReadModel',
+    response: 'StoryProductionCurrentSceneProjection',
   },
-  allowedResponseFields: STORY_SCENE_ALLOWED_RESPONSE_FIELDS,
+  allowedResponseFields: STORY_PRODUCTION_CURRENT_SCENE_ALLOWED_RESPONSE_FIELDS,
   allowedBackgroundAssetFields: STORY_SCENE_ALLOWED_BACKGROUND_ASSET_FIELDS,
   allowedCharacterFields: STORY_SCENE_ALLOWED_CHARACTER_FIELDS,
   sourceCompatibility: {
-    sharesProjectionWithSceneList: true,
-    fixtureProjectionReusable: true,
+    sharesProjectionWithSceneList: false,
+    fixtureProjectionReusable: false,
     sceneAssetContractCompatible: true,
   },
   privacy: {

@@ -56,7 +56,7 @@ export class StoryProductionController {
     @Param('workId') workId: string,
     @Query() query: StoryGraphQueryDto,
   ) {
-    return this.stories.graph(user.id, workId, query.focusSceneId);
+    return this.stories.graph(user.id, workId, query.focusSceneId, query.locale);
   }
 
   @Post('stories/:workId/purchase')
@@ -97,6 +97,16 @@ export class StoryProductionController {
     @Query() query: StoryLocaleQueryDto,
   ) {
     return this.stories.currentProgress(user.id, progressId, query.locale);
+  }
+
+  @Get('story-sessions/:sessionId/current-scene')
+  @UseGuards(JwtAuthGuard)
+  currentScene(
+    @CurrentUser() user: AuthUser,
+    @Param('sessionId') sessionId: string,
+    @Query() query: StoryLocaleQueryDto,
+  ) {
+    return this.stories.currentProgress(user.id, sessionId, query.locale);
   }
 
   @Post('me/story-progress/:progressId/beat')
