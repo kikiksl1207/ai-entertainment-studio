@@ -25,11 +25,13 @@ import {
 import {
   analyzeStructuredManuscript,
   boundedPath,
+  creatorStorySelectionPermissions,
   deriveContinuityLedger,
   hasActiveEntitlement,
   isPublicStorySourceSafe,
   manuscriptContentHash,
   projectLocalizedValue,
+  projectStoryAccess,
 } from './story-production.policy';
 import { sessionKeyHash, storyPathSignature } from './story-lifecycle.policy';
 import { StoryEconomicsService } from './story-economics.service';
@@ -48,6 +50,45 @@ export class StoryProductionService {
     private readonly prisma: PrismaService,
     @Optional() private readonly economics?: StoryEconomicsService,
   ) {}
+
+  async creatorCatalog(userId: string, query: StoryCatalogQueryDto) {
+    const rows = await this.prisma.storyWork.findMany({
+      where: { ownerUserId: userId, fixtureSource: false },
+      select: {
+        id: true,
+        slug: true,
+        status: true,
+        defaultLocale: true,
+        title: true,
+        summary: true,
+        activeReleaseId: true,
+        publishedAt: true,
+        updatedAt: true,
+      },
+      orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
+      cursor: query.cursor ? { id: query.cursor } : undefined,
+      skip: query.cursor ? 1 : 0,
+      take: query.limit + 1,
+    });
+    const page = rows.slice(0, query.limit);
+
+    return {
+      items: page.map((row) => ({
+        workId: row.id,
+        slug: row.slug,
+        title: projectLocalizedValue(row.title, query.locale, row.defaultLocale),
+        summary: projectLocalizedValue(row.summary, query.locale, row.defaultLocale),
+        publication: {
+          status: row.status,
+          published: row.status === 'published' && Boolean(row.activeReleaseId),
+          publishedAt: row.publishedAt,
+        },
+        permissions: creatorStorySelectionPermissions(),
+        updatedAt: row.updatedAt,
+      })),
+      nextCursor: rows.length > query.limit ? page.at(-1)?.id ?? null : null,
+    };
+  }
 
   async catalog(userId: string | undefined, query: StoryCatalogQueryDto) {
     const rows = await this.prisma.storyWork.findMany({
@@ -94,6 +135,18 @@ export class StoryProductionService {
       userId,
       page.map((row) => row.id),
     );
+    const progressRows =
+      userId && page.length
+        ? await this.prisma.storyReaderProgress.findMany({
+            where: { userId, workId: { in: page.map((row) => row.id) } },
+            select: {
+              workId: true,
+              currentSceneId: true,
+              visitedEndingKeys: true,
+            },
+          })
+        : [];
+    const progressByWorkId = new Map(progressRows.map((row) => [row.workId, row]));
     const capabilities = this.economics
       ? new Map(
           await Promise.all(
@@ -109,7 +162,7 @@ export class StoryProductionService {
       items: page.map((row) => {
         const title = projectLocalizedValue(row.title, query.locale, row.defaultLocale);
         const summary = projectLocalizedValue(row.summary, query.locale, row.defaultLocale);
-        const entitled = entitledIds.has(row.id);
+        const progress = progressByWorkId.get(row.id);
         return {
           id: row.id,
           slug: row.slug,
@@ -117,11 +170,13 @@ export class StoryProductionService {
           summary,
           cover: row.coverManifest,
           publishedAt: row.publishedAt,
-          access: {
-            entitled,
-            priceLumina: entitled ? null : row.priceLumina.toString(),
-            purchaseAction: entitled ? null : 'purchase',
-          },
+          access: this.accessProjection(
+            row.priceLumina,
+            entitledIds.has(row.id),
+            Boolean(userId),
+            Boolean(progress?.currentSceneId),
+            jsonStringArray(progress?.visitedEndingKeys).length,
+          ),
           releaseCapability: capabilities?.get(row.id) ?? null,
         };
       }),
@@ -165,7 +220,8 @@ export class StoryProductionService {
     });
     const referenceIds = [work.id, ...parts.map((part) => part.id)];
     const entitledIds = await this.entitledReferenceIds(userId, referenceIds);
-    const workEntitled = entitledIds.has(work.id) || work.priceLumina.isZero();
+    const workEntitlementGranted = entitledIds.has(work.id);
+    const workAccessible = workEntitlementGranted || work.priceLumina.isZero();
     const progress = userId
       ? await this.prisma.storyReaderProgress.findUnique({
           where: { userId_workId: { userId, workId: work.id } },
@@ -190,30 +246,35 @@ export class StoryProductionService {
       summary: projectLocalizedValue(work.summary, query.locale, work.defaultLocale),
       cover: work.coverManifest,
       parts: parts.map((part) => {
-        const entitled = workEntitled || entitledIds.has(part.id) || part.priceLumina.isZero();
+        const entitlementGranted = workEntitlementGranted || entitledIds.has(part.id);
         return {
           id: part.id,
           seasonKey: part.seasonKey,
           position: part.position,
           title: projectLocalizedValue(part.title, query.locale, work.defaultLocale),
-          access: {
-            entitled,
-            priceLumina: entitled ? null : part.priceLumina.toString(),
-            purchaseAction: entitled ? null : 'purchase',
-          },
+          access: this.accessProjection(
+            part.priceLumina,
+            entitlementGranted,
+            Boolean(userId),
+            false,
+            0,
+            work.priceLumina.isZero() || part.priceLumina.isZero(),
+          ),
         };
       }),
-      access: {
-        entitled: workEntitled,
-        priceLumina: workEntitled ? null : work.priceLumina.toString(),
-        purchaseAction: workEntitled ? null : 'purchase',
-      },
+      access: this.accessProjection(
+        work.priceLumina,
+        workEntitlementGranted,
+        Boolean(userId),
+        Boolean(progress?.currentSceneId),
+        endingRecords.length,
+      ),
       replay: userId
         ? {
             continue: Boolean(progress?.currentSceneId),
-            restart: workEntitled,
+            restart: workAccessible,
             checkpoint: Boolean(progress?.checkpointSceneId),
-            branchReplay: workEntitled,
+            branchReplay: workAccessible,
             chargeRequired: false,
             newAiPathGeneration: {
               separateUsage: true,
@@ -223,6 +284,48 @@ export class StoryProductionService {
         : null,
       endingRecords,
       releaseCapability,
+    };
+  }
+
+  async readerAccess(
+    userId: string,
+    workId: string,
+    query: StoryLocaleQueryDto,
+  ) {
+    const work = await this.publicWorkById(workId);
+    const [entitlementGranted, progress, aiCapability] = await Promise.all([
+      this.hasEntitlement(userId, [work.id]),
+      this.prisma.storyReaderProgress.findUnique({
+        where: { userId_workId: { userId, workId: work.id } },
+        select: {
+          id: true,
+          currentSceneId: true,
+          checkpointSceneId: true,
+          visitedEndingKeys: true,
+        },
+      }),
+      this.economics ? this.economics.readerCapability(userId, work.id) : null,
+    ]);
+    const endingCount = jsonStringArray(progress?.visitedEndingKeys).length;
+
+    return {
+      workId: work.id,
+      slug: work.slug,
+      title: projectLocalizedValue(work.title, query.locale, work.defaultLocale),
+      access: this.accessProjection(
+        work.priceLumina,
+        entitlementGranted,
+        true,
+        Boolean(progress?.currentSceneId),
+        endingCount,
+      ),
+      replay: {
+        continue: Boolean(progress?.currentSceneId),
+        checkpoint: Boolean(progress?.checkpointSceneId),
+        reset: Boolean(progress),
+        endingCount,
+      },
+      aiCapability,
     };
   }
 
@@ -833,6 +936,32 @@ export class StoryProductionService {
     });
     if (!release) throw new NotFoundException('Published story not found');
     return work;
+  }
+
+  private accessProjection(
+    priceLumina: Decimal,
+    entitlementGranted: boolean,
+    authenticated: boolean,
+    hasProgress = false,
+    endingCount = 0,
+    freeOverride?: boolean,
+  ) {
+    const projection = projectStoryAccess({
+      authenticated,
+      entitled: entitlementGranted,
+      isFree: freeOverride ?? priceLumina.isZero(),
+      priceLumina: priceLumina.toString(),
+      hasProgress,
+      endingCount,
+    });
+
+    return {
+      ...projection,
+      entitled: projection.accessible,
+      entitlementGranted,
+      priceLumina: projection.accessible ? null : projection.pricing.amountLumina,
+      purchaseAction: projection.accessible ? null : 'purchase',
+    };
   }
 
   private async assertOwner(userId: string, workId: string) {

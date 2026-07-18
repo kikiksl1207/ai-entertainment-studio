@@ -183,6 +183,66 @@ export function hasActiveEntitlement(
   );
 }
 
+export function projectStoryAccess(input: {
+  authenticated: boolean;
+  entitled: boolean;
+  isFree: boolean;
+  priceLumina: string;
+  hasProgress?: boolean;
+  endingCount?: number;
+}) {
+  const accessible = input.entitled || input.isFree;
+  const hasProgress = Boolean(input.hasProgress);
+  const endingCount = Math.max(0, input.endingCount ?? 0);
+  const status = input.entitled
+    ? 'entitled'
+    : input.isFree
+      ? 'free'
+      : input.authenticated
+        ? 'purchase_required'
+        : 'sign_in_required';
+  const primaryAction = !input.authenticated
+    ? 'sign_in'
+    : !accessible
+      ? 'purchase'
+      : hasProgress
+        ? 'continue'
+        : 'start';
+
+  return {
+    status,
+    accessible,
+    entitled: input.entitled,
+    pricing: {
+      amountLumina: input.priceLumina,
+      currencyCode: 'LUMINA',
+      free: input.isFree,
+    },
+    actions: {
+      primary: primaryAction,
+      authenticationRequired: !input.authenticated,
+      canPurchase: input.authenticated && !accessible,
+      canStart: input.authenticated && accessible,
+      canContinue: input.authenticated && accessible && hasProgress,
+      canRestart: input.authenticated && accessible,
+      canReset: input.authenticated && accessible && hasProgress,
+      canViewEndings: input.authenticated && endingCount > 0,
+    },
+    endingCount,
+  };
+}
+
+export function creatorStorySelectionPermissions() {
+  return {
+    createManuscript: true,
+    requestAnalysis: true,
+    reviewContinuity: true,
+    openFinalReview: true,
+    publish: false,
+    finalSubmissionRequiresReviewState: true,
+  };
+}
+
 function normalizeLocale(value: string): StoryLocale {
   return STORY_LOCALES.includes(value as StoryLocale) ? (value as StoryLocale) : 'ko';
 }

@@ -27,6 +27,7 @@ import {
   storyBudgetDecision,
   validateStoryReleaseCapability,
 } from './story-economics.policy';
+import { isPublicStorySourceSafe } from './story-production.policy';
 
 type CustomChoiceContext = {
   progress: {
@@ -1188,12 +1189,34 @@ export class StoryEconomicsService {
 
   async readerCapability(userId: string, workId: string) {
     const work = await this.prisma.storyWork.findFirst({
-      where: { id: workId, status: 'published', activeReleaseId: { not: null } },
+      where: {
+        id: workId,
+        status: 'published',
+        fixtureSource: false,
+        activeReleaseId: { not: null },
+        publishedAt: { lte: new Date() },
+      },
     });
-    if (!work) throw new NotFoundException('Published story not found');
-    const capability = await this.prisma.storyReleaseCapability.findUnique({
-      where: { releaseId: work.activeReleaseId! },
-    });
+    if (
+      !work ||
+      !isPublicStorySourceSafe({
+        fixtureSource: work.fixtureSource,
+        slug: work.slug,
+        manifest: work.coverManifest,
+      })
+    ) {
+      throw new NotFoundException('Published story not found');
+    }
+    const [activeRelease, capability] = await Promise.all([
+      this.prisma.storyRelease.findFirst({
+        where: { id: work.activeReleaseId!, workId: work.id, status: 'active' },
+        select: { id: true },
+      }),
+      this.prisma.storyReleaseCapability.findUnique({
+        where: { releaseId: work.activeReleaseId! },
+      }),
+    ]);
+    if (!activeRelease) throw new NotFoundException('Published story not found');
     if (!capability || capability.status !== 'active') {
       return this.failClosedCapability();
     }

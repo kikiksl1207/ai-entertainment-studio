@@ -5,6 +5,7 @@ import { StoryEconomicsService } from './story-economics.service';
 describe('StoryEconomicsService', () => {
   const prisma = {
     storyWork: { findFirst: jest.fn() },
+    storyRelease: { findFirst: jest.fn() },
     storyReleaseCapability: { findUnique: jest.fn() },
     storyAiAllowanceBucket: { findUnique: jest.fn() },
     storyAiContinuation: { findFirst: jest.fn() },
@@ -18,8 +19,12 @@ describe('StoryEconomicsService', () => {
   it('returns a fail-closed reader capability when release config is missing', async () => {
     prisma.storyWork.findFirst.mockResolvedValue({
       id: 'work-id',
+      slug: 'published-story',
+      fixtureSource: false,
+      coverManifest: { url: '/public/story/cover.webp' },
       activeReleaseId: 'release-id',
     });
+    prisma.storyRelease.findFirst.mockResolvedValue({ id: 'release-id' });
     prisma.storyReleaseCapability.findUnique.mockResolvedValue(null);
 
     await expect(service.readerCapability('user-id', 'work-id')).resolves.toEqual({
