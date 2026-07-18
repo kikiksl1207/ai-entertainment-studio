@@ -10,6 +10,19 @@
 let _userProfileData = null;
 let _userProfilePostsCursor = null;
 
+const PROFILE_FIXTURE_COPY = Object.freeze({
+  ko: { member: "루미나 멤버", profile: "공개 프로필", bio: "루미나 Stage에서 좋아하는 아티스트와 이야기를 나누고 있어요.", emptyTitle: "아직 공개한 게시글이 없습니다.", emptyBody: "새로운 이야기가 올라오면 이곳에서 확인할 수 있어요.", handle: "lumina_circle" },
+  en: { member: "Lumina member", profile: "Public profile", bio: "Sharing moments with favorite artists on Lumina Stage.", emptyTitle: "No posts have been shared yet.", emptyBody: "New updates will appear here.", handle: "lumina_circle" },
+  ja: { member: "Lumina メンバー", profile: "公開プロフィール", bio: "Lumina Stage で好きなアーティストとの時間を楽しんでいます。", emptyTitle: "公開した投稿はまだありません。", emptyBody: "新しい投稿はここで確認できます。", handle: "lumina_circle" },
+  "zh-Hans": { member: "Lumina 会员", profile: "公开资料", bio: "正在 Lumina Stage 与喜欢的艺人分享日常。", emptyTitle: "暂未发布内容。", emptyBody: "新的动态会显示在这里。", handle: "lumina_circle" },
+  "zh-Hant": { member: "Lumina 會員", profile: "公開資料", bio: "正在 Lumina Stage 與喜歡的藝人分享日常。", emptyTitle: "暫未發布內容。", emptyBody: "新的動態會顯示在這裡。", handle: "lumina_circle" }
+});
+
+function profileFixtureT(key) {
+  const locale = window.luminaI18n?.getLocale?.() || "ko";
+  return PROFILE_FIXTURE_COPY[locale]?.[key] || PROFILE_FIXTURE_COPY.ko[key] || key;
+}
+
 const FEED_PROFILE_FIXTURE_FAN_NAMES = ["루미나_민지", "무대앞_해든", "조용한_관객", "서랍속_별", "오늘의_픽러", "팬클럽_여울"];
 
 const FOLLOW_PROFILE_FIXTURE_DEFAULT_HANDLE = "qa-fb-qa-20260629-run1-target";
@@ -75,8 +88,8 @@ function buildFollowProfileFixture(params) {
   const requestedHandle = normalizeFixtureHandle(params.get("handle"));
   const hasExplicitTarget = Boolean(params.get("handle") || params.get("id"));
   const isSelfFixture = !hasExplicitTarget;
-  const handle = isSelfFixture ? "qa-fb-qa-20260629-run1-viewer" : requestedHandle;
-  const displayName = isSelfFixture ? "관계 미리보기 계정" : "팔로워 미리보기 프로필";
+  const handle = isSelfFixture || requestedHandle.startsWith("qa-") ? profileFixtureT("handle") : requestedHandle;
+  const displayName = isSelfFixture ? profileFixtureT("member") : profileFixtureT("profile");
 
   return {
     fixture: {
@@ -88,7 +101,7 @@ function buildFollowProfileFixture(params) {
       id: isSelfFixture ? "qa-fixture-viewer" : "qa-fixture-target",
       displayName,
       publicHandle: handle,
-      bio: "팔로워와 팔로잉 흐름을 안전하게 미리 볼 수 있는 공개 프로필입니다.",
+      bio: profileFixtureT("bio"),
       avatarUrl: null,
       coverImageUrl: null,
     },
@@ -121,13 +134,22 @@ function renderFollowProfileFixturePosts() {
   if (empty) {
     empty.hidden = false;
     empty.style.display = "block";
-    empty.innerHTML = "<strong>관계 미리보기 프로필입니다.</strong><p>게시글은 아직 준비 중이며, 팔로우와 차단 흐름은 화면 안내만 확인할 수 있어요.</p>";
+    empty.innerHTML = "<strong>" + profileFixtureT("emptyTitle") + "</strong><p>" + profileFixtureT("emptyBody") + "</p>";
   }
   if (loadMore) {
     loadMore.hidden = true;
     loadMore.style.display = "none";
   }
 }
+
+window.addEventListener("lumina:localechange", () => {
+  const params = new URLSearchParams(window.location.search || "");
+  if (!userProfileUsesFollowFixture(params)) return;
+  const fixture = buildFollowProfileFixture(params);
+  _userProfileData = fixture;
+  renderUserProfileCard(fixture);
+  renderFollowProfileFixturePosts();
+});
 
 function buildFeedProfileFixture(handle, userId) {
   const normalizedHandle = String(handle || "").trim();
