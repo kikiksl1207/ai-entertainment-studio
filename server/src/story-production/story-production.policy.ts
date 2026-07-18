@@ -55,6 +55,61 @@ export function boundedPath<T>(path: T[], limit = 24): T[] {
   return path.slice(-Math.max(1, Math.min(limit, 50)));
 }
 
+const STORY_GRAPH_WARNING_MESSAGE_KEYS = {
+  entry_scene_missing: 'story.graph.warning.entrySceneMissing',
+  choice_source_scene_missing: 'story.graph.warning.choiceSourceMissing',
+  choice_next_scene_missing: 'story.graph.warning.choiceTargetMissing',
+  nonterminal_scene_without_choices: 'story.graph.warning.danglingScene',
+  immediate_unpreserved_convergence:
+    'story.graph.warning.unpreservedConvergence',
+  graph_cycle: 'story.graph.warning.cycle',
+  scene_unreachable: 'story.graph.warning.sceneUnreachable',
+  ending_missing: 'story.graph.warning.endingMissing',
+  ending_scene_missing: 'story.graph.warning.endingSceneMissing',
+  ending_unreachable: 'story.graph.warning.endingUnreachable',
+  terminal_scene_ending_missing: 'story.graph.warning.terminalEndingMissing',
+} as const;
+
+export function projectStoryGraphValidationSummary(value: unknown) {
+  const summary = isRecord(value) ? value : {};
+  const graph = isRecord(summary.graph) ? summary.graph : {};
+  const rawCodes = Array.isArray(graph.violationCodes)
+    ? graph.violationCodes
+    : Array.isArray(summary.violationCodes)
+      ? summary.violationCodes
+      : [];
+  const warnings = [...new Set(
+    rawCodes
+      .filter((code): code is string => typeof code === 'string')
+      .map((code) => code.split(':', 1)[0])
+      .filter(
+        (code): code is keyof typeof STORY_GRAPH_WARNING_MESSAGE_KEYS =>
+          code in STORY_GRAPH_WARNING_MESSAGE_KEYS,
+      ),
+  )]
+    .slice(0, 20)
+    .map((code) => ({
+      code,
+      severity: 'error' as const,
+      messageKey: STORY_GRAPH_WARNING_MESSAGE_KEYS[code],
+    }));
+  const blockingIssueCount = finiteNonNegativeInteger(
+    summary.blockingIssueCount ?? graph.blockingIssueCount,
+  );
+  const available =
+    Object.keys(summary).length > 0 || Object.keys(graph).length > 0;
+
+  return {
+    status: !available
+      ? ('unavailable' as const)
+      : summary.ready === true && blockingIssueCount === 0 && warnings.length === 0
+        ? ('ready' as const)
+        : ('needs_attention' as const),
+    blockingIssueCount,
+    warnings,
+  };
+}
+
 export function manuscriptContentHash(value: unknown): string {
   return createHash('sha256').update(stableJson(value)).digest('hex');
 }
@@ -256,6 +311,11 @@ function collectStrings(value: unknown): string[] {
   if (Array.isArray(value)) return value.flatMap(collectStrings);
   if (isRecord(value)) return Object.values(value).flatMap(collectStrings);
   return [];
+}
+
+function finiteNonNegativeInteger(value: unknown): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? Math.floor(parsed) : 0;
 }
 
 function stableJson(value: unknown): string {

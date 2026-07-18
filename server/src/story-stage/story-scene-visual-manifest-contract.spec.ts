@@ -1,5 +1,6 @@
 import {
   findStoryChoiceVisualRouteViolations,
+  projectStoredStorySceneVisualManifest,
   projectStorySceneVisualManifest,
   STORY_SCENE_VISUAL_MANIFEST_API_CONTRACT,
 } from './story-scene-visual-manifest-contract';
@@ -70,8 +71,68 @@ describe('story scene visual manifest API contract', () => {
       rejoinGroupKey: 'rejoin-after-local-scenes',
     }));
     expect(findStoryChoiceVisualRouteViolations(explicitRejoin)).toEqual([]);
-    expect(STORY_SCENE_VISUAL_MANIFEST_API_CONTRACT.endpoint.enabled).toBe(
-      false,
+    expect(STORY_SCENE_VISUAL_MANIFEST_API_CONTRACT.endpoint).toMatchObject({
+      path: '/api/v1/story-sessions/:sessionId/current-scene',
+      enabled: true,
+      authRequired: true,
+      responseField: 'scene.visualManifest',
+    });
+  });
+
+  it('allows only safe stored manifest fields and rejects an unsafe fallback', () => {
+    const projection = projectStoredStorySceneVisualManifest(
+      {
+        sceneKey: 'scene-a',
+        background: {
+          publicAssetPath: '/assets/story/scene-a.webp',
+          altKey: 'story.visual.sceneA',
+          state: 'ready',
+          storageKey: 'private/background.webp',
+        },
+        characters: [
+          {
+            characterKey: 'lead',
+            placement: 'left',
+            expressionKey: 'story.expression.focused',
+            publicAssetPath: '../private/lead.webp',
+            providerPayload: { id: 'private-provider-id' },
+          },
+        ],
+        fallback: {
+          publicAssetPath: '/assets/story/fallback.webp',
+          altKey: 'story.visual.fallback',
+        },
+        internalPrompt: 'private prompt',
+      },
+      'scene-a',
     );
+
+    expect(projection).toEqual({
+      sceneKey: 'scene-a',
+      background: {
+        publicAssetPath: '/assets/story/scene-a.webp',
+        altKey: 'story.visual.sceneA',
+        state: 'ready',
+      },
+      characters: [
+        {
+          characterKey: 'lead',
+          placement: 'left',
+          expressionKey: 'story.expression.focused',
+          publicAssetPath: '/assets/story/fallback.webp',
+          fallbackUsed: true,
+        },
+      ],
+    });
+    expect(JSON.stringify(projection)).not.toMatch(/storage|provider|prompt/i);
+    expect(
+      projectStoredStorySceneVisualManifest(
+        {
+          sceneKey: 'scene-a',
+          fallback: { publicAssetPath: '../private.webp', altKey: 'fallback' },
+        },
+        'scene-a',
+      ),
+    ).toBeNull();
   });
 });

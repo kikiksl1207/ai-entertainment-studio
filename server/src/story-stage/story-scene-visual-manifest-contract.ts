@@ -86,6 +86,52 @@ export function projectStorySceneVisualManifest(
   };
 }
 
+export function projectStoredStorySceneVisualManifest(
+  value: unknown,
+  expectedSceneKey: string,
+): StorySceneVisualManifestProjection | null {
+  const manifest = record(value);
+  const background = record(manifest?.background);
+  const fallback = record(manifest?.fallback);
+  const sceneKey = text(manifest?.sceneKey);
+  const fallbackAssetPath = text(fallback?.publicAssetPath);
+  const fallbackAltKey = text(fallback?.altKey);
+  if (
+    sceneKey !== expectedSceneKey ||
+    !isSafePublicAssetPath(fallbackAssetPath) ||
+    !fallbackAltKey
+  ) {
+    return null;
+  }
+
+  const backgroundState = text(background?.state);
+  const source: StorySceneVisualManifestSource = {
+    sceneKey,
+    background: {
+      publicAssetPath: text(background?.publicAssetPath),
+      altKey: text(background?.altKey) || fallbackAltKey,
+      state: isVisualAssetState(backgroundState) ? backgroundState : 'missing',
+    },
+    characters: (Array.isArray(manifest?.characters) ? manifest.characters : [])
+      .map((item) => record(item))
+      .filter((item): item is Record<string, unknown> => Boolean(item))
+      .map((item) => ({
+        characterKey: text(item.characterKey),
+        placement: placement(item.placement),
+        expressionKey: text(item.expressionKey),
+        publicAssetPath: text(item.publicAssetPath),
+      }))
+      .filter((item) => Boolean(item.characterKey && item.expressionKey))
+      .slice(0, 4),
+    fallback: {
+      publicAssetPath: fallbackAssetPath,
+      altKey: fallbackAltKey,
+    },
+  };
+
+  return projectStorySceneVisualManifest(source);
+}
+
 export function findStoryChoiceVisualRouteViolations(
   routes: readonly StoryChoiceVisualRoute[],
 ): string[] {
@@ -122,11 +168,13 @@ export function findStoryChoiceVisualRouteViolations(
 
 export const STORY_SCENE_VISUAL_MANIFEST_API_CONTRACT = {
   version: '2026-07-11.story-scene-visual-manifest.v1',
-  status: 'read_only_contract',
+  status: 'production_read_projection',
   endpoint: {
     method: 'GET',
-    path: '/api/v1/story-stage/scenes/:sceneKey/visual-manifest',
-    enabled: false,
+    path: '/api/v1/story-sessions/:sessionId/current-scene',
+    enabled: true,
+    authRequired: true,
+    responseField: 'scene.visualManifest',
   },
   projectionFields: ['sceneKey', 'background', 'characters'],
   backgroundFields: ['publicAssetPath', 'altKey', 'state'],
@@ -156,3 +204,25 @@ export const STORY_SCENE_VISUAL_MANIFEST_API_CONTRACT = {
     storyProgressMutation: false,
   },
 } as const;
+
+function record(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function text(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function isVisualAssetState(value: string): value is StoryVisualAssetState {
+  return ['ready', 'loading', 'missing', 'fallback'].includes(value);
+}
+
+function placement(
+  value: unknown,
+): 'left' | 'center' | 'right' | 'offscreen' {
+  return ['left', 'center', 'right', 'offscreen'].includes(String(value))
+    ? (value as 'left' | 'center' | 'right' | 'offscreen')
+    : 'offscreen';
+}

@@ -21,6 +21,7 @@ import {
   STORY_SCENE_PROVIDER_GUARD_CONTRACT,
   STORY_SCENE_READ_MODEL_CONTRACT,
   STORY_STAGE_LIVE_FIXTURE_EXPOSURE_GUARD_CONTRACT,
+  STORY_PRODUCTION_CURRENT_SCENE_ALLOWED_RESPONSE_FIELDS,
 } from './story-scene-read-model';
 import { STORY_STAGE_CONTRACT } from './story-stage-contract';
 
@@ -226,7 +227,7 @@ describe('Story scene read model fixtures', () => {
     ).toBe(true);
   });
 
-  it('defines current-scene endpoint delta with the same safe read model fields', () => {
+  it('enables the authenticated production current-scene projection', () => {
     expect(STORY_SCENE_READ_MODEL_CONTRACT.currentSceneEndpointDelta).toBe(
       STORY_SCENE_CURRENT_SCENE_ENDPOINT_DELTA_CONTRACT,
     );
@@ -234,13 +235,14 @@ describe('Story scene read model fixtures', () => {
       {
         method: 'GET',
         path: '/api/v1/story-sessions/:sessionId/current-scene',
-        enabled: false,
+        enabled: true,
         authRequired: true,
+        response: 'StoryProductionCurrentSceneProjection',
       },
     );
     expect(
       STORY_SCENE_CURRENT_SCENE_ENDPOINT_DELTA_CONTRACT.allowedResponseFields,
-    ).toBe(STORY_SCENE_ALLOWED_RESPONSE_FIELDS);
+    ).toBe(STORY_PRODUCTION_CURRENT_SCENE_ALLOWED_RESPONSE_FIELDS);
     expect(
       Object.values(
         STORY_SCENE_CURRENT_SCENE_ENDPOINT_DELTA_CONTRACT.mutationPolicy,

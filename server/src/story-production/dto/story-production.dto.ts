@@ -42,6 +42,10 @@ export class StoryGraphQueryDto {
   @IsOptional()
   @IsUUID()
   focusSceneId?: string;
+
+  @IsOptional()
+  @IsIn(STORY_LOCALES)
+  locale = 'ko';
 }
 
 export class StartStoryProgressDto {
