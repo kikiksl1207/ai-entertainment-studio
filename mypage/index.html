@@ -627,12 +627,12 @@
         }
         const SAFE_ACCOUNT_STATE_FIXTURES = {
           verified: {
-            title: "인증이 완료된 계정",
-            body: "이메일 인증과 비밀번호 설정이 완료되어 기본 안내가 안정적으로 보이는 상태입니다.",
+            title: "계정 확인이 완료되었습니다",
+            body: "이메일과 비밀번호 설정이 완료되었습니다.",
             user: {
-              displayName: "안전 검수 계정",
+              displayName: "루미나 멤버",
               emailPublicLabel: "이메일 비공개",
-              publicAccountLabel: "공개 검수 계정",
+              publicAccountLabel: "공개 계정",
               emailVerified: true,
               hasPassword: true,
               isSocialOnly: false,
@@ -642,11 +642,11 @@
           },
           unverified: {
             title: "이메일 인증이 필요한 계정",
-            body: "개인 이메일 주소를 표시하지 않고 인증 필요 안내와 재발송 버튼 배치를 확인하는 상태입니다.",
+            body: "이메일 인증을 마치면 계정 기능을 이용할 수 있습니다.",
             user: {
-              displayName: "인증 대기 계정",
+              displayName: "루미나 멤버",
               emailPublicLabel: "이메일 비공개",
-              publicAccountLabel: "공개 검수 계정",
+              publicAccountLabel: "공개 계정",
               emailVerified: false,
               hasPassword: true,
               isSocialOnly: false,
@@ -656,11 +656,11 @@
           },
           "social-only": {
             title: "소셜 로그인 전용 계정",
-            body: "비밀번호 재설정이 아니라 비밀번호 설정 안내로 보이는지 확인하는 상태입니다.",
+            body: "비밀번호는 연결한 소셜 계정에서 관리할 수 있습니다.",
             user: {
-              displayName: "소셜 전용 계정",
+              displayName: "루미나 멤버",
               emailPublicLabel: "이메일 비공개",
-              publicAccountLabel: "공개 검수 계정",
+              publicAccountLabel: "공개 계정",
               emailVerified: true,
               hasPassword: false,
               isSocialOnly: true,
@@ -671,11 +671,11 @@
           },
           "no-password": {
             title: "비밀번호 설정이 필요한 계정",
-            body: "이메일 계정이지만 아직 비밀번호가 없는 상태의 안내와 CTA를 확인합니다.",
+            body: "비밀번호를 설정하면 이메일 로그인도 이용할 수 있습니다.",
             user: {
-              displayName: "설정 대기 계정",
+              displayName: "루미나 멤버",
               emailPublicLabel: "이메일 비공개",
-              publicAccountLabel: "공개 검수 계정",
+              publicAccountLabel: "공개 계정",
               emailVerified: true,
               hasPassword: false,
               isSocialOnly: false,
@@ -685,11 +685,11 @@
           },
           "identity-pending": {
             title: "본인확인 대기 계정",
-            body: "데뷔, 프리미엄, 정산 전 본인확인 안내가 다른 계정 안내와 겹치지 않는지 확인합니다.",
+            body: "확인이 끝나면 필요한 기능을 이어서 이용할 수 있습니다.",
             user: {
-              displayName: "본인확인 대기 계정",
+              displayName: "루미나 멤버",
               emailPublicLabel: "이메일 비공개",
-              publicAccountLabel: "공개 검수 계정",
+              publicAccountLabel: "공개 계정",
               emailVerified: true,
               hasPassword: true,
               isSocialOnly: false,
@@ -700,22 +700,41 @@
           }
         };
 
+        function accountFixtureT(key, fallback) {
+          const fullKey = "account.guidance." + key;
+          const translated = window.luminaI18n?.t?.(fullKey);
+          return translated && translated !== fullKey ? translated : fallback;
+        }
+
         function getSafeAccountStateFixture() {
           const params = new URLSearchParams(location.search);
           const raw = (params.get("accountfixture") || params.get("accountFixture") || "").trim().toLowerCase();
           const key = { verified_email: "verified", unverified_email: "unverified", social_only: "social-only", no_password: "no-password", identity_pending: "identity-pending" }[raw] || raw;
           const fixture = SAFE_ACCOUNT_STATE_FIXTURES[key];
           if (!fixture) return null;
+          const copyKey = { "social-only": "social", "no-password": "noPassword", "identity-pending": "identityPending" }[key] || key;
+          const actionKey = {
+            verified: "continue",
+            unverified: "verifyEmail",
+            "social-only": "manageSocial",
+            "no-password": "setPassword",
+            "identity-pending": "reviewIdentity"
+          }[key];
           const user = {
             ...fixture.user,
+            displayName: accountFixtureT("member", fixture.user.displayName),
+            emailPublicLabel: accountFixtureT("emailPrivate", fixture.user.emailPublicLabel),
+            publicAccountLabel: accountFixtureT("publicAccount", fixture.user.publicAccountLabel),
+            identityStatusLabel: accountFixtureT(key === "identity-pending" ? "identityPending" : "identityNone", fixture.user.identityStatusLabel),
+            recommendedActionLabel: accountFixtureT("action." + actionKey, fixture.user.recommendedActionLabel),
             safeAccountFixture: true,
             accountFixtureState: key
           };
           return {
             safeAccountFixture: true,
             fixtureKey: key,
-            fixtureTitle: fixture.title,
-            fixtureBody: fixture.body,
+            fixtureTitle: accountFixtureT("fixture." + copyKey + ".title", fixture.title),
+            fixtureBody: accountFixtureT("fixture." + copyKey + ".body", fixture.body),
             user,
             wallet: { cachedBalance: 0, lumina: { balance: 0 }, stella: { displayAmount: 0 } },
             activity: { followingArtists: [], followingArtistsCount: 0 },
@@ -754,16 +773,16 @@
           banner.dataset.emailVerified = String(user.emailVerified === true);
           banner.dataset.socialOnly = String(user.isSocialOnly === true);
           banner.dataset.hasPassword = String(user.hasPassword === true);
-          banner.innerHTML = "<span>ACCOUNT STATE</span><strong>" +
-            escapeHtml(summary.fixtureTitle || "계정 상태 확인") +
+          banner.innerHTML = "<span>" + escapeHtml(accountFixtureT("heading", "계정 안내")) + "</span><strong>" +
+            escapeHtml(summary.fixtureTitle || accountFixtureT("heading", "계정 안내")) +
             "</strong><p>" +
             escapeHtml(summary.fixtureBody || "") +
-            "</p><dl><div><dt>이메일</dt><dd>" +
-            escapeHtml(user.emailVerified ? "인증 완료" : "인증 필요") +
-            "</dd></div><div><dt>비밀번호</dt><dd>" +
-            escapeHtml(user.isSocialOnly ? "소셜 계정에서 관리" : (user.hasPassword ? "설정 완료" : "설정 필요")) +
-            "</dd></div><div><dt>본인확인</dt><dd>" +
-            escapeHtml(user.identityStatusLabel || "해당 없음") +
+            "</p><dl><div><dt>" + escapeHtml(window.luminaI18n?.t?.("auth.modal.email") || "이메일") + "</dt><dd>" +
+            escapeHtml(accountFixtureT(user.emailVerified ? "emailVerified" : "emailRequired", user.emailVerified ? "인증 완료" : "인증 필요")) +
+            "</dd></div><div><dt>" + escapeHtml(window.luminaI18n?.t?.("auth.modal.password") || "비밀번호") + "</dt><dd>" +
+            escapeHtml(accountFixtureT(user.isSocialOnly ? "passwordSocial" : (user.hasPassword ? "passwordReady" : "passwordRequired"), user.isSocialOnly ? "소셜 계정에서 관리" : (user.hasPassword ? "설정 완료" : "설정 필요"))) +
+            "</dd></div><div><dt>" + escapeHtml(accountFixtureT("identity", "본인확인")) + "</dt><dd>" +
+            escapeHtml(user.identityStatusLabel || accountFixtureT("identityNone", "추가 확인 없음")) +
             "</dd></div></dl>";
         }
 
@@ -1699,16 +1718,16 @@
             const verified = user.emailVerified === true;
             if (badge) {
               badge.hidden = false;
-              badge.textContent = verified ? "인증 완료" : "인증 필요";
+              badge.textContent = accountFixtureT(verified ? "emailVerified" : "emailRequired", verified ? "인증 완료" : "인증 필요");
               badge.dataset.state = verified ? "ok" : "warn";
             }
             if (verified) {
-              title.textContent = "이메일 인증이 완료된 상태예요";
-              body.textContent = "안전한 검수 상태에서 인증 완료 안내를 확인하고 있어요. 개인 이메일 주소는 표시하지 않습니다.";
+              title.textContent = accountFixtureT("emailCard.verified.title", "이메일 인증이 완료되었습니다");
+              body.textContent = accountFixtureT("emailCard.verified.body", "개인 이메일 주소는 보호됩니다.");
               if (resendBtn) { resendBtn.hidden = true; resendBtn.disabled = true; resendBtn.dataset.email = ""; }
             } else {
-              title.textContent = "이메일 인증이 아직 필요해요";
-              body.textContent = "인증 메일 재발송 영역을 확인하는 안전한 검수 상태입니다. 메일 발송이나 계정 조회는 실행하지 않습니다.";
+              title.textContent = accountFixtureT("emailCard.required.title", "이메일 인증이 필요합니다");
+              body.textContent = accountFixtureT("emailCard.required.body", "받은편지함을 확인하거나 인증 메일을 다시 요청해 주세요.");
               if (resendBtn) {
                 resendBtn.hidden = false;
                 resendBtn.disabled = true;
@@ -1716,7 +1735,7 @@
                 resendBtn.dataset.email = "";
               }
               if (note) {
-                note.textContent = "검수용 fixture라 메일은 발송하지 않습니다.";
+                note.textContent = accountFixtureT("emailCard.note", "이메일 인증은 계정 설정에서 진행할 수 있습니다.");
                 note.hidden = false;
               }
             }
