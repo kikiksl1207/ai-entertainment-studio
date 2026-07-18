@@ -45,3 +45,17 @@ Rejected requests are compared against before/after persistence counts. Source
 tests additionally pin all three rejection paths before object or database
 writes. Output is limited to a generated run ID, the public API path, status,
 check booleans, and whether a mutation was attempted.
+
+## Imjin Final Upload Readiness
+
+`npm.cmd run qa:imjin-final-upload-readiness` is a read-only gate for the
+controlled Imjin War final upload. It verifies that the approved manuscript and
+conversion metadata are readable, approval is recorded, pricing is free,
+choice slots are limited to 1/2/3, custom choice is disabled, and the private
+staging origin, session, and persistence inspection are configured.
+
+The command does not print source paths, manuscript content, metadata content,
+session material, or database configuration. Its output is limited to a run ID,
+the public intake path, status, check booleans, and `mutationExecuted: false`.
+Only a `ready_for_controlled_upload` result may proceed to the separately
+approved private upload session.
