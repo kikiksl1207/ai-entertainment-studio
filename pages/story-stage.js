@@ -16,6 +16,7 @@
       loadErrorTitle: "스토리를 불러오지 못했습니다",
       loadErrorBody: "잠시 후 다시 시도해 주세요.",
       completed: "완결",
+      published: "공개 중",
       serializing: "연재 중",
       hiatus: "휴재",
       seasonEnded: "시즌 완결",
@@ -51,6 +52,7 @@
       loadErrorTitle: "Stories could not be loaded",
       loadErrorBody: "Please try again shortly.",
       completed: "Completed",
+      published: "Published",
       serializing: "Ongoing",
       hiatus: "On hiatus",
       seasonEnded: "Season complete",
@@ -86,6 +88,7 @@
       loadErrorTitle: "ストーリーを読み込めませんでした",
       loadErrorBody: "しばらくしてからもう一度お試しください。",
       completed: "完結",
+      published: "公開中",
       serializing: "連載中",
       hiatus: "休載",
       seasonEnded: "シーズン完結",
@@ -121,6 +124,7 @@
       loadErrorTitle: "无法加载故事",
       loadErrorBody: "请稍后重试。",
       completed: "已完结",
+      published: "已发布",
       serializing: "连载中",
       hiatus: "暂停更新",
       seasonEnded: "本季完结",
@@ -156,6 +160,7 @@
       loadErrorTitle: "無法載入故事",
       loadErrorBody: "請稍後重試。",
       completed: "已完結",
+      published: "已發佈",
       serializing: "連載中",
       hiatus: "暫停更新",
       seasonEnded: "本季完結",
@@ -339,11 +344,12 @@
   }
 
   function lifecycleLabel(status) {
-    return tr({ completed: "completed", serializing: "serializing", hiatus: "hiatus", season_ended: "seasonEnded" }[status] || "completed");
+    return tr({ published: "published", completed: "completed", serializing: "serializing", hiatus: "hiatus", season_ended: "seasonEnded" }[status] || "published");
   }
 
   function pricingLabel(mode) {
-    return tr(mode === "paid" ? "paid" : mode === "mixed" ? "mixed" : "free");
+    if (mode === "paid" || mode === "mixed" || mode === "free") return tr(mode);
+    return "";
   }
 
   function renderLoading(message = tr("loading")) {
@@ -360,7 +366,7 @@
   }
 
   function coverUrl(pack) {
-    return pack?.coverImageUrl || pack?.coverUrl || pack?.cover?.publicUrl || "";
+    return pack?.coverImageUrl || pack?.coverUrl || pack?.cover?.publicUrl || pack?.cover?.url || "";
   }
 
   function packTitle(pack) {
@@ -385,7 +391,7 @@
   }
 
   function relativeStoryPath(value) {
-    return typeof value === "string" && /^\/api\/v1\/story-sessions\//.test(value) ? value : "";
+    return typeof value === "string" && /^\/api\/v1\/me\/story-progress\//.test(value) ? value : "";
   }
 
   function customChoiceCapability(scene) {
@@ -450,13 +456,14 @@
           const title = packTitle(pack);
           const cover = coverUrl(pack);
           const slug = packSlug(pack);
+          const pricing = pricingLabel(pack.pricingMode);
           if (!title || !slug) return "";
           return `
             <article class="story-pack-card">
               <button type="button" class="story-pack-open" data-pack-slug="${escapeHtml(slug)}" aria-label="${escapeHtml(`${tr("open")}: ${title}`)}">
                 <span class="story-pack-cover${cover ? " has-image" : ""}">${cover ? `<img src="${escapeHtml(cover)}" alt="" loading="lazy" />` : ""}</span>
                 <span class="story-pack-copy">
-                  <span class="story-pack-status"><b>${escapeHtml(lifecycleLabel(pack.lifecycleStatus))}</b><em>${escapeHtml(pricingLabel(pack.pricingMode))}</em></span>
+                  <span class="story-pack-status"><b>${escapeHtml(lifecycleLabel(pack.lifecycleStatus))}</b>${pricing ? `<em>${escapeHtml(pricing)}</em>` : ""}</span>
                   <strong>${escapeHtml(title)}</strong>
                   ${packSummary(pack) ? `<p>${escapeHtml(packSummary(pack))}</p>` : ""}
                   <small>${escapeHtml(`${Number(pack.chapterCount || pack.partCount || 0)} ${tr("chapters")}`)}</small>
@@ -472,7 +479,8 @@
     if (!pack) return renderCatalog();
     const title = packTitle(pack);
     const cover = coverUrl(pack);
-    const chapters = Array.isArray(pack.chapters) ? pack.chapters : [];
+    const pricing = pricingLabel(pack.pricingMode);
+    const chapters = Array.isArray(pack.parts) ? pack.parts : Array.isArray(pack.chapters) ? pack.chapters : [];
     const progress = state.progress || progressProjection(pack);
     const resumeSessionId = progress?.canResume === true ? safeSessionId(progress.sessionId || progress.resumeSessionId) : "";
     root.innerHTML = `
@@ -481,10 +489,10 @@
         <div class="story-detail-main">
           <div class="story-detail-cover${cover ? " has-image" : ""}">${cover ? `<img src="${escapeHtml(cover)}" alt="${escapeHtml(title)}" />` : ""}</div>
           <div class="story-detail-copy">
-            <div class="story-pack-status"><b>${escapeHtml(lifecycleLabel(pack.lifecycleStatus))}</b><em>${escapeHtml(pricingLabel(pack.pricingMode))}</em></div>
+            <div class="story-pack-status"><b>${escapeHtml(lifecycleLabel(pack.lifecycleStatus))}</b>${pricing ? `<em>${escapeHtml(pricing)}</em>` : ""}</div>
             <h2>${escapeHtml(title)}</h2>
             ${packSummary(pack) ? `<h3>${escapeHtml(tr("synopsis"))}</h3><p>${escapeHtml(packSummary(pack))}</p>` : ""}
-            <button type="button" class="story-button story-button-primary" ${resumeSessionId ? `data-story-resume="${escapeHtml(resumeSessionId)}"` : `data-story-start data-pack-slug="${escapeHtml(packSlug(pack))}"`}>${escapeHtml(resumeSessionId ? tr("continue") : tr("start"))}</button>
+            <button type="button" class="story-button story-button-primary" ${resumeSessionId ? `data-story-resume="${escapeHtml(resumeSessionId)}"` : "data-story-start"}>${escapeHtml(resumeSessionId ? tr("continue") : tr("start"))}</button>
             ${resumeSessionId ? `<p class="story-resume-label">${escapeHtml(textValue(progress.checkpointLabel) || controlTr("resumeFrom"))}</p>` : ""}
             <p class="story-action-status" data-story-action-status aria-live="polite"></p>
             ${renderResetControls(progress)}
@@ -493,7 +501,7 @@
         ${chapters.length ? `
           <section class="story-chapters">
             <h3>${escapeHtml(tr("chapterList"))}</h3>
-            <ol>${chapters.map((chapter) => `<li><span>${escapeHtml(String(chapter.chapterNo || chapter.partNo || chapter.no || ""))}</span><strong>${escapeHtml(textValue(chapter.title) || textValue(chapter.summary))}</strong></li>`).join("")}</ol>
+            <ol>${chapters.map((chapter) => `<li><span>${escapeHtml(String(chapter.position || chapter.chapterNo || chapter.partNo || chapter.no || ""))}</span><strong>${escapeHtml(textValue(chapter.title) || textValue(chapter.summary))}</strong></li>`).join("")}</ol>
         </section>` : ""}
         ${renderResetDialog()}
       </section>`;
@@ -512,7 +520,7 @@
     if (!scene) return renderState(tr("sceneFailed"), tr("loadErrorBody"), true);
     const background = sceneBackground(scene);
     const characters = Array.isArray(scene.characters) ? scene.characters.filter((item) => characterUrl(item)) : [];
-    const sceneText = textValue(scene.sceneText) || textValue(scene.body) || textValue(scene.content);
+    const sceneText = textValue(scene.sceneText) || textValue(scene.body) || textValue(scene.content) || (Array.isArray(scene.beats) ? scene.beats.map((beat) => textValue(beat.content)).filter(Boolean).join("\n\n") : "");
     const isEnding = Boolean(scene.ending || scene.isEnding || scene.endingType);
     const customChoice = customChoiceCapability(scene);
     const fixedChoices = state.choices.slice(0, 3);
@@ -558,7 +566,7 @@
     state.pack = null;
     renderLoading();
     try {
-      const payload = await request(`/api/v1/story-packs?locale=${encodeURIComponent(state.locale)}`);
+      const payload = await request(`/api/v1/stories?locale=${encodeURIComponent(state.locale)}`);
       state.packs = listFrom(payload).filter((pack) => packSlug(pack) && packTitle(pack));
       const requestedSlug = new URLSearchParams(location.search).get("slug") || new URLSearchParams(location.search).get("pack");
       if (requestedSlug) return loadPack(requestedSlug);
@@ -572,7 +580,7 @@
   async function loadPack(slug) {
     renderLoading();
     try {
-      state.pack = await request(`/api/v1/story-packs/${encodeURIComponent(slug)}?locale=${encodeURIComponent(state.locale)}`);
+      state.pack = await request(`/api/v1/stories/${encodeURIComponent(slug)}?locale=${encodeURIComponent(state.locale)}`);
     } catch (_) {
       state.pack = state.packs.find((pack) => packSlug(pack) === slug) || null;
     }
@@ -583,19 +591,19 @@
     renderPack();
   }
 
-  async function startStory(slug) {
-    if (state.busy || !slug) return;
+  async function startStory() {
+    const workId = typeof state.pack?.id === "string" ? state.pack.id : "";
+    if (state.busy || !workId) return;
     state.busy = true;
     const status = root.querySelector("[data-story-action-status]");
     if (status) status.textContent = tr("starting");
     try {
-      const payload = await request(`/api/v1/story-packs/${encodeURIComponent(slug)}/sessions`, {
+      const payload = await request(`/api/v1/stories/${encodeURIComponent(workId)}/progress`, {
         method: "POST",
         auth: true,
-        headers: { "Idempotency-Key": `story-start-${slug}-${Date.now()}` },
-        body: { locale: state.locale },
+        body: { mode: "continue", locale: state.locale },
       });
-      const sessionId = payload?.sessionId || payload?.id || payload?.session?.id;
+      const sessionId = payload?.progressId || payload?.id;
       if (!sessionId) throw new Error("Missing session id");
       location.href = `/story-stage?sessionId=${encodeURIComponent(sessionId)}`;
     } catch (error) {
@@ -607,9 +615,10 @@
   async function loadScene() {
     renderLoading(tr("sceneLoading"));
     try {
-      state.scene = await request(`/api/v1/story-sessions/${encodeURIComponent(state.sessionId)}/current-scene`, { auth: true });
-      state.choices = Array.isArray(state.scene?.choices) ? state.scene.choices : listFrom(await request(`/api/v1/story-sessions/${encodeURIComponent(state.sessionId)}/choices`, { auth: true }));
-      state.progress = progressProjection(state.scene) || state.progress;
+      const payload = await request(`/api/v1/me/story-progress/${encodeURIComponent(state.sessionId)}?locale=${encodeURIComponent(state.locale)}`, { auth: true });
+      state.scene = payload?.scene || null;
+      state.choices = Array.isArray(payload?.choices) ? payload.choices : [];
+      state.progress = payload || state.progress;
       state.customChoiceOpen = false;
       renderScene();
     } catch (_) {
@@ -618,16 +627,15 @@
   }
 
   async function submitChoice(choiceId) {
-    if (state.busy || !choiceId || !state.scene?.sceneId) return;
+    if (state.busy || !choiceId || !state.scene?.id || !Number.isInteger(state.progress?.revision)) return;
     state.busy = true;
     const status = root.querySelector("[data-story-action-status]");
     if (status) status.textContent = tr("choosing");
     try {
-      await request(`/api/v1/story-sessions/${encodeURIComponent(state.sessionId)}/scenes/${encodeURIComponent(state.scene.sceneId)}/choices`, {
+      await request(`/api/v1/me/story-progress/${encodeURIComponent(state.sessionId)}/choices/${encodeURIComponent(choiceId)}?locale=${encodeURIComponent(state.locale)}`, {
         method: "POST",
         auth: true,
-        headers: { "Idempotency-Key": `story-choice-${state.sessionId}-${state.scene.sceneId}-${choiceId}` },
-        body: { choiceId },
+        body: { expectedRevision: state.progress.revision },
       });
       state.busy = false;
       await loadScene();
@@ -715,7 +723,7 @@
       return;
     }
     const startButton = event.target.closest("[data-story-start]");
-    if (startButton) return startStory(startButton.dataset.packSlug);
+    if (startButton) return startStory();
     const resumeButton = event.target.closest("[data-story-resume]");
     if (resumeButton) return location.assign(`/story-stage?sessionId=${encodeURIComponent(resumeButton.dataset.storyResume)}`);
     const choiceButton = event.target.closest("[data-choice-id]");
