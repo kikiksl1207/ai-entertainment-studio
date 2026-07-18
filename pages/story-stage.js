@@ -41,6 +41,15 @@
       ending: "엔딩",
       backToStories: "스토리 목록",
       loginRequired: "로그인 후 시작할 수 있습니다.",
+      graphTitle: "Branch preview",
+      graphDescription: "Current scene and direct next routes",
+      graphFocus: "Current scene",
+      graphChoices: "Choices",
+      graphNext: "Next scene",
+      graphEnding: "Ending",
+      graphWarning: "This branch needs review before publication.",
+      graphEmpty: "No direct branches are available for this scene.",
+      graphFailed: "The branch preview could not be loaded.",
     },
     en: {
       title: "Stories",
@@ -77,6 +86,15 @@
       ending: "Ending",
       backToStories: "All stories",
       loginRequired: "Log in to start this story.",
+      graphTitle: "Branch preview",
+      graphDescription: "Current scene and direct next routes",
+      graphFocus: "Current scene",
+      graphChoices: "Choices",
+      graphNext: "Next scene",
+      graphEnding: "Ending",
+      graphWarning: "This branch needs review before publication.",
+      graphEmpty: "No direct branches are available for this scene.",
+      graphFailed: "The branch preview could not be loaded.",
     },
     ja: {
       title: "ストーリー",
@@ -113,6 +131,15 @@
       ending: "エンディング",
       backToStories: "ストーリー一覧",
       loginRequired: "ログイン後に開始できます。",
+      graphTitle: "Branch preview",
+      graphDescription: "Current scene and direct next routes",
+      graphFocus: "Current scene",
+      graphChoices: "Choices",
+      graphNext: "Next scene",
+      graphEnding: "Ending",
+      graphWarning: "This branch needs review before publication.",
+      graphEmpty: "No direct branches are available for this scene.",
+      graphFailed: "The branch preview could not be loaded.",
     },
     "zh-Hans": {
       title: "故事",
@@ -149,6 +176,15 @@
       ending: "结局",
       backToStories: "故事列表",
       loginRequired: "登录后即可开始。",
+      graphTitle: "Branch preview",
+      graphDescription: "Current scene and direct next routes",
+      graphFocus: "Current scene",
+      graphChoices: "Choices",
+      graphNext: "Next scene",
+      graphEnding: "Ending",
+      graphWarning: "This branch needs review before publication.",
+      graphEmpty: "No direct branches are available for this scene.",
+      graphFailed: "The branch preview could not be loaded.",
     },
     "zh-Hant": {
       title: "故事",
@@ -185,6 +221,15 @@
       ending: "結局",
       backToStories: "故事列表",
       loginRequired: "登入後即可開始。",
+      graphTitle: "Branch preview",
+      graphDescription: "Current scene and direct next routes",
+      graphFocus: "Current scene",
+      graphChoices: "Choices",
+      graphNext: "Next scene",
+      graphEnding: "Ending",
+      graphWarning: "This branch needs review before publication.",
+      graphEmpty: "No direct branches are available for this scene.",
+      graphFailed: "The branch preview could not be loaded.",
     },
   };
 
@@ -281,6 +326,9 @@
     packs: [],
     pack: null,
     sessionId: new URLSearchParams(location.search).get("sessionId") || "",
+    graphWorkId: safeGraphId(new URLSearchParams(location.search).get("workId")),
+    graphFocusSceneId: safeGraphId(new URLSearchParams(location.search).get("focusSceneId")),
+    graph: null,
     scene: null,
     choices: [],
     busy: false,
@@ -388,6 +436,11 @@
 
   function safeSessionId(value) {
     return typeof value === "string" && value.length > 0 && value.length <= 160 ? value : "";
+  }
+
+  function safeGraphId(value) {
+    const normalized = typeof value === "string" ? value.trim() : "";
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(normalized) ? normalized : "";
   }
 
   function relativeStoryPath(value) {
@@ -508,19 +561,43 @@
   }
 
   function sceneBackground(scene) {
-    return scene?.backgroundAsset?.publicUrl || scene?.backgroundAsset?.url || scene?.backgroundUrl || "";
+    return scene?.visualManifest?.background?.publicAssetPath || scene?.backgroundAsset?.publicUrl || scene?.backgroundAsset?.url || scene?.backgroundUrl || "";
   }
 
   function characterUrl(character) {
-    return character?.publicAssetUrl || character?.assetUrl || character?.imageUrl || "";
+    return character?.publicAssetPath || character?.publicAssetUrl || character?.assetUrl || character?.imageUrl || "";
+  }
+
+  function sceneCharacters(scene) {
+    const source = Array.isArray(scene?.characters)
+      ? scene.characters
+      : Array.isArray(scene?.visualManifest?.characters)
+        ? scene.visualManifest.characters
+        : [];
+    return source.filter((character) => character?.placement !== "offscreen" && characterUrl(character));
+  }
+
+  function sceneCharacterSide(character, index) {
+    const placement = character?.placement || character?.side;
+    if (placement === "center") return "center";
+    if (placement === "right") return "right";
+    return index % 2 ? "right" : "left";
+  }
+
+  function sceneBeatText(scene, position) {
+    const beats = Array.isArray(scene?.beats) ? scene.beats : [];
+    const matchingBeat = beats.find((beat) => Number(beat?.position) === Number(position));
+    const fallbackIndex = Math.max(0, Math.min(Number(position) || 0, beats.length - 1));
+    const beat = matchingBeat || beats[fallbackIndex];
+    return textValue(beat?.content) || textValue(beat?.text) || textValue(beat?.body) || textValue(scene?.sceneText) || textValue(scene?.body) || textValue(scene?.content);
   }
 
   function renderScene() {
     const scene = state.scene;
     if (!scene) return renderState(tr("sceneFailed"), tr("loadErrorBody"), true);
     const background = sceneBackground(scene);
-    const characters = Array.isArray(scene.characters) ? scene.characters.filter((item) => characterUrl(item)) : [];
-    const sceneText = textValue(scene.sceneText) || textValue(scene.body) || textValue(scene.content) || (Array.isArray(scene.beats) ? scene.beats.map((beat) => textValue(beat.content)).filter(Boolean).join("\n\n") : "");
+    const characters = sceneCharacters(scene);
+    const sceneText = sceneBeatText(scene, state.progress?.currentBeatPosition);
     const isEnding = Boolean(scene.ending || scene.isEnding || scene.endingType);
     const customChoice = customChoiceCapability(scene);
     const fixedChoices = state.choices.slice(0, 3);
@@ -530,7 +607,7 @@
         <div class="story-player-stage">
           ${background ? `<img class="story-player-background" src="${escapeHtml(background)}" alt="" />` : `<div class="story-player-no-visual">${escapeHtml(tr("sceneNoVisual"))}</div>`}
           <div class="story-player-characters" aria-hidden="true">
-            ${characters.map((character, index) => `<img src="${escapeHtml(characterUrl(character))}" alt="" data-side="${escapeHtml(character.side || (index % 2 ? "right" : "left"))}" />`).join("")}
+            ${characters.map((character, index) => `<img src="${escapeHtml(characterUrl(character))}" alt="" data-side="${escapeHtml(sceneCharacterSide(character, index))}" />`).join("")}
           </div>
           <div class="story-player-copy">
             ${isEnding ? `<span class="story-ending-label">${escapeHtml(tr("ending"))}</span>` : ""}
@@ -541,7 +618,10 @@
           <div class="story-choice-panel">
             <h2>${escapeHtml(tr("choices"))}</h2>
             <div class="story-choice-list">
-              ${fixedChoices.map((choice, index) => `<button type="button" data-choice-id="${escapeHtml(choice.choiceId || choice.id || "")}" aria-label="${escapeHtml(textValue(choice.label) || textValue(choice.choiceBody) || textValue(choice.body) || String(index + 1))}">${index + 1}</button>`).join("")}
+              ${fixedChoices.map((choice, index) => {
+                const label = textValue(choice.label) || textValue(choice.choiceBody) || textValue(choice.body) || String(index + 1);
+                return `<button type="button" data-choice-id="${escapeHtml(choice.choiceId || choice.id || "")}" aria-label="${escapeHtml(label)}"><span>${index + 1}</span>${escapeHtml(label)}</button>`;
+              }).join("")}
               ${customChoice ? `<button type="button" data-story-custom-choice>${escapeHtml(controlTr("other"))}</button>` : ""}
             </div>
             ${customChoice && state.customChoiceOpen ? `
@@ -615,7 +695,7 @@
   async function loadScene() {
     renderLoading(tr("sceneLoading"));
     try {
-      const payload = await request(`/api/v1/me/story-progress/${encodeURIComponent(state.sessionId)}?locale=${encodeURIComponent(state.locale)}`, { auth: true });
+      const payload = await request(`/api/v1/story-sessions/${encodeURIComponent(state.sessionId)}/current-scene?locale=${encodeURIComponent(state.locale)}`, { auth: true });
       state.scene = payload?.scene || null;
       state.choices = Array.isArray(payload?.choices) ? payload.choices : [];
       state.progress = payload || state.progress;
@@ -623,6 +703,73 @@
       renderScene();
     } catch (_) {
       renderState(tr("sceneFailed"), tr("loadErrorBody"), true);
+    }
+  }
+
+  function graphTitle(value) {
+    return textValue(value?.title) || "";
+  }
+
+  function graphFocusUrl() {
+    const params = new URLSearchParams({ workId: state.graphWorkId });
+    if (state.graphFocusSceneId) params.set("focusSceneId", state.graphFocusSceneId);
+    return `/story-stage?${params.toString()}`;
+  }
+
+  function renderGraphChoice(choice, index) {
+    const label = textValue(choice?.label) || `${tr("graphChoices")} ${index + 1}`;
+    const nextTitle = graphTitle(choice?.nextScene);
+    const targetId = safeGraphId(choice?.nextScene?.id || choice?.targetSceneId);
+    const detail = nextTitle || (choice?.targetEndingKey ? tr("graphEnding") : tr("graphEmpty"));
+    const body = `
+      <span class="story-graph-choice-index">${index + 1}</span>
+      <strong>${escapeHtml(label)}</strong>
+      <small>${escapeHtml(detail)}</small>`;
+    return targetId
+      ? `<button type="button" class="story-graph-choice" data-story-graph-focus="${escapeHtml(targetId)}">${body}</button>`
+      : `<article class="story-graph-choice">${body}</article>`;
+  }
+
+  function renderGraph() {
+    const graph = state.graph;
+    if (!graph?.focus) return renderState(tr("graphFailed"), tr("loadErrorBody"), true);
+    const partTitle = graphTitle(graph.part);
+    const focusTitle = graphTitle(graph.focus) || tr("graphEmpty");
+    const choices = Array.isArray(graph.choices) ? graph.choices : [];
+    const hasWarnings = Array.isArray(graph.validation?.warnings) && graph.validation.warnings.length > 0;
+    root.innerHTML = `
+      <section class="story-graph-preview" aria-label="${escapeHtml(tr("graphTitle"))}">
+        <button type="button" class="story-back story-graph-back" data-story-graph-back>${escapeHtml(tr("backToStories"))}</button>
+        <header class="story-graph-heading">
+          <p>${escapeHtml(partTitle)}</p>
+          <h2>${escapeHtml(tr("graphTitle"))}</h2>
+          <span>${escapeHtml(tr("graphDescription"))}</span>
+        </header>
+        <div class="story-graph-flow">
+          <section class="story-graph-focus">
+            <span>${escapeHtml(tr("graphFocus"))}</span>
+            <strong>${escapeHtml(focusTitle)}</strong>
+          </section>
+          <section class="story-graph-routes" aria-label="${escapeHtml(tr("graphChoices"))}">
+            <h3>${escapeHtml(tr("graphNext"))}</h3>
+            ${choices.length ? `<div class="story-graph-choice-list">${choices.map(renderGraphChoice).join("")}</div>` : `<p>${escapeHtml(tr("graphEmpty"))}</p>`}
+          </section>
+        </div>
+        ${hasWarnings ? `<p class="story-graph-warning" role="status">${escapeHtml(tr("graphWarning"))}</p>` : ""}
+      </section>`;
+  }
+
+  async function loadGraph() {
+    if (!state.graphWorkId) return loadCatalog();
+    renderLoading();
+    try {
+      const params = new URLSearchParams({ locale: state.locale });
+      if (state.graphFocusSceneId) params.set("focusSceneId", state.graphFocusSceneId);
+      state.graph = await request(`/api/v1/stories/${encodeURIComponent(state.graphWorkId)}/graph?${params.toString()}`, { auth: true });
+      history.replaceState(null, "", graphFocusUrl());
+      renderGraph();
+    } catch (_) {
+      renderState(tr("graphFailed"), tr("loadErrorBody"), true);
     }
   }
 
@@ -716,6 +863,18 @@
   root.addEventListener("click", (event) => {
     const packButton = event.target.closest("[data-pack-slug]");
     if (packButton && !packButton.matches("[data-story-start]")) return loadPack(packButton.dataset.packSlug);
+    const graphFocusButton = event.target.closest("[data-story-graph-focus]");
+    if (graphFocusButton) {
+      state.graphFocusSceneId = safeGraphId(graphFocusButton.dataset.storyGraphFocus);
+      return loadGraph();
+    }
+    if (event.target.closest("[data-story-graph-back]")) {
+      state.graphWorkId = "";
+      state.graphFocusSceneId = "";
+      state.graph = null;
+      history.replaceState(null, "", "/story-stage");
+      return loadCatalog();
+    }
     if (event.target.closest("[data-story-back]")) {
       state.pack = null;
       history.replaceState(null, "", "/story-stage");
@@ -739,7 +898,7 @@
       return renderPack();
     }
     if (event.target.closest("[data-story-reset-confirm]")) return confirmReset();
-    if (event.target.closest("[data-story-retry]")) return state.sessionId ? loadScene() : loadCatalog();
+    if (event.target.closest("[data-story-retry]")) return state.sessionId ? loadScene() : state.graphWorkId ? loadGraph() : loadCatalog();
   });
 
   root.addEventListener("input", (event) => {
@@ -761,11 +920,13 @@
     if (nextLocale === state.locale) return;
     state.locale = nextLocale;
     if (state.sessionId) return loadScene();
+    if (state.graphWorkId) return loadGraph();
     if (state.pack) return loadPack(packSlug(state.pack));
     loadCatalog();
   });
 
   updateHeading();
   if (state.sessionId) loadScene();
+  else if (state.graphWorkId) loadGraph();
   else loadCatalog();
 })();
