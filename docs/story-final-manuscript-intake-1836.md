@@ -35,6 +35,13 @@ The API receipt exposes only `submissionId`, `status`, `submissionType`,
 ## Staging Verification
 
 `npm.cmd run qa:story-upload-intake-staging` uses a disposable authenticated QA
-session supplied outside source control. It sends synthetic files, verifies an
-idempotent replay, and checks extension and size rejection. Output is limited to
-the receipt ID, status, replay flag, file count, and PASS states.
+session supplied outside source control. Run it first with
+`STORY_UPLOAD_STAGING_MODE=preflight`; the preflight reports only whether the
+origin, private session, and persistence inspection are configured and performs
+no mutation. The private run sends three synthetic files, verifies the exact
+submission/file/audit row deltas, repeats the intake to prove zero additional
+database writes, and checks extension, content-signature, and size rejection.
+Rejected requests are compared against before/after persistence counts. Source
+tests additionally pin all three rejection paths before object or database
+writes. Output is limited to a generated run ID, the public API path, status,
+check booleans, and whether a mutation was attempted.

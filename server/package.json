@@ -25,6 +25,7 @@
     "qa:follower-block-fixture": "node scripts/prepare-follower-block-qa-fixture.mjs",
     "qa:premium-chat-live-fixtures": "node scripts/prepare-premium-chat-live-qa-fixtures.mjs",
     "qa:story-upload-intake-staging": "node scripts/verify-story-upload-intake-staging.mjs",
+    "qa:story-stage-no-raw-key": "node scripts/verify-story-stage-no-raw-key.mjs",
     "qa:story-production-release": "node scripts/verify-story-production-release-guard.mjs",
     "qa:story-progress-controls": "node scripts/verify-story-progress-controls.mjs",
     "qa:story-lifecycle-release": "node scripts/verify-story-lifecycle-release.mjs",

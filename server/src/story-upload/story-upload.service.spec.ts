@@ -195,7 +195,7 @@ describe('StoryUploadService', () => {
   });
 
   it('rejects unsupported extensions and invalid signatures', async () => {
-    const { service } = setup();
+    const { service, prisma, storage } = setup();
     const input = {
       title: 'Synthetic title',
       originalLocale: 'ko',
@@ -224,6 +224,32 @@ describe('StoryUploadService', () => {
         },
       ),
     ).rejects.toBeInstanceOf(BadRequestException);
+    expect(storage.putObject).not.toHaveBeenCalled();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('rejects an oversized file before storage or database writes', async () => {
+    const { service, prisma, storage } = setup();
+    const oversized = uploadFile(
+      'final.txt',
+      'text/plain',
+      Buffer.alloc(50 * 1024 * 1024 + 1, 0x61),
+    );
+
+    await expect(
+      service.intake(
+        '22222222-2222-4222-8222-222222222222',
+        {
+          title: 'Synthetic title',
+          originalLocale: 'ko',
+          sourceClass: 'original',
+          submissionType: 'final',
+        },
+        { manuscripts: [oversized] },
+      ),
+    ).rejects.toBeInstanceOf(PayloadTooLargeException);
+    expect(storage.putObject).not.toHaveBeenCalled();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
   it('rejects licensed submissions without an internal rights reference', async () => {
