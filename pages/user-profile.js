@@ -11,11 +11,46 @@ let _userProfileData = null;
 let _userProfilePostsCursor = null;
 
 const PROFILE_FIXTURE_COPY = Object.freeze({
-  ko: { member: "루미나 멤버", profile: "공개 프로필", bio: "루미나 Stage에서 좋아하는 아티스트와 이야기를 나누고 있어요.", emptyTitle: "아직 공개한 게시글이 없습니다.", emptyBody: "새로운 이야기가 올라오면 이곳에서 확인할 수 있어요.", handle: "lumina_circle" },
-  en: { member: "Lumina member", profile: "Public profile", bio: "Sharing moments with favorite artists on Lumina Stage.", emptyTitle: "No posts have been shared yet.", emptyBody: "New updates will appear here.", handle: "lumina_circle" },
-  ja: { member: "Lumina メンバー", profile: "公開プロフィール", bio: "Lumina Stage で好きなアーティストとの時間を楽しんでいます。", emptyTitle: "公開した投稿はまだありません。", emptyBody: "新しい投稿はここで確認できます。", handle: "lumina_circle" },
-  "zh-Hans": { member: "Lumina 会员", profile: "公开资料", bio: "正在 Lumina Stage 与喜欢的艺人分享日常。", emptyTitle: "暂未发布内容。", emptyBody: "新的动态会显示在这里。", handle: "lumina_circle" },
-  "zh-Hant": { member: "Lumina 會員", profile: "公開資料", bio: "正在 Lumina Stage 與喜歡的藝人分享日常。", emptyTitle: "暫未發布內容。", emptyBody: "新的動態會顯示在這裡。", handle: "lumina_circle" }
+  ko: {
+    member: "루미나 멤버",
+    profile: "공개 프로필",
+    bio: "Lumina Stage에서 좋아하는 아티스트와 이야기를 나누고 있어요.",
+    emptyTitle: "아직 공개한 글이 없어요.",
+    emptyBody: "새로운 이야기가 올라오면 이곳에서 확인할 수 있어요.",
+    handle: "lumina_circle"
+  },
+  en: {
+    member: "Lumina member",
+    profile: "Public profile",
+    bio: "Sharing moments with favorite artists on Lumina Stage.",
+    emptyTitle: "No posts have been shared yet.",
+    emptyBody: "New updates will appear here.",
+    handle: "lumina_circle"
+  },
+  ja: {
+    member: "Lumina メンバー",
+    profile: "公開プロフィール",
+    bio: "Lumina Stageで好きなアーティストとの時間を楽しんでいます。",
+    emptyTitle: "まだ公開した投稿はありません。",
+    emptyBody: "新しい投稿が公開されると、ここで確認できます。",
+    handle: "lumina_circle"
+  },
+  "zh-Hans": {
+    member: "Lumina 会员",
+    profile: "公开个人资料",
+    bio: "在 Lumina Stage 分享与喜爱艺人的每一刻。",
+    emptyTitle: "还没有公开的帖子。",
+    emptyBody: "有新动态时会显示在这里。",
+    handle: "lumina_circle"
+  },
+  "zh-Hant": {
+    member: "Lumina 會員",
+    profile: "公開個人檔案",
+    bio: "在 Lumina Stage 分享與喜愛藝人的每一刻。",
+    emptyTitle: "還沒有公開的貼文。",
+    emptyBody: "有新動態時會顯示在這裡。",
+    handle: "lumina_circle"
+  }
 });
 
 function profileFixtureT(key) {
