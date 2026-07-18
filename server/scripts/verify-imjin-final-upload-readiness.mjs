@@ -14,6 +14,7 @@ const checks = {
   freePricing: false,
   fixedChoiceSlots123: false,
   customChoiceDisabled: false,
+  stagingOriginConfigured: configured('STORY_UPLOAD_STAGING_API_ORIGIN'),
   privateSessionConfigured: configured('STORY_UPLOAD_STAGING_ACCESS_TOKEN'),
   persistenceInspectionConfigured: configured('DATABASE_URL'),
 };
@@ -24,7 +25,9 @@ if (manuscriptPath) {
     checks.approvedSourceReadable =
       source.isFile() &&
       source.size > 0 &&
-      ['.md', '.txt', '.docx', '.pdf'].includes(extname(manuscriptPath).toLowerCase());
+      ['.md', '.txt', '.docx', '.pdf', '.json'].includes(
+        extname(manuscriptPath).toLowerCase(),
+      );
   } catch {
     checks.approvedSourceReadable = false;
   }
@@ -33,9 +36,10 @@ if (manuscriptPath) {
 if (metadataPath) {
   try {
     const metadata = JSON.parse(await readFile(metadataPath, 'utf8'));
-    const release = record(metadata.release) ?? metadata;
-    const choiceRoutes = Array.isArray(release.choiceRoutes)
-      ? release.choiceRoutes
+    const release = record(metadata.release) ?? record(metadata) ?? {};
+    const graph = record(release.branchGraphSnapshot) ?? release;
+    const choiceRoutes = Array.isArray(graph.choiceRoutes)
+      ? graph.choiceRoutes
       : [];
     const slots = new Set(
       choiceRoutes
@@ -44,7 +48,8 @@ if (metadataPath) {
     );
     checks.conversionMetadataReadable = true;
     checks.approvalRecorded =
-      release.approved === true || record(release.approval)?.status === 'approved';
+      release.approved === true ||
+      record(release.approval)?.status === 'approved';
     checks.freePricing =
       release.pricingMode === 'free' || Number(release.priceLumina) === 0;
     checks.fixedChoiceSlots123 =
@@ -64,7 +69,9 @@ console.log(
   JSON.stringify({
     runId: randomUUID(),
     publicPath,
-    status: ready ? 'ready_for_controlled_upload' : 'blocked_source_or_private_session',
+    status: ready
+      ? 'ready_for_controlled_upload'
+      : 'blocked_source_or_private_session',
     checks,
     mutationExecuted: false,
   }),
@@ -75,5 +82,7 @@ function configured(name) {
 }
 
 function record(value) {
-  return value && typeof value === 'object' && !Array.isArray(value) ? value : null;
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value
+    : null;
 }
