@@ -207,6 +207,9 @@ async function initUserProfilePage() {
     renderUserProfileCard(fixture);
     bindUserProfileFollow();
     renderFollowProfileFixturePosts();
+    bindUserProfileTabs();
+    const requestedTab = params.get("tab");
+    if (requestedTab) setUserProfileActiveTab(requestedTab);
     bindFollowListStatClick();
     bindFollowListModal();
     bindBlockConfirmModal();
