@@ -10,3 +10,5 @@ This delivery connects the production release architecture to persisted server A
 - Quality events are written by server story operations with hashed session keys and allowlisted aggregate dimensions. They contain no manuscript text, private choice content, provider payload, or user identifier. Aggregates are emitted only from measured events.
 
 Apply migration `0050_story_release_memory_observability` after the story production and progress migrations. Actual publish, rollback, and final submission staging checks require an approved test work and operator identity supplied through the private QA channel.
+
+Run `npm run qa:story-lifecycle-release` for the source and migration contract. Run `STORY_LIFECYCLE_STAGING_MODE=preflight npm run qa:story-lifecycle-staging-readonly` before the private read-only staging check. The staging verifier reads lifecycle, save-slot, and ending-gallery projections only; it emits a run ID, public paths, status, boolean checks, and `mutationExecuted: false` without exposing the session or approved work identifier.
