@@ -756,6 +756,15 @@
     submitCustomChoice(form.elements.customChoice?.value);
   });
 
+  window.addEventListener("lumina:localechange", () => {
+    const nextLocale = resolveLocale();
+    if (nextLocale === state.locale) return;
+    state.locale = nextLocale;
+    if (state.sessionId) return loadScene();
+    if (state.pack) return loadPack(packSlug(state.pack));
+    loadCatalog();
+  });
+
   updateHeading();
   if (state.sessionId) loadScene();
   else loadCatalog();
