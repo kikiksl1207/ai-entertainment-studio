@@ -1187,7 +1187,7 @@
 
 /* 모바일 하단탭바가 있을 때 입력 도크가 가려지지 않도록 */
 @media (max-width: 768px) {
-  .page-character-chat .mobile-tabbar {
+  .page-character-chat:not(.premium-chat-support-page) .mobile-tabbar {
     display: none;
   }
 }
