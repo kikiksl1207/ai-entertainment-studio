@@ -226,6 +226,7 @@ const I18N_DICT = {
   "nav.artists": { "ko-KR": "아티스트", "ja-JP": "アーティスト", "en-US": "Artists", "zh-CN": "艺人", "zh-Hant": "藝人" },
   "nav.luminaPick": { "ko-KR": "루미나 픽", "ja-JP": "ルミナピック", "en-US": "Lumina Pick", "zh-CN": "Lumina Pick", "zh-Hant": "Lumina Pick" },
   "nav.luminaFeed": { "ko-KR": "루미나 피드", "ja-JP": "ルミナフィード", "en-US": "Lumina Feed", "zh-CN": "Lumina Feed", "zh-Hant": "Lumina Feed" },
+  "nav.chat": { "ko-KR": "캐릭터 채팅", "ja-JP": "キャラクターチャット", "en-US": "Character Chat", "zh-CN": "角色聊天", "zh-Hant": "角色聊天" },
   "nav.shortform": { "ko-KR": "숏폼", "ja-JP": "ショート", "en-US": "Shorts", "zh-CN": "短视频", "zh-Hant": "短影音" },
   "nav.story": { "ko-KR": "스토리", "ja-JP": "ストーリー", "en-US": "Story", "zh-CN": "故事", "zh-Hant": "故事" },
   "nav.feedShorts": { "ko-KR": "쇼츠", "ja-JP": "ショート", "en-US": "Shorts", "zh-CN": "短视频", "zh-Hant": "短影音" },
@@ -298,6 +299,7 @@ const I18N_DICT = {
   "tab.feed": { "ko-KR": "피드", "ja-JP": "フィード", "en-US": "Feed", "zh-CN": "动态", "zh-Hant": "動態" },
   "tab.shortform": { "ko-KR": "숏폼", "ja-JP": "ショート", "en-US": "Shorts", "zh-CN": "短视频", "zh-Hant": "短影音" },
   "tab.story": { "ko-KR": "스토리", "ja-JP": "物語", "en-US": "Story", "zh-CN": "故事", "zh-Hant": "故事" },
+  "tab.chat": { "ko-KR": "채팅", "ja-JP": "チャット", "en-US": "Chat", "zh-CN": "聊天", "zh-Hant": "聊天" },
   // ── 푸터 ──
   "footer.artistRoster": { "ko-KR": "아티스트 라인업", "ja-JP": "アーティスト一覧", "en-US": "Artist Roster", "zh-CN": "艺人阵容", "zh-Hant": "藝人陣容" },
   "footer.terms": { "ko-KR": "이용약관", "ja-JP": "利用規約", "en-US": "Terms of Service", "zh-CN": "服务条款", "zh-Hant": "服務條款" },
