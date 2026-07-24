@@ -340,6 +340,51 @@
     target.dataset.kind = kind;
   }
 
+  function reviewFileCount(group) {
+    return String(state.files[group]?.length || 0);
+  }
+
+  function openReviewDialog(form) {
+    if (root.querySelector("[data-upload-review]")) return;
+    const dialog = document.createElement("div");
+    dialog.className = "su-review-dialog";
+    dialog.dataset.uploadReview = "";
+    dialog.setAttribute("role", "dialog");
+    dialog.setAttribute("aria-modal", "true");
+    dialog.setAttribute("aria-labelledby", "suReviewTitle");
+    dialog.innerHTML = `
+      <button type="button" class="su-review-backdrop" data-upload-review-cancel aria-label="Close"></button>
+      <section class="su-review-panel">
+        <div class="su-review-header">
+          <div>
+            <p>${escapeHtml(tr("eyebrow"))}</p>
+            <h2 id="suReviewTitle">Review final submission</h2>
+          </div>
+          <button type="button" class="su-review-close" data-upload-review-cancel aria-label="Close">x</button>
+        </div>
+        <p class="su-review-description">${escapeHtml(tr("finalConfirm"))}</p>
+        <dl class="su-review-summary">
+          <div><dt>${escapeHtml(tr("workTitle"))}</dt><dd>${escapeHtml(form.elements.title.value.trim())}</dd></div>
+          <div><dt>${escapeHtml(tr("originalLocale"))}</dt><dd>${escapeHtml(form.elements.originalLocale.value)}</dd></div>
+          <div><dt>${escapeHtml(tr("rightsType"))}</dt><dd>${escapeHtml(form.elements.sourceClass.selectedOptions[0]?.textContent || "")}</dd></div>
+          <div><dt>${escapeHtml(tr("manuscript"))}</dt><dd>${reviewFileCount("manuscripts")}</dd></div>
+          <div><dt>${escapeHtml(tr("metadata"))}</dt><dd>${reviewFileCount("metadata")}</dd></div>
+          <div><dt>${escapeHtml(tr("visuals"))}</dt><dd>${reviewFileCount("visuals")}</dd></div>
+        </dl>
+        <div class="su-review-actions">
+          <button type="button" class="su-review-cancel" data-upload-review-cancel>Cancel</button>
+          <button type="button" class="su-submit" data-upload-review-confirm>${escapeHtml(tr("submit"))}</button>
+        </div>
+      </section>`;
+    root.appendChild(dialog);
+    dialog.querySelector("[data-upload-review-confirm]")?.focus();
+  }
+
+  function closeReviewDialog() {
+    root.querySelector("[data-upload-review]")?.remove();
+    root.querySelector("button[type=submit]")?.focus();
+  }
+
   function getToken() {
     if (typeof window.getAccessToken === "function") return window.getAccessToken();
     try {
@@ -432,6 +477,16 @@
   });
 
   root.addEventListener("click", async (event) => {
+    if (event.target.closest("[data-upload-review-cancel]")) {
+      closeReviewDialog();
+      return;
+    }
+    if (event.target.closest("[data-upload-review-confirm]")) {
+      const form = root.querySelector("[data-final-upload-form]");
+      closeReviewDialog();
+      if (form) submit(form);
+      return;
+    }
     const localeButton = event.target.closest("[data-locale]");
     if (localeButton) {
       const form = root.querySelector("[data-final-upload-form]");
@@ -474,7 +529,16 @@
     const form = event.target.closest("[data-final-upload-form]");
     if (!form) return;
     event.preventDefault();
-    submit(form);
+    const validationError = validate(form);
+    if (validationError) return setStatus(validationError, "error");
+    openReviewDialog(form);
+  });
+
+  root.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && root.querySelector("[data-upload-review]")) {
+      event.preventDefault();
+      closeReviewDialog();
+    }
   });
 
   renderForm();

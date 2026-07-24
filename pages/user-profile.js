@@ -811,6 +811,8 @@ function bindUserProfileTabs() {
   const tabs = document.querySelectorAll("[data-user-profile-tab]");
   if (!tabs.length) return;
   tabs.forEach(tab => {
+    if (tab._userProfileTabBound) return;
+    tab._userProfileTabBound = true;
     tab.addEventListener("click", () => {
       const key = tab.dataset.userProfileTab;
       setUserProfileActiveTab(key);
@@ -820,7 +822,7 @@ function bindUserProfileTabs() {
 
 function setUserProfileActiveTab(key) {
   const allowed = new Set(["posts", "media", "shortform", "likes"]);
-  if (!allowed.has(key) || _userProfileActiveTab === key) return;
+  if (!allowed.has(key)) return;
   const targetTab = document.querySelector(`[data-user-profile-tab="${key}"]`);
   if (targetTab?.hidden || targetTab?.style?.display === "none") return;
   _userProfileActiveTab = key;

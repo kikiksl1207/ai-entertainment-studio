@@ -198,6 +198,35 @@
   gap: 18px;
 }
 
+.story-pack-dialog {
+  position: fixed;
+  z-index: 130;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.story-pack-dialog-backdrop {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  border: 0;
+  background: rgba(0, 0, 0, 0.72);
+  cursor: default;
+}
+
+.story-pack-detail {
+  position: relative;
+  width: min(920px, 100%);
+  max-height: min(760px, calc(100dvh - 48px));
+  padding: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  background: #14151a;
+  overflow: auto;
+}
+
 .story-back {
   justify-self: start;
   border: 0;
@@ -670,7 +699,12 @@ button.story-graph-choice {
   .story-catalog { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .story-detail-main { grid-template-columns: 1fr; gap: 16px; }
   .story-detail-cover { min-height: 220px; aspect-ratio: 16 / 9; }
-  .story-player-stage { min-height: 460px; aspect-ratio: auto; }
+  .story-pack-dialog { align-items: end; padding: 0; }
+  .story-pack-detail { width: 100%; max-height: min(82dvh, 720px); border-right: 0; border-bottom: 0; border-left: 0; border-radius: 8px 8px 0 0; }
+  .story-player { gap: 14px; }
+  .story-player-stage { min-height: 420px; height: min(460px, calc(100dvh - 220px)); aspect-ratio: auto; }
+  .story-player-characters img { max-width: 68%; height: 76%; bottom: 108px; }
+  .story-player-copy { max-height: 42%; overflow-y: auto; overscroll-behavior: contain; }
   .story-choice-list { grid-template-columns: 1fr; }
   .story-graph-flow { grid-template-columns: 1fr; }
   .story-reset-dialog { align-items: end; padding: 0; }
@@ -684,8 +718,8 @@ button.story-graph-choice {
   .story-pack-copy p { -webkit-line-clamp: 2; }
   .story-detail-copy h2 { font-size: 23px; }
   .story-button { width: 100%; }
-  .story-player-stage { min-height: 520px; }
-  .story-player-characters img { max-width: 72%; height: 72%; bottom: 132px; }
+  .story-player-stage { min-height: 420px; }
+  .story-player-characters img { max-width: 72%; height: 74%; bottom: 112px; }
   .story-player-copy { padding: 42px 14px 14px; }
   .story-player-copy p { font-size: 14px; line-height: 1.55; }
   .story-custom-choice > div .story-button,

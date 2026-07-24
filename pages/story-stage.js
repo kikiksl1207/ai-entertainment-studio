@@ -537,7 +537,9 @@
     const progress = state.progress || progressProjection(pack);
     const resumeSessionId = progress?.canResume === true ? safeSessionId(progress.sessionId || progress.resumeSessionId) : "";
     root.innerHTML = `
-      <section class="story-pack-detail">
+      <div class="story-pack-dialog" role="dialog" aria-modal="true" aria-label="${escapeHtml(tr("open"))}">
+        <button type="button" class="story-pack-dialog-backdrop" data-story-back aria-label="${escapeHtml(tr("close"))}"></button>
+        <section class="story-pack-detail">
         <button type="button" class="story-back" data-story-back>← ${escapeHtml(tr("backToStories"))}</button>
         <div class="story-detail-main">
           <div class="story-detail-cover${cover ? " has-image" : ""}">${cover ? `<img src="${escapeHtml(cover)}" alt="${escapeHtml(title)}" />` : ""}</div>
@@ -557,7 +559,8 @@
             <ol>${chapters.map((chapter) => `<li><span>${escapeHtml(String(chapter.position || chapter.chapterNo || chapter.partNo || chapter.no || ""))}</span><strong>${escapeHtml(textValue(chapter.title) || textValue(chapter.summary))}</strong></li>`).join("")}</ol>
         </section>` : ""}
         ${renderResetDialog()}
-      </section>`;
+        </section>
+      </div>`;
   }
 
   function sceneBackground(scene) {
