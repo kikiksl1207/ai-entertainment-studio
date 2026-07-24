@@ -254,6 +254,45 @@
   line-height: 1.65;
 }
 
+.story-access-panel {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.story-access-panel dl {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.story-access-panel div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.story-access-panel dt,
+.story-access-panel dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.story-access-panel dt {
+  color: #dffb8f;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.story-access-panel dd {
+  color: rgba(244, 244, 241, 0.72);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .story-button {
   display: inline-flex;
   align-items: center;
@@ -670,6 +709,7 @@ button.story-graph-choice {
   .story-catalog { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .story-detail-main { grid-template-columns: 1fr; gap: 16px; }
   .story-detail-cover { min-height: 220px; aspect-ratio: 16 / 9; }
+  .story-access-panel dl { grid-template-columns: 1fr; }
   .story-player-stage { min-height: 460px; aspect-ratio: auto; }
   .story-choice-list { grid-template-columns: 1fr; }
   .story-graph-flow { grid-template-columns: 1fr; }

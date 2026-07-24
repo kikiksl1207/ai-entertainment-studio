@@ -321,6 +321,64 @@
     },
   };
 
+  const ACCESS_COPY = {
+    ko: {
+      priceLabel: "가격",
+      entitlementReady: "이용 가능",
+      purchaseReady: "구매 필요",
+      freeAccess: "무료 이용 가능",
+      aiAvailable: "AI 선택 가능",
+      aiUnavailable: "AI 선택 없음",
+      replayReady: "이어보기와 다시 시작을 사용할 수 있습니다.",
+      purchaseNotice: "구매는 승인된 결제 흐름에서만 진행됩니다.",
+      modalLabel: "작품 상세",
+    },
+    en: {
+      priceLabel: "Price",
+      entitlementReady: "Available",
+      purchaseReady: "Purchase required",
+      freeAccess: "Free access",
+      aiAvailable: "AI choice available",
+      aiUnavailable: "AI choice unavailable",
+      replayReady: "Continue and restart are available.",
+      purchaseNotice: "Purchases run only through the approved payment flow.",
+      modalLabel: "Story detail",
+    },
+    ja: {
+      priceLabel: "価格",
+      entitlementReady: "利用可能",
+      purchaseReady: "購入が必要",
+      freeAccess: "無料で利用可能",
+      aiAvailable: "AI選択が利用可能",
+      aiUnavailable: "AI選択なし",
+      replayReady: "続きから再開と最初から再開を利用できます。",
+      purchaseNotice: "購入は承認された決済フローでのみ進行します。",
+      modalLabel: "作品詳細",
+    },
+    "zh-Hans": {
+      priceLabel: "价格",
+      entitlementReady: "可使用",
+      purchaseReady: "需要购买",
+      freeAccess: "可免费使用",
+      aiAvailable: "可使用 AI 选择",
+      aiUnavailable: "无 AI 选择",
+      replayReady: "可继续阅读或重新开始。",
+      purchaseNotice: "购买仅通过已批准的支付流程进行。",
+      modalLabel: "作品详情",
+    },
+    "zh-Hant": {
+      priceLabel: "價格",
+      entitlementReady: "可使用",
+      purchaseReady: "需要購買",
+      freeAccess: "可免費使用",
+      aiAvailable: "可使用 AI 選擇",
+      aiUnavailable: "無 AI 選擇",
+      replayReady: "可繼續閱讀或重新開始。",
+      purchaseNotice: "購買僅透過已核准的付款流程進行。",
+      modalLabel: "作品詳情",
+    },
+  };
+
   const state = {
     locale: resolveLocale(),
     packs: [],
@@ -350,6 +408,10 @@
 
   function controlTr(key) {
     return STORY_CONTROL_COPY[state.locale]?.[key] || STORY_CONTROL_COPY.ko[key] || "";
+  }
+
+  function accessTr(key) {
+    return ACCESS_COPY[state.locale]?.[key] || ACCESS_COPY.ko[key] || "";
   }
 
   function escapeHtml(value) {
@@ -423,6 +485,43 @@
 
   function packSummary(pack) {
     return textValue(pack?.summary) || textValue(pack?.synopsis);
+  }
+
+  function formatLumina(value) {
+    if (value === null || value === undefined || value === "") return accessTr("freeAccess");
+    const number = Number(value);
+    return Number.isFinite(number) ? `${number.toLocaleString()} LUMINA` : `${String(value)} LUMINA`;
+  }
+
+  function accessProjection(pack) {
+    const access = pack?.access && typeof pack.access === "object" ? pack.access : {};
+    const entitled = access.entitled === true || access.purchaseAction === null;
+    const price = access.priceLumina ?? pack?.priceLumina ?? null;
+    return {
+      entitled,
+      price,
+      purchaseRequired: !entitled && access.purchaseAction === "purchase",
+    };
+  }
+
+  function aiCapabilityLabel(pack) {
+    const capability = pack?.releaseCapability || pack?.aiCapability;
+    const enabled = capability?.customChoiceEnabled === true || capability?.enabled === true;
+    return enabled ? accessTr("aiAvailable") : accessTr("aiUnavailable");
+  }
+
+  function renderAccessPanel(pack, progress) {
+    const access = accessProjection(pack);
+    const replay = pack?.replay && typeof pack.replay === "object" ? pack.replay : {};
+    const canReplay = Boolean(replay.continue || replay.restart || replay.checkpoint || replay.branchReplay || progress?.canResume);
+    return `
+      <section class="story-access-panel" aria-label="${escapeHtml(accessTr("modalLabel"))}">
+        <dl>
+          <div><dt>${escapeHtml(accessTr("priceLabel"))}</dt><dd>${escapeHtml(formatLumina(access.price))}</dd></div>
+          <div><dt>${escapeHtml(access.entitled ? accessTr("entitlementReady") : accessTr("purchaseReady"))}</dt><dd>${escapeHtml(access.entitled ? accessTr("entitlementReady") : accessTr("purchaseNotice"))}</dd></div>
+          <div><dt>${escapeHtml(aiCapabilityLabel(pack))}</dt><dd>${escapeHtml(canReplay ? accessTr("replayReady") : aiCapabilityLabel(pack))}</dd></div>
+        </dl>
+      </section>`;
   }
 
   function packSlug(pack) {
@@ -537,7 +636,7 @@
     const progress = state.progress || progressProjection(pack);
     const resumeSessionId = progress?.canResume === true ? safeSessionId(progress.sessionId || progress.resumeSessionId) : "";
     root.innerHTML = `
-      <section class="story-pack-detail">
+      <section class="story-pack-detail story-detail-modal" role="dialog" aria-modal="true" aria-label="${escapeHtml(accessTr("modalLabel"))}">
         <button type="button" class="story-back" data-story-back>← ${escapeHtml(tr("backToStories"))}</button>
         <div class="story-detail-main">
           <div class="story-detail-cover${cover ? " has-image" : ""}">${cover ? `<img src="${escapeHtml(cover)}" alt="${escapeHtml(title)}" />` : ""}</div>
@@ -545,6 +644,7 @@
             <div class="story-pack-status"><b>${escapeHtml(lifecycleLabel(pack.lifecycleStatus))}</b>${pricing ? `<em>${escapeHtml(pricing)}</em>` : ""}</div>
             <h2>${escapeHtml(title)}</h2>
             ${packSummary(pack) ? `<h3>${escapeHtml(tr("synopsis"))}</h3><p>${escapeHtml(packSummary(pack))}</p>` : ""}
+            ${renderAccessPanel(pack, progress)}
             <button type="button" class="story-button story-button-primary" ${resumeSessionId ? `data-story-resume="${escapeHtml(resumeSessionId)}"` : "data-story-start"}>${escapeHtml(resumeSessionId ? tr("continue") : tr("start"))}</button>
             ${resumeSessionId ? `<p class="story-resume-label">${escapeHtml(textValue(progress.checkpointLabel) || controlTr("resumeFrom"))}</p>` : ""}
             <p class="story-action-status" data-story-action-status aria-live="polite"></p>
