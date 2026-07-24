@@ -28,6 +28,7 @@
     "qa:imjin-final-upload-readiness": "node scripts/verify-imjin-final-upload-readiness.mjs",
     "qa:story-stage-no-raw-key": "node scripts/verify-story-stage-no-raw-key.mjs",
     "qa:story-production-release": "node scripts/verify-story-production-release-guard.mjs",
+    "qa:story-analysis-continuity": "node scripts/verify-story-analysis-continuity.mjs",
     "qa:story-progress-controls": "node scripts/verify-story-progress-controls.mjs",
     "qa:story-lifecycle-release": "node scripts/verify-story-lifecycle-release.mjs",
     "qa:story-lifecycle-staging-readonly": "node scripts/verify-story-lifecycle-staging-readonly.mjs",

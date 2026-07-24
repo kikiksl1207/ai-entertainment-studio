@@ -29,4 +29,4 @@ Structured analysis recognizes paragraph and dialogue boundaries plus explicit `
 
 ## Verification
 
-Run `npm run build`, the story production tests, `npm run qa:story-production-release`, and `npm run qa:story-access-projections`. The QA commands emit only a run ID, public path, status, boolean checks, and mutation status. Applying migration `0048_story_production_backend` and exercising a real published story require a configured staging database and an approved non-secret test identity; no credential material belongs in reports.
+Run `npm run build`, the story production tests, `npm run qa:story-production-release`, `npm run qa:story-access-projections`, and `npm run qa:story-analysis-continuity`. The QA commands emit only a run ID, public path, status, boolean checks, and mutation status. Applying migration `0048_story_production_backend` and exercising a real published story require a configured staging database and an approved non-secret test identity; no credential material belongs in reports.
