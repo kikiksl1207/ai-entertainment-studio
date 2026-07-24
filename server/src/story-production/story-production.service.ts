@@ -32,9 +32,11 @@ import {
   manuscriptContentHash,
   projectLocalizedValue,
   projectStoryAccess,
+  projectStoryGraphValidationSummary,
 } from './story-production.policy';
 import { sessionKeyHash, storyPathSignature } from './story-lifecycle.policy';
 import { StoryEconomicsService } from './story-economics.service';
+import { projectStoredStorySceneVisualManifest } from '../story-stage/story-scene-visual-manifest-contract';
 
 const STORY_ENTITLEMENT_TYPES = [
   'story_work',
@@ -706,31 +708,165 @@ export class StoryProductionService {
     return this.currentProgress(userId, progressId, locale);
   }
 
-  async graph(userId: string, workId: string, focusSceneId?: string) {
-    await this.assertOwner(userId, workId);
-    const parts = await this.prisma.storyPart.findMany({ where: { workId }, select: { id: true } });
+  async graph(
+    userId: string,
+    workId: string,
+    focusSceneId?: string,
+    locale = 'ko',
+  ) {
+    const work = await this.assertOwner(userId, workId);
+    const parts = await this.prisma.storyPart.findMany({
+      where: { workId, fixtureSource: false },
+      orderBy: { position: 'asc' },
+      select: {
+        id: true,
+        seasonKey: true,
+        actNumber: true,
+        position: true,
+        status: true,
+        title: true,
+      },
+    });
+    const partIds = parts.map((part) => part.id);
     const scene = focusSceneId
-      ? await this.prisma.storyScene.findFirst({ where: { id: focusSceneId, partId: { in: parts.map((part) => part.id) } } })
-      : await this.prisma.storyScene.findFirst({ where: { partId: { in: parts.map((part) => part.id) } }, orderBy: { position: 'asc' } });
+      ? await this.prisma.storyScene.findFirst({
+          where: {
+            id: focusSceneId,
+            partId: { in: partIds },
+            fixtureSource: false,
+          },
+          select: {
+            id: true,
+            partId: true,
+            sceneKey: true,
+            position: true,
+            status: true,
+            title: true,
+            endingType: true,
+          },
+        })
+      : await this.prisma.storyScene.findFirst({
+          where: { partId: { in: partIds }, fixtureSource: false },
+          orderBy: { position: 'asc' },
+          select: {
+            id: true,
+            partId: true,
+            sceneKey: true,
+            position: true,
+            status: true,
+            title: true,
+            endingType: true,
+          },
+        });
     if (!scene) throw new NotFoundException('Story scene not found');
-    const choices = await this.prisma.storyChoice.findMany({ where: { sceneId: scene.id }, orderBy: { position: 'asc' }, take: 20 });
+    const choices = await this.prisma.storyChoice.findMany({
+      where: { sceneId: scene.id },
+      orderBy: { position: 'asc' },
+      take: 20,
+      select: {
+        id: true,
+        choiceKey: true,
+        label: true,
+        targetSceneId: true,
+        targetEndingKey: true,
+        routeKind: true,
+        declaredRejoinSceneId: true,
+      },
+    });
     const destinationIds = [...new Set(choices.flatMap((choice) => [choice.targetSceneId, choice.declaredRejoinSceneId]).filter((id): id is string => Boolean(id)))];
-    const destinations = await this.prisma.storyScene.findMany({ where: { id: { in: destinationIds } }, select: { id: true, sceneKey: true, title: true, endingType: true } });
-    const parents = await this.prisma.storyChoice.findMany({ where: { targetSceneId: scene.id }, select: { sceneId: true, routeKind: true, declaredRejoinSceneId: true }, take: 20 });
+    const destinations = await this.prisma.storyScene.findMany({
+      where: {
+        id: { in: destinationIds },
+        partId: { in: partIds },
+        fixtureSource: false,
+      },
+      select: {
+        id: true,
+        partId: true,
+        sceneKey: true,
+        position: true,
+        status: true,
+        title: true,
+        endingType: true,
+      },
+    });
+    const parentCandidates = await this.prisma.storyChoice.findMany({
+      where: { targetSceneId: scene.id },
+      select: {
+        sceneId: true,
+        routeKind: true,
+        declaredRejoinSceneId: true,
+      },
+      take: 20,
+    });
+    const parentScenes = await this.prisma.storyScene.findMany({
+      where: {
+        id: { in: parentCandidates.map((parent) => parent.sceneId) },
+        partId: { in: partIds },
+        fixtureSource: false,
+      },
+      select: { id: true },
+    });
+    const parentSceneIds = new Set(parentScenes.map((parent) => parent.id));
+    const release = await this.prisma.storyRelease.findFirst({
+      where: work.activeReleaseId
+        ? { id: work.activeReleaseId, workId }
+        : { workId },
+      orderBy: { createdAt: 'desc' },
+      select: { validationSummary: true },
+    });
+    const currentPart = parts.find((part) => part.id === scene.partId)!;
+    const destinationById = new Map(
+      destinations.map((destination) => [destination.id, destination]),
+    );
     return {
       vocabulary: ['scene', 'choice', 'branch', 'rejoin', 'ending'],
-      focus: { id: scene.id, sceneKey: scene.sceneKey, title: scene.title, endingType: scene.endingType },
-      parents,
+      part: {
+        id: currentPart.id,
+        seasonKey: currentPart.seasonKey,
+        actNumber: currentPart.actNumber,
+        position: currentPart.position,
+        status: currentPart.status,
+        title: projectLocalizedValue(
+          currentPart.title,
+          locale,
+          work.defaultLocale,
+        ),
+      },
+      focus: {
+        id: scene.id,
+        sceneKey: scene.sceneKey,
+        position: scene.position,
+        status: scene.status,
+        title: projectLocalizedValue(scene.title, locale, work.defaultLocale),
+        endingType: scene.endingType,
+      },
+      parents: parentCandidates.filter((parent) =>
+        parentSceneIds.has(parent.sceneId),
+      ),
       choices: choices.map((choice) => ({
         id: choice.id,
         choiceKey: choice.choiceKey,
-        label: choice.label,
+        label: projectLocalizedValue(choice.label, locale, work.defaultLocale),
         targetSceneId: choice.targetSceneId,
+        targetEndingKey: choice.targetEndingKey,
         routeKind: choice.routeKind,
         explicitRejoin: Boolean(choice.declaredRejoinSceneId),
         declaredRejoinSceneId: choice.declaredRejoinSceneId,
+        nextScene: choice.targetSceneId
+          ? projectGraphScene(
+              destinationById.get(choice.targetSceneId),
+              locale,
+              work.defaultLocale,
+            )
+          : null,
       })),
-      destinations,
+      destinations: destinations.map((destination) =>
+        projectGraphScene(destination, locale, work.defaultLocale),
+      ),
+      validation: projectStoryGraphValidationSummary(
+        release?.validationSummary,
+      ),
       page: { bounded: true, maxChoices: 20, fullGraphIncluded: false },
     };
   }
@@ -867,6 +1003,13 @@ export class StoryProductionService {
     const part = await this.prisma.storyPart.findUnique({ where: { id: scene.partId } });
     const work = part ? await this.prisma.storyWork.findUnique({ where: { id: part.workId } }) : null;
     if (!part || !work || work.status !== 'published' || part.status !== 'published') throw new NotFoundException('Published story scene not found');
+    const visualManifest = projectStoredStorySceneVisualManifest(
+      scene.visualManifest,
+      scene.sceneKey,
+    );
+    if (!visualManifest) {
+      throw new NotFoundException('Published story scene not found');
+    }
     const [beats, choices, releaseCapability] = await Promise.all([
       this.prisma.storyBeat.findMany({ where: { sceneId: scene.id }, orderBy: { position: 'asc' }, take: 40 }),
       this.prisma.storyChoice.findMany({ where: { sceneId: scene.id }, orderBy: { position: 'asc' }, take: 12 }),
@@ -879,8 +1022,17 @@ export class StoryProductionService {
         ? choices.slice(0, releaseCapability?.fixedChoiceCount ?? 12)
         : [];
     const nextIds = visibleChoices.map((choice) => choice.targetSceneId).filter((id): id is string => Boolean(id));
-    const nextScenes = await this.prisma.storyScene.findMany({ where: { id: { in: nextIds }, status: 'published', fixtureSource: false }, select: { id: true, title: true, visualManifest: true } });
-    const nextById = new Map(nextScenes.filter((next) => isPublicStorySourceSafe({ manifest: next.visualManifest })).map((next) => [next.id, next]));
+    const nextScenes = await this.prisma.storyScene.findMany({ where: { id: { in: nextIds }, status: 'published', fixtureSource: false }, select: { id: true, sceneKey: true, title: true, visualManifest: true } });
+    const nextById = new Map(
+      nextScenes.flatMap((next) => {
+        if (!isPublicStorySourceSafe({ manifest: next.visualManifest })) return [];
+        const manifest = projectStoredStorySceneVisualManifest(
+          next.visualManifest,
+          next.sceneKey,
+        );
+        return manifest ? [[next.id, { ...next, visualManifest: manifest }] as const] : [];
+      }),
+    );
     return {
       progressId: progress.id,
       status: progress.status,
@@ -888,12 +1040,19 @@ export class StoryProductionService {
       storyVersion: progress.storyVersion,
       currentAct: progress.currentAct,
       currentBeatPosition: progress.currentBeatPosition,
+      part: {
+        id: part.id,
+        seasonKey: part.seasonKey,
+        actNumber: part.actNumber,
+        position: part.position,
+        title: projectLocalizedValue(part.title, locale, work.defaultLocale),
+      },
       scene: {
         id: scene.id,
         sceneKey: scene.sceneKey,
         title: projectLocalizedValue(scene.title, locale, work.defaultLocale),
         beats: beats.map((beat) => ({ id: beat.id, position: beat.position, type: beat.beatType, content: projectLocalizedValue(beat.content, locale, work.defaultLocale) })),
-        visualManifest: scene.visualManifest,
+        visualManifest,
         endingType: scene.endingType,
       },
       choices: visibleChoices.filter((choice) => !choice.targetSceneId || nextById.has(choice.targetSceneId)).map((choice) => {
@@ -1001,4 +1160,32 @@ function jsonArray(value: Prisma.JsonValue | null | undefined): Array<Record<str
 
 function jsonStringArray(value: Prisma.JsonValue | null | undefined): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+}
+
+function projectGraphScene(
+  scene:
+    | {
+        id: string;
+        partId: string;
+        sceneKey: string;
+        position: number;
+        status: string;
+        title: unknown;
+        endingType: string | null;
+      }
+    | undefined,
+  locale: string,
+  defaultLocale: string,
+) {
+  return scene
+    ? {
+        id: scene.id,
+        partId: scene.partId,
+        sceneKey: scene.sceneKey,
+        position: scene.position,
+        status: scene.status,
+        title: projectLocalizedValue(scene.title, locale, defaultLocale),
+        endingType: scene.endingType,
+      }
+    : null;
 }

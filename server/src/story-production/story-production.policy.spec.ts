@@ -9,6 +9,7 @@ import {
   manuscriptContentHash,
   projectLocalizedValue,
   projectStoryAccess,
+  projectStoryGraphValidationSummary,
 } from './story-production.policy';
 
 describe('story production policy', () => {
@@ -39,6 +40,39 @@ describe('story production policy', () => {
     const path = Array.from({ length: 150 }, (_, index) => index);
     expect(boundedPath(path)).toHaveLength(24);
     expect(boundedPath(path).at(-1)).toBe(149);
+  });
+
+  it('projects release graph validation codes without internal identifiers', () => {
+    const result = projectStoryGraphValidationSummary({
+      ready: false,
+      blockingIssueCount: 3,
+      graph: {
+        violationCodes: [
+          'graph_cycle:private-scene-id',
+          'ending_unreachable:private-ending-id',
+          'private_validator_detail:do-not-return',
+          'graph_cycle:another-private-scene-id',
+        ],
+      },
+    });
+
+    expect(result).toEqual({
+      status: 'needs_attention',
+      blockingIssueCount: 3,
+      warnings: [
+        {
+          code: 'graph_cycle',
+          severity: 'error',
+          messageKey: 'story.graph.warning.cycle',
+        },
+        {
+          code: 'ending_unreachable',
+          severity: 'error',
+          messageKey: 'story.graph.warning.endingUnreachable',
+        },
+      ],
+    });
+    expect(JSON.stringify(result)).not.toContain('private-scene-id');
   });
 
   it('hashes structured manuscript content deterministically', () => {
