@@ -206,6 +206,74 @@
     busy: false,
   };
 
+  const ARCHITECTURE_COPY = {
+    ko: {
+      title: "Production guardrails",
+      body: "Source-backed boundaries for memory, cost, consent, and quality checks.",
+      memory: "Bounded memory",
+      memoryBody: "Current part plus related entity, timeline, foreshadow, branch, and style records only.",
+      budget: "Cost budget",
+      budgetBody: "Part, act, volume, and work estimates stay separate and hard caps block unsafe runs.",
+      consent: "Style consent",
+      consentBody: "Only writer-approved manuscript evidence is used; withdrawal closes new style retrieval.",
+      quality: "Quality metrics",
+      qualityBody: "Choice, rejoin, ending, replay, and revision metrics use version aggregates without raw text.",
+      evidence: "No manuscript text or provider payload is shown here.",
+    },
+    en: {
+      title: "Production guardrails",
+      body: "Source-backed boundaries for memory, cost, consent, and quality checks.",
+      memory: "Bounded memory",
+      memoryBody: "Current part plus related entity, timeline, foreshadow, branch, and style records only.",
+      budget: "Cost budget",
+      budgetBody: "Part, act, volume, and work estimates stay separate and hard caps block unsafe runs.",
+      consent: "Style consent",
+      consentBody: "Only writer-approved manuscript evidence is used; withdrawal closes new style retrieval.",
+      quality: "Quality metrics",
+      qualityBody: "Choice, rejoin, ending, replay, and revision metrics use version aggregates without raw text.",
+      evidence: "No manuscript text or provider payload is shown here.",
+    },
+    ja: {
+      title: "Production guardrails",
+      body: "Source-backed boundaries for memory, cost, consent, and quality checks.",
+      memory: "Bounded memory",
+      memoryBody: "Current part plus related entity, timeline, foreshadow, branch, and style records only.",
+      budget: "Cost budget",
+      budgetBody: "Part, act, volume, and work estimates stay separate and hard caps block unsafe runs.",
+      consent: "Style consent",
+      consentBody: "Only writer-approved manuscript evidence is used; withdrawal closes new style retrieval.",
+      quality: "Quality metrics",
+      qualityBody: "Choice, rejoin, ending, replay, and revision metrics use version aggregates without raw text.",
+      evidence: "No manuscript text or provider payload is shown here.",
+    },
+    "zh-Hans": {
+      title: "Production guardrails",
+      body: "Source-backed boundaries for memory, cost, consent, and quality checks.",
+      memory: "Bounded memory",
+      memoryBody: "Current part plus related entity, timeline, foreshadow, branch, and style records only.",
+      budget: "Cost budget",
+      budgetBody: "Part, act, volume, and work estimates stay separate and hard caps block unsafe runs.",
+      consent: "Style consent",
+      consentBody: "Only writer-approved manuscript evidence is used; withdrawal closes new style retrieval.",
+      quality: "Quality metrics",
+      qualityBody: "Choice, rejoin, ending, replay, and revision metrics use version aggregates without raw text.",
+      evidence: "No manuscript text or provider payload is shown here.",
+    },
+    "zh-Hant": {
+      title: "Production guardrails",
+      body: "Source-backed boundaries for memory, cost, consent, and quality checks.",
+      memory: "Bounded memory",
+      memoryBody: "Current part plus related entity, timeline, foreshadow, branch, and style records only.",
+      budget: "Cost budget",
+      budgetBody: "Part, act, volume, and work estimates stay separate and hard caps block unsafe runs.",
+      consent: "Style consent",
+      consentBody: "Only writer-approved manuscript evidence is used; withdrawal closes new style retrieval.",
+      quality: "Quality metrics",
+      qualityBody: "Choice, rejoin, ending, replay, and revision metrics use version aggregates without raw text.",
+      evidence: "No manuscript text or provider payload is shown here.",
+    },
+  };
+
   function resolveLocale() {
     const value = window.luminaI18n?.getLocale?.() || "ko";
     if (value === "zh-CN") return "zh-Hans";
@@ -215,6 +283,10 @@
 
   function tr(key) {
     return COPY[state.locale]?.[key] || COPY.ko[key] || key;
+  }
+
+  function architectureTr(key) {
+    return ARCHITECTURE_COPY[state.locale]?.[key] || ARCHITECTURE_COPY.ko[key] || "";
   }
 
   function escapeHtml(value) {
@@ -266,6 +338,30 @@
       </li>`).join("")}</ul>`;
   }
 
+  function renderArchitecturePanel() {
+    const items = [
+      ["memory", "memoryBody"],
+      ["budget", "budgetBody"],
+      ["consent", "consentBody"],
+      ["quality", "qualityBody"],
+    ];
+    return `
+      <section class="su-architecture" aria-label="${escapeHtml(architectureTr("title"))}">
+        <div class="su-architecture-heading">
+          <h2>${escapeHtml(architectureTr("title"))}</h2>
+          <p>${escapeHtml(architectureTr("body"))}</p>
+        </div>
+        <div class="su-architecture-grid">
+          ${items.map(([titleKey, bodyKey]) => `
+            <article>
+              <strong>${escapeHtml(architectureTr(titleKey))}</strong>
+              <p>${escapeHtml(architectureTr(bodyKey))}</p>
+            </article>`).join("")}
+        </div>
+        <p class="su-architecture-note">${escapeHtml(architectureTr("evidence"))}</p>
+      </section>`;
+  }
+
   function renderForm() {
     root.innerHTML = `
       <div class="su-shell">
@@ -279,6 +375,8 @@
             ${LOCALES.map((locale) => `<button type="button" data-locale="${locale}" aria-pressed="${locale === state.locale}">${locale === "zh-Hans" ? "简" : locale === "zh-Hant" ? "繁" : locale.toUpperCase()}</button>`).join("")}
           </div>
         </header>
+
+        ${renderArchitecturePanel()}
 
         <form class="su-final-form" data-final-upload-form novalidate>
           <section class="su-section">

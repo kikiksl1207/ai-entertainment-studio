@@ -337,6 +337,79 @@
     resetPreview: null,
   };
 
+  const RELEASE_CAPABILITY_COPY = {
+    ko: {
+      title: "Release capability",
+      body: "Free releases stay fixed-choice only; paid releases may open custom choice when the release config allows it.",
+      fixedChoices: "Fixed choices",
+      fixedChoicesBody: "Three curated choices are shown before custom input.",
+      customChoice: "Custom choice",
+      customOn: "Enabled for this release",
+      customOff: "Closed or fail-closed",
+      resetPolicy: "Reset policy",
+      resetBody: "Full reset and act reset follow the pinned release capability.",
+      aiAllowance: "AI allowance",
+      aiAllowanceBody: "Allowance and cost budget are read from release/session projection.",
+      safe: "No payment, publish, or progress mutation is executed by this panel.",
+    },
+    en: {
+      title: "Release capability",
+      body: "Free releases stay fixed-choice only; paid releases may open custom choice when the release config allows it.",
+      fixedChoices: "Fixed choices",
+      fixedChoicesBody: "Three curated choices are shown before custom input.",
+      customChoice: "Custom choice",
+      customOn: "Enabled for this release",
+      customOff: "Closed or fail-closed",
+      resetPolicy: "Reset policy",
+      resetBody: "Full reset and act reset follow the pinned release capability.",
+      aiAllowance: "AI allowance",
+      aiAllowanceBody: "Allowance and cost budget are read from release/session projection.",
+      safe: "No payment, publish, or progress mutation is executed by this panel.",
+    },
+    ja: {
+      title: "Release capability",
+      body: "Free releases stay fixed-choice only; paid releases may open custom choice when the release config allows it.",
+      fixedChoices: "Fixed choices",
+      fixedChoicesBody: "Three curated choices are shown before custom input.",
+      customChoice: "Custom choice",
+      customOn: "Enabled for this release",
+      customOff: "Closed or fail-closed",
+      resetPolicy: "Reset policy",
+      resetBody: "Full reset and act reset follow the pinned release capability.",
+      aiAllowance: "AI allowance",
+      aiAllowanceBody: "Allowance and cost budget are read from release/session projection.",
+      safe: "No payment, publish, or progress mutation is executed by this panel.",
+    },
+    "zh-Hans": {
+      title: "Release capability",
+      body: "Free releases stay fixed-choice only; paid releases may open custom choice when the release config allows it.",
+      fixedChoices: "Fixed choices",
+      fixedChoicesBody: "Three curated choices are shown before custom input.",
+      customChoice: "Custom choice",
+      customOn: "Enabled for this release",
+      customOff: "Closed or fail-closed",
+      resetPolicy: "Reset policy",
+      resetBody: "Full reset and act reset follow the pinned release capability.",
+      aiAllowance: "AI allowance",
+      aiAllowanceBody: "Allowance and cost budget are read from release/session projection.",
+      safe: "No payment, publish, or progress mutation is executed by this panel.",
+    },
+    "zh-Hant": {
+      title: "Release capability",
+      body: "Free releases stay fixed-choice only; paid releases may open custom choice when the release config allows it.",
+      fixedChoices: "Fixed choices",
+      fixedChoicesBody: "Three curated choices are shown before custom input.",
+      customChoice: "Custom choice",
+      customOn: "Enabled for this release",
+      customOff: "Closed or fail-closed",
+      resetPolicy: "Reset policy",
+      resetBody: "Full reset and act reset follow the pinned release capability.",
+      aiAllowance: "AI allowance",
+      aiAllowanceBody: "Allowance and cost budget are read from release/session projection.",
+      safe: "No payment, publish, or progress mutation is executed by this panel.",
+    },
+  };
+
   function resolveLocale() {
     const value = window.luminaI18n?.getLocale?.() || "ko";
     if (value === "zh-CN") return "zh-Hans";
@@ -350,6 +423,10 @@
 
   function controlTr(key) {
     return STORY_CONTROL_COPY[state.locale]?.[key] || STORY_CONTROL_COPY.ko[key] || "";
+  }
+
+  function capabilityTr(key) {
+    return RELEASE_CAPABILITY_COPY[state.locale]?.[key] || RELEASE_CAPABILITY_COPY.ko[key] || "";
   }
 
   function escapeHtml(value) {
@@ -497,6 +574,48 @@
       </div>`;
   }
 
+  function releaseCapabilityProjection(pack, progress) {
+    const source = pack?.releaseCapability || pack?.capability || pack?.access?.releaseCapability || progress?.releaseCapability || progress?.capability || {};
+    const fixedChoices = Number(source.fixedChoices ?? source.fixedChoiceCount ?? 3);
+    const customChoiceEnabled = source.customChoiceEnabled === true || source.customChoice?.enabled === true || source.customChoiceCapability?.enabled === true;
+    const customMax = Number(source.customChoiceMaxLength ?? source.customChoice?.maxLength ?? source.customChoiceCapability?.maxChars);
+    const reset = source.resetPolicy || source.reset || progress?.reset || {};
+    const fullReset = Number(reset.fullRemaining ?? reset.fullResetRemaining ?? reset.fullResetLimit ?? 1);
+    const actReset = Number(reset.actRemaining ?? reset.actResetRemaining ?? reset.actResetLimit ?? 3);
+    const allowance = Number(source.includedAiAllowance ?? source.aiAllowance ?? source.allowanceRemaining);
+    return {
+      fixedChoices: Number.isFinite(fixedChoices) && fixedChoices > 0 ? fixedChoices : 3,
+      customChoiceEnabled,
+      customMax: Number.isFinite(customMax) && customMax > 0 ? customMax : 0,
+      fullReset: Number.isFinite(fullReset) && fullReset >= 0 ? fullReset : 1,
+      actReset: Number.isFinite(actReset) && actReset >= 0 ? actReset : 3,
+      allowance: Number.isFinite(allowance) && allowance >= 0 ? allowance : null,
+    };
+  }
+
+  function renderReleaseCapabilityPanel(pack, progress) {
+    const capability = releaseCapabilityProjection(pack, progress);
+    const customBody = capability.customChoiceEnabled
+      ? `${capabilityTr("customOn")}${capability.customMax ? ` (${capability.customMax})` : ""}`
+      : capabilityTr("customOff");
+    const resetBody = `${capabilityTr("resetBody")} ${capability.fullReset}/${capability.actReset}`;
+    const allowanceBody = capability.allowance === null ? capabilityTr("aiAllowanceBody") : `${capabilityTr("aiAllowanceBody")} ${capability.allowance}`;
+    return `
+      <section class="story-release-capability" aria-label="${escapeHtml(capabilityTr("title"))}">
+        <div>
+          <h3>${escapeHtml(capabilityTr("title"))}</h3>
+          <p>${escapeHtml(capabilityTr("body"))}</p>
+        </div>
+        <dl>
+          <div><dt>${escapeHtml(capabilityTr("fixedChoices"))}</dt><dd>${escapeHtml(`${capability.fixedChoices} - ${capabilityTr("fixedChoicesBody")}`)}</dd></div>
+          <div><dt>${escapeHtml(capabilityTr("customChoice"))}</dt><dd>${escapeHtml(customBody)}</dd></div>
+          <div><dt>${escapeHtml(capabilityTr("resetPolicy"))}</dt><dd>${escapeHtml(resetBody)}</dd></div>
+          <div><dt>${escapeHtml(capabilityTr("aiAllowance"))}</dt><dd>${escapeHtml(allowanceBody)}</dd></div>
+        </dl>
+        <p>${escapeHtml(capabilityTr("safe"))}</p>
+      </section>`;
+  }
+
   function renderCatalog() {
     updateHeading();
     if (!state.packs.length) {
@@ -549,6 +668,7 @@
             ${resumeSessionId ? `<p class="story-resume-label">${escapeHtml(textValue(progress.checkpointLabel) || controlTr("resumeFrom"))}</p>` : ""}
             <p class="story-action-status" data-story-action-status aria-live="polite"></p>
             ${renderResetControls(progress)}
+            ${renderReleaseCapabilityPanel(pack, progress)}
           </div>
         </div>
         ${chapters.length ? `

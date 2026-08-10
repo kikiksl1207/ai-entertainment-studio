@@ -651,6 +651,56 @@ button.story-graph-choice {
   overflow-wrap: anywhere;
 }
 
+.story-release-capability {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.story-release-capability h3,
+.story-release-capability p,
+.story-release-capability dl,
+.story-release-capability dt,
+.story-release-capability dd {
+  margin: 0;
+}
+
+.story-release-capability h3 {
+  font-size: 14px;
+}
+
+.story-release-capability p,
+.story-release-capability dd {
+  color: rgba(244, 244, 241, 0.68);
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.story-release-capability dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.story-release-capability dl div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px;
+  border-radius: 7px;
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.story-release-capability dt {
+  color: #dffb8f;
+  font-size: 11px;
+  font-weight: 900;
+}
+
 @media (max-width: 900px) {
   .story-catalog { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
@@ -690,6 +740,7 @@ button.story-graph-choice {
   .story-player-copy p { font-size: 14px; line-height: 1.55; }
   .story-custom-choice > div .story-button,
   .story-progress-controls .story-button { width: 100%; }
+  .story-release-capability dl { grid-template-columns: 1fr; }
 }
 
 @media (prefers-reduced-motion: reduce) {
