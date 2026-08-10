@@ -36,6 +36,7 @@ import {
 } from './story-production.policy';
 import { sessionKeyHash, storyPathSignature } from './story-lifecycle.policy';
 import { StoryEconomicsService } from './story-economics.service';
+import { StoryProgressControlService } from './story-progress-control.service';
 import { projectStoredStorySceneVisualManifest } from '../story-stage/story-scene-visual-manifest-contract';
 
 const STORY_ENTITLEMENT_TYPES = [
@@ -51,6 +52,7 @@ export class StoryProductionService {
   constructor(
     private readonly prisma: PrismaService,
     @Optional() private readonly economics?: StoryEconomicsService,
+    @Optional() private readonly progressControls?: StoryProgressControlService,
   ) {}
 
   async creatorCatalog(userId: string, query: StoryCatalogQueryDto) {
@@ -522,7 +524,7 @@ export class StoryProductionService {
         path: boundedPath(jsonArray(progress.pathSummary)),
       };
     }
-    return this.sceneProjection(progress, locale);
+    return this.sceneProjection(userId, progress, locale);
   }
 
   async updateBeatProgress(
@@ -982,6 +984,7 @@ export class StoryProductionService {
   }
 
   private async sceneProjection(
+    userId: string,
     progress: {
       id: string;
       currentSceneId: string | null;
@@ -1010,11 +1013,14 @@ export class StoryProductionService {
     if (!visualManifest) {
       throw new NotFoundException('Published story scene not found');
     }
-    const [beats, choices, releaseCapability] = await Promise.all([
+    const [beats, choices, releaseCapability, progressState] = await Promise.all([
       this.prisma.storyBeat.findMany({ where: { sceneId: scene.id }, orderBy: { position: 'asc' }, take: 40 }),
       this.prisma.storyChoice.findMany({ where: { sceneId: scene.id }, orderBy: { position: 'asc' }, take: 12 }),
       this.economics
         ? this.economics.capabilityByRelease(progress.activeReleaseId)
+        : null,
+      this.progressControls
+        ? this.progressControls.publicState(userId, work.id)
         : null,
     ]);
     const visibleChoices =
@@ -1066,6 +1072,7 @@ export class StoryProductionService {
         };
       }),
       path: boundedPath(jsonArray(progress.pathSummary)),
+      progressState,
       releaseCapability:
         releaseCapability &&
         progress.capabilityRevision === releaseCapability.revision

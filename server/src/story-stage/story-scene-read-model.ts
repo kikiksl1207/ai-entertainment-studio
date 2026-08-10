@@ -129,6 +129,7 @@ export const STORY_PRODUCTION_CURRENT_SCENE_ALLOWED_RESPONSE_FIELDS = [
   'scene',
   'choices',
   'path',
+  'progressState',
   'releaseCapability',
 ] as const;
 

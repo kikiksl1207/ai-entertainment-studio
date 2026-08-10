@@ -447,20 +447,64 @@
     return typeof value === "string" && /^\/api\/v1\/me\/story-progress\//.test(value) ? value : "";
   }
 
-  function customChoiceCapability(scene) {
+  function progressStateProjection(progress) {
+    const projected = progress?.progressState;
+    return projected && typeof projected === "object" ? projected : null;
+  }
+
+  function releaseCapabilityProjection(scene, progress) {
+    const progressState = progressStateProjection(progress);
+    const candidate = progressState?.releaseCapability || progress?.releaseCapability || scene?.releaseCapability;
+    return candidate && typeof candidate === "object" ? candidate : null;
+  }
+
+  function customChoiceCapability(scene, progress) {
     const capability = scene?.customChoiceCapability;
     const submitPath = relativeStoryPath(capability?.submitPath);
     const maxChars = Number(capability?.maxChars);
     return capability?.enabled === true && capability?.entitled === true && submitPath && Number.isInteger(maxChars) && maxChars > 0
       ? { submitPath, maxChars }
-      : null;
+      : customChoiceCapabilityFromProgress(progress);
+  }
+
+  function customChoiceCapabilityFromProgress(progress) {
+    const progressState = progressStateProjection(progress);
+    const releaseCapability = releaseCapabilityProjection(null, progress);
+    const sessionId = safeSessionId(state.sessionId);
+    const maxChars = Number(releaseCapability?.customChoiceMaxLength);
+    if (progressState?.customChoiceCapability !== true || !sessionId || !Number.isInteger(maxChars) || maxChars < 1) return null;
+    return {
+      submitPath: `/api/v1/me/story-progress/${encodeURIComponent(sessionId)}/custom-choice`,
+      maxChars,
+    };
   }
 
   function resetCapability(progress) {
     const reset = progress?.reset;
     const previewPath = relativeStoryPath(reset?.previewPath);
     const commandPath = relativeStoryPath(reset?.commandPath);
-    return reset?.enabled === true && previewPath && commandPath ? { ...reset, previewPath, commandPath } : null;
+    if (reset?.enabled === true && previewPath && commandPath) return { ...reset, previewPath, commandPath };
+    const progressState = progressStateProjection(progress);
+    const sessionId = safeSessionId(state.sessionId);
+    const fullRemaining = Number(progressState?.fullResetRemaining);
+    const actRemaining = Number(progressState?.actResetRemaining);
+    const enabled = progressState?.canFullReset === true || progressState?.canActReset === true;
+    if (!enabled || !sessionId) return null;
+    const basePath = `/api/v1/me/story-progress/${encodeURIComponent(sessionId)}`;
+    return {
+      enabled: true,
+      previewPath: `${basePath}/reset-preview`,
+      commandPath: `${basePath}/reset`,
+      fullRemaining: Number.isInteger(fullRemaining) && fullRemaining > 0 ? fullRemaining : 0,
+      actRemaining: Number.isInteger(actRemaining) && actRemaining > 0 ? actRemaining : 0,
+      canFullReset: progressState?.canFullReset === true,
+      canActReset: progressState?.canActReset === true,
+    };
+  }
+
+  function fixedChoiceLimit(scene, progress) {
+    const count = Number(releaseCapabilityProjection(scene, progress)?.fixedChoices);
+    return Number.isInteger(count) && count >= 1 && count <= 3 ? count : 3;
   }
 
   function renderResetControls(progress) {
@@ -472,8 +516,8 @@
       <section class="story-progress-controls" aria-label="${escapeHtml(controlTr("resetProgress"))}">
         <h3>${escapeHtml(controlTr("resetProgress"))}</h3>
         <div>
-          <button type="button" class="story-button story-button-secondary" data-story-reset-preview="full" ${fullRemaining > 0 ? "" : "disabled"}>${escapeHtml(controlTr("resetAll"))} · ${escapeHtml(controlTr("remaining"))} ${fullRemaining}</button>
-          <button type="button" class="story-button story-button-secondary" data-story-reset-preview="act" ${actRemaining > 0 ? "" : "disabled"}>${escapeHtml(controlTr("resetAct"))} · ${escapeHtml(controlTr("remaining"))} ${actRemaining}</button>
+          <button type="button" class="story-button story-button-secondary" data-story-reset-preview="full" ${reset.canFullReset === false || fullRemaining < 1 ? "disabled" : ""}>${escapeHtml(controlTr("resetAll"))} · ${escapeHtml(controlTr("remaining"))} ${fullRemaining}</button>
+          <button type="button" class="story-button story-button-secondary" data-story-reset-preview="act" ${reset.canActReset === false || actRemaining < 1 ? "disabled" : ""}>${escapeHtml(controlTr("resetAct"))} · ${escapeHtml(controlTr("remaining"))} ${actRemaining}</button>
         </div>
       </section>`;
   }
@@ -536,6 +580,7 @@
     const chapters = Array.isArray(pack.parts) ? pack.parts : Array.isArray(pack.chapters) ? pack.chapters : [];
     const progress = state.progress || progressProjection(pack);
     const resumeSessionId = progress?.canResume === true ? safeSessionId(progress.sessionId || progress.resumeSessionId) : "";
+    const canContinue = Boolean(resumeSessionId) || pack?.replay?.continue === true;
     root.innerHTML = `
       <section class="story-pack-detail">
         <button type="button" class="story-back" data-story-back>← ${escapeHtml(tr("backToStories"))}</button>
@@ -545,8 +590,8 @@
             <div class="story-pack-status"><b>${escapeHtml(lifecycleLabel(pack.lifecycleStatus))}</b>${pricing ? `<em>${escapeHtml(pricing)}</em>` : ""}</div>
             <h2>${escapeHtml(title)}</h2>
             ${packSummary(pack) ? `<h3>${escapeHtml(tr("synopsis"))}</h3><p>${escapeHtml(packSummary(pack))}</p>` : ""}
-            <button type="button" class="story-button story-button-primary" ${resumeSessionId ? `data-story-resume="${escapeHtml(resumeSessionId)}"` : "data-story-start"}>${escapeHtml(resumeSessionId ? tr("continue") : tr("start"))}</button>
-            ${resumeSessionId ? `<p class="story-resume-label">${escapeHtml(textValue(progress.checkpointLabel) || controlTr("resumeFrom"))}</p>` : ""}
+            <button type="button" class="story-button story-button-primary" ${resumeSessionId ? `data-story-resume="${escapeHtml(resumeSessionId)}"` : "data-story-start"}>${escapeHtml(canContinue ? tr("continue") : tr("start"))}</button>
+            ${canContinue ? `<p class="story-resume-label">${escapeHtml(textValue(progress?.checkpointLabel) || controlTr("resumeFrom"))}</p>` : ""}
             <p class="story-action-status" data-story-action-status aria-live="polite"></p>
             ${renderResetControls(progress)}
           </div>
@@ -599,8 +644,8 @@
     const characters = sceneCharacters(scene);
     const sceneText = sceneBeatText(scene, state.progress?.currentBeatPosition);
     const isEnding = Boolean(scene.ending || scene.isEnding || scene.endingType);
-    const customChoice = customChoiceCapability(scene);
-    const fixedChoices = state.choices.slice(0, 3);
+    const customChoice = customChoiceCapability(scene, state.progress);
+    const fixedChoices = state.choices.slice(0, fixedChoiceLimit(scene, state.progress));
     root.innerHTML = `
       <section class="story-player" data-has-background="${background ? "true" : "false"}">
         <a class="story-back" href="/story-stage">← ${escapeHtml(tr("backToStories"))}</a>
@@ -632,6 +677,8 @@
               </form>` : ""}
             <p class="story-action-status" data-story-action-status aria-live="polite"></p>
           </div>` : ""}
+        ${renderResetControls(state.progress)}
+        ${renderResetDialog()}
       </section>`;
   }
 
@@ -793,10 +840,12 @@
   }
 
   async function submitCustomChoice(value) {
-    const capability = customChoiceCapability(state.scene);
+    const capability = customChoiceCapability(state.scene, state.progress);
     const input = String(value || "").trim();
+    const expectedRevision = Number(state.progress?.revision);
     const status = root.querySelector("[data-story-action-status]");
-    if (!capability || !state.sessionId || !state.scene?.sceneId) {
+    const sceneId = state.scene?.id || state.scene?.sceneId;
+    if (!capability || !state.sessionId || !sceneId || !Number.isInteger(expectedRevision) || expectedRevision < 1) {
       if (status) status.textContent = controlTr("customUnavailable");
       return;
     }
@@ -811,8 +860,8 @@
       await request(capability.submitPath, {
         method: "POST",
         auth: true,
-        headers: { "Idempotency-Key": `story-custom-choice-${state.sessionId}-${state.scene.sceneId}-${Date.now()}` },
-        body: { customChoice: input },
+        headers: { "Idempotency-Key": `story-custom-choice-${state.sessionId}-${sceneId}-${Date.now()}` },
+        body: { input, expectedRevision },
       });
       state.busy = false;
       await loadScene();
@@ -830,7 +879,8 @@
       const separator = reset.previewPath.includes("?") ? "&" : "?";
       state.resetPreview = await request(`${reset.previewPath}${separator}target=${encodeURIComponent(target)}`, { auth: true });
       state.resetPreview.target = target;
-      renderPack();
+      if (state.sessionId) renderScene();
+      else renderPack();
     } finally {
       state.busy = false;
     }
@@ -838,18 +888,22 @@
 
   async function confirmReset() {
     const reset = resetCapability(state.progress);
-    if (!reset || !state.resetPreview?.target || state.busy) return;
+    const expectedRevision = Number(state.resetPreview?.expectedRevision);
+    if (!reset || !state.resetPreview?.target || !Number.isInteger(expectedRevision) || expectedRevision < 1 || state.busy) return;
     state.busy = true;
     try {
       const payload = await request(reset.commandPath, {
         method: "POST",
         auth: true,
         headers: { "Idempotency-Key": `story-reset-${state.sessionId}-${state.resetPreview.target}-${Date.now()}` },
-        body: { target: state.resetPreview.target },
+        body: { target: state.resetPreview.target, expectedRevision },
       });
-      state.progress = progressProjection(payload) || state.progress;
       state.resetPreview = null;
-      renderPack();
+      if (state.sessionId) await loadScene();
+      else {
+        state.progress = progressProjection(payload) || state.progress;
+        renderPack();
+      }
       const status = root.querySelector("[data-story-action-status]");
       if (status) status.textContent = controlTr("resetComplete");
     } catch (_) {
