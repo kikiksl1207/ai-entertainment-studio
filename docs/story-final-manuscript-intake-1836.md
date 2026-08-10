@@ -59,3 +59,17 @@ session material, or database configuration. Its output is limited to a run ID,
 the public intake path, status, check booleans, and `mutationExecuted: false`.
 Only a `ready_for_controlled_upload` result may proceed to the separately
 approved private upload session.
+
+## Norse Final Upload Readiness
+
+`npm.cmd run qa:norse-final-upload-readiness` is the read-only gate for the
+separate Norse mythology final upload. It verifies the target identity,
+approved source and conversion metadata, cleared rights state, non-free
+pricing, fixed choice slots 1/2/3, an explicit custom-choice decision, a
+matching paid or premium capability projection, and the private staging
+conditions.
+
+The command never prints the source path, manuscript, metadata, session, or
+database configuration. Only `ready_for_controlled_upload` may proceed to the
+separately approved private upload session; all other states are fail-closed
+with boolean checks and `mutationExecuted: false`.
