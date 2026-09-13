@@ -152,7 +152,51 @@ for (const [name, translator, key, completeCheck, safeCheck] of specs) {
       assert.equal(verifyStoryStageSource(fixture().replace(prefix, body)).rawKeyFallbackBlocked, false);
     }
   });
+
+  test(`${translator} rejects filtered raw-key return paths independently of probes`, () => {
+    const prefix = `return ${name}[state.locale]?.[key] || ${name}.ko[key] || "";`;
+    const lookup = `${name}[state.locale]?.[key] || ${name}.ko[key]`;
+    for (const fallback of [
+      `return ${lookup} || key;`,
+      `return (${lookup}) ?? (key);`,
+      `return ${name}.ko[key] ? ${name}.ko[key] : key;`,
+      `return ${lookup} || \`\${key}\`;`,
+    ]) {
+      const source = fixture().replace(prefix,
+        `if (!/^[a-z][a-zA-Z]*$/.test(key)) return ""; ${fallback}`,
+      ).replace(`${translator}("${key}");`,
+        `const missingKey = "missingLabel"; globalThis.observed = ${translator}(missingKey);`,
+      );
+      const context = {};
+      runInNewContext(source, context);
+      assert.equal(context.observed, 'missingLabel');
+      assert.equal(verifyStoryStageSource(source).rawKeyFallbackBlocked, false);
+    }
+  });
+
+  test(`${translator} allows filtered lookups with literal and conditional fallbacks`, () => {
+    const prefix = `return ${name}[state.locale]?.[key] || ${name}.ko[key] || "";`;
+    for (const body of [
+      `if (!/^[a-z][a-zA-Z]*$/.test(key)) return ""; return ${name}[state.locale]?.[key] || ${name}.ko[key] || "";`,
+      `if (!/^[a-z][a-zA-Z]*$/.test(key)) return "Unavailable"; return ${name}[state.locale]?.[key] ?? ${name}.ko[key] ?? "Translation unavailable";`,
+      `return key === "" ? "" : (${name}[state.locale]?.[key] || ${name}.ko[key] || "Translation unavailable");`,
+    ]) {
+      assertPassed(fixture().replace(prefix, body));
+    }
+  });
 }
+
+test('rejects TypeScript-only syntax and JavaScript early errors in the actual page', () => {
+  for (const [before, after] of [
+    ['const COPY =', 'const COPY: any ='],
+    ['function tr(key)', 'function tr(key: string)'],
+    ['locale: resolveLocale(),', 'locale: resolveLocale() as string,'],
+    ['"use strict";', '"use strict"; const repeated = 1; const repeated = 2;'],
+  ]) {
+    assert.ok(mainSource.includes(before));
+    assert.throws(() => verifyStoryStageSource(mainSource.replace(before, after)), { name: 'SyntaxError' });
+  }
+});
 
 test('raw-key checks are limited to translation functions', () => {
   assertPassed(fixture().replace('const state =', 'function unrelated(key) { return key || key; } const state ='));

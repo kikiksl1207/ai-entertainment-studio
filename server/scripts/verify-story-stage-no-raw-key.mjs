@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { runInNewContext } from 'node:vm';
+import { Script, runInNewContext } from 'node:vm';
 
 const ts = createRequire(import.meta.url)('typescript');
 const locales = ['ko', 'en', 'ja', 'zh-Hans', 'zh-Hant'];
@@ -14,6 +14,8 @@ const dictionaries = [
 ];
 
 export function verifyStoryStageSource(source) {
+  // Compile, but do not run, the classic browser script; the TS parser accepts TS-only syntax.
+  new Script(source, { filename: 'story-stage.js' });
   const parsed = ts.createSourceFile(
     'story-stage.js', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS,
   );
@@ -54,7 +56,7 @@ export function verifyStoryStageSource(source) {
   checks.rawKeyFallbackBlocked = dictionaries.every(([name, translator]) => {
     if (!objects.has(name) && !translators.has(translator)) return true;
     const fn = translators.get(translator);
-    if (!fn) return false;
+    if (!fn || !hasSafeTranslationReturns(fn, name)) return false;
     // Evaluate only the parsed translator, never the browser page or adjacent declarations.
     try {
       return [...locales, 'unsupported'].every((locale) =>
@@ -70,6 +72,38 @@ export function verifyStoryStageSource(source) {
     }
   });
   return checks;
+}
+
+function hasSafeTranslationReturns(fn, dictionaryName) {
+  function isMember(node) {
+    return ts.isElementAccessExpression(node) || ts.isPropertyAccessExpression(node);
+  }
+  function isSafeReturn(node) {
+    if (!node) return false;
+    if (ts.isStringLiteralLike(node)) return node.text === '' || isSafeValue(node.text, '');
+    if (ts.isParenthesizedExpression(node)) return isSafeReturn(node.expression);
+    if (ts.isConditionalExpression(node)) {
+      return isSafeReturn(node.whenTrue) && isSafeReturn(node.whenFalse);
+    }
+    if (ts.isBinaryExpression(node) && [
+      ts.SyntaxKind.BarBarToken, ts.SyntaxKind.QuestionQuestionToken, ts.SyntaxKind.AmpersandAmpersandToken,
+    ].includes(node.operatorToken.kind)) {
+      return isSafeReturn(node.left) && isSafeReturn(node.right);
+    }
+    // Only values from an audited locale dictionary may replace a literal fallback.
+    return isMember(node) && isMember(node.expression) &&
+      ts.isIdentifier(node.expression.expression) && node.expression.expression.text === dictionaryName;
+  }
+  let hasReturn = false;
+  function hasUnsafeReturn(node) {
+    if (ts.isFunctionLike(node)) return false;
+    if (ts.isReturnStatement(node)) {
+      hasReturn = true;
+      return !isSafeReturn(node.expression);
+    }
+    return ts.forEachChild(node, hasUnsafeReturn);
+  }
+  return Boolean(fn.body) && !hasUnsafeReturn(fn.body) && hasReturn;
 }
 
 function readObject(node) {
