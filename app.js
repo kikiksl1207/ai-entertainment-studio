@@ -1529,6 +1529,7 @@ const I18N_DICT = {
   "writerManuscript.localReview": { "ko-KR": "로컬 미리보기: 검토 구간 {count}개 · {lines}줄 · {bytes}바이트. 아직 서버에 전송되지 않았습니다.", "ja-JP": "ローカル確認: 確認範囲{count}件 · {lines}行 · {bytes}バイト。サーバーには未送信です。", "en-US": "Local preview: review ranges {count} · {lines} lines · {bytes} bytes. Not sent to the server.", "zh-CN": "本地预览：{count}个核对区间 · {lines}行 · {bytes}字节。尚未提交到服务器。", "zh-Hant": "本機預覽：{count}個核對區間 · {lines}行 · {bytes}位元組。尚未提交至伺服器。" },
   "writerManuscript.boundariesReviewed": { "ko-KR": "파트 경계를 로컬에서 확인했습니다. 서버 접수는 아직 지원되지 않습니다.", "ja-JP": "パート境界をローカルで確認しました。サーバー受付はまだ利用できません。", "en-US": "Part boundaries reviewed locally. Server intake is not available yet.", "zh-CN": "已在本地核对部分边界，服务器接收尚不可用。", "zh-Hant": "已在本機核對部分邊界，伺服器接收尚不可用。" },
   "writerManuscript.boundary": { "ko-KR": "원문은 이 화면에서 확인할 수 있습니다. 파트 경계와 문단 종류를 보존하는 접수 경로가 아직 없어 전송은 중단됩니다. 한 파트로 합치거나 분석 완료로 표시하지 않습니다.", "ja-JP": "原文はこの画面で確認できます。パート境界と段落種別を保持する受付経路がないため送信できません。ひとつのパートへの結合や分析完了表示はしません。", "en-US": "Review the source here. Sending is blocked until intake can preserve part boundaries and paragraph types. We will not merge parts or mark analysis complete.", "zh-CN": "可在此核对原文。接收流程尚无法保留部分边界和段落类型，因此停止提交；不会合并成一部分或标记分析完成。", "zh-Hant": "可在此核對原文。接收流程尚無法保留部分邊界與段落類型，因此停止提交；不會合併成一部分或標記分析完成。" },
+  "writerManuscript.nav": { "ko-KR": "내 작품 원고", "ja-JP": "自分の作品原稿", "en-US": "My manuscript", "zh-CN": "我的稿件", "zh-Hant": "我的稿件" },
   "storyIntake.nav": {
     "ko-KR": "원고 접수",
     "ja-JP": "原稿受付",
