@@ -8,10 +8,10 @@
   const COPY = {
     ko: {
       title: "스토리",
-      description: "완성된 작품을 선택해 이야기를 시작하세요.",
+      description: "작품을 선택해 이야기를 시작하세요.",
       loading: "스토리를 불러오는 중입니다.",
       emptyTitle: "등록된 스토리가 없습니다",
-      emptyBody: "최종 검수를 마친 작품이 공개되면 이곳에 표시됩니다.",
+      emptyBody: "공개된 작품은 이곳에 표시됩니다.",
       retry: "다시 불러오기",
       loadErrorTitle: "스토리를 불러오지 못했습니다",
       loadErrorBody: "잠시 후 다시 시도해 주세요.",
@@ -53,10 +53,10 @@
     },
     en: {
       title: "Stories",
-      description: "Choose a completed story and begin your journey.",
+      description: "Choose a story and begin reading.",
       loading: "Loading stories.",
       emptyTitle: "No stories are published yet",
-      emptyBody: "Stories appear here after final review and publication.",
+      emptyBody: "Published stories appear here.",
       retry: "Try again",
       loadErrorTitle: "Stories could not be loaded",
       loadErrorBody: "Please try again shortly.",
@@ -98,10 +98,10 @@
     },
     ja: {
       title: "ストーリー",
-      description: "完成した作品を選んで物語を始めましょう。",
+      description: "作品を選んで物語を始めましょう。",
       loading: "ストーリーを読み込んでいます。",
       emptyTitle: "公開中のストーリーはありません",
-      emptyBody: "最終確認を終えた作品が公開されると、ここに表示されます。",
+      emptyBody: "公開された作品がここに表示されます。",
       retry: "再読み込み",
       loadErrorTitle: "ストーリーを読み込めませんでした",
       loadErrorBody: "しばらくしてからもう一度お試しください。",
@@ -143,10 +143,10 @@
     },
     "zh-Hans": {
       title: "故事",
-      description: "选择已完成的作品，开始你的故事。",
+      description: "选择作品，开始阅读。",
       loading: "正在加载故事。",
       emptyTitle: "暂无已发布的故事",
-      emptyBody: "通过最终审核并发布的作品会显示在这里。",
+      emptyBody: "已发布的作品会显示在这里。",
       retry: "重新加载",
       loadErrorTitle: "无法加载故事",
       loadErrorBody: "请稍后重试。",
@@ -188,10 +188,10 @@
     },
     "zh-Hant": {
       title: "故事",
-      description: "選擇已完成的作品，開始你的故事。",
+      description: "選擇作品，開始閱讀。",
       loading: "正在載入故事。",
       emptyTitle: "暫無已發布的故事",
-      emptyBody: "通過最終審核並發布的作品會顯示在這裡。",
+      emptyBody: "已發布的作品會顯示在這裡。",
       retry: "重新載入",
       loadErrorTitle: "無法載入故事",
       loadErrorBody: "請稍後重試。",
@@ -356,6 +356,14 @@
     },
   };
 
+  const ACCESS_COPY = {
+    ko: { filterLabel: "가격", all: "전체", loadMore: "더 보기", purchase: "구매", purchaseUnavailable: "현재 이 작품을 구매할 수 없습니다.", detailUnavailable: "작품 정보를 확인할 수 없습니다.", accessFailed: "이용 권한을 확인하지 못했습니다. 다시 시도해 주세요." },
+    en: { filterLabel: "Price", all: "All", loadMore: "Load more", purchase: "Purchase", purchaseUnavailable: "This story is not available to purchase right now.", detailUnavailable: "Story details are unavailable.", accessFailed: "Your access could not be checked. Please try again." },
+    ja: { filterLabel: "価格", all: "すべて", loadMore: "もっと見る", purchase: "購入", purchaseUnavailable: "現在この作品は購入できません。", detailUnavailable: "作品情報を確認できません。", accessFailed: "利用権限を確認できませんでした。もう一度お試しください。" },
+    "zh-Hans": { filterLabel: "价格", all: "全部", loadMore: "加载更多", purchase: "购买", purchaseUnavailable: "目前无法购买此作品。", detailUnavailable: "无法查看作品信息。", accessFailed: "无法确认你的访问权限，请重试。" },
+    "zh-Hant": { filterLabel: "價格", all: "全部", loadMore: "載入更多", purchase: "購買", purchaseUnavailable: "目前無法購買此作品。", detailUnavailable: "無法查看作品資訊。", accessFailed: "無法確認你的存取權限，請重試。" },
+  };
+
   const state = {
     locale: resolveLocale(),
     packs: [],
@@ -376,6 +384,22 @@
     minimumRevision: 0,
     localeDirty: false,
     operation: 0,
+    catalogEpoch: 0,
+    catalogStatus: "loading",
+    catalogLocale: "",
+    filter: "all",
+    nextCursor: null,
+    pageLoading: false,
+    pageError: false,
+    detailSlug: "",
+    detailStatus: "",
+    detailError: "",
+    readerAccess: null,
+    readerState: null,
+    detailPending: false,
+    dialog: null,
+    returnFocus: null,
+    returnScroll: 0,
   };
 
   // First release is suggested-only, including legacy paid custom=true metadata.
@@ -396,6 +420,10 @@
     return STORY_CONTROL_COPY[state.locale]?.[key] || STORY_CONTROL_COPY.ko[key] || "";
   }
 
+  function accessTr(key) {
+    return ACCESS_COPY[state.locale]?.[key] || ACCESS_COPY.ko[key] || "";
+  }
+
   function escapeHtml(value) {
     return String(value ?? "")
       .replace(/&/g, "&amp;")
@@ -408,6 +436,7 @@
   function textValue(value) {
     if (typeof value === "string") return value.includes(".") && !value.includes(" ") ? "" : value;
     if (!value || typeof value !== "object") return "";
+    if (typeof value.value === "string") return textValue(value.value);
     const regional = state.locale === "ko" ? "ko-KR" : state.locale === "en" ? "en-US" : state.locale === "ja" ? "ja-JP" : state.locale === "zh-Hans" ? "zh-CN" : "zh-Hant";
     return value[state.locale] || value[regional] || value.ko || value["ko-KR"] || value.en || value["en-US"] || "";
   }
@@ -430,21 +459,6 @@
     return response.status === 204 ? null : response.json();
   }
 
-  function listFrom(payload) {
-    if (Array.isArray(payload)) return payload;
-    const candidate = payload?.items || payload?.storyPacks || payload?.packs || payload?.data;
-    return Array.isArray(candidate) ? candidate : [];
-  }
-
-  function lifecycleLabel(status) {
-    return tr({ published: "published", completed: "completed", serializing: "serializing", hiatus: "hiatus", season_ended: "seasonEnded" }[status] || "published");
-  }
-
-  function pricingLabel(mode) {
-    if (mode === "paid" || mode === "mixed" || mode === "free") return tr(mode);
-    return "";
-  }
-
   function renderLoading(message = tr("loading")) {
     root.innerHTML = `<div class="story-state" role="status"><span class="story-spinner" aria-hidden="true"></span><p>${escapeHtml(message)}</p></div>`;
   }
@@ -459,24 +473,24 @@
   }
 
   function coverUrl(pack) {
-    return pack?.coverImageUrl || pack?.coverUrl || pack?.cover?.publicUrl || pack?.cover?.url || "";
+    const value = pack?.cover?.publicAssetPath || pack?.cover?.publicUrl || pack?.cover?.url;
+    if (typeof value !== "string" || /[\\\s]/.test(value)) return "";
+    try {
+      const url = new URL(value, location.origin);
+      return url.protocol === "https:" || (value.startsWith("/") && !value.startsWith("//")) ? url.href : "";
+    } catch (_) { return ""; }
   }
 
   function packTitle(pack) {
-    return textValue(pack?.title) || textValue(pack?.displayTitle);
+    return textValue(pack?.title);
   }
 
   function packSummary(pack) {
-    return textValue(pack?.summary) || textValue(pack?.synopsis);
+    return textValue(pack?.summary);
   }
 
   function packSlug(pack) {
-    return pack?.slug || pack?.packSlug || "";
-  }
-
-  function progressProjection(source) {
-    const progress = source?.progress || source?.readerProgress || source?.checkpoint;
-    return progress && typeof progress === "object" ? progress : null;
+    return typeof pack?.slug === "string" ? pack.slug : "";
   }
 
   function safeSessionId(value) {
@@ -545,65 +559,165 @@
 
   function renderCatalog() {
     updateHeading();
-    if (!state.packs.length) {
-      renderState(tr("emptyTitle"), tr("emptyBody"), false);
+    let catalog = root.querySelector("[data-story-catalog-view]");
+    if (!catalog) {
+      catalog = document.createElement("div");
+      catalog.dataset.storyCatalogView = "";
+      root.prepend(catalog);
+    }
+    if (state.catalogStatus !== "ready") {
+      catalog.innerHTML = `<section class="story-state" role="status"><h2>${escapeHtml(tr(state.catalogStatus === "loading" ? "loading" : "loadErrorTitle"))}</h2>${state.catalogStatus === "error" ? `<p>${escapeHtml(tr("loadErrorBody"))}</p><button class="story-button" data-story-retry>${escapeHtml(tr("retry"))}</button>` : ""}</section>`;
       return;
     }
-    root.innerHTML = `
+    const visible = state.packs.filter((pack) => state.filter === "all" || (state.filter === "free" ? pack.access?.pricing?.free === true : pack.access?.pricing?.free === false));
+    catalog.innerHTML = `
+      <div class="story-catalog-tools"><label>${escapeHtml(accessTr("filterLabel"))}
+        <select data-story-filter>${["all", "free", "paid"].map((value) => `<option value="${value}" ${value === state.filter ? "selected" : ""}>${escapeHtml(value === "all" ? accessTr("all") : tr(value))}</option>`).join("")}</select>
+      </label><output>${visible.length} / ${state.packs.length}</output></div>
       <section class="story-catalog" aria-label="${escapeHtml(tr("title"))}">
-        ${state.packs.map((pack) => {
+        ${visible.map((pack) => {
           const title = packTitle(pack);
           const cover = coverUrl(pack);
           const slug = packSlug(pack);
-          const pricing = pricingLabel(pack.pricingMode);
+          const pricing = priceText(pack.access);
           if (!title || !slug) return "";
           return `
             <article class="story-pack-card">
               <button type="button" class="story-pack-open" data-pack-slug="${escapeHtml(slug)}" aria-label="${escapeHtml(`${tr("open")}: ${title}`)}">
                 <span class="story-pack-cover${cover ? " has-image" : ""}">${cover ? `<img src="${escapeHtml(cover)}" alt="" loading="lazy" />` : ""}</span>
                 <span class="story-pack-copy">
-                  <span class="story-pack-status"><b>${escapeHtml(lifecycleLabel(pack.lifecycleStatus))}</b>${pricing ? `<em>${escapeHtml(pricing)}</em>` : ""}</span>
+                  <span class="story-pack-status">${pricing ? `<em>${escapeHtml(pricing)}</em>` : ""}</span>
                   <strong>${escapeHtml(title)}</strong>
                   ${packSummary(pack) ? `<p>${escapeHtml(packSummary(pack))}</p>` : ""}
-                  <small>${escapeHtml(`${Number(pack.chapterCount || pack.partCount || 0)} ${tr("chapters")}`)}</small>
                 </span>
               </button>
             </article>`;
         }).join("")}
-      </section>`;
+      </section>
+      ${!visible.length ? `<section class="story-state"><h2>${escapeHtml(state.packs.length ? "0" : tr("emptyTitle"))}</h2>${!state.packs.length ? `<p>${escapeHtml(tr("emptyBody"))}</p>` : ""}</section>` : ""}
+      ${state.pageError ? `<p role="status">${escapeHtml(tr("loadErrorBody"))}</p>` : ""}
+      ${state.nextCursor ? `<button class="story-button story-button-secondary story-load-more" data-story-more ${state.pageLoading ? "disabled" : ""}>${escapeHtml(state.pageLoading ? tr("loading") : state.pageError ? tr("retry") : accessTr("loadMore"))}</button>` : ""}`;
+  }
+
+  function priceText(access) {
+    const pricing = access?.pricing;
+    if (pricing?.currencyCode !== "LUMINA" || typeof pricing.amountLumina !== "string" || !/^\d+(\.\d+)?$/.test(pricing.amountLumina)) return "";
+    if (pricing.free === true && Number(pricing.amountLumina) === 0) return tr("free");
+    return pricing.free === false ? `${pricing.amountLumina} LUMINA` : "";
+  }
+
+  function releaseReady(capability) {
+    return capability?.configStatus === "active" && capability.source === "active_release_capability" &&
+      Number.isInteger(capability.revision) && capability.revision > 0 && capability.choicePolicy === "first_public_release" &&
+      capability.fixedChoices === 3 && capability.customChoiceEnabled === false;
+  }
+
+  function signedIn() {
+    return typeof window.isLoggedIn === "function" && window.isLoggedIn() === true;
+  }
+
+  function detailAction() {
+    if (state.detailStatus !== "ready") return "unavailable";
+    if (!signedIn()) return state.pack?.access?.actions?.authenticationRequired === true ? "sign_in" : "unavailable";
+    const owner = state.readerAccess;
+    const access = owner?.access;
+    if (!access || access.actions?.authenticationRequired !== false || !priceText(access)) return "unavailable";
+    if (access.actions.primary === "purchase" && access.actions.canPurchase === true && access.accessible === false && access.status === "purchase_required") return "purchase";
+    if (!releaseReady(state.pack.releaseCapability) || !releaseReady(owner.aiCapability) ||
+        state.pack.releaseCapability.revision !== owner.aiCapability.revision || access.accessible !== true ||
+        !["free", "entitled"].includes(access.status) || access.actions.canPurchase !== false) return "unavailable";
+    const progress = state.readerState;
+    if (!state.pack.parts.length) return "unavailable";
+    if (!progress || progress.storyAccess?.entitled !== true || !releaseReady(progress.releaseCapability) ||
+        progress.releaseCapability.revision !== owner.aiCapability.revision) return "unavailable";
+    if (access.actions.primary === "continue" && access.actions.canContinue === true && owner.replay?.continue === true &&
+        progress.canResume === true && ["story.progress.status.ready", "story.progress.status.quotaExhausted"].includes(progress.statusKey)) return "continue";
+    if (access.actions.primary === "start" && access.actions.canStart === true && owner.replay?.continue === false &&
+        progress.statusKey === "story.progress.status.noProgress" && progress.canResume === false) return "start";
+    return "unavailable";
   }
 
   function renderPack() {
+    const dialog = state.dialog;
+    if (!dialog || !state.detailSlug) return;
     const pack = state.pack;
-    if (!pack) return renderCatalog();
-    const title = packTitle(pack);
+    const title = packTitle(pack) || accessTr("detailUnavailable");
     const cover = coverUrl(pack);
-    const pricing = pricingLabel(pack.pricingMode);
-    const chapters = Array.isArray(pack.parts) ? pack.parts : Array.isArray(pack.chapters) ? pack.chapters : [];
-    const progress = state.progress || progressProjection(pack);
-    const resumeSessionId = progress?.canResume === true ? safeSessionId(progress.sessionId || progress.resumeSessionId) : "";
-    root.innerHTML = `
-      <section class="story-pack-detail">
-        <button type="button" class="story-back" data-story-back>← ${escapeHtml(tr("backToStories"))}</button>
-        <div class="story-detail-main">
-          <div class="story-detail-cover${cover ? " has-image" : ""}">${cover ? `<img src="${escapeHtml(cover)}" alt="${escapeHtml(title)}" />` : ""}</div>
+    const action = detailAction();
+    const active = document.activeElement;
+    const focusAction = active?.dataset?.storyStart !== undefined;
+    const scroll = dialog.querySelector(".story-detail-body")?.scrollTop || 0;
+    dialog.innerHTML = `
+      <header class="story-detail-header"><h2 id="storyDetailTitle">${escapeHtml(title)}</h2>
+        <button type="button" class="story-detail-close" data-story-close aria-label="${escapeHtml(tr("close"))}" title="${escapeHtml(tr("close"))}">&times;</button></header>
+      <div class="story-detail-body" tabindex="0">
+        ${pack ? `<div class="story-detail-main">
+          ${cover ? `<div class="story-detail-cover has-image"><img src="${escapeHtml(cover)}" alt="" /></div>` : ""}
           <div class="story-detail-copy">
-            <div class="story-pack-status"><b>${escapeHtml(lifecycleLabel(pack.lifecycleStatus))}</b>${pricing ? `<em>${escapeHtml(pricing)}</em>` : ""}</div>
-            <h2>${escapeHtml(title)}</h2>
-            ${packSummary(pack) ? `<h3>${escapeHtml(tr("synopsis"))}</h3><p>${escapeHtml(packSummary(pack))}</p>` : ""}
-            <button type="button" class="story-button story-button-primary" ${resumeSessionId ? `data-story-resume="${escapeHtml(resumeSessionId)}"` : "data-story-start"}>${escapeHtml(resumeSessionId ? tr("continue") : tr("start"))}</button>
-            ${resumeSessionId ? `<p class="story-resume-label">${escapeHtml(textValue(progress.checkpointLabel) || controlTr("resumeFrom"))}</p>` : ""}
-            <p class="story-action-status" data-story-action-status aria-live="polite"></p>
-            ${renderResetControls(progress)}
-          </div>
-        </div>
-        ${chapters.length ? `
-          <section class="story-chapters">
-            <h3>${escapeHtml(tr("chapterList"))}</h3>
-            <ol>${chapters.map((chapter) => `<li><span>${escapeHtml(String(chapter.position || chapter.chapterNo || chapter.partNo || chapter.no || ""))}</span><strong>${escapeHtml(textValue(chapter.title) || textValue(chapter.summary))}</strong></li>`).join("")}</ol>
-        </section>` : ""}
-        ${renderResetDialog()}
-      </section>`;
+            ${priceText(pack.access) ? `<p>${escapeHtml(priceText(pack.access))}</p>` : ""}
+            ${packSummary(pack) ? `<h3>${escapeHtml(tr("synopsis"))}</h3><p class="story-synopsis">${escapeHtml(packSummary(pack))}</p>` : ""}
+          </div></div>
+          <section class="story-chapters"><h3>${escapeHtml(tr("chapterList"))} (${pack.parts.length})</h3>
+            <ol>${pack.parts.map((part) => `<li><span>${escapeHtml(part.position)}</span><strong>${escapeHtml(textValue(part.title))}</strong><small>${escapeHtml(priceText(part.access))}</small></li>`).join("")}</ol>
+          </section>` : ""}
+      </div>
+      <footer class="story-detail-actions" aria-busy="${state.detailPending}">
+        <p data-story-detail-status role="status">${escapeHtml(state.detailStatus === "loading" || state.detailStatus === "access-loading" ? tr("loading") : state.detailStatus === "error" ? accessTr("detailUnavailable") : state.detailStatus === "access-error" ? state.detailError : action === "sign_in" ? tr("loginRequired") : action === "purchase" ? accessTr("purchaseUnavailable") : action === "unavailable" ? controlTr("sceneUnavailable") : "")}</p>
+        <div>${action === "start" || action === "continue" ? `<button class="story-button story-button-primary" data-story-start ${state.detailPending ? "disabled" : ""}>${escapeHtml(state.detailPending ? tr("starting") : tr(action))}</button>` : action === "purchase" ? `<button class="story-button story-button-primary" disabled aria-describedby="storyPurchaseReason">${escapeHtml(accessTr("purchase"))}</button><span id="storyPurchaseReason" class="story-sr-only">${escapeHtml(accessTr("purchaseUnavailable"))}</span>` : ""}
+        ${!["loading", "access-loading"].includes(state.detailStatus) ? `<button class="story-button story-button-secondary" data-story-detail-retry ${state.detailPending ? "disabled" : ""}>${escapeHtml(tr("retry"))}</button>` : ""}</div>
+      </footer>`;
+    dialog.querySelector(".story-detail-body").scrollTop = scroll;
+    if (focusAction && !state.detailPending) dialog.querySelector("[data-story-start]")?.focus();
+    else dialog.querySelector("[data-story-close]")?.focus({ preventScroll: true });
+  }
+
+  function openPack(slug, trigger, push = true) {
+    if (state.dialog) return;
+    state.returnFocus = trigger || document.getElementById("storyStageTitle");
+    state.returnScroll = window.scrollY;
+    if (push) {
+      const url = new URL(location.href);
+      url.searchParams.delete("pack");
+      url.searchParams.set("slug", slug);
+      history.pushState({ storyDetail: true }, "", url);
+    }
+    state.detailSlug = slug;
+    const dialog = document.createElement("dialog");
+    dialog.className = "story-detail-modal";
+    dialog.setAttribute("aria-labelledby", "storyDetailTitle");
+    dialog.setAttribute("aria-modal", "true");
+    dialog.addEventListener("cancel", (event) => { event.preventDefault(); closePack(); });
+    state.dialog = dialog;
+    root.append(dialog);
+    document.body.classList.add("story-detail-open");
+    dialog.showModal();
+    return loadPack(slug);
+  }
+
+  function dismissPack() {
+    ++state.epoch;
+    state.dialog?.close();
+    state.dialog?.remove();
+    state.dialog = null;
+    state.detailSlug = "";
+    state.pack = null;
+    state.readerAccess = null;
+    state.readerState = null;
+    document.body.classList.remove("story-detail-open");
+    if (state.returnFocus?.isConnected) state.returnFocus.focus({ preventScroll: true });
+    else document.getElementById("storyStageTitle")?.focus({ preventScroll: true });
+    window.scrollTo({ left: 0, top: state.returnScroll, behavior: "instant" });
+  }
+
+  function closePack() {
+    dismissPack();
+    if (history.state?.storyDetail === true) history.back();
+    else {
+      const url = new URL(location.href);
+      url.searchParams.delete("slug");
+      url.searchParams.delete("pack");
+      history.replaceState(null, "", url);
+    }
   }
 
   function sceneBackground(scene) {
@@ -783,68 +897,114 @@
     if (description) description.textContent = tr("description");
   }
 
-  async function loadCatalog() {
-    const epoch = ++state.epoch;
+  async function loadCatalog(more = false) {
+    if (more && (state.pageLoading || !state.nextCursor)) return;
+    const epoch = ++state.catalogEpoch;
+    const locale = state.locale;
+    const cursor = more ? state.nextCursor : null;
     state.sessionId = "";
     state.workId = "";
     state.progress = null;
     state.controls = null;
     state.minimumRevision = 0;
-    state.pack = null;
-    renderLoading();
+    state.pageLoading = more;
+    state.pageError = false;
+    if (!more) state.catalogStatus = "loading";
+    renderCatalog();
     try {
-      const payload = await request(`/api/v1/stories?locale=${encodeURIComponent(state.locale)}`);
-      if (epoch !== state.epoch) return;
-      state.packs = listFrom(payload).filter((pack) => packSlug(pack) && packTitle(pack));
-      const requestedSlug = new URLSearchParams(location.search).get("slug") || new URLSearchParams(location.search).get("pack");
-      if (requestedSlug) return loadPack(requestedSlug);
+      const params = new URLSearchParams({ locale, limit: "12" });
+      if (cursor) params.set("cursor", cursor);
+      const payload = await request(`/api/v1/stories?${params}`);
+      if (epoch !== state.catalogEpoch || state.sessionId || state.graphWorkId) return;
+      if (!Array.isArray(payload?.items) || !(payload.nextCursor === null || safeGraphId(payload.nextCursor)) || payload.nextCursor === cursor && cursor) throw new Error("Invalid catalog");
+      const packs = payload.items.filter((pack) => safeGraphId(pack?.id) && packSlug(pack) && packTitle(pack));
+      if (packs.length !== payload.items.length) throw new Error("Invalid catalog items");
+      state.packs = [...new Map([...(more ? state.packs : []), ...packs].map((pack) => [pack.id, pack])).values()];
+      state.nextCursor = payload.nextCursor;
+      state.catalogLocale = locale;
+      state.catalogStatus = "ready";
+      state.pageLoading = false;
       renderCatalog();
     } catch (_) {
-      if (epoch !== state.epoch) return;
-      state.packs = [];
+      if (epoch !== state.catalogEpoch || state.sessionId || state.graphWorkId) return;
+      state.pageLoading = false;
+      state.pageError = more;
+      if (!more) state.catalogStatus = "error";
       renderCatalog();
     }
   }
 
   async function loadPack(slug) {
     const epoch = ++state.epoch;
-    renderLoading();
+    const locale = state.locale;
+    const current = () => epoch === state.epoch && state.detailSlug === slug && locale === state.locale;
+    state.detailStatus = "loading";
+    state.pack = null;
+    state.readerAccess = null;
+    state.readerState = null;
+    renderPack();
     try {
-      const pack = await request(`/api/v1/stories/${encodeURIComponent(slug)}?locale=${encodeURIComponent(state.locale)}`, { auth: true });
-      if (epoch !== state.epoch) return;
+      // Public detail never opts into the shared helper's auth/refresh flow.
+      const pack = await request(`/api/v1/stories/${encodeURIComponent(slug)}?locale=${encodeURIComponent(locale)}`);
+      if (!current()) return;
+      if (!safeGraphId(pack?.id) || pack.slug !== slug || !packTitle(pack) || !Array.isArray(pack.parts) ||
+          pack.parts.some((part) => !safeGraphId(part?.id) || !Number.isInteger(part.position) || !textValue(part.title))) throw new Error("Invalid detail");
       state.pack = pack;
     } catch (_) {
-      if (epoch !== state.epoch) return;
-      state.pack = state.packs.find((pack) => packSlug(pack) === slug) || null;
+      if (!current()) return;
+      state.detailStatus = "error";
+      renderPack();
+      return;
     }
-    if (!state.pack) return renderState(tr("loadErrorTitle"), tr("loadErrorBody"), true);
-    state.progress = progressProjection(state.pack);
-    state.resetPreview = null;
-    history.replaceState(null, "", `/story-stage?slug=${encodeURIComponent(slug)}`);
+    state.detailStatus = signedIn() ? "access-loading" : "ready";
+    renderPack();
+    if (!signedIn()) return;
+    const workId = state.pack.id;
+    try {
+      const owner = await request(`/api/v1/me/stories/${encodeURIComponent(workId)}/access?locale=${encodeURIComponent(locale)}`, { auth: true });
+      if (!current()) return;
+      if (owner?.workId !== workId || owner.slug !== slug || !owner.access) throw new Error("Invalid access");
+      let progress = null;
+      if (owner.access.accessible === true) {
+        progress = await request(`/api/v1/me/stories/${encodeURIComponent(workId)}/progress-state`, { auth: true });
+        if (!current()) return;
+      }
+      state.readerAccess = owner;
+      state.readerState = progress;
+      state.detailStatus = "ready";
+    } catch (error) {
+      if (!current()) return;
+      state.detailStatus = "access-error";
+      state.detailError = error?.status === 401 ? tr("loginRequired") : accessTr("accessFailed");
+    }
     renderPack();
   }
 
   async function startStory() {
-    const workId = typeof state.pack?.id === "string" ? state.pack.id : "";
-    if (state.busy || !workId) return;
+    const workId = safeGraphId(state.pack?.id);
+    if (state.detailPending || !workId || !["start", "continue"].includes(detailAction())) return;
     const epoch = state.epoch;
-    const operation = beginOperation();
-    const status = root.querySelector("[data-story-action-status]");
-    if (status) status.textContent = tr("starting");
+    const locale = state.locale;
+    state.detailPending = true;
+    renderPack();
     try {
       const payload = await request(`/api/v1/stories/${encodeURIComponent(workId)}/progress`, {
         method: "POST",
         auth: true,
-        body: { mode: "continue", locale: state.locale },
+        body: { mode: "continue", locale },
       });
-      const sessionId = payload?.progressId || payload?.id;
-      if (!sessionId) throw new Error("Missing session id");
-      if (epoch !== state.epoch) return;
+      const sessionId = safeGraphId(payload?.progressId);
+      if (!sessionId || !Number.isInteger(payload.revision) || payload.revision < 1 || !Array.isArray(payload.choices) || payload.choices.length > 3) throw new Error("Invalid progress");
+      if (epoch !== state.epoch || locale !== state.locale || !signedIn()) return;
       location.href = `/story-stage?sessionId=${encodeURIComponent(sessionId)}&workId=${encodeURIComponent(workId)}`;
     } catch (error) {
       if (epoch !== state.epoch) return;
-      if (status) status.textContent = error?.status === 401 ? tr("loginRequired") : tr("startFailed");
-      await finishOperation(operation);
+      state.detailStatus = "access-error";
+      state.readerAccess = null;
+      state.detailError = error?.status === 401 ? tr("loginRequired") : tr("startFailed");
+    } finally {
+      state.detailPending = false;
+      renderPack();
     }
   }
 
@@ -1084,10 +1244,14 @@
   }
 
   root.addEventListener("click", (event) => {
+    if (event.target.closest("[data-story-close]")) return closePack();
+    if (state.detailSlug && !event.target.closest(".story-detail-modal")) return;
     if (state.busy || event.target.closest("button:disabled")) return;
     if (state.resetPreview && !event.target.closest(".story-reset-dialog")) return;
     const packButton = event.target.closest("[data-pack-slug]");
-    if (packButton && !packButton.matches("[data-story-start]")) return loadPack(packButton.dataset.packSlug);
+    if (packButton) return openPack(packButton.dataset.packSlug, packButton);
+    if (event.target.closest("[data-story-detail-retry]")) return loadPack(state.detailSlug);
+    if (event.target.closest("[data-story-more]")) return loadCatalog(true);
     const graphFocusButton = event.target.closest("[data-story-graph-focus]");
     if (graphFocusButton) {
       state.graphFocusSceneId = safeGraphId(graphFocusButton.dataset.storyGraphFocus);
@@ -1109,8 +1273,6 @@
     }
     const startButton = event.target.closest("[data-story-start]");
     if (startButton) return startStory();
-    const resumeButton = event.target.closest("[data-story-resume]");
-    if (resumeButton) return location.assign(`/story-stage?sessionId=${encodeURIComponent(resumeButton.dataset.storyResume)}`);
     const choiceButton = event.target.closest("[data-choice-id]");
     if (choiceButton) return submitChoice(choiceButton.dataset.choiceId);
     if (event.target.closest("[data-story-custom-choice]")) {
@@ -1128,6 +1290,14 @@
   });
 
   document.addEventListener("keydown", (event) => {
+    if (state.dialog?.open && event.key === "Tab") {
+      const targets = [...state.dialog.querySelectorAll("button:not(:disabled), [tabindex='0']")];
+      const first = targets[0];
+      const last = targets.at(-1);
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+      return;
+    }
     if (!state.resetPreview) return;
     if (event.key === "Escape") {
       event.preventDefault();
@@ -1149,6 +1319,13 @@
     if (counter) counter.textContent = `${input.value.length} / ${input.maxLength}`;
   });
 
+  root.addEventListener("change", (event) => {
+    if (!event.target.matches("[data-story-filter]") || state.detailSlug) return;
+    state.filter = ["all", "free", "paid"].includes(event.target.value) ? event.target.value : "all";
+    renderCatalog();
+    root.querySelector("[data-story-filter]")?.focus({ preventScroll: true });
+  });
+
   root.addEventListener("submit", (event) => {
     const form = event.target.closest("[data-story-custom-form]");
     if (!form) return;
@@ -1161,17 +1338,31 @@
     if (nextLocale === state.locale) return;
     state.locale = nextLocale;
     updateHeading();
+    if (state.detailSlug) {
+      loadCatalog();
+      return loadPack(state.detailSlug);
+    }
     if (state.busy) {
       state.localeDirty = true;
       return;
     }
     if (state.sessionId) return loadScene();
     if (state.graphWorkId) return loadGraph();
-    if (state.pack) return loadPack(packSlug(state.pack));
     loadCatalog();
   });
 
+  window.addEventListener("lumina:auth-expired", () => {
+    if (!state.detailSlug) return;
+    ++state.epoch;
+    state.readerAccess = null;
+    state.readerState = null;
+    state.detailStatus = "access-error";
+    state.detailError = tr("loginRequired");
+    renderPack();
+  });
+
   window.addEventListener("popstate", () => {
+    if (state.dialog) dismissPack();
     ++state.epoch;
     ++state.operation;
     setBusy(false);
@@ -1189,11 +1380,18 @@
     state.localeDirty = false;
     if (state.sessionId) return loadScene();
     if (state.graphWorkId) return loadGraph();
-    return loadCatalog();
+    if (!root.querySelector("[data-story-catalog-view]") || state.catalogLocale !== state.locale) loadCatalog();
+    const slug = params.get("slug") || params.get("pack");
+    if (slug) return openPack(slug, null, false);
   });
 
   updateHeading();
   if (state.sessionId) loadScene();
   else if (state.graphWorkId) loadGraph();
-  else loadCatalog();
+  else {
+    loadCatalog();
+    const params = new URLSearchParams(location.search);
+    const slug = params.get("slug") || params.get("pack");
+    if (slug) openPack(slug, null, false);
+  }
 })();
