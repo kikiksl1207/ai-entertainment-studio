@@ -28,6 +28,10 @@ import {
   validateStoryReleaseCapability,
 } from './story-economics.policy';
 import { isPublicStorySourceSafe } from './story-production.policy';
+import {
+  assertCustomChoiceReleasePolicy,
+  firstReleaseChoiceCapability,
+} from './story-progress-control.policy';
 
 type CustomChoiceContext = {
   progress: {
@@ -481,6 +485,7 @@ export class StoryEconomicsService {
     context: CustomChoiceContext,
     normalizedInput: string,
   ): Promise<PreparedCustomChoice> {
+    assertCustomChoiceReleasePolicy();
     if (
       context.work.priceLumina.isZero() ||
       !context.progress.activeReleaseId ||
@@ -606,6 +611,7 @@ export class StoryEconomicsService {
     idempotencyKey: string;
     prepared: PreparedCustomChoice;
   }) {
+    assertCustomChoiceReleasePolicy();
     const result = await this.prisma.$transaction(async (tx) => {
       const progress = await tx.storyReaderProgress.findFirst({
         where: {
@@ -782,6 +788,7 @@ export class StoryEconomicsService {
   }
 
   async customChoiceReplay(userId: string, customChoice: any, contentHash: string) {
+    assertCustomChoiceReleasePolicy();
     if (customChoice.userId !== userId || customChoice.contentHash !== contentHash) {
       throw new ConflictException('Custom choice idempotency conflict');
     }
@@ -1337,10 +1344,10 @@ export class StoryEconomicsService {
   private capabilityProjection(capability: any) {
     return {
       configStatus: capability.status,
-      fixedChoices: capability.fixedChoiceCount,
-      customChoiceEnabled:
-        capability.status === 'active' && capability.customChoiceEnabled,
-      customChoiceMaxLength: capability.customChoiceMaxLength,
+      ...firstReleaseChoiceCapability(),
+      aiGenerationEnabled:
+        capability.status === 'active' &&
+        capability.aiInputTokenLimit > 0 && capability.aiOutputTokenLimit > 0,
       resetPolicy: {
         fullLimit: capability.fullResetLimit,
         actLimit: capability.actResetLimit,
@@ -1357,9 +1364,8 @@ export class StoryEconomicsService {
   private failClosedCapability() {
     return {
       configStatus: 'missing_or_invalid',
-      fixedChoices: 3,
-      customChoiceEnabled: false,
-      customChoiceMaxLength: 0,
+      ...firstReleaseChoiceCapability(),
+      aiGenerationEnabled: false,
       resetPolicy: { fullLimit: 0, actLimit: 0 },
       aiBudget: null,
       aiAllowanceRemaining: 0,

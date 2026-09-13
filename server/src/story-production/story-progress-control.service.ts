@@ -18,6 +18,10 @@ import {
   SubmitCustomStoryChoiceDto,
 } from './dto/story-production.dto';
 import {
+  assertCustomChoiceReleasePolicy,
+  firstReleaseChoiceCapability,
+  firstReleaseCustomChoiceDenial,
+  STORY_FIRST_RELEASE_CHOICE_POLICY,
   containsBlockedTerm,
   safeResetAuditMetadata,
   STORY_PROGRESS_LOCALE_SLOTS,
@@ -53,6 +57,15 @@ export class StoryProgressControlService {
     idempotencyKey?: string,
   ) {
     const key = this.requireIdempotencyKey('story-custom-choice', idempotencyKey);
+    const context = await this.progressContext(userId, progressId);
+    await this.assertStoryAccess(
+      userId, context.work.id, context.part.id, context.work.priceLumina.isZero(),
+    );
+    if (context.progress.progressRevision !== body.expectedRevision) {
+      this.throwStaleRevision(context.progress.progressRevision);
+    }
+    // Apply the launch gate before input processing or any idempotent receipt replay.
+    assertCustomChoiceReleasePolicy();
     const validation = validatePrivateCustomChoice(body.input, this.economics ? 2000 : 500);
     if (!validation.accepted) {
       throw new BadRequestException({
@@ -82,10 +95,6 @@ export class StoryProgressControlService {
         : this.customChoiceReceipt(existing);
     }
 
-    const context = await this.progressContext(userId, progressId);
-    if (context.progress.progressRevision !== body.expectedRevision) {
-      this.throwStaleRevision(context.progress.progressRevision);
-    }
     const prepared = this.economics
       ? await this.economics.prepareCustomChoice(
           userId,
@@ -516,7 +525,8 @@ export class StoryProgressControlService {
         canFullReset: false,
         canActReset: false,
         customChoiceCapability: false,
-        releaseCapability: configuredCapability,
+        customChoiceUnavailableReason: firstReleaseCustomChoiceDenial(),
+        releaseCapability: { ...configuredCapability, ...firstReleaseChoiceCapability() },
         localeSlots: STORY_PROGRESS_LOCALE_SLOTS,
       };
     }
@@ -582,6 +592,7 @@ export class StoryProgressControlService {
         progress.status !== 'ai_pending' &&
         capabilityMatches,
       customChoiceCapability:
+        STORY_FIRST_RELEASE_CHOICE_POLICY.customChoiceEnabled &&
         (configuredCapability
           ? configuredCapability.customChoiceEnabled &&
             configuredCapability.aiAllowanceRemaining > 0
@@ -591,7 +602,8 @@ export class StoryProgressControlService {
         Boolean(progress.currentSceneId) &&
         progress.status === 'active' &&
         capabilityMatches,
-      releaseCapability: configuredCapability,
+      customChoiceUnavailableReason: firstReleaseCustomChoiceDenial(),
+      releaseCapability: { ...configuredCapability, ...firstReleaseChoiceCapability() },
       localeSlots: STORY_PROGRESS_LOCALE_SLOTS,
     };
   }

@@ -3,6 +3,7 @@ import { ForbiddenException } from '@nestjs/common';
 import { Decimal } from '@prisma/client/runtime/library';
 import { StoryProgressControlService } from './story-progress-control.service';
 import { STORY_PROGRESS_MESSAGE_KEYS } from './story-progress-control.policy';
+import * as releasePolicy from './story-progress-control.policy';
 
 describe('StoryProgressControlService', () => {
   const prisma = {
@@ -40,6 +41,7 @@ describe('StoryProgressControlService', () => {
   const part = { id: scene.partId, workId: work.id, actNumber: 1 };
 
   beforeEach(() => {
+    jest.restoreAllMocks();
     jest.clearAllMocks();
     prisma.storyCustomChoice.findUnique.mockResolvedValue(null);
     prisma.storyReaderProgress.findFirst.mockResolvedValue(progress);
@@ -66,7 +68,9 @@ describe('StoryProgressControlService', () => {
     expect(prisma.storyCustomChoice.create).not.toHaveBeenCalled();
   });
 
-  it('returns a safe receipt without echoing accepted private input', async () => {
+  it('retains future custom receipt privacy when a future release policy permits it', async () => {
+    // Test-only future-policy simulation; no runtime override or request flag exists.
+    jest.spyOn(releasePolicy, 'assertCustomChoiceReleasePolicy').mockImplementation(() => {});
     prisma.userEntitlement.findFirst.mockResolvedValue({ id: 'entitlement-id' });
     prisma.storyCustomChoice.create.mockResolvedValue({
       id: 'request-id',
@@ -105,7 +109,7 @@ describe('StoryProgressControlService', () => {
     expect(JSON.stringify(result)).not.toContain(progress.id);
   });
 
-  it('projects exhausted quotas separately from paid custom choice capability', async () => {
+  it('projects exhausted quotas while first-release paid custom choices remain deferred', async () => {
     prisma.storyReaderProgress.findUnique.mockResolvedValue(progress);
     prisma.storyResetQuotaBucket.findMany.mockResolvedValue([
       { scopeKey: 'full', usedCount: 1, limitCount: 1 },
@@ -123,7 +127,7 @@ describe('StoryProgressControlService', () => {
       statusKey: STORY_PROGRESS_MESSAGE_KEYS.quotaExhausted,
       fullResetRemaining: 0,
       actResetRemaining: 0,
-      customChoiceCapability: true,
+      customChoiceCapability: false,
     });
     expect(result).not.toHaveProperty('progressId');
     expect(result).not.toHaveProperty('workId');

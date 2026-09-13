@@ -26,6 +26,7 @@ import {
   releaseChecksum,
 } from './story-lifecycle.policy';
 import { StoryEconomicsService } from './story-economics.service';
+import { assertSuggestedChoiceCount } from './story-progress-control.policy';
 
 @Injectable()
 export class StoryLifecycleService {
@@ -139,6 +140,20 @@ export class StoryLifecycleService {
         if (validation.ready !== true || Number(validation.blockingIssueCount ?? 0) > 0) {
           throw new ConflictException('Release validation is not ready');
         }
+        const parts = await tx.storyPart.findMany({
+          where: { workId, status: 'published', fixtureSource: false },
+          select: { id: true },
+        });
+        const scenes = await tx.storyScene.findMany({
+          where: { partId: { in: parts.map((part) => part.id) }, status: 'published', fixtureSource: false },
+          select: { id: true },
+        });
+        const choiceCounts = await tx.storyChoice.groupBy({
+          by: ['sceneId'],
+          where: { sceneId: { in: scenes.map((scene) => scene.id) } },
+          _count: { _all: true },
+        });
+        for (const count of choiceCounts) assertSuggestedChoiceCount(count._count._all);
         if (this.economics) {
           await this.economics.assertReleasePublishableTx(tx, work, release);
         }

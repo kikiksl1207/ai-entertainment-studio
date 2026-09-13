@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { Decimal } from '@prisma/client/runtime/library';
 import { StoryCatalogQueryDto } from './dto/story-production.dto';
 import { StoryProductionService } from './story-production.service';
+import { firstReleaseChoiceCapability } from './story-progress-control.policy';
 
 describe('StoryProductionService', () => {
   const prisma = {
@@ -209,7 +210,7 @@ describe('StoryProductionService', () => {
         actions: { primary: 'continue', canReset: true, canViewEndings: true },
       },
       replay: { continue: true, reset: true, endingCount: 1 },
-      aiCapability: null,
+      aiCapability: firstReleaseChoiceCapability(),
     });
   });
 
@@ -426,7 +427,7 @@ describe('StoryProductionService', () => {
       expect.objectContaining({ take: 40 }),
     );
     expect(prisma.storyChoice.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ take: 12 }),
+      expect.objectContaining({ take: 4 }),
     );
   });
 });

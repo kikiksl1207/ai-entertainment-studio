@@ -22,9 +22,13 @@ const files = {
     '../src/story-production/story-production.policy.ts',
     import.meta.url,
   ),
+  choicePolicy: new URL(
+    '../src/story-production/story-progress-control.policy.ts',
+    import.meta.url,
+  ),
 };
 
-const [controller, service, sceneContract, visualContract, policy] =
+const [controller, service, sceneContract, visualContract, policy, choicePolicy] =
   await Promise.all(Object.values(files).map((file) => readFile(file, 'utf8')));
 
 const currentProgress = methodBody(
@@ -61,8 +65,16 @@ const checks = {
     sceneProjection.includes('fixtureSource: false'),
   boundedScenePayload:
     sceneProjection.includes('take: 40') &&
-    sceneProjection.includes('take: 12') &&
+    sceneProjection.includes('take: STORY_FIRST_RELEASE_CHOICE_POLICY.maxSuggestedChoices + 1') &&
+    choicePolicy.includes('maxSuggestedChoices: 3') &&
+    sceneProjection.includes('assertSuggestedChoiceCount(choices.length)') &&
+    !sceneProjection.includes('choices.slice(') &&
     sceneProjection.includes('boundedPath('),
+  suggestedChoiceMutationBounded:
+    methodBody(service, 'async selectChoice(', 'async graph(')
+      .includes('assertSuggestedChoiceCount(choices.length)') &&
+    methodBody(service, 'async selectChoice(', 'async graph(')
+      .includes('choices.find((item) => item.id === choiceId)'),
   authenticatedOwnerGraph:
     controller.includes("@Get('stories/:workId/graph')") &&
     guardedRoute(controller, "@Get('stories/:workId/graph')") &&

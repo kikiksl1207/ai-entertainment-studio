@@ -1,3 +1,5 @@
+import { STORY_FIRST_RELEASE_CHOICE_POLICY } from './story-progress-control.policy';
+
 export const STORY_AI_PUBLIC_CLAIM =
   'writer_approved_manuscript_based_ai_expansion';
 
@@ -94,7 +96,12 @@ export function validateStoryReleaseCapability(input: {
   hardBudgetKrw: number;
 }) {
   const errors: string[] = [];
-  if (input.fixedChoiceCount !== 3) errors.push('fixed_choice_count_must_be_three');
+  if (input.fixedChoiceCount !== STORY_FIRST_RELEASE_CHOICE_POLICY.maxSuggestedChoices) {
+    errors.push('fixed_choice_count_must_be_three');
+  }
+  if (input.customChoiceEnabled && !STORY_FIRST_RELEASE_CHOICE_POLICY.customChoiceEnabled) {
+    errors.push('first_release_custom_choice_must_be_disabled');
+  }
   if (input.freeStory && input.customChoiceEnabled) {
     errors.push('free_story_custom_choice_must_be_disabled');
   }

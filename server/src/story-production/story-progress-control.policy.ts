@@ -1,4 +1,51 @@
 import { createHash } from 'crypto';
+import { ConflictException, ForbiddenException } from '@nestjs/common';
+
+// Server release policy, never selected by request flags or legacy work metadata.
+export const STORY_FIRST_RELEASE_CHOICE_POLICY = Object.freeze({
+  maxSuggestedChoices: 3,
+  customChoiceEnabled: false,
+});
+
+export function firstReleaseCustomChoiceDenial() {
+  return {
+    code: 'STORY_CUSTOM_CHOICE_DEFERRED',
+    messageKey: 'story.progress.customChoice.firstReleaseDeferred',
+    message: 'Custom choices are not available in the first release. Choose a suggested option.',
+    retryable: false,
+  };
+}
+
+export function firstReleaseChoiceCapability() {
+  return {
+    choicePolicy: 'first_public_release' as const,
+    fixedChoices: STORY_FIRST_RELEASE_CHOICE_POLICY.maxSuggestedChoices,
+    customChoiceEnabled: STORY_FIRST_RELEASE_CHOICE_POLICY.customChoiceEnabled,
+    customChoiceMaxLength: 0,
+    customChoiceUnavailableReason: firstReleaseCustomChoiceDenial(),
+  };
+}
+
+export function assertCustomChoiceReleasePolicy() {
+  if (!STORY_FIRST_RELEASE_CHOICE_POLICY.customChoiceEnabled) {
+    throw new ForbiddenException({
+      ...firstReleaseCustomChoiceDenial(),
+      details: { retryable: false },
+    });
+  }
+}
+
+export function assertSuggestedChoiceCount(count: number) {
+  if (count > STORY_FIRST_RELEASE_CHOICE_POLICY.maxSuggestedChoices) {
+    throw new ConflictException({
+      code: 'STORY_SUGGESTED_CHOICE_LIMIT_EXCEEDED',
+      messageKey: 'story.progress.error.suggestedChoiceLimitExceeded',
+      message: 'This scene needs an update before it can be played. Please try again later.',
+      retryable: false,
+      details: { retryable: false, maxSuggestedChoices: STORY_FIRST_RELEASE_CHOICE_POLICY.maxSuggestedChoices },
+    });
+  }
+}
 
 export const STORY_RESET_LIMITS = {
   full: 1,

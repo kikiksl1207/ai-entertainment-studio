@@ -36,6 +36,11 @@ import {
 } from './story-production.policy';
 import { sessionKeyHash, storyPathSignature } from './story-lifecycle.policy';
 import { StoryEconomicsService } from './story-economics.service';
+import {
+  assertSuggestedChoiceCount,
+  firstReleaseChoiceCapability,
+  STORY_FIRST_RELEASE_CHOICE_POLICY,
+} from './story-progress-control.policy';
 import { projectStoredStorySceneVisualManifest } from '../story-stage/story-scene-visual-manifest-contract';
 
 const STORY_ENTITLEMENT_TYPES = [
@@ -179,7 +184,7 @@ export class StoryProductionService {
             Boolean(progress?.currentSceneId),
             jsonStringArray(progress?.visitedEndingKeys).length,
           ),
-          releaseCapability: capabilities?.get(row.id) ?? null,
+          releaseCapability: capabilities?.get(row.id) ?? firstReleaseChoiceCapability(),
         };
       }),
       nextCursor: safeRows.length > query.limit ? page.at(-1)?.id ?? null : null,
@@ -239,7 +244,7 @@ export class StoryProductionService {
       : [];
     const releaseCapability = this.economics
       ? await this.economics.publicCapabilityByRelease(work.activeReleaseId)
-      : null;
+      : { ...firstReleaseChoiceCapability(), aiGenerationEnabled: false };
 
     return {
       id: work.id,
@@ -280,7 +285,7 @@ export class StoryProductionService {
             chargeRequired: false,
             newAiPathGeneration: {
               separateUsage: true,
-              enabled: releaseCapability?.customChoiceEnabled ?? false,
+              enabled: releaseCapability.aiGenerationEnabled,
             },
           }
         : null,
@@ -306,7 +311,7 @@ export class StoryProductionService {
           visitedEndingKeys: true,
         },
       }),
-      this.economics ? this.economics.readerCapability(userId, work.id) : null,
+      this.economics ? this.economics.readerCapability(userId, work.id) : firstReleaseChoiceCapability(),
     ]);
     const endingCount = jsonStringArray(progress?.visitedEndingKeys).length;
 
@@ -519,6 +524,7 @@ export class StoryProductionService {
         currentAct: progress.currentAct,
         scene: null,
         choices: [],
+        releaseCapability: firstReleaseChoiceCapability(),
         path: boundedPath(jsonArray(progress.pathSummary)),
       };
     }
@@ -604,7 +610,56 @@ export class StoryProductionService {
           currentRevision: progress.progressRevision,
         });
       }
-      const choice = await tx.storyChoice.findFirst({ where: { id: choiceId, sceneId: progress.currentSceneId } });
+      const work = await tx.storyWork.findFirst({
+        where: { id: progress.workId, status: 'published', fixtureSource: false },
+      });
+      const scene = await tx.storyScene.findFirst({
+        where: { id: progress.currentSceneId, status: 'published', fixtureSource: false },
+      });
+      const part = scene ? await tx.storyPart.findFirst({
+        where: { id: scene.partId, workId: progress.workId, status: 'published', fixtureSource: false },
+      }) : null;
+      if (!work || !scene || !part) throw new NotFoundException('Published story progress not found');
+      if (!work.priceLumina.isZero()) {
+        const now = new Date();
+        const entitlement = await tx.userEntitlement.findFirst({
+          where: {
+            userId,
+            entitlementType: { in: STORY_ENTITLEMENT_TYPES },
+            referenceId: { in: [work.id, part.id] },
+            revokedAt: null,
+            startsAt: { lte: now },
+            OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+          },
+          select: { id: true },
+        });
+        if (!entitlement) throw new ForbiddenException('Story entitlement required');
+      }
+      if (!progress.activeReleaseId || progress.storyVersion !== work.publishedVersion || progress.activeReleaseId !== work.activeReleaseId) {
+        throw new ConflictException({
+          code: 'STORY_PROGRESS_VERSION_MISMATCH',
+          messageKey: 'story.progress.status.versionMismatch',
+          retryable: false,
+        });
+      }
+      const release = await tx.storyRelease.findFirst({
+        where: { id: progress.activeReleaseId, workId: work.id, status: 'active' },
+        select: { id: true },
+      });
+      if (!release) throw new NotFoundException('Published story not found');
+      if (this.economics) {
+        const capability = await tx.storyReleaseCapability.findUnique({ where: { releaseId: release.id } });
+        if (!capability || capability.status !== 'active' || capability.revision !== progress.capabilityRevision) {
+          throw new ConflictException('Story release capability changed');
+        }
+      }
+      const choices = await tx.storyChoice.findMany({
+        where: { sceneId: progress.currentSceneId },
+        orderBy: [{ position: 'asc' }, { id: 'asc' }],
+        take: STORY_FIRST_RELEASE_CHOICE_POLICY.maxSuggestedChoices + 1,
+      });
+      assertSuggestedChoiceCount(choices.length);
+      const choice = choices.find((item) => item.id === choiceId);
       if (!choice) throw new BadRequestException('Choice is not available for the current scene');
       const target = choice.targetSceneId
         ? await tx.storyScene.findFirst({ where: { id: choice.targetSceneId, status: 'published', fixtureSource: false } })
@@ -614,6 +669,9 @@ export class StoryProductionService {
       const targetPart = target
         ? await tx.storyPart.findUnique({ where: { id: target.partId } })
         : null;
+      if (target && (!targetPart || targetPart.workId !== work.id || targetPart.status !== 'published' || targetPart.fixtureSource)) {
+        throw new ConflictException('Choice target is unavailable');
+      }
       const path = boundedPath([
         ...jsonArray(progress.pathSummary),
         {
@@ -1012,15 +1070,18 @@ export class StoryProductionService {
     }
     const [beats, choices, releaseCapability] = await Promise.all([
       this.prisma.storyBeat.findMany({ where: { sceneId: scene.id }, orderBy: { position: 'asc' }, take: 40 }),
-      this.prisma.storyChoice.findMany({ where: { sceneId: scene.id }, orderBy: { position: 'asc' }, take: 12 }),
+      this.prisma.storyChoice.findMany({
+        where: { sceneId: scene.id },
+        orderBy: [{ position: 'asc' }, { id: 'asc' }],
+        take: STORY_FIRST_RELEASE_CHOICE_POLICY.maxSuggestedChoices + 1,
+      }),
       this.economics
         ? this.economics.capabilityByRelease(progress.activeReleaseId)
         : null,
     ]);
-    const visibleChoices =
-      progress.status === 'active'
-        ? choices.slice(0, releaseCapability?.fixedChoiceCount ?? 12)
-        : [];
+    // One look-ahead detects invalid authored scenes without truncating their branches.
+    assertSuggestedChoiceCount(choices.length);
+    const visibleChoices = progress.status === 'active' ? choices : [];
     const nextIds = visibleChoices.map((choice) => choice.targetSceneId).filter((id): id is string => Boolean(id));
     const nextScenes = await this.prisma.storyScene.findMany({ where: { id: { in: nextIds }, status: 'published', fixtureSource: false }, select: { id: true, sceneKey: true, title: true, visualManifest: true } });
     const nextById = new Map(
@@ -1070,19 +1131,15 @@ export class StoryProductionService {
         releaseCapability &&
         progress.capabilityRevision === releaseCapability.revision
         ? {
-            fixedChoices: releaseCapability.fixedChoiceCount,
-            customChoiceEnabled: releaseCapability.customChoiceEnabled,
-            customChoiceMaxLength: releaseCapability.customChoiceMaxLength,
+            ...firstReleaseChoiceCapability(),
             source: 'pinned_release_capability',
           }
         : this.economics
           ? {
-              fixedChoices: 3,
-              customChoiceEnabled: false,
-              customChoiceMaxLength: 0,
+              ...firstReleaseChoiceCapability(),
               source: 'fail_closed',
             }
-          : null,
+          : firstReleaseChoiceCapability(),
     };
   }
 

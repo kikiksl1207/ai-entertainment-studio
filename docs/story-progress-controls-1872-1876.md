@@ -1,10 +1,10 @@
 # Story Progress Controls #1872-#1876
 
-This delivery extends the production story backend with server-owned custom choice, checkpoint, reset quota, and public progress controls.
+The first public release permits suggested choices only for BOTH free and paid stories, at most three per scene. This supersedes the earlier paid-custom launch requirement. Custom-choice storage, moderation, economics and continuation code remain future functionality; they are not removed or enabled by request flags.
 
 ## APIs
 
-- `POST /api/v1/me/story-progress/:progressId/custom-choice` accepts a paid-session custom choice after active entitlement, published version, length, whitespace, blocked-term, moderation, revision, and idempotency checks. The response never echoes the private input.
+- `POST /api/v1/me/story-progress/:progressId/custom-choice` denies first-release custom requests after ownership, paid access and revision checks, before processing input or looking up an old receipt. Both legacy and economics paths are gated; direct economics prepare/request/replay calls also deny before side effects.
 - `GET|POST /api/v1/me/story-progress/:progressId/checkpoint` reads or confirms the last stable scene and beat through optimistic progress revisions.
 - `GET /api/v1/me/story-progress/:progressId/reset-preview` returns the target scene, invalidated event count, and remaining quota without mutation.
 - `POST /api/v1/me/story-progress/:progressId/reset` atomically consumes one quota unit, invalidates applicable choice events, updates progress, creates a checkpoint, and writes sanitized audit metadata.
@@ -17,8 +17,108 @@ This delivery extends the production story backend with server-owned custom choi
 - Quota buckets are not keyed by story version, so publishing a new version does not restore usage. A full reset may reconcile progress to the new published version; an act reset may not cross a version mismatch.
 - Reset preserves entitlements and visited ending keys. Choice events are retained for audit and marked invalid instead of deleted.
 - Fixed choices and beat writes use optimistic progress revisions. Existing sessions cannot use the legacy start route to bypass reset or checkpoint commands.
-- Custom input is stored only in the dedicated private choice table for downstream processing. It is not placed in audit metadata, analytics, public projections, or response payloads.
+- First-release custom denial creates no private choice, continuation, allowance reservation, usage ledger, quality event or progress write. Future custom input remains confined to the private choice table and existing privacy guards.
+
+## Cloud #1870 Wire Contract
+
+All paths below are relative to `/api/v1`. Successful responses are ordinary JSON (no success/data wrapper).
+
+- `GET /me/story-progress/:progressId` and alias `GET /story-sessions/:sessionId/current-scene` use the same projection. `choices` and `releaseCapability` are TOP-LEVEL, not inside `scene`. `revision` is the current optimistic progress revision. Render returned suggested choices without synthesizing a fourth or custom option. Zero choices is valid for an ending; one and two are also valid.
+- `POST /me/story-progress/:progressId/choices/:choiceId` body is `{ "expectedRevision": 3 }`; the choice ID belongs in the URL. The server checks owner, active status, revision, published work/scene/part, live entitlement, story version, active release, configured capability revision and source choice count before any event/progress write. The response is the refreshed progress projection. Distinct authored target IDs and route/rejoin metadata are preserved.
+- `GET /stories` catalog item and `GET /stories/:slug` detail expose `releaseCapability`; `GET /me/stories/:workId/access` exposes `aiCapability`; `GET /me/stories/:workId/ai-capability` returns the capability itself. `GET /me/stories/:workId/progress-state` exposes `customChoiceCapability: false`, `customChoiceUnavailableReason`, and `releaseCapability`. No legacy work custom flag may override these values.
+- Every choice capability includes the following server-owned fields, including missing-config/legacy and completed-progress projections. Existing reset/budget/revision/source fields remain where previously available:
+
+```json
+{
+  "choicePolicy": "first_public_release",
+  "fixedChoices": 3,
+  "customChoiceEnabled": false,
+  "customChoiceMaxLength": 0,
+  "customChoiceUnavailableReason": {
+    "code": "STORY_CUSTOM_CHOICE_DEFERRED",
+    "messageKey": "story.progress.customChoice.firstReleaseDeferred",
+    "message": "Custom choices are not available in the first release. Choose a suggested option.",
+    "retryable": false
+  }
+}
+```
+
+`fixedChoices` means a maximum, not required cardinality. Hide/disable free-text entry for all first-release readers; do not show an upgrade/pay CTA for this denial. The retained custom DTO is `{ "input": "...", "expectedRevision": 3 }` with an `Idempotency-Key` header (8-200 trimmed characters), NOT `{ "customChoice": "..." }`. Do not submit it in first release. Invalid DTO/header, authentication, ownership, entitlement or stale revision can fail earlier with their existing 400/401/404/403/409 response.
+
+For an otherwise authorized, current custom request, HTTP 403 uses the existing global exception envelope:
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "STORY_CUSTOM_CHOICE_DEFERRED",
+    "messageKey": "story.progress.customChoice.firstReleaseDeferred",
+    "message": "Custom choices are not available in the first release. Choose a suggested option.",
+    "statusCode": 403,
+    "details": { "retryable": false },
+    "path": "/api/v1/me/story-progress/<progressId>/custom-choice",
+    "timestamp": "<ISO timestamp>"
+  }
+}
+```
+
+`requestId` is also present when supplied by request context. Top-level exception `retryable` and `currentRevision` are not forwarded by the existing filter; fetch current progress after stale-revision errors. No submitted text is returned or logged by these denials. Resolve known message keys through i18n; never render raw keys. The safe English `message` is available as a fallback until Cloud supplies the translations below.
+
+Overfull authored scenes return HTTP 409 with the same envelope, code `STORY_SUGGESTED_CHOICE_LIMIT_EXCEEDED`, key `story.progress.error.suggestedChoiceLimitExceeded`, message `This scene needs an update before it can be played. Please try again later.`, and `details: { retryable: false, maxSuggestedChoices: 3 }`. Block the scene without retry loops, truncation, payment prompts or guessing a route.
+
+### Five-Locale Copy Handoff (No UI Files Edited)
+
+| Locale | `story.progress.customChoice.firstReleaseDeferred` | `story.progress.error.suggestedChoiceLimitExceeded` |
+| --- | --- | --- |
+| ko | 첫 공개 버전에서는 직접 입력을 사용할 수 없습니다. 추천 선택지 중에서 골라 주세요. | 이 장면은 업데이트 후 플레이할 수 있습니다. 나중에 다시 시도해 주세요. |
+| en | Custom choices are not available in the first release. Choose a suggested option. | This scene needs an update before it can be played. Please try again later. |
+| ja | 初回公開版では自由入力は利用できません。おすすめの選択肢から選んでください。 | このシーンをプレイするには更新が必要です。しばらくしてからもう一度お試しください。 |
+| zh-Hans | 首次公开版本暂不支持自由输入。请选择推荐选项。 | 此场景需要更新后才能游玩。请稍后重试。 |
+| zh-Hant | 首次公開版本暫不支援自由輸入。請選擇推薦選項。 | 此場景需要更新後才能遊玩。請稍後再試。 |
+
+Cloud owns mobile layout, translations and fixing the observed scene-level capability / custom request-body mismatch. These strings require its five-locale UI review; no UI implementation or visual verification is claimed here.
+
+## Data Policy and Scope
+
+- The server reads up to FOUR source choices as overflow detection, not as an allowed fourth option. More than three blocks the entire scene on both GET aliases and POST, including direct submission of a hidden fourth ID. It does not return the first three as a silently changed story.
+- Publication activation checks choice counts for the work's non-fixture published parts/scenes within the publication transaction, even without the optional economics service. Draft manuscripts, branch snapshots and source rows are not altered. Unpublished/draft content may retain additional branches; a content owner must explicitly revise/select an approved <=3-choice release graph before publishing it. Subsequent source changes are still caught by reader/mutation guards. No data migration or production repair was run.
+- Capability configuration continues to require `fixedChoiceCount: 3` (the ceiling), full reset 1 and act reset 3. Setting `customChoiceEnabled: true` is rejected for new free AND paid configurations/activation; existing true metadata is projected as deferred, not treated as an invalid whole capability. Reset quotas, budget fields, allowances and session pins are preserved.
+- `aiGenerationEnabled` on the economics capability is configured generation-budget readiness (active config and positive input/output limits), independent of custom input. Detail `replay.newAiPathGeneration.enabled` uses it. It is NOT proof of provider runtime, consent, allowance or per-action authorization. Existing `aiBudget`, `aiAllowanceRemaining`, reset limits and revisions retain their semantics.
+- Pre-existing gap: suggested-choice `selectChoice` follows stored authored targets and records divergence/rejoin events; it does not request a provider-generated suggested continuation. This patch does not implement that runtime or fake provider calls. Existing continuation status/settlement, compensation and future custom processing are retained.
+- Selection previously lacked version/release/access checks; the touched mutation now checks these before writes. Broader current-progress/beat/checkpoint/read authorization consistency remains outside this policy change. The pre-existing continuation status controller still ignores URL `progressId` and scopes by authenticated user plus continuation ID; track that separately. No controller redesign is included.
+- Existing provider settlement of historical continuations is unchanged, not a new custom request route. First-release custom receipt replay cannot reach its usage-ledger upsert.
 
 ## Verification
 
-Apply `0048_story_production_backend` before `0049_story_progress_controls`. Run server build, story-production tests, Prisma validation, lint, and `npm run qa:story-progress-controls`. Staging execution requires a published test story and an approved test identity supplied through the private QA channel; completion reports contain only non-secret run status.
+Run existing story-production/economics/progress/lifecycle Jest suites serially, including `story-first-release-policy.spec.ts`; use an E-only Jest cache. New tests execute actual service/controller/filter code with isolated fixture storage, not public fake content. Future receipt privacy coverage explicitly mocks only the release gate in a test; no runtime feature flag or injected policy bypass was added.
+
+Server build, lint and existing read-only QA scripts should also run. Do NOT use `render:start`, migrate, seed, staging fixtures or live provider operations for this patch. Original #1872 release/live QA remains: independent review, authorized real-content <=3-branch audit, free/paid live flows, entitlement expiry/revocation checks, reset/checkpoint/continuation persistence and concurrency, and Cloud's five-locale mobile validation. No deployment, main push, DB execution, browser verification or live AI verification is part of this delivery.
+
+### Candidate Verification (2026-09-13)
+
+Base: fresh `origin/main` at `a54fee3be6dfe4e3d7fd30ea275a7e516fc923c7`; clean reused E worktree, no applicable AGENTS found. Branch: `codex/luffy-1872-first-release-policy-20260913`. Dependencies installed from the existing lockfile with `npm ci --ignore-scripts --no-audit --no-fund`, then explicit Prisma client generation (no DB connection/migration).
+
+Final results: 10 Jest suites / 94 tests passed; full-source ESLint passed; `npm run build` passed (Prisma generate + Nest compile); all seven QA guards below passed; `git diff --check` passed. No pre-existing test/build failure was encountered. Earlier new-test fixture failures were corrected, not suppressed. Existing package deprecation warnings were left unchanged.
+
+Run serially in PowerShell from the retained E worktree's `server` directory:
+
+```powershell
+Set-Location 'E:/CodexMovedCache/worktrees/restart-baseline-1888-20260913/server'
+$env:PATH='E:/Program Files/nodejs;'+$env:PATH
+$env:TEMP='E:/CodexMovedCache/tmp/restart-baseline-1888-20260913'
+$env:TMP=$env:TEMP
+$env:npm_config_cache='E:/CodexMovedCache/npm-cache/restart-baseline-1888-20260913'
+$env:NODE_PATH='E:/CodexMovedCache/tmp/restart-baseline-1888-20260913/qa-parser/node_modules'
+node node_modules/jest/bin/jest.js --runInBand --cacheDirectory=E:/CodexMovedCache/tmp/restart-baseline-1888-20260913/jest-cache --testPathPattern=story-production --json --outputFile=E:/CodexMovedCache/tmp/restart-baseline-1888-20260913/luffy-1872-jest.json
+node node_modules/eslint/bin/eslint.js 'src/**/*.ts'
+npm.cmd run build
+node scripts/verify-story-player-read-apis.mjs
+node scripts/verify-story-progress-controls.mjs
+node scripts/verify-story-ai-economics.mjs
+node scripts/verify-story-production-release-guard.mjs
+node scripts/verify-story-lifecycle-release.mjs
+node scripts/verify-story-access-projections.mjs
+node scripts/verify-story-stage-no-raw-key.mjs
+```
+
+The Jest JSON report, ignored dependencies/build output and E caches remain available for independent QR1 review. The last guard checks existing UI source only; it does not verify Cloud's forthcoming UI changes or the new translation handoff visually.

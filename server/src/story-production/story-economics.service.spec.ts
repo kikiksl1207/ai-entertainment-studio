@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { StoryEconomicsService } from './story-economics.service';
+import { firstReleaseChoiceCapability } from './story-progress-control.policy';
 
 describe('StoryEconomicsService', () => {
   const prisma = {
@@ -29,9 +30,8 @@ describe('StoryEconomicsService', () => {
 
     await expect(service.readerCapability('user-id', 'work-id')).resolves.toEqual({
       configStatus: 'missing_or_invalid',
-      fixedChoices: 3,
-      customChoiceEnabled: false,
-      customChoiceMaxLength: 0,
+      ...firstReleaseChoiceCapability(),
+      aiGenerationEnabled: false,
       resetPolicy: { fullLimit: 0, actLimit: 0 },
       aiBudget: null,
       aiAllowanceRemaining: 0,
