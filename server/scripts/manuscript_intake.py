@@ -7,6 +7,7 @@ import io
 import json
 from pathlib import Path
 import re
+import stat
 import sys
 
 VERSION = "lumina-offline-manuscript-v1"
@@ -81,24 +82,47 @@ def inside(path, root):
     return path == root or root in path.parents
 
 
+def is_link(path):
+    try:
+        info = path.lstat()
+    except FileNotFoundError:
+        return False
+    # Python 3.10 has no Path.is_junction; all Windows reparse points fail closed.
+    return (stat.S_ISLNK(info.st_mode)
+            or bool(getattr(info, "st_file_attributes", 0) & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)))
+
+
+def assert_no_links(path, code):
+    for ancestor in reversed((path, *path.parents)):
+        require(not is_link(ancestor), code)
+
+
 def source_path(root, name):
     require(isinstance(name, str) and name and not Path(name).is_absolute(), "invalid_relative_path")
     candidate = root / name
+    assert_no_links(candidate, "source_link")
     require(inside(candidate.resolve(), root), "source_path_escape")
-    require(not any(p.is_symlink() or (hasattr(p, "is_junction") and p.is_junction())
-                    for p in (candidate, *candidate.parents) if inside(p, root)), "source_link")
     require(candidate.is_file(), "source_file_missing")
     return candidate
 
 
 def inventory(root):
     result = []
-    for path in sorted(root.rglob("*")):
-        require(not path.is_symlink() and not (hasattr(path, "is_junction") and path.is_junction()), "source_link")
-        if path.is_file():
-            data = path.read_bytes()
-            result.append({"path": path.relative_to(root).as_posix(), "bytes": len(data), "sha256": sha(data)})
-    return result
+    assert_no_links(root, "source_link")
+
+    def visit(directory):
+        for path in sorted(directory.iterdir()):
+            require(not is_link(path), "source_link")
+            require(inside(path.resolve(), root), "source_path_escape")
+            if path.is_dir():
+                visit(path)
+            elif path.is_file():
+                data = path.read_bytes()
+                result.append({"path": path.relative_to(root).as_posix(), "bytes": len(data), "sha256": sha(data)})
+
+    # Check each entry before descent; eager rglob would traverse a junction first.
+    visit(root)
+    return sorted(result, key=lambda item: Path(item["path"]))
 
 
 def segments(text):
@@ -139,6 +163,32 @@ def js_length(text):
     return len(text.encode("utf-16-le")) // 2
 
 
+def primary_preamble(text, part_count):
+    prefix = text[:PART.search(text).start()]
+    blocks = segments(prefix)
+    classifications = []
+    title_seen = False
+    description = (f"\uacf5\uc2dd \uc120\ud0dd A \uba54\uc778 \ub8e8\ud2b8 {part_count}\ud30c\ud2b8, "
+                   "\ud30c\ud2b8\ubcc4 \uc120\ud0dd\uc9c0\u00b7\uacb0\uacfc \uba54\ubaa8\u00b7AI \uc5f0\uacb0 \uc694\uc57d \ud3ec\ud568 \ud1b5\ud569\ubcf8.")
+    for index, block in enumerate(blocks):
+        content = block["text"].lstrip("\ufeff").rstrip("\r\n")
+        if block["blank"]:
+            kind = "blank"
+        elif re.fullmatch(VOLUME.pattern + r"[^\r\n]+", content):
+            kind = "volume_heading"
+        elif not title_seen and re.fullmatch(r"# [^\r\n]+", content):
+            kind = "document_title"
+            title_seen = True
+        elif content == "---":
+            kind = "assembly_rule"
+        elif content == description:
+            kind = "assembly_description"
+        else:
+            kind = "unmapped"
+        classifications.append({"kind": kind, "source": ref("primary-source", block, index)})
+    return {"bytes": len(prefix.encode("utf-8")), "segments": blocks, "classifications": classifications}
+
+
 def convert(config):
     require(config.get("schemaVersion") == CONFIG_VERSION, "unsupported_config_version")
     profile = config.get("profile")
@@ -147,7 +197,9 @@ def convert(config):
     require(config.get("locale") in ("ko", "en", "ja", "zh-Hans", "zh-Hant"), "invalid_locale")
     expected = config.get("expected", {})
     require(isinstance(expected.get("parts"), int) and expected["parts"] > 0, "expected_parts_required")
-    root = Path(config["sourceRoot"]).resolve(strict=True)
+    root = Path(config["sourceRoot"]).absolute()
+    assert_no_links(root, "source_link")
+    root = root.resolve(strict=True)
     before = inventory(root)
     by_path = {f["path"]: f for f in before}
     issues = []
@@ -169,6 +221,7 @@ def convert(config):
         verified += 1
     external = []
     for item in config.get("externalHashes", []):
+        assert_no_links(Path(item["path"]).absolute(), "external_link")
         data = Path(item["path"]).read_bytes()
         require(sha(data) == item["sha256"].lower(), "external_hash_mismatch")
         external.append({"bytes": len(data), "sha256": sha(data)})
@@ -192,6 +245,10 @@ def convert(config):
     require(len(primary_matches) == expected["parts"], "primary_part_count_mismatch")
     require(len({int(m[1]) for m in primary_matches}) == len(primary_matches), "duplicate_primary_part")
     require([int(m[1]) for m in primary_matches] == list(range(1, expected["parts"] + 1)), "primary_part_order_invalid")
+    preamble = primary_preamble(primary, expected["parts"])
+    unmapped_preamble = [p for p in preamble["classifications"] if p["kind"] == "unmapped"]
+    for item in unmapped_preamble:
+        issue("primary_preamble_unmapped", line=item["source"]["lineStart"])
     primary_by_part = {}
     primary_lf = primary.replace("\r\n", "\n")
     for j, match in enumerate(primary_matches):
@@ -199,6 +256,7 @@ def convert(config):
         primary_by_part[int(match[1])] = primary_lf[match.start():end]
 
     manifest = None
+    index_observations = []
     if profile == "indexed-parts-v1":
         manifest = parse_json(source_path(root, config["manifest"]).read_bytes())
         require(manifest.get("schema_version") == "lumina-stage-story-v1", "unsupported_source_version")
@@ -206,9 +264,14 @@ def convert(config):
         require(isinstance(rows, list) and manifest.get("parts") == len(rows) == expected["parts"], "manifest_part_count_mismatch")
         csv_rows = read_csv(source_path(root, config["partCsv"]))
         require(len(csv_rows) == len(rows), "part_csv_count_mismatch")
-        for row, csv_row in zip(rows, csv_rows):
+        for index, (row, csv_row) in enumerate(zip(rows, csv_rows)):
             for key in ("part", "part_id", "act", "manuscript", "scenes", "image_prompts", "choices"):
                 require(str(row[key]) == csv_row[key], "part_csv_manifest_mismatch")
+            if csv_row.get("sources") == "System.Object[]" and isinstance(row.get("sources"), list):
+                issue("part_csv_sources_placeholder_mismatch", row["part"])
+                index_observations.append({"field": "sources", "part": row["part"], "csvRecord": index + 2,
+                                           "observedCsv": "System.Object[]", "selectedSource": "manifest",
+                                           "manifestPointer": f"/parts_index/{index}/sources"})
     else:
         names = sorted(p.relative_to(root).as_posix() for p in (root / config["partsDirectory"]).glob("*.md"))
         rows = [{"manuscript": name} for name in names]
@@ -290,6 +353,8 @@ def convert(config):
             if choice_match:
                 label = choice_match[1]
                 require(label in ("A", "B", "C"), "unsupported_choice_label")
+                if not line[choice_match.end():].strip():
+                    issue("choice_text_incomplete", number, block["lineStart"])
                 choice_block = {"choiceKey": f"{key}-{label}", "label": label, "source": r,
                                 "sourceLabelText": block["text"], "readerOrdinal": ord(label) - ord("A") + 1,
                                 "evidence": [r], "authorship": "author", "targetPartKey": None,
@@ -368,8 +433,9 @@ def convert(config):
         source_scene_count += len(scenes)
         if not manifest and number == expected["parts"]:
             for block in blocks:
-                if "C \uc120\ud0dd" in block["text"] and "\uc791\uac00 \uc5d4\ub529" in block["text"]:
-                    issue("author_default_c_condition_conflicts_with_product_a_route", number, block["lineStart"])
+                if ENDING_WORDS.search(block["text"]):
+                    issue("ending_resolution_unmapped", number, block["lineStart"])
+                    break
         parts.append({"partKey": key, "number": number, "act": act, "title": title,
                       "sourceFileId": file_id, "sourcePath": row["manuscript"], "sourceSha256": sha(data), "sourceBytes": len(data),
                       "segments": blocks, "paragraphSources": body_refs, "metadataSources": metadata_refs,
@@ -409,13 +475,16 @@ def convert(config):
             dto_issues.append("paragraph_exceeds_10000_utf16_units")
     require(inventory(root) == before, "inputs_changed_during_conversion")
     for item in config.get("externalHashes", []):
+        assert_no_links(Path(item["path"]).absolute(), "external_link")
         require(sha(Path(item["path"]).read_bytes()) == item["sha256"].lower(), "external_changed_during_conversion")
     gates = {
         "offlineConversion": "ready",
         "sourceIntegrity": "ready",
         "losslessPartCoverage": "ready",
-        "primaryParagraphCoverage": "ready",
-        "declaredStructure": "blocked" if any("mismatch" in i["code"] for i in issues) else "matched",
+        "primaryParagraphCoverage": "blocked" if unmapped_preamble else "ready",
+        "declaredStructure": "blocked" if any(i["code"] == "choice_text_incomplete" or
+            ("mismatch" in i["code"] and i["code"] != "part_csv_sources_placeholder_mismatch") for i in issues) else "matched",
+        "sourceIndexQuality": "observed_mismatch" if index_observations else "no_observed_mismatch",
         "analysisDto": "blocked" if dto_issues else "shape_compatible_only",
         "jsonRequestBody": "blocked" if len(payload) > 102400 else "within_default_limit_only",
         "privateIntake": "not_run",
@@ -441,6 +510,8 @@ def convert(config):
         "visualFilesDiscovered": sum(Path(f["path"]).suffix.lower() in (".jpg", ".jpeg", ".png", ".webp") for f in before),
         "verifiedVisualAssets": 0,
         "analysisParagraphs": paragraph_count, "primaryCoveredNonblankBlocks": coverage,
+        "primaryPreambleBytes": preamble["bytes"], "primaryPreambleUnmappedBlocks": len(unmapped_preamble),
+        "sourceIndexMismatches": len(index_observations),
         "losslessPartBytes": sum(p["sourceBytes"] for p in parts),
         "analysisPayloadBytes": len(payload), "structuredBodyJsonBytes": len(structured_body)},
         "sourceInventorySha256": sha(encode(before)), "primarySha256": sha(primary_data),
@@ -450,6 +521,8 @@ def convert(config):
     package = {"schemaVersion": VERSION, "purpose": "private_offline_preparation_not_release_metadata",
                "sourceInventory": before, "externalIntegrity": external,
                "sourceManifest": manifest, "parts": parts,
+               "primaryPreamble": {"sourcePath": config["primary"], **preamble},
+               "indexFieldObservations": index_observations,
                "imagePromptEvidence": prompt_sources,
                "endingEvidence": ending_evidence,
                "actResetCandidates": [{"act": act, "entryPartKey": next(p["partKey"] for p in parts if p["act"] == act),
@@ -462,10 +535,11 @@ def convert(config):
 
 
 def write_outputs(config, output, files):
-    root = Path(config["sourceRoot"]).resolve(strict=True)
+    root = Path(config["sourceRoot"]).absolute()
+    assert_no_links(root, "source_link")
+    root = root.resolve(strict=True)
     output = Path(output).absolute()
-    require(not any(p.is_symlink() or (hasattr(p, "is_junction") and p.is_junction())
-                    for p in (output, *output.parents)), "output_link")
+    assert_no_links(output, "output_link")
     output = output.resolve()
     require(not inside(output, root) and not inside(root, output), "output_source_overlap")
     require(not any((p / ".git").exists() for p in (output, *output.parents)), "output_inside_git")
@@ -476,7 +550,7 @@ def write_outputs(config, output, files):
     files["checksums.json"] = encode({name: {"sha256": sha(data), "bytes": len(data)} for name, data in sorted(files.items())})
     if output.exists():
         require({p.name for p in output.iterdir()} == set(files), "output_conflict")
-        require(all((output / n).is_file() and not (output / n).is_symlink() and (output / n).read_bytes() == d
+        require(all(not is_link(output / n) and (output / n).is_file() and (output / n).read_bytes() == d
                     for n, d in files.items()), "output_conflict")
         return
     output.mkdir(parents=True)

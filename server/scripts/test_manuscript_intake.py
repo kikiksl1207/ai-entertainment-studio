@@ -6,7 +6,9 @@ import json
 import os
 from pathlib import Path
 import tempfile
+from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 
 import manuscript_intake as intake
 
@@ -286,6 +288,63 @@ class IntakeTests(unittest.TestCase):
         result = self.result()
         self.assertEqual(len(result["analysis-input.json"]["parts"]), 151)
         self.assertIn("parts_exceed_150", result["report.json"]["dtoIssues"])
+
+    def test_reparse_point_rejected_without_is_junction_api(self):
+        linked = self.root / "linked-support"
+        linked.mkdir()
+        with patch.object(Path, "lstat", autospec=True, side_effect=lambda p: SimpleNamespace(
+                st_mode=0o040755, st_file_attributes=0x400 if p == linked else 0)):
+            self.assertTrue(intake.is_link(linked))
+            with self.assertRaisesRegex(intake.IntakeError, "source_link"):
+                intake.assert_no_links(linked / "child", "source_link")
+            with self.assertRaisesRegex(intake.IntakeError, "output_link"):
+                intake.write_outputs(self.config, linked / "output", {})
+
+    def test_unmapped_preamble_preserved_with_blocked_coverage(self):
+        preamble = "# Synthetic title\r\n\r\nUnmapped synthetic narrative.  \r\n\r\n"
+        data = preamble.encode() + (self.root / "full.md").read_bytes()
+        (self.root / "full.md").write_bytes(data)
+        self.config["pinnedHashes"]["full.md"] = intake.sha(data)
+        result = self.result()
+        prefix = result["package.json"]["primaryPreamble"]
+        self.assertEqual("".join(s["text"] for s in prefix["segments"]).encode(), data[:prefix["bytes"]])
+        self.assertEqual(result["report.json"]["gates"]["primaryParagraphCoverage"], "blocked")
+        self.assertEqual(result["report.json"]["counts"]["primaryPreambleUnmappedBlocks"], 1)
+
+    def test_blank_labels_block_structure_without_altering_raw_choices(self):
+        for indexed in (False, True):
+            if indexed:
+                self.indexed()
+            self.texts[0] = self.texts[0].replace("B. Beta", "B.   ").replace("B - Beta", "B -   ")
+            self.sync()
+            result = self.result()
+            self.assertEqual(result["report.json"]["gates"]["declaredStructure"], "blocked")
+            self.assertEqual("".join(s["text"] for s in result["package.json"]["parts"][0]["segments"]), self.texts[0])
+
+    def test_final_ending_conditions_unmapped_not_conflicting(self):
+        condition = "\uc791\uac00 \uc5d4\ub529: C \uc120\ud0dd.\n"
+        self.texts[1] += condition
+        self.sync()
+        result = self.result()
+        codes = [i["code"] for i in result["report.json"]["issues"]]
+        self.assertIn("ending_resolution_unmapped", codes)
+        self.assertFalse(any("conflict" in c for c in codes))
+        self.assertIn(condition, "".join(s["text"] for s in result["package.json"]["parts"][1]["segments"]))
+
+    def test_csv_array_placeholder_is_observed_not_repaired(self):
+        self.indexed()
+        for row in self.manifest["parts_index"]:
+            row["sources"] = ["synthetic-note.md"]
+        self.sync_index()
+        csv_path = self.root / "parts.csv"
+        original = csv_path.read_bytes().replace(b"['synthetic-note.md']", b"System.Object[]")
+        csv_path.write_bytes(original)
+        result = self.result()
+        self.assertEqual(csv_path.read_bytes(), original)
+        self.assertEqual(result["package.json"]["sourceManifest"], self.manifest)
+        self.assertEqual(result["report.json"]["counts"]["sourceIndexMismatches"], 2)
+        self.assertEqual(result["report.json"]["gates"]["sourceIndexQuality"], "observed_mismatch")
+        self.assertEqual(result["report.json"]["gates"]["declaredStructure"], "matched")
 
 
 if __name__ == "__main__":

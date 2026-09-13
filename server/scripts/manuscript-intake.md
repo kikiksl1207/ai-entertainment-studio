@@ -57,6 +57,14 @@ heading. A/B/C may be adjacent without blank lines. Image prompt/directive lines
 in design files and numbered inline image sections are counted separately;
 alternative editions are not added together to manufacture a total.
 
+The entire primary prefix before the first Part is retained in `primaryPreamble`
+with exact segments and source spans. Permitted assembly blocks are blank space,
+one H1 document title, volume headings, `---`, and the indexed dialect's exact
+assembly-description form with the declared part count. Any other prefix content
+is preserved as `unmapped` and blocks `primaryParagraphCoverage`, even when the
+primary hash is valid. A/B/C labels without nonblank recommendation text block
+`declaredStructure`; their raw text and evidence are still preserved.
+
 ## Output Contract
 
 All output is private, including the raw source manifest and support text.
@@ -82,8 +90,10 @@ and assembly separator rules, but not extra or missing narrative paragraphs.
 Relative paths, file inventories, part/scene IDs, choice counts, A-route ordering,
 target existence, encoding, CSV/JSON shape, pinned hashes and optional whole-file
 checksum inventories are checked. Source inventories are hashed before and after
-conversion. Output inside/above a source or inside Git is refused; symlink output
-and source traversal are refused. Existing output is accepted only if every byte
+conversion. Output inside/above a source or inside Git is refused. Symlinks and
+Windows reparse points (including Python 3.10 directory junctions) are checked
+using `lstat` before directory descent or path resolution, including root/ancestor
+and output paths; source traversal is refused. Existing output is accepted only if every byte
 and filename already matches. A partial/interrupted directory is a conflict: use
 a new output directory, never overwrite or clean source material.
 
@@ -91,7 +101,7 @@ Source A/B/C and full label text stay separate from `readerOrdinal` 1/2/3.
 Only A has an authored-next-part **candidate**. B/C target fields stay null with
 `ai_required_unresolved`; no unconditional convergence or invented scene is added.
 That is expected AI-story product design, not a demand to rewrite all branches.
-Ending provenance claims retain source spans, including contradictory conditions;
+Ending provenance claims and eligibility conditions retain their source spans;
 an AI-required ending is never labeled already AI-generated. Act entry candidates
 are not runtime reset bindings. No approvals, prices, asset URLs or ready release
 metadata are synthesized. Both free/paid retain max 3 recommendations and defer
@@ -149,9 +159,19 @@ Norse declares and independently matches 216 parts, 11 acts, 2,138 scenes,
 2,138 prompt/directive entries and 648 choices. Prompts are not assets. Imjin
 has 196 recognized background prompt markers; its general prompt total is not
 claimed. Explicit scene boundaries are absent in 62 parts (1-47 and 60-74), so
-the 80 observed markers are not a complete playable graph. Part 75 line 810
-contains a source default-ending C condition conflicting with product A-route
-policy; preserved as an unresolved source/adapter decision, without a prose quote.
+the 80 observed markers are not a complete playable graph. Part 75 lines 803-817
+describe a single final main part with conditional epilogues. C is one stated
+eligibility/tendency condition, not a demonstrated unique ending route. These
+conditions and provenance are preserved as `ending_resolution_unmapped`; authored
+part traversal is distinct from final ending eligibility. No confirmed conflict
+with product A traversal, author rewrite, or user decision is asserted for offline
+preservation. Runtime ending binding remains engineering work.
+
+All 216 Norse CSV `sources` fields contain `System.Object[]` while JSON retains
+the source arrays. `indexFieldObservations` records that specific pre-existing
+degradation with logical CSV record numbers and JSON pointers; original CSV and
+manifest are not changed. `sourceIndexQuality: observed_mismatch` is separate from
+matched structural counts. This targeted check is not full-field CSV approval.
 
 Both conversion/integrity/coverage gates are ready. Neither is upload-tested or
 publish-ready. Remaining engineering work: intake-to-work/analysis bridge, safe
@@ -165,9 +185,16 @@ Analysis payload SHA-256:
 - Imjin: `d6153f69ffa9689c9c1453854f3401d49612d46f7e8614ad26c893ce30ec2995`
 - Norse: `74462e693982cbb72733b3db465e435c008309dbcb76c603b908ed1369cb37f8`
 
-26 synthetic tests cover determinism, readonly inputs, exact paragraph spans,
+The original 26 synthetic tests cover determinism, readonly inputs, exact paragraph spans,
 adjacent choices, source dialects, image count mismatches, UTF-8/BOM/CRLF/non-BMP,
 duplicate/incomplete/reordered/truncated data, traversal, versions/hashes, CSV
 quotes/newlines, approval isolation, immutable output and complete >150-part
-preservation. Independent QA and integration are still required; no whole-ticket
+preservation. Five additional tests cover reparse checks without `is_junction`,
+lossless/unmapped preambles, empty labels, ending-label accuracy and CSV source
+array placeholders. All 31 author tests and the unchanged eight QR1 adverse tests
+pass after revision 2. The earlier frozen candidate failed three of those eight;
+these results are author-run regressions, not a new independent QA approval.
+Actual revision-2 prefixes preserve 112 Imjin / 179 Norse bytes with zero unmapped
+prefix blocks; all 291 analysis parts retain the payload hashes listed above.
+Independent QA and integration are still required; no whole-ticket
 completion, runtime modification, main push or deployment is claimed.
