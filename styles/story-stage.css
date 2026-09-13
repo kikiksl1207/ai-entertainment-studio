@@ -327,6 +327,8 @@
 
 .story-player-stage {
   position: relative;
+  display: grid;
+  align-items: end;
   min-height: 520px;
   aspect-ratio: 16 / 9;
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -349,7 +351,8 @@
   position: absolute;
   inset: 0;
   display: grid;
-  place-items: center;
+  justify-items: center;
+  align-items: start;
   padding: 20px;
   color: rgba(244, 244, 241, 0.56);
   font-size: 13px;
@@ -378,7 +381,8 @@
 .story-player-characters img[data-side="center"] { left: 50%; transform: translateX(-50%); }
 
 .story-player-copy {
-  position: absolute;
+  position: relative;
+  margin-top: 80px;
   right: 0;
   bottom: 0;
   left: 0;
@@ -423,6 +427,7 @@
 }
 
 .story-choice-list button {
+  min-width: 0;
   min-height: 48px;
   padding: 10px 12px;
   border: 1px solid rgba(255, 255, 255, 0.16);
@@ -621,7 +626,7 @@ button.story-graph-choice {
 
 .story-reset-dialog {
   position: fixed;
-  z-index: 50;
+  z-index: 1200;
   inset: 0;
   display: grid;
   place-items: center;
@@ -630,6 +635,8 @@ button.story-graph-choice {
 }
 
 .story-reset-dialog-panel {
+  box-sizing: border-box;
+  min-width: 0;
   display: grid;
   gap: 14px;
   width: min(460px, 100%);
@@ -649,6 +656,46 @@ button.story-graph-choice {
   font-size: 14px;
   line-height: 1.55;
   overflow-wrap: anywhere;
+}
+
+.story-player *,
+.story-reset-dialog * {
+  box-sizing: border-box;
+}
+
+.story-player .story-progress-controls {
+  padding: 16px 0;
+  border: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 0;
+  background: transparent;
+}
+
+.story-player button:disabled,
+.story-reset-dialog button:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+}
+
+.story-player .story-button,
+.story-reset-dialog .story-button {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.5;
+  letter-spacing: 0;
+}
+
+.story-reset-dialog-panel h2 {
+  font-size: 20px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+[data-story-scene-focus]:focus-visible,
+.story-reset-dialog-panel:focus-visible {
+  outline: 2px solid #d4ff5f;
+  outline-offset: -2px;
 }
 
 @media (max-width: 900px) {
@@ -674,7 +721,7 @@ button.story-graph-choice {
   .story-choice-list { grid-template-columns: 1fr; }
   .story-graph-flow { grid-template-columns: 1fr; }
   .story-reset-dialog { align-items: end; padding: 0; }
-  .story-reset-dialog-panel { width: 100%; max-height: min(78dvh, 620px); border-right: 0; border-bottom: 0; border-left: 0; border-radius: 8px 8px 0 0; overflow: auto; }
+  .story-reset-dialog-panel { width: 100%; max-height: min(78dvh, 620px); padding-bottom: calc(22px + env(safe-area-inset-bottom, 0px)); border-right: 0; border-bottom: 0; border-left: 0; border-radius: 8px 8px 0 0; overflow: auto; }
 }
 
 @media (max-width: 400px) {
