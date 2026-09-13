@@ -1,6 +1,7 @@
 import { BadRequestException, PayloadTooLargeException } from '@nestjs/common';
 import { createHash } from 'crypto';
 import { TextDecoder } from 'util';
+import type { CreateManuscriptVersionDto } from './dto/story-production.dto';
 import { ManuscriptPart, manuscriptContentHash, STORY_LOCALES } from './story-production.policy';
 
 export const MANUSCRIPT_FILE_LIMITS = {
@@ -86,7 +87,7 @@ function assertUniqueMembers(text: string) {
   }
 }
 
-export function prepareManuscript(buffer: Buffer, kind: ManuscriptSourceKind = 'utf8_json_file'): PreparedManuscript {
+export function prepareManuscript(buffer: Buffer): PreparedManuscript {
   if (!Buffer.isBuffer(buffer) || !buffer.length) invalidManuscript('MANUSCRIPT_FILE_REQUIRED');
   within(buffer.length, MANUSCRIPT_FILE_LIMITS.fileBytes);
   let rawText: string;
@@ -120,6 +121,23 @@ export function prepareManuscript(buffer: Buffer, kind: ManuscriptSourceKind = '
   }
   const locale = value.locale as string;
   const parts = value.parts as ManuscriptPart[];
+  return prepareIdentity(buffer, rawText, locale, parts, paragraphCount, 'utf8_json_file');
+}
+
+// Only for the existing JSON route after its ValidationPipe/DTO contract. Do not
+// reapply the file contract: DTO MaxLength counts characters, permits blank
+// keys/titles and repeated part keys, and has no extra file-level restrictions.
+export function prepareValidatedJsonManuscript(body: CreateManuscriptVersionDto): PreparedManuscript {
+  const rawText = JSON.stringify(body);
+  const buffer = Buffer.from(rawText);
+  const paragraphCount = body.parts.reduce((count, part) => count + part.paragraphs.length, 0);
+  return prepareIdentity(buffer, rawText, body.locale, body.parts, paragraphCount, 'json_projection');
+}
+
+function prepareIdentity(
+  buffer: Buffer, rawText: string, locale: string, parts: ManuscriptPart[],
+  paragraphCount: number, kind: ManuscriptSourceKind,
+): PreparedManuscript {
   return {
     locale, parts, paragraphCount,
     contentHash: manuscriptContentHash({ identityVersion: 2, locale, parts }),

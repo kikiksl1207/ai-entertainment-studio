@@ -65,6 +65,30 @@ treated as the structured JSON contract; the offline converter remains upstream.
   They exclude the manuscript, private provenance, owner ID, and storage keys.
   This implementation never logs manuscript text.
 
+### Existing JSON compatibility
+
+The JSON route now adapts its already validated DTO directly, rather than running
+the strict file parser again. ValidationPipe and the existing DTO remain its
+validation authority; the adapter is not an untrusted-file validator. Both paths
+still share locale-aware identity, legacy-version lookup, atomic storage, receipt
+privacy, and the serialized-storage cap. No approval or schema changes are added.
+
+| Input rule | Existing JSON route | New file route |
+| --- | --- | --- |
+| Key/title/text length | DTO character count, 80/240/10,000; surrogate pairs count as one | UTF-16 units, 80/240/10,000 |
+| Empty/whitespace key or title | Allowed by existing IsString/MaxLength | Rejected |
+| Repeated part keys | Existing DTO permits; retained in order | Rejected |
+| Required/unknown/null fields | Existing ValidationPipe/DTO rejects | Strict structure rejects |
+| Optional/default manuscript fields | None in current DTO; none fabricated | None |
+| Empty paragraph text / Unicode normalization | Allowed / never normalized | Allowed / never normalized |
+| Duplicate JSON members / wire decoding | Already interpreted by the JSON body parser; projection evidence only | Duplicate members and invalid UTF-8 rejected; exact file bytes retained |
+
+NUL/lone-surrogate strings are not newly filtered by the legacy adapter; the DTO
+can accept them but PostgreSQL JSONB cannot persist them. This does not claim
+that every DTO-valid value was previously storable. The file parser retains its
+explicit rejection. The 40 MiB storage cap is far above a body accepted by the
+unchanged 100 KiB JSON endpoint; file limits are not applied as new DTO semantics.
+
 ## Bounds and resource costs
 
 | Boundary | Limit |
@@ -86,6 +110,10 @@ overrun and timeout destroy the stream. Multer independently bounds file size,
 files, and fields. A file-size allowance of one extra byte accounts for Busboy's
 inclusive limit event; the actual accepted file maximum is still exactly 16 MiB.
 Admission is released on parser failure, abort, or downstream completion/error.
+Before releasing admission for an early parser error, an unfinished request is
+unpiped and destroyed so Multer's drain cannot continue without the byte timer.
+Such an incomplete request can end with a closed connection rather than a JSON
+error response; already completed requests retain sanitized HTTP errors.
 The admission guard is process-local, not a distributed rate limiter. Ownership
 queries and rejected pre-admission requests still need normal edge protection.
 
@@ -117,13 +145,18 @@ requires a measured heap/latency/DB load test and matching edge admission limits
 
 ## Local evidence and reproduction
 
-Four explicitly selected Jest suites passed: **55 tests**, one process, no build,
+Four explicitly selected Jest suites passed after the compatibility fix:
+**70 tests**, one process, no build,
 install, Prisma generate, HTTP listener, provider, or external DB. The suites are
 `story-manuscript-file.policy.spec.ts`, `story-manuscript-version.store.spec.ts`,
 `story-manuscript-file.controller.spec.ts`, and existing
 `story-production.service.spec.ts`, all under `server/src/story-production`.
 Fixtures are synthetic. Tests exercise the real Nest/Multer parser with local
 streams and the store with transaction doubles, not live PostgreSQL locking.
+The added regressions use the actual existing ValidationPipe/DTO for Unicode
+key/title/paragraph boundaries, blank/repeated keys, missing/unknown/null fields,
+legacy IDs and locale separation. Incomplete multipart tests cover both missing
+boundary and unexpected-file-field rejection before releasing admission.
 
 Invoke the existing Jest entry directly with `--runInBand --runTestsByPath` and
 these four paths, using an E-local ts-jest configuration/cache. Do not use

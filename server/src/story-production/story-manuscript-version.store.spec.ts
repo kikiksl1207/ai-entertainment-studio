@@ -1,5 +1,8 @@
-import { HttpException } from '@nestjs/common';
+import { HttpException, ValidationPipe } from '@nestjs/common';
+import { createValidationException } from '../common/validation-exception.factory';
+import { CreateManuscriptVersionDto } from './dto/story-production.dto';
 import { prepareManuscript } from './story-manuscript-file.policy';
+import { manuscriptContentHash } from './story-production.policy';
 import { storeManuscriptVersion } from './story-manuscript-version.store';
 import { StoryProductionService } from './story-production.service';
 
@@ -37,6 +40,109 @@ function database() {
   };
   return { prisma, rows, query, ownerRead, transfer: () => { owner = 'other'; revision++; }, missing: () => { owner = null; } };
 }
+
+function validatedJson(value: unknown): Promise<CreateManuscriptVersionDto> {
+  return new ValidationPipe({
+    whitelist: true, forbidNonWhitelisted: true, forbidUnknownValues: true,
+    transform: true, exceptionFactory: createValidationException,
+  }).transform(value, { type: 'body', metatype: CreateManuscriptVersionDto });
+}
+
+function jsonDocument(): CreateManuscriptVersionDto {
+  return JSON.parse(JSON.stringify(body));
+}
+
+type JsonChange = [string, (value: CreateManuscriptVersionDto) => void];
+const legacyOnlyCases: JsonChange[] = [
+  ['supplementary paragraph regression (5001)', value => { value.parts[0].paragraphs[0].text = '\u{1f642}'.repeat(5001); }],
+  ['supplementary paragraph at DTO maximum', value => { value.parts[0].paragraphs[0].text = '\u{1f642}'.repeat(10000); }],
+  ['supplementary key at DTO maximum', value => { value.parts[0].partKey = '\u{1f642}'.repeat(80); }],
+  ['supplementary title at DTO maximum', value => { value.parts[0].title = '\u{1f642}'.repeat(240); }],
+  ['empty key', value => { value.parts[0].partKey = ''; }],
+  ['empty title', value => { value.parts[0].title = ''; }],
+  ['whitespace key and title', value => { value.parts[0].partKey = ' \t'; value.parts[0].title = '\r\n '; }],
+  ['repeated keys', value => { value.parts.push({ ...value.parts[0] }); }],
+];
+
+describe('existing JSON DTO compatibility versus strict file validation', () => {
+  it.each(legacyOnlyCases)('preserves %s for create, replay and legacy references without relaxing file validation', async (_name, change) => {
+    const value = jsonDocument();
+    change(value);
+    expect(Buffer.byteLength(JSON.stringify(value))).toBeLessThan(102400);
+    const dto = await validatedJson(value);
+    expect(dto).toEqual(value);
+    expect(() => prepareManuscript(Buffer.from(JSON.stringify(value)))).toThrow(HttpException);
+
+    const db = database();
+    const service = new StoryProductionService(db.prisma as never);
+    const first = await service.createManuscriptVersion(userId, workId, dto);
+    expect(db.rows[0].structuredBody.parts).toEqual(value.parts);
+    expect(db.rows[0].structuredBody.intake.source.rawText).toBe(JSON.stringify(dto));
+    expect(first.received.sourceKind).toBe('json_projection');
+    const replay = await service.createManuscriptVersion(userId, workId, dto);
+    expect(replay.manuscript).toEqual(first.manuscript);
+    expect(replay.idempotentReplay).toBe(true);
+    expect(db.rows).toHaveLength(1);
+    expect(JSON.stringify(replay)).not.toMatch(/rawText|structuredBody|ownerUserId|PRIVATE-SYNTHETIC/);
+    expect(replay.analysisStarted).toBe(false);
+
+    const old = database();
+    const legacyHash = manuscriptContentHash({ parts: dto.parts });
+    old.rows.push({ id: 'legacy-id', workId, ownerUserId: userId, version: 7, locale: dto.locale,
+      contentHash: legacyHash, structuredBody: { parts: dto.parts } });
+    const release = { manuscriptVersionId: 'legacy-id' };
+    const before = JSON.stringify(old.rows);
+    const oldService = new StoryProductionService(old.prisma as never);
+    const linked = await oldService.createManuscriptVersion(userId, workId, dto);
+    expect(linked.manuscript.id).toBe(release.manuscriptVersionId);
+    expect(linked.manuscript.contentHash).toBe(legacyHash);
+    expect(linked.rawSource).toBe('legacy_projection_only');
+    expect(JSON.stringify(old.rows)).toBe(before);
+    const otherLocale = await oldService.createManuscriptVersion(userId, workId, await validatedJson({ ...value, locale: 'en' }));
+    expect(otherLocale.manuscript.id).not.toBe(linked.manuscript.id);
+    expect(otherLocale.manuscript.version).toBe(8);
+  });
+
+  it.each<JsonChange>([
+    ['key above 80 characters', value => { value.parts[0].partKey = '\u{1f642}'.repeat(81); }],
+    ['title above 240 characters', value => { value.parts[0].title = '\u{1f642}'.repeat(241); }],
+    ['paragraph above 10000 characters', value => { value.parts[0].paragraphs[0].text = '\u{1f642}'.repeat(10001); }],
+  ])('still rejects %s at the existing DTO boundary', async (_name, change) => {
+    const value = jsonDocument(); change(value);
+    await expect(validatedJson(value)).rejects.toMatchObject({ status: 400 });
+  });
+
+  it('keeps existing required/unknown/null field rules, without inventing optional fields or defaults', async () => {
+    const plain = jsonDocument();
+    expect(await validatedJson(plain)).toEqual(plain);
+    for (const level of ['root', 'part', 'paragraph']) {
+      const value = jsonDocument();
+      const target = (level === 'root' ? value : level === 'part' ? value.parts[0] : value.parts[0].paragraphs[0]) as unknown as Record<string, unknown>;
+      const keys = Object.keys(target);
+      for (const key of keys) {
+        const previous = target[key];
+        delete target[key];
+        await expect(validatedJson(value)).rejects.toMatchObject({ status: 400 });
+        target[key] = null;
+        await expect(validatedJson(value)).rejects.toMatchObject({ status: 400 });
+        target[key] = previous;
+      }
+      target['unexpected'] = 'synthetic';
+      await expect(validatedJson(value)).rejects.toMatchObject({ status: 400 });
+    }
+  });
+
+  it('keeps common-contract identity and exact combining Unicode/empty paragraph text without normalization', async () => {
+    const value = jsonDocument();
+    value.parts[0].title = 'e\u0301'.repeat(120);
+    value.parts[0].paragraphs = [{ kind: 'paragraph', text: '' }, { kind: 'dialogue', text: 'e\u0301 \u00e9\r\n' }];
+    const dto = await validatedJson(value);
+    const db = database();
+    const result = await new StoryProductionService(db.prisma as never).createManuscriptVersion(userId, workId, dto);
+    expect(result.manuscript.contentHash).toBe(prepareManuscript(Buffer.from(JSON.stringify(value))).contentHash);
+    expect(db.rows[0].structuredBody.parts).toEqual(value.parts);
+  });
+});
 
 describe('atomic complete manuscript version store', () => {
   it('stores exactly one complete immutable row, private raw bytes, and only a receipt', async () => {

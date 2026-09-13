@@ -41,7 +41,7 @@ import {
   STORY_FIRST_RELEASE_CHOICE_POLICY,
 } from './story-progress-control.policy';
 import { projectStoredStorySceneVisualManifest } from '../story-stage/story-scene-visual-manifest-contract';
-import { prepareManuscript } from './story-manuscript-file.policy';
+import { prepareValidatedJsonManuscript } from './story-manuscript-file.policy';
 import { storeManuscriptVersion } from './story-manuscript-version.store';
 
 const STORY_ENTITLEMENT_TYPES = [
@@ -933,7 +933,7 @@ export class StoryProductionService {
   async createManuscriptVersion(userId: string, workId: string, body: CreateManuscriptVersionDto) {
     await this.assertOwner(userId, workId);
     return storeManuscriptVersion(this.prisma, userId, workId,
-      prepareManuscript(Buffer.from(JSON.stringify(body)), 'json_projection'));
+      prepareValidatedJsonManuscript(body));
   }
 
   async analyzeManuscript(userId: string, manuscriptId: string, idempotencyKey?: string) {

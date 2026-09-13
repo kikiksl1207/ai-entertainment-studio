@@ -101,6 +101,36 @@ describe('owned-work bounded file endpoint', () => {
     admission.enter('b')();
   });
 
+  it.each(['missing-boundary', 'unexpected-field'])('closes unfinished %s input before releasing admission, including Multer drain', async variant => {
+    let sent = false;
+    const request = Object.assign(new Readable({ read() {
+      if (!sent && variant === 'unexpected-field') {
+        sent = true;
+        this.push(multipart(json, 'other', false));
+      }
+    } }), { user, params: { workId }, headers: {
+      'content-type': variant === 'missing-boundary' ? 'multipart/form-data; missing-boundary=x' : `multipart/form-data; boundary=${boundary}`,
+      'content-length': '1024',
+    } });
+    const ctx = { switchToHttp: () => ({ getRequest: () => request, getResponse: () => ({}) }) } as unknown as ExecutionContext;
+    const admission = new StoryManuscriptAdmission();
+    const enter = admission.enter.bind(admission);
+    const closedAtRelease: boolean[] = [];
+    jest.spyOn(admission, 'enter').mockImplementationOnce(actor => {
+      const release = enter(actor);
+      return () => { closedAtRelease.push(request.destroyed); release(); };
+    });
+    const next = { handle: jest.fn(() => of('bad')) };
+    try {
+      await expect(new StoryManuscriptMultipartInterceptor(admission).intercept(ctx, next)).rejects.toMatchObject({ status: 400 });
+      expect(closedAtRelease).toEqual([true]);
+      expect(request.destroyed).toBe(true);
+      expect(request.listenerCount('data')).toBe(0);
+      expect(next.handle).not.toHaveBeenCalled();
+      admission.enter('other')();
+    } finally { request.destroy(); }
+  });
+
   it('enforces the exact multipart file byte boundary and the upload deadline', async () => {
     const interceptor = new StoryManuscriptMultipartInterceptor(new StoryManuscriptAdmission());
     const exact = context(multipart(' '.repeat(MANUSCRIPT_FILE_LIMITS.fileBytes - Buffer.byteLength(json)) + json));
