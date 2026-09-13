@@ -357,11 +357,11 @@
   };
 
   const ACCESS_COPY = {
-    ko: { filterLabel: "가격", all: "전체", loadMore: "더 보기", purchase: "구매", purchaseUnavailable: "현재 이 작품을 구매할 수 없습니다.", detailUnavailable: "작품 정보를 확인할 수 없습니다.", accessFailed: "이용 권한을 확인하지 못했습니다. 다시 시도해 주세요." },
-    en: { filterLabel: "Price", all: "All", loadMore: "Load more", purchase: "Purchase", purchaseUnavailable: "This story is not available to purchase right now.", detailUnavailable: "Story details are unavailable.", accessFailed: "Your access could not be checked. Please try again." },
-    ja: { filterLabel: "価格", all: "すべて", loadMore: "もっと見る", purchase: "購入", purchaseUnavailable: "現在この作品は購入できません。", detailUnavailable: "作品情報を確認できません。", accessFailed: "利用権限を確認できませんでした。もう一度お試しください。" },
-    "zh-Hans": { filterLabel: "价格", all: "全部", loadMore: "加载更多", purchase: "购买", purchaseUnavailable: "目前无法购买此作品。", detailUnavailable: "无法查看作品信息。", accessFailed: "无法确认你的访问权限，请重试。" },
-    "zh-Hant": { filterLabel: "價格", all: "全部", loadMore: "載入更多", purchase: "購買", purchaseUnavailable: "目前無法購買此作品。", detailUnavailable: "無法查看作品資訊。", accessFailed: "無法確認你的存取權限，請重試。" },
+    ko: { filterLabel: "가격", all: "전체", loadMore: "더 보기", purchase: "구매", purchaseUnavailable: "이 화면에서는 작품을 구매할 수 없습니다.", detailUnavailable: "작품 정보를 확인할 수 없습니다.", accessFailed: "이용 권한을 확인하지 못했습니다. 다시 시도해 주세요." },
+    en: { filterLabel: "Price", all: "All", loadMore: "Load more", purchase: "Purchase", purchaseUnavailable: "Stories cannot be purchased on this page.", detailUnavailable: "Story details are unavailable.", accessFailed: "Your access could not be checked. Please try again." },
+    ja: { filterLabel: "価格", all: "すべて", loadMore: "もっと見る", purchase: "購入", purchaseUnavailable: "この画面では作品を購入できません。", detailUnavailable: "作品情報を確認できません。", accessFailed: "利用権限を確認できませんでした。もう一度お試しください。" },
+    "zh-Hans": { filterLabel: "价格", all: "全部", loadMore: "加载更多", purchase: "购买", purchaseUnavailable: "无法在此页面购买作品。", detailUnavailable: "无法查看作品信息。", accessFailed: "无法确认你的访问权限，请重试。" },
+    "zh-Hant": { filterLabel: "價格", all: "全部", loadMore: "載入更多", purchase: "購買", purchaseUnavailable: "無法在此頁面購買作品。", detailUnavailable: "無法查看作品資訊。", accessFailed: "無法確認你的存取權限，請重試。" },
   };
 
   const state = {
