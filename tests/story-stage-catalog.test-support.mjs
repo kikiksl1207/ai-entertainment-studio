@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+import { loadStoryServerContract } from './story-stage-server-contract.mjs';
 
 // Registered in the reader suite to share exactly one serial Chrome process.
 export function registerCatalogTests({ getBrowser, repo, artifacts, base, api }) {
@@ -185,7 +186,7 @@ export function registerCatalogTests({ getBrowser, repo, artifacts, base, api })
     ['release revision race', (x) => { x.aiCapability.revision = 9; }],
     ['missing progress state', null, () => null],
     ['version mismatch', null, (x) => ({ ...x, statusKey: 'story.progress.status.versionMismatch', canResume: false })],
-    ['completed existing progress', null, (x) => ({ ...x, statusKey: 'story.progress.status.completed', canResume: false })],
+    ['completed state contradicts owner with no existing progress', null, (x) => ({ ...x, statusKey: 'story.progress.status.completed', canResume: false })],
     ['missing detail capability', null, null, (x) => { delete x.releaseCapability; }],
     ['malformed detail parts', null, null, (x) => { delete x.parts; }],
     ['no published parts', null, null, (x) => { x.parts = []; }],
@@ -205,6 +206,121 @@ export function registerCatalogTests({ getBrowser, repo, artifacts, base, api })
         });
         assert.equal(f.requests.filter((r) => r.method === 'POST').length, 0);
       } finally { await f.close(); }
+    });
+  }
+
+  let serverContract;
+  async function serverFixture(options = {}) {
+    serverContract ||= loadStoryServerContract(repo);
+    const c = await serverContract(options);
+    const f = await fixture({ ...options, hook: async (r) => {
+      const override = await options.hook?.(r, c);
+      if (override) return override;
+      if (r.path === '/api/v1/stories/private-local-story') return { body: c.detail };
+      if (r.path.endsWith('/access')) return { body: c.access };
+      if (r.path.endsWith('/progress-state')) return { body: c.state };
+      if (r.path.endsWith('/progress') && r.method === 'POST') return { body: await c.start() };
+      if (r.path.endsWith('/current-scene')) return { body: await c.current() };
+    } });
+    return { ...f, c };
+  }
+
+  for (const state of ['completed-scene', 'completed-null']) for (const paid of [false, true]) for (const exhausted of [false, true]) {
+    test(`catalog server: ${state} ${paid ? 'owned' : 'free'} exhausted=${exhausted} reopens same ending without writes`, async () => {
+      const f = await serverFixture({ state, free: !paid, owned: paid, exhausted });
+      try {
+        assert.equal(f.c.state.statusKey, `story.progress.status.${exhausted ? 'quotaExhausted' : 'completed'}`);
+        assert.equal(f.c.state.canResume, false);
+        assert.equal(f.c.access.replay.reset, true, 'Actual server confirms an existing progress');
+        assert.equal(f.c.access.access.actions.primary, state === 'completed-null' ? 'start' : 'continue');
+        const before = await f.c.start();
+        assert.equal(before.progressId, progressId);
+        assert.equal(before.status, 'completed');
+        assert.deepEqual(f.c.writes, []);
+        await f.open();
+        assert.equal(await f.page.locator('[data-story-start]').innerText(), 'Continue');
+        await f.page.locator('[data-story-start]').click();
+        await f.page.waitForURL(`**sessionId=${progressId}&workId=${workId}`);
+        await f.page.locator('.story-ending-label').waitFor();
+        assert.equal(await f.page.locator('[data-choice-id]').count(), 0);
+        const posts = f.requests.filter((r) => r.method === 'POST');
+        assert.equal(posts.length, 1);
+        assert.equal(posts[0].path, `/api/v1/stories/${workId}/progress`);
+        assert.deepEqual(posts[0].body, { mode: 'continue', locale: 'en' });
+        assert.deepEqual(await f.c.current(), before, 'No changed ID/revision/ending after reentry');
+        assert.deepEqual(f.c.writes, [], 'No progress creation, reset, quality write or purchase');
+      } finally { await f.close(); }
+    });
+  }
+
+  test('catalog server: first-ever free noProgress still starts with the real response', async () => {
+    const f = await serverFixture({ state: 'new' });
+    try {
+      assert.equal(f.c.state.statusKey, 'story.progress.status.noProgress');
+      assert.equal(f.c.access.replay.reset, false);
+      await f.open();
+      assert.equal(await f.page.locator('[data-story-start]').innerText(), 'Start story');
+      await f.page.locator('[data-story-start]').click();
+      await f.page.waitForURL(`**sessionId=${progressId}&workId=${workId}`);
+      assert.deepEqual(f.c.writes, ['progress-create', 'quality-upsert']);
+      assert.equal(f.requests.filter((r) => r.method === 'POST').length, 1);
+    } finally { await f.close(); }
+  });
+
+  for (const scenario of [
+    { name: 'version mismatch', versionMismatch: true, status: 409 },
+    { name: 'revoked paid access', free: false, owned: false, status: 403 },
+  ]) {
+    test(`catalog server: completed ${scenario.name} remains blocked`, async () => {
+      const f = await serverFixture({ ...scenario, state: 'completed-null' });
+      try {
+        await assert.rejects(f.c.start(), (e) => e.getStatus() === scenario.status);
+        await f.open();
+        assert.equal(await f.page.locator('[data-story-start]').count(), 0);
+        assert.equal(f.requests.filter((r) => r.method === 'POST').length, 0);
+        assert.deepEqual(f.c.writes, []);
+      } finally { await f.close(); }
+    });
+  }
+
+  for (const change of ['release mismatch', 'missing action', 'missing existing progress', 'contradictory canResume']) {
+    test(`catalog server: completed ${change} fails closed`, async () => {
+      const f = await serverFixture({ state: 'completed-null', hook: (r, c) => {
+        if (r.path.endsWith('/access')) {
+          const value = structuredClone(c.access);
+          if (change === 'release mismatch') value.aiCapability.revision++;
+          if (change === 'missing action') delete value.access.actions.canStart;
+          if (change === 'missing existing progress') delete value.replay.reset;
+          return { body: value };
+        }
+        if (change === 'contradictory canResume' && r.path.endsWith('/progress-state')) return { body: { ...c.state, canResume: true } };
+      } });
+      try {
+        await f.open();
+        assert.equal(await f.page.locator('[data-story-start]').count(), 0);
+        assert.equal(f.requests.filter((r) => r.method === 'POST').length, 0);
+        assert.deepEqual(f.c.writes, []);
+      } finally { await f.close(); }
+    });
+  }
+
+  for (const change of ['close', 'locale']) {
+    test(`catalog server: completed duplicate delayed reentry with ${change} cannot navigate stale UI`, async () => {
+      const g = gate();
+      const f = await serverFixture({ state: 'completed-null', hook: async (r) => { if (r.method === 'POST') await g.promise; } });
+      try {
+        await f.open();
+        await f.page.locator('[data-story-start]').click();
+        await f.page.locator('[data-story-start]').dispatchEvent('click');
+        if (change === 'close') {
+          await f.page.locator('[data-story-close]').click();
+          await f.page.waitForURL(`${base}/story-stage`);
+        } else await f.page.evaluate(() => { window.testLocale = 'ja'; window.dispatchEvent(new Event('lumina:localechange')); });
+        g.release(); await delay(100);
+        assert.equal(new URL(f.page.url()).searchParams.get('sessionId'), null);
+        assert.equal(f.requests.filter((r) => r.method === 'POST').length, 1);
+        assert.deepEqual(f.c.writes, []);
+      } finally { g.release(); await f.close(); }
     });
   }
 

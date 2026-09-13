@@ -630,9 +630,15 @@
     if (!state.pack.parts.length) return "unavailable";
     if (!progress || progress.storyAccess?.entitled !== true || !releaseReady(progress.releaseCapability) ||
         progress.releaseCapability.revision !== owner.aiCapability.revision) return "unavailable";
-    if (access.actions.primary === "continue" && access.actions.canContinue === true && owner.replay?.continue === true &&
+    const continueAction = access.actions.primary === "continue" && access.actions.canContinue === true && owner.replay?.continue === true;
+    const startAction = access.actions.primary === "start" && access.actions.canStart === true && owner.replay?.continue === false;
+    // canResume describes active scenes, not permission to read an existing ending.
+    // Quota exhaustion takes precedence over completed in the server status key.
+    if (owner.replay?.reset === true && (continueAction || startAction) && progress.canResume === false &&
+        ["story.progress.status.completed", "story.progress.status.quotaExhausted"].includes(progress.statusKey)) return "continue";
+    if (continueAction &&
         progress.canResume === true && ["story.progress.status.ready", "story.progress.status.quotaExhausted"].includes(progress.statusKey)) return "continue";
-    if (access.actions.primary === "start" && access.actions.canStart === true && owner.replay?.continue === false &&
+    if (startAction &&
         progress.statusKey === "story.progress.status.noProgress" && progress.canResume === false) return "start";
     return "unavailable";
   }
