@@ -101,6 +101,12 @@ export class StoryManuscriptMultipartInterceptor extends SingleManuscriptInterce
       } }), stopped]);
       return result;
     } catch (error) {
+      // An early parser error can leave unread bytes or a Multer drain behind.
+      // Stop that input before releasing admission and removing its byte timer.
+      if (!request.readableEnded) {
+        request.unpipe();
+        request.destroy();
+      }
       release();
       const status = error instanceof HttpException && error.getStatus() === 413 ? 413 : 400;
       // Multer/parser errors must not echo submitted filenames, field names or text.
