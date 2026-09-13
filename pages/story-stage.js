@@ -278,7 +278,7 @@
       accessRequired: "Please check your access to this story.",
       progressChanged: "Your progress has changed. Please check the current scene.",
       resetFailed: "The reset could not be confirmed. Please reload your progress.",
-      resetSummary: "{count} choices will be reset. Your discovered endings will be kept.",
+      resetSummary: "{count} choice records will be cleared. Your discovered endings will be kept.",
       resetDestination: "Start of act {act}",
       remainingAfter: "Resets remaining afterward",
     },
