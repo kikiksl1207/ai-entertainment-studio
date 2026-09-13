@@ -29,7 +29,6 @@ import {
   deriveContinuityLedger,
   hasActiveEntitlement,
   isPublicStorySourceSafe,
-  manuscriptContentHash,
   projectLocalizedValue,
   projectStoryAccess,
   projectStoryGraphValidationSummary,
@@ -42,6 +41,8 @@ import {
   STORY_FIRST_RELEASE_CHOICE_POLICY,
 } from './story-progress-control.policy';
 import { projectStoredStorySceneVisualManifest } from '../story-stage/story-scene-visual-manifest-contract';
+import { prepareManuscript } from './story-manuscript-file.policy';
+import { storeManuscriptVersion } from './story-manuscript-version.store';
 
 const STORY_ENTITLEMENT_TYPES = [
   'story_work',
@@ -931,26 +932,8 @@ export class StoryProductionService {
 
   async createManuscriptVersion(userId: string, workId: string, body: CreateManuscriptVersionDto) {
     await this.assertOwner(userId, workId);
-    const structuredBody = { parts: body.parts };
-    const contentHash = manuscriptContentHash(structuredBody);
-    return this.prisma.$transaction(async (tx) => {
-      const duplicate = await tx.storyManuscriptVersion.findUnique({
-        where: { workId_contentHash: { workId, contentHash } },
-      });
-      if (duplicate) return { manuscript: duplicate, idempotentReplay: true };
-      const latest = await tx.storyManuscriptVersion.findFirst({ where: { workId }, orderBy: { version: 'desc' }, select: { version: true } });
-      const manuscript = await tx.storyManuscriptVersion.create({
-        data: {
-          workId,
-          ownerUserId: userId,
-          version: (latest?.version ?? 0) + 1,
-          locale: body.locale,
-          contentHash,
-          structuredBody: structuredBody as unknown as Prisma.InputJsonValue,
-        },
-      });
-      return { manuscript, idempotentReplay: false };
-    });
+    return storeManuscriptVersion(this.prisma, userId, workId,
+      prepareManuscript(Buffer.from(JSON.stringify(body)), 'json_projection'));
   }
 
   async analyzeManuscript(userId: string, manuscriptId: string, idempotencyKey?: string) {
