@@ -855,6 +855,21 @@ label { gap: 8px; }
 }
 
 /* Story writer intake uses the live multipart receipt contract. */
+.writer-manuscript-panel { display: grid; gap: 16px; }
+.writer-manuscript-panel .form-grid { margin-top: 0; }
+.writer-manuscript-note, .writer-manuscript-boundary { margin: 0; line-height: 1.6; color: var(--muted); }
+.writer-manuscript-boundary { border-left: 3px solid var(--warn); padding-left: 12px; color: var(--text); }
+.writer-manuscript-file small { display: block; margin-top: 7px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.writer-manuscript-panel textarea { width: 100%; min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.writer-manuscript-panel select, .writer-manuscript-panel input { min-width: 0; max-width: 100%; }
+.writer-manuscript-boundaries { display: grid; gap: 12px; }
+.writer-manuscript-expected { display: grid; gap: 6px; max-width: 220px; }
+.writer-manuscript-parts { display: grid; gap: 10px; }
+.writer-manuscript-part { display: grid; gap: 8px; padding: 12px 0; border-top: 1px solid var(--line); min-width: 0; }
+.writer-manuscript-part-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.writer-manuscript-part-header button { min-height: 36px; }
+.writer-manuscript-part-title { display: grid; gap: 6px; }
+.writer-manuscript-part-preview { margin: 0; max-height: 7em; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--muted); font-size: 13px; line-height: 1.5; }
 .story-intake-panel { display: grid; gap: 16px; }
 .story-intake-notice { margin: 0; }
 .story-intake-file-field input[type="file"] { padding: 9px 10px; }
