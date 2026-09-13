@@ -14,6 +14,11 @@
   let studioModalConfirmHandler = null;
   let studioToastTimer = null;
   let storyIntakeRequestKey = null;
+  let writerFileRead = 0;
+  let writerCatalogRequest = 0;
+  const writerMaxBytes = 16 * 1024 * 1024;
+  let writerParts = [];
+  let writerBoundariesReviewed = false;
 
   const storyIntakeFileRules = {
     manuscripts: { maxCount: 10, maxBytes: 50 * 1024 * 1024, extensions: new Set([".md", ".txt", ".docx", ".pdf", ".json"]) },
@@ -254,6 +259,7 @@
     loadSettlementPreview();
     loadSettlementConversions();
     loadKnowledgeUrls();
+    loadWriterWorks();
   }
 
   function openStudioShellPending() {
@@ -911,6 +917,213 @@
     }
   }
 
+  // Plain text remains local until the server has an explicit raw-source contract.
+  function writerText(key, values = {}) {
+    const fullKey = "writerManuscript." + key;
+    const translated = window.luminaI18n?.t?.(fullKey);
+    const template = translated && translated !== fullKey ? translated : fullKey;
+    return template.replace(/\{(\w+)\}/g, (_, name) => String(values[name] ?? ""));
+  }
+
+  function writerState(key, tone, values) {
+    const state = document.getElementById("writerManuscriptState");
+    if (!state) return;
+    state.textContent = writerText(key, values);
+    state.classList.toggle("is-danger", tone === "danger");
+  }
+
+  function writerSourceChanged() {
+    const body = document.getElementById("writerManuscriptBody")?.value || "";
+    const work = document.getElementById("writerManuscriptWork")?.value;
+    const boundary = document.getElementById("writerManuscriptBoundary");
+    if (boundary) boundary.hidden = !body;
+    if (!work) return writerState("chooseWork", "danger");
+    if (!body) return writerState("empty", "");
+    const bytes = new TextEncoder().encode(body).byteLength;
+    if (bytes > writerMaxBytes) return writerState("tooLarge", "danger");
+    const lines = body.split(/\r\n|\n|\r/).length;
+    const expected = document.getElementById("writerManuscriptExpected")?.value;
+    if (expected && Number(expected) !== writerParts.length) {
+      return writerState("partMismatch", "danger", { count: writerParts.length, expected });
+    }
+    writerState(writerBoundariesReviewed ? "boundariesReviewed" : "localReview", "", {
+      bytes: bytes.toLocaleString(), lines: lines.toLocaleString(), count: writerParts.length
+    });
+  }
+
+  function renderWriterParts() {
+    const root = document.getElementById("writerManuscriptParts");
+    const body = document.getElementById("writerManuscriptBody");
+    if (!root || !body) return;
+    root.replaceChildren();
+    writerParts.forEach((part, index) => {
+      const end = writerParts[index + 1]?.offset ?? body.value.length;
+      const section = document.createElement("div");
+      section.className = "writer-manuscript-part";
+      const header = document.createElement("div");
+      header.className = "writer-manuscript-part-header";
+      const label = document.createElement("strong");
+      label.textContent = writerText("partNumber", { number: index + 1 });
+      const view = document.createElement("button");
+      view.type = "button";
+      view.className = "secondary-action";
+      view.textContent = writerText("viewPart");
+      view.addEventListener("click", () => {
+        body.focus();
+        body.setSelectionRange(part.offset, end);
+      });
+      header.append(label, view);
+      if (index > 0) {
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.className = "secondary-action";
+        remove.textContent = writerText("removePart");
+        remove.addEventListener("click", () => {
+          writerParts.splice(index, 1);
+          writerBoundariesReviewed = false;
+          renderWriterParts();
+          writerSourceChanged();
+        });
+        header.append(remove);
+      }
+      const title = document.createElement("label");
+      title.className = "writer-manuscript-part-title";
+      const titleLabel = document.createElement("span");
+      titleLabel.textContent = writerText("partTitle");
+      const input = document.createElement("input");
+      input.maxLength = 240;
+      input.value = part.title;
+      input.addEventListener("input", () => {
+        part.title = input.value;
+        writerBoundariesReviewed = false;
+        writerSourceChanged();
+      });
+      title.append(titleLabel, input);
+      const preview = document.createElement("pre");
+      preview.className = "writer-manuscript-part-preview";
+      const excerpt = body.value.slice(part.offset, Math.min(end, part.offset + 300));
+      preview.textContent = excerpt + (end - part.offset > 300 ? "…" : "");
+      section.append(header, title, preview);
+      root.append(section);
+    });
+  }
+
+  function writerBodyEdited() {
+    ++writerFileRead;
+    writerParts = document.getElementById("writerManuscriptBody")?.value ? [{ offset: 0, title: "" }] : [];
+    writerBoundariesReviewed = false;
+    renderWriterParts();
+    writerSourceChanged();
+  }
+
+  function addWriterPart() {
+    const body = document.getElementById("writerManuscriptBody");
+    const offset = body?.selectionStart ?? 0;
+    const value = body?.value || "";
+    if (!value || offset <= 0 || offset >= value.length || writerParts.length >= 1000 ||
+        writerParts.some(part => part.offset === offset) ||
+        (value.charCodeAt(offset - 1) >= 0xd800 && value.charCodeAt(offset - 1) <= 0xdbff) ||
+        (value[offset - 1] === "\r" && value[offset] === "\n")) {
+      return writerState("invalidBoundary", "danger");
+    }
+    writerParts.push({ offset, title: "" });
+    writerParts.sort((a, b) => a.offset - b.offset);
+    writerBoundariesReviewed = false;
+    renderWriterParts();
+    writerSourceChanged();
+  }
+
+  function reviewWriterParts() {
+    const body = document.getElementById("writerManuscriptBody")?.value || "";
+    const expectedRaw = document.getElementById("writerManuscriptExpected")?.value || "";
+    const expected = Number(expectedRaw);
+    if (!document.getElementById("writerManuscriptWork")?.value || !body ||
+        new TextEncoder().encode(body).byteLength > writerMaxBytes) return writerSourceChanged();
+    if (expectedRaw && (!Number.isInteger(expected) || expected < 1 || expected > 1000 || expected !== writerParts.length)) {
+      return writerState("partMismatch", "danger", { count: writerParts.length, expected: expectedRaw });
+    }
+    if (!writerParts.length || writerParts.some((part, index) =>
+      !part.title.trim() || !body.slice(part.offset, writerParts[index + 1]?.offset ?? body.length).trim())) {
+      return writerState("partIncomplete", "danger");
+    }
+    writerBoundariesReviewed = true;
+    writerSourceChanged();
+  }
+
+  async function loadWriterWorks() {
+    const select = document.getElementById("writerManuscriptWork");
+    if (!select) return;
+    writerBoundariesReviewed = false;
+    const request = ++writerCatalogRequest;
+    const previous = select.value;
+    select.disabled = true;
+    select.replaceChildren(new Option(writerText("loading"), ""));
+    writerState("loading", "");
+    try {
+      const works = [];
+      const seen = new Set();
+      let cursor = null;
+      do {
+        const params = new URLSearchParams({ locale: document.getElementById("writerManuscriptLocale")?.value || "ko", limit: "30" });
+        if (cursor) params.set("cursor", cursor);
+        const response = await fetchCreatorStudioApi("/api/v1/me/creator-studio/stories?" + params);
+        if (!response.ok) throw new Error("catalog");
+        const page = await response.json();
+        if (!Array.isArray(page?.items)) throw new Error("catalog");
+        works.push(...page.items.filter(item => item?.permissions?.createManuscript === true && item.workId));
+        cursor = page.nextCursor || null;
+        if (cursor && seen.has(cursor)) throw new Error("catalog");
+        if (cursor) seen.add(cursor);
+        if (works.length > 1000) throw new Error("catalog");
+      } while (cursor);
+      if (request !== writerCatalogRequest) return;
+      select.replaceChildren(new Option(writerText("chooseWork"), ""));
+      works.forEach(item => select.add(new Option(item.title?.value || item.slug || item.workId, item.workId)));
+      select.disabled = !works.length;
+      if (works.some(item => item.workId === previous)) select.value = previous;
+      writerState(works.length ? "chooseWork" : "noWorks", works.length ? "" : "danger");
+      if (select.value) writerSourceChanged();
+    } catch (_) {
+      if (request !== writerCatalogRequest) return;
+      select.replaceChildren(new Option(writerText("catalogFailed"), ""));
+      writerState("catalogFailed", "danger");
+    }
+  }
+
+  async function readWriterTextFile() {
+    const file = document.getElementById("writerManuscriptFile")?.files?.[0];
+    const body = document.getElementById("writerManuscriptBody");
+    const request = ++writerFileRead;
+    if (!file || !body) return;
+    writerBoundariesReviewed = false;
+    if (!/\.(txt|md)$/i.test(file.name)) return writerState("fileType", "danger");
+    if (!file.size || file.size > writerMaxBytes) return writerState("tooLarge", "danger");
+    try {
+      const bytes = await file.arrayBuffer();
+      if (request !== writerFileRead) return;
+      const content = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes);
+      if (!content) return writerState("empty", "danger");
+      body.value = content;
+      if (body.value !== content) {
+        body.value = "";
+        writerBodyEdited();
+        return writerState("lineEndings", "danger");
+      }
+      writerBodyEdited();
+    } catch (_) {
+      writerState("invalidUtf8", "danger");
+    }
+  }
+
+  function clearWriterManuscript() {
+    ++writerFileRead;
+    const file = document.getElementById("writerManuscriptFile");
+    const body = document.getElementById("writerManuscriptBody");
+    if (file) file.value = "";
+    if (body) body.value = "";
+    writerBodyEdited();
+  }
+
   // ── #1831 — 라이브 원고 접수 (검토용 multipart intake) ────────────────
 
   function storyIntakeText(key, values = {}) {
@@ -1367,6 +1580,24 @@
   });
   document.getElementById("studioProfileSaveButton")?.addEventListener("click", saveProfileEditor);
   document.getElementById("storyIntakeForm")?.addEventListener("submit", submitStoryIntake);
+  document.getElementById("writerManuscriptFile")?.addEventListener("change", readWriterTextFile);
+  document.getElementById("writerManuscriptBody")?.addEventListener("input", writerBodyEdited);
+  document.getElementById("writerManuscriptWork")?.addEventListener("change", () => {
+    writerBoundariesReviewed = false;
+    writerSourceChanged();
+  });
+  document.getElementById("writerManuscriptLocale")?.addEventListener("change", loadWriterWorks);
+  document.getElementById("writerManuscriptExpected")?.addEventListener("input", () => {
+    writerBoundariesReviewed = false;
+    writerSourceChanged();
+  });
+  document.getElementById("writerManuscriptAddPart")?.addEventListener("click", addWriterPart);
+  document.getElementById("writerManuscriptReview")?.addEventListener("click", reviewWriterParts);
+  document.getElementById("writerManuscriptClear")?.addEventListener("click", clearWriterManuscript);
+  window.addEventListener("lumina:localechange", () => {
+    renderWriterParts();
+    if (!document.getElementById("writerManuscriptWork")?.disabled) writerSourceChanged();
+  });
   document.getElementById("storyIntakeReset")?.addEventListener("click", clearStoryIntake);
   document.getElementById("storyIntakeSourceClass")?.addEventListener("change", () => {
     storyIntakeRequestKey = null;

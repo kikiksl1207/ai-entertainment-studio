@@ -249,6 +249,57 @@
         </section>
 
         <section class="studio-section" id="story-intake">
+          <article class="panel writer-manuscript-panel">
+            <div class="panel-header">
+              <div>
+                <span class="panel-kicker" data-i18n="writerManuscript.kicker">MY STORY</span>
+                <h2 data-i18n="writerManuscript.heading">내 작품 원고 준비</h2>
+              </div>
+              <span class="badge is-warn" data-i18n="writerManuscript.badge">전송 전 검토</span>
+            </div>
+            <p class="writer-manuscript-note" data-i18n="writerManuscript.privacy">이 입력은 이 브라우저에서만 확인하며 서버에 저장하지 않습니다. 작품명과 원고 본문은 접수 준비 중 공개되지 않습니다.</p>
+            <div class="form-grid">
+              <label class="is-wide">
+                <span data-i18n="writerManuscript.work">내 작품</span>
+                <select id="writerManuscriptWork" aria-describedby="writerManuscriptState" disabled></select>
+              </label>
+              <label>
+                <span data-i18n="writerManuscript.locale">원문 언어</span>
+                <select id="writerManuscriptLocale">
+                  <option value="ko" data-i18n="storyIntake.locale.ko">한국어</option>
+                  <option value="en" data-i18n="storyIntake.locale.en">English</option>
+                  <option value="ja" data-i18n="storyIntake.locale.ja">日本語</option>
+                  <option value="zh-Hans" data-i18n="storyIntake.locale.zhHans">简体中文</option>
+                  <option value="zh-Hant" data-i18n="storyIntake.locale.zhHant">繁體中文</option>
+                </select>
+              </label>
+              <label class="writer-manuscript-file">
+                <span data-i18n="writerManuscript.file">텍스트 파일</span>
+                <input id="writerManuscriptFile" type="file" accept=".txt,.md,text/plain,text/markdown" aria-describedby="writerManuscriptFileHelp" />
+                <small id="writerManuscriptFileHelp" data-i18n="writerManuscript.fileHelp">UTF-8 TXT/MD · 최대 16 MiB · DOCX/HWP는 내용을 복사해 아래에 붙여넣으세요.</small>
+              </label>
+              <label class="is-wide">
+                <span data-i18n="writerManuscript.body">원고 본문</span>
+                <textarea id="writerManuscriptBody" rows="12" spellcheck="false" aria-describedby="writerManuscriptState" data-i18n-attr="placeholder:writerManuscript.placeholder" placeholder="Word 또는 한글에서 복사한 원고를 붙여넣으세요."></textarea>
+              </label>
+            </div>
+            <div class="writer-manuscript-boundaries">
+              <div class="composer-tools">
+                <button class="secondary-action" type="button" id="writerManuscriptAddPart" data-i18n="writerManuscript.addPart">커서에서 파트 시작</button>
+                <button class="secondary-action" type="button" id="writerManuscriptReview" data-i18n="writerManuscript.review">파트 경계 검토</button>
+              </div>
+              <label class="writer-manuscript-expected">
+                <span data-i18n="writerManuscript.expected">예상 파트 수</span>
+                <input id="writerManuscriptExpected" type="number" min="1" max="1000" step="1" inputmode="numeric" data-i18n-attr="placeholder:writerManuscript.expectedPlaceholder" placeholder="모르면 비워두세요" />
+              </label>
+              <div id="writerManuscriptParts" class="writer-manuscript-parts" aria-live="polite"></div>
+            </div>
+            <p class="studio-form-state" id="writerManuscriptState" role="status" aria-live="polite" data-i18n="writerManuscript.loading">내 작품을 확인하고 있습니다.</p>
+            <p class="writer-manuscript-boundary" id="writerManuscriptBoundary" hidden data-i18n="writerManuscript.boundary">원문은 이 화면에서 확인할 수 있습니다. 파트 경계와 문단 종류를 보존하는 접수 경로가 아직 없어 전송은 중단됩니다. 한 파트로 합치거나 분석 완료로 표시하지 않습니다.</p>
+            <div class="composer-tools">
+              <button class="secondary-action" type="button" id="writerManuscriptClear" data-i18n="writerManuscript.clear">입력 지우기</button>
+            </div>
+          </article>
           <article class="panel story-intake-panel">
             <div class="panel-header">
               <div>
