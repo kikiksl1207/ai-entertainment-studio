@@ -259,7 +259,7 @@
     loadSettlementPreview();
     loadSettlementConversions();
     loadKnowledgeUrls();
-    loadWriterWorks();
+    if (document.getElementById("writer-manuscript")?.classList.contains("is-active")) loadWriterWorks();
   }
 
   function openStudioShellPending() {
@@ -325,6 +325,7 @@
     });
     history.replaceState(null, "", `#${sectionId}`);
     document.querySelector(".studio-main")?.scrollTo?.({ top: 0, behavior: "smooth" });
+    if (sectionId === "writer-manuscript" && !shell?.hidden) loadWriterWorks();
   }
 
   function closeStudioModal() {
