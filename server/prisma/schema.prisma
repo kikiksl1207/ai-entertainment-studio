@@ -67,6 +67,7 @@ model User {
   submittedArtistKnowledgeUrls ArtistKnowledgeUrl[]       @relation("ArtistKnowledgeUrlSubmittedBy")
   reviewedArtistKnowledgeUrls  ArtistKnowledgeUrl[]       @relation("ArtistKnowledgeUrlReviewedBy")
   storyUploadSubmissions       StoryUploadSubmission[]
+  ottMediaWorks                OttMediaWork[]
 
   @@index([status], map: "idx_users_status")
   @@map("users")
@@ -2337,6 +2338,48 @@ model StoryContinuityIssue {
   @@unique([analysisJobId, issueKey])
   @@index([workId, severity, status], map: "idx_story_continuity_issues_publish")
   @@map("story_continuity_issues")
+}
+
+model OttMediaWork {
+  id        String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ownerId   String            @map("owner_id") @db.Uuid
+  title     String
+  createdAt DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  owner     User              @relation(fields: [ownerId], references: [id])
+  versions  OttMediaVersion[]
+
+  @@index([ownerId])
+  @@map("ott_media_works")
+}
+
+model OttMediaVersion {
+  id        String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workId    String          @map("work_id") @db.Uuid
+  version   Int
+  createdAt DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  work      OttMediaWork    @relation(fields: [workId], references: [id])
+  upload    OttMediaUpload?
+
+  @@unique([workId, version])
+  @@map("ott_media_versions")
+}
+
+model OttMediaUpload {
+  id               String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ownerId          String          @map("owner_id") @db.Uuid
+  versionId        String          @unique @map("version_id") @db.Uuid
+  intentKey        String          @map("intent_key")
+  expected         Json
+  status           String          @default("pending_upload")
+  expiresAt        DateTime        @map("expires_at") @db.Timestamptz(6)
+  verified         Json?
+  subtitles        Json?
+  confirmationHash String?         @map("confirmation_hash")
+  createdAt        DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  version          OttMediaVersion @relation(fields: [versionId], references: [id])
+
+  @@unique([ownerId, intentKey])
+  @@map("ott_media_uploads")
 }
 
 model AuditEvent {

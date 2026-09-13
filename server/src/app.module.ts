@@ -23,6 +23,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { PaymentsModule } from './payments/payments.module';
 import { PopularVoteModule } from './popular-vote/popular-vote.module';
 import { PremiumVideosModule } from './premium-videos/premium-videos.module';
+import { OttMediaModule } from './ott-media/ott-media.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ArtistsModule } from './public/artists/artists.module';
 import { ShortformsModule } from './public/shortforms/shortforms.module';
@@ -64,6 +65,7 @@ import { WalletModule } from './wallet/wallet.module';
     FanEngagementModule,
     FanLettersModule,
     PremiumVideosModule,
+    OttMediaModule,
     ChatModule,
     CommunityModule,
     CreatorImageRequestsModule,
