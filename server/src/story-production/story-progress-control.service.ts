@@ -261,11 +261,10 @@ export class StoryProgressControlService {
     query: StoryResetPreviewQueryDto,
   ) {
     const context = await this.progressContext(userId, progressId);
-    const configuredLimits = await this.resetLimits(
-      context.progress.activeReleaseId,
-      context.progress.capabilityRevision,
-    );
     await this.assertStoryAccess(userId, context.work.id, context.part.id, context.work.priceLumina.isZero());
+    const configuredLimits = query.target === 'full'
+      ? (await this.fullResetRelease(this.prisma, context.work)).limits
+      : await this.resetLimits(context.progress.activeReleaseId, context.progress.capabilityRevision);
     const plan = await this.buildResetPlan(
       this.prisma,
       context.work.id,
@@ -321,17 +320,6 @@ export class StoryProgressControlService {
       return this.resetCommandProjection(existing, true);
     }
 
-    const pendingProgress = this.economics
-      ? await this.prisma.storyReaderProgress.findFirst({
-          where: { id: progressId, userId },
-          select: { activeReleaseId: true, capabilityRevision: true },
-        })
-      : null;
-    const configuredLimits = await this.resetLimits(
-      pendingProgress?.activeReleaseId,
-      pendingProgress?.capabilityRevision,
-    );
-
     const result = await this.prisma.$transaction(async (tx) => {
       const progress = await tx.storyReaderProgress.findFirst({
         where: { id: progressId, userId },
@@ -366,6 +354,10 @@ export class StoryProgressControlService {
           retryable: false,
         });
       }
+      const resetRelease = body.target === 'full' ? await this.fullResetRelease(tx, work) : null;
+      const configuredLimits = resetRelease?.limits ?? await this.resetLimits(
+        progress.activeReleaseId, progress.capabilityRevision, tx,
+      );
       const plan = await this.buildResetPlan(
         tx,
         work.id,
@@ -421,6 +413,7 @@ export class StoryProgressControlService {
           checkpointSceneId: plan.targetSceneId,
           progressRevision: { increment: 1 },
           storyVersion: work.publishedVersion,
+          ...(resetRelease ? resetRelease.pin : {}),
           pathSummary:
             body.target === 'full'
               ? []
@@ -457,7 +450,7 @@ export class StoryProgressControlService {
         where: { idempotencyKey: `reset:${command.id}` },
         create: {
           workId: work.id,
-          releaseId: progress.activeReleaseId,
+          releaseId: resetRelease?.pin.activeReleaseId ?? progress.activeReleaseId,
           sessionKeyHash: sessionKeyHash(progress.id),
           eventType: 'reset_completed',
           metricBucket: 'story_replay',
@@ -483,7 +476,7 @@ export class StoryProgressControlService {
         },
       });
       return command;
-    });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     return this.resetCommandProjection(result, false);
   }
 
@@ -584,7 +577,7 @@ export class StoryProgressControlService {
         storyAccess.entitled &&
         fullRemaining > 0 &&
         progress.status !== 'ai_pending' &&
-        capabilityMatches,
+        (!this.economics || configuredCapability?.configStatus === 'active'),
       canActReset:
         storyAccess.entitled &&
         actRemaining > 0 &&
@@ -802,6 +795,7 @@ export class StoryProgressControlService {
     const entitlement = await tx.userEntitlement.findFirst({
       where: {
         userId,
+        entitlementType: { in: ['story_work', 'story_season', 'story_part'] },
         referenceId: { in: [workId, partId] },
         revokedAt: null,
         startsAt: { lte: now },
@@ -831,10 +825,13 @@ export class StoryProgressControlService {
   private async resetLimits(
     releaseId: string | null | undefined,
     capabilityRevision?: number | null,
+    tx?: Prisma.TransactionClient,
   ) {
     if (!this.economics) return STORY_RESET_LIMITS;
-    const capability = await this.economics.capabilityByRelease(releaseId);
-    if (!capability || capability.revision !== capabilityRevision) {
+    const capability = tx && releaseId
+      ? await tx.storyReleaseCapability.findUnique({ where: { releaseId } })
+      : await this.economics.capabilityByRelease(releaseId);
+    if (!capability || capability.status !== 'active' || capability.revision !== capabilityRevision) {
       throw new ForbiddenException({
         code: 'STORY_RELEASE_CAPABILITY_REQUIRED',
         messageKey: 'story.progress.reset.capabilityRequired',
@@ -844,6 +841,45 @@ export class StoryProgressControlService {
     return {
       full: capability.fullResetLimit,
       act: capability.actResetLimit,
+    };
+  }
+
+  private async fullResetRelease(
+    client: PrismaService | Prisma.TransactionClient,
+    work: {
+      id: string; status: string; fixtureSource: boolean;
+      activeReleaseId: string | null; publishedVersion: number; publishedAt: Date | null;
+    },
+  ) {
+    if (work.status !== 'published' || work.fixtureSource || !work.activeReleaseId ||
+        !work.publishedAt || work.publishedAt > new Date()) {
+      throw new NotFoundException('Published story not found');
+    }
+    const release = await client.storyRelease.findFirst({
+      where: { id: work.activeReleaseId, workId: work.id, status: 'active', version: work.publishedVersion },
+      select: { id: true },
+    });
+    if (!release) throw new NotFoundException('Published story release not found');
+    const capability = await client.storyReleaseCapability.findUnique({ where: { releaseId: release.id } });
+    const rateCard = capability
+      ? await client.storyAiRateCard.findUnique({ where: { id: capability.rateCardId } })
+      : null;
+    if (!capability || capability.status !== 'active' || !rateCard || rateCard.status !== 'active' ||
+        capability.fullResetLimit !== STORY_RESET_LIMITS.full || capability.actResetLimit !== STORY_RESET_LIMITS.act) {
+      throw new ForbiddenException({
+        code: 'STORY_RELEASE_CAPABILITY_REQUIRED',
+        messageKey: 'story.progress.reset.capabilityRequired',
+        message: 'The current story release is not ready for a reset. Please try again later.',
+        details: { retryable: false },
+      });
+    }
+    return {
+      pin: {
+        activeReleaseId: release.id,
+        capabilityRevision: capability.revision,
+        aiRateCardId: rateCard.id,
+      },
+      limits: { full: capability.fullResetLimit, act: capability.actResetLimit },
     };
   }
 

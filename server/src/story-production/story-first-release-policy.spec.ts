@@ -15,6 +15,7 @@ import { StoryProductionController } from './story-production.controller';
 
 const capability = {
   releaseId: 'release', status: 'active', revision: 2, fixedChoiceCount: 12,
+  rateCardId: 'rate-card',
   customChoiceEnabled: true, customChoiceMaxLength: 200,
   fullResetLimit: 1, actResetLimit: 3, includedAiRouteCount: 4,
   aiInputTokenLimit: 1000, aiOutputTokenLimit: 500,
@@ -32,6 +33,7 @@ function fixture() {
   const work = {
     id: 'work', slug: 'a-story', status: 'published', fixtureSource: false,
     publishedVersion: 1, activeReleaseId: 'release', priceLumina: new Decimal(100),
+    publishedAt: new Date(0),
     customChoiceEnabled: true, defaultLocale: 'en', title: { en: 'A story' },
     coverManifest: {},
   };
@@ -70,6 +72,7 @@ function fixture() {
     storyCustomChoice: { findUnique: jest.fn().mockResolvedValue(null), create: mutations.customCreate },
     storyRelease: { findFirst: jest.fn().mockResolvedValue({ id: 'release' }), findMany: jest.fn().mockResolvedValue([{ id: 'release' }]) },
     storyReleaseCapability: { findUnique: jest.fn().mockResolvedValue(capability) },
+    storyAiRateCard: { findUnique: jest.fn().mockResolvedValue({ id: 'rate-card', status: 'active' }) },
     userEntitlement: {
       findFirst: jest.fn().mockImplementation(async ({ where }) =>
         where.userId === entitlement.userId && where.referenceId.in.includes(entitlement.referenceId) &&
@@ -102,6 +105,168 @@ function expectNoWrites(f: ReturnType<typeof fixture>) {
   for (const mutation of Object.values(f.mutations)) expect(mutation).not.toHaveBeenCalled();
   expect(f.moderation.preview).not.toHaveBeenCalled();
 }
+
+function releaseSwitchResetFixture(price: number) {
+  const f = fixture();
+  const oldPin = { activeReleaseId: 'release', capabilityRevision: 2, aiRateCardId: 'rate-card' };
+  Object.assign(f.progress, oldPin, { visitedEndingKeys: ['known-ending'], pathSummary: [{ sceneId: 'scene', choiceId: 'old-choice' }] });
+  Object.assign(f.work, { activeReleaseId: 'release-b', publishedVersion: 2, priceLumina: new Decimal(price) });
+  const release = { id: 'release-b', workId: 'work', version: 2, status: 'active' };
+  const config = { ...capability, releaseId: release.id, revision: 7, rateCardId: 'rate-b', fixedChoiceCount: 3, customChoiceEnabled: false };
+  const rateCard = { id: 'rate-b', status: 'active' };
+  const entry = { ...f.scene, id: 'entry-b', sceneKey: 'entry-b', visualManifest: { ...f.scene.visualManifest, sceneKey: 'entry-b' } };
+  const target = { ...f.scene, id: 'target-b', sceneKey: 'target-b', visualManifest: { ...f.scene.visualManifest, sceneKey: 'target-b' } };
+  const choice = { ...f.choices[0], id: 'choice-b', sceneId: entry.id, targetSceneId: target.id };
+  const bucket = { id: 'full-bucket', revision: 1, usedCount: 0, limitCount: 1 };
+  const events = [{ sceneId: 'scene', choiceId: 'old-choice', invalidatedAt: null as Date | null }];
+  const checkpoints: Array<Record<string, unknown>> = [];
+  const commands = new Map<string, Record<string, unknown>>();
+  const allowances = {
+    release: { includedLimit: 4, purchasedLimit: 0, reservedCount: 0, consumedCount: 2, compensatedCount: 0 },
+    'release-b': { includedLimit: 4, purchasedLimit: 0, reservedCount: 0, consumedCount: 1, compensatedCount: 0 },
+  };
+  f.prisma.storyRelease.findFirst.mockImplementation(async ({ where }) =>
+    where.id === release.id && where.workId === release.workId && where.status === release.status &&
+    (where.version === undefined || where.version === release.version) ? { ...release } : null);
+  f.prisma.storyReleaseCapability.findUnique.mockImplementation(async ({ where }) => where.releaseId === config.releaseId ? { ...config } : null);
+  f.prisma.storyAiRateCard.findUnique.mockImplementation(async ({ where }) => where.id === rateCard.id ? { ...rateCard } : null);
+  f.prisma.storyReaderProgress.findFirst.mockImplementation(async ({ where }) => where.userId === f.progress.userId ? { ...f.progress } : null);
+  f.prisma.storyReaderProgress.findUnique.mockImplementation(async () => ({ ...f.progress }));
+  f.mutations.progressUpdate.mockImplementation(async ({ where, data }) => {
+    if (where.progressRevision !== f.progress.progressRevision) return { count: 0 };
+    for (const [key, value] of Object.entries(data)) {
+      if (value === undefined) continue;
+      (f.progress as Record<string, unknown>)[key] = key === 'progressRevision'
+        ? f.progress.progressRevision + (value as { increment: number }).increment : value;
+    }
+    return { count: 1 };
+  });
+  f.prisma.storyScene.findFirst.mockImplementation(async ({ where }) => [f.scene, entry, target].find((scene) => scene.id === where.id) ?? null);
+  f.prisma.storyScene.findMany.mockImplementation(async ({ where }) => where.partId ? [entry, target] : [entry, target].filter((scene) => where.id.in.includes(scene.id)));
+  f.prisma.storyChoice.findMany.mockImplementation(async ({ where }) => where.sceneId === entry.id ? [choice] : []);
+  f.mutations.eventCreate.mockImplementation(async ({ data }) => events.push({ ...data, invalidatedAt: null }));
+  f.mutations.checkpointCreate.mockImplementation(async ({ data }) => {
+    const checkpoint = { ...data, createdAt: new Date() };
+    checkpoints.push(checkpoint);
+    return checkpoint;
+  });
+  f.prisma.storyAiAllowanceBucket.findUnique.mockImplementation(async ({ where }) => allowances[where.userId_releaseId.releaseId as keyof typeof allowances]);
+  const quotaUpsert = jest.fn().mockResolvedValue(bucket);
+  const quotaUpdate = jest.fn().mockImplementation(async ({ where }) => {
+    if (bucket.usedCount >= where.usedCount.lt || bucket.revision !== where.revision) return { count: 0 };
+    bucket.usedCount += 1;
+    bucket.revision += 1;
+    return { count: 1 };
+  });
+  const commandCreate = jest.fn().mockImplementation(async ({ data }) => {
+    const command = { ...data, id: 'reset-command', status: 'completed' };
+    commands.set(data.idempotencyKey, command);
+    return command;
+  });
+  const invalidateEvents = jest.fn().mockImplementation(async ({ data }) => events.forEach((event) => { event.invalidatedAt = data.invalidatedAt; }));
+  const auditCreate = jest.fn();
+  const prisma = {
+    ...f.prisma,
+    storyScene: { ...f.prisma.storyScene, findUnique: jest.fn().mockResolvedValue(f.scene) },
+    storyChoiceEvent: { ...f.prisma.storyChoiceEvent, count: jest.fn().mockResolvedValue(1), updateMany: invalidateEvents },
+    storyResetQuotaBucket: {
+      ...f.prisma.storyResetQuotaBucket, findUnique: jest.fn().mockResolvedValue(bucket), upsert: quotaUpsert, updateMany: quotaUpdate,
+    },
+    storyResetCommand: {
+      findUnique: jest.fn().mockImplementation(async ({ where }) => commands.get(where.idempotencyKey) ?? null), create: commandCreate,
+    },
+    auditEvent: { create: auditCreate },
+  };
+  f.prisma.$transaction.mockImplementation(async (run) => run(prisma));
+  const controls = new StoryProgressControlService(prisma as never, f.moderation as never, f.economics);
+  const body = { target: 'full' as const, expectedRevision: 3, locale: 'en' };
+  return { ...f, controls, release, config, rateCard, entry, target, choice, bucket, events, checkpoints, commands, allowances,
+    quotaUpsert, quotaUpdate, commandCreate, invalidateEvents, auditCreate, body, oldPin };
+}
+
+describe('Review return 1: full reset after release switch', () => {
+  it.each([0, 100])('repins reset then accepts the new release choice at price %s', async (price) => {
+    const f = releaseSwitchResetFixture(price);
+    const allowanceBefore = JSON.stringify(f.allowances);
+    const entitlementBefore = JSON.stringify(f.entitlement);
+    await expect(f.production.selectChoice('reader', 'progress', f.choice.id, 3)).rejects.toMatchObject({ response: { code: 'STORY_PROGRESS_VERSION_MISMATCH' } });
+    await expect(f.controls.publicState('reader', 'work')).resolves.toMatchObject({ canFullReset: true, canActReset: false, customChoiceCapability: false });
+    await expect(f.controls.resetPreview('reader', 'progress', f.body)).resolves.toMatchObject({ targetSceneId: f.entry.id, remainingBefore: 1, expectedRevision: 3 });
+    await expect(f.controls.executeReset('reader', 'progress', f.body, 'release-switch-reset')).resolves.toMatchObject({ beforeRevision: 3, afterRevision: 4, status: 'completed' });
+    expect(f.progress).toMatchObject({
+      activeReleaseId: 'release-b', storyVersion: 2, capabilityRevision: 7, aiRateCardId: 'rate-b',
+      currentSceneId: f.entry.id, checkpointSceneId: f.entry.id, progressRevision: 4,
+      pathSummary: [], visitedEndingKeys: ['known-ending'],
+    });
+    expect(f.checkpoints).toEqual([expect.objectContaining({ storyVersion: 2, progressRevision: 4, sceneId: f.entry.id, visitedEndingKeys: ['known-ending'] })]);
+    expect(f.events[0]).toMatchObject({ choiceId: 'old-choice', invalidatedAt: expect.any(Date) });
+    expect(f.mutations.qualityUpsert).toHaveBeenCalledWith(expect.objectContaining({ create: expect.objectContaining({ releaseId: 'release-b' }) }));
+    expect(f.quotaUpsert).toHaveBeenCalledWith(expect.objectContaining({ where: { userId_workId_scopeKey: { userId: 'reader', workId: 'work', scopeKey: 'full' } }, update: {} }));
+    expect(f.prisma.$transaction).toHaveBeenCalledWith(expect.any(Function), { isolationLevel: 'Serializable' });
+    const result = await f.production.selectChoice('reader', 'progress', f.choice.id, 4, 'en');
+    expect(result).toMatchObject({ revision: 5, storyVersion: 2, scene: { id: f.target.id }, releaseCapability: firstReleaseChoiceCapability() });
+    expect(f.events).toHaveLength(2);
+    expect(f.events[1]).toMatchObject({ choiceId: f.choice.id, invalidatedAt: null });
+    const afterChoice = JSON.stringify(f.progress);
+    await expect(f.controls.executeReset('reader', 'progress', f.body, 'release-switch-reset')).resolves.toMatchObject({ idempotentReplay: true });
+    expect(JSON.stringify(f.progress)).toBe(afterChoice);
+    expect(f.bucket.usedCount).toBe(1);
+    expect(f.quotaUpdate).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(f.allowances)).toBe(allowanceBefore);
+    expect(JSON.stringify(f.entitlement)).toBe(entitlementBefore);
+    await expect(f.economics.readerCapability('reader', 'work')).resolves.toMatchObject({ aiAllowanceRemaining: 3 });
+    expect(f.mutations.allowanceUpsert).not.toHaveBeenCalled();
+    expect(f.mutations.usageCreate).not.toHaveBeenCalled();
+    expect(f.mutations.requestCreate).not.toHaveBeenCalled();
+    await expect(f.controls.submitCustomChoice('reader', 'progress', { input: 'Still deferred', expectedRevision: 5 }, 'custom-after-reset')).rejects.toMatchObject({ response: { code: 'STORY_CUSTOM_CHOICE_DEFERRED' } });
+  });
+
+  it.each([0, 100])('rejects invalid reset before any quota/write at price %s', async (price) => {
+    for (const invalid of ['missing-release', 'inactive-release', 'foreign-release', 'release-version', 'unpublished-work', 'missing-config', 'inactive-config', 'invalid-reset-limit', 'missing-rate', 'inactive-rate', 'missing-target', 'stale-revision']) {
+      const f = releaseSwitchResetFixture(price);
+      if (invalid === 'missing-release') f.work.activeReleaseId = null as never;
+      if (invalid === 'inactive-release') f.release.status = 'retired';
+      if (invalid === 'foreign-release') f.release.workId = 'foreign';
+      if (invalid === 'release-version') f.release.version = 1;
+      if (invalid === 'unpublished-work') f.work.status = 'sale_suspended';
+      if (invalid === 'missing-config') f.prisma.storyReleaseCapability.findUnique.mockResolvedValue(null);
+      if (invalid === 'inactive-config') f.config.status = 'inactive';
+      if (invalid === 'invalid-reset-limit') f.config.fullResetLimit = 0;
+      if (invalid === 'missing-rate') f.prisma.storyAiRateCard.findUnique.mockResolvedValue(null);
+      if (invalid === 'inactive-rate') f.rateCard.status = 'retired';
+      if (invalid === 'missing-target') f.prisma.storyScene.findMany.mockResolvedValue([]);
+      if (invalid === 'stale-revision') f.body.expectedRevision = 2;
+      const before = JSON.stringify({ progress: f.progress, events: f.events, bucket: f.bucket, allowances: f.allowances, entitlement: f.entitlement });
+      await expect(f.controls.executeReset('reader', 'progress', f.body, 'invalid-reset')).rejects.toBeDefined();
+      expect(JSON.stringify({ progress: f.progress, events: f.events, bucket: f.bucket, allowances: f.allowances, entitlement: f.entitlement })).toBe(before);
+      expectNoWrites(f);
+      for (const mutation of [f.quotaUpsert, f.quotaUpdate, f.commandCreate, f.invalidateEvents, f.auditCreate]) expect(mutation).not.toHaveBeenCalled();
+      expect(f.checkpoints).toEqual([]);
+    }
+  });
+
+  it.each(['expired', 'revoked', 'foreign', 'wrong-type'])('preserves paid access checks for %s access', async (invalid) => {
+    const f = releaseSwitchResetFixture(100);
+    if (invalid === 'expired') f.entitlement.expiresAt = new Date(0);
+    if (invalid === 'revoked') f.entitlement.revokedAt = new Date();
+    if (invalid === 'wrong-type') f.entitlement.entitlementType = 'unrelated';
+    await expect(f.controls.executeReset(invalid === 'foreign' ? 'foreign-user' : 'reader', 'progress', f.body, 'access-reset')).rejects.toBeDefined();
+    expect(f.quotaUpsert).not.toHaveBeenCalled();
+    expectNoWrites(f);
+  });
+
+  it('keeps act reset version-bound and never replenishes exhausted full-reset quota', async () => {
+    const f = releaseSwitchResetFixture(0);
+    await expect(f.controls.executeReset('reader', 'progress', { ...f.body, target: 'act', actNumber: 1 }, 'act-reset')).rejects.toMatchObject({ response: { code: 'STORY_RESET_VERSION_MISMATCH' } });
+    expect(f.quotaUpsert).not.toHaveBeenCalled();
+    f.bucket.usedCount = 1;
+    await expect(f.controls.executeReset('reader', 'progress', f.body, 'exhausted-reset')).rejects.toMatchObject({ response: { code: 'STORY_RESET_QUOTA_EXHAUSTED' } });
+    expect(f.bucket.usedCount).toBe(1);
+    expect(f.commandCreate).not.toHaveBeenCalled();
+    expectNoWrites(f);
+    expect(f.progress).toMatchObject(f.oldPin);
+  });
+});
 
 describe('First public release custom-choice enforcement', () => {
   it.each([0, 100])('denies price %s with legacy custom=true on both service configurations', async (price) => {

@@ -94,11 +94,11 @@ Run existing story-production/economics/progress/lifecycle Jest suites serially,
 
 Server build, lint and existing read-only QA scripts should also run. Do NOT use `render:start`, migrate, seed, staging fixtures or live provider operations for this patch. Original #1872 release/live QA remains: independent review, authorized real-content <=3-branch audit, free/paid live flows, entitlement expiry/revocation checks, reset/checkpoint/continuation persistence and concurrency, and Cloud's five-locale mobile validation. No deployment, main push, DB execution, browser verification or live AI verification is part of this delivery.
 
-### Candidate Verification (2026-09-13)
+### Initial Candidate Verification (2026-09-13)
 
 Base: fresh `origin/main` at `a54fee3be6dfe4e3d7fd30ea275a7e516fc923c7`; clean reused E worktree, no applicable AGENTS found. Branch: `codex/luffy-1872-first-release-policy-20260913`. Dependencies installed from the existing lockfile with `npm ci --ignore-scripts --no-audit --no-fund`, then explicit Prisma client generation (no DB connection/migration).
 
-Final results: 10 Jest suites / 94 tests passed; full-source ESLint passed; `npm run build` passed (Prisma generate + Nest compile); all seven QA guards below passed; `git diff --check` passed. No pre-existing test/build failure was encountered. Earlier new-test fixture failures were corrected, not suppressed. Existing package deprecation warnings were left unchanged.
+Initial candidate results: 10 Jest suites / 94 tests passed; full-source ESLint passed; `npm run build` passed (Prisma generate + Nest compile); all seven QA guards below passed; `git diff --check` passed. These results did not cover the release-switch/reset/choice sequence identified in review return 1 below. No pre-existing test/build failure was encountered. Earlier new-test fixture failures were corrected, not suppressed. Existing package deprecation warnings were left unchanged.
 
 Run serially in PowerShell from the retained E worktree's `server` directory:
 
@@ -122,3 +122,24 @@ node scripts/verify-story-stage-no-raw-key.mjs
 ```
 
 The Jest JSON report, ignored dependencies/build output and E caches remain available for independent QR1 review. The last guard checks existing UI source only; it does not verify Cloud's forthcoming UI changes or the new translation handoff visually.
+
+### Review Return 1: Release-Switch Full Reset (2026-09-13)
+
+QR1 found an introduced P1 in `d218da2f0486036f6867a4e66c78c12894cd5da4`: a full reset after release switch updated `storyVersion` and consumed quota but retained the old release/capability/rate-card pins. The new selection guard then rejected a valid recommended choice for both free and paid readers. The initial candidate was not approved for main. Correction began only after the PM released the review write lock.
+
+- Full reset now resolves the work's current active release and matching published version, active capability and active rate card inside the reset transaction, before quota upsert/consumption. Missing/unavailable publication, configuration, rate card or reset target is rejected; no defaults, stale-release fallback or manuscript changes are used. Capability reset limits must still be full=1/act=3; existing custom=true metadata does not reopen custom input or disable otherwise valid reset configuration.
+- Successful full reset writes `activeReleaseId`, `capabilityRevision`, `aiRateCardId` and `storyVersion` with the existing progress revision increment and reset state. Its checkpoint has the new story version/target; the quality event references the new release. Target selection still uses the existing non-fixture published work/part/scene reset rules; this correction does not invent a snapshot format or republish source content.
+- Full-reset preview resolves current-release configuration rather than the obsolete progress pin. Public `canFullReset` no longer requires the old capability revision to match the current one; execution revalidates publication/configuration/access. Act reset remains version-bound and does not repin. The selection/version/entitlement guard and first-release custom denial are unchanged.
+- The work-scoped full quota is not replenished on release changes; act quotas are unchanged. Existing events are invalidated, not deleted; discovered endings and entitlement remain intact. No AI request, allowance reservation/transfer/reset or usage ledger write occurs. After repinning, allowance reads use the existing new-release bucket/policy; reset does not grant new allowance.
+- Reset runs at serializable transaction isolation; act capability reads also occur within that transaction. Existing reset idempotency replay returns its receipt without another quota debit or modifying subsequently advanced progress. Paid transactional access uses the same story entitlement types as the non-transactional access check.
+- HTTP reset request/receipt and Cloud's custom-choice denial contract are unchanged. After success, refetch progress using `afterRevision`; do not keep a cached old release capability. Missing reset configuration uses the existing `STORY_RELEASE_CAPABILITY_REQUIRED` / `story.progress.reset.capabilityRequired` contract with a safe message and `error.details.retryable=false`.
+
+Final correction verification: **10 suites / 103 tests passed**, full-source ESLint passed, `npm run build` passed, and all seven unchanged QA guards listed above passed. The added stateful free/paid tests run actual full-reset then recommended-choice services through the returned reader projection; they verify all pins, revision/checkpoint, history, allowance, entitlement, quota and idempotent replay. Invalid release/config/rate-card/target/revision cases verify no quota upsert or writes; expired/revoked/foreign/wrong-type paid access and exhausted quota are also covered. An initial fixture visual-manifest mismatch was corrected, not bypassed.
+
+Use the same E-only environment and serial commands above, changing the Jest report destination to retain both review artifacts:
+
+```powershell
+node node_modules/jest/bin/jest.js --runInBand --cacheDirectory=E:/CodexMovedCache/tmp/restart-baseline-1888-20260913/jest-cache --testPathPattern=story-production --json --outputFile=E:/CodexMovedCache/tmp/restart-baseline-1888-20260913/luffy-1872-review-return1-jest.json
+```
+
+These are executable fixture-storage tests, not live DB/concurrency proof. No dependencies were installed, no DB/live provider/deployment/main operation ran, and the existing E worktree/cache remain for QR1 rereview. Independent acceptance and the original release/live QA remain outstanding; the branch is frozen again after the correction push.
