@@ -16,10 +16,15 @@ import {
   StoryProgressAdminController,
 } from './story-production.controller';
 import { StoryProductionService } from './story-production.service';
+import {
+  StoryManuscriptAdmission, StoryManuscriptFileController,
+  StoryManuscriptMultipartInterceptor, StoryManuscriptOwnerGuard,
+} from './story-manuscript-file.controller';
 
 @Module({
   imports: [ModerationModule],
   controllers: [
+    StoryManuscriptFileController,
     StoryProductionController,
     StoryProgressAdminController,
     StoryLifecycleController,
@@ -28,6 +33,9 @@ import { StoryProductionService } from './story-production.service';
     StoryEconomicsAdminController,
   ],
   providers: [
+    StoryManuscriptAdmission,
+    StoryManuscriptOwnerGuard,
+    StoryManuscriptMultipartInterceptor,
     StoryProductionService,
     StoryProgressControlService,
     StoryLifecycleService,
