@@ -113,6 +113,33 @@ describe('OTT owner intake contract (explicit storage/probe/persistence doubles)
     expect(repo.uploads.get(file)!.verified).toBeNull();
   });
 
+  it.each([
+    { declaredDurationMs: 1800, endMs: 1900, accepted: true },
+    { declaredDurationMs: 2200, endMs: 2100, accepted: false },
+  ])('uses measured 2000ms for subtitles with declaration $declaredDurationMs and cue $endMs', async ({ declaredDurationMs, endMs, accepted }) => {
+    version = (await service.createWork(owner, { title: 'Duration regression' })).versionId;
+    file = (await service.createIntent(owner, version, 'duration-regression', { ...EXPECTED, declaredDurationMs })).fileId;
+    probe.durationMs = 2000;
+    await upload();
+    const result = service.confirm(owner, file, { subtitles: [{ locale: 'ko', cues: [{ startMs: 0, endMs, text: 'test' }] }] });
+    if (accepted) {
+      await expect(result).resolves.toMatchObject({ status: 'confirmed', media: { durationMs: 2000 } });
+    } else {
+      await expect(result).rejects.toMatchObject(code('INVALID'));
+      expect(repo.uploads.get(file)!.status).toBe('uploaded');
+      expect(repo.uploads.get(file)!.verified).toBeNull();
+    }
+    expect(probe.calls).toBe(1);
+  });
+
+  it('still rejects invalid subtitle text before opening/probing media', async () => {
+    await upload();
+    const open = jest.spyOn(storage, 'open');
+    await expect(service.confirm(owner, file, { subtitles: [{ locale: 'ko', cues: [{ startMs: 0, endMs: 900, text: '<script>' }] }] })).rejects.toMatchObject(code('INVALID'));
+    expect(open).not.toHaveBeenCalled();
+    expect(probe.calls).toBe(0);
+  });
+
   it('rejects replaced/deleted objects on confirm replay, preview and delivery', async () => {
     await confirm();
     const p = await service.preview(owner, file);

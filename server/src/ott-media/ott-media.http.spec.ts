@@ -14,6 +14,7 @@ import { UserAssetsModule } from '../assets/user-assets.module';
 import { OttMediaModule } from './ott-media.module';
 import { OttMediaProbe } from './ott-media.probe';
 import { OttMediaRepository } from './ott-media.repository';
+import { OttObjectStorage } from './ott-media.storage';
 import { EXPECTED, MemoryRepository, ProbeDouble, SAMPLE } from './ott-media.test-doubles';
 
 describe('loopback HTTP vertical flow: real stream storage/controller/cookie; explicit auth, DB and probe doubles', () => {
@@ -104,9 +105,26 @@ describe('loopback HTTP vertical flow: real stream storage/controller/cookie; ex
     expect(range.bytes).toEqual(SAMPLE.subarray(0, 8));
     expect(range.headers['content-range']).toBe(`bytes 0-7/${SAMPLE.length}`);
     expect(range.headers['cache-control']).toBe('private, no-store');
-    const invalidRange = await call('GET', path, undefined, { cookie, range: 'bytes=9999-' });
-    expect(invalidRange.status).toBe(416);
-    expect(invalidRange.headers['content-range']).toBe(`bytes */${SAMPLE.length}`);
+    const storage = app.get(OttObjectStorage);
+    const open = storage.open.bind(storage);
+    const closes: jest.Mock[] = [];
+    const opened = jest.spyOn(storage, 'open').mockImplementation(async (id) => {
+      const media = await open(id);
+      const close = jest.fn(() => media.close());
+      closes.push(close);
+      return { ...media, close };
+    });
+    try {
+      const invalidRange = await call('GET', path, undefined, { cookie, range: 'bytes=9999-' });
+      expect(opened).toHaveBeenCalledTimes(1);
+      expect(closes).toHaveLength(1);
+      expect(closes[0]).toHaveBeenCalledTimes(1);
+      expect(invalidRange.status).toBe(416);
+      expect(invalidRange.headers['content-range']).toBe(`bytes */${SAMPLE.length}`);
+      expect(invalidRange.headers['cache-control']).toBe('private, no-store');
+      expect(invalidRange.headers.vary).toBe('Origin, Authorization, Cookie');
+      expect(invalidRange.headers['cross-origin-resource-policy']).toBe('same-site');
+    } finally { opened.mockRestore(); }
     expect((await call('GET', path, undefined, { cookie, origin: 'https://evil.example' })).status).toBe(403);
     expect((await call('GET', `/api/v1/assets/public/${id}`)).status).toBe(404);
     expect((await call('GET', `/api/v1/me/assets/${id}`, undefined, auth)).status).toBe(404);

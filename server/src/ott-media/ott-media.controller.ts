@@ -82,12 +82,12 @@ export class OttMediaBrowserController {
 
 async function streamResponse(media: StoredObject, range: string | undefined, response: ServerResponse) {
   try {
-      let selected: { start: number; end: number };
-      try { selected = byteRange(range, media.sizeBytes); }
-      catch (error) { response.setHeader('Content-Range', `bytes */${media.sizeBytes}`); throw error; }
       response.setHeader('Cache-Control', 'private, no-store');
       response.setHeader('Vary', 'Origin, Authorization, Cookie');
       response.setHeader('Cross-Origin-Resource-Policy', 'same-site');
+      let selected: { start: number; end: number };
+      try { selected = byteRange(range, media.sizeBytes); }
+      catch (error) { response.setHeader('Content-Range', `bytes */${media.sizeBytes}`); throw error; }
       response.setHeader('Content-Type', 'video/mp4');
       response.setHeader('X-Content-Type-Options', 'nosniff');
       response.setHeader('Referrer-Policy', 'no-referrer');

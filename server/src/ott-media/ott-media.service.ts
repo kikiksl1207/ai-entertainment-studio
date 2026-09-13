@@ -48,7 +48,7 @@ export class OttMediaService {
   async confirm(ownerId: string, id: string, body: unknown) {
     const value = object(body, ['subtitles']);
     return this.repository.withUpload(uuid(ownerId), uuid(id), async (upload) => {
-      const tracks = subtitles(value.subtitles, upload.verified?.durationMs ?? upload.expected.declaredDurationMs);
+      const tracks = subtitles(value.subtitles, upload.verified?.durationMs ?? MAX_DURATION_MS);
       const confirmationHash = sha256(JSON.stringify(tracks));
       if (upload.status === 'confirmed') {
         if (upload.confirmationHash !== confirmationHash) fail('CONFLICT');
