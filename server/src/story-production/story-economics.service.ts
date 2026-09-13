@@ -845,9 +845,12 @@ export class StoryEconomicsService {
     );
   }
 
-  async continuationStatus(userId: string, continuationId: string) {
+  async continuationStatus(userId: string, progressId: string, continuationId: string) {
+    if (!userId || !progressId || !continuationId) {
+      throw new NotFoundException('Story AI continuation not found');
+    }
     const continuation = await this.prisma.storyAiContinuation.findFirst({
-      where: { id: continuationId, userId },
+      where: { id: continuationId, userId, progressId },
     });
     if (!continuation) throw new NotFoundException('Story AI continuation not found');
     const allowance = await this.prisma.storyAiAllowanceBucket.findUnique({

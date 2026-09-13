@@ -40,9 +40,10 @@ export class StoryEconomicsController {
   @Get('me/story-progress/:progressId/ai-continuations/:continuationId')
   continuation(
     @CurrentUser() user: AuthUser,
+    @Param('progressId') progressId: string,
     @Param('continuationId') continuationId: string,
   ) {
-    return this.economics.continuationStatus(user.id, continuationId);
+    return this.economics.continuationStatus(user.id, progressId, continuationId);
   }
 
   @Post('me/creator-studio/stories/:workId/memory-budget/estimate')

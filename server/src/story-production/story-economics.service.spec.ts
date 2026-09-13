@@ -1,5 +1,8 @@
 import 'reflect-metadata';
-import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException, RequestMethod } from '@nestjs/common';
+import { METHOD_METADATA, PATH_METADATA, ROUTE_ARGS_METADATA } from '@nestjs/common/constants';
+import { RouteParamtypes } from '@nestjs/common/enums/route-paramtypes.enum';
+import { StoryEconomicsController } from './story-economics.controller';
 import { StoryEconomicsService } from './story-economics.service';
 import { firstReleaseChoiceCapability } from './story-progress-control.policy';
 
@@ -38,41 +41,6 @@ describe('StoryEconomicsService', () => {
       revision: null,
       source: 'fail_closed',
     });
-  });
-
-  it('projects continuation status without private input, provider payload, or cost', async () => {
-    prisma.storyAiContinuation.findFirst.mockResolvedValue({
-      id: 'continuation-id',
-      releaseId: 'release-id',
-      sourceProgressRevision: 4,
-      status: 'failed',
-      estimatedCostKrw: '123.45',
-      actualCostKrw: '10.00',
-      createdAt: new Date('2026-07-14T00:00:00.000Z'),
-      completedAt: new Date('2026-07-14T00:01:00.000Z'),
-    });
-    prisma.storyAiAllowanceBucket.findUnique.mockResolvedValue({
-      includedLimit: 2,
-      purchasedLimit: 0,
-      reservedCount: 0,
-      consumedCount: 0,
-      compensatedCount: 0,
-    });
-
-    const result = await service.continuationStatus('user-id', 'continuation-id');
-
-    expect(result).toMatchObject({
-      continuationId: 'continuation-id',
-      status: 'failed',
-      allowanceRemaining: 2,
-      retryable: true,
-      progressApplied: false,
-      privateInputReturned: false,
-      providerPayloadReturned: false,
-      internalCostReturned: false,
-    });
-    expect(result).not.toHaveProperty('estimatedCostKrw');
-    expect(result).not.toHaveProperty('actualCostKrw');
   });
 
   it('requires rights confirmation before activating style consent', async () => {
@@ -116,5 +84,139 @@ describe('StoryEconomicsService', () => {
         'A new route',
       ),
     ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+});
+
+describe('continuation status controller/service boundary', () => {
+  function fixture() {
+    const rows = ['queued', 'processing', 'completed', 'failed', 'timeout'].map((status, index) => ({
+      id: `continuation-${index}`,
+      userId: 'reader',
+      progressId: `progress-${index}`,
+      workId: `work-${index}`,
+      releaseId: `release-${index}`,
+      sourceProgressRevision: index + 4,
+      status,
+      privateInput: 'synthetic private input',
+      providerPayload: { text: 'synthetic provider payload' },
+      contextReferences: { memoryIds: ['private-memory'] },
+      estimatedCostKrw: '123.45',
+      actualCostKrw: '10.00',
+      failureCode: 'internal-only',
+      createdAt: new Date('2026-07-14T00:00:00.000Z'),
+      completedAt: index < 2 ? null : new Date('2026-07-14T00:01:00.000Z'),
+    }));
+    const allowances = rows.map((row, index) => ({
+      userId: row.userId, releaseId: row.releaseId,
+      includedLimit: index + 2, purchasedLimit: 0,
+      reservedCount: 1, consumedCount: 0, compensatedCount: 0,
+    }));
+    const reads = {
+      continuation: jest.fn(async ({ where }: { where: Record<string, unknown> }) =>
+        rows.find((row) => Object.entries(where).every(([key, value]) =>
+          row[key as keyof typeof row] === value)) ?? null),
+      allowance: jest.fn(async ({ where }: {
+        where: { userId_releaseId: { userId: string; releaseId: string } };
+      }) => allowances.find((row) =>
+        row.userId === where.userId_releaseId.userId &&
+        row.releaseId === where.userId_releaseId.releaseId) ?? null),
+    };
+    // A strict read-only adapter makes any new transaction, ledger, quota or write fail.
+    function readOnly<T extends object>(target: T): T {
+      return new Proxy(target, {
+        get(object, key, receiver) {
+          if (!(key in object)) throw new Error(`Unexpected database access: ${String(key)}`);
+          return Reflect.get(object, key, receiver);
+        },
+      });
+    }
+    const db = readOnly({
+      storyAiContinuation: readOnly({ findFirst: reads.continuation }),
+      storyAiAllowanceBucket: readOnly({ findUnique: reads.allowance }),
+    });
+    const economics = new StoryEconomicsService(db as never);
+    return { rows, allowances, reads, economics, controller: new StoryEconomicsController(economics) };
+  }
+
+  it('binds both URL parameters on the actual GET controller method', () => {
+    const method = StoryEconomicsController.prototype.continuation;
+    expect(Reflect.getMetadata(PATH_METADATA, method)).toBe(
+      'me/story-progress/:progressId/ai-continuations/:continuationId',
+    );
+    expect(Reflect.getMetadata(METHOD_METADATA, method)).toBe(RequestMethod.GET);
+    const args = Reflect.getMetadata(ROUTE_ARGS_METADATA, StoryEconomicsController, 'continuation');
+    expect(args[`${RouteParamtypes.PARAM}:1`]).toMatchObject({ index: 1, data: 'progressId' });
+    expect(args[`${RouteParamtypes.PARAM}:2`]).toMatchObject({ index: 2, data: 'continuationId' });
+  });
+
+  it.each([0, 1, 2, 3, 4])('forwards and safely projects the matching parent for status %i, read-only', async (index) => {
+    const f = fixture();
+    const row = f.rows[index];
+    const before = JSON.stringify({ rows: f.rows, allowances: f.allowances });
+    const forwarding = jest.spyOn(f.economics, 'continuationStatus');
+    const expected = {
+      continuationId: row.id, status: row.status,
+      revisionAfterRequest: row.sourceProgressRevision + 1,
+      allowanceRemaining: index + 1,
+      retryable: ['failed', 'timeout'].includes(row.status),
+      progressApplied: row.status === 'completed',
+      privateInputReturned: false, providerPayloadReturned: false,
+      internalCostReturned: false, idempotentReplay: false,
+      createdAt: row.createdAt, completedAt: row.completedAt,
+    };
+    for (let request = 0; request < 2; request += 1) {
+      await expect(f.controller.continuation({ id: row.userId }, row.progressId, row.id))
+        .resolves.toEqual(expected);
+    }
+    expect(forwarding).toHaveBeenCalledTimes(2);
+    expect(forwarding).toHaveBeenCalledWith(row.userId, row.progressId, row.id);
+    expect(f.reads.continuation).toHaveBeenCalledTimes(2);
+    expect(f.reads.continuation).toHaveBeenCalledWith({
+      where: { id: row.id, userId: row.userId, progressId: row.progressId },
+    });
+    expect(f.reads.allowance).toHaveBeenCalledTimes(2);
+    expect(f.reads.allowance).toHaveBeenCalledWith({
+      where: { userId_releaseId: { userId: row.userId, releaseId: row.releaseId } },
+    });
+    expect(JSON.stringify({ rows: f.rows, allowances: f.allowances })).toBe(before);
+  });
+
+  it.each([
+    ['same user, different progress', 'reader', 'progress-1', 'continuation-0'],
+    ['reverse parent mismatch', 'reader', 'progress-0', 'continuation-1'],
+    ['foreign user', 'other-reader', 'progress-0', 'continuation-0'],
+    ['missing continuation', 'reader', 'progress-0', 'missing'],
+    ['missing progress', 'reader', 'missing', 'continuation-0'],
+  ])('returns the same safe 404 for %s without reading allowance', async (_label, userId, progressId, continuationId) => {
+    const f = fixture();
+    const before = JSON.stringify({ rows: f.rows, allowances: f.allowances });
+    const error = await f.controller.continuation({ id: userId }, progressId, continuationId)
+      .catch((value: unknown) => value);
+    expect(error).toBeInstanceOf(NotFoundException);
+    expect((error as NotFoundException).getResponse()).toEqual({
+      statusCode: 404, error: 'Not Found', message: 'Story AI continuation not found',
+    });
+    expect(f.reads.continuation).toHaveBeenCalledTimes(1);
+    expect(f.reads.continuation).toHaveBeenCalledWith({
+      where: { id: continuationId, userId, progressId },
+    });
+    expect(f.reads.allowance).not.toHaveBeenCalled();
+    expect(JSON.stringify({ rows: f.rows, allowances: f.allowances })).toBe(before);
+  });
+
+  it('keeps zero allowance projection when no matching bucket exists', async () => {
+    const f = fixture();
+    f.allowances.splice(0, 1);
+    await expect(f.controller.continuation({ id: 'reader' }, 'progress-0', 'continuation-0'))
+      .resolves.toMatchObject({ allowanceRemaining: 0, status: 'queued' });
+  });
+
+  it('fails closed for a legacy two-argument runtime call before Prisma can omit undefined filters', async () => {
+    const f = fixture();
+    // @ts-expect-error The parent scope and continuation ID are both mandatory.
+    await expect(f.economics.continuationStatus('reader', 'continuation-0'))
+      .rejects.toBeInstanceOf(NotFoundException);
+    expect(f.reads.continuation).not.toHaveBeenCalled();
+    expect(f.reads.allowance).not.toHaveBeenCalled();
   });
 });
