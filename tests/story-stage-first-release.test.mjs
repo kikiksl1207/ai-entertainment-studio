@@ -4,6 +4,7 @@ import { createRequire } from 'node:module';
 import { readFile, mkdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { registerCatalogTests } from './story-stage-catalog.test-support.mjs';
 
 const require = createRequire(import.meta.url);
 const { chromium } = require(process.env.STORY_UI_PLAYWRIGHT || 'playwright');
@@ -27,6 +28,7 @@ before(async () => {
   });
 });
 after(async () => { await browser?.close(); });
+registerCatalogTests({ getBrowser: () => browser, repo, artifacts, base, api });
 
 const copy = {
   ko: '문 앞에서 기다리며 멀리서 들려오는 발소리에 귀를 기울인다. ',
@@ -300,7 +302,7 @@ for (const locale of locales) {
         });
         assert.ok(geometry.scroll <= geometry.width, JSON.stringify(geometry));
         assert.ok(geometry.textBottom <= geometry.stageBottom);
-        await f.page.screenshot({ path: path.join(artifacts, `${locale}-${width}-choices.png`), fullPage: true });
+        if (process.env.STORY_UI_READER_CAPTURES !== '0') await f.page.screenshot({ path: path.join(artifacts, `${locale}-${width}-choices.png`), fullPage: true });
         await f.page.locator('[data-story-reset-preview="act"]').click();
         await f.page.locator('[role="dialog"]').waitFor();
         assert.equal(await f.page.locator('.story-player').evaluate((el) => el.inert), true);
@@ -310,7 +312,7 @@ for (const locale of locales) {
           const r = button.getBoundingClientRect();
           return button.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2));
         }), true, 'Confirm must not be covered by site navigation');
-        await f.page.screenshot({ path: path.join(artifacts, `${locale}-${width}-reset.png`) });
+        if (process.env.STORY_UI_READER_CAPTURES !== '0') await f.page.screenshot({ path: path.join(artifacts, `${locale}-${width}-reset.png`) });
       } finally { await f.close(); }
     });
   }
