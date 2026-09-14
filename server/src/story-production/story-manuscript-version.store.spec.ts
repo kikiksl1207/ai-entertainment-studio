@@ -1,7 +1,7 @@
 import { HttpException, ValidationPipe } from '@nestjs/common';
 import { createValidationException } from '../common/validation-exception.factory';
 import { CreateManuscriptVersionDto } from './dto/story-production.dto';
-import { prepareManuscript } from './story-manuscript-file.policy';
+import { prepareManuscript, preparePastedManuscript } from './story-manuscript-file.policy';
 import { manuscriptContentHash } from './story-production.policy';
 import { storeManuscriptVersion } from './story-manuscript-version.store';
 import { StoryProductionService } from './story-production.service';
@@ -145,6 +145,30 @@ describe('existing JSON DTO compatibility versus strict file validation', () => 
 });
 
 describe('atomic complete manuscript version store', () => {
+  it('stores confirmed paste once and replays it without exposing or mutating the raw source', async () => {
+    const db = database();
+    const raw = 'PRIVATE-SYNTHETIC\r\nSecond part\n';
+    const end = raw.indexOf('Second');
+    const manifest = JSON.stringify({ locale: 'ko', confirmed: true, parts: [
+      { partKey: 'a', title: 'First', start: 0, end },
+      { partKey: 'b', title: 'Second', start: end, end: raw.length },
+    ] });
+    const parsed = preparePastedManuscript(Buffer.from(raw), manifest);
+    const jsonEquivalent = prepareManuscript(Buffer.from(JSON.stringify({ locale: 'ko', parts: parsed.parts })));
+    expect(parsed.contentHash).not.toBe(jsonEquivalent.contentHash);
+    await storeManuscriptVersion(db.prisma as never, userId, workId, jsonEquivalent);
+    const first = await storeManuscriptVersion(db.prisma as never, userId, workId, parsed);
+    const snapshot = JSON.stringify(db.rows[1]);
+    const replay = await storeManuscriptVersion(db.prisma as never, userId, workId, parsed);
+    expect(db.rows).toHaveLength(2);
+    expect(db.rows[1].structuredBody.intake.source.rawText).toBe(raw);
+    expect(JSON.stringify(db.rows[1])).toBe(snapshot);
+    expect(replay.manuscript.id).toBe(first.manuscript.id);
+    expect(replay.idempotentReplay).toBe(true);
+    expect(JSON.stringify(replay)).not.toContain('PRIVATE-SYNTHETIC');
+    expect(db.prisma.storyAnalysisJob.create).not.toHaveBeenCalled();
+  });
+
   it('stores exactly one complete immutable row, private raw bytes, and only a receipt', async () => {
     const db = database();
     const parsed = input();

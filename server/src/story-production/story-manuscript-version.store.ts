@@ -34,7 +34,7 @@ export async function storeManuscriptVersion(
           where: { workId_contentHash: { workId, contentHash: input.contentHash } }, select: receiptSelect,
         });
         let legacy = false;
-        if (!existing) {
+        if (!existing && input.source.kind !== 'utf8_paste') {
           const old = await tx.storyManuscriptVersion.findUnique({
             where: { workId_contentHash: { workId, contentHash: input.legacyHash } }, select: receiptSelect,
           });

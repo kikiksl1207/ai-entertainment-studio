@@ -7,6 +7,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import {
   manuscriptRequestLength, StoryManuscriptAdmission, StoryManuscriptFileController,
   StoryManuscriptMultipartInterceptor, StoryManuscriptOwnerGuard,
+  StoryManuscriptPasteMultipartInterceptor, StoryManuscriptPasteOwnerGuard,
 } from './story-manuscript-file.controller';
 import { MANUSCRIPT_FILE_LIMITS } from './story-manuscript-file.policy';
 
@@ -16,6 +17,9 @@ const json = JSON.stringify({ locale: 'ko', parts: [{ partKey: 'p', title: 'Synt
 const boundary = 'synthetic-boundary';
 function multipart(content = json, field = 'manuscript', ending = true) {
   return Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="${field}"; filename="synthetic.json"\r\nContent-Type: application/json\r\n\r\n${content}\r\n${ending ? `--${boundary}--\r\n` : ''}`);
+}
+function pasteMultipart(raw: string, manifest: unknown) {
+  return Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="manifest"\r\n\r\n${JSON.stringify(manifest)}\r\n--${boundary}\r\nContent-Disposition: form-data; name="manuscript"; filename="paste.txt"\r\nContent-Type: text/plain\r\n\r\n${raw}\r\n--${boundary}--\r\n`);
 }
 function context(raw: Buffer, length = raw.length) {
   const request = Object.assign(Readable.from([raw]), { headers: {
@@ -31,6 +35,40 @@ describe('owned-work bounded file endpoint', () => {
     expect(Reflect.getMetadata(PATH_METADATA, handler)).toBe('file');
     expect(Reflect.getMetadata(GUARDS_METADATA, handler)).toEqual([JwtAuthGuard, StoryManuscriptOwnerGuard]);
     expect(Reflect.getMetadata(INTERCEPTORS_METADATA, handler)).toEqual([StoryManuscriptMultipartInterceptor]);
+    const paste = StoryManuscriptFileController.prototype.paste;
+    expect(Reflect.getMetadata(PATH_METADATA, paste)).toBe('paste');
+    expect(Reflect.getMetadata(GUARDS_METADATA, paste)).toEqual([JwtAuthGuard, StoryManuscriptPasteOwnerGuard]);
+    expect(Reflect.getMetadata(INTERCEPTORS_METADATA, paste)).toEqual([StoryManuscriptPasteMultipartInterceptor]);
+  });
+
+  it('accepts browser-style FormData and bounded chunked proxy delivery for paste only', async () => {
+    const raw = 'first\r\nsecond';
+    const data = pasteMultipart(raw, { locale: 'ko', confirmed: true, parts: [
+      { partKey: 'p1', title: 'First', start: 0, end: raw.length },
+    ] });
+    const c = context(data);
+    const interceptor = new StoryManuscriptPasteMultipartInterceptor(new StoryManuscriptAdmission());
+    expect(await lastValueFrom(await interceptor.intercept(c.context, { handle: () => of('ok') }))).toBe('ok');
+    expect((c.request as any).body).toHaveProperty('manifest');
+    expect((c.request as any).file.buffer.toString()).toBe(raw);
+    const chunked = context(data);
+    delete (chunked.request.headers as Record<string, unknown>)['content-length'];
+    (chunked.request.headers as Record<string, unknown>)['transfer-encoding'] = 'chunked';
+    expect(manuscriptRequestLength(chunked.request.headers, true)).toBeNull();
+    expect(await lastValueFrom(await interceptor.intercept(chunked.context, { handle: () => of('ok') }))).toBe('ok');
+    expect(() => manuscriptRequestLength(chunked.request.headers)).toThrow(HttpException);
+  });
+
+  it('rejects unbounded paste envelopes and extra fields before storage', async () => {
+    expect(() => manuscriptRequestLength({ 'content-type': 'multipart/form-data; boundary=x' }, true)).toThrow(HttpException);
+    expect(() => manuscriptRequestLength({ 'content-type': 'multipart/form-data; boundary=x',
+      'content-length': String(MANUSCRIPT_FILE_LIMITS.pasteRequestBytes + 1) }, true)).toThrow(HttpException);
+    const raw = pasteMultipart('text', { locale: 'ko', confirmed: true, parts: [] });
+    const extra = Buffer.from(raw.toString().replace(`--${boundary}--`, `--${boundary}\r\nContent-Disposition: form-data; name="extra"\r\n\r\nvalue\r\n--${boundary}--`));
+    const c = context(extra);
+    const next = { handle: jest.fn(() => of('bad')) };
+    await expect(new StoryManuscriptPasteMultipartInterceptor(new StoryManuscriptAdmission()).intercept(c.context, next)).rejects.toBeInstanceOf(HttpException);
+    expect(next.handle).not.toHaveBeenCalled();
   });
 
   it.each([

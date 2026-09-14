@@ -1,5 +1,5 @@
 import { HttpException } from '@nestjs/common';
-import { MANUSCRIPT_FILE_LIMITS, prepareManuscript, storedManuscriptBody } from './story-manuscript-file.policy';
+import { MANUSCRIPT_FILE_LIMITS, prepareManuscript, preparePastedManuscript, storedManuscriptBody } from './story-manuscript-file.policy';
 
 const document = (locale = 'ko') => ({ locale, parts: [{ partKey: 'p1', title: 'Synthetic',
   paragraphs: [{ kind: 'paragraph', text: '  Exact\r\ntext \u00e9 e\u0301 \ud55c\uae00 \ud83d\ude80  ' }] }] });
@@ -59,5 +59,56 @@ describe('bounded full manuscript parser', () => {
     wide.parts[0].paragraphs = Array.from({ length: 5000 }, () => ({ kind: 'paragraph', text: '' }));
     wide.parts = Array.from({ length: 41 }, (_, i) => ({ ...wide.parts[0], partKey: `${i}` }));
     expect(() => prepareManuscript(bytes(wide))).toThrow(HttpException);
+  });
+});
+
+describe('confirmed raw paste', () => {
+  const raw = '  Title\r\nDialogue 🚀\r\n\r\nSecond part\n  ';
+  const firstEnd = raw.indexOf('Second');
+  const manifest = { locale: 'ko', confirmed: true, parts: [
+    { partKey: 'p1', title: 'First', start: 0, end: firstEnd },
+    { partKey: 'p2', title: 'Second', start: firstEnd, end: raw.length },
+  ] };
+  const parse = (text = raw, boundaries: unknown = manifest) => preparePastedManuscript(Buffer.from(text), JSON.stringify(boundaries));
+
+  it('retains every source byte and confirmed part span without normalization or a response body', () => {
+    const input = parse();
+    expect(input.parts.map(part => part.paragraphs.map(p => p.text).join('')).join('')).toBe(raw);
+    expect(input.parts[0].paragraphs[0].text).toBe('  Title\r\n');
+    expect(storedManuscriptBody(input).intake.source.rawText).toBe(raw);
+    expect(input.confirmedBoundaries).toEqual(manifest.parts);
+    expect(input.source.kind).toBe('utf8_paste');
+    expect(input.parts).toHaveLength(2);
+    expect(JSON.stringify({ sourceKind: input.source.kind, parts: input.parts.length })).not.toContain('Dialogue');
+  });
+
+  it('chunks long parts on valid Unicode boundaries and keeps the full source', () => {
+    const text = '🚀'.repeat(6000);
+    const input = parse(text, { locale: 'ko', confirmed: true, parts: [
+      { partKey: 'long', title: 'Long', start: 0, end: text.length },
+    ] });
+    expect(input.parts[0].paragraphs.map(p => p.text).join('')).toBe(text);
+    expect(input.parts[0].paragraphs).toHaveLength(2);
+  });
+
+  it.each([
+    { ...manifest, confirmed: false },
+    { ...manifest, parts: [{ ...manifest.parts[0], start: 1 }, manifest.parts[1]] },
+    { ...manifest, parts: [{ ...manifest.parts[0], end: firstEnd - 1 }, manifest.parts[1]] },
+    { ...manifest, parts: [manifest.parts[0]] },
+    { ...manifest, parts: [manifest.parts[0], { ...manifest.parts[1], partKey: 'p1' }] },
+    { ...manifest, parts: [manifest.parts[0], { ...manifest.parts[1], end: raw.length + 1 }] },
+    { ...manifest, unexpected: true },
+  ])('rejects unconfirmed, overlapping, incomplete or unknown boundary data %#', candidate => {
+    expect(() => parse(raw, candidate)).toThrow(HttpException);
+  });
+
+  it('bounds file, manifest, part count, invalid UTF8 and empty spans', () => {
+    expect(() => preparePastedManuscript(Buffer.from([0xff]), JSON.stringify(manifest))).toThrow(HttpException);
+    expect(() => preparePastedManuscript(Buffer.alloc(MANUSCRIPT_FILE_LIMITS.fileBytes + 1), '{}')).toThrow(HttpException);
+    expect(() => preparePastedManuscript(Buffer.from(raw), ' '.repeat(MANUSCRIPT_FILE_LIMITS.manifestBytes + 1))).toThrow(HttpException);
+    expect(() => parse('   ', { locale: 'ko', confirmed: true, parts: [{ partKey: 'a', title: 'A', start: 0, end: 3 }] })).toThrow(HttpException);
+    const many = Array.from({ length: 1001 }, (_, i) => ({ partKey: `${i}`, title: 'A', start: i, end: i + 1 }));
+    expect(() => parse('x'.repeat(1001), { locale: 'ko', confirmed: true, parts: many })).toThrow(HttpException);
   });
 });

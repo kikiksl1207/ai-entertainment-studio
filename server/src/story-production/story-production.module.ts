@@ -19,6 +19,7 @@ import { StoryProductionService } from './story-production.service';
 import {
   StoryManuscriptAdmission, StoryManuscriptFileController,
   StoryManuscriptMultipartInterceptor, StoryManuscriptOwnerGuard,
+  StoryManuscriptPasteMultipartInterceptor, StoryManuscriptPasteOwnerGuard,
 } from './story-manuscript-file.controller';
 
 @Module({
@@ -36,6 +37,8 @@ import {
     StoryManuscriptAdmission,
     StoryManuscriptOwnerGuard,
     StoryManuscriptMultipartInterceptor,
+    StoryManuscriptPasteOwnerGuard,
+    StoryManuscriptPasteMultipartInterceptor,
     StoryProductionService,
     StoryProgressControlService,
     StoryLifecycleService,
