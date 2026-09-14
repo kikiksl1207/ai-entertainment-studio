@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>비공개 영상 미리보기 | Lumina Stage</title>
+    <meta name="robots" content="noindex, nofollow, noarchive" />
+    <meta name="referrer" content="no-referrer" />
+    <link rel="stylesheet" href="/styles/ott-private-preview.css" />
+  </head>
+  <body>
+    <header class="preview-header">
+      <a class="preview-brand" href="/creator-studio">
+        <img src="/assets/brand/lumina-stage-logo.png" alt="" width="36" height="36" />
+        <strong>Lumina Stage</strong>
+      </a>
+      <div class="preview-header-actions">
+        <label class="locale-field"><span id="localeLabel">언어</span>
+          <select id="previewLocale" aria-labelledby="localeLabel">
+            <option value="ko">한국어</option><option value="en">English</option>
+            <option value="ja">日本語</option><option value="zh-Hans">简体中文</option>
+            <option value="zh-Hant">繁體中文</option>
+          </select>
+        </label>
+        <a id="studioLink" href="/creator-studio">작가 스튜디오</a>
+      </div>
+    </header>
+
+    <main class="preview-main">
+      <div class="preview-heading">
+        <p id="privateLabel" class="preview-eyebrow">소유자 전용</p>
+        <h1 id="previewTitle">비공개 영상 미리보기</h1>
+      </div>
+      <p id="previewState" class="preview-state" role="status" aria-live="polite"></p>
+      <section id="previewPlayer" class="preview-player" hidden aria-label="Private video preview">
+        <video id="privateVideo" controls playsinline preload="none" aria-label="Private video preview"></video>
+        <div class="preview-details">
+          <span id="previewDuration"></span>
+          <span id="previewSubtitles"></span>
+        </div>
+        <button id="previewStart" type="button">미리보기 재생</button>
+      </section>
+      <button id="previewRetry" type="button" hidden>다시 확인</button>
+    </main>
+    <script src="/pages/ott-private-preview.js"></script>
+  </body>
+</html>
