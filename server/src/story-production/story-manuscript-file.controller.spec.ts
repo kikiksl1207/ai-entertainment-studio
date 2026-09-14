@@ -9,7 +9,7 @@ import {
   StoryManuscriptMultipartInterceptor, StoryManuscriptOwnerGuard,
   StoryManuscriptPasteMultipartInterceptor, StoryManuscriptPasteOwnerGuard,
 } from './story-manuscript-file.controller';
-import { MANUSCRIPT_FILE_LIMITS } from './story-manuscript-file.policy';
+import { MANUSCRIPT_FILE_LIMITS, preparePastedManuscript } from './story-manuscript-file.policy';
 
 const user = { id: '00000000-0000-4000-8000-000000000001', email: 'synthetic@example.invalid' };
 const workId = '00000000-0000-4000-8000-000000000002';
@@ -57,6 +57,41 @@ describe('owned-work bounded file endpoint', () => {
     expect(manuscriptRequestLength(chunked.request.headers, true)).toBeNull();
     expect(await lastValueFrom(await interceptor.intercept(chunked.context, { handle: () => of('ok') }))).toBe('ok');
     expect(() => manuscriptRequestLength(chunked.request.headers)).toThrow(HttpException);
+  });
+
+  it('rejects malformed raw UTF-8 in manifest before Multer can replace it', async () => {
+    const raw = pasteMultipart('Synthetic text', { locale: 'ko', confirmed: true, parts: [
+      { partKey: 'p1', title: 'First', start: 0, end: 14 },
+    ] });
+    raw[raw.indexOf(Buffer.from('First'))] = 0xff;
+    const c = context(raw);
+    const next = { handle: jest.fn(() => of('bad')) };
+    await expect(new StoryManuscriptPasteMultipartInterceptor(new StoryManuscriptAdmission()).intercept(c.context, next))
+      .rejects.toBeInstanceOf(HttpException);
+    expect(next.handle).not.toHaveBeenCalled();
+
+    const valid = context(pasteMultipart('Synthetic text', { locale: 'ko', confirmed: true, parts: [
+      { partKey: 'p1', title: 'Valid � 🚀', start: 0, end: 14 },
+    ] }));
+    const interceptor = new StoryManuscriptPasteMultipartInterceptor(new StoryManuscriptAdmission());
+    expect(await lastValueFrom(await interceptor.intercept(valid.context, { handle: () => of('ok') }))).toBe('ok');
+    const prepared = preparePastedManuscript((valid.request as any).file.buffer, (valid.request as any).body.manifest);
+    expect(prepared.parts[0].title).toBe('Valid � 🚀');
+  });
+
+  it('accepts a valid manifest code point split across request chunks', async () => {
+    const data = pasteMultipart('text', { locale: 'ko', confirmed: true, parts: [
+      { partKey: 'p1', title: 'Rocket 🚀', start: 0, end: 4 },
+    ] });
+    const split = data.indexOf(Buffer.from('🚀')) + 2;
+    const request = Object.assign(Readable.from([data.subarray(0, split), data.subarray(split)]), {
+      headers: { 'content-type': `multipart/form-data; boundary=${boundary}`, 'content-length': String(data.length) },
+      user, params: { workId }, method: 'POST',
+    });
+    const ctx = { switchToHttp: () => ({ getRequest: () => request, getResponse: () => ({}) }) } as unknown as ExecutionContext;
+    const interceptor = new StoryManuscriptPasteMultipartInterceptor(new StoryManuscriptAdmission());
+    expect(await lastValueFrom(await interceptor.intercept(ctx, { handle: () => of('ok') }))).toBe('ok');
+    expect((request as any).body.manifest).toContain('Rocket 🚀');
   });
 
   it('rejects unbounded paste envelopes and extra fields before storage', async () => {
