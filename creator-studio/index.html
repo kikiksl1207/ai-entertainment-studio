@@ -258,7 +258,7 @@
               </div>
               <span class="badge is-warn" data-i18n="writerManuscript.badge">전송 전 검토</span>
             </div>
-            <p class="writer-manuscript-note" data-i18n="writerManuscript.privacy">이 입력은 이 브라우저에서만 확인하며 서버에 저장하지 않습니다. 작품명과 원고 본문은 접수 준비 중 공개되지 않습니다.</p>
+            <p class="writer-manuscript-note" data-i18n="writerManuscript.privacy">제출 전에는 이 브라우저에서만 검토합니다. 제출한 원고는 비공개로 접수되며 이 화면에서 공개하거나 분석하지 않습니다.</p>
             <div class="form-grid">
               <label class="is-wide">
                 <span data-i18n="writerManuscript.work">내 작품</span>
@@ -296,9 +296,14 @@
               <div id="writerManuscriptParts" class="writer-manuscript-parts" aria-live="polite"></div>
             </div>
             <p class="studio-form-state" id="writerManuscriptState" role="status" aria-live="polite" data-i18n="writerManuscript.loading">내 작품을 확인하고 있습니다.</p>
-            <p class="writer-manuscript-boundary" id="writerManuscriptBoundary" hidden data-i18n="writerManuscript.boundary">원문은 이 화면에서 확인할 수 있습니다. 파트 경계와 문단 종류를 보존하는 접수 경로가 아직 없어 전송은 중단됩니다. 한 파트로 합치거나 분석 완료로 표시하지 않습니다.</p>
+            <p class="writer-manuscript-boundary" id="writerManuscriptBoundary" hidden data-i18n="writerManuscript.boundary">각 파트의 시작 위치와 제목을 확인해 주세요. 제출하면 원문과 확인한 경계가 비공개로 접수됩니다.</p>
+            <label class="writer-manuscript-confirm">
+              <input id="writerManuscriptConfirm" type="checkbox" disabled aria-describedby="writerManuscriptState" />
+              <span data-i18n="writerManuscript.confirm">원문과 모든 파트 경계를 검토했으며 이 작품에 비공개로 제출합니다.</span>
+            </label>
             <div class="composer-tools">
               <button class="secondary-action" type="button" id="writerManuscriptClear" data-i18n="writerManuscript.clear">입력 지우기</button>
+              <button class="primary-action" type="button" id="writerManuscriptSubmit" disabled data-i18n="writerManuscript.submit">원고 비공개 제출</button>
             </div>
           </article>
         </section>

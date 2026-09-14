@@ -870,6 +870,9 @@ label { gap: 8px; }
 .writer-manuscript-part-header button { min-height: 36px; }
 .writer-manuscript-part-title { display: grid; gap: 6px; }
 .writer-manuscript-part-preview { margin: 0; max-height: 7em; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.writer-manuscript-confirm { display: flex; align-items: flex-start; gap: 10px; min-width: 0; line-height: 1.5; overflow-wrap: anywhere; }
+.writer-manuscript-confirm input { flex: 0 0 auto; width: 18px; height: 18px; margin: 2px 0 0; }
+.writer-manuscript-confirm span { min-width: 0; }
 .story-intake-panel { display: grid; gap: 16px; }
 .story-intake-notice { margin: 0; }
 .story-intake-file-field input[type="file"] { padding: 9px 10px; }

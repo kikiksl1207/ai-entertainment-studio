@@ -17,8 +17,13 @@
   let writerFileRead = 0;
   let writerCatalogRequest = 0;
   const writerMaxBytes = 16 * 1024 * 1024;
+  const writerMaxManifestBytes = 128 * 1024;
   let writerParts = [];
   let writerBoundariesReviewed = false;
+  let writerReview = null;
+  let writerFeedback = null;
+  let writerSubmitting = false;
+  let writerSubmitted = false;
 
   const storyIntakeFileRules = {
     manuscripts: { maxCount: 10, maxBytes: 50 * 1024 * 1024, extensions: new Set([".md", ".txt", ".docx", ".pdf", ".json"]) },
@@ -200,6 +205,23 @@
           _retried: true
         });
       }
+    }
+    return res;
+  }
+
+  async function fetchWriterPaste(workId, formData, options = {}) {
+    let auth = readAuth();
+    if (!options.token && !auth?.accessToken && auth?.refreshToken) auth = await refreshStudioAuthOnce();
+    const token = options.token || auth?.accessToken;
+    if (!token) return null;
+    const res = await fetch(apiBase + "/api/v1/me/creator-studio/stories/" + encodeURIComponent(workId) + "/manuscripts/paste", {
+      method: "POST",
+      headers: { Authorization: "Bearer " + token },
+      body: formData
+    });
+    if (res.status === 401 && !options._retried) {
+      const refreshed = await refreshStudioAuthOnce();
+      if (refreshed?.accessToken) return fetchWriterPaste(workId, formData, { token: refreshed.accessToken, _retried: true });
     }
     return res;
   }
@@ -918,7 +940,7 @@
     }
   }
 
-  // Plain text remains local until the server has an explicit raw-source contract.
+  // The paste route stores the exact UTF-8 source only after explicit review and confirmation.
   function writerText(key, values = {}) {
     const fullKey = "writerManuscript." + key;
     const translated = window.luminaI18n?.t?.(fullKey);
@@ -931,6 +953,96 @@
     if (!state) return;
     state.textContent = writerText(key, values);
     state.classList.toggle("is-danger", tone === "danger");
+  }
+
+  function writerWellFormed(value) {
+    for (let i = 0; i < value.length; i++) {
+      const code = value.charCodeAt(i);
+      if (code >= 0xd800 && code <= 0xdbff) {
+        const low = value.charCodeAt(++i);
+        if (!(low >= 0xdc00 && low <= 0xdfff)) return false;
+      } else if (code >= 0xdc00 && code <= 0xdfff) return false;
+    }
+    return true;
+  }
+
+  function writerInput() {
+    const workId = document.getElementById("writerManuscriptWork")?.value || "";
+    const locale = document.getElementById("writerManuscriptLocale")?.value || "";
+    const body = document.getElementById("writerManuscriptBody")?.value || "";
+    const expectedRaw = document.getElementById("writerManuscriptExpected")?.value || "";
+    if (!/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(workId)) return { error: "chooseWork" };
+    if (!["ko", "en", "ja", "zh-Hans", "zh-Hant"].includes(locale)) return { error: "reviewRequired" };
+    if (!body.trim()) return { error: "empty" };
+    if (body.includes("\0") || !writerWellFormed(body)) return { error: "invalidUnicode" };
+    const bytes = new TextEncoder().encode(body);
+    if (bytes.byteLength > writerMaxBytes) return { error: "tooLarge" };
+    if (writerParts.length < 1 || writerParts.length > 1000 ||
+        (expectedRaw && (!Number.isInteger(Number(expectedRaw)) || Number(expectedRaw) < 1 ||
+          Number(expectedRaw) > 1000 || Number(expectedRaw) !== writerParts.length))) {
+      return { error: "partMismatch", values: { count: writerParts.length, expected: expectedRaw } };
+    }
+    const parts = [];
+    for (let index = 0; index < writerParts.length; index++) {
+      const { offset: start, title } = writerParts[index];
+      const end = writerParts[index + 1]?.offset ?? body.length;
+      if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) ||
+          start !== (parts[index - 1]?.end ?? 0) || end <= start || end > body.length ||
+          (start > 0 && body[start - 1] === "\r" && body[start] === "\n") ||
+          (start > 0 && body.charCodeAt(start - 1) >= 0xd800 && body.charCodeAt(start - 1) <= 0xdbff)) {
+        return { error: "invalidBoundary" };
+      }
+      if (!title.trim() || title.length > 240 || !body.slice(start, end).trim()) return { error: "partIncomplete" };
+      if (title.includes("\0") || !writerWellFormed(title)) return { error: "invalidUnicode" };
+      parts.push({ partKey: "part-" + (index + 1), title, start, end });
+    }
+    const manifest = { locale, confirmed: true, parts };
+    if (new TextEncoder().encode(JSON.stringify(manifest)).byteLength > writerMaxManifestBytes) {
+      return { error: "tooLarge" };
+    }
+    return { workId, locale, body, expectedRaw, bytes, manifest };
+  }
+
+  function writerMatchesReview(review) {
+    if (!review || !writerBoundariesReviewed || review !== writerReview) return false;
+    const current = writerInput();
+    return !current.error && current.workId === review.workId && current.locale === review.locale &&
+      current.body === review.body && current.expectedRaw === review.expectedRaw &&
+      JSON.stringify(current.manifest) === JSON.stringify(review.manifest);
+  }
+
+  function syncWriterSubmit() {
+    const confirm = document.getElementById("writerManuscriptConfirm");
+    const submit = document.getElementById("writerManuscriptSubmit");
+    const auth = readAuth();
+    if (confirm) confirm.disabled = writerSubmitting || !writerReview || !writerBoundariesReviewed || writerSubmitted;
+    if (submit) submit.disabled = writerSubmitting || writerSubmitted || !confirm?.checked ||
+      !writerMatchesReview(writerReview) || shell?.hidden || !(auth?.accessToken || auth?.refreshToken);
+  }
+
+  function invalidateWriterReview() {
+    writerBoundariesReviewed = false;
+    writerReview = null;
+    writerFeedback = null;
+    writerSubmitted = false;
+    const confirm = document.getElementById("writerManuscriptConfirm");
+    if (confirm) { confirm.checked = false; confirm.disabled = true; }
+    syncWriterSubmit();
+  }
+
+  function setWriterSubmitting(value) {
+    writerSubmitting = value;
+    const controls = document.querySelectorAll("#writer-manuscript input, #writer-manuscript select, #writer-manuscript textarea, #writer-manuscript button");
+    controls.forEach(control => {
+      if (value) {
+        control.dataset.writerWasDisabled = control.disabled ? "true" : "false";
+        control.disabled = true;
+      } else {
+        control.disabled = control.dataset.writerWasDisabled === "true";
+        delete control.dataset.writerWasDisabled;
+      }
+    });
+    syncWriterSubmit();
   }
 
   function writerSourceChanged() {
@@ -947,6 +1059,7 @@
     if (expected && Number(expected) !== writerParts.length) {
       return writerState("partMismatch", "danger", { count: writerParts.length, expected });
     }
+    if (writerFeedback) return writerState(writerFeedback.key, writerFeedback.tone, writerFeedback.values);
     writerState(writerBoundariesReviewed ? "boundariesReviewed" : "localReview", "", {
       bytes: bytes.toLocaleString(), lines: lines.toLocaleString(), count: writerParts.length
     });
@@ -981,7 +1094,7 @@
         remove.textContent = writerText("removePart");
         remove.addEventListener("click", () => {
           writerParts.splice(index, 1);
-          writerBoundariesReviewed = false;
+          invalidateWriterReview();
           renderWriterParts();
           writerSourceChanged();
         });
@@ -996,7 +1109,7 @@
       input.value = part.title;
       input.addEventListener("input", () => {
         part.title = input.value;
-        writerBoundariesReviewed = false;
+        invalidateWriterReview();
         writerSourceChanged();
       });
       title.append(titleLabel, input);
@@ -1011,8 +1124,10 @@
 
   function writerBodyEdited() {
     ++writerFileRead;
-    writerParts = document.getElementById("writerManuscriptBody")?.value ? [{ offset: 0, title: "" }] : [];
-    writerBoundariesReviewed = false;
+    const value = document.getElementById("writerManuscriptBody")?.value || "";
+    if (!value) writerParts = [];
+    else if (!writerParts.length) writerParts = [{ offset: 0, title: "" }];
+    invalidateWriterReview();
     renderWriterParts();
     writerSourceChanged();
   }
@@ -1029,32 +1144,79 @@
     }
     writerParts.push({ offset, title: "" });
     writerParts.sort((a, b) => a.offset - b.offset);
-    writerBoundariesReviewed = false;
+    invalidateWriterReview();
     renderWriterParts();
     writerSourceChanged();
   }
 
   function reviewWriterParts() {
-    const body = document.getElementById("writerManuscriptBody")?.value || "";
-    const expectedRaw = document.getElementById("writerManuscriptExpected")?.value || "";
-    const expected = Number(expectedRaw);
-    if (!document.getElementById("writerManuscriptWork")?.value || !body ||
-        new TextEncoder().encode(body).byteLength > writerMaxBytes) return writerSourceChanged();
-    if (expectedRaw && (!Number.isInteger(expected) || expected < 1 || expected > 1000 || expected !== writerParts.length)) {
-      return writerState("partMismatch", "danger", { count: writerParts.length, expected: expectedRaw });
-    }
-    if (!writerParts.length || writerParts.some((part, index) =>
-      !part.title.trim() || !body.slice(part.offset, writerParts[index + 1]?.offset ?? body.length).trim())) {
-      return writerState("partIncomplete", "danger");
-    }
+    if (writerSubmitting) return;
+    const review = writerInput();
+    if (review.error) return writerState(review.error, "danger", review.values);
+    writerReview = review;
     writerBoundariesReviewed = true;
+    syncWriterSubmit();
     writerSourceChanged();
+  }
+
+  async function submitWriterManuscript() {
+    const confirm = document.getElementById("writerManuscriptConfirm");
+    const review = writerReview;
+    if (writerSubmitting || writerSubmitted) return;
+    if (!confirm?.checked || !writerMatchesReview(review)) {
+      writerState("reviewRequired", "danger");
+      syncWriterSubmit();
+      return;
+    }
+    if (shell?.hidden) return writerState("authRequired", "danger");
+    const formData = new FormData();
+    formData.append("manuscript", new Blob([review.bytes], { type: "text/plain" }), "manuscript.txt");
+    formData.append("manifest", JSON.stringify(review.manifest));
+    setWriterSubmitting(true);
+    writerFeedback = { key: "submitting", tone: "" };
+    writerSourceChanged();
+    try {
+      const response = await fetchWriterPaste(review.workId, formData);
+      if (!writerMatchesReview(review)) return;
+      if (!response) {
+        writerFeedback = { key: "authRequired", tone: "danger" };
+      } else if (!response.ok) {
+        writerFeedback = response.status === 401
+          ? { key: "authRequired", tone: "danger" }
+          : { key: "rejected", tone: "danger", values: { status: response.status } };
+      } else {
+        const receipt = await response.json().catch(() => null);
+        if (!writerMatchesReview(review)) return;
+        if (receipt?.manuscript?.workId !== review.workId || receipt.manuscript.locale !== review.locale ||
+            !Number.isSafeInteger(receipt.manuscript.version) || receipt.manuscript.version < 1 ||
+            receipt?.received?.sourceKind !== "utf8_paste" ||
+            receipt.received.byteLength !== review.bytes.byteLength ||
+            receipt.received.parts !== review.manifest.parts.length ||
+            receipt.analysisStarted !== false || typeof receipt.idempotentReplay !== "boolean") {
+          writerFeedback = { key: "invalidReceipt", tone: "danger" };
+        } else {
+          writerSubmitted = true;
+          confirm.checked = false;
+          writerFeedback = {
+            key: receipt.idempotentReplay ? "receivedReplay" : "received",
+            tone: "",
+            values: { version: receipt.manuscript.version, count: receipt.received.parts,
+              bytes: receipt.received.byteLength.toLocaleString() }
+          };
+        }
+      }
+    } catch (_) {
+      if (writerMatchesReview(review)) writerFeedback = { key: "requestFailed", tone: "danger" };
+    } finally {
+      setWriterSubmitting(false);
+      if (writerMatchesReview(review)) writerSourceChanged();
+    }
   }
 
   async function loadWriterWorks() {
     const select = document.getElementById("writerManuscriptWork");
-    if (!select) return;
-    writerBoundariesReviewed = false;
+    if (!select || writerSubmitting) return;
+    invalidateWriterReview();
     const request = ++writerCatalogRequest;
     const previous = select.value;
     select.disabled = true;
@@ -1096,7 +1258,7 @@
     const body = document.getElementById("writerManuscriptBody");
     const request = ++writerFileRead;
     if (!file || !body) return;
-    writerBoundariesReviewed = false;
+    invalidateWriterReview();
     if (!/\.(txt|md)$/i.test(file.name)) return writerState("fileType", "danger");
     if (!file.size || file.size > writerMaxBytes) return writerState("tooLarge", "danger");
     try {
@@ -1110,6 +1272,7 @@
         writerBodyEdited();
         return writerState("lineEndings", "danger");
       }
+      writerParts = [];
       writerBodyEdited();
     } catch (_) {
       writerState("invalidUtf8", "danger");
@@ -1584,20 +1747,26 @@
   document.getElementById("writerManuscriptFile")?.addEventListener("change", readWriterTextFile);
   document.getElementById("writerManuscriptBody")?.addEventListener("input", writerBodyEdited);
   document.getElementById("writerManuscriptWork")?.addEventListener("change", () => {
-    writerBoundariesReviewed = false;
+    invalidateWriterReview();
     writerSourceChanged();
   });
-  document.getElementById("writerManuscriptLocale")?.addEventListener("change", loadWriterWorks);
+  document.getElementById("writerManuscriptLocale")?.addEventListener("change", () => {
+    invalidateWriterReview();
+    loadWriterWorks();
+  });
   document.getElementById("writerManuscriptExpected")?.addEventListener("input", () => {
-    writerBoundariesReviewed = false;
+    invalidateWriterReview();
     writerSourceChanged();
   });
   document.getElementById("writerManuscriptAddPart")?.addEventListener("click", addWriterPart);
   document.getElementById("writerManuscriptReview")?.addEventListener("click", reviewWriterParts);
+  document.getElementById("writerManuscriptConfirm")?.addEventListener("change", syncWriterSubmit);
+  document.getElementById("writerManuscriptSubmit")?.addEventListener("click", submitWriterManuscript);
   document.getElementById("writerManuscriptClear")?.addEventListener("click", clearWriterManuscript);
   window.addEventListener("lumina:localechange", () => {
     renderWriterParts();
     if (!document.getElementById("writerManuscriptWork")?.disabled) writerSourceChanged();
+    syncWriterSubmit();
   });
   document.getElementById("storyIntakeReset")?.addEventListener("click", clearStoryIntake);
   document.getElementById("storyIntakeSourceClass")?.addEventListener("change", () => {
