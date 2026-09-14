@@ -518,6 +518,24 @@ For the first admin:
 
 ## Object Storage Verification
 
+### Private manuscript paste contract
+
+`POST /api/v1/me/creator-studio/stories/:workId/manuscripts/paste` accepts
+authenticated `multipart/form-data` with exactly one UTF-8 `text/plain`
+`manuscript` file and one `manifest` text field. The manifest is JSON:
+`{"locale":"ko","confirmed":true,"parts":[{"partKey":"p1","title":"Part 1","start":0,"end":12}]}`.
+Offsets are JavaScript UTF-16 string indices over the exact decoded paste text.
+Ranges must be ordered, nonempty, contiguous, and cover the entire text; the
+author must confirm them before submission. The server does not infer parts.
+The file is limited to 16 MiB, the manifest to 128 KiB, the complete envelope
+to 16 MiB + 256 KiB, and parts to 1000. A browser-supplied `Content-Length` or
+proxy-supplied chunked transfer is accepted; compressed request bodies are not.
+The private immutable version retains the raw source and confirmed ranges.
+The response is a redacted receipt with hash/counts, never manuscript text.
+Retrying identical content returns the same version; this route starts no
+analysis or publication. Existing `/manuscripts/file` strict JSON intake and
+JSON DTO intake are unchanged.
+
 Authenticated final story intake is available at
 `POST /api/v1/story-upload/intake` as `multipart/form-data`. It accepts final
 manuscripts, branch/ending metadata, and visual assets, persists a private

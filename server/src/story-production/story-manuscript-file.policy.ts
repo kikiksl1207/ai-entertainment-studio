@@ -7,6 +7,8 @@ import { ManuscriptPart, manuscriptContentHash, STORY_LOCALES } from './story-pr
 export const MANUSCRIPT_FILE_LIMITS = {
   fileBytes: 16 * 1024 * 1024,
   requestBytes: 16 * 1024 * 1024 + 16 * 1024,
+  pasteRequestBytes: 16 * 1024 * 1024 + 256 * 1024,
+  manifestBytes: 128 * 1024,
   storedBytes: 40 * 1024 * 1024,
   parts: 1000,
   paragraphsPerPart: 5000,
@@ -15,7 +17,7 @@ export const MANUSCRIPT_FILE_LIMITS = {
   uploadMilliseconds: 60_000,
 } as const;
 
-export type ManuscriptSourceKind = 'utf8_json_file' | 'json_projection';
+export type ManuscriptSourceKind = 'utf8_json_file' | 'json_projection' | 'utf8_paste';
 export type PreparedManuscript = {
   locale: string;
   parts: ManuscriptPart[];
@@ -23,6 +25,7 @@ export type PreparedManuscript = {
   legacyHash: string;
   source: { kind: ManuscriptSourceKind; rawText: string; sha256: string; byteLength: number };
   paragraphCount: number;
+  confirmedBoundaries?: Array<{ partKey: string; title: string; start: number; end: number }>;
 };
 
 export function invalidManuscript(code = 'MANUSCRIPT_INVALID_DOCUMENT'): never {
@@ -45,6 +48,10 @@ function exactObject(value: unknown, keys: string[]): asserts value is Record<st
 function validString(value: unknown, maximum: number, nonblank = false): asserts value is string {
   if (typeof value !== 'string' || (nonblank && !value.trim()) || value.includes('\0')) invalidManuscript();
   within(value.length, maximum);
+  assertValidUnicode(value);
+}
+
+function assertValidUnicode(value: string) {
   // JSON accepts escaped lone surrogates; PostgreSQL JSONB cannot preserve them.
   for (let i = 0; i < value.length; i++) {
     const code = value.charCodeAt(i);
@@ -124,6 +131,66 @@ export function prepareManuscript(buffer: Buffer): PreparedManuscript {
   return prepareIdentity(buffer, rawText, locale, parts, paragraphCount, 'utf8_json_file');
 }
 
+export function preparePastedManuscript(buffer: Buffer, manifestText: unknown): PreparedManuscript {
+  if (!Buffer.isBuffer(buffer) || !buffer.length) invalidManuscript('MANUSCRIPT_FILE_REQUIRED');
+  within(buffer.length, MANUSCRIPT_FILE_LIMITS.fileBytes);
+  if (typeof manifestText !== 'string' || !manifestText.length) invalidManuscript('MANUSCRIPT_BOUNDARIES_REQUIRED');
+  within(Buffer.byteLength(manifestText), MANUSCRIPT_FILE_LIMITS.manifestBytes);
+  let rawText: string;
+  try { rawText = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(buffer); }
+  catch { invalidManuscript('MANUSCRIPT_INVALID_UTF8'); }
+  if (!rawText.trim() || rawText.includes('\0')) invalidManuscript();
+  assertValidUnicode(rawText);
+  assertUniqueMembers(manifestText);
+  let manifest: unknown;
+  try { manifest = JSON.parse(manifestText); } catch { invalidManuscript('MANUSCRIPT_INVALID_BOUNDARIES'); }
+  exactObject(manifest, ['locale', 'confirmed', 'parts']);
+  if (!STORY_LOCALES.includes(manifest.locale as never)) invalidManuscript('MANUSCRIPT_INVALID_LOCALE');
+  if (manifest.confirmed !== true) invalidManuscript('MANUSCRIPT_BOUNDARIES_NOT_CONFIRMED');
+  if (!Array.isArray(manifest.parts) || !manifest.parts.length) invalidManuscript('MANUSCRIPT_BOUNDARIES_REQUIRED');
+  within(manifest.parts.length, MANUSCRIPT_FILE_LIMITS.parts);
+  const keys = new Set<string>();
+  const parts: ManuscriptPart[] = [];
+  const confirmedBoundaries: NonNullable<PreparedManuscript['confirmedBoundaries']> = [];
+  let cursor = 0;
+  let paragraphCount = 0;
+  for (const boundary of manifest.parts) {
+    exactObject(boundary, ['partKey', 'title', 'start', 'end']);
+    validString(boundary.partKey, 80, true);
+    validString(boundary.title, 240, true);
+    if (keys.has(boundary.partKey)) invalidManuscript('MANUSCRIPT_DUPLICATE_PART_KEY');
+    keys.add(boundary.partKey);
+    if (typeof boundary.start !== 'number' || typeof boundary.end !== 'number' ||
+        !Number.isSafeInteger(boundary.start) || !Number.isSafeInteger(boundary.end) ||
+        boundary.start !== cursor || boundary.end <= cursor || boundary.end > rawText.length) {
+      invalidManuscript('MANUSCRIPT_INVALID_BOUNDARIES');
+    }
+    const text = rawText.slice(cursor, boundary.end);
+    if (!text.trim()) invalidManuscript('MANUSCRIPT_EMPTY_PART');
+    const paragraphs: ManuscriptPart['paragraphs'] = [];
+    for (const match of text.matchAll(/[^\r\n]*(?:\r\n|\r|\n|$)/g)) {
+      const line = match[0];
+      if (!line) continue;
+      for (let start = 0; start < line.length;) {
+        let end = Math.min(start + MANUSCRIPT_FILE_LIMITS.textUnits, line.length);
+        if (end < line.length && line.charCodeAt(end - 1) >= 0xd800 && line.charCodeAt(end - 1) <= 0xdbff) end--;
+        paragraphs.push({ kind: 'paragraph', text: line.slice(start, end) });
+        within(paragraphs.length, MANUSCRIPT_FILE_LIMITS.paragraphsPerPart);
+        start = end;
+      }
+    }
+    paragraphCount += paragraphs.length;
+    within(paragraphCount, MANUSCRIPT_FILE_LIMITS.totalParagraphs);
+    parts.push({ partKey: boundary.partKey, title: boundary.title, paragraphs });
+    confirmedBoundaries.push({ partKey: boundary.partKey, title: boundary.title,
+      start: boundary.start, end: boundary.end });
+    cursor = boundary.end;
+  }
+  if (cursor !== rawText.length) invalidManuscript('MANUSCRIPT_INVALID_BOUNDARIES');
+  return { ...prepareIdentity(buffer, rawText, manifest.locale as string, parts, paragraphCount, 'utf8_paste'),
+    confirmedBoundaries };
+}
+
 // Only for the existing JSON route after its ValidationPipe/DTO contract. Do not
 // reapply the file contract: DTO MaxLength counts characters, permits blank
 // keys/titles and repeated part keys, and has no extra file-level restrictions.
@@ -140,7 +207,9 @@ function prepareIdentity(
 ): PreparedManuscript {
   return {
     locale, parts, paragraphCount,
-    contentHash: manuscriptContentHash({ identityVersion: 2, locale, parts }),
+    contentHash: kind === 'utf8_paste'
+      ? manuscriptContentHash({ identityVersion: 3, locale, parts, sourceSha256: createHash('sha256').update(buffer).digest('hex') })
+      : manuscriptContentHash({ identityVersion: 2, locale, parts }),
     legacyHash: manuscriptContentHash({ parts }),
     source: { kind, rawText, byteLength: buffer.length, sha256: createHash('sha256').update(buffer).digest('hex') },
   };
@@ -148,7 +217,9 @@ function prepareIdentity(
 
 export function storedManuscriptBody(input: PreparedManuscript) {
   const body = { parts: input.parts, intake: {
-    format: 'story-manuscript-intake-v1', identityVersion: 2, locale: input.locale, source: input.source,
+    format: 'story-manuscript-intake-v1', identityVersion: input.source.kind === 'utf8_paste' ? 3 : 2,
+    locale: input.locale, source: input.source,
+    ...(input.confirmedBoundaries ? { confirmedBoundaries: input.confirmedBoundaries } : {}),
   } };
   within(Buffer.byteLength(JSON.stringify(body)), MANUSCRIPT_FILE_LIMITS.storedBytes);
   return body;
