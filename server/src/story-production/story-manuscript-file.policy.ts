@@ -165,6 +165,11 @@ export function preparePastedManuscript(buffer: Buffer, manifestText: unknown): 
         boundary.start !== cursor || boundary.end <= cursor || boundary.end > rawText.length) {
       invalidManuscript('MANUSCRIPT_INVALID_BOUNDARIES');
     }
+    if (boundary.end < rawText.length &&
+        rawText.charCodeAt(boundary.end - 1) >= 0xd800 && rawText.charCodeAt(boundary.end - 1) <= 0xdbff &&
+        rawText.charCodeAt(boundary.end) >= 0xdc00 && rawText.charCodeAt(boundary.end) <= 0xdfff) {
+      invalidManuscript('MANUSCRIPT_INVALID_BOUNDARIES');
+    }
     const text = rawText.slice(cursor, boundary.end);
     if (!text.trim()) invalidManuscript('MANUSCRIPT_EMPTY_PART');
     const paragraphs: ManuscriptPart['paragraphs'] = [];

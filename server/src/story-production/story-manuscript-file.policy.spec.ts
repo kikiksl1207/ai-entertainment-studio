@@ -91,6 +91,18 @@ describe('confirmed raw paste', () => {
     expect(input.parts[0].paragraphs).toHaveLength(2);
   });
 
+  it('rejects a confirmed part edge inside a UTF-16 surrogate pair', () => {
+    const text = 'A🚀B';
+    const parts = [
+      { partKey: 'a', title: 'First', start: 0, end: 2 },
+      { partKey: 'b', title: 'Second', start: 2, end: 4 },
+    ];
+    expect(() => parse(text, { locale: 'ko', confirmed: true, parts })).toThrow(HttpException);
+    parts[0].end = 3;
+    parts[1].start = 3;
+    expect(parse(text, { locale: 'ko', confirmed: true, parts }).parts.map(part => part.paragraphs[0].text)).toEqual(['A🚀', 'B']);
+  });
+
   it.each([
     { ...manifest, confirmed: false },
     { ...manifest, parts: [{ ...manifest.parts[0], start: 1 }, manifest.parts[1]] },

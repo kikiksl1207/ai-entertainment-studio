@@ -5,6 +5,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { isUUID } from 'class-validator';
 import { Readable } from 'stream';
+import { TextDecoder } from 'util';
 import { finalize } from 'rxjs';
 import { AuthUser } from '../auth/auth.types';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -104,12 +105,18 @@ export class StoryManuscriptMultipartInterceptor {
     const expected = manuscriptRequestLength(request.headers, this.paste);
     const release = this.admission.enter(request.user.id);
     let received = 0;
+    let invalidRawUtf8 = false;
+    const utf8 = this.paste ? new TextDecoder('utf-8', { fatal: true }) : null;
     let fail!: (error: HttpException) => void;
     const stopped = new Promise<never>((_resolve, reject) => { fail = reject; });
     const onStop = () => fail(new HttpException({ code: 'MANUSCRIPT_INCOMPLETE_REQUEST', message: 'Complete manuscript request required' }, 400));
     const onData = (chunk: Buffer) => {
       received += chunk.length;
       if (received > (expected ?? MANUSCRIPT_FILE_LIMITS.pasteRequestBytes)) { onStop(); request.destroy(); }
+      if (utf8) {
+        try { utf8.decode(chunk, { stream: true }); }
+        catch { invalidRawUtf8 = true; onStop(); request.destroy(); }
+      }
     };
     const timeout = setTimeout(() => { onStop(); request.destroy(); }, MANUSCRIPT_FILE_LIMITS.uploadMilliseconds);
     timeout.unref();
@@ -119,7 +126,10 @@ export class StoryManuscriptMultipartInterceptor {
     try {
       const parser = this.paste ? new PastedManuscriptInterceptor() : this.parser;
       const result = await Promise.race([parser.intercept(context, { handle: () => {
-        if (request.aborted || (expected !== null && received !== expected)) invalidManuscript('MANUSCRIPT_INCOMPLETE_REQUEST');
+        if (request.aborted || invalidRawUtf8 || (expected !== null && received !== expected)) invalidManuscript('MANUSCRIPT_INCOMPLETE_REQUEST');
+        if (utf8) {
+          try { utf8.decode(); } catch { invalidManuscript('MANUSCRIPT_INVALID_UTF8'); }
+        }
         return next.handle().pipe(finalize(release));
       } }), stopped]);
       return result;
