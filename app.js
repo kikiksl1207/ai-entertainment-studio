@@ -350,6 +350,13 @@ const I18N_DICT = {
     "zh-CN": "艺人与粉丝在同一舞台相遇的地方。",
     "zh-Hant": "藝人與粉絲在同一舞台相遇的地方。"
   },
+  "story.upload.documentTitle": {
+    "ko-KR": "최종 원고 업로드 | Lumina Stage",
+    "en-US": "Upload final manuscript | Lumina Stage",
+    "ja-JP": "最終原稿アップロード | Lumina Stage",
+    "zh-CN": "上传最终稿件 | Lumina Stage",
+    "zh-Hant": "上傳最終稿件 | Lumina Stage"
+  },
   "footer.businessInquiry": { "ko-KR": "Business Inquiry", "ja-JP": "Business Inquiry", "en-US": "Business Inquiry", "zh-CN": "商务合作", "zh-Hant": "商務合作" },
   "footer.businessInquiry.helper": {
     "ko-KR": "브랜드 협업, IP 제휴, 제작 문의는 Lumina Stage 비즈니스 채널로 연결됩니다.",
