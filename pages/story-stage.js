@@ -427,11 +427,11 @@
   };
 
   const ACCESS_COPY = {
-    ko: { filterLabel: "가격", all: "전체", loadMore: "더 보기", purchase: "구매", purchaseUnavailable: "이 화면에서는 작품을 구매할 수 없습니다.", detailUnavailable: "작품 정보를 확인할 수 없습니다.", accessFailed: "이용 권한을 확인하지 못했습니다. 다시 시도해 주세요." },
-    en: { filterLabel: "Price", all: "All", loadMore: "Load more", purchase: "Purchase", purchaseUnavailable: "Stories cannot be purchased on this page.", detailUnavailable: "Story details are unavailable.", accessFailed: "Your access could not be checked. Please try again." },
-    ja: { filterLabel: "価格", all: "すべて", loadMore: "もっと見る", purchase: "購入", purchaseUnavailable: "この画面では作品を購入できません。", detailUnavailable: "作品情報を確認できません。", accessFailed: "利用権限を確認できませんでした。もう一度お試しください。" },
-    "zh-Hans": { filterLabel: "价格", all: "全部", loadMore: "加载更多", purchase: "购买", purchaseUnavailable: "无法在此页面购买作品。", detailUnavailable: "无法查看作品信息。", accessFailed: "无法确认你的访问权限，请重试。" },
-    "zh-Hant": { filterLabel: "價格", all: "全部", loadMore: "載入更多", purchase: "購買", purchaseUnavailable: "無法在此頁面購買作品。", detailUnavailable: "無法查看作品資訊。", accessFailed: "無法確認你的存取權限，請重試。" },
+    ko: { filterLabel: "가격", all: "전체", loadMore: "더 보기", purchase: "구매", detailUnavailable: "작품 정보를 확인할 수 없습니다.", accessFailed: "이용 권한을 확인하지 못했습니다. 다시 시도해 주세요." },
+    en: { filterLabel: "Price", all: "All", loadMore: "Load more", purchase: "Purchase", detailUnavailable: "Story details are unavailable.", accessFailed: "Your access could not be checked. Please try again." },
+    ja: { filterLabel: "価格", all: "すべて", loadMore: "もっと見る", purchase: "購入", detailUnavailable: "作品情報を確認できません。", accessFailed: "利用権限を確認できませんでした。もう一度お試しください。" },
+    "zh-Hans": { filterLabel: "价格", all: "全部", loadMore: "加载更多", purchase: "购买", detailUnavailable: "无法查看作品信息。", accessFailed: "无法确认你的访问权限，请重试。" },
+    "zh-Hant": { filterLabel: "價格", all: "全部", loadMore: "載入更多", purchase: "購買", detailUnavailable: "無法查看作品資訊。", accessFailed: "無法確認你的存取權限，請重試。" },
   };
 
   const state = {
@@ -467,6 +467,9 @@
     readerAccess: null,
     readerState: null,
     detailPending: false,
+    readerIdentity: "",
+    purchaseConfirming: false,
+    purchaseNotice: "",
     dialog: null,
     returnFocus: null,
     returnScroll: 0,
@@ -483,6 +486,56 @@
   const AI_SESSION_SCOPE_KEY = "lumina:story-ai-session-scope:v1";
   const AI_PENDING_STATUSES = new Set(["queued", "processing", "retry_wait"]);
   const AI_POLL_TIMEOUT_MS = 30000;
+  const PURCHASE_STORAGE_PREFIX = "lumina:story-purchase:v1:";
+  const purchaseOperations = new Map();
+  const PURCHASE_COPY = {
+    ko: { confirm: "{price} LUMINA 결제 확인", consent: "이 작품을 {price} LUMINA에 구매하시겠어요?", cancel: "취소", pending: "구매 결과를 확인하고 있습니다.", unknown: "구매 결과를 확인하지 못했습니다. 이용 권한을 확인하거나 같은 구매를 다시 확인해 주세요.", retry: "같은 구매 다시 확인", check: "이용 권한 확인", stale: "가격 또는 공개 버전이 변경되었습니다. 최신 가격을 확인하고 다시 동의해 주세요.", unavailable: "구매 정보를 확인할 수 없습니다. 새로 확인해 주세요.", success: "구매가 확인되었습니다. 이야기를 시작할 수 있습니다.", inactive: "이전 구매의 이용 권한이 유효하지 않습니다. 다시 구매하려면 최신 가격을 확인해 주세요.", balance: "LUMINA 잔액이 부족합니다.", denied: "구매할 수 없습니다. 로그인 상태와 이용 권한을 확인해 주세요.", failed: "구매를 완료하지 못했습니다. 다시 확인해 주세요.", storage: "구매 확인 정보를 안전하게 저장할 수 없습니다. 브라우저 저장 공간을 확인해 주세요." },
+    en: { confirm: "Confirm {price} LUMINA", consent: "Purchase this story for {price} LUMINA?", cancel: "Cancel", pending: "Checking your purchase result.", unknown: "The purchase result is unknown. Check access or retry the same purchase.", retry: "Retry same purchase", check: "Check access", stale: "The price or release changed. Review the latest price and confirm again.", unavailable: "Purchase information is unavailable. Please refresh it.", success: "Purchase confirmed. You can start the story.", inactive: "The previous purchase no longer grants access. Review the latest price before purchasing again.", balance: "Your LUMINA balance is insufficient.", denied: "Purchase unavailable. Check your sign-in and access.", failed: "The purchase could not be completed. Please check again.", storage: "Purchase confirmation cannot be saved safely. Check your browser storage." },
+    ja: { confirm: "{price} LUMINAの支払いを確定", consent: "この作品を{price} LUMINAで購入しますか？", cancel: "キャンセル", pending: "購入結果を確認しています。", unknown: "購入結果を確認できません。利用権限を確認するか、同じ購入を再確認してください。", retry: "同じ購入を再確認", check: "利用権限を確認", stale: "価格または公開版が変更されました。最新の価格を確認し、改めて同意してください。", unavailable: "購入情報を確認できません。再読み込みしてください。", success: "購入を確認しました。物語を開始できます。", inactive: "以前の購入による利用権限は無効です。再購入する前に最新の価格を確認してください。", balance: "LUMINAの残高が不足しています。", denied: "購入できません。ログイン状態と利用権限を確認してください。", failed: "購入を完了できませんでした。再確認してください。", storage: "購入確認情報を安全に保存できません。ブラウザーの保存領域を確認してください。" },
+    "zh-Hans": { confirm: "确认支付 {price} LUMINA", consent: "以 {price} LUMINA 购买此作品？", cancel: "取消", pending: "正在确认购买结果。", unknown: "无法确认购买结果。请检查访问权限或重试同一笔购买。", retry: "重试同一笔购买", check: "检查访问权限", stale: "价格或发布版本已更改。请查看最新价格并重新确认。", unavailable: "无法确认购买信息，请刷新。", success: "购买已确认，可以开始故事。", inactive: "此前购买的访问权限已失效。再次购买前请查看最新价格。", balance: "LUMINA 余额不足。", denied: "无法购买，请检查登录状态和访问权限。", failed: "未能完成购买，请重新确认。", storage: "无法安全保存购买确认信息，请检查浏览器存储空间。" },
+    "zh-Hant": { confirm: "確認支付 {price} LUMINA", consent: "以 {price} LUMINA 購買此作品？", cancel: "取消", pending: "正在確認購買結果。", unknown: "無法確認購買結果。請檢查存取權限或重試同一筆購買。", retry: "重試同一筆購買", check: "檢查存取權限", stale: "價格或發布版本已變更。請查看最新價格並重新確認。", unavailable: "無法確認購買資訊，請重新整理。", success: "購買已確認，可以開始故事。", inactive: "先前購買的存取權限已失效。再次購買前請查看最新價格。", balance: "LUMINA 餘額不足。", denied: "無法購買，請檢查登入狀態和存取權限。", failed: "未能完成購買，請重新確認。", storage: "無法安全儲存購買確認資訊，請檢查瀏覽器儲存空間。" },
+  };
+
+  function purchaseTr(key) {
+    return PURCHASE_COPY[state.locale]?.[key] || PURCHASE_COPY.en[key] || "";
+  }
+
+  function readerIdentity() {
+    if (!signedIn()) return "";
+    const auth = window.getAuth?.();
+    return String(auth?.user?.id || auth?.user?.userId || "");
+  }
+
+  function purchaseQuote(value) {
+    if (!value || typeof value.priceLumina !== "string" ||
+        !/^(0|[1-9]\d{0,15})(\.\d{1,2})?$/.test(value.priceLumina) || !/[1-9]/.test(value.priceLumina) ||
+        !safeGraphId(value.releaseId) || !Number.isSafeInteger(value.releaseRevision) || value.releaseRevision < 1) return null;
+    return { priceLumina: value.priceLumina, releaseId: value.releaseId, releaseRevision: value.releaseRevision };
+  }
+
+  function purchaseStorageKey(workId, identity = readerIdentity()) {
+    return PURCHASE_STORAGE_PREFIX + encodeURIComponent(identity) + ":" + workId;
+  }
+
+  function pendingPurchase(workId = state.pack?.id) {
+    if (!workId || !readerIdentity()) return null;
+    const storageKey = purchaseStorageKey(workId);
+    if (purchaseOperations.has(storageKey)) return purchaseOperations.get(storageKey);
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(storageKey));
+      if (!saved) return null;
+      if (!purchaseQuote(saved.quote) || !/^story-purchase-[A-Za-z0-9-]{8,}$/.test(saved.key)) return { blocked: true };
+      const operation = { storageKey, key: saved.key, quote: purchaseQuote(saved.quote), pending: false };
+      purchaseOperations.set(storageKey, operation);
+      return operation;
+    } catch (_) { return { blocked: true }; }
+  }
+
+  function finishPurchase(operation) {
+    // If storage cannot be cleared, keep the original key for safe replay.
+    try { sessionStorage.removeItem(operation.storageKey); } catch (_) { return; }
+    purchaseOperations.delete(operation.storageKey);
+  }
 
   function resolveLocale() {
     const value = window.luminaI18n?.getLocale?.() || "ko";
@@ -801,7 +854,7 @@
   function priceText(access) {
     const pricing = access?.pricing;
     if (pricing?.currencyCode !== "LUMINA" || typeof pricing.amountLumina !== "string" || !/^\d+(\.\d+)?$/.test(pricing.amountLumina)) return "";
-    if (pricing.free === true && Number(pricing.amountLumina) === 0) return tr("free");
+    if (pricing.free === true && /^0+(\.0+)?$/.test(pricing.amountLumina)) return tr("free");
     return pricing.free === false ? `${pricing.amountLumina} LUMINA` : "";
   }
 
@@ -818,6 +871,7 @@
   function detailAction() {
     if (state.detailStatus !== "ready") return "unavailable";
     if (!signedIn()) return state.pack?.access?.actions?.authenticationRequired === true ? "sign_in" : "unavailable";
+    if (state.readerIdentity !== readerIdentity()) return "unavailable";
     const owner = state.readerAccess;
     const access = owner?.access;
     if (!access || access.actions?.authenticationRequired !== false || !priceText(access)) return "unavailable";
@@ -850,7 +904,12 @@
     const cover = coverUrl(pack);
     const action = detailAction();
     const active = document.activeElement;
-    const focusAction = active?.dataset?.storyStart !== undefined;
+    const focusSelector = ["data-story-start", "data-story-purchase", "data-story-purchase-confirm", "data-story-purchase-retry", "data-story-purchase-cancel", "data-story-detail-retry"].find((attribute) => active?.hasAttribute(attribute));
+    const operation = pendingPurchase();
+    const quote = operation?.quote || purchaseQuote(state.readerAccess?.access?.purchaseConfirmation);
+    const purchaseBusy = operation?.pending === true;
+    const purchaseDisabled = !quote || !readerIdentity() || operation?.blocked || state.detailPending || purchaseBusy;
+    const purchaseStatus = purchaseBusy ? purchaseTr("pending") : operation?.blocked ? purchaseTr("storage") : operation ? [state.purchaseNotice !== "unknown" ? purchaseTr(state.purchaseNotice) : "", purchaseTr("unknown")].filter(Boolean).join(" ") : state.purchaseNotice ? purchaseTr(state.purchaseNotice === "success" && !["start", "continue"].includes(action) ? "unavailable" : state.purchaseNotice) : action === "purchase" ? purchaseTr(quote ? "consent" : "unavailable").replace("{price}", quote?.priceLumina || "") : "";
     const scroll = dialog.querySelector(".story-detail-body")?.scrollTop || 0;
     dialog.innerHTML = `
       <header class="story-detail-header"><h2 id="storyDetailTitle">${escapeHtml(title)}</h2>
@@ -859,21 +918,24 @@
         ${pack ? `<div class="story-detail-main">
           ${cover ? `<div class="story-detail-cover has-image"><img src="${escapeHtml(cover)}" alt="" /></div>` : ""}
           <div class="story-detail-copy">
-            ${priceText(pack.access) ? `<p>${escapeHtml(priceText(pack.access))}</p>` : ""}
+            ${priceText(state.readerAccess?.access || pack.access) ? `<p>${escapeHtml(priceText(state.readerAccess?.access || pack.access))}</p>` : ""}
             ${packSummary(pack) ? `<h3>${escapeHtml(tr("synopsis"))}</h3><p class="story-synopsis">${escapeHtml(packSummary(pack))}</p>` : ""}
           </div></div>
           <section class="story-chapters"><h3>${escapeHtml(tr("chapterList"))} (${pack.parts.length})</h3>
             <ol>${pack.parts.map((part) => `<li><span>${escapeHtml(part.position)}</span><strong>${escapeHtml(textValue(part.title))}</strong><small>${escapeHtml(priceText(part.access))}</small></li>`).join("")}</ol>
           </section>` : ""}
       </div>
-      <footer class="story-detail-actions" aria-busy="${state.detailPending}">
-        <p data-story-detail-status role="status">${escapeHtml(state.detailStatus === "loading" || state.detailStatus === "access-loading" ? tr("loading") : state.detailStatus === "error" ? accessTr("detailUnavailable") : state.detailStatus === "access-error" ? state.detailError : action === "sign_in" ? tr("loginRequired") : action === "purchase" ? accessTr("purchaseUnavailable") : action === "unavailable" ? controlTr("sceneUnavailable") : "")}</p>
-        <div>${action === "start" || action === "continue" ? `<button class="story-button story-button-primary" data-story-start ${state.detailPending ? "disabled" : ""}>${escapeHtml(state.detailPending ? tr("starting") : tr(action))}</button>` : action === "purchase" ? `<button class="story-button story-button-primary" disabled aria-describedby="storyPurchaseReason">${escapeHtml(accessTr("purchase"))}</button><span id="storyPurchaseReason" class="story-sr-only">${escapeHtml(accessTr("purchaseUnavailable"))}</span>` : ""}
-        ${!["loading", "access-loading"].includes(state.detailStatus) ? `<button class="story-button story-button-secondary" data-story-detail-retry ${state.detailPending ? "disabled" : ""}>${escapeHtml(tr("retry"))}</button>` : ""}</div>
+      <footer class="story-detail-actions" aria-busy="${state.detailPending || purchaseBusy}">
+        <p id="storyPurchaseStatus" data-story-detail-status role="status">${escapeHtml(state.detailStatus === "loading" || state.detailStatus === "access-loading" ? tr("loading") : state.detailStatus === "error" ? accessTr("detailUnavailable") : state.detailStatus === "access-error" ? state.detailError : action === "sign_in" ? tr("loginRequired") : purchaseStatus || (action === "unavailable" ? controlTr("sceneUnavailable") : ""))}</p>
+        ${action === "purchase" && quote && (state.purchaseConfirming || operation) ? `<p class="story-purchase-price" data-story-purchase-price>${escapeHtml(quote.priceLumina)} LUMINA</p>` : ""}
+        <div>${action === "start" || action === "continue" ? `<button class="story-button story-button-primary" data-story-start ${state.detailPending || purchaseBusy ? "disabled" : ""}>${escapeHtml(state.detailPending ? tr("starting") : tr(action))}</button>` : action === "purchase" ? `<button class="story-button story-button-primary" ${operation ? "data-story-purchase-retry" : state.purchaseConfirming ? "data-story-purchase-confirm" : "data-story-purchase"} ${purchaseDisabled ? "disabled" : ""} aria-describedby="storyPurchaseStatus">${escapeHtml(operation ? purchaseTr("retry") : state.purchaseConfirming ? purchaseTr("confirm").replace("{price}", quote?.priceLumina || "") : accessTr("purchase"))}</button>${state.purchaseConfirming && !operation ? `<button class="story-button story-button-secondary" data-story-purchase-cancel>${escapeHtml(purchaseTr("cancel"))}</button>` : ""}` : ""}
+        ${!["loading", "access-loading"].includes(state.detailStatus) ? `<button class="story-button story-button-secondary" data-story-detail-retry ${state.detailPending || purchaseBusy ? "disabled" : ""}>${escapeHtml(operation ? purchaseTr("check") : tr("retry"))}</button>` : ""}</div>
       </footer>`;
     dialog.querySelector(".story-detail-body").scrollTop = scroll;
-    if (focusAction && !state.detailPending) dialog.querySelector("[data-story-start]")?.focus();
-    else dialog.querySelector("[data-story-close]")?.focus({ preventScroll: true });
+    const focusTarget = focusSelector && !state.detailPending && !purchaseBusy
+      ? dialog.querySelector(`[${focusSelector}]:not(:disabled)`) || dialog.querySelector("[data-story-purchase-confirm]:not(:disabled)") || dialog.querySelector("[data-story-purchase]:not(:disabled)") || dialog.querySelector("[data-story-start]:not(:disabled)")
+      : null;
+    (focusTarget || dialog.querySelector("[data-story-close]"))?.focus({ preventScroll: true });
   }
 
   function openPack(slug, trigger, push = true) {
@@ -908,6 +970,8 @@
     state.pack = null;
     state.readerAccess = null;
     state.readerState = null;
+    state.purchaseConfirming = false;
+    state.purchaseNotice = "";
     document.body.classList.remove("story-detail-open");
     if (state.returnFocus?.isConnected) state.returnFocus.focus({ preventScroll: true });
     else document.getElementById("storyStageTitle")?.focus({ preventScroll: true });
@@ -1371,10 +1435,14 @@
     }
   }
 
-  async function loadPack(slug) {
+  async function loadPack(slug, purchaseNotice = "") {
     const epoch = ++state.epoch;
     const locale = state.locale;
-    const current = () => epoch === state.epoch && state.detailSlug === slug && locale === state.locale;
+    const identity = readerIdentity();
+    const current = () => epoch === state.epoch && state.detailSlug === slug && locale === state.locale && identity === readerIdentity();
+    state.purchaseConfirming = false;
+    state.purchaseNotice = purchaseNotice;
+    state.readerIdentity = identity;
     state.detailStatus = "loading";
     state.pack = null;
     state.readerAccess = null;
@@ -1409,6 +1477,11 @@
       state.readerAccess = owner;
       state.readerState = progress;
       state.detailStatus = "ready";
+      const operation = pendingPurchase(workId);
+      if (owner.access.accessible === true && ["free", "entitled"].includes(owner.access.status) && operation && !operation.pending && !operation.blocked) {
+        finishPurchase(operation);
+        if (state.purchaseNotice === "unknown") state.purchaseNotice = "";
+      }
     } catch (error) {
       if (!current()) return;
       state.detailStatus = "access-error";
@@ -1417,11 +1490,71 @@
     renderPack();
   }
 
+  async function purchaseStory(retry = false) {
+    const workId = safeGraphId(state.pack?.id);
+    const identity = readerIdentity();
+    if (!workId || !identity || state.detailPending || detailAction() !== "purchase") return;
+    let operation = pendingPurchase(workId);
+    if (operation?.pending || operation?.blocked || (operation && !retry)) return;
+    if (!operation) {
+      if (retry || !state.purchaseConfirming) return;
+      const quote = purchaseQuote(state.readerAccess?.access?.purchaseConfirmation);
+      if (!quote) return;
+      operation = { storageKey: purchaseStorageKey(workId, identity), quote, key: requestId("story-purchase"), pending: false };
+      // Persist before transmission. An uncertain response must never mint another key.
+      try { sessionStorage.setItem(operation.storageKey, JSON.stringify({ key: operation.key, quote })); }
+      catch (_) { state.purchaseNotice = "storage"; renderPack(); return; }
+      purchaseOperations.set(operation.storageKey, operation);
+    }
+    const epoch = state.epoch;
+    const slug = state.detailSlug;
+    const locale = state.locale;
+    const current = () => epoch === state.epoch && slug === state.detailSlug && locale === state.locale && identity === readerIdentity();
+    operation.pending = true;
+    state.purchaseConfirming = false;
+    renderPack();
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15000);
+    let notice = "unknown";
+    try {
+      const result = await request(`/api/v1/stories/${encodeURIComponent(workId)}/purchase`, {
+        method: "POST", auth: true, signal: controller.signal,
+        headers: { "Idempotency-Key": operation.key },
+        body: { confirmedPriceLumina: operation.quote.priceLumina, expectedReleaseId: operation.quote.releaseId, expectedReleaseRevision: operation.quote.releaseRevision },
+      });
+      const noCharge = result?.charged === false && result.chargedAmountLumina === "0" && result.idempotentReplay === true;
+      const purchased = result?.outcome === "purchased" && result.entitled === true && result.charged === true && result.idempotentReplay === false && result.chargedAmountLumina === operation.quote.priceLumina;
+      const replayed = noCharge && result.outcome === "replayed" && result.entitled === true && purchaseQuote({ ...operation.quote, priceLumina: result.originalPurchaseAmountLumina });
+      const inactive = noCharge && result.outcome === "entitlement_inactive" && result.entitled === false;
+      if (purchased || replayed || inactive || (noCharge && result.entitled === true && ["free", "already_entitled"].includes(result.outcome))) {
+        finishPurchase(operation);
+        notice = inactive ? "inactive" : "success";
+      }
+    } catch (error) {
+      const body = error?.body?.error || error?.body || {};
+      const code = body.code;
+      if (error.status === 409 && ["STORY_PURCHASE_CONFIRMATION_STALE", "STORY_PURCHASE_CONFIRMATION_REQUIRED"].includes(code) && (body.walletMutation === false || body.details?.walletMutation === false)) {
+        finishPurchase(operation);
+        notice = "stale";
+      } else if ([400, 401, 403, 404, 422].includes(error.status)) {
+        if (body.walletMutation === false || body.details?.walletMutation === false) finishPurchase(operation);
+        notice = error.status === 401 || error.status === 403 ? "denied" : /INSUFFICIENT/.test(code || "") ? "balance" : "failed";
+      }
+    } finally {
+      clearTimeout(timer);
+      operation.pending = false;
+    }
+    // Read access/progress again; a purchase response is never a reader entitlement.
+    if (current()) await loadPack(slug, notice);
+    else if (identity === readerIdentity() && state.pack?.id === workId && state.detailSlug) await loadPack(state.detailSlug);
+  }
+
   async function startStory() {
     const workId = safeGraphId(state.pack?.id);
     if (state.detailPending || !workId || !["start", "continue"].includes(detailAction())) return;
     const epoch = state.epoch;
     const locale = state.locale;
+    const identity = readerIdentity();
     state.detailPending = true;
     renderPack();
     try {
@@ -1432,10 +1565,10 @@
       });
       const sessionId = safeGraphId(payload?.progressId);
       if (!sessionId || !Number.isInteger(payload.revision) || payload.revision < 1 || !Array.isArray(payload.choices) || payload.choices.length > 3) throw new Error("Invalid progress");
-      if (epoch !== state.epoch || locale !== state.locale || !signedIn()) return;
+      if (epoch !== state.epoch || locale !== state.locale || !signedIn() || identity !== readerIdentity()) return;
       location.href = `/story-stage?sessionId=${encodeURIComponent(sessionId)}&workId=${encodeURIComponent(workId)}`;
     } catch (error) {
-      if (epoch !== state.epoch) return;
+      if (epoch !== state.epoch || identity !== readerIdentity()) return;
       state.detailStatus = "access-error";
       state.readerAccess = null;
       state.detailError = error?.status === 401 ? tr("loginRequired") : tr("startFailed");
@@ -1732,6 +1865,15 @@
     if (state.resetPreview && !event.target.closest(".story-reset-dialog")) return;
     const packButton = event.target.closest("[data-pack-slug]");
     if (packButton) return openPack(packButton.dataset.packSlug, packButton);
+    if (event.target.closest("[data-story-purchase]")) {
+      if (detailAction() !== "purchase" || !purchaseQuote(state.readerAccess?.access?.purchaseConfirmation) || pendingPurchase()) return;
+      state.purchaseConfirming = true;
+      state.purchaseNotice = "";
+      return renderPack();
+    }
+    if (event.target.closest("[data-story-purchase-cancel]")) { state.purchaseConfirming = false; return renderPack(); }
+    if (event.target.closest("[data-story-purchase-confirm]")) return purchaseStory();
+    if (event.target.closest("[data-story-purchase-retry]")) return purchaseStory(true);
     if (event.target.closest("[data-story-detail-retry]")) return loadPack(state.detailSlug);
     if (event.target.closest("[data-story-more]")) return loadCatalog(true);
     const graphFocusButton = event.target.closest("[data-story-graph-focus]");
@@ -1845,9 +1987,16 @@
     ++state.epoch;
     state.readerAccess = null;
     state.readerState = null;
+    state.purchaseConfirming = false;
+    state.purchaseNotice = "";
     state.detailStatus = "access-error";
     state.detailError = tr("loginRequired");
     renderPack();
+  });
+
+  window.addEventListener("storage", (event) => {
+    if (event.key !== "lumina_auth" && event.key !== null) return;
+    if (state.detailSlug) loadPack(state.detailSlug);
   });
 
   window.addEventListener("popstate", () => {
