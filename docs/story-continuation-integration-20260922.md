@@ -23,15 +23,29 @@ not production deployment or approval of every included feature.
   typography/layout checks (15 locale/viewport captures plus2 affected layouts).
   Earlier source17 and visual/regression25 counts overlap. All text is reachable,
   there is no forced-scroll receipt gate, and a completed/null scene has an
-  explicit completion view. Independent combined browser review remains queued.
+  explicit completion view. Independent combined browser review on `1c1f201`
+  accepted six grouped checks with actual AppModule/JWT/filter/PG and the actual
+  Imjin manuscript: complete beat navigation/resume, duplicate/lost-ack/stale
+  recovery, five-locale controls and final75A completion. Preserved initial
+  harness-origin and synchronization failures are not relabeled first-run PASS.
+  Report: `E:/CodexMovedCache/qa-1848-combined-independent-report.md`.
+  This does not approve production origin/auth bootstrap, artwork, actual B/C
+  generation or all account/locale/reset races. PM found the default
+  `/assets/story/fallback.webp` missing from this checkout and no frontend image
+  error handler; #1881 tracks asset/failure-state followup separately.
 - Semantic candidate author validation passed67 focused tests, including17 real
   PG and1 default-OFF AppModule smoke. Full-source offline planning is separately
   measured; semantic interpretation quality, author review, approved memory and
   terminal-job recovery are not accepted by those tests. Current32-piece packing
   and raw Norse intake capacity are being improved before paid activation.
 - OTT graph candidate author tests passed134 with2 optional duration-probe skips.
-  Independent graph/PG and actual ffprobe checks are in progress. No branching
-  movie UI, final15-minute film, public playback or capacity claim follows.
+  Independent graph/PG review accepted eight grouped real-PG counterexamples and
+  separately reran two real-ffprobe duration checks. The two-second real-file
+  checks used persistence doubles; the PG checks used synthetic media/probe
+  fixtures. Do not combine them into actual-film/HTTP/browser evidence.
+  Report: `E:/CodexMovedCache/qa-1898-independent-report.md`.
+  Backend ticket1898 is completed within this scope; player UI is ticket1900.
+  No final15-minute film, public playback or production capacity claim follows.
 
 Original manuscripts and derived packages stay private on E. Product main,
 production migrations, customer wallets, paid providers and novel publication
