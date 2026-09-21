@@ -5,6 +5,7 @@ import {
   Injectable,
   NotFoundException,
   Optional,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
@@ -24,10 +25,8 @@ import {
   UpdateBeatProgressDto,
 } from './dto/story-production.dto';
 import {
-  analyzeStructuredManuscript,
   boundedPath,
   creatorStorySelectionPermissions,
-  deriveContinuityLedger,
   hasActiveEntitlement,
   isPublicStorySourceSafe,
   projectLocalizedValue,
@@ -48,6 +47,7 @@ import { prepareValidatedJsonManuscript } from './story-manuscript-file.policy';
 import { storeManuscriptVersion } from './story-manuscript-version.store';
 import { StoryContinuationProvider } from './story-continuation.provider';
 import { StoryContinuationLegalActivationGate } from './story-continuation-legal-activation.gate';
+import { SemanticAnalysisService } from './story-semantic-analysis.service';
 import { appendStoryRoute, createStoryRouteRoot } from './story-route-identity.store';
 
 const STORY_ENTITLEMENT_TYPES = [
@@ -65,6 +65,7 @@ export class StoryProductionService {
     @Optional() private readonly economics?: StoryEconomicsService,
     @Optional() private readonly continuationProvider?: StoryContinuationProvider,
     @Optional() private readonly legalActivation?: StoryContinuationLegalActivationGate,
+    @Optional() private readonly semanticAnalysis?: SemanticAnalysisService,
   ) {}
 
   async creatorCatalog(userId: string, query: StoryCatalogQueryDto) {
@@ -1132,139 +1133,18 @@ export class StoryProductionService {
   }
 
   async analyzeManuscript(userId: string, manuscriptId: string, idempotencyKey?: string) {
-    const key = this.analysisIdempotencyKey(idempotencyKey);
-    const manuscript = await this.prisma.storyManuscriptVersion.findFirst({ where: { id: manuscriptId, ownerUserId: userId } });
-    if (!manuscript) throw new NotFoundException('Manuscript version not found');
-    const existing = await this.prisma.storyAnalysisJob.findUnique({ where: { idempotencyKey: key } });
-    if (existing) {
-      if (existing.manuscriptVersionId !== manuscript.id) throw new ConflictException('Idempotency key belongs to another manuscript');
-      return this.analysisJobProjection(existing);
-    }
-    const body = manuscript.structuredBody as unknown as { parts: CreateManuscriptVersionDto['parts'] };
-    const analysis = analyzeStructuredManuscript(body.parts);
-    const completed = await this.prisma.$transaction(async (tx) => {
-      const latest = await tx.storyAnalysisJob.findFirst({ where: { manuscriptVersionId: manuscript.id }, orderBy: { analysisVersion: 'desc' }, select: { analysisVersion: true } });
-      const job = await tx.storyAnalysisJob.create({
-        data: {
-          workId: manuscript.workId,
-          manuscriptVersionId: manuscript.id,
-          analysisVersion: (latest?.analysisVersion ?? 0) + 1,
-          idempotencyKey: key,
-          status: 'running',
-          startedAt: new Date(),
-          result: { counts: analysis.counts, partCount: analysis.partCount },
-        },
-      });
-      const storedEvidence = [];
-      for (const item of analysis.evidence) {
-        storedEvidence.push(await tx.storyAnalysisEvidence.create({ data: { analysisJobId: job.id, ...item, payload: item.payload } }));
-      }
-      const ledger = deriveContinuityLedger(storedEvidence.map((item) => ({
-        id: item.id,
-        evidenceType: item.evidenceType as any,
-        sourcePartKey: item.sourcePartKey,
-        sourceParagraphIndex: item.sourceParagraphIndex,
-        payload: item.payload as Record<string, string | number | boolean>,
-      })));
-      for (const entry of ledger.entries) {
-        const storedEntry = await tx.storyContinuityEntry.create({
-          data: {
-            workId: manuscript.workId,
-            analysisJobId: job.id,
-            analysisVersion: job.analysisVersion,
-            ...entry,
-          },
-        });
-        await tx.storyContinuityEntryEvidence.createMany({
-          data: entry.evidenceIds.map((evidenceId) => ({
-            analysisJobId: job.id,
-            analysisVersion: job.analysisVersion,
-            entryId: storedEntry.id,
-            evidenceId,
-          })),
-        });
-        await tx.storyContinuityPathState.create({
-          data: {
-            workId: manuscript.workId,
-            analysisJobId: job.id,
-            analysisVersion: job.analysisVersion,
-            entryId: storedEntry.id,
-            pathScope: 'author_original',
-            pathKey: 'author_original',
-            state: entry.state,
-          },
-        });
-      }
-      for (const issue of ledger.issues) {
-        const storedIssue = await tx.storyContinuityIssue.create({
-          data: {
-            workId: manuscript.workId,
-            analysisJobId: job.id,
-            analysisVersion: job.analysisVersion,
-            pathScope: 'author_original',
-            pathKey: 'author_original',
-            ...issue,
-          },
-        });
-        await tx.storyContinuityIssueEvidence.createMany({
-          data: issue.evidenceIds.map((evidenceId) => ({
-            analysisJobId: job.id,
-            analysisVersion: job.analysisVersion,
-            issueId: storedIssue.id,
-            evidenceId,
-          })),
-        });
-      }
-      const criticalIssueCount = ledger.issues.filter((issue) => issue.severity === 'critical').length;
-      const warningIssueCount = ledger.issues.filter((issue) => issue.severity === 'warning').length;
-      return tx.storyAnalysisJob.update({
-        where: { id: job.id },
-        data: {
-          status: 'completed',
-          completedAt: new Date(),
-          result: {
-            counts: analysis.counts,
-            partCount: analysis.partCount,
-            evidenceCount: storedEvidence.length,
-            continuityEntryCount: ledger.entries.length,
-            criticalIssueCount,
-            warningIssueCount,
-          },
-        },
-      });
-    });
-    return this.analysisJobProjection(completed);
+    if (!this.semanticAnalysis) throw new ServiceUnavailableException({ code: 'SEMANTIC_ANALYSIS_UNAVAILABLE' });
+    return this.semanticAnalysis.enqueue(userId, manuscriptId, idempotencyKey);
   }
 
-  async analysis(userId: string, analysisId: string) {
-    const job = await this.prisma.storyAnalysisJob.findUnique({ where: { id: analysisId } });
-    if (!job) throw new NotFoundException('Analysis job not found');
-    const manuscript = await this.prisma.storyManuscriptVersion.findFirst({ where: { id: job.manuscriptVersionId, ownerUserId: userId } });
-    if (!manuscript) throw new NotFoundException('Analysis job not found');
-    const evidence = await this.prisma.storyAnalysisEvidence.findMany({ where: { analysisJobId: job.id }, orderBy: [{ sourcePartKey: 'asc' }, { sourceParagraphIndex: 'asc' }] });
-    const result = isPlainRecord(job.result) ? job.result : {};
-    return {
-      job: {
-        id: job.id,
-        manuscriptVersionId: job.manuscriptVersionId,
-        analysisVersion: job.analysisVersion,
-        status: job.status,
-        counts: projectAnalysisCounts(result.counts),
-        partCount: result.partCount ?? 0,
-        evidenceCount: result.evidenceCount ?? evidence.length,
-        continuityEntryCount: result.continuityEntryCount ?? 0,
-        criticalIssueCount: result.criticalIssueCount ?? 0,
-        warningIssueCount: result.warningIssueCount ?? 0,
-        startedAt: job.startedAt,
-        completedAt: job.completedAt,
-      },
-      evidence: evidence.map((item) => ({
-        id: item.id,
-        evidenceType: item.evidenceType,
-        sourcePartKey: item.sourcePartKey,
-        sourceParagraphIndex: item.sourceParagraphIndex,
-      })),
-    };
+  async analysis(userId: string, analysisId: string, cursor?: string) {
+    if (!this.semanticAnalysis) throw new ServiceUnavailableException({ code: 'SEMANTIC_ANALYSIS_UNAVAILABLE' });
+    return this.semanticAnalysis.get(userId, analysisId, cursor);
+  }
+
+  async analysisCitation(userId: string, analysisId: string, evidenceId: string) {
+    if (!this.semanticAnalysis) throw new ServiceUnavailableException({ code: 'SEMANTIC_ANALYSIS_UNAVAILABLE' });
+    return this.semanticAnalysis.citation(userId, analysisId, evidenceId);
   }
 
   async continuity(userId: string, workId: string) {
@@ -1687,55 +1567,12 @@ export class StoryProductionService {
     throwWalletMutationIdempotencyConflict();
   }
 
-  private analysisIdempotencyKey(value?: string) {
-    const key = value?.trim();
-    if (!key || key.length < 8 || key.length > 200) throw new BadRequestException('A valid Idempotency-Key header is required');
-    return `story-analysis:${key}`;
-  }
-
-  private analysisJobProjection(job: {
-    id: string;
-    manuscriptVersionId: string;
-    analysisVersion: number;
-    status: string;
-    result: unknown;
-    startedAt: Date | null;
-    completedAt: Date | null;
-  }) {
-    const result = isPlainRecord(job.result) ? job.result : {};
-    return {
-      id: job.id,
-      manuscriptVersionId: job.manuscriptVersionId,
-      analysisVersion: job.analysisVersion,
-      status: job.status,
-      counts: projectAnalysisCounts(result.counts),
-      partCount: Number(result.partCount ?? 0),
-      evidenceCount: Number(result.evidenceCount ?? 0),
-      continuityEntryCount: Number(result.continuityEntryCount ?? 0),
-      criticalIssueCount: Number(result.criticalIssueCount ?? 0),
-      warningIssueCount: Number(result.warningIssueCount ?? 0),
-      startedAt: job.startedAt,
-      completedAt: job.completedAt,
-    };
-  }
 }
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function projectAnalysisCounts(value: unknown): Record<string, number> {
-  if (!isPlainRecord(value)) return {};
-  const allowed = new Set([
-    'scene', 'beat', 'dialogue', 'background', 'cast', 'time', 'place',
-    'branch_candidate', 'entity', 'event', 'foreshadow', 'payoff',
-  ]);
-  return Object.fromEntries(
-    Object.entries(value)
-      .filter(([key, count]) => allowed.has(key) && typeof count === 'number' && Number.isFinite(count))
-      .map(([key, count]) => [key, Number(count)]),
-  );
-}
 
 function jsonArray(value: Prisma.JsonValue | null | undefined): Array<Record<string, unknown>> {
   return Array.isArray(value) ? (value as Array<Record<string, unknown>>) : [];

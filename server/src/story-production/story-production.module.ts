@@ -43,6 +43,9 @@ import {
 } from './story-reusable-result-approval.gate';
 import { StoryAiActivationService } from './story-ai-activation.service';
 import { StoryAiActivationAdminController } from './story-ai-activation.controller';
+import { SemanticAnalysisRepository } from './story-semantic-analysis.repository';
+import { SemanticAnalysisService } from './story-semantic-analysis.service';
+import { SEMANTIC_PROVIDER_FACTORY, SEMANTIC_WORKER_FACTORY } from './story-semantic-analysis.worker';
 
 @Module({
   imports: [ModerationModule],
@@ -58,6 +61,10 @@ import { StoryAiActivationAdminController } from './story-ai-activation.controll
     StoryEconomicsAdminController,
   ],
   providers: [
+    SemanticAnalysisRepository,
+    SemanticAnalysisService,
+    SEMANTIC_PROVIDER_FACTORY,
+    SEMANTIC_WORKER_FACTORY,
     StoryAiActivationService,
     StoryManuscriptAdmission,
     StoryManuscriptOwnerGuard,
