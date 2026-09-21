@@ -25,19 +25,23 @@ export class StoryContinuationExecutor {
     private readonly moderation: ModerationService,
   ) {}
 
-  async executeOne(workerId: string) {
+  async executeOne(workerId: string, signal?: AbortSignal) {
+    if (signal?.aborted) return { status: 'cancelled' as const };
     const expired = await this.queue.claimExpiredTerminal(workerId, LEASE_MS);
     if (expired) {
       await this.economics.failClaimedContinuation(expired, 'provider_timeout', 'timeout');
       return { status: 'recovered_timeout' as const, continuationId: expired.continuationId };
     }
     const readiness = await this.provider.readiness();
+    if (signal?.aborted) return { status: 'cancelled' as const };
     if (!readiness.enabled) {
       return { status: 'disabled' as const, reason: readiness.reason ?? 'provider_not_ready' };
     }
     const claim = await this.queue.claimNext(workerId, LEASE_MS);
     if (!claim) return { status: 'idle' as const };
+    let providerStarted = false;
     try {
+      throwIfCancelled(signal);
       const authorization = await this.economics.continuationExecutionAuthorization(claim);
       if (!authorization.allowed) {
         await this.economics.failClaimedContinuation(
@@ -48,13 +52,17 @@ export class StoryContinuationExecutor {
         return { status: 'failed' as const, continuationId: claim.continuationId };
       }
       const approvedContext = await this.contextAssembler.assemble(claim);
+      throwIfCancelled(signal);
+      providerStarted = true;
       const providerResult = await runWithAbortTimeout(
         (signal) => this.provider.generate(
           { ...claim.request, approvedContext },
           signal,
         ),
         PROVIDER_TIMEOUT_MS,
+        signal,
       );
+      if (signal?.aborted) throw new StoryContinuationProviderError('provider_outcome_unknown', false);
       const result = validateStoryContinuationProviderResult(providerResult, {
         locale: claim.request.locale,
         sceneKey: `ai-${claim.continuationId}`,
@@ -75,7 +83,12 @@ export class StoryContinuationExecutor {
       await this.economics.settleClaimedContinuation(claim, result);
       return { status: 'completed' as const, continuationId: claim.continuationId };
     } catch (error) {
-      const providerError = normalizeProviderError(error);
+      let providerError = normalizeProviderError(error);
+      // A settlement/database error after generation must not replay a potentially paid call.
+      if (providerStarted && providerError.retryable &&
+          !['provider_rate_limited', 'provider_cancelled'].includes(providerError.code)) {
+        providerError = new StoryContinuationProviderError('provider_outcome_unknown', false);
+      }
       if (providerError.retryable && claim.attemptCount < claim.maxAttempts) {
         const retryAt = new Date(Date.now() + Math.min(60_000, 1_000 * 2 ** claim.attemptCount));
         await this.queue.releaseForRetry(claim, providerError.code, retryAt);
@@ -94,22 +107,33 @@ export class StoryContinuationExecutor {
 export async function runWithAbortTimeout<T>(
   operation: (signal: AbortSignal) => Promise<T>,
   timeoutMs: number,
+  parentSignal?: AbortSignal,
 ): Promise<T> {
+  throwIfCancelled(parentSignal);
   const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let onAbort: (() => void) | undefined;
   try {
-    return await Promise.race([
-      operation(controller.signal),
-      new Promise<T>((_, reject) => {
-        timer = setTimeout(() => {
+    const interrupted = new Promise<T>((_, reject) => {
+        onAbort = () => {
+          reject(new StoryContinuationProviderError('provider_outcome_unknown', false));
           controller.abort();
-          reject(new StoryContinuationProviderError('provider_timeout', true));
+        };
+        parentSignal?.addEventListener('abort', onAbort, { once: true });
+        timer = setTimeout(() => {
+          reject(new StoryContinuationProviderError('provider_outcome_unknown', false));
+          controller.abort();
         }, timeoutMs);
-      }),
-    ]);
+    });
+    return await Promise.race([operation(controller.signal), interrupted]);
   } finally {
     if (timer) clearTimeout(timer);
+    if (onAbort) parentSignal?.removeEventListener('abort', onAbort);
   }
+}
+
+function throwIfCancelled(signal?: AbortSignal) {
+  if (signal?.aborted) throw new StoryContinuationProviderError('provider_cancelled', true);
 }
 
 function normalizeProviderError(error: unknown) {

@@ -184,17 +184,15 @@ describe('StoryContinuationExecutor', () => {
     );
   });
 
-  it('releases a retryable failure without consuming the reserved allowance', async () => {
+  it('does not retry a provider timeout with unknown paid outcome', async () => {
     const f = fixture();
     jest.mocked(f.provider.generate).mockRejectedValue(
       new StoryContinuationProviderError('provider_timeout', true),
     );
-    await expect(f.executor.executeOne('worker')).resolves.toMatchObject({ status: 'retry_wait' });
-    expect(f.queue.releaseForRetry).toHaveBeenCalledWith(
-      claim, 'provider_timeout', expect.any(Date),
-    );
+    await expect(f.executor.executeOne('worker')).resolves.toMatchObject({ status: 'failed' });
+    expect(f.queue.releaseForRetry).not.toHaveBeenCalled();
     expect(f.economics.settleClaimedContinuation).not.toHaveBeenCalled();
-    expect(f.economics.failClaimedContinuation).not.toHaveBeenCalled();
+    expect(f.economics.failClaimedContinuation).toHaveBeenCalledWith(claim, 'provider_outcome_unknown', 'failed');
   });
 
   it('preserves provider retryability for a non-timeout transient failure', async () => {
@@ -239,7 +237,7 @@ describe('StoryContinuationExecutor', () => {
     await expect(runWithAbortTimeout((signal) => {
       observedSignal = signal;
       return new Promise(() => undefined);
-    }, 5)).rejects.toMatchObject({ code: 'provider_timeout' });
+    }, 5)).rejects.toMatchObject({ code: 'provider_outcome_unknown', retryable: false });
     expect(observedSignal?.aborted).toBe(true);
   });
 

@@ -49,8 +49,8 @@ export function validateStoryContinuationProviderResult(
   ) {
     invalid('Generated continuation choices must be distinct');
   }
-  const endingKey = value.ending?.endingKey?.trim();
-  if (endingKey && !/^ai-[a-z0-9][a-z0-9_-]{0,116}$/i.test(endingKey)) {
+  const endingKey = typeof value.ending?.endingKey === 'string' ? value.ending.endingKey.trim() : undefined;
+  if (hasEnding && (!endingKey || !/^ai-[a-z0-9][a-z0-9_-]{0,116}$/i.test(endingKey))) {
     invalid('Generated continuation ending key is invalid');
   }
   const usage = usageRecord(value.usage);
