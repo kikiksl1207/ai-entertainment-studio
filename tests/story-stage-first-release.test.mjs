@@ -73,6 +73,11 @@ async function fixture(options = {}) {
     window.testLocale = locale;
     window.luminaI18n = { getLocale: () => window.testLocale };
   }, { locale });
+  if (options.storage) {
+    await context.addInitScript((entries) => {
+      for (const [key, value] of entries) sessionStorage.setItem(key, value);
+    }, Object.entries(options.storage));
+  }
   // No route ever calls continue/fallback: all transport is synthetic or denied.
   await context.route('**/*', async (route) => {
     const request = route.request();
@@ -208,6 +213,32 @@ for (const index of [0, 1, 2]) {
 
 const continuationId = '66666666-6666-4666-8666-666666666666';
 
+function pendingStorageKey(scope, choiceId, revision = 3, progressId = sessionId, work = 'session-only') {
+  return ['lumina:story-ai-pending:v1', scope, work, progressId, choiceId, revision]
+    .map((value) => encodeURIComponent(String(value))).join(':');
+}
+
+function pendingOperation(choiceId, continuation, createdAt) {
+  return JSON.stringify({ version: 1, workId: '', progressId: sessionId, choiceId, revision: 3, locale: 'en',
+    idempotencyKey: `story-choice-${choiceId}-stable-key`, continuationId: continuation, status: 'queued', createdAt, updatedAt: createdAt });
+}
+
+test('immediate completed receipt raises the revision floor before refetch', async () => {
+  const f = await fixture({ hook: (r) => r.method === 'POST' && r.path.includes('/choices/')
+    ? { body: { continuationId, status: 'completed', revisionAfterRequest: 4 } } : null });
+  try {
+    await f.ready();
+    await f.page.locator('[data-choice-id]').nth(1).click();
+    await f.page.locator('.story-state h2').waitFor();
+    assert.equal(await f.page.locator('[data-choice-id]').count(), 0, 'stale revision 3 must not become actionable again');
+    assert.equal(f.requests.filter((r) => r.method === 'POST').length, 1);
+    f.setCurrent({ ...projection(2), revision: 4 });
+    await f.page.locator('[data-story-retry]').click();
+    await f.page.locator('[data-choice-id]').first().waitFor();
+    assert.equal(f.requests.filter((r) => r.method === 'POST').length, 1);
+  } finally { await f.close(); }
+});
+
 test('AI continuation uses one stable key, bounded status polling, then reloads the generated scene', async () => {
   let checks = 0;
   const f = await fixture({ hook: (r, state) => {
@@ -262,6 +293,110 @@ test('lost AI POST response never auto-reposts and explicit recovery reuses the 
     const posts = f.requests.filter((r) => r.method === 'POST');
     assert.equal(posts.length, 2);
     assert.equal(posts[1].headers['idempotency-key'], firstKey);
+    assert.deepEqual(posts.map((r) => r.body), [{ expectedRevision: 3 }, { expectedRevision: 3 }]);
+  } finally { await f.close(); }
+});
+
+for (const [status, copy] of [[401, 'sign-in expired'], [403, 'do not have permission']]) {
+  test(`continuation ${status} remains unresolved and blocks choice/reset mutations`, async () => {
+    const f = await fixture({ hook: (r) => {
+      if (r.method === 'POST' && r.path.includes('/choices/')) return { body: { continuationId, status: 'queued', revisionAfterRequest: 4 } };
+      if (r.method === 'GET' && r.path.endsWith(`/ai-continuations/${continuationId}`)) return envelope(status === 401 ? 'UNAUTHORIZED' : 'FORBIDDEN', status);
+    } });
+    try {
+      await f.ready();
+      await f.page.locator('[data-choice-id]').nth(1).click();
+      await f.page.waitForFunction((text) => document.querySelector('[data-story-ai-notice]')?.textContent.includes(text), copy);
+      assert.equal(await f.page.locator('[data-choice-id]:not(:disabled), [data-story-reset-preview]:not(:disabled)').count(), 0);
+      await f.page.evaluate(() => {
+        const choice = document.createElement('button'); choice.dataset.choiceId = 'choice-1';
+        const reset = document.createElement('button'); reset.dataset.storyResetPreview = 'full';
+        document.querySelector('#storyStageRoot').append(choice, reset); choice.click(); reset.click(); choice.remove(); reset.remove();
+      });
+      assert.equal(f.requests.filter((r) => r.method === 'POST').length, 1);
+      assert.equal(f.requests.filter((r) => r.path.endsWith('/reset-preview')).length, 2, 'only initial control reads are allowed');
+      assert.equal(await f.page.locator('[data-story-ai-recover]').count(), 1);
+      assert.equal(await f.page.evaluate(() => Object.keys(sessionStorage).filter((key) => key.includes('story-ai-pending')).length), 1);
+    } finally { await f.close(); }
+  });
+}
+
+test('corrupt storage is isolated, newest valid pending wins, and completion removes only same-scope revision siblings', async () => {
+  const scope = 'qa-session-scope';
+  const otherScopeKey = pendingStorageKey('other-user-scope', 'choice-cross');
+  const oldContinuation = '77777777-7777-4777-8777-777777777777';
+  const newContinuation = '88888888-8888-4888-8888-888888888888';
+  const storage = {
+    'lumina:story-ai-session-scope:v1': scope,
+    [pendingStorageKey(scope, 'choice-broken')]: '{not-json',
+    [pendingStorageKey(scope, 'choice-old')]: pendingOperation('choice-old', oldContinuation, 10),
+    [pendingStorageKey(scope, 'choice-new')]: pendingOperation('choice-new', newContinuation, 20),
+    [otherScopeKey]: pendingOperation('choice-cross', oldContinuation, 30),
+  };
+  const f = await fixture({ storage, hook: (r, state) => {
+    if (r.method === 'GET' && r.path.endsWith(`/ai-continuations/${newContinuation}`)) {
+      state.setCurrent({ ...projection(1), revision: 4, scene: { ...projection().scene, id: 'stored-result', beats: [{ position: 0, content: 'SYNTHETIC STORED RESULT' }] } });
+      return { body: { continuationId: newContinuation, status: 'completed', revisionAfterRequest: 4 } };
+    }
+  } });
+  try {
+    await f.ready();
+    await f.page.waitForFunction(() => document.querySelector('[data-story-scene-focus]')?.textContent.includes('SYNTHETIC STORED RESULT'));
+    assert.equal(f.requests.some((r) => r.path.endsWith(`/ai-continuations/${oldContinuation}`)), false);
+    const remaining = await f.page.evaluate(() => Object.fromEntries(Object.entries(sessionStorage)));
+    assert.equal(remaining[otherScopeKey], storage[otherScopeKey], 'another user scope must remain untouched');
+    assert.equal(Object.keys(remaining).some((key) => key.includes(encodeURIComponent(scope)) && key.includes('story-ai-pending')), false);
+  } finally { await f.close(); }
+});
+
+test('hard poll deadline aborts an in-flight GET and does not mutate again afterward', async () => {
+  const f = await fixture({ hook: (r) => r.method === 'POST' && r.path.includes('/choices/')
+    ? { body: { continuationId, status: 'queued', revisionAfterRequest: 4 } } : null });
+  try {
+    await f.ready();
+    await f.page.clock.install();
+    await f.page.evaluate(() => {
+      const originalFetch = window.fetch;
+      window.__pollStarted = false;
+      window.__pollAborted = false;
+      window.fetch = (input, init = {}) => {
+        if (String(input).includes('/ai-continuations/')) {
+          window.__pollStarted = true;
+          return new Promise((resolve, reject) => init.signal.addEventListener('abort', () => {
+            window.__pollAborted = true;
+            reject(new DOMException('Synthetic deadline', 'AbortError'));
+          }, { once: true }));
+        }
+        return originalFetch(input, init);
+      };
+    });
+    await f.page.locator('[data-choice-id]').nth(1).click();
+    await f.page.clock.fastForward(1000);
+    await f.page.waitForFunction(() => window.__pollStarted === true);
+    await f.page.clock.fastForward(30000);
+    await f.page.waitForFunction(() => window.__pollAborted === true && document.querySelector('[data-story-ai-recover]'));
+    const settledHtml = await f.page.locator('#storyStageRoot').innerHTML();
+    await f.page.clock.fastForward(60000);
+    assert.equal(await f.page.locator('#storyStageRoot').innerHTML(), settledHtml);
+  } finally { await f.close(); }
+});
+
+test('shared-result pending never auto-posts and explicit recheck uses the same key', async () => {
+  const f = await fixture({ hook: (r) => r.method === 'POST' && r.path.includes('/choices/')
+    ? { status: 409, body: { success: false, error: { code: 'STORY_AI_SHARED_RESULT_PENDING', statusCode: 409, details: { retryable: true } } } } : null });
+  try {
+    await f.ready();
+    await f.page.locator('[data-choice-id]').nth(1).click();
+    await f.page.waitForFunction(() => document.querySelector('[data-story-ai-notice]')?.textContent.includes('same scene is being prepared'));
+    await f.page.waitForTimeout(1200);
+    const first = f.requests.filter((r) => r.method === 'POST');
+    assert.equal(first.length, 1);
+    assert.equal(await f.page.locator('[data-choice-id]:not(:disabled), [data-story-reset-preview]:not(:disabled)').count(), 0);
+    await f.page.locator('[data-story-ai-recover]').click();
+    await f.page.waitForFunction(() => document.querySelector('#storyStageRoot').getAttribute('aria-busy') === 'false');
+    const posts = f.requests.filter((r) => r.method === 'POST');
+    assert.equal(posts.length, 2);
+    assert.equal(posts[1].headers['idempotency-key'], posts[0].headers['idempotency-key']);
     assert.deepEqual(posts.map((r) => r.body), [{ expectedRevision: 3 }, { expectedRevision: 3 }]);
   } finally { await f.close(); }
 });
