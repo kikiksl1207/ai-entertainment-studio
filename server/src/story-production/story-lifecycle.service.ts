@@ -27,6 +27,7 @@ import {
 } from './story-lifecycle.policy';
 import { StoryEconomicsService } from './story-economics.service';
 import { assertSuggestedChoiceCount } from './story-progress-control.policy';
+import { assertAuthoredImportPublicationTx } from './story-authored-import.service';
 
 @Injectable()
 export class StoryLifecycleService {
@@ -136,6 +137,7 @@ export class StoryLifecycleService {
         : null;
       if (body.toStatus === 'published') {
         if (!release) throw new BadRequestException('Validated release is required');
+        await assertAuthoredImportPublicationTx(tx, workId, release.id);
         const validation = release.validationSummary as Record<string, unknown>;
         if (validation.ready !== true || Number(validation.blockingIssueCount ?? 0) > 0) {
           throw new ConflictException('Release validation is not ready');
