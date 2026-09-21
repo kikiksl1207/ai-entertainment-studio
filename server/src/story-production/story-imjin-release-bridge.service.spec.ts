@@ -16,12 +16,15 @@ const plan: policy.ImjinReleasePlan = {
     beats: [`Synthetic beat ${number}`],
     choices: [
       { choiceKey: 'A' as const, label: 'A', routeKind: 'writer_original' as const,
-        targetPartKey: number === 1 ? 'part-02' : null, targetEndingKey: number === 2 ? 'writer-primary' : null },
+        targetPartKey: number === 1 ? 'part-02' : null, targetEndingKey: number === 2 ? 'author_main' : null },
       { choiceKey: 'B' as const, label: 'B', routeKind: 'generation_required' as const,
         targetPartKey: null, targetEndingKey: null },
       { choiceKey: 'C' as const, label: 'C', routeKind: 'generation_required' as const,
         targetPartKey: null, targetEndingKey: null },
     ],
+    privateDirectives: [{
+      type: 'character' as const, ordinal: null, value: `Private direction ${number}`, sourceLine: 1,
+    }],
     sceneDirectiveCount: 1,
     backgroundDirectiveCount: 1,
   })),
@@ -105,10 +108,27 @@ describe('StoryImjinReleaseBridgeService', () => {
     expect(rows.filter((row) => row.routeKind === 'generation_required')).toHaveLength(4);
     expect(rows.filter((row) => row.routeKind === 'generation_required'))
       .toEqual(expect.arrayContaining([expect.objectContaining({ targetSceneId: null, targetEndingKey: null })]));
+    expect(rows).toEqual(expect.arrayContaining([
+      expect.objectContaining({ choiceKey: 'A', targetEndingKey: 'author_main' }),
+    ]));
+    expect(f.tx.storyScene.createMany).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.arrayContaining([expect.objectContaining({ endingType: 'author_main' })]),
+    }));
     expect(result).toMatchObject({ mode: 'apply', applyExecuted: true, idempotentReplay: false });
     expect(f.tx.auditEvent.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ metadata: expect.objectContaining({ rawSourceIncluded: false }) }),
     }));
+    expect(f.tx.storyRelease.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: { diffSummary: expect.objectContaining({
+        privateProductionDirectives: expect.objectContaining({
+          public: false,
+          parts: expect.arrayContaining([expect.objectContaining({
+            directives: expect.arrayContaining([expect.objectContaining({ type: 'character' })]),
+          })]),
+        }),
+      }) },
+    }));
+    expect(JSON.stringify(result)).not.toContain('Private direction');
   });
 
   it('replays only the same idempotency payload without duplicate writes', async () => {

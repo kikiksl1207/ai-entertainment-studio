@@ -151,7 +151,7 @@ export class StoryImjinReleaseBridgeService {
       const sceneRows = plan.parts.map((part, index) => ({
         id: randomUUID(), partId: partRows[index].id, sceneKey: part.sceneKey, position: 1,
         status: 'published', title: { ko: part.title }, fixtureSource: false,
-        endingType: index === plan.parts.length - 1 ? 'writer_primary' : null,
+        endingType: index === plan.parts.length - 1 ? 'author_main' : null,
         visualManifest: {
           sceneKey: part.sceneKey,
           background: { state: 'missing', altKey: 'story.scene.background' },
@@ -182,6 +182,14 @@ export class StoryImjinReleaseBridgeService {
           importBridge: {
             contract: 'imjin-release-v1', keyHash, payloadHash,
             sourceSha256: plan.source.sha256, partCount: plan.parts.length,
+          },
+          privateProductionDirectives: {
+            contract: 'imjin-production-directives-v1',
+            public: false,
+            parts: plan.parts.map((part) => ({
+              partKey: part.partKey,
+              directives: part.privateDirectives,
+            })),
           },
         } as Prisma.InputJsonValue },
       });

@@ -676,7 +676,13 @@ export class StoryProductionService {
         ? await tx.storyScene.findFirst({ where: { id: choice.targetSceneId, status: 'published', fixtureSource: false } })
         : null;
       if (choice.targetSceneId && !target) throw new ConflictException('Choice target is unavailable');
-      const endingType = target?.endingType ?? (choice.targetEndingKey ? 'author_sub' : null);
+      const endingType = target?.endingType ?? (
+        choice.targetEndingKey === 'author_main'
+          ? 'author_main'
+          : choice.targetEndingKey
+            ? 'author_sub'
+            : null
+      );
       const targetPart = target
         ? await tx.storyPart.findUnique({ where: { id: target.partId } })
         : null;

@@ -56,6 +56,7 @@ function fixture() {
     customCreate: jest.fn(), requestCreate: jest.fn(), allowanceUpsert: jest.fn(),
     usageCreate: jest.fn(), eventCreate: jest.fn(), qualityUpsert: jest.fn(),
     progressUpdate: jest.fn().mockResolvedValue({ count: 1 }), checkpointCreate: jest.fn(),
+    endingUpsert: jest.fn(),
   };
   const prisma = {
     storyReaderProgress: {
@@ -88,6 +89,7 @@ function fixture() {
     storyAiAllowanceBucket: { upsert: mutations.allowanceUpsert, findUnique: jest.fn().mockResolvedValue(null) },
     storyAiUsageLedger: { create: mutations.usageCreate },
     storyChoiceEvent: { create: mutations.eventCreate, findMany: jest.fn().mockResolvedValue([]) },
+    storyEndingDiscovery: { upsert: mutations.endingUpsert },
     storyQualityEvent: { upsert: mutations.qualityUpsert },
     feedSearchBlockedTerm: { findMany: jest.fn() },
     storyProgressCheckpoint: { create: mutations.checkpointCreate, findFirst: jest.fn().mockResolvedValue(null) },
@@ -367,6 +369,24 @@ describe('First public release custom-choice enforcement', () => {
 });
 
 describe('First public release suggested choices', () => {
+  it('records the canonical author_main ending across event, gallery, and progress', async () => {
+    const f = fixture();
+    f.work.priceLumina = new Decimal(0);
+    f.choices[0].targetSceneId = null as never;
+    f.choices[0].targetEndingKey = 'author_main' as never;
+    jest.spyOn(f.production, 'currentProgress').mockResolvedValue({} as never);
+    await f.production.selectChoice('reader', 'progress', 'choice-1', 3);
+    expect(f.mutations.eventCreate).toHaveBeenCalledWith({ data: expect.objectContaining({
+      endingKey: 'author_main', endingType: 'author_main',
+    }) });
+    expect(f.mutations.endingUpsert).toHaveBeenCalledWith(expect.objectContaining({
+      create: expect.objectContaining({ endingKey: 'author_main', endingKind: 'author_main' }),
+    }));
+    expect(f.mutations.progressUpdate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ status: 'completed', visitedEndingKeys: ['author_main'] }),
+    }));
+  });
+
   it('does not mutate progress or start generation for a generation-required choice', async () => {
     const f = fixture();
     f.choices[1].routeKind = 'generation_required';

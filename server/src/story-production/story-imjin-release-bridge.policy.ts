@@ -6,7 +6,24 @@ export const IMJIN_RELEASE_SOURCE = {
   byteLength: 2_734_895,
   sha256: '34e2f00f1c375ca5a5af6733f74287224f3d63213a0981e4bc3655b6ed7db125',
   partCount: 75,
+  directiveCounts: {
+    scene: 95,
+    background: 196,
+    character: 173,
+    background_image: 14,
+    flashback: 4,
+  },
 } as const;
+
+const DIRECTIVE_LABELS = {
+  '장면': 'scene',
+  '배경': 'background',
+  '등장': 'character',
+  '배경 이미지 지시': 'background_image',
+  '회상': 'flashback',
+} as const;
+type ImjinDirectiveType = typeof DIRECTIVE_LABELS[keyof typeof DIRECTIVE_LABELS];
+type ImjinDirectiveCounts = Record<ImjinDirectiveType, number>;
 
 const REQUIRED_SECTIONS = [
   '파트 제목',
@@ -23,6 +40,7 @@ export type ImjinSourceExpectation = {
   byteLength: number;
   sha256: string;
   partCount: number;
+  directiveCounts?: ImjinDirectiveCounts;
 };
 
 export type ImjinReleasePlan = {
@@ -37,7 +55,13 @@ export type ImjinReleasePlan = {
       label: string;
       routeKind: 'writer_original' | 'generation_required';
       targetPartKey: string | null;
-      targetEndingKey: string | null;
+      targetEndingKey: 'author_main' | 'author_sub' | null;
+    }>;
+    privateDirectives: Array<{
+      type: ImjinDirectiveType;
+      ordinal: number | null;
+      value: string | null;
+      sourceLine: number;
     }>;
     sceneDirectiveCount: number;
     backgroundDirectiveCount: number;
@@ -53,6 +77,8 @@ export type ImjinDryRunReport = {
     choiceCount: number;
     sceneDirectiveCount: number;
     backgroundDirectiveCount: number;
+    productionDirectiveCount: number;
+    directiveCounts: ImjinDirectiveCounts;
     endingMetadataCount: number;
   };
   releasePolicy: {
@@ -85,14 +111,45 @@ function sectionsFor(partText: string) {
   return sections;
 }
 
-function publicBeats(body: string) {
-  const paragraphs = body
+function emptyDirectiveCounts(): ImjinDirectiveCounts {
+  return { scene: 0, background: 0, character: 0, background_image: 0, flashback: 0 };
+}
+
+function productionDirective(line: string, sourceLine: number) {
+  const valued = line.match(/^\s*\[\s*(배경 이미지 지시|배경|등장|장면|회상)(?:\s+(\d+))?\s*:\s*([^\]\r\n]+)\]\s*$/);
+  if (valued) return {
+    type: DIRECTIVE_LABELS[valued[1] as keyof typeof DIRECTIVE_LABELS],
+    ordinal: valued[2] ? Number(valued[2]) : null,
+    value: valued[3].trim(),
+    sourceLine,
+  };
+  const marker = line.match(/^\s*\[\s*(장면)\s+(\d+)\s*\]\s*$/);
+  if (marker) return {
+    type: DIRECTIVE_LABELS[marker[1] as keyof typeof DIRECTIVE_LABELS],
+    ordinal: Number(marker[2]),
+    value: null,
+    sourceLine,
+  };
+  // Unknown colon directives and numbered stage markers are ambiguous private
+  // production syntax. Fail closed instead of publishing or deleting them.
+  if (/^\s*\[[^\]\r\n]{1,80}:[^\]\r\n]*\]\s*$/.test(line) ||
+      /^\s*\[[가-힣A-Za-z][가-힣A-Za-z ]{0,30}\s+\d+\s*\]\s*$/.test(line)) {
+    invalid('IMJIN_UNKNOWN_PRODUCTION_DIRECTIVE');
+  }
+  return null;
+}
+
+function publicBody(body: string) {
+  const directives: ImjinReleasePlan['parts'][number]['privateDirectives'] = [];
+  const publicLines = body.split(/\r?\n/).filter((line, index) => {
+    const directive = productionDirective(line, index + 1);
+    if (!directive) return true;
+    directives.push(directive);
+    return false;
+  });
+  const paragraphs = publicLines.join('\n')
     .split(/\r?\n\s*\r?\n/)
-    .map((paragraph) => paragraph
-      .split(/\r?\n/)
-      .filter((line) => !/^\s*\[(?:장면|배경)\s*:/i.test(line))
-      .join('\n')
-      .trim())
+    .map((paragraph) => paragraph.trim())
     .filter(Boolean);
   const beats: string[] = [];
   let current = '';
@@ -110,7 +167,7 @@ function publicBeats(body: string) {
   }
   if (current) beats.push(current);
   if (!beats.length || beats.length > 40) invalid('IMJIN_PUBLIC_BEAT_COUNT');
-  return beats;
+  return { beats, directives };
 }
 
 export function prepareImjinReleasePlan(
@@ -145,8 +202,13 @@ export function prepareImjinReleasePlan(
     const titleLines = sections.get('파트 제목')!.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
     if (titleLines.length !== 1 || titleLines[0].length > 240) invalid('IMJIN_PART_TITLE_INVALID');
     const body = sections.get('본문 원고')!;
-    const sceneDirectiveCount = (partText.match(/\[장면/gi) ?? []).length;
-    const backgroundDirectiveCount = (partText.match(/\[배경/gi) ?? []).length;
+    const parsedBody = publicBody(body);
+    const directiveCounts = parsedBody.directives.reduce((counts, directive) => {
+      counts[directive.type]++;
+      return counts;
+    }, emptyDirectiveCounts());
+    const sceneDirectiveCount = directiveCounts.scene;
+    const backgroundDirectiveCount = directiveCounts.background + directiveCounts.background_image;
     if (!backgroundDirectiveCount) invalid('IMJIN_BACKGROUND_DIRECTIVE_MISSING');
 
     const choiceLines = sections.get('선택지 3개')!
@@ -172,7 +234,7 @@ export function prepareImjinReleasePlan(
       partKey: `part-${String(number).padStart(2, '0')}`,
       title: titleLines[0],
       sceneKey: `part-${String(number).padStart(2, '0')}-main`,
-      beats: publicBeats(body),
+      beats: parsedBody.beats,
       choices: choiceLines.map((match, choiceIndex) => ({
         choiceKey: match[1] as 'A' | 'B' | 'C',
         label: match[2].trim(),
@@ -180,13 +242,23 @@ export function prepareImjinReleasePlan(
         targetPartKey: choiceIndex === 0 && index < headings.length - 1
           ? `part-${String(number + 1).padStart(2, '0')}`
           : null,
-        targetEndingKey: choiceIndex === 0 && index === headings.length - 1 ? 'writer-primary' : null,
+        targetEndingKey: choiceIndex === 0 && index === headings.length - 1 ? 'author_main' as const : null,
       })),
+      privateDirectives: parsedBody.directives,
       sceneDirectiveCount,
       backgroundDirectiveCount,
     };
   });
   if (!parts.some((part) => part.sceneDirectiveCount > 0)) invalid('IMJIN_SCENE_DIRECTIVE_MISSING');
+  const actualDirectiveCounts = parts.flatMap((part) => part.privateDirectives)
+    .reduce((counts, directive) => {
+      counts[directive.type]++;
+      return counts;
+    }, emptyDirectiveCounts());
+  if (expected.directiveCounts && Object.entries(expected.directiveCounts)
+      .some(([type, count]) => actualDirectiveCounts[type as ImjinDirectiveType] !== count)) {
+    invalid('IMJIN_DIRECTIVE_COUNT_MISMATCH');
+  }
   return { source: { byteLength: buffer.length, sha256, partCount: parts.length }, parts };
 }
 
@@ -200,6 +272,12 @@ export function projectImjinDryRun(plan: ImjinReleasePlan): ImjinDryRunReport {
       choiceCount: plan.parts.reduce((count, part) => count + part.choices.length, 0),
       sceneDirectiveCount: plan.parts.reduce((count, part) => count + part.sceneDirectiveCount, 0),
       backgroundDirectiveCount: plan.parts.reduce((count, part) => count + part.backgroundDirectiveCount, 0),
+      productionDirectiveCount: plan.parts.reduce((count, part) => count + part.privateDirectives.length, 0),
+      directiveCounts: plan.parts.flatMap((part) => part.privateDirectives)
+        .reduce((counts, directive) => {
+          counts[directive.type]++;
+          return counts;
+        }, emptyDirectiveCounts()),
       endingMetadataCount: plan.parts.at(-1)?.choices.some((choice) => choice.targetEndingKey) ? 1 : 0,
     },
     releasePolicy: {

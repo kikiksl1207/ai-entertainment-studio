@@ -1,4 +1,5 @@
 import { createHash } from 'crypto';
+import { readFileSync } from 'fs';
 import {
   prepareImjinReleasePlan,
   projectImjinDryRun,
@@ -14,8 +15,12 @@ Synthetic title ${number}
 ## 본문 원고
 [장면: synthetic]
 [배경: synthetic]
+[등장: synthetic]
+[배경 이미지 지시: synthetic]
+[회상: synthetic]
 
-Synthetic body marker ${number}.
+Synthetic body marker ${number} with [ordinary brackets].
+[ordinary bracketed prose]
 ## 배경 이미지 지시
 private directive placeholder
 ## 선택지 3개
@@ -53,6 +58,13 @@ describe('Imjin release dry-run policy', () => {
     });
     expect(serialized).not.toContain('Synthetic body marker');
     expect(serialized).not.toContain('private directive placeholder');
+    expect(serialized).not.toContain('synthetic generation metadata');
+    expect(plan.parts.flatMap((part) => part.beats).join('\n')).toContain('[ordinary brackets]');
+    expect(plan.parts.flatMap((part) => part.beats).join('\n')).toContain('[ordinary bracketed prose]');
+    expect(plan.parts.flatMap((part) => part.beats).join('\n')).not.toMatch(/^\s*\[(?:장면|배경|등장|배경 이미지 지시|회상)/m);
+    expect(report.structure.directiveCounts).toEqual({
+      scene: 2, background: 2, character: 2, background_image: 2, flashback: 2,
+    });
   });
 
   it('keeps B/C generation-required without converging them to A', () => {
@@ -62,14 +74,15 @@ describe('Imjin release dry-run policy', () => {
       expect.objectContaining({ choiceKey: 'B', routeKind: 'generation_required', targetPartKey: null, targetEndingKey: null }),
       expect.objectContaining({ choiceKey: 'C', routeKind: 'generation_required', targetPartKey: null, targetEndingKey: null }),
     ]);
-    expect(plan.parts[1].choices[0]).toEqual(expect.objectContaining({ targetPartKey: null, targetEndingKey: 'writer-primary' }));
+    expect(plan.parts[1].choices[0]).toEqual(expect.objectContaining({ targetPartKey: null, targetEndingKey: 'author_main' }));
   });
 
   it.each([
     ['missing B', source().replace('B. Generated B 1\n', ''), 'IMJIN_CHOICE_SET_INVALID'],
-    ['missing background', source().replace('[배경: synthetic]\n', ''), 'IMJIN_BACKGROUND_DIRECTIVE_MISSING'],
+    ['missing background', source().replace('[배경: synthetic]\n', '').replace('[배경 이미지 지시: synthetic]\n', ''), 'IMJIN_BACKGROUND_DIRECTIVE_MISSING'],
     ['wrong next part', source().replace('PART 02', 'PART 03'), 'IMJIN_NEXT_PART_METADATA_INVALID'],
     ['missing ending', source().replace('완결 엔딩', 'continued'), 'IMJIN_ENDING_METADATA_INVALID'],
+    ['unknown production directive', source().replace('[등장: synthetic]', '[카메라: synthetic]'), 'IMJIN_UNKNOWN_PRODUCTION_DIRECTIVE'],
   ])('rejects %s', (_name, text, code) => {
     expect(() => prepare(Buffer.from(text))).toThrow(expect.objectContaining({ response: expect.objectContaining({ code }) }));
   });
@@ -89,5 +102,19 @@ describe('Imjin release dry-run policy', () => {
     const raw = Buffer.from(source());
     expect(() => prepareImjinReleasePlan(raw, { byteLength: raw.length, sha256: '0'.repeat(64), partCount: 2 }))
       .toThrow(expect.objectContaining({ response: expect.objectContaining({ code: 'IMJIN_SOURCE_IDENTITY_MISMATCH' }) }));
+  });
+
+  const actualSourcePath = process.env.IMJIN_ACTUAL_SOURCE_PATH;
+  (actualSourcePath ? it : it.skip)('keeps all actual production directives out of public beats', () => {
+    const plan = prepareImjinReleasePlan(readFileSync(actualSourcePath!));
+    const report = projectImjinDryRun(plan);
+    expect(report.structure).toMatchObject({
+      productionDirectiveCount: 482,
+      directiveCounts: {
+        scene: 95, background: 196, character: 173, background_image: 14, flashback: 4,
+      },
+    });
+    expect(plan.parts.flatMap((part) => part.beats).join('\n'))
+      .not.toMatch(/^\s*\[(?:장면|배경|등장|배경 이미지 지시|회상)(?:\s+\d+)?\s*(?::|\])/m);
   });
 });
