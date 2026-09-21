@@ -1,11 +1,12 @@
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
-import { RequestMethod, ValidationPipe } from '@nestjs/common';
+import { ValidationPipe } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/http-exception.filter';
 import { createValidationException } from './common/validation-exception.factory';
+import { configureHttpRouting } from './common/http-routing';
 
 type RequestLike = {
   headers: Record<string, string | string[] | undefined>;
@@ -36,12 +37,7 @@ async function bootstrap() {
     }),
   );
 
-  app.setGlobalPrefix('api/v1', {
-    exclude: [
-      { path: 'admin/api/v1/{*path}', method: RequestMethod.ALL },
-      { path: 'health', method: RequestMethod.GET },
-    ],
-  });
+  configureHttpRouting(app);
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
