@@ -2,19 +2,20 @@ import { STORY_PAYLOAD_LOCALES } from '../story-stage/story-locale-payload-contr
 import { StoryContinuationProviderError, type StoryContinuationProviderRequest, type StoryContinuationProviderPreflight } from './story-continuation.provider';
 import { inRange, storyContinuationConfigFailure, type StoryContinuationOpenAiConfig } from './story-continuation-openai.config';
 import { STORY_CONTINUATION_PROMPT_VERSION, STORY_CONTINUATION_SCHEMA_VERSION, storyContinuationOutputSchema } from './story-continuation-openai.schema';
+import { STORY_CONTINUATION_TOKEN_BUDGET_METHOD, storyContinuationInputTokenBudget } from './story-continuation-tokenizer';
 
 export function buildStoryContinuationOpenAiRequest(request: StoryContinuationProviderRequest, config: StoryContinuationOpenAiConfig) {
   const body = prepareRequest(request, config);
-  if (inputBound(body) > request.inputTokenLimit) fail('provider_input_bound_exceeded');
+  if (storyContinuationInputTokenBudget(body) > request.inputTokenLimit) fail('provider_input_bound_exceeded');
   return body;
 }
 
 export function preflightStoryContinuationOpenAiRequest(request: StoryContinuationProviderRequest, config: StoryContinuationOpenAiConfig): StoryContinuationProviderPreflight {
-  const base = { budgetMethod: 'utf8_bytes_plus_1024' as const, inputTokenLimit: request.inputTokenLimit };
+  const base = { budgetMethod: STORY_CONTINUATION_TOKEN_BUDGET_METHOD, inputTokenLimit: request.inputTokenLimit };
   const reason = storyContinuationConfigFailure(config);
   if (reason) return { ...base, supported: false, reason };
   try {
-    const inputTokenUpperBound = inputBound(prepareRequest(request, config));
+    const inputTokenUpperBound = storyContinuationInputTokenBudget(prepareRequest(request, config));
     return { ...base, inputTokenUpperBound, supported: inputTokenUpperBound <= request.inputTokenLimit,
       reason: inputTokenUpperBound <= request.inputTokenLimit ? 'provider_preflight_ready' : 'provider_input_bound_exceeded' };
   } catch (error) {
@@ -81,11 +82,8 @@ function prepareRequest(request: StoryContinuationProviderRequest, config: Story
     input: [{ role: 'user', content: [{ type: 'input_text', text: JSON.stringify(approved) }] }],
     text: { format: { type: 'json_schema', name: 'story_continuation', strict: true, schema: storyContinuationOutputSchema(request.locale) } },
   };
-  // Conservative UTF-8 byte budget with framing reserve; no paid token-count request or truncation.
   return body;
 }
-
-function inputBound(body: unknown) { return Buffer.byteLength(JSON.stringify(body), 'utf8') + 1_024; }
 
 function boundedText(value: unknown, max: number): string {
   if (typeof value !== 'string' || !value.trim() || Buffer.byteLength(value, 'utf8') > max) fail('provider_context_invalid');

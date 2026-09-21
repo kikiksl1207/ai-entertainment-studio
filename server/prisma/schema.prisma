@@ -2198,6 +2198,7 @@ model StoryAiContinuation {
   leaseToken              String?   @map("lease_token")
   leaseOwner              String?   @map("lease_owner")
   leaseExpiresAt          DateTime? @map("lease_expires_at") @db.Timestamptz(6)
+  dispatchStartedAt       DateTime? @map("dispatch_started_at") @db.Timestamptz(6)
   nextAttemptAt           DateTime  @default(now()) @map("next_attempt_at") @db.Timestamptz(6)
   lastErrorCode           String?   @map("last_error_code")
   resultSceneId          String?   @map("result_scene_id") @db.Uuid

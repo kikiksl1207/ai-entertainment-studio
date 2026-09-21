@@ -9,12 +9,15 @@ export type StoryContinuationClaim = {
   leaseToken: string;
   attemptCount: number;
   maxAttempts: number;
+  dispatchStartedAt?: Date | null;
   request: StoryContinuationProviderRequest;
 };
 
 export abstract class StoryContinuationQueueRepository {
   abstract claimExpiredTerminal(workerId: string, leaseMs: number): Promise<StoryContinuationClaim | null>;
   abstract claimNext(workerId: string, leaseMs: number): Promise<StoryContinuationClaim | null>;
+  abstract markDispatched(claim: StoryContinuationClaim): Promise<void>;
+  abstract releaseNotAcceptedForRetry(claim: StoryContinuationClaim, retryAt: Date): Promise<void>;
   abstract releaseForRetry(
     claim: StoryContinuationClaim,
     errorCode: string,
@@ -36,6 +39,7 @@ type ClaimedRow = {
   model: string | null;
   rate_card_id: string;
   rate_card_version: string | null;
+  dispatch_started_at: Date | null;
 };
 
 @Injectable()
@@ -62,9 +66,10 @@ export class PrismaStoryContinuationQueueRepository extends StoryContinuationQue
         WHERE request_kind = 'recommended_choice'
           AND (${terminalRecovery}
             AND status = 'processing'
-            AND attempt_count >= max_attempts
+            AND (attempt_count >= max_attempts OR dispatch_started_at IS NOT NULL)
             AND lease_expires_at < CURRENT_TIMESTAMP
             OR NOT ${terminalRecovery}
+            AND dispatch_started_at IS NULL
             AND attempt_count < max_attempts
             AND next_attempt_at <= CURRENT_TIMESTAMP
             AND (status IN ('queued', 'retry_wait')
@@ -112,6 +117,7 @@ export class PrismaStoryContinuationQueueRepository extends StoryContinuationQue
       leaseToken,
       attemptCount: row.attempt_count,
       maxAttempts: row.max_attempts,
+      dispatchStartedAt: row.dispatch_started_at ?? null,
       request: {
         operationId: row.id,
         locale: row.locale,
@@ -133,24 +139,43 @@ export class PrismaStoryContinuationQueueRepository extends StoryContinuationQue
     errorCode: string,
     retryAt: Date,
   ) {
-    const updated = await this.prisma.storyAiContinuation.updateMany({
-      where: {
-        id: claim.continuationId,
-        status: 'processing',
-        leaseToken: claim.leaseToken,
-        attemptCount: claim.attemptCount,
-      },
-      data: {
-        status: 'retry_wait',
-        lastErrorCode: errorCode.slice(0, 80),
-        nextAttemptAt: retryAt,
-        leaseToken: null,
-        leaseOwner: null,
-        leaseExpiresAt: null,
-      },
-    });
-    if (updated.count !== 1) {
+    const updated = await this.prisma.$executeRaw(Prisma.sql`
+      UPDATE story_ai_continuations
+      SET status = 'retry_wait', last_error_code = ${errorCode.slice(0, 80)},
+          next_attempt_at = ${retryAt}, lease_token = NULL, lease_owner = NULL, lease_expires_at = NULL
+      WHERE id = ${claim.continuationId}::uuid AND status = 'processing'
+        AND lease_token = ${claim.leaseToken} AND attempt_count = ${claim.attemptCount}
+        AND attempt_count < max_attempts AND lease_expires_at > clock_timestamp()
+        AND dispatch_started_at IS NULL
+    `);
+    if (updated !== 1) {
       throw new ConflictException('Story AI continuation lease is stale');
     }
+  }
+
+  async markDispatched(claim: StoryContinuationClaim): Promise<void> {
+    // This autocommit CAS must resolve before any provider invocation. No transaction spans HTTP.
+    const updated = await this.prisma.$executeRaw(Prisma.sql`
+      UPDATE story_ai_continuations SET dispatch_started_at = clock_timestamp()
+      WHERE id = ${claim.continuationId}::uuid AND status = 'processing'
+        AND request_kind = 'recommended_choice'
+        AND lease_token = ${claim.leaseToken} AND attempt_count = ${claim.attemptCount}
+        AND lease_expires_at > clock_timestamp() AND dispatch_started_at IS NULL
+    `);
+    if (updated !== 1) throw new ConflictException('Story AI continuation dispatch lease is stale');
+  }
+
+  async releaseNotAcceptedForRetry(claim: StoryContinuationClaim, retryAt: Date): Promise<void> {
+    // Only the explicit 429 branch calls this: clearing the fence and releasing are one CAS.
+    const updated = await this.prisma.$executeRaw(Prisma.sql`
+      UPDATE story_ai_continuations
+      SET status = 'retry_wait', last_error_code = 'provider_rate_limited', dispatch_started_at = NULL,
+          next_attempt_at = ${retryAt}, lease_token = NULL, lease_owner = NULL, lease_expires_at = NULL
+      WHERE id = ${claim.continuationId}::uuid AND status = 'processing'
+        AND lease_token = ${claim.leaseToken} AND attempt_count = ${claim.attemptCount}
+        AND attempt_count < max_attempts AND lease_expires_at > clock_timestamp()
+        AND dispatch_started_at IS NOT NULL
+    `);
+    if (updated !== 1) throw new ConflictException('Story AI continuation dispatch lease is stale');
   }
 }

@@ -1,3 +1,5 @@
+import { storyContinuationModelEncoding } from './story-continuation-tokenizer';
+
 export type StoryContinuationConfigReader = { get<T = string>(key: string): T | undefined };
 
 export type StoryContinuationOpenAiConfig = {
@@ -36,6 +38,7 @@ export function storyContinuationConfigFailure(config: StoryContinuationOpenAiCo
   if (config.provider !== 'openai') return 'provider_configuration_mismatch';
   // No rolling aliases: deployments must deliberately pin a dated snapshot.
   if (!/^[a-zA-Z0-9._-]+-\d{4}-\d{2}-\d{2}$/.test(config.model)) return 'provider_model_not_pinned';
+  if (!storyContinuationModelEncoding(config.model)) return 'provider_model_encoding_unknown';
   if (!config.apiKey || /[\r\n]/.test(config.apiKey) || !config.rateCardId || !config.rateCardVersion) {
     return 'provider_not_configured';
   }
