@@ -47,6 +47,24 @@ export class TransitionStoryPublicationDto {
   publicSummary?: Record<string, unknown>;
 }
 
+export class ImportImjinReleaseDto {
+  @IsUUID()
+  manuscriptVersionId: string;
+
+  @IsOptional()
+  @IsBoolean()
+  apply = false;
+
+  @IsOptional()
+  @IsUUID()
+  releaseId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(128)
+  expectedReleaseChecksum?: string;
+}
+
 export class SaveStorySlotDto {
   @Type(() => Number)
   @IsInt()

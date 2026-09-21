@@ -8,9 +8,11 @@ import {
 import { StoryEconomicsService } from './story-economics.service';
 import {
   StoryLifecycleController,
+  StoryImjinReleaseBridgeAdminController,
   StoryPublicationAdminController,
 } from './story-lifecycle.controller';
 import { StoryLifecycleService } from './story-lifecycle.service';
+import { StoryImjinReleaseBridgeService } from './story-imjin-release-bridge.service';
 import {
   StoryProductionController,
   StoryProgressAdminController,
@@ -30,6 +32,7 @@ import {
     StoryProgressAdminController,
     StoryLifecycleController,
     StoryPublicationAdminController,
+    StoryImjinReleaseBridgeAdminController,
     StoryEconomicsController,
     StoryEconomicsAdminController,
   ],
@@ -42,6 +45,7 @@ import {
     StoryProductionService,
     StoryProgressControlService,
     StoryLifecycleService,
+    StoryImjinReleaseBridgeService,
     StoryEconomicsService,
   ],
 })

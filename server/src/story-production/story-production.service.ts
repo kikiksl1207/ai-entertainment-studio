@@ -663,6 +663,15 @@ export class StoryProductionService {
       assertSuggestedChoiceCount(choices.length);
       const choice = choices.find((item) => item.id === choiceId);
       if (!choice) throw new BadRequestException('Choice is not available for the current scene');
+      if (choice.routeKind === 'generation_required') {
+        throw new ConflictException({
+          code: 'STORY_CHOICE_GENERATION_REQUIRED',
+          messageKey: 'story.choice.status.generationRequired',
+          retryable: false,
+          progressMutated: false,
+          generationStarted: false,
+        });
+      }
       const target = choice.targetSceneId
         ? await tx.storyScene.findFirst({ where: { id: choice.targetSceneId, status: 'published', fixtureSource: false } })
         : null;

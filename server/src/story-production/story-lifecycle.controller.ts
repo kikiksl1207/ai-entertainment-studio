@@ -10,6 +10,7 @@ import {
   BuildStoryMemoryDto,
   ClearStorySlotDto,
   CreateStoryReleaseDto,
+  ImportImjinReleaseDto,
   OpenWriterReviewDto,
   SaveStorySlotDto,
   StoryMemoryQueryDto,
@@ -17,6 +18,7 @@ import {
   TransitionWriterReviewDto,
 } from './dto/story-lifecycle.dto';
 import { StoryLifecycleService } from './story-lifecycle.service';
+import { StoryImjinReleaseBridgeService } from './story-imjin-release-bridge.service';
 
 @Controller()
 @UseGuards(JwtAuthGuard)
@@ -146,5 +148,22 @@ export class StoryPublicationAdminController {
     @Headers('idempotency-key') idempotencyKey?: string,
   ) {
     return this.lifecycle.transitionPublication(user.id, workId, body, idempotencyKey);
+  }
+}
+
+@Controller('/admin/api/v1/story-imports/imjin')
+@UseGuards(AdminAuthGuard, AdminPermissionGuard)
+export class StoryImjinReleaseBridgeAdminController {
+  constructor(private readonly bridge: StoryImjinReleaseBridgeService) {}
+
+  @Post(':workId')
+  @RequireAdminPermissions('*')
+  execute(
+    @CurrentUser() user: AuthUser,
+    @Param('workId') workId: string,
+    @Body() body: ImportImjinReleaseDto,
+    @Headers('idempotency-key') idempotencyKey?: string,
+  ) {
+    return this.bridge.execute(user.id, workId, body, idempotencyKey);
   }
 }

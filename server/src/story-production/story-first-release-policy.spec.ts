@@ -367,6 +367,19 @@ describe('First public release custom-choice enforcement', () => {
 });
 
 describe('First public release suggested choices', () => {
+  it('does not mutate progress or start generation for a generation-required choice', async () => {
+    const f = fixture();
+    f.choices[1].routeKind = 'generation_required';
+    f.choices[1].targetSceneId = null as never;
+    await expect(f.production.selectChoice('reader', 'progress', 'choice-2', 3))
+      .rejects.toMatchObject({ response: {
+        code: 'STORY_CHOICE_GENERATION_REQUIRED',
+        progressMutated: false,
+        generationStarted: false,
+      } });
+    expectNoWrites(f);
+  });
+
   it.each([[1, 0], [2, 0], [3, 0], [1, 100], [2, 100], [3, 100]])('preserves the distinct target of choice %s at price %s', async (n, price) => {
     const f = fixture();
     f.work.priceLumina = new Decimal(price);
