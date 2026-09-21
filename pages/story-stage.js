@@ -49,6 +49,9 @@
       aiPollTimedOut: "생성이 예상보다 오래 걸리고 있습니다. 새 요청을 만들지 않고 상태를 다시 확인해 주세요.",
       aiUnavailable: "현재 생성 제공자를 사용할 수 없어 이 선택을 진행할 수 없습니다.",
       aiLegalUnavailable: "이 작품의 AI 생성 이용 승인이 활성화되지 않아 이 선택을 진행할 수 없습니다.",
+      aiAuthRequired: "로그인이 만료되어 생성 상태를 확인할 수 없습니다. 다시 로그인한 뒤 기존 요청을 확인해 주세요.",
+      aiAccessRequired: "생성 상태를 확인할 권한이 없습니다. 작품 이용 권한을 확인한 뒤 기존 요청을 다시 확인해 주세요.",
+      aiSharedPending: "동일한 장면을 준비하고 있습니다. 새 요청을 만들지 않고 기존 요청을 다시 확인해 주세요.",
       ending: "엔딩",
       backToStories: "스토리 목록",
       loginRequired: "로그인 후 시작할 수 있습니다.",
@@ -105,6 +108,9 @@
       aiPollTimedOut: "Generation is taking longer than expected. Check its status again without creating a new request.",
       aiUnavailable: "This choice cannot continue because the generation provider is unavailable.",
       aiLegalUnavailable: "This choice cannot continue because AI generation approval is not active for this story.",
+      aiAuthRequired: "Your sign-in expired before the generation status could be confirmed. Sign in again, then check the existing request.",
+      aiAccessRequired: "You do not have permission to confirm the generation status. Check your story access, then check the existing request again.",
+      aiSharedPending: "The same scene is being prepared. Check the existing request again without creating a new one.",
       ending: "Ending",
       backToStories: "All stories",
       loginRequired: "Log in to start this story.",
@@ -161,6 +167,9 @@
       aiPollTimedOut: "生成に通常より時間がかかっています。新しいリクエストを作らず、状態を再確認してください。",
       aiUnavailable: "生成プロバイダーを利用できないため、この選択を進められません。",
       aiLegalUnavailable: "この作品のAI生成利用承認が有効でないため、この選択を進められません。",
+      aiAuthRequired: "ログインの有効期限が切れたため生成状態を確認できません。再ログイン後、既存のリクエストを確認してください。",
+      aiAccessRequired: "生成状態を確認する権限がありません。作品の利用権を確認後、既存のリクエストを再確認してください。",
+      aiSharedPending: "同じシーンを準備しています。新しいリクエストを作らず、既存のリクエストを再確認してください。",
       ending: "エンディング",
       backToStories: "ストーリー一覧",
       loginRequired: "ログイン後に開始できます。",
@@ -217,6 +226,9 @@
       aiPollTimedOut: "生成时间比预期更长。请在不创建新请求的情况下再次检查状态。",
       aiUnavailable: "生成服务目前不可用，无法继续此选择。",
       aiLegalUnavailable: "此作品尚未启用AI生成授权，无法继续此选择。",
+      aiAuthRequired: "登录已过期，无法确认生成状态。请重新登录后检查原请求。",
+      aiAccessRequired: "你无权确认生成状态。请确认作品访问权限后再次检查原请求。",
+      aiSharedPending: "相同场景正在准备中。请在不创建新请求的情况下再次检查原请求。",
       ending: "结局",
       backToStories: "故事列表",
       loginRequired: "登录后即可开始。",
@@ -273,6 +285,9 @@
       aiPollTimedOut: "生成時間比預期更長。請在不建立新請求的情況下再次檢查狀態。",
       aiUnavailable: "生成服務目前無法使用，無法繼續此選擇。",
       aiLegalUnavailable: "此作品尚未啟用AI生成授權，無法繼續此選擇。",
+      aiAuthRequired: "登入已過期，無法確認生成狀態。請重新登入後檢查原請求。",
+      aiAccessRequired: "你無權確認生成狀態。請確認作品存取權限後再次檢查原請求。",
+      aiSharedPending: "相同場景正在準備中。請在不建立新請求的情況下再次檢查原請求。",
       ending: "結局",
       backToStories: "故事列表",
       loginRequired: "登入後即可開始。",
@@ -459,6 +474,7 @@
     aiPollGeneration: 0,
     aiPollTimer: null,
     aiPollResolve: null,
+    aiPollController: null,
   };
 
   // First release is suggested-only, including legacy paid custom=true metadata.
@@ -505,6 +521,25 @@
   }
 
   async function request(path, options = {}) {
+    if (options.signal) {
+      const auth = window.getAuth?.();
+      const token = auth?.accessToken || auth?.tokens?.accessToken || auth?.access_token;
+      const headers = { ...(options.body ? { "Content-Type": "application/json" } : {}), ...(options.headers || {}) };
+      if (options.auth && token) headers.Authorization = `Bearer ${token}`;
+      const response = await fetch(API_ORIGIN + path, {
+        method: options.method || "GET",
+        headers,
+        body: options.body ? JSON.stringify(options.body) : undefined,
+        signal: options.signal,
+      });
+      if (!response.ok) {
+        const error = new Error(`HTTP ${response.status}`);
+        error.status = response.status;
+        error.body = await response.json().catch(() => ({}));
+        throw error;
+      }
+      return response.status === 204 ? null : response.json();
+    }
     if (typeof window.apiFetch === "function") {
       return window.apiFetch(path, { ...options, throwOnError: true });
     }
@@ -607,12 +642,19 @@
       .join(":");
   }
 
+  function aiProgressStoragePrefix(operation) {
+    return [AI_PENDING_STORAGE_PREFIX, aiSessionScope(), operation.workId || "session-only", operation.progressId]
+      .map((value) => encodeURIComponent(String(value)))
+      .join(":") + ":";
+  }
+
   function validAiOperation(value) {
     return value?.version === 1 &&
       value.progressId === state.sessionId &&
       value.workId === (state.workId || "") &&
       typeof value.choiceId === "string" && value.choiceId.length > 0 && value.choiceId.length <= 160 &&
       Number.isInteger(value.revision) && value.revision > 0 &&
+      Number.isFinite(value.createdAt) && value.createdAt > 0 &&
       Object.hasOwn(COPY, value.locale) &&
       typeof value.idempotencyKey === "string" && /^story-choice-[A-Za-z0-9-]{8,}$/.test(value.idempotencyKey) &&
       (value.continuationId === null || safeSessionId(value.continuationId));
@@ -628,23 +670,35 @@
   }
 
   function removeAiOperation(operation) {
-    try { sessionStorage.removeItem(aiOperationStorageKey(operation)); } catch (_) {}
+    const prefix = aiProgressStoragePrefix(operation);
+    try {
+      const keys = Array.from({ length: sessionStorage.length }, (_, index) => sessionStorage.key(index));
+      keys.forEach((key) => {
+        if (!key?.startsWith(prefix)) return;
+        try {
+          const encodedRevision = key.slice(prefix.length).split(":").at(-1);
+          if (decodeURIComponent(encodedRevision || "") === String(operation.revision)) sessionStorage.removeItem(key);
+        } catch (_) {}
+      });
+    } catch (_) {}
   }
 
   function findAiOperation() {
-    const scopePrefix = [AI_PENDING_STORAGE_PREFIX, aiSessionScope(), state.workId || "session-only", state.sessionId]
-      .map((value) => encodeURIComponent(String(value)))
-      .join(":") + ":";
+    const scopePrefix = aiProgressStoragePrefix({ workId: state.workId || "", progressId: state.sessionId });
     const matches = [];
     try {
-      for (let index = 0; index < sessionStorage.length; index += 1) {
-        const key = sessionStorage.key(index);
+      const keys = Array.from({ length: sessionStorage.length }, (_, index) => sessionStorage.key(index));
+      for (const key of keys) {
         if (!key?.startsWith(scopePrefix)) continue;
-        const value = JSON.parse(sessionStorage.getItem(key));
-        if (validAiOperation(value)) matches.push(value);
+        try {
+          const value = JSON.parse(sessionStorage.getItem(key));
+          if (validAiOperation(value)) matches.push(value);
+        } catch (_) {
+          sessionStorage.removeItem(key);
+        }
       }
     } catch (_) { return null; }
-    return matches.sort((left, right) => Number(right.createdAt) - Number(left.createdAt))[0] || null;
+    return matches.sort((left, right) => right.createdAt - left.createdAt)[0] || null;
   }
 
   function relativeStoryPath(value) {
@@ -904,7 +958,7 @@
   }
 
   function aiRequestOpen() {
-    return ["queued", "processing", "retry_wait", "lost", "checking", "poll-timeout"].includes(state.aiNotice?.kind);
+    return ["queued", "processing", "retry_wait", "lost", "checking", "poll-timeout", "auth", "access", "shared-pending"].includes(state.aiNotice?.kind);
   }
 
   function aiNoticeCopy() {
@@ -919,6 +973,9 @@
       "poll-timeout": "aiPollTimedOut",
       unavailable: "aiUnavailable",
       legal: "aiLegalUnavailable",
+      auth: "aiAuthRequired",
+      access: "aiAccessRequired",
+      "shared-pending": "aiSharedPending",
     }[state.aiNotice?.kind];
     return key ? tr(key) : "";
   }
@@ -926,7 +983,7 @@
   function renderAiNotice() {
     if (!state.aiNotice) return '<div data-story-ai-notice hidden></div>';
     const pending = AI_PENDING_STATUSES.has(state.aiNotice.kind) || state.aiNotice.kind === "checking";
-    const recoverable = ["lost", "poll-timeout"].includes(state.aiNotice.kind);
+    const recoverable = ["lost", "poll-timeout", "auth", "access", "shared-pending"].includes(state.aiNotice.kind);
     return `
       <section class="story-ai-notice" data-story-ai-notice data-tone="${pending ? "pending" : "attention"}" role="status" aria-live="polite">
         ${pending ? '<span class="story-spinner" aria-hidden="true"></span>' : ""}
@@ -1055,6 +1112,8 @@
 
   function cancelAiPolling() {
     state.aiPollGeneration += 1;
+    state.aiPollController?.abort();
+    state.aiPollController = null;
     if (state.aiPollTimer !== null) clearTimeout(state.aiPollTimer);
     state.aiPollTimer = null;
     state.aiPollResolve?.(false);
@@ -1103,6 +1162,7 @@
     removeAiOperation(operation);
     if (status === "completed") {
       state.aiNotice = null;
+      state.minimumRevision = Math.max(state.minimumRevision, operation.revisionAfterRequest || operation.revision + 1);
       await loadScene({ restorePending: false });
       return;
     }
@@ -1115,15 +1175,21 @@
     const generation = state.aiPollGeneration;
     const epoch = state.epoch;
     const sessionId = state.sessionId;
-    const startedAt = Date.now();
+    const deadlineAt = Date.now() + AI_POLL_TIMEOUT_MS;
     let attempt = 0;
-    while (Date.now() - startedAt < AI_POLL_TIMEOUT_MS) {
-      const delay = Math.min(3000, 1000 + attempt * 1000);
+    while (Date.now() < deadlineAt) {
+      const delay = Math.min(3000, 1000 + attempt * 1000, deadlineAt - Date.now());
       if (!await aiPollDelay(delay, generation, epoch, sessionId)) return;
       attempt += 1;
+      const remaining = deadlineAt - Date.now();
+      if (remaining <= 0) break;
+      const controller = new AbortController();
+      state.aiPollController = controller;
+      const deadlineTimer = setTimeout(() => controller.abort(), remaining);
       try {
-        const payload = await request(`${progressPath(`/ai-continuations/${encodeURIComponent(operation.continuationId)}`)}`, { auth: true });
+        const payload = await request(`${progressPath(`/ai-continuations/${encodeURIComponent(operation.continuationId)}`)}`, { auth: true, signal: controller.signal });
         if (generation !== state.aiPollGeneration || !currentRequest(epoch, sessionId)) return;
+        if (Date.now() >= deadlineAt) break;
         const status = typeof payload?.status === "string" ? payload.status : "";
         if (payload?.continuationId !== operation.continuationId || ![...AI_PENDING_STATUSES, "completed", "failed", "timeout"].includes(status)) {
           throw new Error("Invalid continuation status");
@@ -1148,9 +1214,12 @@
       } catch (error) {
         if (generation !== state.aiPollGeneration || !currentRequest(epoch, sessionId)) return;
         if (error?.status === 401 || error?.status === 403) {
-          setAiNotice("unavailable", operation);
+          setAiNotice(error.status === 401 ? "auth" : "access", operation);
           return;
         }
+      } finally {
+        clearTimeout(deadlineTimer);
+        if (state.aiPollController === controller) state.aiPollController = null;
       }
     }
     if (generation !== state.aiPollGeneration || !currentRequest(epoch, sessionId)) return;
@@ -1170,7 +1239,7 @@
       void pollAiContinuation(operation);
       return;
     }
-    setAiNotice("lost", operation);
+    setAiNotice(operation.status === "shared_pending" ? "shared-pending" : "lost", operation);
   }
 
   function aiUnavailableKind(error) {
@@ -1178,6 +1247,15 @@
     if (["STORY_AI_LEGAL_ACTIVATION_REQUIRED", "STORY_AI_GENERATION_NOT_AUTHORIZED"].includes(code)) return "legal";
     if (code === "STORY_CHOICE_GENERATION_UNAVAILABLE") return "unavailable";
     return "";
+  }
+
+  function keepSharedPending(error, operation) {
+    if (errorCode(error) !== "STORY_AI_SHARED_RESULT_PENDING" || error?.status !== 409) return false;
+    operation.status = "shared_pending";
+    operation.updatedAt = Date.now();
+    saveAiOperation(operation);
+    setAiNotice("shared-pending", operation);
+    return true;
   }
 
   async function recoverAiOperation() {
@@ -1209,6 +1287,7 @@
       }
     } catch (error) {
       if (!currentRequest(epoch, sessionId)) return;
+      if (keepSharedPending(error, operation)) return;
       const unavailable = aiUnavailableKind(error);
       if (unavailable) {
         removeAiOperation(operation);
@@ -1470,7 +1549,7 @@
   }
 
   async function submitChoice(choiceId) {
-    if (state.busy || state.resetPreview || state.progress?.status !== "active" || !choiceId || !state.scene?.id || !Number.isInteger(state.progress?.revision) || state.choices.length > 3 || !state.choices.some((choice) => (choice.id || choice.choiceId) === choiceId)) return;
+    if (state.busy || aiRequestOpen() || state.resetPreview || state.progress?.status !== "active" || !choiceId || !state.scene?.id || !Number.isInteger(state.progress?.revision) || state.choices.length > 3 || !state.choices.some((choice) => (choice.id || choice.choiceId) === choiceId)) return;
     const epoch = state.epoch;
     const sessionId = state.sessionId;
     const revision = state.progress.revision;
@@ -1511,6 +1590,7 @@
       }
     } catch (error) {
       if (!currentRequest(epoch, sessionId)) return;
+      if (keepSharedPending(error, pending)) return;
       const unavailable = aiUnavailableKind(error);
       if (unavailable) {
         removeAiOperation(pending);
@@ -1574,7 +1654,7 @@
 
   async function requestResetPreview(target) {
     const reset = resetCapability(state.progress);
-    if (!reset || state.busy || state.resetPreview || !["full", "act"].includes(target) || !(target === "full" ? reset.canFullReset : reset.canActReset)) return;
+    if (!reset || state.busy || aiRequestOpen() || state.resetPreview || !["full", "act"].includes(target) || !(target === "full" ? reset.canFullReset : reset.canActReset)) return;
     const epoch = state.epoch;
     const sessionId = state.sessionId;
     const operation = beginOperation();
