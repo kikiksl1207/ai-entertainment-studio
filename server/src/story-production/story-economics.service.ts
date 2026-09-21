@@ -534,8 +534,9 @@ export class StoryEconomicsService {
         generationStarted: false,
       });
     }
+    const continuationId = randomUUID();
     const preflight = await this.continuationProvider?.preflight?.({
-      operationId: key,
+      operationId: continuationId,
       locale,
       contextFingerprint,
       promptVersion: context.promptVersion,
@@ -628,6 +629,7 @@ export class StoryEconomicsService {
     }
     const continuation = await tx.storyAiContinuation.create({
       data: {
+        id: continuationId,
         userId: input.userId,
         workId: input.work.id,
         releaseId: input.release.id,
