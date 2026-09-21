@@ -5,6 +5,7 @@ export const WALLET_MUTATION_IDEMPOTENCY_REQUIRED = {
   message: 'wallet.mutation.idempotencyRequired',
   messageKey: 'wallet.mutation.idempotencyRequired',
   walletMutation: false,
+  details: { walletMutation: false },
   idempotencyRequired: true,
 } as const;
 
@@ -13,6 +14,7 @@ export const WALLET_MUTATION_IDEMPOTENCY_CONFLICT = {
   message: 'wallet.mutation.idempotencyConflict',
   messageKey: 'wallet.mutation.idempotencyConflict',
   walletMutation: false,
+  details: { walletMutation: false },
 } as const;
 
 export const WALLET_MUTATION_INSUFFICIENT_BALANCE = {
@@ -20,6 +22,7 @@ export const WALLET_MUTATION_INSUFFICIENT_BALANCE = {
   message: 'wallet.mutation.insufficientBalance',
   messageKey: 'wallet.mutation.insufficientBalance',
   walletMutation: false,
+  details: { walletMutation: false },
   serverAuthority: 'wallet_accounts.cached_balance',
 } as const;
 

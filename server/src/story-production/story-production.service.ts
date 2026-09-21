@@ -401,6 +401,7 @@ export class StoryProductionService {
         throw new ConflictException({
           code: 'STORY_PURCHASE_CONFIRMATION_STALE',
           messageKey: 'story.purchase.confirmationStale', walletMutation: false,
+          details: { walletMutation: false },
         });
       };
       if (!work) throw new NotFoundException('Published story not found');
@@ -427,6 +428,7 @@ export class StoryProductionService {
         throw new ConflictException({
           code: 'STORY_PURCHASE_CONFIRMATION_REQUIRED',
           messageKey: 'story.purchase.confirmationRequired', walletMutation: false,
+          details: { walletMutation: false },
         });
       }
       if (typeof confirmation.confirmedPriceLumina !== 'string' ||
