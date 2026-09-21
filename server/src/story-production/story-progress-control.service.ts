@@ -10,6 +10,7 @@ import { Prisma } from '@prisma/client';
 import { createHash } from 'crypto';
 import { ModerationService } from '../moderation/moderation.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { createStoryRouteRoot, restoreStoryActRoute } from './story-route-identity.store';
 import {
   AdjustStoryResetQuotaDto,
   ConfirmStoryCheckpointDto,
@@ -232,6 +233,7 @@ export class StoryProgressControlService {
         data: {
           progressId: context.progress.id,
           progressRevision: afterRevision,
+          routeNodeId: context.progress.routeNodeId,
           storyVersion: context.work.publishedVersion,
           sceneId: body.sceneId,
           beatPosition: body.beatPosition,
@@ -404,11 +406,19 @@ export class StoryProgressControlService {
       const activePath = jsonRecordArray(progress.pathSummary);
       const activeSeen = jsonStringArray(progress.seenSceneIds);
       const invalidated = new Set(plan.invalidatedSceneIds);
+      const actRoute = body.target === 'act'
+        ? await restoreStoryActRoute(tx, progress, plan.targetSceneId, plan.targetAct) : null;
+      const routeNodeId = body.target === 'full'
+        ? await createStoryRouteRoot(tx, { ...progress,
+            activeReleaseId: resetRelease?.pin.activeReleaseId ?? progress.activeReleaseId,
+          }, plan.targetSceneId, plan.targetAct)
+        : actRoute?.nodeId ?? null;
       const updatedProgress = await tx.storyReaderProgress.updateMany({
         where: { id: progress.id, userId, progressRevision: body.expectedRevision },
         data: {
           currentSceneId: plan.targetSceneId,
           currentGeneratedSceneId: null,
+          routeNodeId,
           currentBeatPosition: 0,
           currentAct: plan.targetAct,
           checkpointSceneId: plan.targetSceneId,
@@ -418,7 +428,7 @@ export class StoryProgressControlService {
           pathSummary:
             body.target === 'full'
               ? []
-              : (activePath.filter((entry) => !invalidated.has(String(entry.sceneId))) as Prisma.InputJsonValue),
+              : (actRoute?.pathSummary ?? activePath.filter((entry) => !invalidated.has(String(entry.sceneId)))) as Prisma.InputJsonValue,
           seenSceneIds:
             body.target === 'full'
               ? [plan.targetSceneId]
@@ -441,6 +451,7 @@ export class StoryProgressControlService {
           progressId: progress.id,
           progressRevision: afterRevision,
           storyVersion: work.publishedVersion,
+          routeNodeId,
           sceneId: plan.targetSceneId,
           beatPosition: 0,
           actNumber: plan.targetAct,

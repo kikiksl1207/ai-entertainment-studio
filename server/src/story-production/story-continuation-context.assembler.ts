@@ -2,6 +2,7 @@ import { ConflictException, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import type { StoryContinuationClaim } from './story-continuation.repository';
+import { storyRouteSnapshot } from './story-route-identity.store';
 import {
   assembleContinuationSemanticPath,
   continuationExecutionFingerprint,
@@ -107,6 +108,10 @@ export class StoryContinuationContextAssembler {
     const scene = canonicalScene ?? generatedScene;
     if (!progress || !part || !scene || memories.length !== memoryIds.length) {
       throw new StoryContinuationContextError('pinned_context_changed');
+    }
+    const route = await storyRouteSnapshot(this.prisma, progress);
+    if (route.nodeId !== (continuation.sourceRouteNodeId ?? null) || route.hash !== (continuation.sourceRouteHash ?? null)) {
+      throw new StoryContinuationContextError('pinned_route_changed');
     }
     const [sourceBeats, choice] = sourceKind === 'canonical'
       ? await Promise.all([

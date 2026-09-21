@@ -2,6 +2,7 @@ import { PrismaClient, StoryReaderProgress } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { StoryAiActivationService } from './story-ai-activation.service';
 import { StoryEconomicsService } from './story-economics.service';
+import { createStoryRouteRoot } from './story-route-identity.store';
 import { PersistedStoryContinuationLegalActivationGate } from './story-continuation-legal-activation.gate';
 import { PersistedStoryReusableResultApprovalGate } from './story-reusable-result-approval.gate';
 import { INTERNAL_GENERATION_COST_TREATMENT } from '../story-settlement/content-rights-contract.contract';
@@ -69,6 +70,10 @@ export async function activationFixture(db: PrismaClient, activate = true, reuse
     userId: user.id, workId: work.id, currentSceneId: scene.id, checkpointSceneId: scene.id,
     activeReleaseId: release.id, aiRateCardId: rate.id, capabilityRevision: capability.revision,
   } }));
+  for (const progress of progresses) {
+    progress.routeNodeId = await createStoryRouteRoot(db, progress, scene.id, part.actNumber);
+    await db.storyReaderProgress.update({ where: { id: progress.id }, data: { routeNodeId: progress.routeNodeId } });
+  }
   const activation = new StoryAiActivationService(db as never);
   const legal = new PersistedStoryContinuationLegalActivationGate(activation);
   const approval = new PersistedStoryReusableResultApprovalGate(activation);

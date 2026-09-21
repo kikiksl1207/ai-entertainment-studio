@@ -10,6 +10,8 @@ import { Prisma } from '@prisma/client';
 import { createHash, randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { storyAiResultChecksum } from './story-ai-result-checksum';
+import { STORY_ROUTE_IDENTITY_VERSION } from './story-route-identity.policy';
+import { appendStoryRoute, storyRouteSharingHash, storyRouteSnapshot, storyRouteStepForContinuation } from './story-route-identity.store';
 import {
   ActivateStoryAiRateCardDto,
   CreateStoryAiRateCardDto,
@@ -334,6 +336,8 @@ export class StoryEconomicsService {
       });
     }
     const pathHash = continuationPathHash(semanticPath);
+    const route = await storyRouteSnapshot(tx, input.progress);
+    const sharingRouteHash = await storyRouteSharingHash(tx, input.progress);
     const context = {
       workId: input.work.id,
       releaseId: input.release.id,
@@ -346,6 +350,7 @@ export class StoryEconomicsService {
       recommendedChoiceId: input.sourceKind === 'canonical' ? input.choice.id : null,
       generatedChoiceId: input.sourceKind === 'generated' ? input.choice.id : null,
       semanticPath,
+      routeIdentity: { version: STORY_ROUTE_IDENTITY_VERSION, hash: route.hash },
       memory: memoryPins,
       analysis: analysis
         ? { id: analysis.id, version: analysis.analysisVersion }
@@ -373,6 +378,7 @@ export class StoryEconomicsService {
       manuscriptVersionId: input.release.manuscriptVersionId,
       sourceHash,
       pathHash,
+      routeIdentity: { version: STORY_ROUTE_IDENTITY_VERSION, hash: sharingRouteHash },
       memory: memoryPins.map(({ revision, contentHash }) => ({ revision, contentHash })),
       analysisVersion: analysis.analysisVersion,
       locale,
@@ -386,15 +392,20 @@ export class StoryEconomicsService {
             releaseId: input.release.id,
             status: 'approved',
           },
-          select: { id: true },
+          select: { id: true, resultChecksum: true },
         })
       : null;
     const reusableSourceEligible = input.sourceKind === 'canonical' || (
       Boolean(reusableSource) &&
       typeof input.choice.choiceKey === 'string' &&
-      input.choice.choiceKey.trim().length > 0
+      input.choice.choiceKey.trim().length > 0 &&
+      await this.reusableApproval?.authorizeResult({
+        workId: input.work.id, releaseId: input.release.id, releaseChecksum: input.release.checksum,
+        manuscriptVersionId: input.release.manuscriptVersionId, rightsContractVersionId: rights.id,
+        locale, resultId: reusableSource!.id, resultChecksum: reusableSource!.resultChecksum!,
+      }, tx)
     );
-    const reusableApproval = rights.generatedResultReuseAllowed && reusableSourceEligible
+    const reusableApproval = rights.generatedResultReuseAllowed && sharingRouteHash && reusableSourceEligible
       ? await this.reusableApproval?.prepare({
           workId: input.work.id,
           releaseId: input.release.id,
@@ -417,7 +428,7 @@ export class StoryEconomicsService {
         sourceSharedResultId: input.sourceKind === 'generated' ? input.scene.sharedResultId : null,
         sourceSharedChoiceKey: input.sourceKind === 'generated' ? input.choice.choiceKey.trim() : null,
         sourceFingerprint: sourceHash,
-        semanticPathFingerprint: pathHash,
+        semanticPathFingerprint: sharingRouteHash!,
         contextFingerprint: reusableContextFingerprint,
         promptVersion: context.promptVersion,
         outputSchemaVersion: context.outputSchemaVersion,
@@ -444,7 +455,7 @@ export class StoryEconomicsService {
           sourceSharedResultId: input.sourceKind === 'generated' ? input.scene.sharedResultId : null,
           sourceSharedChoiceKey: input.sourceKind === 'generated' ? input.choice.choiceKey.trim() : null,
           sourceFingerprint: sourceHash,
-          semanticPathFingerprint: pathHash,
+          semanticPathFingerprint: sharingRouteHash!,
           contextFingerprint: reusableContextFingerprint,
           promptVersion: context.promptVersion,
           outputSchemaVersion: context.outputSchemaVersion,
@@ -488,6 +499,7 @@ export class StoryEconomicsService {
           pathHash,
           executionFingerprint,
           sharedResult,
+          route,
         });
       }
       if (sharedResult.status === 'revoked') {
@@ -647,6 +659,8 @@ export class StoryEconomicsService {
         sourceSceneId: input.sourceKind === 'canonical' ? input.scene.id : null,
         sourceGeneratedSceneId: input.sourceKind === 'generated' ? input.scene.id : null,
         sourceProgressRevision: input.progress.progressRevision,
+        sourceRouteNodeId: route.nodeId,
+        sourceRouteHash: route.hash,
         checkpointSceneId: input.progress.checkpointSceneId,
         manuscriptVersionId: input.release.manuscriptVersionId,
         analysisJobId: analysis?.id,
@@ -707,6 +721,7 @@ export class StoryEconomicsService {
         currentSceneId: input.sourceKind === 'canonical' ? input.scene.id : null,
         currentGeneratedSceneId: input.sourceKind === 'generated' ? input.scene.id : null,
         progressRevision: input.progress.progressRevision,
+        routeNodeId: route.nodeId,
         status: 'active',
       },
       data: {
@@ -1584,6 +1599,7 @@ export class StoryEconomicsService {
     const allowed = Boolean(
       work?.status === 'published' &&
       Boolean(progress) &&
+      (progress?.routeNodeId ?? null) === (continuation.sourceRouteNodeId ?? null) &&
       legalActivation?.active &&
       Boolean(continuation.manuscriptVersionId) &&
       Boolean(continuation.analysisJobId) &&
@@ -1879,7 +1895,8 @@ export class StoryEconomicsService {
       if (finalStatus === 'completed') {
         if (
           progress.status !== 'ai_pending' ||
-          progress.progressRevision !== continuation.sourceProgressRevision + 1
+          progress.progressRevision !== continuation.sourceProgressRevision + 1 ||
+          (progress.routeNodeId ?? null) !== (continuation.sourceRouteNodeId ?? null)
         ) {
           throw new ConflictException('Pending story progress changed concurrently');
         }
@@ -1976,6 +1993,13 @@ export class StoryEconomicsService {
             update: { lastSeenAt: new Date() },
           });
         }
+        const currentRoute = await storyRouteSnapshot(tx, progress);
+        if (currentRoute.hash !== (continuation.sourceRouteHash ?? null)) {
+          throw new ConflictException('Pending story route changed concurrently');
+        }
+        const routeNodeId = await appendStoryRoute(tx, progress, progress.routeNodeId ? await storyRouteStepForContinuation(tx, {
+          ...continuation, endingKey: body.ending?.endingKey ?? null,
+        }) : { kind: 'private' }, progress.currentAct, nextPath.at(-1));
         const progressUpdate = await tx.storyReaderProgress.updateMany({
           where: {
             id: progress.id,
@@ -1985,6 +2009,7 @@ export class StoryEconomicsService {
             currentSceneId: continuation.sourceSceneId,
             currentGeneratedSceneId: continuation.sourceGeneratedSceneId,
             progressRevision: progress.progressRevision,
+            routeNodeId: continuation.sourceRouteNodeId ?? null,
             status: 'ai_pending',
           },
           data: {
@@ -1994,6 +2019,7 @@ export class StoryEconomicsService {
             status: body.ending ? 'completed' : 'active',
             progressRevision: { increment: 1 },
             pathSummary: nextPath as Prisma.InputJsonValue,
+            routeNodeId,
             visitedEndingKeys: body.ending
               ? [...new Set([
                   ...jsonStringArray(progress.visitedEndingKeys),
@@ -2525,6 +2551,7 @@ export class StoryEconomicsService {
       pathHash: string;
       executionFingerprint: string;
       sharedResult: any;
+      route: { nodeId: string | null; hash: string | null };
     },
   ) {
     const { input, sharedResult } = prepared;
@@ -2575,6 +2602,8 @@ export class StoryEconomicsService {
         sourceSceneId: input.sourceKind === 'canonical' ? input.scene.id : null,
         sourceGeneratedSceneId: input.sourceKind === 'generated' ? input.scene.id : null,
         sourceProgressRevision: input.progress.progressRevision,
+        sourceRouteNodeId: prepared.route.nodeId,
+        sourceRouteHash: prepared.route.hash,
         checkpointSceneId: input.progress.checkpointSceneId,
         manuscriptVersionId: input.release.manuscriptVersionId,
         analysisJobId: prepared.analysis.id,
@@ -2692,6 +2721,14 @@ export class StoryEconomicsService {
         update: { lastSeenAt: now },
       });
     }
+    const routeNodeId = await appendStoryRoute(tx, input.progress, await storyRouteStepForContinuation(tx, {
+      workId: input.work.id, releaseId: input.release.id,
+      sourceSceneId: input.sourceKind === 'canonical' ? input.scene.id : null,
+      recommendedChoiceId: input.sourceKind === 'canonical' ? input.choice.id : null,
+      sourceGeneratedSceneId: input.sourceKind === 'generated' ? input.scene.id : null,
+      generatedChoiceId: input.sourceKind === 'generated' ? input.choice.id : null,
+      endingKey: sharedResult.endingKey,
+    }), input.progress.currentAct, nextPath.at(-1));
     const progressUpdate = await tx.storyReaderProgress.updateMany({
       where: {
         id: input.progress.id,
@@ -2701,6 +2738,7 @@ export class StoryEconomicsService {
         currentSceneId: input.sourceKind === 'canonical' ? input.scene.id : null,
         currentGeneratedSceneId: input.sourceKind === 'generated' ? input.scene.id : null,
         progressRevision: input.progress.progressRevision,
+        routeNodeId: prepared.route.nodeId,
         status: 'active',
       },
       data: {
@@ -2710,6 +2748,7 @@ export class StoryEconomicsService {
         status: sharedResult.endingKey ? 'completed' : 'active',
         progressRevision: { increment: 1 },
         pathSummary: nextPath as Prisma.InputJsonValue,
+        routeNodeId,
         visitedEndingKeys: sharedResult.endingKey
           ? [...new Set([
               ...jsonStringArray(input.progress.visitedEndingKeys),

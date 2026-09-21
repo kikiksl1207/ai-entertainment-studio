@@ -20,9 +20,11 @@ describe('StoryProductionService', () => {
       findMany: jest.fn(),
       findUnique: jest.fn(),
       create: jest.fn(),
+      update: jest.fn(),
     },
     storyQualityEvent: { upsert: jest.fn() },
     storyRelease: { findMany: jest.fn(), findFirst: jest.fn() },
+    storyProgressRouteNode: { create: jest.fn().mockResolvedValue({ id: 'route-root' }) },
     userEntitlement: { findMany: jest.fn() },
     walletAccount: { findUnique: jest.fn() },
     $transaction: jest.fn(),
@@ -85,9 +87,12 @@ describe('StoryProductionService', () => {
     prisma.storyReaderProgress.findUnique.mockResolvedValue(null);
     prisma.storyReaderProgress.create.mockResolvedValue({
       id: 'progress-1',
+      workId,
       activeReleaseId: '00000000-0000-0000-0000-000000000030',
       storyVersion: 1,
     });
+    prisma.$transaction.mockImplementation(async (run) => run(prisma));
+    prisma.storyReaderProgress.update.mockResolvedValue({ id: 'progress-1' });
     prisma.storyQualityEvent.upsert.mockResolvedValue({});
     const currentProgress = jest
       .spyOn(service, 'currentProgress')

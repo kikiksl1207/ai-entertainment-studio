@@ -712,6 +712,7 @@ describe('Release capability and regression contract', () => {
         findUnique: jest.fn().mockImplementation(async ({ where }) => commands.get(where.idempotencyKey) ?? null),
         create: resetCreate,
       },
+      storyProgressRouteNode: { create: jest.fn().mockResolvedValue({ id: 'reset-route-root' }) },
       auditEvent: { create: jest.fn() },
     };
     f.prisma.$transaction.mockImplementation(async (run) => run(prisma));
