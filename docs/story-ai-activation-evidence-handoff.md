@@ -68,6 +68,25 @@ before a result exists. It cannot approve a result.
 
 ## Verification and Remaining Limits
 
+### Independent QA Corrective Follow-up
+
+Public `choose` resolves the effective approved rights version for the pinned
+manuscript and normalizes locale before authorizing within the same transaction.
+Private-only rights still allow personal generation, never shared preparation.
+Generated shared results require approved ancestry, including legacy descendants.
+The SQL guard and runtime authorization bound traversal to 2048 results; missing,
+cyclic or longer ancestry fails closed for sharing. This is an explicit reuse
+limit, not a narrative-memory guarantee or authorization to enable production.
+Runtime ancestry rows are share-locked in the caller's transaction to serialize
+withdrawal with reuse/promotion. Terminal child withdrawal and reject evidence
+remain possible after any ancestor is revoked; evidence is never discarded.
+The corrective PG suite covers actual controller/service generation and hits,
+both child withdrawal paths, and a 216-result approved lineage then root revoke.
+Corrective verification: fresh 59 migrations on the dedicated route QA database;
+36 story-production suites passed (461 tests, one existing skip), including five
+new real-PG corrective cases. TypeScript noEmit, touched-file ESLint and whitespace
+checks passed. Frozen #1895 checkout, dependencies and QA database were untouched.
+
 Run Jest directly to avoid the package pretest generate hook. Real PostgreSQL
 specs are opt-in via `STORY_TEST_DATABASE_URL`; the fixture refuses non-loopback
 or non-test/QA database names. It uses synthetic users/content, real constraints

@@ -33,6 +33,7 @@ import {
   projectContinuityGateForPath,
   projectStoryAccess,
   projectStoryGraphValidationSummary,
+  STORY_LOCALES,
 } from './story-production.policy';
 import { sessionKeyHash, storyPathSignature } from './story-lifecycle.policy';
 import { StoryEconomicsService } from './story-economics.service';
@@ -730,12 +731,23 @@ export class StoryProductionService {
       const choice: any = choices.find((item) => item.id === choiceId);
       if (!choice) throw new BadRequestException('Choice is not available for the current scene');
       if (choice.routeKind === 'generation_required') {
+        const normalizedLocale = STORY_LOCALES.find((candidate) => candidate.toLowerCase() === locale.trim().toLowerCase()) ?? locale.trim();
+        const now = new Date();
+        const contract = await tx.contentRightsContract.findFirst({
+          where: { workType: 'story', workId: work.id },
+          include: { versions: { where: {
+            contentVersionId: release.manuscriptVersionId, approvalState: 'approved_configuration',
+            aiTransformationAllowed: true, effectiveFrom: { lte: now }, startsAt: { lte: now },
+            OR: [{ endsAt: null }, { endsAt: { gt: now } }],
+          }, orderBy: { revision: 'desc' }, take: 1 } },
+        });
         const legalActivation = await this.legalActivation?.authorize({
           workId: work.id,
           releaseId: release.id,
           manuscriptVersionId: release.manuscriptVersionId,
-          rightsContractVersionId: null,
-        });
+          rightsContractVersionId: contract?.versions[0]?.id ?? null,
+          locale: normalizedLocale,
+        }, tx);
         if (!legalActivation?.active) {
           throw new ForbiddenException({
             code: 'STORY_AI_LEGAL_ACTIVATION_REQUIRED',
@@ -764,7 +776,7 @@ export class StoryProductionService {
           release,
           choice,
           sourceKind,
-          locale,
+          locale: normalizedLocale,
           idempotencyKey,
         });
       }

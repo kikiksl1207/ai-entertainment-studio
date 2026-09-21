@@ -41,6 +41,7 @@ export class StoryAiActivationService {
       result.releaseId !== context.releaseId || result.releaseChecksum !== context.releaseChecksum ||
       result.resultChecksum !== context.resultChecksum || result.rightsActivationKey !== activation.id ||
       !result.originGeneratedSceneId) return false;
+    if (!await this.ancestryValid(tx, result.id)) return false;
     return this.evidenceValid(tx, result);
   }
 
@@ -113,6 +114,9 @@ export class StoryAiActivationService {
       const active = activation && await this.prepare({ ...result, rightsContractVersionId: activation.rightsContractVersionId }, tx);
       if (!active || active.id !== result.rightsActivationKey || !await this.evidenceValid(tx, result)) {
         throw new ForbiddenException('Current legal, moderation and quality evidence required');
+      }
+      if (result.sourceSharedResultId && !await this.ancestryValid(tx, result.sourceSharedResultId)) {
+        throw new ForbiddenException('Shared result ancestor is not approved');
       }
       if (result.status === 'approved') return { id: resultId, status: 'approved', idempotentReplay: true };
       const scene = await tx.storyAiGeneratedScene.findUnique({ where: { id: result.originGeneratedSceneId } });
@@ -250,5 +254,16 @@ export class StoryAiActivationService {
       AND story_ai_evidence_valid(${result.id}::uuid,${result.resultChecksum},'quality',
         ${result.qualityPolicyVersion},${STORY_AI_QUALITY_EVALUATOR}) AS valid`;
     return Boolean(check?.valid);
+  }
+
+  private async ancestryValid(tx: Client, resultId: string) {
+    const ancestors = await tx.$queryRaw<Array<{ status: string; source_kind: string }>>`
+      WITH RECURSIVE ancestry AS (
+        SELECT id,source_shared_result_id,1 AS depth FROM story_ai_reusable_results WHERE id=${resultId}::uuid
+        UNION ALL SELECT r.id,r.source_shared_result_id,a.depth+1 FROM story_ai_reusable_results r
+            JOIN ancestry a ON r.id=a.source_shared_result_id WHERE a.depth<2048
+      ) SELECT r.status,r.source_kind FROM story_ai_reusable_results r JOIN ancestry a ON a.id=r.id FOR SHARE OF r`;
+    return ancestors.length > 0 && ancestors.every((row) => row.status === 'approved') &&
+      ancestors.some((row) => row.source_kind === 'canonical');
   }
 }

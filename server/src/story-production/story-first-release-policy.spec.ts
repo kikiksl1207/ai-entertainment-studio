@@ -72,6 +72,7 @@ function fixture() {
     },
     storyChoice: { findMany: jest.fn().mockResolvedValue(choices), groupBy: jest.fn() },
     storyAnalysisJob: { findFirst: jest.fn().mockResolvedValue(null) },
+    contentRightsContract: { findFirst: jest.fn().mockResolvedValue({ versions: [{ id: 'approved-rights' }] }) },
     storyContinuityIssue: { count: jest.fn().mockResolvedValue(0) },
     storyCustomChoice: { findUnique: jest.fn().mockResolvedValue(null), create: mutations.customCreate },
     storyRelease: { findFirst: jest.fn().mockResolvedValue({ id: 'release' }), findMany: jest.fn().mockResolvedValue([{ id: 'release' }]) },
