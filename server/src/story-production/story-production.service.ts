@@ -43,6 +43,7 @@ import {
   STORY_FIRST_RELEASE_CHOICE_POLICY,
 } from './story-progress-control.policy';
 import { projectStoredStorySceneVisualManifest } from '../story-stage/story-scene-visual-manifest-contract';
+import { projectAuthoredBeatVisual } from './story-authored-beat-visual.policy';
 import { prepareValidatedJsonManuscript } from './story-manuscript-file.policy';
 import { storeManuscriptVersion } from './story-manuscript-version.store';
 import { StoryContinuationProvider } from './story-continuation.provider';
@@ -1432,6 +1433,13 @@ export class StoryProductionService {
     ]);
     // One look-ahead detects invalid authored scenes without truncating their branches.
     assertSuggestedChoiceCount(choices.length);
+    const projectedBeats = beats.map((beat) => {
+      const visual = projectAuthoredBeatVisual(beat);
+      if (!visual.valid) throw new NotFoundException('Published story visual segment not found');
+      return { id: beat.id, position: beat.position, type: beat.beatType,
+        content: projectLocalizedValue(beat.content, locale, work.defaultLocale),
+        ...(visual.visualContext ? { visualContext: visual.visualContext } : {}) };
+    });
     const visibleChoices = progress.status === 'active' ? choices : [];
     const nextIds = visibleChoices.map((choice) => choice.targetSceneId).filter((id): id is string => Boolean(id));
     const nextScenes = await this.prisma.storyScene.findMany({ where: { id: { in: nextIds }, status: 'published', fixtureSource: false }, select: { id: true, sceneKey: true, title: true, visualManifest: true } });
@@ -1463,7 +1471,7 @@ export class StoryProductionService {
         id: scene.id,
         sceneKey: scene.sceneKey,
         title: projectLocalizedValue(scene.title, locale, work.defaultLocale),
-        beats: beats.map((beat) => ({ id: beat.id, position: beat.position, type: beat.beatType, content: projectLocalizedValue(beat.content, locale, work.defaultLocale) })),
+        beats: projectedBeats,
         visualManifest,
         endingType: scene.endingType,
       },

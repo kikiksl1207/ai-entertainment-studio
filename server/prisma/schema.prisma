@@ -1690,6 +1690,7 @@ model StoryWork {
   updatedAt           DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
 
   @@index([status, publishedAt, id], map: "idx_story_works_public_catalog")
+  @@unique([id, ownerUserId], map: "uq_story_works_authored_owner")
   @@index([ownerUserId, updatedAt], map: "idx_story_works_owner_updated")
   @@map("story_works")
 }
@@ -1739,6 +1740,8 @@ model StoryBeat {
   position  Int
   beatType  String   @map("beat_type")
   content   Json
+  sourceSceneKey String? @map("source_scene_key")
+  visualManifest Json? @map("visual_manifest")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   @@unique([sceneId, position])
@@ -1915,8 +1918,38 @@ model StoryRelease {
   @@unique([workId, version])
   @@unique([workId, checksum])
   @@unique([workId, id], map: "uq_story_releases_work_id")
+  @@unique([id, workId, manuscriptVersionId], map: "uq_story_releases_authored_manuscript")
   @@index([workId, status, createdAt], map: "idx_story_releases_work_status")
   @@map("story_releases")
+}
+
+model StoryAuthoredImport {
+  id                     String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workId                 String   @unique @map("work_id") @db.Uuid
+  ownerUserId            String   @map("owner_user_id") @db.Uuid
+  releaseId              String   @unique @map("release_id") @db.Uuid
+  manuscriptVersionId    String   @map("manuscript_version_id") @db.Uuid
+  idempotencyKeyHash     String   @map("idempotency_key_hash")
+  sourceMapSha256         String   @map("source_map_sha256")
+  declaredPackageSha256   String   @map("declared_package_sha256")
+  submittedInventorySha256 String  @map("submitted_inventory_sha256")
+  manuscriptContentHash   String   @map("manuscript_content_hash")
+  releaseChecksum        String   @map("release_checksum")
+  planChecksum           String   @map("plan_checksum")
+  materializedChecksum   String   @map("materialized_checksum")
+  contract               String
+  locale                 String
+  partCount              Int      @map("part_count")
+  sourceSceneCount        Int      @map("source_scene_count")
+  beatCount              Int      @map("beat_count")
+  choiceCount            Int      @map("choice_count")
+  actCount               Int      @map("act_count")
+  provenance             Json
+  endingResolution       Json     @map("ending_resolution")
+  createdAt              DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([ownerUserId, workId, idempotencyKeyHash], map: "uq_story_authored_import_scoped_key")
+  @@map("story_authored_imports")
 }
 
 model StoryPublicationTransition {

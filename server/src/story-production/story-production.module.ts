@@ -14,6 +14,11 @@ import {
 import { StoryLifecycleService } from './story-lifecycle.service';
 import { StoryImjinReleaseBridgeService } from './story-imjin-release-bridge.service';
 import {
+  StoryAuthoredImportController,
+  StoryAuthoredImportMultipartInterceptor,
+} from './story-authored-import.controller';
+import { StoryAuthoredImportService } from './story-authored-import.service';
+import {
   StoryProductionController,
   StoryProgressAdminController,
 } from './story-production.controller';
@@ -52,6 +57,7 @@ import { SEMANTIC_PROVIDER_FACTORY, SEMANTIC_WORKER_FACTORY } from './story-sema
   controllers: [
     StoryAiActivationAdminController,
     StoryManuscriptFileController,
+    StoryAuthoredImportController,
     StoryProductionController,
     StoryProgressAdminController,
     StoryLifecycleController,
@@ -71,6 +77,8 @@ import { SEMANTIC_PROVIDER_FACTORY, SEMANTIC_WORKER_FACTORY } from './story-sema
     StoryManuscriptMultipartInterceptor,
     StoryManuscriptPasteOwnerGuard,
     StoryManuscriptPasteMultipartInterceptor,
+    StoryAuthoredImportService,
+    StoryAuthoredImportMultipartInterceptor,
     StoryProductionService,
     StoryProgressControlService,
     StoryLifecycleService,
