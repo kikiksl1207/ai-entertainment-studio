@@ -151,7 +151,8 @@ export class StoryImjinReleaseBridgeService {
       const sceneRows = plan.parts.map((part, index) => ({
         id: randomUUID(), partId: partRows[index].id, sceneKey: part.sceneKey, position: 1,
         status: 'published', title: { ko: part.title }, fixtureSource: false,
-        endingType: index === plan.parts.length - 1 ? 'author_main' : null,
+        // The final authored scene is readable; only its A choice ends the route.
+        endingType: null,
         visualManifest: {
           sceneKey: part.sceneKey,
           background: { state: 'missing', altKey: 'story.scene.background' },
