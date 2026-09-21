@@ -17,6 +17,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import {
   CreateManuscriptVersionDto,
   DecideContinuityIssueDto,
+  PurchaseStoryWorkDto,
   StartStoryProgressDto,
   StoryCatalogQueryDto,
   StoryLocaleQueryDto,
@@ -120,6 +121,7 @@ export class StoryProductionService {
         summary: true,
         coverManifest: true,
         priceLumina: true,
+        releaseRevision: true,
         fixtureSource: true,
         publishedAt: true,
         activeReleaseId: true,
@@ -190,6 +192,8 @@ export class StoryProductionService {
             Boolean(userId),
             Boolean(progress?.currentSceneId),
             jsonStringArray(progress?.visitedEndingKeys).length,
+            undefined,
+            row,
           ),
           releaseCapability: capabilities?.get(row.id) ?? firstReleaseChoiceCapability(),
         };
@@ -282,6 +286,8 @@ export class StoryProductionService {
         Boolean(userId),
         Boolean(progress?.currentSceneId),
         endingRecords.length,
+        undefined,
+        work,
       ),
       replay: userId
         ? {
@@ -332,6 +338,8 @@ export class StoryProductionService {
         true,
         Boolean(progress?.currentSceneId),
         endingCount,
+        undefined,
+        work,
       ),
       replay: {
         continue: Boolean(progress?.currentSceneId),
@@ -343,49 +351,93 @@ export class StoryProductionService {
     };
   }
 
-  async purchaseWork(userId: string, workId: string, idempotencyKey?: string) {
+  async purchaseWork(
+    userId: string,
+    workId: string,
+    idempotencyKey?: string,
+    confirmation?: PurchaseStoryWorkDto,
+  ) {
     const key = requireWalletMutationIdempotencyKey(idempotencyKey);
-    const work = await this.publicWorkById(workId);
-    const active = await this.hasEntitlement(userId, [work.id]);
-    if (active || work.priceLumina.isZero()) {
-      return { entitled: true, charged: false, idempotentReplay: true };
-    }
-
     return this.prisma.$transaction(async (tx) => {
       const ledgerKey = `story-work:${key}`;
+      // Global key lock binds cross-owner replays. The user lock serializes
+      // different keys before reading an entitlement that may not exist yet.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${ledgerKey}, 1837))`;
+      const users = await tx.$queryRaw<Array<{ id: string; status: string; deleted_at: Date | null }>>`
+        SELECT id, status, deleted_at FROM users WHERE id = ${userId}::uuid FOR NO KEY UPDATE
+      `;
+      if (!users.length || users[0].status !== 'active' || users[0].deleted_at) {
+        throw new BadRequestException('Active user not found');
+      }
+      await tx.$queryRaw`SELECT id FROM story_works WHERE id = ${workId}::uuid FOR SHARE`;
+      const entitlementKey = {
+        userId, entitlementType: 'story_work', referenceType: 'story_work', referenceId: workId,
+      };
+      await tx.$queryRaw`
+        SELECT id FROM user_entitlements
+        WHERE user_id = ${userId}::uuid AND entitlement_type = 'story_work'
+          AND reference_type = 'story_work' AND reference_id = ${workId}::uuid
+        FOR UPDATE
+      `;
+      const entitlement = await tx.userEntitlement.findUnique({
+        where: { userId_entitlementType_referenceType_referenceId: entitlementKey },
+      });
       const existingLedger = await tx.walletLedger.findUnique({
         where: { idempotencyKey: ledgerKey },
+        include: { walletAccount: { select: { userId: true, currencyCode: true } } },
       });
       if (existingLedger) {
-        this.assertPurchaseReplay(existingLedger, work.id, work.priceLumina);
-        const entitlement = await tx.userEntitlement.findUnique({
-          where: {
-            userId_entitlementType_referenceType_referenceId: {
-              userId,
-              entitlementType: 'story_work',
-              referenceType: 'story_work',
-              referenceId: work.id,
-            },
-          },
+        this.assertPurchaseReplay(existingLedger, userId, workId);
+        const entitled = Boolean(entitlement && hasActiveEntitlement([entitlement]));
+        return {
+          entitled, charged: false, idempotentReplay: true, chargedAmountLumina: '0',
+          originalPurchaseAmountLumina: existingLedger.amount.toString(),
+          outcome: entitled ? 'replayed' : 'entitlement_inactive',
+        };
+      }
+      const work = await tx.storyWork.findUnique({ where: { id: workId } });
+      const stale = () => {
+        throw new ConflictException({
+          code: 'STORY_PURCHASE_CONFIRMATION_STALE',
+          messageKey: 'story.purchase.confirmationStale', walletMutation: false,
         });
-        if (!entitlement) throwWalletMutationIdempotencyConflict();
-        return { entitled: true, charged: false, idempotentReplay: true };
+      };
+      if (!work) throw new NotFoundException('Published story not found');
+      if (work.activeReleaseId) {
+        await tx.$queryRaw`SELECT id FROM story_releases WHERE id = ${work.activeReleaseId}::uuid FOR SHARE`;
       }
-
-      const existing = await tx.userEntitlement.findUnique({
-        where: {
-          userId_entitlementType_referenceType_referenceId: {
-            userId,
-            entitlementType: 'story_work',
-            referenceType: 'story_work',
-            referenceId: work.id,
-          },
-        },
-      });
-      if (existing && hasActiveEntitlement([existing])) {
-        return { entitled: true, charged: false, idempotentReplay: true };
+      const release = work.activeReleaseId ? await tx.storyRelease.findFirst({
+        where: { id: work.activeReleaseId, workId, status: 'active' }, select: { id: true },
+      }) : null;
+      if (work.status !== 'published' || !work.publishedAt || work.publishedAt > new Date() ||
+        !release || !isPublicStorySourceSafe({
+          fixtureSource: work.fixtureSource, slug: work.slug, manifest: work.coverManifest,
+        })) stale();
+      if (entitlement && hasActiveEntitlement([entitlement])) {
+        return { entitled: true, charged: false, idempotentReplay: true,
+          chargedAmountLumina: '0', outcome: 'already_entitled' };
       }
-
+      if (work.priceLumina.isZero()) {
+        return { entitled: true, charged: false, idempotentReplay: true,
+          chargedAmountLumina: '0', outcome: 'free' };
+      }
+      if (confirmation?.confirmedPriceLumina == null || confirmation.expectedReleaseId == null ||
+        confirmation.expectedReleaseRevision == null) {
+        throw new ConflictException({
+          code: 'STORY_PURCHASE_CONFIRMATION_REQUIRED',
+          messageKey: 'story.purchase.confirmationRequired', walletMutation: false,
+        });
+      }
+      if (typeof confirmation.confirmedPriceLumina !== 'string' ||
+        !/^(0|[1-9]\d{0,15})(\.\d{1,2})?$/.test(confirmation.confirmedPriceLumina) ||
+        !work.priceLumina.isPositive() ||
+        !work.priceLumina.equals(confirmation.confirmedPriceLumina) ||
+        work.activeReleaseId !== confirmation.expectedReleaseId ||
+        work.releaseRevision !== confirmation.expectedReleaseRevision) stale();
+      await tx.$queryRaw`
+        SELECT id FROM wallet_accounts WHERE user_id = ${userId}::uuid
+          AND currency_code = ${CURRENCY} FOR UPDATE
+      `;
       const wallet = await tx.walletAccount.findUnique({
         where: { userId_currencyCode: { userId, currencyCode: CURRENCY } },
       });
@@ -393,48 +445,29 @@ export class StoryProductionService {
         throw new BadRequestException('Active wallet not found');
       }
       const updated = await tx.walletAccount.updateMany({
-        where: { id: wallet.id, cachedBalance: { gte: work.priceLumina } },
+        where: { id: wallet.id, status: 'active', cachedBalance: { gte: work.priceLumina } },
         data: { cachedBalance: { decrement: work.priceLumina } },
       });
       assertAtomicWalletDebitSucceeded(updated);
       const ledger = await tx.walletLedger.create({
         data: {
-          walletAccountId: wallet.id,
-          direction: 'debit',
-          amount: work.priceLumina,
-          ledgerType: 'story_purchase',
-          referenceType: 'story_work',
-          referenceId: work.id,
-          idempotencyKey: ledgerKey,
-          memo: 'Story work entitlement purchase',
+          walletAccountId: wallet.id, direction: 'debit', amount: work.priceLumina,
+          ledgerType: 'story_purchase', referenceType: 'story_work', referenceId: work.id,
+          idempotencyKey: ledgerKey, memo: 'Story work entitlement purchase',
         },
       });
       await tx.userEntitlement.upsert({
-        where: {
-          userId_entitlementType_referenceType_referenceId: {
-            userId,
-            entitlementType: 'story_work',
-            referenceType: 'story_work',
-            referenceId: work.id,
-          },
-        },
+        where: { userId_entitlementType_referenceType_referenceId: entitlementKey },
         create: {
-          userId,
-          entitlementType: 'story_work',
-          referenceType: 'story_work',
-          referenceId: work.id,
-          grantedByReferenceType: 'wallet_ledger',
-          grantedByReferenceId: ledger.id,
+          ...entitlementKey, grantedByReferenceType: 'wallet_ledger', grantedByReferenceId: ledger.id,
         },
         update: {
-          revokedAt: null,
-          expiresAt: null,
-          startsAt: new Date(),
-          grantedByReferenceType: 'wallet_ledger',
-          grantedByReferenceId: ledger.id,
+          revokedAt: null, expiresAt: null, startsAt: new Date(),
+          grantedByReferenceType: 'wallet_ledger', grantedByReferenceId: ledger.id,
         },
       });
-      return { entitled: true, charged: true, idempotentReplay: false };
+      return { entitled: true, charged: true, idempotentReplay: false,
+        chargedAmountLumina: work.priceLumina.toString(), outcome: 'purchased' };
     });
   }
 
@@ -1587,6 +1620,7 @@ export class StoryProductionService {
     hasProgress = false,
     endingCount = 0,
     freeOverride?: boolean,
+    purchase?: { activeReleaseId: string | null; releaseRevision: number },
   ) {
     const projection = projectStoryAccess({
       authenticated,
@@ -1603,6 +1637,10 @@ export class StoryProductionService {
       entitlementGranted,
       priceLumina: projection.accessible ? null : projection.pricing.amountLumina,
       purchaseAction: projection.accessible ? null : 'purchase',
+      purchaseConfirmation: !projection.accessible && purchase?.activeReleaseId
+        ? { priceLumina: priceLumina.toString(), releaseId: purchase.activeReleaseId,
+            releaseRevision: purchase.releaseRevision }
+        : null,
     };
   }
 
@@ -1625,8 +1663,15 @@ export class StoryProductionService {
     return (await this.entitledReferenceIds(userId, referenceIds)).size > 0;
   }
 
-  private assertPurchaseReplay(ledger: { ledgerType: string; referenceType: string | null; referenceId: string | null; amount: Decimal }, workId: string, amount: Decimal) {
-    if (ledger.ledgerType === 'story_purchase' && ledger.referenceType === 'story_work' && ledger.referenceId === workId && ledger.amount.equals(amount)) return;
+  private assertPurchaseReplay(
+    ledger: { ledgerType: string; referenceType: string | null; referenceId: string | null;
+      direction: string; amount: Decimal; walletAccount: { userId: string; currencyCode: string } },
+    userId: string,
+    workId: string,
+  ) {
+    if (ledger.ledgerType === 'story_purchase' && ledger.referenceType === 'story_work' &&
+      ledger.referenceId === workId && ledger.direction === 'debit' && ledger.amount.isPositive() &&
+      ledger.walletAccount.userId === userId && ledger.walletAccount.currencyCode === CURRENCY) return;
     throwWalletMutationIdempotencyConflict();
   }
 

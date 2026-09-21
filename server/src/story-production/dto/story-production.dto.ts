@@ -10,6 +10,7 @@ import {
   IsUUID,
   Max,
   MaxLength,
+  Matches,
   Min,
   ValidateNested,
 } from 'class-validator';
@@ -36,6 +37,23 @@ export class StoryLocaleQueryDto {
   @IsOptional()
   @IsIn(STORY_LOCALES)
   locale = 'ko';
+}
+
+export class PurchaseStoryWorkDto {
+  @IsOptional()
+  @IsString()
+  @Matches(/^(0|[1-9]\d{0,15})(\.\d{1,2})?$/)
+  confirmedPriceLumina?: string;
+
+  @IsOptional()
+  @IsUUID()
+  expectedReleaseId?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(2147483647)
+  expectedReleaseRevision?: number;
 }
 
 export class StoryGraphQueryDto {

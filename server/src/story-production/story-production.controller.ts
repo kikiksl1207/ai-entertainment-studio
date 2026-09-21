@@ -22,6 +22,7 @@ import {
   ConfirmStoryCheckpointDto,
   DecideContinuityIssueDto,
   ExecuteStoryResetDto,
+  PurchaseStoryWorkDto,
   SelectStoryChoiceDto,
   StartStoryProgressDto,
   StoryCatalogQueryDto,
@@ -84,8 +85,9 @@ export class StoryProductionController {
     @CurrentUser() user: AuthUser,
     @Param('workId') workId: string,
     @Headers('idempotency-key') idempotencyKey?: string,
+    @Body() body?: PurchaseStoryWorkDto,
   ) {
-    return this.stories.purchaseWork(user.id, workId, idempotencyKey);
+    return this.stories.purchaseWork(user.id, workId, idempotencyKey, body);
   }
 
   @Post('stories/:workId/progress')
