@@ -30,6 +30,7 @@ import {
   hasActiveEntitlement,
   isPublicStorySourceSafe,
   projectLocalizedValue,
+  projectContinuityGateForPath,
   projectStoryAccess,
   projectStoryGraphValidationSummary,
 } from './story-production.policy';
@@ -951,6 +952,7 @@ export class StoryProductionService {
       const latest = await tx.storyAnalysisJob.findFirst({ where: { manuscriptVersionId: manuscript.id }, orderBy: { analysisVersion: 'desc' }, select: { analysisVersion: true } });
       const job = await tx.storyAnalysisJob.create({
         data: {
+          workId: manuscript.workId,
           manuscriptVersionId: manuscript.id,
           analysisVersion: (latest?.analysisVersion ?? 0) + 1,
           idempotencyKey: key,
@@ -1080,7 +1082,7 @@ export class StoryProductionService {
     });
     const analysis = manuscript
       ? await this.prisma.storyAnalysisJob.findFirst({
-          where: { manuscriptVersionId: manuscript.id, status: 'completed' },
+          where: { workId, manuscriptVersionId: manuscript.id, status: 'completed' },
           orderBy: { analysisVersion: 'desc' },
           select: { id: true, analysisVersion: true },
         })
@@ -1098,7 +1100,15 @@ export class StoryProductionService {
     }
     const [entries, issues, evidence, entryLinks, issueLinks, pathStates, decisions] = await Promise.all([
       this.prisma.storyContinuityEntry.findMany({ where: { workId, analysisJobId: analysis.id }, orderBy: [{ entryType: 'asc' }, { createdAt: 'asc' }] }),
-      this.prisma.storyContinuityIssue.findMany({ where: { workId, analysisJobId: analysis.id }, orderBy: [{ severity: 'asc' }, { createdAt: 'asc' }] }),
+      this.prisma.storyContinuityIssue.findMany({
+        where: {
+          workId,
+          analysisJobId: analysis.id,
+          pathScope: 'author_original',
+          pathKey: 'author_original',
+        },
+        orderBy: [{ severity: 'asc' }, { createdAt: 'asc' }],
+      }),
       this.prisma.storyAnalysisEvidence.findMany({ where: { analysisJobId: analysis.id }, select: { id: true, evidenceType: true, sourcePartKey: true, sourceParagraphIndex: true } }),
       this.prisma.storyContinuityEntryEvidence.findMany({ where: { analysisJobId: analysis.id }, select: { entryId: true, evidenceId: true } }),
       this.prisma.storyContinuityIssueEvidence.findMany({ where: { analysisJobId: analysis.id }, select: { issueId: true, evidenceId: true } }),
@@ -1117,7 +1127,11 @@ export class StoryProductionService {
       label: entry.label,
       evidence: evidenceFor(entryLinks.filter((link) => link.entryId === entry.id)),
     }));
-    const projectedIssues = issues.map((issue) => ({
+    const authorIssues = issues.filter(
+      (issue) => issue.pathScope === 'author_original' && issue.pathKey === 'author_original',
+    );
+    const authorIssueIds = new Set(authorIssues.map((issue) => issue.id));
+    const projectedIssues = authorIssues.map((issue) => ({
       id: issue.id,
       analysisVersion: issue.analysisVersion,
       pathScope: issue.pathScope,
@@ -1129,7 +1143,7 @@ export class StoryProductionService {
       decisionRevision: issue.decisionRevision,
       evidence: evidenceFor(issueLinks.filter((link) => link.issueId === issue.id)),
     }));
-    const publishBlocked = issues.some((issue) => issue.severity === 'critical' && issue.status === 'open');
+    const publishGate = projectContinuityGateForPath(issues, 'author_original', 'author_original');
     const projectPathState = (scope: string) => pathStates
       .filter((state) => state.pathScope === scope)
       .map((state) => ({ entryId: state.entryId, pathKey: state.pathKey, state: state.state }));
@@ -1142,7 +1156,7 @@ export class StoryProductionService {
         authorOriginal: projectPathState('author_original'),
         readerDerived: projectPathState('reader_derived'),
       },
-      decisionHistory: decisions.map((decision) => ({
+      decisionHistory: decisions.filter((decision) => authorIssueIds.has(decision.issueId)).map((decision) => ({
         issueId: decision.issueId,
         revision: decision.decisionRevision,
         fromStatus: decision.fromStatus,
@@ -1150,17 +1164,20 @@ export class StoryProductionService {
         decision: decision.decision,
         decidedAt: decision.createdAt,
       })),
-      publishGate: {
-        blocked: publishBlocked,
-        unresolvedCriticalCount: issues.filter((issue) => issue.severity === 'critical' && issue.status === 'open').length,
-        unresolvedWarningCount: issues.filter((issue) => issue.severity === 'warning' && issue.status === 'open').length,
-      },
+      publishGate,
     };
   }
 
   async decideContinuityIssue(userId: string, workId: string, issueId: string, body: DecideContinuityIssueDto) {
     await this.assertOwner(userId, workId);
-    const issue = await this.prisma.storyContinuityIssue.findFirst({ where: { id: issueId, workId } });
+    const issue = await this.prisma.storyContinuityIssue.findFirst({
+      where: {
+        id: issueId,
+        workId,
+        pathScope: 'author_original',
+        pathKey: 'author_original',
+      },
+    });
     if (!issue) throw new NotFoundException('Continuity issue not found');
     return this.prisma.$transaction(async (tx) => {
       const revision = issue.decisionRevision + 1;

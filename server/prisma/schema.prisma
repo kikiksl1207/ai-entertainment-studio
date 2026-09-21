@@ -1783,6 +1783,7 @@ model StoryReaderProgress {
   updatedAt           DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
 
   @@unique([userId, workId])
+  @@unique([workId, id], map: "uq_story_reader_progress_work_id")
   @@index([userId, updatedAt], map: "idx_story_progress_user_updated")
   @@map("story_reader_progress")
 }
@@ -2275,12 +2276,14 @@ model StoryManuscriptVersion {
 
   @@unique([workId, version])
   @@unique([workId, contentHash])
+  @@unique([workId, id], map: "uq_story_manuscript_versions_work_id")
   @@index([ownerUserId, createdAt], map: "idx_story_manuscripts_owner_created")
   @@map("story_manuscript_versions")
 }
 
 model StoryAnalysisJob {
   id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workId              String    @map("work_id") @db.Uuid
   manuscriptVersionId String    @map("manuscript_version_id") @db.Uuid
   analysisVersion     Int       @map("analysis_version")
   idempotencyKey      String    @unique @map("idempotency_key")
@@ -2293,6 +2296,7 @@ model StoryAnalysisJob {
 
   @@unique([manuscriptVersionId, analysisVersion])
   @@unique([id, analysisVersion], map: "uq_story_analysis_jobs_id_version")
+  @@unique([workId, id, analysisVersion], map: "uq_story_analysis_jobs_work_id_version")
   @@index([manuscriptVersionId, createdAt], map: "idx_story_analysis_manuscript")
   @@map("story_analysis_jobs")
 }
@@ -2325,6 +2329,7 @@ model StoryContinuityEntry {
 
   @@unique([analysisJobId, entryType, ledgerKey])
   @@unique([analysisJobId, id], map: "uq_story_continuity_entries_job_id")
+  @@unique([workId, analysisJobId, id], map: "uq_story_continuity_entries_work_job_id")
   @@index([workId, entryType, state], map: "idx_story_continuity_entries_work")
   @@map("story_continuity_entries")
 }
@@ -2336,6 +2341,7 @@ model StoryContinuityIssue {
   analysisVersion  Int       @map("analysis_version")
   pathScope        String    @default("author_original") @map("path_scope")
   pathKey          String    @default("author_original") @map("path_key")
+  readerProgressId String?   @map("reader_progress_id") @db.Uuid
   issueKey         String    @map("issue_key")
   severity         String
   status           String    @default("open")
@@ -2348,9 +2354,11 @@ model StoryContinuityIssue {
   createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt        DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
 
-  @@unique([analysisJobId, issueKey])
+  @@unique([analysisJobId, pathScope, pathKey, issueKey], map: "story_continuity_issues_analysis_path_issue_key")
   @@unique([analysisJobId, id], map: "uq_story_continuity_issues_job_id")
+  @@unique([workId, analysisJobId, id], map: "uq_story_continuity_issues_work_job_id")
   @@index([workId, severity, status], map: "idx_story_continuity_issues_publish")
+  @@index([workId, pathScope, pathKey, severity, status], map: "idx_story_continuity_issues_publish_path")
   @@map("story_continuity_issues")
 }
 

@@ -141,7 +141,7 @@ export class StoryLifecycleService {
           throw new ConflictException('Release validation is not ready');
         }
         const continuityAnalysis = await tx.storyAnalysisJob.findFirst({
-          where: { manuscriptVersionId: release.manuscriptVersionId, status: 'completed' },
+          where: { workId, manuscriptVersionId: release.manuscriptVersionId, status: 'completed' },
           orderBy: { analysisVersion: 'desc' },
           select: { id: true },
         });
@@ -152,6 +152,8 @@ export class StoryLifecycleService {
               analysisJobId: continuityAnalysis.id,
               severity: 'critical',
               status: 'open',
+              pathScope: 'author_original',
+              pathKey: 'author_original',
             },
           });
           if (unresolvedCriticalCount > 0) {
@@ -477,7 +479,13 @@ export class StoryLifecycleService {
     if (!canTransitionReview(review.state, body.toState)) throw new BadRequestException('Review transition is not allowed');
     if (body.toState === 'final_confirmation') {
       const issues = await this.prisma.storyContinuityIssue.findMany({
-        where: { workId: review.workId, analysisJobId: review.analysisJobId, status: 'open' },
+        where: {
+          workId: review.workId,
+          analysisJobId: review.analysisJobId,
+          status: 'open',
+          pathScope: 'author_original',
+          pathKey: 'author_original',
+        },
         select: { severity: true },
       });
       if (issues.some((issue) => issue.severity === 'critical')) throw new ConflictException('Critical continuity issue blocks confirmation');
@@ -556,7 +564,7 @@ export class StoryLifecycleService {
         take: 100000,
       }),
       this.prisma.storyContinuityIssue.findMany({
-        where: { workId },
+        where: { workId, pathScope: 'author_original', pathKey: 'author_original' },
         select: { status: true },
         take: 10000,
       }),

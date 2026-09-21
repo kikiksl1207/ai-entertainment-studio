@@ -579,6 +579,7 @@ describe('Release capability and regression contract', () => {
     expect(tx.storyContinuityIssue.count).toHaveBeenCalledWith({
       where: {
         workId: 'work', analysisJobId: 'analysis-1', severity: 'critical', status: 'open',
+        pathScope: 'author_original', pathKey: 'author_original',
       },
     });
     expect(tx.storyWork.updateMany).not.toHaveBeenCalled();

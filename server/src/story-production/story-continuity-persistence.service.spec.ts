@@ -57,6 +57,9 @@ describe('StoryProductionService continuity persistence', () => {
     expect(tx.storyContinuityEntry.create).toHaveBeenCalledWith({
       data: expect.objectContaining({ analysisJobId: 'analysis-1', analysisVersion: 1 }),
     });
+    expect(tx.storyAnalysisJob.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ workId: 'work-1', manuscriptVersionId: 'manuscript-1' }),
+    });
     expect(tx.storyContinuityEntryEvidence.createMany).toHaveBeenCalledWith({
       data: expect.arrayContaining([
         expect.objectContaining({ analysisJobId: 'analysis-1', analysisVersion: 1, evidenceId: expect.any(String) }),
@@ -149,6 +152,69 @@ describe('StoryProductionService continuity persistence', () => {
     expect(tx.storyContinuityIssue.updateMany).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({ decisionRevision: 2 }),
     }));
+    expect(prisma.storyContinuityIssue.findFirst).toHaveBeenCalledWith({
+      where: {
+        id: 'issue-1', workId: 'work-1', pathScope: 'author_original', pathKey: 'author_original',
+      },
+    });
     expect(manuscriptUpdate).not.toHaveBeenCalled();
+  });
+
+  it('keeps reader-derived critical issues out of the author projection and publish gate', async () => {
+    const authorWarning = {
+      id: 'author-warning', analysisVersion: 3, pathScope: 'author_original',
+      pathKey: 'author_original', issueKey: 'orphan-payoff:watch', severity: 'warning',
+      status: 'open', summary: 'Author warning', decisionRevision: 0, createdAt: new Date(0),
+    };
+    const readerCritical = {
+      id: 'reader-critical', analysisVersion: 3, pathScope: 'reader_derived',
+      pathKey: 'progress-2', issueKey: 'missing-payoff:watch', severity: 'critical',
+      status: 'open', summary: 'Reader-only critical', decisionRevision: 0, createdAt: new Date(0),
+    };
+    const prisma = {
+      storyWork: { findFirst: jest.fn().mockResolvedValue({ id: 'work-1' }) },
+      storyManuscriptVersion: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'manuscript-3', version: 3 }),
+      },
+      storyAnalysisJob: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'analysis-3', analysisVersion: 3 }),
+      },
+      storyContinuityEntry: { findMany: jest.fn().mockResolvedValue([]) },
+      storyContinuityIssue: {
+        // Returning an out-of-scope row proves the projection also fails closed beyond the query predicate.
+        findMany: jest.fn().mockResolvedValue([authorWarning, readerCritical]),
+      },
+      storyAnalysisEvidence: { findMany: jest.fn().mockResolvedValue([]) },
+      storyContinuityEntryEvidence: { findMany: jest.fn().mockResolvedValue([]) },
+      storyContinuityIssueEvidence: { findMany: jest.fn().mockResolvedValue([]) },
+      storyContinuityPathState: {
+        findMany: jest.fn().mockResolvedValue([
+          { entryId: 'entry-1', pathScope: 'author_original', pathKey: 'author_original', state: 'observed', createdAt: new Date(0) },
+          { entryId: 'entry-1', pathScope: 'reader_derived', pathKey: 'progress-2', state: 'resolved', createdAt: new Date(1) },
+        ]),
+      },
+      storyContinuityDecisionAudit: {
+        findMany: jest.fn().mockResolvedValue([
+          { issueId: 'reader-critical', decisionRevision: 1, fromStatus: 'open', toStatus: 'accepted', decision: 'reader-only', createdAt: new Date(2) },
+        ]),
+      },
+    };
+    const result = await new StoryProductionService(prisma as never).continuity('owner-1', 'work-1');
+
+    expect(prisma.storyAnalysisJob.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: { workId: 'work-1', manuscriptVersionId: 'manuscript-3', status: 'completed' },
+    }));
+    expect(prisma.storyContinuityIssue.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ pathScope: 'author_original', pathKey: 'author_original' }),
+    }));
+    expect(result.issues).toEqual([expect.objectContaining({ id: 'author-warning' })]);
+    expect(result.decisionHistory).toEqual([]);
+    expect(result.pathStates).toEqual({
+      authorOriginal: [{ entryId: 'entry-1', pathKey: 'author_original', state: 'observed' }],
+      readerDerived: [{ entryId: 'entry-1', pathKey: 'progress-2', state: 'resolved' }],
+    });
+    expect(result.publishGate).toEqual({
+      blocked: false, unresolvedCriticalCount: 0, unresolvedWarningCount: 1,
+    });
   });
 });

@@ -242,6 +242,22 @@ export function deriveContinuityLedger(evidence: Array<AnalysisEvidenceDraft & {
   return { entries, issues: [...missingPayoffIssues, ...orphanPayoffIssues] };
 }
 
+export function projectContinuityGateForPath(
+  issues: Array<{ pathScope: string; pathKey: string; severity: string; status: string }>,
+  pathScope: 'author_original' | 'reader_derived',
+  pathKey: string,
+) {
+  const scoped = issues.filter(
+    (issue) => issue.pathScope === pathScope && issue.pathKey === pathKey && issue.status === 'open',
+  );
+  const unresolvedCriticalCount = scoped.filter((issue) => issue.severity === 'critical').length;
+  return {
+    blocked: unresolvedCriticalCount > 0,
+    unresolvedCriticalCount,
+    unresolvedWarningCount: scoped.filter((issue) => issue.severity === 'warning').length,
+  };
+}
+
 export function hasActiveEntitlement(
   entitlements: Array<{ startsAt: Date; expiresAt: Date | null; revokedAt: Date | null }>,
   now = new Date(),

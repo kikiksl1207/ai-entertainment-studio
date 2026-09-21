@@ -8,6 +8,7 @@ import {
   isPublicStorySourceSafe,
   manuscriptContentHash,
   projectLocalizedValue,
+  projectContinuityGateForPath,
   projectStoryAccess,
   projectStoryGraphValidationSummary,
 } from './story-production.policy';
@@ -130,6 +131,24 @@ describe('story production policy', () => {
     ]).issues).toEqual([
       expect.objectContaining({ issueKey: 'orphan-payoff:unknown-promise', severity: 'warning' }),
     ]);
+  });
+
+  it('scopes critical continuity gates to the author or one reader path', () => {
+    const issues = [
+      { pathScope: 'author_original', pathKey: 'author_original', severity: 'warning', status: 'open' },
+      { pathScope: 'reader_derived', pathKey: 'progress-a', severity: 'critical', status: 'open' },
+      { pathScope: 'reader_derived', pathKey: 'progress-b', severity: 'critical', status: 'resolved' },
+    ];
+
+    expect(projectContinuityGateForPath(issues, 'author_original', 'author_original')).toEqual({
+      blocked: false, unresolvedCriticalCount: 0, unresolvedWarningCount: 1,
+    });
+    expect(projectContinuityGateForPath(issues, 'reader_derived', 'progress-a')).toEqual({
+      blocked: true, unresolvedCriticalCount: 1, unresolvedWarningCount: 0,
+    });
+    expect(projectContinuityGateForPath(issues, 'reader_derived', 'progress-b')).toEqual({
+      blocked: false, unresolvedCriticalCount: 0, unresolvedWarningCount: 0,
+    });
   });
 
   it('accepts only currently active, unrevoked entitlements', () => {

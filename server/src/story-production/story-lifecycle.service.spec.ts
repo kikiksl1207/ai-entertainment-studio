@@ -76,6 +76,13 @@ describe('StoryLifecycleService', () => {
         expectedRevision: 4,
       }),
     ).rejects.toBeInstanceOf(ConflictException);
+    expect(prisma.storyContinuityIssue.findMany).toHaveBeenCalledWith({
+      where: {
+        workId: 'work-id', analysisJobId: 'analysis-id', status: 'open',
+        pathScope: 'author_original', pathKey: 'author_original',
+      },
+      select: { severity: true },
+    });
     expect(prisma.storyWriterReview.updateMany).not.toHaveBeenCalled();
   });
 
