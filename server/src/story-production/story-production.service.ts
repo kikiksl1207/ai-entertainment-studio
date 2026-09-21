@@ -443,8 +443,9 @@ export class StoryProductionService {
     if (!parts.length) throw new NotFoundException('Published story part not found');
     const entitled = work.priceLumina.isZero() || (await this.hasEntitlement(userId, [work.id, ...parts.map((part) => part.id)]));
     if (!entitled) throw new ForbiddenException('Story entitlement required');
+    const firstPart = parts[0];
     const firstScene = await this.prisma.storyScene.findFirst({
-      where: { partId: { in: parts.map((part) => part.id) }, status: 'published', fixtureSource: false },
+      where: { partId: firstPart.id, status: 'published', fixtureSource: false },
       orderBy: [{ position: 'asc' }, { id: 'asc' }],
     });
     if (!firstScene) throw new NotFoundException('Published story scene not found');
@@ -486,7 +487,7 @@ export class StoryProductionService {
         workId,
         currentSceneId: targetSceneId,
         currentBeatPosition: 0,
-        currentAct: parts.find((part) => part.id === firstScene.partId)?.actNumber ?? 1,
+        currentAct: firstPart.actNumber,
         storyVersion: work.publishedVersion,
         activeReleaseId: work.activeReleaseId,
         aiRateCardId: sessionPin?.aiRateCardId,

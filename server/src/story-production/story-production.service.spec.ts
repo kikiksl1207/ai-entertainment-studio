@@ -19,7 +19,9 @@ describe('StoryProductionService', () => {
       findFirst: jest.fn(),
       findMany: jest.fn(),
       findUnique: jest.fn(),
+      create: jest.fn(),
     },
+    storyQualityEvent: { upsert: jest.fn() },
     storyRelease: { findMany: jest.fn(), findFirst: jest.fn() },
     userEntitlement: { findMany: jest.fn() },
     walletAccount: { findUnique: jest.fn() },
@@ -28,6 +30,63 @@ describe('StoryProductionService', () => {
   const service = new StoryProductionService(prisma as never);
 
   beforeEach(() => jest.clearAllMocks());
+  afterEach(() => jest.restoreAllMocks());
+
+  it('starts a new reader on the first scene of the first published part', async () => {
+    const workId = '00000000-0000-0000-0000-000000000010';
+    prisma.storyWork.findFirst.mockResolvedValue({
+      id: workId,
+      slug: 'imjin-war',
+      status: 'published',
+      fixtureSource: false,
+      coverManifest: { url: '/public/story/imjin-war.webp' },
+      priceLumina: new Decimal(0),
+      publishedVersion: 1,
+      activeReleaseId: '00000000-0000-0000-0000-000000000030',
+    });
+    prisma.storyRelease.findFirst.mockResolvedValue({
+      id: '00000000-0000-0000-0000-000000000030',
+    });
+    prisma.storyPart.findMany.mockResolvedValue([
+      { id: 'part-1', actNumber: 1 },
+      { id: 'part-66', actNumber: 4 },
+    ]);
+    prisma.storyScene.findFirst.mockResolvedValue({
+      id: 'part-1-main',
+      partId: 'part-1',
+    });
+    prisma.storyReaderProgress.findUnique.mockResolvedValue(null);
+    prisma.storyReaderProgress.create.mockResolvedValue({
+      id: 'progress-1',
+      activeReleaseId: '00000000-0000-0000-0000-000000000030',
+      storyVersion: 1,
+    });
+    prisma.storyQualityEvent.upsert.mockResolvedValue({});
+    const currentProgress = jest
+      .spyOn(service, 'currentProgress')
+      .mockResolvedValue({ progressId: 'progress-1' } as never);
+
+    await service.startProgress('reader-1', workId, { mode: 'continue', locale: 'ko' });
+
+    expect(prisma.storyPart.findMany).toHaveBeenCalledWith({
+      where: { workId, status: 'published', fixtureSource: false },
+      select: { id: true, actNumber: true },
+      orderBy: { position: 'asc' },
+    });
+    expect(prisma.storyScene.findFirst).toHaveBeenCalledWith({
+      where: { partId: 'part-1', status: 'published', fixtureSource: false },
+      orderBy: [{ position: 'asc' }, { id: 'asc' }],
+    });
+    expect(prisma.storyReaderProgress.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        currentSceneId: 'part-1-main',
+        checkpointSceneId: 'part-1-main',
+        seenSceneIds: ['part-1-main'],
+        currentAct: 1,
+      }),
+    });
+    expect(currentProgress).toHaveBeenCalledWith('reader-1', 'progress-1', 'ko');
+  });
 
   it('returns only authenticated owner works as title-centered selector items', async () => {
     prisma.storyWork.findMany.mockResolvedValue([
