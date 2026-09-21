@@ -364,6 +364,95 @@ describe('StoryProductionService', () => {
       maxChoices: 20,
       fullGraphIncluded: false,
     });
+    expect(prisma.storyScene.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          id: 'scene-1',
+          partId: { in: ['part-1'] },
+          fixtureSource: false,
+        },
+      }),
+    );
+  });
+
+  it('opens the first scene of the first work-ordered part when no focus is provided', async () => {
+    prisma.storyWork.findFirst.mockResolvedValue({
+      id: 'work-1',
+      ownerUserId: 'owner-1',
+      defaultLocale: 'ko',
+      activeReleaseId: 'release-1',
+    });
+    prisma.storyPart.findMany.mockResolvedValue([
+      {
+        id: 'part-1',
+        seasonKey: 'season-1',
+        actNumber: 1,
+        position: 1,
+        status: 'published',
+        title: { ko: '첫 장' },
+      },
+      {
+        id: 'part-14',
+        seasonKey: 'season-1',
+        actNumber: 1,
+        position: 14,
+        status: 'published',
+        title: { ko: '열네 번째 장' },
+      },
+    ]);
+    prisma.storyScene.findFirst.mockResolvedValue({
+      id: 'part-1-main',
+      partId: 'part-1',
+      sceneKey: 'part-1-main',
+      position: 1,
+      status: 'published',
+      title: { ko: '첫 장면' },
+      endingType: null,
+    });
+    prisma.storyChoice.findMany.mockResolvedValue([]);
+    prisma.storyScene.findMany.mockResolvedValue([]);
+    prisma.storyRelease.findFirst.mockResolvedValue({ validationSummary: null });
+
+    const result = await service.graph('owner-1', 'work-1');
+
+    expect(result).toMatchObject({
+      part: { id: 'part-1' },
+      focus: { id: 'part-1-main' },
+    });
+    expect(prisma.storyScene.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { partId: 'part-1', fixtureSource: false },
+        orderBy: [{ position: 'asc' }, { id: 'asc' }],
+      }),
+    );
+  });
+
+  it('keeps the graph not-found response when the first part has no scene', async () => {
+    prisma.storyWork.findFirst.mockResolvedValue({
+      id: 'work-1',
+      ownerUserId: 'owner-1',
+      defaultLocale: 'ko',
+      activeReleaseId: 'release-1',
+    });
+    prisma.storyPart.findMany.mockResolvedValue([
+      {
+        id: 'part-1',
+        seasonKey: 'season-1',
+        actNumber: 1,
+        position: 1,
+        status: 'published',
+        title: { ko: '첫 장' },
+      },
+    ]);
+    prisma.storyScene.findFirst.mockResolvedValue(null);
+
+    await expect(service.graph('owner-1', 'work-1')).rejects.toThrow('Story scene not found');
+    expect(prisma.storyScene.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { partId: 'part-1', fixtureSource: false },
+        orderBy: [{ position: 'asc' }, { id: 'asc' }],
+      }),
+    );
   });
 
   it('projects only safe visual manifest fields for current and next scenes', async () => {

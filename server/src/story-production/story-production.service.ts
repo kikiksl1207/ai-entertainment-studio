@@ -804,6 +804,7 @@ export class StoryProductionService {
       },
     });
     const partIds = parts.map((part) => part.id);
+    const firstPart = parts[0];
     const scene = focusSceneId
       ? await this.prisma.storyScene.findFirst({
           where: {
@@ -821,19 +822,21 @@ export class StoryProductionService {
             endingType: true,
           },
         })
-      : await this.prisma.storyScene.findFirst({
-          where: { partId: { in: partIds }, fixtureSource: false },
-          orderBy: { position: 'asc' },
-          select: {
-            id: true,
-            partId: true,
-            sceneKey: true,
-            position: true,
-            status: true,
-            title: true,
-            endingType: true,
-          },
-        });
+      : firstPart
+        ? await this.prisma.storyScene.findFirst({
+            where: { partId: firstPart.id, fixtureSource: false },
+            orderBy: [{ position: 'asc' }, { id: 'asc' }],
+            select: {
+              id: true,
+              partId: true,
+              sceneKey: true,
+              position: true,
+              status: true,
+              title: true,
+              endingType: true,
+            },
+          })
+        : null;
     if (!scene) throw new NotFoundException('Story scene not found');
     const choices = await this.prisma.storyChoice.findMany({
       where: { sceneId: scene.id },
