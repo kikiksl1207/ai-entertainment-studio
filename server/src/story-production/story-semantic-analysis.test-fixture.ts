@@ -1,8 +1,9 @@
-import type { SemanticConfig } from './story-semantic-analysis.config';
+import { SEMANTIC_PACKING_PROFILE, type SemanticConfig } from './story-semantic-analysis.config';
 import type { SemanticInput } from './story-semantic-analysis.types';
 import { boundary } from './story-semantic-analysis.source';
 
 export const semanticTestConfig = (changes: Partial<SemanticConfig> = {}): SemanticConfig => ({
+  packingProfile: SEMANTIC_PACKING_PROFILE,
   enabled: true, workerEnabled: false, apiKey: 'offline-synthetic-test-key', provider: 'openai',
   model: 'gpt-4o-mini-2024-07-18', rateCardId: '00000000-0000-4000-8000-000000000183', rateCardVersion: 'offline-v1',
   inputKrwPerMillion: '1000', cachedInputKrwPerMillion: '500', outputKrwPerMillion: '2000',

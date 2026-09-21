@@ -18,6 +18,7 @@ export const MANUSCRIPT_FILE_LIMITS = {
 } as const;
 
 export type ManuscriptSourceKind = 'utf8_json_file' | 'json_projection' | 'utf8_paste';
+export const PASTED_MANUSCRIPT_IDENTITY_VERSION = 4;
 export type PreparedManuscript = {
   locale: string;
   parts: ManuscriptPart[];
@@ -172,18 +173,7 @@ export function preparePastedManuscript(buffer: Buffer, manifestText: unknown): 
     }
     const text = rawText.slice(cursor, boundary.end);
     if (!text.trim()) invalidManuscript('MANUSCRIPT_EMPTY_PART');
-    const paragraphs: ManuscriptPart['paragraphs'] = [];
-    for (const match of text.matchAll(/[^\r\n]*(?:\r\n|\r|\n|$)/g)) {
-      const line = match[0];
-      if (!line) continue;
-      for (let start = 0; start < line.length;) {
-        let end = Math.min(start + MANUSCRIPT_FILE_LIMITS.textUnits, line.length);
-        if (end < line.length && line.charCodeAt(end - 1) >= 0xd800 && line.charCodeAt(end - 1) <= 0xdbff) end--;
-        paragraphs.push({ kind: 'paragraph', text: line.slice(start, end) });
-        within(paragraphs.length, MANUSCRIPT_FILE_LIMITS.paragraphsPerPart);
-        start = end;
-      }
-    }
+    const paragraphs = pastedParagraphs(text);
     paragraphCount += paragraphs.length;
     within(paragraphCount, MANUSCRIPT_FILE_LIMITS.totalParagraphs);
     parts.push({ partKey: boundary.partKey, title: boundary.title, paragraphs });
@@ -194,6 +184,35 @@ export function preparePastedManuscript(buffer: Buffer, manifestText: unknown): 
   if (cursor !== rawText.length) invalidManuscript('MANUSCRIPT_INVALID_BOUNDARIES');
   return { ...prepareIdentity(buffer, rawText, manifest.locale as string, parts, paragraphCount, 'utf8_paste'),
     confirmedBoundaries };
+}
+
+function pastedParagraphs(text: string): ManuscriptPart['paragraphs'] {
+  const paragraphs: ManuscriptPart['paragraphs'] = [];
+  let seenContent = false;
+  for (const match of text.matchAll(/[^\r\n]*(?:\r\n|\r|\n|$)/g)) {
+    const line = match[0];
+    if (!line) continue;
+    // Classification only: never trim, normalize, or remove the original line.
+    const blank = /^[ \t\r\n]*$/.test(line);
+    let append = blank || !seenContent;
+    for (let start = 0; start < line.length;) {
+      const previous = append ? paragraphs[paragraphs.length - 1] : undefined;
+      const room = MANUSCRIPT_FILE_LIMITS.textUnits - (previous?.text.length ?? 0);
+      let end = Math.min(start + room, line.length);
+      if (end < line.length && line.charCodeAt(end - 1) >= 0xd800 && line.charCodeAt(end - 1) <= 0xdbff) end--;
+      if (end === start) { append = false; continue; }
+      const piece = line.slice(start, end);
+      if (previous) previous.text += piece;
+      else {
+        paragraphs.push({ kind: 'paragraph', text: piece });
+        within(paragraphs.length, MANUSCRIPT_FILE_LIMITS.paragraphsPerPart);
+      }
+      start = end;
+      append = false;
+    }
+    if (!blank) seenContent = true;
+  }
+  return paragraphs;
 }
 
 // Only for the existing JSON route after its ValidationPipe/DTO contract. Do not
@@ -213,7 +232,7 @@ function prepareIdentity(
   return {
     locale, parts, paragraphCount,
     contentHash: kind === 'utf8_paste'
-      ? manuscriptContentHash({ identityVersion: 3, locale, parts, sourceSha256: createHash('sha256').update(buffer).digest('hex') })
+      ? manuscriptContentHash({ identityVersion: PASTED_MANUSCRIPT_IDENTITY_VERSION, locale, parts, sourceSha256: createHash('sha256').update(buffer).digest('hex') })
       : manuscriptContentHash({ identityVersion: 2, locale, parts }),
     legacyHash: manuscriptContentHash({ parts }),
     source: { kind, rawText, byteLength: buffer.length, sha256: createHash('sha256').update(buffer).digest('hex') },
@@ -222,7 +241,7 @@ function prepareIdentity(
 
 export function storedManuscriptBody(input: PreparedManuscript) {
   const body = { parts: input.parts, intake: {
-    format: 'story-manuscript-intake-v1', identityVersion: input.source.kind === 'utf8_paste' ? 3 : 2,
+    format: 'story-manuscript-intake-v1', identityVersion: input.source.kind === 'utf8_paste' ? PASTED_MANUSCRIPT_IDENTITY_VERSION : 2,
     locale: input.locale, source: input.source,
     ...(input.confirmedBoundaries ? { confirmedBoundaries: input.confirmedBoundaries } : {}),
   } };

@@ -1,7 +1,7 @@
 import { createHash } from 'crypto';
 import { manuscriptContentHash, type ManuscriptPart } from './story-production.policy';
 import { storyContinuationInputTokenBudget } from './story-continuation-tokenizer';
-import type { SemanticPins } from './story-semantic-analysis.config';
+import { semanticPackingProfile, type SemanticPins } from './story-semantic-analysis.config';
 import { semanticRequest } from './story-semantic-analysis.schema';
 import { SemanticAnalysisError, type SemanticInput, type SourceCursor, type SourcePiece, type SourceRef } from './story-semantic-analysis.types';
 
@@ -39,26 +39,33 @@ export function nextSourceChunk(
   parts: ManuscriptPart[], cursor: SourceCursor, identity: Omit<SemanticInput, 'pieces'>,
   pins: SemanticPins, measure = inputBudget,
 ) {
+  const framed = semanticPackingProfile(pins) !== 'legacy_32';
   let { part: p, paragraph: n, offset } = cursor;
   const pieces: SourcePiece[] = [];
   let chars = 0;
   // A character target only bounds planning work; the complete framed request is
   // then tokenized, including schema/instructions and the shared 10%+256 buffer.
-  const target = Math.min(12000, pins.inputTokenLimit);
-  while (p < parts.length && pieces.length < 32 && chars < target) {
+  const target = framed ? 12000 : Math.min(12000, pins.inputTokenLimit);
+  while (p < parts.length && pieces.length < (framed ? 256 : 32) && chars < target) {
     const part = parts[p];
     if (n >= part.paragraphs.length) { p++; n = 0; offset = 0; continue; }
     const text = part.paragraphs[n].text;
     if (!boundary(text, offset)) throw new SemanticAnalysisError('analysis_cursor_invalid');
-    let end = Math.min(text.length, offset + Math.max(2, target - chars));
+    let end = Math.min(text.length, offset + (framed ? target - chars : Math.max(2, target - chars)));
     if (!boundary(text, end)) end--;
+    if (framed && end === offset && offset < text.length) break;
     const piece = pieceFor(parts, { partIndex: p, partKey: part.partKey, paragraphIndex: n, start: offset, end });
     pieces.push(piece); chars += piece.text.length;
     if (end === text.length) { n++; offset = 0; } else { offset = end; break; }
   }
   if (!pieces.length) return null;
   let tokens = measure({ ...identity, pieces }, pins);
-  while (tokens > pins.inputTokenLimit && pieces.length > 1) {
+  if (framed && tokens > pins.inputTokenLimit) {
+    const fitted = fitFramedPrefix(parts, pieces, identity, pins, measure);
+    pieces.splice(0, pieces.length, ...fitted.pieces);
+    tokens = fitted.tokens;
+  }
+  while (!framed && tokens > pins.inputTokenLimit && pieces.length > 1) {
     pieces.splice(Math.ceil(pieces.length / 2));
     tokens = measure({ ...identity, pieces }, pins);
   }
@@ -92,4 +99,40 @@ export function nextSourceChunk(
     completedParagraphs: pieces.filter(piece => piece.end === parts[piece.partIndex].paragraphs[piece.paragraphIndex].text.length).length,
     done: next.part === parts.length,
   };
+}
+
+function fitFramedPrefix(
+  parts: ManuscriptPart[], candidates: SourcePiece[], identity: Omit<SemanticInput, 'pieces'>,
+  pins: SemanticPins, measure: typeof inputBudget,
+) {
+  let low = 1, high = candidates.length - 1;
+  let accepted: { pieces: SourcePiece[]; tokens: number } | undefined;
+  // At most eight prefix probes for 256 pieces. Token counts are not assumed
+  // perfectly monotone: only an actually measured fitting prefix is accepted.
+  while (low <= high) {
+    const count = Math.floor((low + high) / 2);
+    const pieces = candidates.slice(0, count);
+    const tokens = measure({ ...identity, pieces }, pins);
+    if (tokens <= pins.inputTokenLimit) { accepted = { pieces, tokens }; low = count + 1; }
+    else high = count - 1;
+  }
+  if (accepted) return accepted;
+
+  const first = candidates[0];
+  const text = parts[first.partIndex].paragraphs[first.paragraphIndex].text;
+  low = first.start + 1;
+  high = first.end - 1;
+  // A single long paragraph gets at most fourteen UTF-16 probes (12k units).
+  // Empty references cannot be discarded even if framing alone does not fit.
+  while (low <= high) {
+    const middle = Math.floor((low + high) / 2);
+    const end = boundary(text, middle) ? middle : middle - 1;
+    if (end <= first.start) { low = middle + 1; continue; }
+    const pieces = [pieceFor(parts, { ...first, end })];
+    const tokens = measure({ ...identity, pieces }, pins);
+    if (tokens <= pins.inputTokenLimit) { accepted = { pieces, tokens }; low = middle + 1; }
+    else high = middle - 1;
+  }
+  if (!accepted) throw new SemanticAnalysisError('analysis_input_budget_too_small');
+  return accepted;
 }

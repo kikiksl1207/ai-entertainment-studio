@@ -169,6 +169,37 @@ describe('atomic complete manuscript version store', () => {
     expect(db.prisma.storyAnalysisJob.create).not.toHaveBeenCalled();
   });
 
+  it('keeps v3 source/citations immutable while concurrent v4 uploads allocate and replay one new version', async () => {
+    const db = database();
+    const raw = 'PRIVATE-SYNTHETIC\r\n\r\nSecond\n';
+    const manifest = JSON.stringify({ locale: 'ko', confirmed: true, parts: [
+      { partKey: 'a', title: 'A', start: 0, end: raw.length },
+    ] });
+    const input = preparePastedManuscript(Buffer.from(raw), manifest);
+    const oldParts = [{ partKey: 'a', title: 'A', paragraphs: [
+      { kind: 'paragraph', text: 'PRIVATE-SYNTHETIC\r\n' },
+      { kind: 'paragraph', text: '\r\n' }, { kind: 'paragraph', text: 'Second\n' },
+    ] }];
+    const oldHash = manuscriptContentHash({ identityVersion: 3, locale: 'ko', parts: oldParts, sourceSha256: input.source.sha256 });
+    db.rows.push({ id: 'v3-source', workId, ownerUserId: userId, version: 7, locale: 'ko', contentHash: oldHash,
+      structuredBody: { parts: oldParts, intake: { identityVersion: 3, locale: 'ko', source: input.source } } });
+    const before = JSON.stringify(db.rows[0]);
+    const citation = { manuscriptVersionId: 'v3-source', paragraphIndex: 2, start: 0, end: 6 };
+    const [first, concurrent] = await Promise.all([1, 2].map(() => storeManuscriptVersion(db.prisma as never, userId, workId, input)));
+    expect(first.manuscript.id).toBe(concurrent.manuscript.id);
+    expect(first.manuscript.version).toBe(8);
+    expect(first.manuscript.contentHash).not.toBe(oldHash);
+    expect(db.rows).toHaveLength(2);
+    expect(db.rows[1].structuredBody.intake.identityVersion).toBe(4);
+    expect(db.rows[1].structuredBody.parts[0].paragraphs).toHaveLength(2);
+    const replay = await storeManuscriptVersion(db.prisma as never, userId, workId, preparePastedManuscript(Buffer.from(raw), manifest));
+    expect(replay).toMatchObject({ idempotentReplay: true, manuscript: { id: first.manuscript.id } });
+    expect(JSON.stringify(db.rows[0])).toBe(before);
+    const preserved = db.rows.find(row => row.id === citation.manuscriptVersionId);
+    expect(preserved.structuredBody.parts[0].paragraphs[citation.paragraphIndex].text.slice(citation.start, citation.end)).toBe('Second');
+    expect(db.prisma.storyAnalysisJob.create).not.toHaveBeenCalled();
+  });
+
   it('stores exactly one complete immutable row, private raw bytes, and only a receipt', async () => {
     const db = database();
     const parsed = input();

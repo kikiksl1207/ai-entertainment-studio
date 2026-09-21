@@ -6,8 +6,10 @@ import { SemanticAnalysisService } from './story-semantic-analysis.service';
 import { SemanticAnalysisProvider } from './story-semantic-analysis.provider';
 import { semanticTestConfig, semanticTestEnvelope, semanticTestOutput } from './story-semantic-analysis.test-fixture';
 import { manuscriptContentHash } from './story-production.policy';
-import type { SemanticConfig } from './story-semantic-analysis.config';
+import { SEMANTIC_PACKING_PROFILE, semanticPinHash, semanticPins, semanticReservation, type SemanticConfig, type SemanticPins } from './story-semantic-analysis.config';
 import type { SemanticInput } from './story-semantic-analysis.types';
+import { nextSourceChunk, sourceParts } from './story-semantic-analysis.source';
+import { preparePastedManuscript, storedManuscriptBody } from './story-manuscript-file.policy';
 
 const url = process.env.STORY_ANALYSIS_TEST_DATABASE_URL;
 const postgres = url ? describe : describe.skip;
@@ -29,7 +31,7 @@ postgres('Semantic analysis durable pipeline (isolated PostgreSQL, fake transpor
   }
   beforeAll(async () => {
     const parsed = new URL(url!);
-    if (parsed.hostname !== '127.0.0.1' || parsed.port !== '55432' || parsed.pathname !== '/lumina_analysis_qa')
+    if (parsed.hostname !== '127.0.0.1' || parsed.port !== '55432' || parsed.pathname !== '/lumina_analysis_packing_qa')
       throw new Error('Dedicated semantic analysis QA database required');
     const client = () => new PrismaClient({ datasources: { db: { url: url! } } });
     db = client(); left = client(); right = client();
@@ -61,7 +63,7 @@ postgres('Semantic analysis durable pipeline (isolated PostgreSQL, fake transpor
   });
   async function clearFixtures() {
     const database = await db.$queryRaw<Array<{ name: string }>>`SELECT current_database() AS name`;
-    if (database[0]?.name !== 'lumina_analysis_qa') throw new Error('Dedicated QA cleanup required');
+    if (database[0]?.name !== 'lumina_analysis_packing_qa') throw new Error('Dedicated QA cleanup required');
     // Append-only history deliberately rejects DELETE. TRUNCATE is limited to
     // this dedicated disposable database and never changes production triggers.
     await db.$executeRaw`TRUNCATE TABLE story_continuity_decision_audits,
@@ -105,6 +107,27 @@ postgres('Semantic analysis durable pipeline (isolated PostgreSQL, fake transpor
     await db.$executeRaw`UPDATE story_analysis_jobs SET lease_expires_at=clock_timestamp()-interval '1 second' WHERE id=${id}::uuid`;
   }
 
+  async function historicalJob(phase: 'initializing' | 'planning', pins = semanticPins({ ...config, packingProfile: undefined })) {
+    const source = await db.storyManuscriptVersion.findUniqueOrThrow({ where: { id: manuscriptId } });
+    const parts = sourceParts(source.structuredBody);
+    const first = phase === 'planning' ? nextSourceChunk(parts, { part: 0, paragraph: 0, offset: 0 }, {
+      manuscriptVersionId: source.id, contentHash: source.contentHash, locale: source.locale,
+    }, pins)! : null;
+    const job = await db.storyAnalysisJob.create({ data: { workId, manuscriptVersionId: source.id, actorUserId: owner,
+      rateCardId: cardId, pipeline: 'semantic_extraction_v1', status: phase === 'planning' ? 'running' : 'queued', phase,
+      sourceContentHash: source.contentHash, sourceLocale: source.locale,
+      sourceDigest: phase === 'planning' ? manuscriptContentHash(source.structuredBody) : source.contentHash,
+      configHash: semanticPinHash(pins), configPins: pins, analysisVersion: 1, idempotencyKey: randomUUID(),
+      ...(first ? { totalParagraphs: 130, totalParts: 1, plannedParagraphs: first.completedParagraphs, plannedChunks: 1,
+        planCursor: first.next, reservedInputTokens: first.inputTokens, reservedOutputTokens: pins.outputTokenLimit,
+        reservedCostKrw: semanticReservation(pins, first.inputTokens, pins.outputTokenLimit, 1) } : {}),
+    } });
+    const chunk = first ? await db.storyAnalysisChunk.create({ data: { analysisJobId: job.id, ordinal: 0,
+      sourceRefs: first.refs, sourceHash: first.sourceHash, paragraphCount: first.completedParagraphs,
+      inputTokenBudget: first.inputTokens } }) : null;
+    return { job, chunk };
+  }
+
   it('has no disabled fallback job or provider call', async () => {
     services({ enabled: false });
     await expect(enqueue()).rejects.toMatchObject({ status: 503, response: { code: 'SEMANTIC_ANALYSIS_UNAVAILABLE' } });
@@ -138,6 +161,85 @@ postgres('Semantic analysis durable pipeline (isolated PostgreSQL, fake transpor
     expect(claims.find(Boolean)?.id).toBe(job.id);
     expect(transport).not.toHaveBeenCalled();
   });
+
+  it.each(['initializing', 'planning'] as const)('actually resumes a pre-profile %s job under the new worker without rewriting pins/chunks', async phase => {
+    const { job, chunk } = await historicalJob(phase);
+    const sourceBefore = await db.storyManuscriptVersion.findUniqueOrThrow({ where: { id: manuscriptId } });
+    expect(config.packingProfile).toBe(SEMANTIC_PACKING_PROFILE);
+    expect(job.configPins).not.toHaveProperty('packingProfile');
+    const planned = await until(job.id, value => value.phase === 'extracting', b);
+    expect(planned.errorCode).toBeNull();
+    expect(planned.configPins).toEqual(job.configPins);
+    expect(planned.configHash).toBe(job.configHash);
+    const chunks = await db.storyAnalysisChunk.findMany({ where: { analysisJobId: job.id }, orderBy: { ordinal: 'asc' } });
+    expect(chunks.map(value => value.paragraphCount)).toEqual([32, 32, 32, 32, 2]);
+    expect(chunks.map(value => (value.sourceRefs as unknown[]).length)).toEqual([32, 32, 32, 32, 2]);
+    if (chunk) expect(chunks[0]).toEqual(chunk);
+    expect(await db.storyManuscriptVersion.findUniqueOrThrow({ where: { id: manuscriptId } })).toEqual(sourceBefore);
+    expect(transport).not.toHaveBeenCalled();
+    await b.executeOne('new-worker-extraction');
+    expect(transport).toHaveBeenCalledTimes(1);
+    const dispatched = JSON.parse(JSON.parse(transport.mock.calls[0][1].body).input[0].content[0].text) as SemanticInput;
+    expect(dispatched.pieces).toHaveLength(32);
+    expect(dispatched.pieces.map(piece => piece.paragraphIndex)).toEqual(Array.from({ length: 32 }, (_, i) => i));
+    expect((await row(job.id)).completedParagraphs).toBe(32);
+  });
+
+  it('rejects changed non-planner config on legacy jobs instead of loosening all pin equality', async () => {
+    const { job } = await historicalJob('planning');
+    services({ maxJobCostKrw: '99999' });
+    await b.executeOne('changed-worker');
+    expect(await row(job.id)).toMatchObject({ status: 'failed', errorCode: 'analysis_configuration_changed',
+      configPins: job.configPins, configHash: job.configHash });
+    expect(transport).not.toHaveBeenCalled();
+  });
+
+  it('rejects a hash-consistent unknown job profile before planning or dispatch', async () => {
+    const pins = { ...semanticPins(config), packingProfile: 'unsupported' } as unknown as SemanticPins;
+    const { job } = await historicalJob('initializing', pins);
+    await b.executeOne('new-worker');
+    expect(await row(job.id)).toMatchObject({ status: 'failed', errorCode: 'analysis_packing_profile_unsupported', configPins: pins });
+    expect(await db.storyAnalysisChunk.count({ where: { analysisJobId: job.id } })).toBe(0);
+    expect(transport).not.toHaveBeenCalled();
+  });
+
+  it.each([3, 4])('validates paste identity v%i and preserves its own paragraph citation coordinates', async identityVersion => {
+    const raw = 'Synthetic first\r\n\r\nSynthetic second\n';
+    const input = preparePastedManuscript(Buffer.from(raw), JSON.stringify({ locale: 'ko', confirmed: true, parts: [
+      { partKey: 'paste-part', title: 'Synthetic', start: 0, end: raw.length },
+    ] }));
+    const body = storedManuscriptBody(input);
+    if (identityVersion === 3) body.parts[0].paragraphs = [
+      { kind: 'paragraph', text: 'Synthetic first\r\n' }, { kind: 'paragraph', text: '\r\n' },
+      { kind: 'paragraph', text: 'Synthetic second\n' },
+    ];
+    body.intake.identityVersion = identityVersion;
+    const source = await db.storyManuscriptVersion.create({ data: { workId, ownerUserId: owner, version: 2, locale: 'ko',
+      structuredBody: body, contentHash: manuscriptContentHash({ identityVersion, locale: 'ko', parts: body.parts, sourceSha256: input.source.sha256 }) } });
+    const paragraphIndex = identityVersion === 3 ? 2 : 1;
+    transport.mockImplementation(async (_url, init) => {
+      const input: SemanticInput = JSON.parse(JSON.parse(init.body).input[0].content[0].text);
+      const cited = input.pieces.find(piece => piece.paragraphIndex === paragraphIndex)!;
+      return new Response(JSON.stringify(semanticTestEnvelope(semanticTestOutput({ ...input, pieces: [cited] }))));
+    });
+    const job = await a.enqueue(owner, source.id, randomUUID());
+    await until(job.id, value => value.status === 'completed', b);
+    const page = await b.get(owner, job.id);
+    const candidate = page.evidence.find(value => value.provenance === 'semantic_candidate')!;
+    const citation = await b.citation(owner, job.id, candidate.id);
+    expect(citation.citations[0]).toMatchObject({ paragraphIndex, quote: 'Synthetic second\n' });
+    expect(await db.storyManuscriptVersion.findUniqueOrThrow({ where: { id: source.id } })).toEqual(source);
+  });
+
+  it('does not treat an unrecognized intake identity as a legacy checksum', async () => {
+    const parts = [{ partKey: 'future', title: 'Synthetic', paragraphs: [{ kind: 'paragraph', text: 'Synthetic source' }] }];
+    const source = await db.storyManuscriptVersion.create({ data: { workId, ownerUserId: owner, version: 2, locale: 'ko',
+      structuredBody: { parts, intake: { identityVersion: 5 } }, contentHash: manuscriptContentHash({ parts }) } });
+    const job = await a.enqueue(owner, source.id, randomUUID());
+    await b.executeOne('worker');
+    expect(await row(job.id)).toMatchObject({ status: 'failed', errorCode: 'analysis_source_identity_unsupported' });
+    expect(transport).not.toHaveBeenCalled();
+  });
   it('resumes local planning and completes with paged reviewable evidence, not approval', async () => {
     const job = await enqueue();
     await a.executeOne('initial-worker');
@@ -169,6 +271,11 @@ postgres('Semantic analysis durable pipeline (isolated PostgreSQL, fake transpor
     { maxJobInputTokens: 8192 }, { maxJobOutputTokens: 2048 }, { maxJobCostKrw: '0.01' },
   ])('rejects a whole book over its aggregate bound before the first dispatch', async bound => {
     services(bound);
+    const parts = [{ partKey: 'large', title: 'Synthetic larger source', paragraphs: Array.from({ length: 1000 }, (_, i) => ({
+      kind: 'paragraph', text: `Synthetic action ${i}.`,
+    })) }];
+    manuscriptId = (await db.storyManuscriptVersion.create({ data: { workId, ownerUserId: owner, version: 2, locale: 'ko',
+      structuredBody: { parts }, contentHash: manuscriptContentHash({ parts }) } })).id;
     const job = await enqueue();
     const failed = await until(job.id, value => value.status === 'failed');
     expect(failed.errorCode).toBe('analysis_aggregate_budget_exceeded');
