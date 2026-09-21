@@ -1,9 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
 
-const repo = fileURLToPath(new URL('../', import.meta.url));
 const source = await readFile(new URL('../pages/story-stage.js', import.meta.url), 'utf8');
 const css = await readFile(new URL('../styles/story-stage.css', import.meta.url), 'utf8');
 
@@ -72,5 +70,4 @@ test('wait notice remains responsive at the mobile breakpoint', () => {
   assert.match(css, /\.story-ai-notice\s*\{[\s\S]*grid-template-columns: auto minmax\(0, 1fr\) auto/);
   assert.match(css, /@media \(max-width: 680px\)[\s\S]*\.story-ai-notice \{ grid-template-columns: auto minmax\(0, 1fr\); \}/);
   assert.match(css, /@media \(max-width: 400px\)/);
-  assert.ok(repo.match(/[\\/]cloud-1879-ai-wait-ui-20260921[\\/]$/));
 });
