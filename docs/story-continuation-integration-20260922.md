@@ -2,6 +2,33 @@
 
 ## Latest Combined Candidate
 
+Runtime `edebaee` adds lossless packing `770317c` (integrated as `efadff0`)
+and private authored import `532aba2`. The latter adds migration65; the PM
+checkout's existing generated client is still schema64 until the next allocated
+integration slot. Do not run the combined new server with that stale client.
+
+- Packing independently accepted eight real-PG/fake-transport groups after a
+  preserved JSONB-order harness correction. Report:
+  `E:/CodexMovedCache/qa-1853-independent-report.md`. No paid semantic-quality,
+  approval, or terminal-job-recovery claim follows.
+- `efadff0` differs from candidate770317c only in this PM checkpoint document.
+  An additional PM non-PG regression passed43 suites/556 tests, with3 optional
+  actual-Imjin-file tests skipped and0 failures, in81.011 seconds. Result:
+  `E:/CodexMovedCache/qa-pm-combined-efadff0-nonpg.json`.
+- Authored-import candidate532aba2 passed author181 tests (167 focused,7 PG,
+  7 actual AppModule HTTP), final type checking and65 fresh migrations. Actual
+  Norse216 parts/2138 source scenes and beats/648 choices were stored privately.
+  First compile diagnostics and two actual-policy failures are preserved in its
+  handoff. Independent review is in progress, not accepted yet.
+- The new receipt-backed import is deliberately not publishable until a real
+  final-review proof binds the materialized plan and endings. Stored A edges
+  are not evidence of public Norse reader traversal. Existing manuscript-only
+  final submission is insufficient; do not bypass the new gate for a demo.
+- Scene-keyed beat visual data is additive; actual scene artwork is missing.
+  Cloud owns its reader binding and missing/broken-asset handling next.
+
+## Earlier Combined Runtime
+
 Runtime source `65bb0a8` includes the accepted purchase/whole-route/final-Imjin
 corrections, reader candidate `dcf548b`, semantic candidate `8ec53da` and OTT
 authored-graph candidate `717cee3`. These are development-branch integrations,
