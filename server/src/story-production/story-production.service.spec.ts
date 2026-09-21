@@ -268,27 +268,32 @@ describe('StoryProductionService', () => {
     );
   });
 
-  it('does not enter a wallet transaction when an active work entitlement exists', async () => {
+  it('rereads owned access under locks without debiting or requiring confirmation', async () => {
     const workId = '00000000-0000-0000-0000-000000000010';
-    prisma.storyWork.findFirst.mockResolvedValue({
-      id: workId,
-      slug: 'paid-story',
-      status: 'published',
-      fixtureSource: false,
-      coverManifest: { url: '/public/story/cover.webp' },
-      priceLumina: new Decimal(100),
-      activeReleaseId: '00000000-0000-0000-0000-000000000030',
+    const tx = {
+      $executeRaw: jest.fn().mockResolvedValue(1),
+      $queryRaw: jest.fn().mockResolvedValue([{ id: 'reader', status: 'active', deleted_at: null }]),
+      storyWork: { findUnique: jest.fn().mockResolvedValue({
+        id: workId, slug: 'paid-story', status: 'published', fixtureSource: false,
+        coverManifest: { url: '/public/story/cover.webp' }, priceLumina: new Decimal(100),
+        publishedAt: new Date(0), activeReleaseId: 'release', releaseRevision: 1,
+      }) },
+      storyRelease: { findFirst: jest.fn().mockResolvedValue({ id: 'release' }) },
+      userEntitlement: { findUnique: jest.fn().mockResolvedValue({
+        startsAt: new Date(0), expiresAt: null, revokedAt: null,
+      }) },
+      walletLedger: { findUnique: jest.fn().mockResolvedValue(null) },
+      walletAccount: { findUnique: jest.fn(), updateMany: jest.fn() },
+    };
+    prisma.$transaction.mockImplementationOnce((run) => run(tx));
+    await expect(service.purchaseWork('reader', workId, 'purchase-key-123')).resolves.toMatchObject({
+      entitled: true, charged: false, idempotentReplay: true, chargedAmountLumina: '0',
+      outcome: 'already_entitled',
     });
-    prisma.storyRelease.findFirst.mockResolvedValue({
-      id: '00000000-0000-0000-0000-000000000030',
-    });
-    prisma.userEntitlement.findMany.mockResolvedValue([{ referenceId: workId }]);
-
-    await expect(
-      service.purchaseWork('00000000-0000-0000-0000-000000000020', workId, 'purchase-key-123'),
-    ).resolves.toEqual({ entitled: true, charged: false, idempotentReplay: true });
-    expect(prisma.$transaction).not.toHaveBeenCalled();
-    expect(prisma.walletAccount.findUnique).not.toHaveBeenCalled();
+    expect(tx.$queryRaw.mock.invocationCallOrder[1]).toBeLessThan(
+      tx.userEntitlement.findUnique.mock.invocationCallOrder[0],
+    );
+    expect(tx.walletAccount.updateMany).not.toHaveBeenCalled();
   });
 
   it('projects free catalog access as startable without a purchase action', async () => {
