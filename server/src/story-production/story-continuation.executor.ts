@@ -117,10 +117,7 @@ function normalizeProviderError(error: unknown) {
     return new StoryContinuationProviderError(error.code, false);
   }
   if (error instanceof StoryContinuationProviderError) {
-    return new StoryContinuationProviderError(
-      error.code,
-      error.code === 'provider_timeout',
-    );
+    return error;
   }
   const code = error && typeof error === 'object' && 'code' in error
     ? String(error.code)

@@ -197,6 +197,30 @@ describe('StoryContinuationExecutor', () => {
     expect(f.economics.failClaimedContinuation).not.toHaveBeenCalled();
   });
 
+  it('preserves provider retryability for a non-timeout transient failure', async () => {
+    const f = fixture();
+    jest.mocked(f.provider.generate).mockRejectedValue(
+      new StoryContinuationProviderError('provider_rate_limited', true),
+    );
+    await expect(f.executor.executeOne('worker')).resolves.toMatchObject({ status: 'retry_wait' });
+    expect(f.queue.releaseForRetry).toHaveBeenCalledWith(
+      claim, 'provider_rate_limited', expect.any(Date),
+    );
+    expect(f.economics.failClaimedContinuation).not.toHaveBeenCalled();
+  });
+
+  it('keeps a provider-declared permanent failure fail-closed', async () => {
+    const f = fixture();
+    jest.mocked(f.provider.generate).mockRejectedValue(
+      new StoryContinuationProviderError('provider_request_rejected', false),
+    );
+    await expect(f.executor.executeOne('worker')).resolves.toMatchObject({ status: 'failed' });
+    expect(f.queue.releaseForRetry).not.toHaveBeenCalled();
+    expect(f.economics.failClaimedContinuation).toHaveBeenCalledWith(
+      claim, 'provider_request_rejected', 'failed',
+    );
+  });
+
   it('settles a permanent context mismatch without provider call or retry consumption', async () => {
     const f = fixture();
     f.contextAssembler.assemble.mockRejectedValue(

@@ -115,6 +115,68 @@ describe('recommended choice enqueue transaction', () => {
     }));
   });
 
+  it('returns the winning replay when the same idempotency key wins the allowance race', async () => {
+    const f = fixture();
+    const winner = {
+      id: 'winning-continuation', requestKind: 'recommended_choice',
+      userId: f.input.userId, progressId: f.input.progress.id,
+      recommendedChoiceId: f.input.choice.id, generatedChoiceId: null,
+      releaseId: f.input.release.id, status: 'queued',
+      sourceProgressRevision: f.input.progress.progressRevision,
+      createdAt: new Date(), completedAt: null,
+    };
+    f.tx.storyAiContinuation.findUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(winner);
+    f.tx.storyAiAllowanceBucket.updateMany.mockResolvedValue({ count: 0 });
+    f.tx.storyAiAllowanceBucket.findUnique.mockResolvedValue({
+      id: 'allowance-id', revision: 2, includedLimit: 2, purchasedLimit: 0,
+      reservedCount: 1, consumedCount: 0, compensatedCount: 0,
+    });
+
+    await expect(f.service.requestRecommendedChoiceTx(f.tx as never, f.input))
+      .resolves.toMatchObject({
+        continuationId: winner.id,
+        idempotentReplay: true,
+        allowanceRemaining: 1,
+      });
+    expect(f.tx.storyAiAllowanceBucket.updateMany).toHaveBeenCalledTimes(1);
+    expect(f.createContinuation).not.toHaveBeenCalled();
+    expect(f.tx.storyAiUsageLedger.create).not.toHaveBeenCalled();
+    expect(f.tx.storyReaderProgress.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('keeps the allowance concurrency conflict when a different key won the race', async () => {
+    const f = fixture();
+    f.tx.storyAiContinuation.findUnique.mockResolvedValue(null);
+    f.tx.storyAiAllowanceBucket.updateMany.mockResolvedValue({ count: 0 });
+
+    await expect(f.service.requestRecommendedChoiceTx(f.tx as never, f.input))
+      .rejects.toThrow('Story AI allowance changed concurrently');
+    expect(f.createContinuation).not.toHaveBeenCalled();
+    expect(f.tx.storyAiUsageLedger.create).not.toHaveBeenCalled();
+    expect(f.tx.storyReaderProgress.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('rejects a same-key allowance race when the winning payload scope differs', async () => {
+    const f = fixture();
+    f.tx.storyAiContinuation.findUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        id: 'conflicting-continuation', requestKind: 'recommended_choice',
+        userId: f.input.userId, progressId: f.input.progress.id,
+        recommendedChoiceId: 'different-choice', generatedChoiceId: null,
+        releaseId: f.input.release.id,
+      });
+    f.tx.storyAiAllowanceBucket.updateMany.mockResolvedValue({ count: 0 });
+
+    await expect(f.service.requestRecommendedChoiceTx(f.tx as never, f.input))
+      .rejects.toThrow('Recommended choice idempotency conflict');
+    expect(f.createContinuation).not.toHaveBeenCalled();
+    expect(f.tx.storyAiUsageLedger.create).not.toHaveBeenCalled();
+    expect(f.tx.storyReaderProgress.updateMany).not.toHaveBeenCalled();
+  });
+
   it('rejects an explicitly zero included allowance before any reservation or continuation write', async () => {
     const f = fixture(0);
     await expect(f.service.requestRecommendedChoiceTx(f.tx as never, f.input))

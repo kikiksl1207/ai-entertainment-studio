@@ -100,6 +100,17 @@ type RecommendedChoiceRequest = {
   idempotencyKey?: string;
 };
 
+type RecommendedChoiceReplayClient = Pick<
+  Prisma.TransactionClient,
+  'storyAiContinuation' | 'storyAiAllowanceBucket'
+>;
+
+type RecommendedChoiceReplayScope = {
+  userId: string;
+  progressId: string;
+  choiceId: string;
+};
+
 @Injectable()
 export class StoryEconomicsService {
   constructor(
@@ -114,25 +125,10 @@ export class StoryEconomicsService {
     idempotencyKey: string,
   ) {
     const key = this.idempotencyKey('recommended-choice', idempotencyKey);
-    const continuation = await this.prisma.storyAiContinuation.findUnique({
-      where: { idempotencyKey: key },
-    });
-    if (!continuation) return null;
-    if (
-      continuation.requestKind !== 'recommended_choice' ||
-      continuation.userId !== userId ||
-      continuation.progressId !== progressId ||
-      (continuation.recommendedChoiceId ?? continuation.generatedChoiceId) !== choiceId
-    ) {
-      throw new ConflictException('Recommended choice idempotency conflict');
-    }
-    const allowance = await this.prisma.storyAiAllowanceBucket.findUnique({
-      where: { userId_releaseId: { userId, releaseId: continuation.releaseId } },
-    });
-    return this.continuationProjection(
-      continuation,
-      allowance ? storyAllowanceRemaining(allowance) : 0,
-      true,
+    return this.recommendedChoiceReplayForClient(
+      this.prisma,
+      { userId, progressId, choiceId },
+      key,
     );
   }
 
@@ -148,32 +144,13 @@ export class StoryEconomicsService {
     ) {
       throw new ConflictException('Choice is not eligible for generated continuation');
     }
-    const replay = await tx.storyAiContinuation.findUnique({
-      where: { idempotencyKey: key },
-    });
-    if (replay) {
-      if (
-        replay.requestKind !== 'recommended_choice' ||
-        replay.userId !== input.userId ||
-        replay.progressId !== input.progress.id ||
-        (replay.recommendedChoiceId ?? replay.generatedChoiceId) !== input.choice.id
-      ) {
-        throw new ConflictException('Recommended choice idempotency conflict');
-      }
-      const replayAllowance = await tx.storyAiAllowanceBucket.findUnique({
-        where: {
-          userId_releaseId: {
-            userId: input.userId,
-            releaseId: input.release.id,
-          },
-        },
-      });
-      return this.continuationProjection(
-        replay,
-        replayAllowance ? storyAllowanceRemaining(replayAllowance) : 0,
-        true,
-      );
-    }
+    const replayScope = {
+      userId: input.userId,
+      progressId: input.progress.id,
+      choiceId: input.choice.id,
+    };
+    const replay = await this.recommendedChoiceReplayForClient(tx, replayScope, key);
+    if (replay) return replay;
 
     const now = new Date();
     const [capability, rateCard, consent, analysis, rightsContract] = await Promise.all([
@@ -418,6 +395,12 @@ export class StoryEconomicsService {
       },
     });
     if (reserved.count !== 1) {
+      const racedReplay = await this.recommendedChoiceReplayForClient(
+        tx,
+        replayScope,
+        key,
+      );
+      if (racedReplay) return racedReplay;
       throw new ConflictException('Story AI allowance changed concurrently');
     }
     const continuation = await tx.storyAiContinuation.create({
@@ -2204,6 +2187,38 @@ export class StoryEconomicsService {
       fullManuscriptResent: false,
       idempotentReplay,
     };
+  }
+
+  private async recommendedChoiceReplayForClient(
+    client: RecommendedChoiceReplayClient,
+    scope: RecommendedChoiceReplayScope,
+    key: string,
+  ) {
+    const continuation = await client.storyAiContinuation.findUnique({
+      where: { idempotencyKey: key },
+    });
+    if (!continuation) return null;
+    if (
+      continuation.requestKind !== 'recommended_choice' ||
+      continuation.userId !== scope.userId ||
+      continuation.progressId !== scope.progressId ||
+      (continuation.recommendedChoiceId ?? continuation.generatedChoiceId) !== scope.choiceId
+    ) {
+      throw new ConflictException('Recommended choice idempotency conflict');
+    }
+    const allowance = await client.storyAiAllowanceBucket.findUnique({
+      where: {
+        userId_releaseId: {
+          userId: scope.userId,
+          releaseId: continuation.releaseId,
+        },
+      },
+    });
+    return this.continuationProjection(
+      continuation,
+      allowance ? storyAllowanceRemaining(allowance) : 0,
+      true,
+    );
   }
 
   private continuationProjection(
