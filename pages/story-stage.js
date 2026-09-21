@@ -896,6 +896,11 @@
     return "unavailable";
   }
 
+  function detailRetryVisible(operation) {
+    if (["loading", "access-loading"].includes(state.detailStatus)) return false;
+    return !(state.purchaseConfirming && !operation && state.detailStatus === "ready" && !state.purchaseNotice);
+  }
+
   function renderPack() {
     const dialog = state.dialog;
     if (!dialog || !state.detailSlug) return;
@@ -929,7 +934,7 @@
         <p id="storyPurchaseStatus" data-story-detail-status role="status">${escapeHtml(state.detailStatus === "loading" || state.detailStatus === "access-loading" ? tr("loading") : state.detailStatus === "error" ? accessTr("detailUnavailable") : state.detailStatus === "access-error" ? state.detailError : action === "sign_in" ? tr("loginRequired") : purchaseStatus || (action === "unavailable" ? controlTr("sceneUnavailable") : ""))}</p>
         ${action === "purchase" && quote && (state.purchaseConfirming || operation) ? `<p class="story-purchase-price" data-story-purchase-price>${escapeHtml(quote.priceLumina)} LUMINA</p>` : ""}
         <div>${action === "start" || action === "continue" ? `<button class="story-button story-button-primary" data-story-start ${state.detailPending || purchaseBusy ? "disabled" : ""}>${escapeHtml(state.detailPending ? tr("starting") : tr(action))}</button>` : action === "purchase" ? `<button class="story-button story-button-primary" ${operation ? "data-story-purchase-retry" : state.purchaseConfirming ? "data-story-purchase-confirm" : "data-story-purchase"} ${purchaseDisabled ? "disabled" : ""} aria-describedby="storyPurchaseStatus">${escapeHtml(operation ? purchaseTr("retry") : state.purchaseConfirming ? purchaseTr("confirm").replace("{price}", quote?.priceLumina || "") : accessTr("purchase"))}</button>${state.purchaseConfirming && !operation ? `<button class="story-button story-button-secondary" data-story-purchase-cancel>${escapeHtml(purchaseTr("cancel"))}</button>` : ""}` : ""}
-        ${!["loading", "access-loading"].includes(state.detailStatus) ? `<button class="story-button story-button-secondary" data-story-detail-retry ${state.detailPending || purchaseBusy ? "disabled" : ""}>${escapeHtml(operation ? purchaseTr("check") : tr("retry"))}</button>` : ""}</div>
+        ${detailRetryVisible(operation) ? `<button class="story-button story-button-secondary" data-story-detail-retry ${state.detailPending || purchaseBusy ? "disabled" : ""}>${escapeHtml(operation ? purchaseTr("check") : tr("retry"))}</button>` : ""}</div>
       </footer>`;
     dialog.querySelector(".story-detail-body").scrollTop = scroll;
     const focusTarget = focusSelector && !state.detailPending && !purchaseBusy

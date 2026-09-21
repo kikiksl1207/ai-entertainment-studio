@@ -82,7 +82,35 @@ Evidence root: `E:/CodexMovedCache/tmp/cloud-1841-purchase-20260922`.
   overflow is absent, and the scroll body ends above the fixed action footer.
   Images for all five mobile locales and desktop were visually inspected.
 - Syntax and `git diff --check` passed. No full server build, database test,
-  production purchase, or deployment run is claimed by this frontend slice.
+production purchase, or deployment run is claimed by this frontend slice.
+
+### PM Consent-Retry Follow-Up
+
+PM visual review of the original ko-390/en-1280 images found an unrelated
+generic retry beside Confirm/Cancel. The cause was the settled-detail render
+condition, not a CSS override of `hidden`. The follow-up omits generic retry
+only during clean purchase confirmation (ready, confirming, no operation, no
+error notice). Legacy ready-detail retry is unchanged. Unknown operations retain
+Check access and same-key retry; failures including storage failure retain retry.
+
+After Kaido returned the serialized slot, `retry-followup.tap` passed 18/18 in
+24.801 seconds: explicit confirmation/double click, cancel/back, four stale
+confirmation cases, four uncertain-response recoveries, access reconciliation,
+user-key isolation, ko/en balance failures, storage failure, close/reopen, and
+the two representative visual cases. Added assertions require exactly two consent
+buttons, no generic retry in clean consent, recovery controls on failures, zero
+POSTs for Check access, and unchanged keys on explicit purchase retry. The
+lightweight source suite passed 5/5. No additional broad suite was run.
+
+Exactly two replacement captures were written to the NEW evidence directory
+`E:/CodexMovedCache/tmp/cloud-1841-purchase-20260922/artifacts-retry-followup`:
+`ko-390-purchase.png` and `en-1280-purchase.png`. Both were visually inspected.
+The original 15 PNGs remain untouched as historical evidence. Original SHA256:
+
+- ko-390: `F808BC59E73040249E80A43CDC5FC11A6DA545E64B79484E5DF24AAE05BDF55F`
+- en-1280: `988B6EE42C88A95F1610A1454E92DEEA6659B52869A779484D2F87BF6175A777`
+
+All browser processes exited and the slot was returned for QR1 legacy work.
 
 All browser routes are intercepted: local checked-in HTML/CSS/JS and explicit
 private synthetic fixtures only. No route calls continue/fallback. Unknown

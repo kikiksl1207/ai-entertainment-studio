@@ -12,6 +12,8 @@ export function registerPurchaseTests({ fixture, owner, detail, progress, workId
   const confirm = async (f) => {
     await f.page.locator('[data-story-purchase]').click();
     assert.equal(posts(f).length, 0, 'Opening confirmation never debits');
+    assert.equal(await f.page.locator('[data-story-detail-retry]').count(), 0, 'Clean consent has no unrelated retry');
+    assert.equal(await f.page.locator('.story-detail-actions button').count(), 2, 'Consent offers only Confirm and Cancel');
     await f.page.locator('[data-story-purchase-confirm]').click();
   };
   const body = (q) => ({ confirmedPriceLumina: q.priceLumina, expectedReleaseId: q.releaseId, expectedReleaseRevision: q.releaseRevision });
@@ -120,6 +122,10 @@ export function registerPurchaseTests({ fixture, owner, detail, progress, workId
         await confirm(f);
         if (mode === 'timeout') { await f.page.clock.runFor(15100); g.release(); }
         await f.page.locator('[data-story-purchase-retry]:enabled').waitFor();
+        assert.equal(await f.page.locator('[data-story-detail-retry]:enabled').count(), 1, 'Unknown result retains Check access');
+        await f.page.locator('[data-story-detail-retry]').click();
+        await f.page.locator('[data-story-purchase-retry]:enabled').waitFor();
+        assert.equal(posts(f).length, 1, 'Checking access must not repost the purchase');
         await f.page.reload();
         await f.page.locator('[data-story-purchase-retry]:enabled').waitFor();
         assert.equal(posts(f).length, 1);
@@ -225,6 +231,7 @@ export function registerPurchaseTests({ fixture, owner, detail, progress, workId
         await f.open(); await confirm(f);
         await f.page.locator('[data-story-purchase]:enabled').waitFor();
         const text = await f.page.locator('[data-story-detail-status]').innerText();
+        assert.equal(await f.page.locator('[data-story-detail-retry]:enabled').count(), 1, 'Purchase failure retains retry');
         assert.match(text, /LUMINA/);
         assert.doesNotMatch(text, /SECRET_|WALLET_|66666666/);
         if (locale !== 'en') assert.doesNotMatch(text, /insufficient|unknown/);
@@ -241,6 +248,7 @@ export function registerPurchaseTests({ fixture, owner, detail, progress, workId
       await confirm(f);
       assert.equal(posts(f).length, 0);
       assert.match(await f.page.locator('[data-story-detail-status]').innerText(), /cannot be saved safely/);
+      assert.equal(await f.page.locator('[data-story-detail-retry]:enabled').count(), 1, 'Confirmation storage failure retains retry');
     } finally { await f.close(); }
   });
 
@@ -270,7 +278,9 @@ export function registerPurchaseTests({ fixture, owner, detail, progress, workId
         assert.equal(await f.page.locator('dialog dialog, .story-detail-actions .story-pack-card').count(), 0);
         assert.equal(await f.page.locator('[data-story-purchase-price]').innerText(), '125.5 LUMINA');
         assert.equal(await f.page.locator('[data-story-purchase-confirm]').evaluate((el) => el === document.activeElement), true);
-        for (const selector of ['[data-story-purchase-confirm]', '[data-story-purchase-cancel]', '[data-story-detail-retry]', '[data-story-close]']) {
+        assert.equal(await f.page.locator('[data-story-detail-retry]').count(), 0);
+        assert.equal(await f.page.locator('.story-detail-actions button').count(), 2);
+        for (const selector of ['[data-story-purchase-confirm]', '[data-story-purchase-cancel]', '[data-story-close]']) {
           assert.equal(await f.page.locator(selector).evaluate((el) => {
             const r = el.getBoundingClientRect();
             return r.width >= 44 && r.height >= 44 && r.bottom <= innerHeight && r.top >= 0 && r.left >= 0 && r.right <= innerWidth && el.scrollWidth <= el.clientWidth && el.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2));
