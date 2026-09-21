@@ -48,6 +48,7 @@ import { prepareValidatedJsonManuscript } from './story-manuscript-file.policy';
 import { storeManuscriptVersion } from './story-manuscript-version.store';
 import { StoryContinuationProvider } from './story-continuation.provider';
 import { StoryContinuationLegalActivationGate } from './story-continuation-legal-activation.gate';
+import { appendStoryRoute, createStoryRouteRoot } from './story-route-identity.store';
 
 const STORY_ENTITLEMENT_TYPES = [
   'story_work',
@@ -518,21 +519,25 @@ export class StoryProductionService {
       this.economics && work.activeReleaseId
         ? await this.economics.releaseSessionPin(work.activeReleaseId)
         : null;
-    const progress = await this.prisma.storyReaderProgress.create({
-      data: {
-        userId,
-        workId,
-        currentSceneId: targetSceneId,
-        currentBeatPosition: 0,
-        currentAct: firstPart.actNumber,
-        storyVersion: work.publishedVersion,
-        activeReleaseId: work.activeReleaseId,
-        aiRateCardId: sessionPin?.aiRateCardId,
-        capabilityRevision: sessionPin?.capabilityRevision,
-        checkpointSceneId: targetSceneId,
-        seenSceneIds: [targetSceneId],
-        pathSummary: [],
-      },
+    const progress = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.storyReaderProgress.create({
+        data: {
+          userId,
+          workId,
+          currentSceneId: targetSceneId,
+          currentBeatPosition: 0,
+          currentAct: firstPart.actNumber,
+          storyVersion: work.publishedVersion,
+          activeReleaseId: work.activeReleaseId,
+          aiRateCardId: sessionPin?.aiRateCardId,
+          capabilityRevision: sessionPin?.capabilityRevision,
+          checkpointSceneId: targetSceneId,
+          seenSceneIds: [targetSceneId],
+          pathSummary: [],
+        },
+      });
+      const routeNodeId = await createStoryRouteRoot(tx, created, targetSceneId, firstPart.actNumber);
+      return tx.storyReaderProgress.update({ where: { id: created.id }, data: { routeNodeId } });
     });
     await this.prisma.storyQualityEvent.upsert({
       where: { idempotencyKey: `session-start:${progress.id}` },
@@ -839,6 +844,10 @@ export class StoryProductionService {
           explicitRejoin: Boolean(choice.declaredRejoinSceneId),
         },
       ]);
+      const routeNodeId = await appendStoryRoute(tx, progress, {
+        kind: 'canonical', sceneId: scene.id, choiceId: choice.id,
+        targetSceneId: target?.id ?? null, endingKey: choice.targetEndingKey ?? null,
+      }, targetPart?.actNumber ?? progress.currentAct, path.at(-1) as Record<string, unknown>);
       const seen = [...new Set([...jsonStringArray(progress.seenSceneIds), ...(target ? [target.id] : [])])];
       await tx.storyChoiceEvent.create({
         data: {
@@ -900,6 +909,7 @@ export class StoryProductionService {
           progressRevision: { increment: 1 },
           checkpointSceneId: target?.id ?? progress.checkpointSceneId,
           pathSummary: path as Prisma.InputJsonValue,
+          routeNodeId,
           seenSceneIds: seen,
           visitedEndingKeys: choice.targetEndingKey
             ? [

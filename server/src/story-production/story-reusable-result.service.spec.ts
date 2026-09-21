@@ -1,6 +1,7 @@
 import { Decimal } from '@prisma/client/runtime/library';
 import { StoryEconomicsService } from './story-economics.service';
 import { StoryAiActivationService } from './story-ai-activation.service';
+import { storyRouteRootHash } from './story-route-identity.policy';
 
 const evidence = {
   rightsActivationKey: 'legal-activation-v1',
@@ -64,6 +65,14 @@ function integrationFixture() {
     manuscriptVersionId: 'manuscript-id', checksum: 'release-checksum',
   };
   const work = { id: 'work-id', status: 'published', activeReleaseId: 'release-id' };
+  const routeNodes = new Map<string, any>();
+  for (const progress of Object.values(progresses)) {
+    progress.routeNodeId = `root-${progress.id}`;
+    routeNodes.set(progress.routeNodeId, { id: progress.routeNodeId, depth: 0, routeHash: storyRouteRootHash({
+      workId: work.id, releaseId: release.id, releaseChecksum: release.checksum,
+      manuscriptVersionId: release.manuscriptVersionId, entrySceneId: 'scene-id',
+    }) });
+  }
   const createContinuation = jest.fn(async ({ data }) => {
     const row = {
       ...data, id: `continuation-${++continuationSequence}`,
@@ -74,6 +83,15 @@ function integrationFixture() {
     return row;
   });
   const tx: any = {
+    storyProgressRouteNode: {
+      findFirst: jest.fn(async ({ where }) => routeNodes.get(where.id)),
+      create: jest.fn(async ({ data }) => {
+        const row = { ...data, id: `node-${routeNodes.size}` };
+        routeNodes.set(row.id, row);
+        return row;
+      }),
+    },
+    $queryRaw: jest.fn().mockResolvedValue([{ parent_id: null, source_shared_result_id: null }]),
     storyAiContinuation: {
       findUnique: jest.fn(async ({ where }) => {
         if (where.idempotencyKey) {
@@ -135,7 +153,8 @@ function integrationFixture() {
       }),
     },
     storyAiGeneratedBeat: { findMany: jest.fn(async () => generatedBeats), create: jest.fn(async ({ data }) => generatedBeats.push(data)) },
-    storyAiGeneratedChoice: { findMany: jest.fn(async () => generatedChoices), create: jest.fn(async ({ data }) => generatedChoices.push(data)) },
+    storyAiGeneratedChoice: { findFirst: jest.fn(async ({ where }) => generatedChoices.find((choice) => choice.id === where.id)),
+      findMany: jest.fn(async () => generatedChoices), create: jest.fn(async ({ data }) => generatedChoices.push(data)) },
     storyAiAllowanceBucket: {
       findUnique: jest.fn(async ({ where }) => allowances[where.userId_releaseId.userId] ?? null),
       upsert: jest.fn(async ({ where, create }) => {
@@ -278,6 +297,7 @@ describe('shared story result cache integration', () => {
     const activation = new StoryAiActivationService(f.prisma as never);
     jest.spyOn(activation, 'prepare').mockResolvedValue({ id: evidence.rightsActivationKey } as never);
     await activation.promote('admin-id', f.getShared().id, f.getShared().resultChecksum);
+    f.tx.$queryRaw = jest.fn().mockResolvedValue([{ parent_id: null, source_shared_result_id: null }]);
     expect(f.getShared().status).toBe('approved');
     const providerChecksAfterFirst = f.provider.readiness.mock.calls.length;
     const preflightChecksAfterFirst = f.provider.preflight.mock.calls.length;

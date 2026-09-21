@@ -1780,6 +1780,7 @@ model StoryReaderProgress {
   capabilityRevision  Int?     @map("capability_revision")
   checkpointSceneId   String?  @map("checkpoint_scene_id") @db.Uuid
   pathSummary         Json     @default("[]") @map("path_summary")
+  routeNodeId         String?  @map("route_node_id") @db.Uuid
   seenSceneIds        Json     @default("[]") @map("seen_scene_ids")
   visitedEndingKeys   Json     @default("[]") @map("visited_ending_keys")
   status              String   @default("active")
@@ -1813,6 +1814,7 @@ model StoryChoiceEvent {
 model StoryProgressCheckpoint {
   id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   progressId        String   @map("progress_id") @db.Uuid
+  routeNodeId       String?  @map("route_node_id") @db.Uuid
   progressRevision  Int      @map("progress_revision")
   storyVersion      Int      @map("story_version")
   sceneId           String   @map("scene_id") @db.Uuid
@@ -2185,6 +2187,8 @@ model StoryAiContinuation {
   releaseChecksum         String?   @map("release_checksum")
   locale                  String    @default("ko")
   contextFingerprint      String    @default("") @map("context_fingerprint")
+  sourceRouteNodeId        String?   @map("source_route_node_id") @db.Uuid
+  sourceRouteHash          String?   @map("source_route_hash")
   reusableContextFingerprint String? @map("reusable_context_fingerprint")
   reuseKey                String?   @map("reuse_key")
   sharedResultId          String?   @map("shared_result_id") @db.Uuid
@@ -2221,6 +2225,31 @@ model StoryAiContinuation {
   @@index([sharedResultId, status], map: "idx_story_ai_continuations_shared_result")
   @@unique([id, userId, workId, releaseId, progressId], map: "uq_story_ai_continuations_owner_scope")
   @@map("story_ai_continuations")
+}
+
+model StoryProgressRouteNode {
+  id                       String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  progressId               String   @map("progress_id") @db.Uuid
+  workId                   String   @map("work_id") @db.Uuid
+  releaseId                String   @map("release_id") @db.Uuid
+  parentId                 String?  @map("parent_id") @db.Uuid
+  routeHash                String?  @map("route_hash")
+  depth                    Int
+  stepKind                 String   @map("step_kind")
+  sourceSceneId            String?  @map("source_scene_id") @db.Uuid
+  sourceChoiceId           String?  @map("source_choice_id") @db.Uuid
+  sourceSharedResultId     String?  @map("source_shared_result_id") @db.Uuid
+  sourceSharedChoiceKey    String?  @map("source_shared_choice_key")
+  targetSceneId            String?  @map("target_scene_id") @db.Uuid
+  endingKey                String?  @map("ending_key")
+  actNumber                Int      @map("act_number")
+  narrativeStep            Json?    @map("narrative_step")
+  createdAt                DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([progressId, id], map: "uq_story_route_node_progress")
+  @@unique([id, progressId, workId, releaseId], map: "uq_story_route_node_owner")
+  @@index([progressId, createdAt], map: "idx_story_route_node_progress")
+  @@map("story_progress_route_nodes")
 }
 
 model StoryAiGeneratedScene {
