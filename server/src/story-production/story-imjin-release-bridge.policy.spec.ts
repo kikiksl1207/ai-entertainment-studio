@@ -117,4 +117,21 @@ describe('Imjin release dry-run policy', () => {
     expect(plan.parts.flatMap((part) => part.beats).join('\n'))
       .not.toMatch(/^\s*\[(?:장면|배경|등장|배경 이미지 지시|회상)(?:\s+\d+)?\s*(?::|\])/m);
   });
+
+  (actualSourcePath ? it : it.skip)('keeps actual part 75 readable with A as its sole explicit author ending and B/C independent', () => {
+    const plan = prepareImjinReleasePlan(readFileSync(actualSourcePath!));
+    expect(plan.parts).toHaveLength(75);
+    expect(plan.parts[73].choices[0]).toMatchObject({
+      choiceKey: 'A', routeKind: 'writer_original', targetPartKey: 'part-75', targetEndingKey: null,
+    });
+    const last = plan.parts[74];
+    expect(last.partKey).toBe('part-75');
+    expect(last.beats.length).toBeGreaterThan(0);
+    expect(last.choices.map(({ choiceKey, routeKind, targetPartKey, targetEndingKey }) =>
+      ({ choiceKey, routeKind, targetPartKey, targetEndingKey }))).toEqual([
+      { choiceKey: 'A', routeKind: 'writer_original', targetPartKey: null, targetEndingKey: 'author_main' },
+      { choiceKey: 'B', routeKind: 'generation_required', targetPartKey: null, targetEndingKey: null },
+      { choiceKey: 'C', routeKind: 'generation_required', targetPartKey: null, targetEndingKey: null },
+    ]);
+  });
 });
