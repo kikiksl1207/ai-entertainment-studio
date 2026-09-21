@@ -478,7 +478,24 @@
     aiPollTimer: null,
     aiPollResolve: null,
     aiPollController: null,
+    sceneIdentity: "",
+    beatOperation: null,
+    completedBeat: null,
+    readingScroll: null,
+    beatNotice: "",
   };
+
+  const READER_COPY = {
+    ko: { previous: "이전 페이지", next: "다음 페이지", page: "{current} / {total} 페이지", text: "이야기 본문", saving: "읽는 위치를 저장하고 있습니다.", unconfirmed: "읽는 위치를 확인하지 못해 최신 진행 상황을 다시 불러왔습니다." },
+    en: { previous: "Previous page", next: "Next page", page: "Page {current} of {total}", text: "Story text", saving: "Saving reading position.", unconfirmed: "The reading position could not be confirmed. The latest progress has been reloaded." },
+    ja: { previous: "前のページ", next: "次のページ", page: "{total}ページ中{current}ページ", text: "物語の本文", saving: "読んでいる位置を保存しています。", unconfirmed: "読んでいる位置を確認できなかったため、最新の進行状況を再読み込みしました。" },
+    "zh-Hans": { previous: "上一页", next: "下一页", page: "第 {current} 页，共 {total} 页", text: "故事正文", saving: "正在保存阅读位置。", unconfirmed: "无法确认阅读位置，已重新加载最新进度。" },
+    "zh-Hant": { previous: "上一頁", next: "下一頁", page: "第 {current} 頁，共 {total} 頁", text: "故事正文", saving: "正在儲存閱讀位置。", unconfirmed: "無法確認閱讀位置，已重新載入最新進度。" },
+  };
+
+  function readerTr(key) {
+    return READER_COPY[state.locale]?.[key] || READER_COPY.en[key] || "";
+  }
 
   // First release is suggested-only, including legacy paid custom=true metadata.
   const FIRST_RELEASE = true;
@@ -1018,12 +1035,108 @@
     return index % 2 ? "right" : "left";
   }
 
-  function sceneBeatText(scene, position) {
-    const beats = Array.isArray(scene?.beats) ? scene.beats : [];
-    const matchingBeat = beats.find((beat) => Number(beat?.position) === Number(position));
-    const fallbackIndex = Math.max(0, Math.min(Number(position) || 0, beats.length - 1));
-    const beat = matchingBeat || beats[fallbackIndex];
-    return textValue(beat?.content) || textValue(beat?.text) || textValue(beat?.body) || textValue(scene?.sceneText) || textValue(scene?.body) || textValue(scene?.content);
+  function readerScope(progress = state.progress) {
+    return JSON.stringify([readerIdentity(), state.sessionId, state.workId, progress?.storyVersion,
+      progress?.activeReleaseId || progress?.releaseId, progress?.releaseCapability?.revision,
+      progress?.releaseCapability?.source, progress?.scene?.id, progress?.currentGeneratedSceneId]);
+  }
+
+  function beatContent(value) {
+    if (typeof value === "string") return value;
+    if (typeof value?.value === "string") return value.value;
+    return textValue(value);
+  }
+
+  function readableBeats() {
+    const source = state.scene?.beats;
+    if (source != null && !Array.isArray(source)) return null;
+    const beats = source?.length ? source.map((beat) => ({ position: beat?.position,
+      text: beatContent(beat?.content) || beatContent(beat?.text) || beatContent(beat?.body) }))
+      : [{ position: 0, text: beatContent(state.scene?.sceneText) || beatContent(state.scene?.body) || beatContent(state.scene?.content) }];
+    if (beats.some((beat) => !Number.isSafeInteger(beat.position) || beat.position < 0) ||
+        new Set(beats.map((beat) => beat.position)).size !== beats.length) return null;
+    beats.sort((left, right) => left.position - right.position);
+    const scope = readerScope();
+    const position = state.progress?.status === "completed" && state.completedBeat?.scope === scope
+      ? state.completedBeat.position : state.progress?.currentBeatPosition ?? 0;
+    let index = beats.findIndex((beat) => beat.position === position);
+    // Canonical releases can start at 1 while new progress still stores the sentinel 0.
+    if (index < 0 && position === 0) index = 0;
+    if (index < 0) return null;
+    return { beats, index, scope, key: JSON.stringify([scope, beats[index].position]) };
+  }
+
+  function rememberReadingScroll() {
+    const region = root.querySelector("[data-story-scene-focus]");
+    if (region?.dataset.readingKey) state.readingScroll = { key: region.dataset.readingKey, top: region.scrollTop };
+  }
+
+  function cancelBeatNavigation() {
+    if (!state.beatOperation) return;
+    state.beatOperation.controller.abort();
+    state.beatOperation = null;
+    ++state.operation;
+    setBusy(false);
+  }
+
+  async function turnBeat(direction) {
+    const reading = readableBeats();
+    if (!reading || ![-1, 1].includes(direction) || state.busy || aiRequestOpen() || state.resetPreview ||
+        state.sceneIdentity !== readerIdentity() || !["active", "completed"].includes(state.progress?.status)) return;
+    const target = reading.beats[reading.index + direction];
+    if (!target) return;
+    if (state.progress.status === "completed") {
+      state.completedBeat = { scope: reading.scope, position: target.position };
+      renderScene();
+      root.querySelector("[data-story-scene-focus]")?.focus({ preventScroll: true });
+      return;
+    }
+    const epoch = state.epoch;
+    const sessionId = state.sessionId;
+    const identity = readerIdentity();
+    const locale = state.locale;
+    const revision = state.progress.revision;
+    if (!Number.isSafeInteger(revision) || revision < 1) return;
+    const operation = beginOperation();
+    const pending = { controller: new AbortController() };
+    state.beatOperation = pending;
+    state.beatNotice = "";
+    const current = () => state.beatOperation === pending && operation === state.operation && currentRequest(epoch, sessionId) &&
+      identity === readerIdentity() && locale === state.locale && reading.scope === readerScope();
+    actionStatus(readerTr("saving"));
+    const timer = setTimeout(() => pending.controller.abort(), 15000);
+    try {
+      const payload = await request(`${progressPath("/beat")}?locale=${encodeURIComponent(locale)}`, {
+        method: "POST", auth: true, signal: pending.controller.signal,
+        body: { position: target.position, expectedRevision: revision },
+      });
+      if (!current()) return;
+      if (payload?.progressId !== sessionId || !Number.isSafeInteger(payload.revision) || payload.revision <= revision ||
+          payload.currentBeatPosition !== target.position || readerScope(payload) !== reading.scope ||
+          !Array.isArray(payload.choices) || payload.choices.length > 3 || payload.status !== "active") throw new Error("Invalid beat projection");
+      state.minimumRevision = Math.max(state.minimumRevision, payload.revision);
+      state.progress = payload;
+      state.scene = payload.scene;
+      state.choices = payload.choices;
+    } catch (error) {
+      if (!current()) return;
+      if (error?.status === 401 || error?.status === 403) return blockScene(errorCopy(error));
+      // A timed-out write may have committed. Refetch, never replay the position POST.
+      await loadScene({ restorePending: false });
+      if (operation === state.operation && identity === readerIdentity() && sessionId === state.sessionId && locale === state.locale && state.scene) {
+        state.beatNotice = errorCode(error) === "STORY_PROGRESS_STALE_REVISION" ? controlTr("progressChanged") : readerTr("unconfirmed");
+      }
+    } finally {
+      clearTimeout(timer);
+      if (state.beatOperation === pending) {
+        state.beatOperation = null;
+        await finishOperation(operation);
+        if (operation === state.operation && identity === readerIdentity() && sessionId === state.sessionId && locale === state.locale && state.scene) {
+          renderScene();
+          root.querySelector("[data-story-scene-focus]")?.focus({ preventScroll: true });
+        }
+      }
+    }
   }
 
   function aiRequestOpen() {
@@ -1072,24 +1185,38 @@
     if (state.choices.length > 3) return blockScene(controlTr("sceneUnavailable"));
     const background = sceneBackground(scene);
     const characters = sceneCharacters(scene);
-    const sceneText = sceneBeatText(scene, state.progress?.currentBeatPosition);
-    const isEnding = state.progress?.status === "completed" || Boolean(scene?.ending || scene?.isEnding || scene?.endingType);
+    const reading = readableBeats();
+    const isEnding = state.progress?.status === "completed";
+    if (!reading || (isEnding && state.choices.length) || (state.progress?.status === "active" && !state.choices.length && (scene?.ending || scene?.isEnding || scene?.endingType))) return blockScene(controlTr("sceneUnavailable"));
+    const sceneText = reading.beats[reading.index].text;
+    const lastBeat = reading.index === reading.beats.length - 1;
+    const navigationBlocked = state.busy || aiRequestOpen() || !["active", "completed"].includes(state.progress?.status);
+    rememberReadingScroll();
+    const restoreFocus = document.activeElement?.matches("[data-story-scene-focus]");
     const customChoice = customChoiceCapability(scene);
     const fixedChoices = state.choices;
     root.innerHTML = `
       <section class="story-player" data-has-background="${background ? "true" : "false"}">
         <a class="story-back" href="/story-stage">← ${escapeHtml(tr("backToStories"))}</a>
-        <div class="story-player-stage">
+        ${!scene && isEnding ? `<div class="story-completed" tabindex="-1" data-story-scene-focus>
+          <span class="story-ending-label">${escapeHtml(tr("ending"))}</span>
+          <h2>${escapeHtml(tr("completed"))}</h2>
+        </div>` : `<div class="story-player-stage">
           ${background ? `<img class="story-player-background" src="${escapeHtml(background)}" alt="" />` : `<div class="story-player-no-visual">${escapeHtml(tr("sceneNoVisual"))}</div>`}
           <div class="story-player-characters" aria-hidden="true">
             ${characters.map((character, index) => `<img src="${escapeHtml(characterUrl(character))}" alt="" data-side="${escapeHtml(sceneCharacterSide(character, index))}" />`).join("")}
           </div>
-          <div class="story-player-copy" tabindex="-1" data-story-scene-focus>
+          <div class="story-player-copy" tabindex="0" role="region" aria-label="${escapeHtml(readerTr("text"))}" data-story-scene-focus data-reading-key="${escapeHtml(reading.key)}">
             ${isEnding ? `<span class="story-ending-label">${escapeHtml(tr("ending"))}</span>` : ""}
             <p>${escapeHtml(sceneText)}</p>
           </div>
-        </div>
-        ${fixedChoices.length && !isEnding ? `
+        </div>`}
+        ${reading.beats.length > 1 ? `<nav class="story-beat-navigation" aria-label="${escapeHtml(readerTr("page").replace("{current}", reading.index + 1).replace("{total}", reading.beats.length))}">
+          <button type="button" data-story-beat="previous" aria-label="${escapeHtml(readerTr("previous"))}" title="${escapeHtml(readerTr("previous"))}" ${navigationBlocked || reading.index === 0 ? "disabled" : ""}><span aria-hidden="true">&#8592;</span></button>
+          <output data-story-beat-counter aria-live="polite">${reading.index + 1} / ${reading.beats.length}</output>
+          <button type="button" data-story-beat="next" aria-label="${escapeHtml(readerTr("next"))}" title="${escapeHtml(readerTr("next"))}" ${navigationBlocked || lastBeat ? "disabled" : ""}><span aria-hidden="true">&#8594;</span></button>
+        </nav>` : ""}
+        ${fixedChoices.length && !isEnding && lastBeat ? `
           <div class="story-choice-panel">
             <h2>${escapeHtml(tr("choices"))}</h2>
             <div class="story-choice-list">
@@ -1107,9 +1234,12 @@
               </form>` : ""}
           </div>` : ""}
         ${renderAiNotice()}
-        <p class="story-action-status" data-story-action-status aria-live="polite">${state.progress?.status !== "active" && !isEnding && !aiRequestOpen() ? escapeHtml(controlTr("sceneUnavailable")) : ""}</p>
+        <p class="story-action-status" data-story-action-status aria-live="polite">${escapeHtml(state.beatNotice || (state.progress?.status !== "active" && !isEnding && !aiRequestOpen() ? controlTr("sceneUnavailable") : ""))}</p>
         ${renderResetControls(state.progress)}
       </section>`;
+    const readingRegion = root.querySelector("[data-story-scene-focus]");
+    readingRegion.scrollTop = state.readingScroll?.key === reading.key ? state.readingScroll.top : 0;
+    if (restoreFocus) readingRegion.focus({ preventScroll: true });
     if (state.resetPreview) {
       root.querySelector(".story-player").inert = true;
       root.insertAdjacentHTML("beforeend", renderResetDialog());
@@ -1176,7 +1306,7 @@
   }
 
   function currentRequest(epoch, sessionId) {
-    return epoch === state.epoch && sessionId === state.sessionId;
+    return epoch === state.epoch && sessionId === state.sessionId && state.sceneIdentity === readerIdentity();
   }
 
   function cancelAiPolling() {
@@ -1588,12 +1718,19 @@
     const restorePending = options.restorePending !== false;
     const epoch = ++state.epoch;
     const sessionId = state.sessionId;
+    const identity = readerIdentity();
+    const locale = state.locale;
+    const workId = state.workId;
+    const current = () => currentRequest(epoch, sessionId) && identity === readerIdentity() && locale === state.locale && workId === state.workId;
+    state.sceneIdentity = identity;
+    state.beatNotice = "";
     state.controls = null;
     state.resetPreview = null;
+    rememberReadingScroll();
     renderLoading(tr("sceneLoading"));
     try {
-      const payload = await request(`/api/v1/story-sessions/${encodeURIComponent(sessionId)}/current-scene?locale=${encodeURIComponent(state.locale)}`, { auth: true });
-      if (!currentRequest(epoch, sessionId)) return;
+      const payload = await request(`/api/v1/story-sessions/${encodeURIComponent(sessionId)}/current-scene?locale=${encodeURIComponent(locale)}`, { auth: true });
+      if (!current()) return;
       if (payload?.progressId !== sessionId || !Number.isInteger(payload?.revision) || payload.revision < Math.max(1, state.minimumRevision)) throw new Error("Invalid progress projection");
       if (!Array.isArray(payload.choices)) throw new Error("Invalid choices projection");
       if (payload.choices.length > 3) return blockScene(controlTr("sceneUnavailable"));
@@ -1603,13 +1740,13 @@
       state.progress = payload;
       state.customChoiceOpen = false;
       const controls = await readControls(payload, sessionId, state.workId).catch(() => null);
-      if (!currentRequest(epoch, sessionId)) return;
+      if (!current()) return;
       state.controls = controls;
       renderScene();
       if (restorePending) restoreAiOperation();
-      root.querySelector("[data-story-scene-focus]")?.focus();
+      root.querySelector("[data-story-scene-focus]")?.focus({ preventScroll: true });
     } catch (error) {
-      if (!currentRequest(epoch, sessionId)) return;
+      if (!current()) return;
       const terminal = errorCode(error) === "STORY_SUGGESTED_CHOICE_LIMIT_EXCEEDED" || error?.status === 401 || error?.status === 403;
       blockScene(errorCopy(error), !terminal);
     }
@@ -1687,6 +1824,8 @@
   }
 
   async function submitChoice(choiceId) {
+    const reading = readableBeats();
+    if (!reading || reading.index !== reading.beats.length - 1 || state.sceneIdentity !== readerIdentity()) return;
     if (state.busy || aiRequestOpen() || state.resetPreview || state.progress?.status !== "active" || !choiceId || !state.scene?.id || !Number.isInteger(state.progress?.revision) || state.choices.length > 3 || !state.choices.some((choice) => (choice.id || choice.choiceId) === choiceId)) return;
     const epoch = state.epoch;
     const sessionId = state.sessionId;
@@ -1902,6 +2041,8 @@
     }
     const startButton = event.target.closest("[data-story-start]");
     if (startButton) return startStory();
+    const beatButton = event.target.closest("[data-story-beat]");
+    if (beatButton) return turnBeat(beatButton.dataset.storyBeat === "previous" ? -1 : 1);
     if (event.target.closest("[data-story-ai-recover]")) return recoverAiOperation();
     const choiceButton = event.target.closest("[data-choice-id]");
     if (choiceButton) return submitChoice(choiceButton.dataset.choiceId);
@@ -1968,6 +2109,11 @@
     if (nextLocale === state.locale) return;
     state.locale = nextLocale;
     updateHeading();
+    if (state.beatOperation) {
+      cancelBeatNavigation();
+      state.localeDirty = false;
+      return loadScene();
+    }
     if (state.detailSlug) {
       loadCatalog();
       return loadPack(state.detailSlug);
@@ -1983,6 +2129,7 @@
 
   window.addEventListener("lumina:auth-expired", () => {
     cancelAiPolling();
+    cancelBeatNavigation();
     if (state.sessionId) {
       ++state.epoch;
       state.aiNotice = null;
@@ -2001,11 +2148,27 @@
 
   window.addEventListener("storage", (event) => {
     if (event.key !== "lumina_auth" && event.key !== null) return;
+    if (state.sessionId) {
+      cancelBeatNavigation();
+      cancelAiPolling();
+      ++state.epoch;
+      ++state.operation;
+      setBusy(false);
+      state.minimumRevision = 0;
+      state.aiNotice = null;
+      state.progress = null;
+      state.completedBeat = null;
+      state.readingScroll = null;
+      blockScene(tr("loginRequired"));
+      if (signedIn()) return loadScene();
+      return;
+    }
     if (state.detailSlug) loadPack(state.detailSlug);
   });
 
   window.addEventListener("popstate", () => {
     if (state.dialog) dismissPack();
+    cancelBeatNavigation();
     cancelAiPolling();
     ++state.epoch;
     ++state.operation;
@@ -2031,6 +2194,7 @@
   });
 
   window.addEventListener("pagehide", cancelAiPolling);
+  window.addEventListener("pagehide", cancelBeatNavigation);
 
   updateHeading();
   if (state.sessionId) loadScene();
