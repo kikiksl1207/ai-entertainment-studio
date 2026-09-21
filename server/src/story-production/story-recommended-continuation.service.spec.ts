@@ -62,7 +62,9 @@ function fixture(includedAiRouteCount = 2) {
     storyAiUsageLedger: { create: jest.fn() },
     storyReaderProgress: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
   };
-  const provider = { readiness: jest.fn().mockResolvedValue({ enabled: true }) };
+  const provider: { readiness: jest.Mock; preflight?: jest.Mock } = {
+    readiness: jest.fn().mockResolvedValue({ enabled: true }),
+  };
   const service = new StoryEconomicsService(
     {} as never,
     { authorize: jest.fn().mockResolvedValue({ active: true, reason: 'test_only' }) } as never,
@@ -92,6 +94,52 @@ function fixture(includedAiRouteCount = 2) {
 }
 
 describe('recommended choice enqueue transaction', () => {
+  it('preflights the pinned complete request before reservation and uses its token budget', async () => {
+    const f = fixture();
+    f.provider.preflight = jest.fn().mockResolvedValue({ supported: true, inputTokenUpperBound: 900 });
+    await f.service.requestRecommendedChoiceTx(f.tx as never, f.input);
+    expect(f.provider.preflight).toHaveBeenCalledWith(expect.objectContaining({
+      provider: 'test-double', model: 'none', rateCardId: 'rate-card-id', rateCardVersion: 'rate-v1',
+      inputTokenLimit: 1000, outputTokenLimit: 300, locale: 'ko',
+      contextFingerprint: expect.stringMatching(/^[a-f0-9]{64}$/),
+      approvedContext: expect.objectContaining({ selectedChoice: { label: '다른 길' } }),
+    }));
+    expect(f.provider.preflight.mock.invocationCallOrder[0])
+      .toBeLessThan(f.tx.storyAiAllowanceBucket.upsert.mock.invocationCallOrder[0]);
+    expect(f.tx.storyAiUsageLedger.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ inputTokens: 900 }),
+    }));
+  });
+
+  it.each([
+    { supported: false, reason: 'model_configuration_mismatch' },
+    { supported: true },
+    { supported: true, inputTokenUpperBound: Number.NaN },
+    { supported: true, inputTokenUpperBound: 0 },
+    { supported: true, inputTokenUpperBound: 1001 },
+  ])('rejects an unsupported or invalid preflight before any personal mutation: %j', async (result) => {
+    const f = fixture();
+    f.provider.preflight = jest.fn().mockResolvedValue(result);
+    await expect(f.service.requestRecommendedChoiceTx(f.tx as never, f.input)).rejects.toMatchObject({
+      response: { progressMutated: false, generationStarted: false },
+    });
+    expect(f.tx.storyAiAllowanceBucket.upsert).not.toHaveBeenCalled();
+    expect(f.tx.storyAiAllowanceBucket.updateMany).not.toHaveBeenCalled();
+    expect(f.createContinuation).not.toHaveBeenCalled();
+    expect(f.tx.storyAiUsageLedger.create).not.toHaveBeenCalled();
+    expect(f.tx.storyReaderProgress.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('checks the cost of the full preflight budget, not the old character estimate', async () => {
+    const f = fixture();
+    f.provider.preflight = jest.fn().mockResolvedValue({ supported: true, inputTokenUpperBound: 900 });
+    const card = await f.tx.storyAiRateCard.findUnique({});
+    card.inputCostPerMillion = new Decimal(100000);
+    await expect(f.service.requestRecommendedChoiceTx(f.tx as never, f.input))
+      .rejects.toMatchObject({ response: { code: 'STORY_AI_HARD_BUDGET_EXCEEDED' } });
+    expect(f.tx.storyAiAllowanceBucket.upsert).not.toHaveBeenCalled();
+  });
+
   it('pins context and reserves one included route without creating custom input', async () => {
     const f = fixture();
     await expect(f.service.requestRecommendedChoiceTx(f.tx as never, f.input))
