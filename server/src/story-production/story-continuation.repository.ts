@@ -32,6 +32,10 @@ type ClaimedRow = {
   output_token_limit: number;
   attempt_count: number;
   max_attempts: number;
+  provider: string | null;
+  model: string | null;
+  rate_card_id: string;
+  rate_card_version: string | null;
 };
 
 @Injectable()
@@ -68,7 +72,7 @@ export class PrismaStoryContinuationQueueRepository extends StoryContinuationQue
         ORDER BY next_attempt_at ASC, created_at ASC, id ASC
         FOR UPDATE SKIP LOCKED
         LIMIT 1
-      )
+      ), claimed AS (
       UPDATE story_ai_continuations AS continuation
       SET status = 'processing',
           attempt_count = continuation.attempt_count + CASE WHEN ${terminalRecovery} THEN 0 ELSE 1 END,
@@ -80,6 +84,26 @@ export class PrismaStoryContinuationQueueRepository extends StoryContinuationQue
       FROM candidate
       WHERE continuation.id = candidate.id
       RETURNING continuation.*
+      )
+      SELECT claimed.*, reservation.provider, reservation.model,
+             reservation.rate_card_version
+      FROM claimed
+      LEFT JOIN story_ai_usage_ledger AS reservation
+        ON reservation.idempotency_key = 'usage-request:' || claimed.id::text
+        AND reservation.continuation_id = claimed.id
+        AND reservation.user_id = claimed.user_id
+        AND reservation.work_id = claimed.work_id
+        AND reservation.release_id = claimed.release_id
+        AND reservation.rate_card_id = claimed.rate_card_id
+        AND reservation.event_kind = 'recommended_route_request'
+        AND reservation.status = 'reserved'
+        AND EXISTS (
+          SELECT 1 FROM story_ai_rate_cards AS card
+          WHERE card.id = claimed.rate_card_id
+            AND card.provider = reservation.provider
+            AND card.model = reservation.model
+            AND card.version = reservation.rate_card_version
+        )
     `);
     const row = rows[0];
     if (!row) return null;
@@ -96,6 +120,10 @@ export class PrismaStoryContinuationQueueRepository extends StoryContinuationQue
         outputSchemaVersion: row.output_schema_version,
         inputTokenLimit: row.input_token_limit,
         outputTokenLimit: row.output_token_limit,
+        provider: row.provider ?? undefined,
+        model: row.model ?? undefined,
+        rateCardId: row.rate_card_id,
+        rateCardVersion: row.rate_card_version ?? undefined,
       },
     };
   }
