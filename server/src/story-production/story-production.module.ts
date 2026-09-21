@@ -35,16 +35,19 @@ import { StoryContinuationExecutor } from './story-continuation.executor';
 import { StoryContinuationContextAssembler } from './story-continuation-context.assembler';
 import {
   StoryContinuationLegalActivationGate,
-  UnconfiguredStoryContinuationLegalActivationGate,
+  PersistedStoryContinuationLegalActivationGate,
 } from './story-continuation-legal-activation.gate';
 import {
   StoryReusableResultApprovalGate,
-  UnconfiguredStoryReusableResultApprovalGate,
+  PersistedStoryReusableResultApprovalGate,
 } from './story-reusable-result-approval.gate';
+import { StoryAiActivationService } from './story-ai-activation.service';
+import { StoryAiActivationAdminController } from './story-ai-activation.controller';
 
 @Module({
   imports: [ModerationModule],
   controllers: [
+    StoryAiActivationAdminController,
     StoryManuscriptFileController,
     StoryProductionController,
     StoryProgressAdminController,
@@ -55,6 +58,7 @@ import {
     StoryEconomicsAdminController,
   ],
   providers: [
+    StoryAiActivationService,
     StoryManuscriptAdmission,
     StoryManuscriptOwnerGuard,
     StoryManuscriptMultipartInterceptor,
@@ -69,11 +73,11 @@ import {
     StoryContinuationContextAssembler,
     {
       provide: StoryContinuationLegalActivationGate,
-      useClass: UnconfiguredStoryContinuationLegalActivationGate,
+      useClass: PersistedStoryContinuationLegalActivationGate,
     },
     {
       provide: StoryReusableResultApprovalGate,
-      useClass: UnconfiguredStoryReusableResultApprovalGate,
+      useClass: PersistedStoryReusableResultApprovalGate,
     },
     {
       provide: StoryContinuationProvider,

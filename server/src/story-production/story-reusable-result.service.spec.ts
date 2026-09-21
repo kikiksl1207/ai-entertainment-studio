@@ -1,5 +1,6 @@
 import { Decimal } from '@prisma/client/runtime/library';
 import { StoryEconomicsService } from './story-economics.service';
+import { StoryAiActivationService } from './story-ai-activation.service';
 
 const evidence = {
   rightsActivationKey: 'legal-activation-v1',
@@ -32,6 +33,8 @@ function integrationFixture() {
   const ledgers: any[] = [];
   const reusableBeats: any[] = [];
   const reusableChoices: any[] = [];
+  const generatedBeats: any[] = [];
+  const generatedChoices: any[] = [];
   let sharedResult: any = null;
   let continuationSequence = 0;
   let generatedSequence = 0;
@@ -117,10 +120,11 @@ function integrationFixture() {
       create: jest.fn(() => { throw new Error('canonical graph write'); }),
     },
     storyAiGeneratedScene: {
+      findUnique: jest.fn(async ({ where }) => generatedScenes.find((scene) => scene.id === where.id)),
       findMany: jest.fn().mockResolvedValue([]),
       findFirst: jest.fn(),
       create: jest.fn(async ({ data }) => {
-        const row = { ...data, id: `generated-${++generatedSequence}` };
+        const row = { ...data, status: 'ready', id: `generated-${++generatedSequence}` };
         generatedScenes.push(row);
         return row;
       }),
@@ -130,8 +134,8 @@ function integrationFixture() {
         return row;
       }),
     },
-    storyAiGeneratedBeat: { findMany: jest.fn(), create: jest.fn() },
-    storyAiGeneratedChoice: { findMany: jest.fn(), create: jest.fn() },
+    storyAiGeneratedBeat: { findMany: jest.fn(async () => generatedBeats), create: jest.fn(async ({ data }) => generatedBeats.push(data)) },
+    storyAiGeneratedChoice: { findMany: jest.fn(async () => generatedChoices), create: jest.fn(async ({ data }) => generatedChoices.push(data)) },
     storyAiAllowanceBucket: {
       findUnique: jest.fn(async ({ where }) => allowances[where.userId_releaseId.userId] ?? null),
       upsert: jest.fn(async ({ where, create }) => {
@@ -206,7 +210,10 @@ function integrationFixture() {
   const prisma = { ...tx, $transaction: jest.fn(async (run) => run(tx)) };
   const provider = { readiness: jest.fn().mockResolvedValue({ enabled: true }) };
   const legal = { authorize: jest.fn().mockResolvedValue({ active: true, reason: 'test_only' }) };
-  const approval = { evaluate: jest.fn().mockResolvedValue({ eligible: true, reason: 'test_only', snapshot: evidence }) };
+  const approval = {
+    prepare: jest.fn().mockResolvedValue({ eligible: true, reason: 'test_only', snapshot: evidence }),
+    authorizeResult: jest.fn().mockResolvedValue(true),
+  };
   const service = new StoryEconomicsService(prisma as never, legal as never, provider as never, approval as never);
   const input = (reader: 'reader-1' | 'reader-2') => ({
     userId: reader,
@@ -221,7 +228,7 @@ function integrationFixture() {
     idempotencyKey: `shared-result-${reader}`,
   });
   return {
-    service, tx, provider, input, continuations, progresses, allowances,
+    service, prisma, tx, provider, approval, input, continuations, progresses, allowances,
     generatedScenes, ledgers, reusableBeats, reusableChoices, capability, rights,
     getShared: () => sharedResult,
   };
@@ -251,9 +258,24 @@ describe('shared story result cache integration', () => {
     }, 'settle-shared-result', 'lease-token')).resolves.toMatchObject({ status: 'completed' });
 
     expect(f.getShared()).toMatchObject({
-      status: 'approved', resultChecksum: expect.stringMatching(/^[a-f0-9]{64}$/),
+      status: 'pending', resultChecksum: expect.stringMatching(/^[a-f0-9]{64}$/),
+      originGeneratedSceneId: 'generated-1', reviewPendingAt: expect.any(Date),
       claimToken: null,
     });
+    expect(f.reusableBeats).toHaveLength(0);
+    expect(f.reusableChoices).toHaveLength(0);
+    await expect(f.service.requestRecommendedChoiceTx(f.tx, f.input('reader-2')))
+      .rejects.toMatchObject({ response: { code: 'STORY_AI_SHARED_RESULT_PENDING' } });
+    // Explicit promotion has its own gate; settlement never fabricates evidence.
+    f.tx.$queryRaw = jest.fn().mockResolvedValue([{ valid: true }]);
+    f.tx.storyAiLegalActivation = { findUnique: jest.fn().mockResolvedValue({
+      id: evidence.rightsActivationKey, rightsContractVersionId: 'rights-version-id',
+    }) };
+    f.tx.storyAiReusableResult.update = jest.fn(async ({ data }) => Object.assign(f.getShared(), data));
+    const activation = new StoryAiActivationService(f.prisma as never);
+    jest.spyOn(activation, 'prepare').mockResolvedValue({ id: evidence.rightsActivationKey } as never);
+    await activation.promote('admin-id', f.getShared().id, f.getShared().resultChecksum);
+    expect(f.getShared().status).toBe('approved');
     const providerChecksAfterFirst = f.provider.readiness.mock.calls.length;
     const allowanceWritesAfterFirst = f.tx.storyAiAllowanceBucket.updateMany.mock.calls.length;
     f.capability.includedAiRouteCount = 0;
