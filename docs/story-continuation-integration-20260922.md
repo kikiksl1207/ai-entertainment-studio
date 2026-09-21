@@ -3,9 +3,15 @@
 ## Latest Combined Candidate
 
 Runtime `edebaee` adds lossless packing `770317c` (integrated as `efadff0`)
-and private authored import `532aba2`. The latter adds migration65; the PM
-checkout's existing generated client is still schema64 until the next allocated
-integration slot. Do not run the combined new server with that stale client.
+and private authored import `532aba2`. PM checkpoint `d7627ca` passed own
+schema65 client generation, all65 Prisma migrations on a fresh dedicated
+`lumina_combined_qa65`, whole-server TypeScript noEmit, and actual
+AppModule/JWT/ValidationPipe/filter/PG purchase and authorization HTTP smoke10.
+The first type-check invocation used the repository root instead of `server`
+and failed to locate TypeScript; the corrected server-directory invocation
+passed without a code change. Earlier databases and evidence were not reset.
+Result: `E:/CodexMovedCache/qa-story-http-integration-1790033773819-results.json`.
+Paid providers and workers remained OFF; this is not live deployment.
 
 - Packing independently accepted eight real-PG/fake-transport groups after a
   preserved JSONB-order harness correction. Report:
@@ -19,7 +25,12 @@ integration slot. Do not run the combined new server with that stale client.
   7 actual AppModule HTTP), final type checking and65 fresh migrations. Actual
   Norse216 parts/2138 source scenes and beats/648 choices were stored privately.
   First compile diagnostics and two actual-policy failures are preserved in its
-  handoff. Independent review is in progress, not accepted yet.
+  handoff. Independent review accepted eight first-run groups on a separate
+  fresh65-migration database, including real AppModule authorization/admission,
+  two-client replay, rollback after receipt/audit, SQL pair/receipt guards,
+  publication-vs-import races and the final-review publication block. Synthetic
+  legacy reader fixtures are not actual public Norse traversal. Report:
+  `E:/CodexMovedCache/qa-1883-independent-report.md`.
 - The new receipt-backed import is deliberately not publishable until a real
   final-review proof binds the materialized plan and endings. Stored A edges
   are not evidence of public Norse reader traversal. Existing manuscript-only
