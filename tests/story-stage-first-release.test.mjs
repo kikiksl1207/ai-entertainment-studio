@@ -80,7 +80,7 @@ async function fixture(options = {}) {
     if (url.origin === api && url.pathname.startsWith('/api/v1/')) {
       const entry = { path: url.pathname, query: Object.fromEntries(url.searchParams), method: request.method(), body: request.postDataJSON(), headers: request.headers() };
       requests.push(entry);
-      const custom = await hook?.(entry, { current, quota });
+      const custom = await hook?.(entry, { current, quota, setCurrent(value) { current = value; } });
       if (custom) {
         if (custom.abort) return route.abort('failed');
         return route.fulfill({ status: custom.status || 200, json: custom.body });
@@ -203,6 +203,124 @@ for (const index of [0, 1, 2]) {
       assert.equal(f.requests.filter((r) => r.method === 'POST').length, 1);
       assert.equal(await f.page.locator('[data-story-scene-focus]').evaluate((el) => el === document.activeElement), true);
     } finally { release(); await f.close(); }
+  });
+}
+
+const continuationId = '66666666-6666-4666-8666-666666666666';
+
+test('AI continuation uses one stable key, bounded status polling, then reloads the generated scene', async () => {
+  let checks = 0;
+  const f = await fixture({ hook: (r, state) => {
+    if (r.method === 'POST' && r.path.endsWith('/choices/choice-1')) {
+      return { body: { continuationId, status: 'queued', revisionAfterRequest: 4 } };
+    }
+    if (r.method === 'GET' && r.path.endsWith(`/ai-continuations/${continuationId}`)) {
+      checks += 1;
+      if (checks === 1) return { body: { continuationId, status: 'processing', revisionAfterRequest: 4 } };
+      state.setCurrent({ ...projection(2), revision: 4, scene: { ...projection().scene, id: 'generated-scene', beats: [{ position: 0, content: 'SYNTHETIC GENERATED SCENE' }] } });
+      return { body: { continuationId, status: 'completed', revisionAfterRequest: 4 } };
+    }
+  } });
+  try {
+    await f.ready();
+    await f.page.locator('[data-choice-id="choice-1"]').click();
+    await f.page.locator('[data-story-ai-notice]').waitFor();
+    assert.match(await f.page.locator('[data-story-ai-notice]').innerText(), /received|Generating/);
+    assert.equal(await f.page.locator('[data-choice-id]:not(:disabled)').count(), 0);
+    await f.page.waitForFunction(() => document.querySelector('[data-story-scene-focus]')?.textContent.includes('SYNTHETIC GENERATED SCENE'));
+    const posts = f.requests.filter((r) => r.method === 'POST' && r.path.includes('/choices/'));
+    const polls = f.requests.filter((r) => r.path.includes('/ai-continuations/'));
+    assert.equal(posts.length, 1);
+    assert.match(posts[0].headers['idempotency-key'], /^story-choice-[A-Za-z0-9-]{8,}$/);
+    assert.equal(polls.length, 2);
+    assert.deepEqual(await f.page.evaluate(() => Object.keys(sessionStorage).filter((key) => key.includes('story-ai-pending'))), []);
+  } finally { await f.close(); }
+});
+
+test('lost AI POST response never auto-reposts and explicit recovery reuses the stored key', async () => {
+  let postCount = 0;
+  const f = await fixture({ hook: (r, state) => {
+    if (r.method === 'POST' && r.path.endsWith('/choices/choice-2')) {
+      postCount += 1;
+      if (postCount === 1) return { abort: true };
+      return { body: { continuationId, status: 'queued', revisionAfterRequest: 4, idempotentReplay: true } };
+    }
+    if (r.method === 'GET' && r.path.endsWith(`/ai-continuations/${continuationId}`)) {
+      state.setCurrent({ ...projection(1), revision: 4, scene: { ...projection().scene, id: 'recovered-scene', beats: [{ position: 0, content: 'SYNTHETIC RECOVERED SCENE' }] } });
+      return { body: { continuationId, status: 'completed', revisionAfterRequest: 4 } };
+    }
+  } });
+  try {
+    await f.ready();
+    await f.page.locator('[data-choice-id="choice-2"]').click();
+    await f.page.locator('[data-story-ai-recover]').waitFor();
+    await f.page.waitForTimeout(1200);
+    assert.equal(postCount, 1, 'lost response must not trigger automatic POST replay');
+    const firstKey = f.requests.find((r) => r.method === 'POST').headers['idempotency-key'];
+    await f.page.locator('[data-story-ai-recover]').click();
+    await f.page.waitForFunction(() => document.querySelector('[data-story-scene-focus]')?.textContent.includes('SYNTHETIC RECOVERED SCENE'));
+    const posts = f.requests.filter((r) => r.method === 'POST');
+    assert.equal(posts.length, 2);
+    assert.equal(posts[1].headers['idempotency-key'], firstKey);
+    assert.deepEqual(posts.map((r) => r.body), [{ expectedRevision: 3 }, { expectedRevision: 3 }]);
+  } finally { await f.close(); }
+});
+
+for (const status of ['failed', 'timeout']) {
+  test(`AI ${status} reloads restored progress and offers safe localized retry guidance`, async () => {
+    const f = await fixture({ hook: (r) => {
+      if (r.method === 'POST' && r.path.includes('/choices/')) return { body: { continuationId, status: 'queued', revisionAfterRequest: 4 } };
+      if (r.method === 'GET' && r.path.endsWith(`/ai-continuations/${continuationId}`)) return { body: { continuationId, status, revisionAfterRequest: 4, retryable: true } };
+    } });
+    try {
+      await f.ready();
+      await f.page.locator('[data-choice-id]').nth(1).click();
+      await f.page.waitForFunction((expected) => document.querySelector('[data-story-ai-notice]')?.textContent.toLowerCase().includes(expected), status === 'failed' ? 'could not be generated' : 'timed out');
+      assert.equal(await f.page.locator('[data-choice-id]:not(:disabled)').count(), 3);
+      assert.equal(f.requests.filter((r) => r.method === 'POST').length, 1);
+      assert.doesNotMatch(await f.page.locator('#storyStageRoot').innerText(), /STORY_|provider_|INTERNAL_/);
+    } finally { await f.close(); }
+  });
+}
+
+for (const [code, status, expected] of [
+  ['STORY_AI_LEGAL_ACTIVATION_REQUIRED', 403, 'approval is not active'],
+  ['STORY_CHOICE_GENERATION_UNAVAILABLE', 409, 'provider is unavailable'],
+]) {
+  test(`${code}: AI choice fails closed without polling or internal diagnostics`, async () => {
+    const f = await fixture({ hook: (r) => r.method === 'POST' ? envelope(code, status) : null });
+    try {
+      await f.ready();
+      await f.page.locator('[data-choice-id]').nth(1).click();
+      await f.page.waitForFunction((text) => document.querySelector('[data-story-ai-notice]')?.textContent.includes(text), expected);
+      assert.equal(f.requests.filter((r) => r.path.includes('/ai-continuations/')).length, 0);
+      assert.doesNotMatch(await f.page.locator('#storyStageRoot').innerText(), /STORY_|story\.progress\.|INTERNAL_/);
+    } finally { await f.close(); }
+  });
+}
+
+const aiPendingCopy = {
+  ko: '다음 장면 생성을 기다리고 있습니다',
+  en: 'Waiting to generate the next scene',
+  ja: '次のシーンの生成を待っています',
+  'zh-Hans': '正在等待生成下一个场景',
+  'zh-Hant': '正在等待生成下一個場景',
+};
+
+for (const [index, locale] of locales.entries()) {
+  test(`${locale} AI wait at ${index % 2 ? 400 : 390}px is localized and has no horizontal overflow`, async () => {
+    const width = index % 2 ? 400 : 390;
+    const f = await fixture({ locale, width, hook: (r) => r.method === 'POST' && r.path.includes('/choices/')
+      ? { body: { continuationId, status: 'queued', revisionAfterRequest: 4 } } : null });
+    try {
+      await f.ready();
+      await f.page.locator('[data-choice-id]').nth(1).click();
+      await f.page.waitForFunction((text) => document.querySelector('[data-story-ai-notice]')?.textContent.includes(text), aiPendingCopy[locale]);
+      const geometry = await f.page.evaluate(() => ({ width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth,
+        notice: document.querySelector('[data-story-ai-notice]').getBoundingClientRect().width }));
+      assert.ok(geometry.scroll <= geometry.width, JSON.stringify(geometry));
+      assert.ok(geometry.notice <= geometry.width, JSON.stringify(geometry));
+    } finally { await f.close(); }
   });
 }
 

@@ -38,6 +38,17 @@
       choices: "선택",
       choosing: "다음 장면을 불러오는 중입니다.",
       choiceFailed: "선택을 반영하지 못했습니다. 다시 시도해 주세요.",
+      aiQueued: "선택을 받았습니다. 다음 장면 생성을 기다리고 있습니다.",
+      aiProcessing: "다음 장면을 생성하고 있습니다. 다른 화면으로 이동해도 괜찮습니다.",
+      aiRetryWait: "생성을 다시 준비하고 있습니다. 잠시만 기다려 주세요.",
+      aiLost: "요청 결과를 확인하지 못했습니다. 새 요청을 만들지 않고 기존 요청을 확인할 수 있습니다.",
+      aiRecover: "기존 요청 확인",
+      aiChecking: "기존 생성 요청을 확인하고 있습니다.",
+      aiFailed: "장면을 생성하지 못해 이전 진행 상태로 복구했습니다. 현재 선택을 확인한 뒤 다시 시도해 주세요.",
+      aiTimedOut: "장면 생성 시간이 초과되어 이전 진행 상태로 복구했습니다. 현재 선택을 확인한 뒤 다시 시도해 주세요.",
+      aiPollTimedOut: "생성이 예상보다 오래 걸리고 있습니다. 새 요청을 만들지 않고 상태를 다시 확인해 주세요.",
+      aiUnavailable: "현재 생성 제공자를 사용할 수 없어 이 선택을 진행할 수 없습니다.",
+      aiLegalUnavailable: "이 작품의 AI 생성 이용 승인이 활성화되지 않아 이 선택을 진행할 수 없습니다.",
       ending: "엔딩",
       backToStories: "스토리 목록",
       loginRequired: "로그인 후 시작할 수 있습니다.",
@@ -83,6 +94,17 @@
       choices: "Choose",
       choosing: "Loading the next scene.",
       choiceFailed: "Your choice could not be applied. Please try again.",
+      aiQueued: "Your choice was received. Waiting to generate the next scene.",
+      aiProcessing: "Generating the next scene. You can continue using the rest of the site.",
+      aiRetryWait: "Preparing another generation attempt. Please wait.",
+      aiLost: "The request result could not be confirmed. Check the existing request without creating a new one.",
+      aiRecover: "Check existing request",
+      aiChecking: "Checking the existing generation request.",
+      aiFailed: "The scene could not be generated, so your prior progress was restored. Review the current choice and try again.",
+      aiTimedOut: "Scene generation timed out, so your prior progress was restored. Review the current choice and try again.",
+      aiPollTimedOut: "Generation is taking longer than expected. Check its status again without creating a new request.",
+      aiUnavailable: "This choice cannot continue because the generation provider is unavailable.",
+      aiLegalUnavailable: "This choice cannot continue because AI generation approval is not active for this story.",
       ending: "Ending",
       backToStories: "All stories",
       loginRequired: "Log in to start this story.",
@@ -128,6 +150,17 @@
       choices: "選択",
       choosing: "次のシーンを読み込んでいます。",
       choiceFailed: "選択を反映できませんでした。もう一度お試しください。",
+      aiQueued: "選択を受け付けました。次のシーンの生成を待っています。",
+      aiProcessing: "次のシーンを生成しています。この間もほかの画面を利用できます。",
+      aiRetryWait: "生成を再準備しています。しばらくお待ちください。",
+      aiLost: "リクエスト結果を確認できませんでした。新しいリクエストを作らず、既存のリクエストを確認できます。",
+      aiRecover: "既存のリクエストを確認",
+      aiChecking: "既存の生成リクエストを確認しています。",
+      aiFailed: "シーンを生成できなかったため、以前の進行状態に戻しました。現在の選択を確認して再度お試しください。",
+      aiTimedOut: "シーン生成がタイムアウトしたため、以前の進行状態に戻しました。現在の選択を確認して再度お試しください。",
+      aiPollTimedOut: "生成に通常より時間がかかっています。新しいリクエストを作らず、状態を再確認してください。",
+      aiUnavailable: "生成プロバイダーを利用できないため、この選択を進められません。",
+      aiLegalUnavailable: "この作品のAI生成利用承認が有効でないため、この選択を進められません。",
       ending: "エンディング",
       backToStories: "ストーリー一覧",
       loginRequired: "ログイン後に開始できます。",
@@ -173,6 +206,17 @@
       choices: "选择",
       choosing: "正在加载下一个场景。",
       choiceFailed: "无法应用你的选择，请重试。",
+      aiQueued: "已收到你的选择，正在等待生成下一个场景。",
+      aiProcessing: "正在生成下一个场景。期间你仍可使用网站的其他页面。",
+      aiRetryWait: "正在准备重新生成，请稍候。",
+      aiLost: "无法确认请求结果。你可以在不创建新请求的情况下检查原请求。",
+      aiRecover: "检查原请求",
+      aiChecking: "正在检查原生成请求。",
+      aiFailed: "场景生成失败，已恢复之前的阅读进度。请确认当前选择后重试。",
+      aiTimedOut: "场景生成超时，已恢复之前的阅读进度。请确认当前选择后重试。",
+      aiPollTimedOut: "生成时间比预期更长。请在不创建新请求的情况下再次检查状态。",
+      aiUnavailable: "生成服务目前不可用，无法继续此选择。",
+      aiLegalUnavailable: "此作品尚未启用AI生成授权，无法继续此选择。",
       ending: "结局",
       backToStories: "故事列表",
       loginRequired: "登录后即可开始。",
@@ -218,6 +262,17 @@
       choices: "選擇",
       choosing: "正在載入下一個場景。",
       choiceFailed: "無法套用你的選擇，請重試。",
+      aiQueued: "已收到你的選擇，正在等待生成下一個場景。",
+      aiProcessing: "正在生成下一個場景。期間你仍可使用網站的其他頁面。",
+      aiRetryWait: "正在準備重新生成，請稍候。",
+      aiLost: "無法確認請求結果。你可以在不建立新請求的情況下檢查原請求。",
+      aiRecover: "檢查原請求",
+      aiChecking: "正在檢查原生成請求。",
+      aiFailed: "場景生成失敗，已恢復之前的閱讀進度。請確認目前選擇後重試。",
+      aiTimedOut: "場景生成逾時，已恢復之前的閱讀進度。請確認目前選擇後重試。",
+      aiPollTimedOut: "生成時間比預期更長。請在不建立新請求的情況下再次檢查狀態。",
+      aiUnavailable: "生成服務目前無法使用，無法繼續此選擇。",
+      aiLegalUnavailable: "此作品尚未啟用AI生成授權，無法繼續此選擇。",
       ending: "結局",
       backToStories: "故事列表",
       loginRequired: "登入後即可開始。",
@@ -400,10 +455,18 @@
     dialog: null,
     returnFocus: null,
     returnScroll: 0,
+    aiNotice: null,
+    aiPollGeneration: 0,
+    aiPollTimer: null,
+    aiPollResolve: null,
   };
 
   // First release is suggested-only, including legacy paid custom=true metadata.
   const FIRST_RELEASE = true;
+  const AI_PENDING_STORAGE_PREFIX = "lumina:story-ai-pending:v1";
+  const AI_SESSION_SCOPE_KEY = "lumina:story-ai-session-scope:v1";
+  const AI_PENDING_STATUSES = new Set(["queued", "processing", "retry_wait"]);
+  const AI_POLL_TIMEOUT_MS = 30000;
 
   function resolveLocale() {
     const value = window.luminaI18n?.getLocale?.() || "ko";
@@ -502,6 +565,88 @@
     return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(normalized) ? normalized : "";
   }
 
+  function requestId(prefix = "story-choice") {
+    if (typeof crypto?.randomUUID === "function") return `${prefix}-${crypto.randomUUID()}`;
+    if (typeof crypto?.getRandomValues === "function") {
+      const bytes = crypto.getRandomValues(new Uint8Array(16));
+      return `${prefix}-${[...bytes].map((value) => value.toString(16).padStart(2, "0")).join("")}`;
+    }
+    return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+  }
+
+  function opaqueScope(value) {
+    const hashes = [2166136261, 2246822507, 3266489909, 668265263];
+    for (const character of String(value)) {
+      const code = character.charCodeAt(0);
+      hashes.forEach((hash, index) => {
+        hashes[index] = Math.imul(hash ^ (code + index * 97), 16777619 + index * 2);
+      });
+    }
+    return hashes.map((hash) => (hash >>> 0).toString(36).padStart(7, "0")).join("");
+  }
+
+  function aiSessionScope() {
+    const user = window.getAuth?.()?.user;
+    const userId = user?.id || user?.userId;
+    if (typeof userId === "string" && userId) return `user-${opaqueScope(userId)}`;
+    try {
+      const existing = sessionStorage.getItem(AI_SESSION_SCOPE_KEY);
+      if (existing) return existing;
+      const created = requestId("session");
+      sessionStorage.setItem(AI_SESSION_SCOPE_KEY, created);
+      return created;
+    } catch (_) {
+      return "session-unavailable";
+    }
+  }
+
+  function aiOperationStorageKey(operation) {
+    const workId = operation.workId || "session-only";
+    return [AI_PENDING_STORAGE_PREFIX, aiSessionScope(), workId, operation.progressId, operation.choiceId, operation.revision]
+      .map((value) => encodeURIComponent(String(value)))
+      .join(":");
+  }
+
+  function validAiOperation(value) {
+    return value?.version === 1 &&
+      value.progressId === state.sessionId &&
+      value.workId === (state.workId || "") &&
+      typeof value.choiceId === "string" && value.choiceId.length > 0 && value.choiceId.length <= 160 &&
+      Number.isInteger(value.revision) && value.revision > 0 &&
+      Object.hasOwn(COPY, value.locale) &&
+      typeof value.idempotencyKey === "string" && /^story-choice-[A-Za-z0-9-]{8,}$/.test(value.idempotencyKey) &&
+      (value.continuationId === null || safeSessionId(value.continuationId));
+  }
+
+  function saveAiOperation(operation) {
+    try {
+      sessionStorage.setItem(aiOperationStorageKey(operation), JSON.stringify(operation));
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function removeAiOperation(operation) {
+    try { sessionStorage.removeItem(aiOperationStorageKey(operation)); } catch (_) {}
+  }
+
+  function findAiOperation() {
+    const scopePrefix = [AI_PENDING_STORAGE_PREFIX, aiSessionScope(), state.workId || "session-only", state.sessionId]
+      .map((value) => encodeURIComponent(String(value)))
+      .join(":") + ":";
+    const matches = [];
+    try {
+      for (let index = 0; index < sessionStorage.length; index += 1) {
+        const key = sessionStorage.key(index);
+        if (!key?.startsWith(scopePrefix)) continue;
+        const value = JSON.parse(sessionStorage.getItem(key));
+        if (validAiOperation(value)) matches.push(value);
+      }
+    } catch (_) { return null; }
+    return matches.sort((left, right) => Number(right.createdAt) - Number(left.createdAt))[0] || null;
+  }
+
   function relativeStoryPath(value) {
     return typeof value === "string" && /^\/api\/v1\/me\/story-progress\//.test(value) ? value : "";
   }
@@ -530,8 +675,8 @@
       <section class="story-progress-controls" aria-label="${escapeHtml(controlTr("resetProgress"))}">
         <h3>${escapeHtml(controlTr("resetProgress"))}</h3>
         <div>
-          <button type="button" class="story-button story-button-secondary" data-story-reset-preview="full" ${reset.canFullReset && fullRemaining > 0 ? "" : "disabled"}>${escapeHtml(controlTr("resetAll"))} · ${escapeHtml(controlTr("remaining"))} ${fullRemaining}</button>
-          <button type="button" class="story-button story-button-secondary" data-story-reset-preview="act" ${reset.canActReset && actRemaining > 0 ? "" : "disabled"}>${escapeHtml(controlTr("resetAct"))} · ${escapeHtml(controlTr("remaining"))} ${actRemaining}</button>
+          <button type="button" class="story-button story-button-secondary" data-story-reset-preview="full" ${reset.canFullReset && fullRemaining > 0 && !aiRequestOpen() ? "" : "disabled"}>${escapeHtml(controlTr("resetAll"))} · ${escapeHtml(controlTr("remaining"))} ${fullRemaining}</button>
+          <button type="button" class="story-button story-button-secondary" data-story-reset-preview="act" ${reset.canActReset && actRemaining > 0 && !aiRequestOpen() ? "" : "disabled"}>${escapeHtml(controlTr("resetAct"))} · ${escapeHtml(controlTr("remaining"))} ${actRemaining}</button>
         </div>
       </section>`;
   }
@@ -758,6 +903,43 @@
     return textValue(beat?.content) || textValue(beat?.text) || textValue(beat?.body) || textValue(scene?.sceneText) || textValue(scene?.body) || textValue(scene?.content);
   }
 
+  function aiRequestOpen() {
+    return ["queued", "processing", "retry_wait", "lost", "checking", "poll-timeout"].includes(state.aiNotice?.kind);
+  }
+
+  function aiNoticeCopy() {
+    const key = {
+      queued: "aiQueued",
+      processing: "aiProcessing",
+      retry_wait: "aiRetryWait",
+      lost: "aiLost",
+      checking: "aiChecking",
+      failed: "aiFailed",
+      timeout: "aiTimedOut",
+      "poll-timeout": "aiPollTimedOut",
+      unavailable: "aiUnavailable",
+      legal: "aiLegalUnavailable",
+    }[state.aiNotice?.kind];
+    return key ? tr(key) : "";
+  }
+
+  function renderAiNotice() {
+    if (!state.aiNotice) return '<div data-story-ai-notice hidden></div>';
+    const pending = AI_PENDING_STATUSES.has(state.aiNotice.kind) || state.aiNotice.kind === "checking";
+    const recoverable = ["lost", "poll-timeout"].includes(state.aiNotice.kind);
+    return `
+      <section class="story-ai-notice" data-story-ai-notice data-tone="${pending ? "pending" : "attention"}" role="status" aria-live="polite">
+        ${pending ? '<span class="story-spinner" aria-hidden="true"></span>' : ""}
+        <p>${escapeHtml(aiNoticeCopy())}</p>
+        ${recoverable ? `<button type="button" class="story-button story-button-secondary" data-story-ai-recover>${escapeHtml(tr("aiRecover"))}</button>` : ""}
+      </section>`;
+  }
+
+  function updateAiNotice() {
+    const current = root.querySelector("[data-story-ai-notice]");
+    if (current) current.outerHTML = renderAiNotice();
+  }
+
   function renderScene() {
     const scene = state.scene;
     if (!scene && state.progress?.status !== "completed") return renderState(tr("sceneFailed"), tr("loadErrorBody"), true);
@@ -787,7 +969,7 @@
             <div class="story-choice-list">
               ${fixedChoices.map((choice, index) => {
                 const label = textValue(choice.label) || textValue(choice.choiceBody) || textValue(choice.body) || String(index + 1);
-                return `<button type="button" data-choice-id="${escapeHtml(choice.id || choice.choiceId || "")}" ${state.progress?.status === "active" && Number.isInteger(state.progress?.revision) ? "" : "disabled"} aria-label="${escapeHtml(label)}"><span aria-hidden="true">${index + 1}</span>${escapeHtml(label)}</button>`;
+                return `<button type="button" data-choice-id="${escapeHtml(choice.id || choice.choiceId || "")}" ${state.progress?.status === "active" && Number.isInteger(state.progress?.revision) && !aiRequestOpen() ? "" : "disabled"} aria-label="${escapeHtml(label)}"><span aria-hidden="true">${index + 1}</span>${escapeHtml(label)}</button>`;
               }).join("")}
               ${customChoice ? `<button type="button" data-story-custom-choice>${escapeHtml(controlTr("other"))}</button>` : ""}
             </div>
@@ -798,7 +980,8 @@
                 <div><span data-story-custom-count>0 / ${customChoice.maxChars}</span><button type="submit" class="story-button story-button-primary">${escapeHtml(controlTr("submitCustom"))}</button></div>
               </form>` : ""}
           </div>` : ""}
-        <p class="story-action-status" data-story-action-status aria-live="polite">${state.progress?.status !== "active" && !isEnding ? escapeHtml(controlTr("sceneUnavailable")) : ""}</p>
+        ${renderAiNotice()}
+        <p class="story-action-status" data-story-action-status aria-live="polite">${state.progress?.status !== "active" && !isEnding && !aiRequestOpen() ? escapeHtml(controlTr("sceneUnavailable")) : ""}</p>
         ${renderResetControls(state.progress)}
       </section>`;
     if (state.resetPreview) {
@@ -868,6 +1051,175 @@
 
   function currentRequest(epoch, sessionId) {
     return epoch === state.epoch && sessionId === state.sessionId;
+  }
+
+  function cancelAiPolling() {
+    state.aiPollGeneration += 1;
+    if (state.aiPollTimer !== null) clearTimeout(state.aiPollTimer);
+    state.aiPollTimer = null;
+    state.aiPollResolve?.(false);
+    state.aiPollResolve = null;
+  }
+
+  function aiPollDelay(milliseconds, generation, epoch, sessionId) {
+    return new Promise((resolve) => {
+      state.aiPollResolve = resolve;
+      state.aiPollTimer = setTimeout(() => {
+        state.aiPollTimer = null;
+        state.aiPollResolve = null;
+        resolve(generation === state.aiPollGeneration && currentRequest(epoch, sessionId));
+      }, milliseconds);
+    });
+  }
+
+  function setAiNotice(kind, operation) {
+    state.aiNotice = { kind, operation };
+    if (state.scene || state.progress?.status === "completed") renderScene();
+    else updateAiNotice();
+  }
+
+  async function refreshSceneAfterAi(kind, operation, minimumRevision = 0) {
+    if (minimumRevision > 0) state.minimumRevision = Math.max(state.minimumRevision, minimumRevision);
+    state.aiNotice = { kind, operation };
+    await loadScene({ restorePending: false });
+  }
+
+  async function handleAiReceipt(payload, operation) {
+    const continuationId = safeSessionId(payload?.continuationId);
+    const status = typeof payload?.status === "string" ? payload.status : "";
+    if (!continuationId || ![...AI_PENDING_STATUSES, "completed", "failed", "timeout"].includes(status)) {
+      throw new Error("Invalid continuation receipt");
+    }
+    operation.continuationId = continuationId;
+    operation.status = status;
+    operation.updatedAt = Date.now();
+    if (Number.isInteger(payload.revisionAfterRequest)) operation.revisionAfterRequest = payload.revisionAfterRequest;
+    saveAiOperation(operation);
+    if (AI_PENDING_STATUSES.has(status)) {
+      setAiNotice(status, operation);
+      void pollAiContinuation(operation);
+      return;
+    }
+    removeAiOperation(operation);
+    if (status === "completed") {
+      state.aiNotice = null;
+      await loadScene({ restorePending: false });
+      return;
+    }
+    await refreshSceneAfterAi(status, operation);
+  }
+
+  async function pollAiContinuation(operation) {
+    if (!validAiOperation(operation) || !operation.continuationId) return;
+    cancelAiPolling();
+    const generation = state.aiPollGeneration;
+    const epoch = state.epoch;
+    const sessionId = state.sessionId;
+    const startedAt = Date.now();
+    let attempt = 0;
+    while (Date.now() - startedAt < AI_POLL_TIMEOUT_MS) {
+      const delay = Math.min(3000, 1000 + attempt * 1000);
+      if (!await aiPollDelay(delay, generation, epoch, sessionId)) return;
+      attempt += 1;
+      try {
+        const payload = await request(`${progressPath(`/ai-continuations/${encodeURIComponent(operation.continuationId)}`)}`, { auth: true });
+        if (generation !== state.aiPollGeneration || !currentRequest(epoch, sessionId)) return;
+        const status = typeof payload?.status === "string" ? payload.status : "";
+        if (payload?.continuationId !== operation.continuationId || ![...AI_PENDING_STATUSES, "completed", "failed", "timeout"].includes(status)) {
+          throw new Error("Invalid continuation status");
+        }
+        operation.status = status;
+        operation.updatedAt = Date.now();
+        if (Number.isInteger(payload.revisionAfterRequest)) operation.revisionAfterRequest = payload.revisionAfterRequest;
+        saveAiOperation(operation);
+        if (AI_PENDING_STATUSES.has(status)) {
+          if (state.aiNotice?.kind !== status) setAiNotice(status, operation);
+          continue;
+        }
+        removeAiOperation(operation);
+        if (status === "completed") {
+          state.aiNotice = null;
+          state.minimumRevision = Math.max(state.minimumRevision, operation.revisionAfterRequest || operation.revision + 1);
+          await loadScene({ restorePending: false });
+        } else {
+          await refreshSceneAfterAi(status, operation);
+        }
+        return;
+      } catch (error) {
+        if (generation !== state.aiPollGeneration || !currentRequest(epoch, sessionId)) return;
+        if (error?.status === 401 || error?.status === 403) {
+          setAiNotice("unavailable", operation);
+          return;
+        }
+      }
+    }
+    if (generation !== state.aiPollGeneration || !currentRequest(epoch, sessionId)) return;
+    await refreshSceneAfterAi("poll-timeout", operation);
+  }
+
+  function restoreAiOperation() {
+    const operation = findAiOperation();
+    if (!operation) return;
+    if (!operation.continuationId && state.progress?.revision > operation.revision && state.progress?.status !== "ai_pending") {
+      removeAiOperation(operation);
+      return;
+    }
+    if (operation.continuationId) {
+      const status = AI_PENDING_STATUSES.has(operation.status) ? operation.status : "queued";
+      setAiNotice(status, operation);
+      void pollAiContinuation(operation);
+      return;
+    }
+    setAiNotice("lost", operation);
+  }
+
+  function aiUnavailableKind(error) {
+    const code = errorCode(error);
+    if (["STORY_AI_LEGAL_ACTIVATION_REQUIRED", "STORY_AI_GENERATION_NOT_AUTHORIZED"].includes(code)) return "legal";
+    if (code === "STORY_CHOICE_GENERATION_UNAVAILABLE") return "unavailable";
+    return "";
+  }
+
+  async function recoverAiOperation() {
+    const operation = state.aiNotice?.operation || findAiOperation();
+    if (state.busy || !validAiOperation(operation)) return;
+    if (operation.continuationId) {
+      setAiNotice(operation.status && AI_PENDING_STATUSES.has(operation.status) ? operation.status : "queued", operation);
+      void pollAiContinuation(operation);
+      return;
+    }
+    const epoch = state.epoch;
+    const sessionId = state.sessionId;
+    const uiOperation = beginOperation();
+    setAiNotice("checking", operation);
+    try {
+      const payload = await request(`${progressPath(`/choices/${encodeURIComponent(operation.choiceId)}`)}?locale=${encodeURIComponent(operation.locale)}`, {
+        method: "POST",
+        auth: true,
+        headers: { "Idempotency-Key": operation.idempotencyKey },
+        body: { expectedRevision: operation.revision },
+      });
+      if (!currentRequest(epoch, sessionId)) return;
+      if (payload?.continuationId) await handleAiReceipt(payload, operation);
+      else {
+        removeAiOperation(operation);
+        state.aiNotice = null;
+        state.minimumRevision = Math.max(operation.revision + 1, Number.isInteger(payload?.revision) ? payload.revision : 0);
+        await loadScene({ restorePending: false });
+      }
+    } catch (error) {
+      if (!currentRequest(epoch, sessionId)) return;
+      const unavailable = aiUnavailableKind(error);
+      if (unavailable) {
+        removeAiOperation(operation);
+        await refreshSceneAfterAi(unavailable, operation);
+      } else {
+        await loadScene({ restorePending: false });
+        if (currentRequest(state.epoch, sessionId)) setAiNotice("lost", operation);
+      }
+    } finally {
+      await finishOperation(uiOperation);
+    }
   }
 
   async function readControls(progress, sessionId, workId) {
@@ -1014,7 +1366,9 @@
     }
   }
 
-  async function loadScene() {
+  async function loadScene(options = {}) {
+    cancelAiPolling();
+    const restorePending = options.restorePending !== false;
     const epoch = ++state.epoch;
     const sessionId = state.sessionId;
     state.controls = null;
@@ -1035,6 +1389,7 @@
       if (!currentRequest(epoch, sessionId)) return;
       state.controls = controls;
       renderScene();
+      if (restorePending) restoreAiOperation();
       root.querySelector("[data-story-scene-focus]")?.focus();
     } catch (error) {
       if (!currentRequest(epoch, sessionId)) return;
@@ -1119,27 +1474,68 @@
     const epoch = state.epoch;
     const sessionId = state.sessionId;
     const revision = state.progress.revision;
+    const pending = {
+      version: 1,
+      workId: state.workId || "",
+      progressId: sessionId,
+      choiceId,
+      revision,
+      locale: state.locale,
+      idempotencyKey: requestId("story-choice"),
+      continuationId: null,
+      status: "requesting",
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+    if (!saveAiOperation(pending)) {
+      actionStatus(tr("choiceFailed"));
+      return;
+    }
+    state.aiNotice = null;
     const operation = beginOperation();
     actionStatus(tr("choosing"));
     try {
       const payload = await request(`${progressPath(`/choices/${encodeURIComponent(choiceId)}`)}?locale=${encodeURIComponent(state.locale)}`, {
         method: "POST",
         auth: true,
+        headers: { "Idempotency-Key": pending.idempotencyKey },
         body: { expectedRevision: revision },
       });
       if (!currentRequest(epoch, sessionId)) return;
-      state.minimumRevision = Math.max(revision + 1, Number.isInteger(payload?.revision) ? payload.revision : 0);
-      await loadScene();
+      if (payload?.continuationId) {
+        await handleAiReceipt(payload, pending);
+      } else {
+        removeAiOperation(pending);
+        state.minimumRevision = Math.max(revision + 1, Number.isInteger(payload?.revision) ? payload.revision : 0);
+        await loadScene({ restorePending: false });
+      }
     } catch (error) {
       if (!currentRequest(epoch, sessionId)) return;
-      if (errorCode(error) === "STORY_SUGGESTED_CHOICE_LIMIT_EXCEEDED") {
+      const unavailable = aiUnavailableKind(error);
+      if (unavailable) {
+        removeAiOperation(pending);
+        await refreshSceneAfterAi(unavailable, pending);
+      } else if (errorCode(error) === "STORY_SUGGESTED_CHOICE_LIMIT_EXCEEDED") {
+        removeAiOperation(pending);
         blockScene(controlTr("sceneUnavailable"));
       } else if (error?.status === 401 || error?.status === 403) {
+        removeAiOperation(pending);
         blockScene(errorCopy(error));
+      } else if (error?.status >= 400 && error?.status < 500) {
+        removeAiOperation(pending);
+        await loadScene({ restorePending: false });
+        actionStatus(errorCode(error) === "STORY_PROGRESS_STALE_REVISION" ? controlTr("progressChanged") : tr("choiceFailed"));
       } else {
-        // A lost response may already have advanced progress. Never replay the POST.
-        await loadScene();
-        if (operation === state.operation) actionStatus(errorCode(error) === "STORY_PROGRESS_STALE_REVISION" ? controlTr("progressChanged") : tr("choiceFailed"));
+        // The request may have committed. Keep its exact key and require explicit recovery.
+        await loadScene({ restorePending: false });
+        if (state.sessionId !== sessionId) return;
+        if (state.progress?.revision > revision && state.progress?.status !== "ai_pending") {
+          removeAiOperation(pending);
+          state.aiNotice = null;
+          renderScene();
+        } else {
+          setAiNotice("lost", pending);
+        }
       }
     } finally {
       await finishOperation(operation);
@@ -1279,6 +1675,7 @@
     }
     const startButton = event.target.closest("[data-story-start]");
     if (startButton) return startStory();
+    if (event.target.closest("[data-story-ai-recover]")) return recoverAiOperation();
     const choiceButton = event.target.closest("[data-choice-id]");
     if (choiceButton) return submitChoice(choiceButton.dataset.choiceId);
     if (event.target.closest("[data-story-custom-choice]")) {
@@ -1358,6 +1755,12 @@
   });
 
   window.addEventListener("lumina:auth-expired", () => {
+    cancelAiPolling();
+    if (state.sessionId) {
+      ++state.epoch;
+      state.aiNotice = null;
+      return blockScene(tr("loginRequired"));
+    }
     if (!state.detailSlug) return;
     ++state.epoch;
     state.readerAccess = null;
@@ -1369,6 +1772,7 @@
 
   window.addEventListener("popstate", () => {
     if (state.dialog) dismissPack();
+    cancelAiPolling();
     ++state.epoch;
     ++state.operation;
     setBusy(false);
@@ -1383,6 +1787,7 @@
     state.choices = [];
     state.controls = null;
     state.resetPreview = null;
+    state.aiNotice = null;
     state.localeDirty = false;
     if (state.sessionId) return loadScene();
     if (state.graphWorkId) return loadGraph();
@@ -1390,6 +1795,8 @@
     const slug = params.get("slug") || params.get("pack");
     if (slug) return openPack(slug, null, false);
   });
+
+  window.addEventListener("pagehide", cancelAiPolling);
 
   updateHeading();
   if (state.sessionId) loadScene();
