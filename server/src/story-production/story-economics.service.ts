@@ -29,7 +29,11 @@ import {
   storyBudgetDecision,
   validateStoryReleaseCapability,
 } from './story-economics.policy';
-import { boundedPath, isPublicStorySourceSafe } from './story-production.policy';
+import {
+  boundedPath,
+  isPublicStorySourceSafe,
+  STORY_LOCALES,
+} from './story-production.policy';
 import {
   assertCustomChoiceReleasePolicy,
   firstReleaseChoiceCapability,
@@ -109,6 +113,8 @@ type RecommendedChoiceReplayScope = {
   userId: string;
   progressId: string;
   choiceId: string;
+  expectedRevision: number;
+  locale: string;
 };
 
 @Injectable()
@@ -122,12 +128,14 @@ export class StoryEconomicsService {
     userId: string,
     progressId: string,
     choiceId: string,
+    expectedRevision: number,
+    locale: string,
     idempotencyKey: string,
   ) {
     const key = this.idempotencyKey('recommended-choice', idempotencyKey);
     return this.recommendedChoiceReplayForClient(
       this.prisma,
-      { userId, progressId, choiceId },
+      { userId, progressId, choiceId, expectedRevision, locale },
       key,
     );
   }
@@ -137,6 +145,7 @@ export class StoryEconomicsService {
     input: RecommendedChoiceRequest,
   ) {
     const key = this.idempotencyKey('recommended-choice', input.idempotencyKey);
+    const locale = normalizeRecommendedChoiceLocale(input.locale);
     if (
       input.choice.routeKind !== 'generation_required' ||
       input.choice.targetSceneId ||
@@ -148,6 +157,8 @@ export class StoryEconomicsService {
       userId: input.userId,
       progressId: input.progress.id,
       choiceId: input.choice.id,
+      expectedRevision: input.progress.progressRevision,
+      locale,
     };
     const replay = await this.recommendedChoiceReplayForClient(tx, replayScope, key);
     if (replay) return replay;
@@ -211,7 +222,7 @@ export class StoryEconomicsService {
       !rateCard ||
       rateCard.status !== 'active' ||
       !consent ||
-      !jsonStringArray(consent.allowedLocales).includes(input.locale) ||
+      !jsonStringArray(consent.allowedLocales).includes(locale) ||
       !analysis ||
       !rights ||
       !legalActivation?.active ||
@@ -259,7 +270,7 @@ export class StoryEconomicsService {
           }),
       assembleContinuationSemanticPath(tx, {
         pathSummary: boundedProgressPath as Prisma.JsonValue,
-        locale: input.locale,
+        locale,
         userId: input.userId,
         workId: input.work.id,
         releaseId: input.release.id,
@@ -279,26 +290,26 @@ export class StoryEconomicsService {
     try {
       sourceHash = continuationSourceHash({
         kind: input.sourceKind,
-        locale: input.locale,
+        locale,
         title: input.scene.title,
         beats: sourceBeats,
         choiceLabel: input.choice.label,
       });
       approvedContext = {
         sourceScene: {
-          title: localizedContinuationText(input.scene.title, input.locale),
+          title: localizedContinuationText(input.scene.title, locale),
           beats: sourceBeats.map((beat) => ({
             beatType: beat.beatType,
-            content: localizedContinuationText(beat.content, input.locale),
+            content: localizedContinuationText(beat.content, locale),
           })),
         },
         selectedChoice: {
-          label: localizedContinuationText(input.choice.label, input.locale),
+          label: localizedContinuationText(input.choice.label, locale),
         },
         path: semanticPath,
         memories: memory.map((item) => ({
           memoryType: item.memoryType,
-          content: approvedContinuationMemoryText(item.content, input.locale),
+          content: approvedContinuationMemoryText(item.content, locale),
         })),
       };
     } catch {
@@ -325,7 +336,7 @@ export class StoryEconomicsService {
       analysis: analysis
         ? { id: analysis.id, version: analysis.analysisVersion }
         : null,
-      locale: input.locale,
+      locale,
       capabilityRevision: capability.revision,
       styleConsent: { id: consent.id, revision: consent.revision },
       rights: { contractId: rightsContract!.id, versionId: rights.id, revision: rights.revision },
@@ -429,7 +440,7 @@ export class StoryEconomicsService {
         rightsContractId: rightsContract!.id,
         rightsContractVersionId: rights.id,
         releaseChecksum: input.release.checksum,
-        locale: input.locale,
+        locale,
         contextFingerprint,
         promptVersion: context.promptVersion,
         outputSchemaVersion: context.outputSchemaVersion,
@@ -2202,7 +2213,9 @@ export class StoryEconomicsService {
       continuation.requestKind !== 'recommended_choice' ||
       continuation.userId !== scope.userId ||
       continuation.progressId !== scope.progressId ||
-      (continuation.recommendedChoiceId ?? continuation.generatedChoiceId) !== scope.choiceId
+      (continuation.recommendedChoiceId ?? continuation.generatedChoiceId) !== scope.choiceId ||
+      continuation.sourceProgressRevision !== scope.expectedRevision ||
+      continuation.locale !== normalizeRecommendedChoiceLocale(scope.locale)
     ) {
       throw new ConflictException('Recommended choice idempotency conflict');
     }
@@ -2295,6 +2308,13 @@ function stableJson(value: unknown): string {
       .join(',')}}`;
   }
   return JSON.stringify(value) ?? 'null';
+}
+
+function normalizeRecommendedChoiceLocale(value: string) {
+  const locale = value.trim();
+  return STORY_LOCALES.find(
+    (candidate) => candidate.toLowerCase() === locale.toLowerCase(),
+  ) ?? locale;
 }
 
 export function assertRecommendedContinuationOutput(

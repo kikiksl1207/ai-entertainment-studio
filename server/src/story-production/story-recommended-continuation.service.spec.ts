@@ -123,6 +123,7 @@ describe('recommended choice enqueue transaction', () => {
       recommendedChoiceId: f.input.choice.id, generatedChoiceId: null,
       releaseId: f.input.release.id, status: 'queued',
       sourceProgressRevision: f.input.progress.progressRevision,
+      locale: f.input.locale,
       createdAt: new Date(), completedAt: null,
     };
     f.tx.storyAiContinuation.findUnique
@@ -167,6 +168,8 @@ describe('recommended choice enqueue transaction', () => {
         userId: f.input.userId, progressId: f.input.progress.id,
         recommendedChoiceId: 'different-choice', generatedChoiceId: null,
         releaseId: f.input.release.id,
+        sourceProgressRevision: f.input.progress.progressRevision,
+        locale: f.input.locale,
       });
     f.tx.storyAiAllowanceBucket.updateMany.mockResolvedValue({ count: 0 });
 
@@ -175,6 +178,72 @@ describe('recommended choice enqueue transaction', () => {
     expect(f.createContinuation).not.toHaveBeenCalled();
     expect(f.tx.storyAiUsageLedger.create).not.toHaveBeenCalled();
     expect(f.tx.storyReaderProgress.updateMany).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['revision', { sourceProgressRevision: 8, locale: 'ko' }],
+    ['locale', { sourceProgressRevision: 9, locale: 'en' }],
+  ])('rejects a same-key allowance race when the winning %s differs', async (_field, scope) => {
+    const f = fixture();
+    f.tx.storyAiContinuation.findUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        id: 'conflicting-continuation', requestKind: 'recommended_choice',
+        userId: f.input.userId, progressId: f.input.progress.id,
+        recommendedChoiceId: f.input.choice.id, generatedChoiceId: null,
+        releaseId: f.input.release.id,
+        ...scope,
+      });
+    f.tx.storyAiAllowanceBucket.updateMany.mockResolvedValue({ count: 0 });
+
+    await expect(f.service.requestRecommendedChoiceTx(f.tx as never, f.input))
+      .rejects.toThrow('Recommended choice idempotency conflict');
+    expect(f.createContinuation).not.toHaveBeenCalled();
+    expect(f.tx.storyAiUsageLedger.create).not.toHaveBeenCalled();
+    expect(f.tx.storyReaderProgress.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('normalizes locale while enforcing revision and locale on initial replay', async () => {
+    const f = fixture();
+    const continuation = {
+      id: 'existing-continuation', requestKind: 'recommended_choice',
+      userId: f.input.userId, progressId: f.input.progress.id,
+      recommendedChoiceId: f.input.choice.id, generatedChoiceId: null,
+      releaseId: f.input.release.id, status: 'queued',
+      sourceProgressRevision: f.input.progress.progressRevision,
+      locale: 'zh-Hans', createdAt: new Date(), completedAt: null,
+    };
+    f.tx.storyAiContinuation.findUnique.mockResolvedValue(continuation);
+    f.tx.storyAiAllowanceBucket.findUnique.mockResolvedValue({
+      id: 'allowance-id', revision: 2, includedLimit: 2, purchasedLimit: 0,
+      reservedCount: 1, consumedCount: 0, compensatedCount: 0,
+    });
+    const service = new StoryEconomicsService(f.tx as never);
+
+    await expect(service.recommendedChoiceReplay(
+      f.input.userId,
+      f.input.progress.id,
+      f.input.choice.id,
+      f.input.progress.progressRevision,
+      ' zh-hans ',
+      f.input.idempotencyKey,
+    )).resolves.toMatchObject({ continuationId: continuation.id, idempotentReplay: true });
+    await expect(service.recommendedChoiceReplay(
+      f.input.userId,
+      f.input.progress.id,
+      f.input.choice.id,
+      f.input.progress.progressRevision + 1,
+      'zh-Hans',
+      f.input.idempotencyKey,
+    )).rejects.toThrow('Recommended choice idempotency conflict');
+    await expect(service.recommendedChoiceReplay(
+      f.input.userId,
+      f.input.progress.id,
+      f.input.choice.id,
+      f.input.progress.progressRevision,
+      'zh-Hant',
+      f.input.idempotencyKey,
+    )).rejects.toThrow('Recommended choice idempotency conflict');
   });
 
   it('rejects an explicitly zero included allowance before any reservation or continuation write', async () => {

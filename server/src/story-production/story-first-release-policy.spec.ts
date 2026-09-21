@@ -429,6 +429,51 @@ describe('First public release suggested choices', () => {
     expect(f.mutations.progressUpdate).not.toHaveBeenCalled();
   });
 
+  it('recovers a P2002 race only when revision and normalized locale match', async () => {
+    const f = fixture();
+    const continuation = {
+      id: 'winning-continuation', requestKind: 'recommended_choice',
+      userId: 'reader', progressId: 'progress', recommendedChoiceId: 'choice-2',
+      generatedChoiceId: null, releaseId: 'release', status: 'queued',
+      sourceProgressRevision: 3, locale: 'zh-Hans',
+      createdAt: new Date(), completedAt: null,
+    };
+    f.prisma.storyAiContinuation.findUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(continuation);
+    f.prisma.$transaction.mockRejectedValueOnce({ code: 'P2002' });
+
+    await expect(f.production.selectChoice(
+      'reader', 'progress', 'choice-2', 3, ' zh-hans ', 'recommended-choice-key',
+    )).resolves.toMatchObject({
+      continuationId: continuation.id,
+      idempotentReplay: true,
+    });
+    expect(f.prisma.storyAiContinuation.findUnique).toHaveBeenCalledTimes(2);
+    expectNoWrites(f);
+  });
+
+  it.each([
+    ['revision', 4, 'en'],
+    ['locale', 3, 'ja'],
+  ])('rejects a P2002 replay when the %s payload differs', async (_field, revision, locale) => {
+    const f = fixture();
+    f.prisma.storyAiContinuation.findUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        id: 'winning-continuation', requestKind: 'recommended_choice',
+        userId: 'reader', progressId: 'progress', recommendedChoiceId: 'choice-2',
+        generatedChoiceId: null, releaseId: 'release', status: 'queued',
+        sourceProgressRevision: 3, locale: 'en',
+      });
+    f.prisma.$transaction.mockRejectedValueOnce({ code: 'P2002' });
+
+    await expect(f.production.selectChoice(
+      'reader', 'progress', 'choice-2', revision, locale, 'recommended-choice-key',
+    )).rejects.toThrow('Recommended choice idempotency conflict');
+    expectNoWrites(f);
+  });
+
   it('projects and enqueues only the current reader progress overlay', async () => {
     const f = fixture();
     Object.assign(f.progress, { currentSceneId: null, currentGeneratedSceneId: 'generated-scene' });

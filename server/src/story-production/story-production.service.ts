@@ -620,6 +620,8 @@ export class StoryProductionService {
         userId,
         progressId,
         choiceId,
+        expectedRevision,
+        locale,
         idempotencyKey,
       );
       if (replay) return replay;
@@ -888,6 +890,8 @@ export class StoryProductionService {
           userId,
           progressId,
           choiceId,
+          expectedRevision,
+          locale,
           idempotencyKey,
         );
         if (replay) return replay;
