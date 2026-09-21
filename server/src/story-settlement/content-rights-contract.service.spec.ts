@@ -16,7 +16,7 @@ const outsiderId = '00000000-0000-4000-8000-000000001896';
 const workId = '00000000-0000-4000-8000-000000001892';
 const contentVersionId = '00000000-0000-4000-8000-000000001893';
 
-function body() {
+function body(creatorRole: 'author' | 'rights_holder' = 'rights_holder') {
   return {
     workType: 'ott', workId, contentVersionId, exclusivity: 'exclusive',
     media: ['ott_streaming'], regions: ['WORLDWIDE'],
@@ -28,7 +28,7 @@ function body() {
     bonusPointPolicy: 'unresolved', vatPolicy: 'unresolved',
     internalGenerationCostTreatment: INTERNAL_GENERATION_COST_TREATMENT,
     parties: [
-      { role: 'rights_holder', userId: ownerId },
+      { role: creatorRole, userId: ownerId },
       { role: 'sales_agency', userId: agencyId, agencyIdentifier: 'agency:global-01' },
     ],
   };
@@ -148,12 +148,60 @@ describe('ContentRightsContractService', () => {
     expect(first.saleAllowed).toBe(true);
   });
 
-  it.each([ownerId, agencyId])('allows a configured party %s to read history', async (userId) => {
-    const created = await service.create(adminId, body());
+  it.each([
+    ['author', ownerId, 3000, agencyId],
+    ['rights_holder', ownerId, 3000, agencyId],
+    ['sales_agency', agencyId, 1000, ownerId],
+  ] as const)('returns only the %s party and its own percentage', async (role, userId, shareBps, otherPartyId) => {
+    const created = await service.create(adminId, body(role === 'author' ? 'author' : 'rights_holder'));
     const result = await service.getForParty(userId, created.id);
+    const listed = await service.listForParty(userId);
     expect(result.versions).toHaveLength(1);
-    expect(result).not.toHaveProperty('createdByUserId');
-    expect(result.audits[0]).not.toHaveProperty('actorUserId');
+    expect(Object.keys(result).sort()).toEqual(['id', 'versions', 'workId', 'workType']);
+    expect(Object.keys(result.versions[0]).sort()).toEqual([
+      'aiTransformationAllowed',
+      'approvalState',
+      'contentVersionId',
+      'effectiveFrom',
+      'endsAt',
+      'exclusivity',
+      'generatedResultReuseAllowed',
+      'id',
+      'media',
+      'parties',
+      'regions',
+      'revision',
+      'saleAllowed',
+      'startsAt',
+    ]);
+    expect(result.versions[0].parties).toEqual([{
+      role,
+      userId,
+      agencyIdentifier: role === 'sales_agency' ? 'agency:global-01' : null,
+      shareBps,
+    }]);
+    for (const response of [result, listed.items[0]]) {
+      const rawJson = JSON.stringify(response);
+      expect(rawJson).not.toContain(otherPartyId);
+      expect(rawJson).not.toMatch(
+        /"shares"|"companyBps"|"policy"|"internalGenerationCostTreatment"|"audits"|"boundary"|"createdAt"|"createdByUserId"|"approvedByUserId"|"actorUserId"|"snapshotHash"|"sourceVersionId"/,
+      );
+    }
+  });
+
+  it('keeps the full allocation, parties, costs, and audit fields in admin responses', async () => {
+    const result = await service.create(adminId, body());
+    expect(result.versions[0]).toMatchObject({
+      shares: { authorRightsHolderBps: 3000, salesAgencyBps: 1000, companyBps: 6000 },
+      policy: { internalGenerationCostTreatment: INTERNAL_GENERATION_COST_TREATMENT },
+      parties: [
+        { role: 'rights_holder', userId: ownerId },
+        { role: 'sales_agency', userId: agencyId },
+      ],
+      createdByUserId: adminId,
+    });
+    expect(result.audits[0]).toMatchObject({ actorUserId: adminId, snapshotHash: 'a'.repeat(64) });
+    expect(result.boundary).toBeDefined();
   });
 
   it('denies unrelated authenticated users', async () => {
@@ -177,7 +225,7 @@ describe('ContentRightsContractService', () => {
 
     expect((await service.getForParty(ownerId, created.id)).versions).toHaveLength(2);
     expect((await service.getForParty(agencyId, created.id)).versions).toHaveLength(1);
-    expect((await service.getForParty(agencyId, created.id)).audits).toHaveLength(1);
+    expect(await service.getForParty(agencyId, created.id)).not.toHaveProperty('audits');
   });
 
   it('returns configuration only and never payout or raw contract fields', async () => {

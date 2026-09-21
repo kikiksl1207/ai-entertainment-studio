@@ -73,13 +73,12 @@
     const versions = (contract.versions || []).flatMap((version) => {
       const ownParty = (version.parties || []).find((party) => party.userId === userId);
       if (!ownParty) return [];
-      const ownBps = ownParty.role === "sales_agency" ? version.shares?.salesAgencyBps : version.shares?.authorRightsHolderBps;
+      const ownBps = ownParty.shareBps;
       return [{
         id: version.id, revision: version.revision, role: ownParty.role, agencyIdentifier: ownParty.role === "sales_agency" ? ownParty.agencyIdentifier : null,
         ownBps, contentVersionId: version.contentVersionId, exclusivity: version.exclusivity, media: [...(version.media || [])], regions: [...(version.regions || [])],
         startsAt: version.startsAt, endsAt: version.endsAt, effectiveFrom: version.effectiveFrom, approvalState: version.approvalState,
         saleAllowed: version.saleAllowed === true, aiTransformationAllowed: version.aiTransformationAllowed === true, generatedResultReuseAllowed: version.generatedResultReuseAllowed === true,
-        policies: { pointUsage: version.policy?.pointUsage, refundReversal: version.policy?.refundReversal, paidPoints: version.policy?.paidPoints, bonusPoints: version.policy?.bonusPoints, vat: version.policy?.vat }
       }];
     });
     if (!versions.length) return null;

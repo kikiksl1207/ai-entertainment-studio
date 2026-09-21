@@ -23,25 +23,26 @@ const version = {
   exclusivity: 'exclusive', media: ['story_publication', 'translation'], regions: ['WORLDWIDE'],
   startsAt: '2026-09-21T00:00:00.000Z', endsAt: null, effectiveFrom: '2026-10-01T00:00:00.000Z', approvalState: 'draft',
   saleAllowed: true, aiTransformationAllowed: false, generatedResultReuseAllowed: false,
-  shares: { authorRightsHolderBps: 4500, salesAgencyBps: 500, companyBps: 5000 },
-  parties: [{ role: 'author', userId: authorId, agencyIdentifier: null }, { role: 'sales_agency', userId: agencyId, agencyIdentifier: 'agency-one' }],
-  policy: { pointUsage: 'unresolved', refundReversal: 'unresolved', paidPoints: 'unresolved', bonusPoints: 'unresolved', vat: 'unresolved', internalGenerationCostTreatment: 'company_internal_cost_not_deducted_from_creator_share' }
+  parties: [{ role: 'author', userId: authorId, agencyIdentifier: null, shareBps: 4500 }]
 };
 const contract = { id: '55555555-5555-4555-8555-555555555555', workType: 'story', workId: '66666666-6666-4666-8666-666666666666', versions: [version] };
 
-test('party projection exposes only the signed-in party share and no private allocation fields', () => {
+test('party UI consumes the server-minimized signed-in party response', () => {
   const ui = helpers();
   const author = ui.partyView(contract, authorId);
-  const agency = ui.partyView(contract, agencyId);
   assert.equal(author.versions[0].role, 'author');
   assert.equal(author.versions[0].ownBps, 4500);
+  const agencyContract = {
+    ...contract,
+    versions: [{ ...version, parties: [{ role: 'sales_agency', userId: agencyId, agencyIdentifier: 'agency-one', shareBps: 500 }] }]
+  };
+  const agency = ui.partyView(agencyContract, agencyId);
   assert.equal(agency.versions[0].role, 'sales_agency');
   assert.equal(agency.versions[0].ownBps, 500);
   assert.equal(agency.versions[0].agencyIdentifier, 'agency-one');
-  for (const view of [author, agency]) {
-    const serialized = JSON.stringify(view);
-    assert.doesNotMatch(serialized, /companyBps|authorRightsHolderBps|salesAgencyBps|parties|userId|internalGenerationCostTreatment/);
-  }
+  const serialized = JSON.stringify(author);
+  assert.doesNotMatch(serialized, /companyBps|authorRightsHolderBps|salesAgencyBps|parties|userId|internalGenerationCostTreatment|audit|policy/);
+  assert.equal(ui.partyView(contract, agencyId), null);
   assert.equal(ui.partyView(contract, '77777777-7777-4777-8777-777777777777'), null);
 });
 
