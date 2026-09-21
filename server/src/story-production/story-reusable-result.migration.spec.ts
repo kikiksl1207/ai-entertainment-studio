@@ -56,7 +56,9 @@ describe('shared story AI result migration candidate', () => {
     expect(migration).toContain('story AI reusable result children are immutable');
     expect(migration).toContain('story AI reusable result output is incomplete');
     expect(migration).toContain('story AI reusable result must be inserted as pending');
+    expect(migration).toContain('story AI reusable result approval timestamp is immutable');
     expect(migration).toMatch(/TG_OP = 'INSERT' AND NEW\."status" <> 'pending'/);
+    expect(migration).toMatch(/OLD\."status" <> 'pending'[\s\S]*NEW\."approved_at" IS DISTINCT FROM OLD\."approved_at"/);
     expect(migration).toContain("OLD.\"status\" = 'pending' AND NEW.\"status\" IN ('pending', 'approved', 'revoked')");
   });
 

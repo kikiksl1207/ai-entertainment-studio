@@ -260,6 +260,12 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'approved story AI reusable output is immutable';
   END IF;
+  IF TG_OP = 'UPDATE'
+    AND OLD."status" <> 'pending'
+    AND NEW."approved_at" IS DISTINCT FROM OLD."approved_at"
+  THEN
+    RAISE EXCEPTION 'story AI reusable result approval timestamp is immutable';
+  END IF;
   IF TG_OP = 'UPDATE' AND NOT (
     (OLD."status" = 'pending' AND NEW."status" IN ('pending', 'approved', 'revoked'))
     OR (OLD."status" = 'approved' AND NEW."status" IN ('approved', 'revoked'))
