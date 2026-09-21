@@ -29,8 +29,11 @@ describe('shared story AI result migration candidate', () => {
     for (const constraint of [
       'story_ai_reusable_results_release_work_fk',
       'story_ai_reusable_results_manuscript_work_fk',
+      'story_ai_reusable_results_part_work_fk',
+      'story_ai_reusable_results_scene_part_fk',
       'story_ai_reusable_results_source_choice_fk',
-      'story_ai_reusable_results_source_shared_fk',
+      'story_ai_reusable_results_source_shared_owner_fk',
+      'story_ai_reusable_results_source_shared_choice_fk',
       'story_ai_continuations_shared_result_owner_fk',
       'story_ai_generated_scenes_shared_result_owner_fk',
     ]) {
@@ -52,6 +55,8 @@ describe('shared story AI result migration candidate', () => {
     expect(migration).toContain('story AI reusable result snapshot is immutable');
     expect(migration).toContain('story AI reusable result children are immutable');
     expect(migration).toContain('story AI reusable result output is incomplete');
+    expect(migration).toContain('story AI reusable result must be inserted as pending');
+    expect(migration).toMatch(/TG_OP = 'INSERT' AND NEW\."status" <> 'pending'/);
     expect(migration).toContain("OLD.\"status\" = 'pending' AND NEW.\"status\" IN ('pending', 'approved', 'revoked')");
   });
 
@@ -59,5 +64,6 @@ describe('shared story AI result migration candidate', () => {
     expect(migration).toContain('num_nonnulls("reusable_context_fingerprint", "reuse_key", "shared_result_id") IN (0, 3)');
     expect(migration).not.toMatch(/UPDATE\s+"story_ai_continuations"/i);
     expect(migration).not.toMatch(/DELETE\s+FROM/i);
+    expect(migration).not.toMatch(/(?:UPDATE|DELETE\s+FROM)\s+"story_(?:parts|scenes)"/i);
   });
 });

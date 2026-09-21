@@ -5,6 +5,7 @@ const base: StoryReusableResultKeyInput = {
   releaseId: 'release-1',
   releaseChecksum: 'release-checksum-1',
   sourceKind: 'canonical',
+  sourceCanonicalPartId: 'part-1',
   sourceCanonicalSceneId: 'scene-1',
   sourceCanonicalChoiceId: 'choice-1',
   sourceSharedResultId: null,
@@ -39,6 +40,7 @@ describe('shared story result reuse identity', () => {
   it.each([
     ['releaseId', { releaseId: 'release-2' }],
     ['releaseChecksum', { releaseChecksum: 'release-checksum-2' }],
+    ['sourcePart', { sourceCanonicalPartId: 'part-2' }],
     ['sourceScene', { sourceCanonicalSceneId: 'scene-2' }],
     ['sourceChoice', { sourceCanonicalChoiceId: 'choice-2' }],
     ['sharedSource', { sourceSharedResultId: 'shared-source-2' }],

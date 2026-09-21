@@ -2283,6 +2283,7 @@ model StoryAiReusableResult {
   releaseChecksum            String    @map("release_checksum")
   manuscriptVersionId        String    @map("manuscript_version_id") @db.Uuid
   sourceKind                 String    @map("source_kind")
+  sourceCanonicalPartId      String?   @map("source_canonical_part_id") @db.Uuid
   sourceCanonicalSceneId     String?   @map("source_canonical_scene_id") @db.Uuid
   sourceCanonicalChoiceId    String?   @map("source_canonical_choice_id") @db.Uuid
   sourceSharedResultId       String?   @map("source_shared_result_id") @db.Uuid

@@ -19,6 +19,7 @@ import {
   UpsertStoryReleaseCapabilityDto,
   UpsertStoryStyleConsentDto,
 } from './dto/story-economics.dto';
+import { StoryAiContinuationStatusResponseDto } from './dto/story-continuation-response.dto';
 import {
   calculateInitialStoryPrice,
   calculateStoryUsageCost,
@@ -415,6 +416,7 @@ export class StoryEconomicsService {
         releaseId: input.release.id,
         releaseChecksum: input.release.checksum,
         sourceKind: input.sourceKind,
+        sourceCanonicalPartId: input.sourceKind === 'canonical' ? input.part.id : null,
         sourceCanonicalSceneId: input.sourceKind === 'canonical' ? input.scene.id : null,
         sourceCanonicalChoiceId: input.sourceKind === 'canonical' ? input.choice.id : null,
         sourceSharedResultId: input.sourceKind === 'generated' ? input.scene.sharedResultId : null,
@@ -441,6 +443,7 @@ export class StoryEconomicsService {
           releaseChecksum: input.release.checksum,
           manuscriptVersionId: input.release.manuscriptVersionId,
           sourceKind: input.sourceKind,
+          sourceCanonicalPartId: input.sourceKind === 'canonical' ? input.part.id : null,
           sourceCanonicalSceneId: input.sourceKind === 'canonical' ? input.scene.id : null,
           sourceCanonicalChoiceId: input.sourceKind === 'canonical' ? input.choice.id : null,
           sourceSharedResultId: input.sourceKind === 'generated' ? input.scene.sharedResultId : null,
@@ -2806,7 +2809,7 @@ export class StoryEconomicsService {
     continuation: any,
     allowanceRemaining: number,
     idempotentReplay: boolean,
-  ) {
+  ): StoryAiContinuationStatusResponseDto {
     return {
       continuationId: continuation.id,
       status: continuation.status,
