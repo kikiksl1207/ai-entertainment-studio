@@ -109,6 +109,20 @@ describe('recommended choice enqueue transaction', () => {
     expect(f.tx.storyAiUsageLedger.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ inputTokens: 900 }),
     }));
+    expect(f.provider.preflight.mock.calls[0][0].operationId)
+      .toBe(f.createContinuation.mock.calls[0][0].data.id);
+  });
+
+  it('keeps caller idempotency data out of the provider operation identifier', async () => {
+    const f = fixture();
+    f.input.idempotencyKey = `reader:operation:${'x'.repeat(150)}`;
+    f.provider.preflight = jest.fn().mockResolvedValue({ supported: true, inputTokenUpperBound: 900 });
+    await f.service.requestRecommendedChoiceTx(f.tx as never, f.input);
+    const request = f.provider.preflight.mock.calls[0][0];
+    expect(request.operationId).toMatch(/^[a-f0-9-]{36}$/);
+    expect(request.operationId).not.toBe(f.input.idempotencyKey);
+    expect(f.createContinuation.mock.calls[0][0].data.idempotencyKey)
+      .toBe(`recommended-choice:${f.input.idempotencyKey}`);
   });
 
   it.each([
