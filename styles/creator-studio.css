@@ -94,6 +94,25 @@ a { color: inherit; text-decoration: none; }
 .top-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; }
 .studio-section { display: none; }
 .studio-section.is-active { display: grid; gap: 22px; }
+.content-rights-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.content-rights-heading h2 { margin: 6px 0 4px; font-size: 24px; }
+.content-rights-heading p, .content-rights-state { margin: 0; color: var(--muted); line-height: 1.6; }
+.content-rights-list { display: grid; gap: 14px; }
+.content-rights-contract { overflow: hidden; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); box-shadow: var(--shadow); }
+.content-rights-contract > header { display: flex; justify-content: space-between; gap: 14px; padding: 16px 18px; border-bottom: 1px solid var(--line); }
+.content-rights-contract > header span { color: var(--cyan); font-size: 11px; font-weight: 800; }
+.content-rights-contract > header h3 { margin: 5px 0 0; font-size: 17px; overflow-wrap: anywhere; }
+.content-rights-contract code { color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
+.content-rights-version { padding: 16px 18px; }
+.content-rights-version + .content-rights-version { border-top: 1px solid var(--line); }
+.content-rights-version-title { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.content-rights-version-title span { color: var(--warn); font-size: 12px; font-weight: 800; }
+.content-rights-version dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; margin: 0; background: var(--line); }
+.content-rights-version dl div { min-width: 0; padding: 11px 12px; background: var(--panel-2); }
+.content-rights-version dt { color: var(--muted); font-size: 11px; }
+.content-rights-version dd { margin: 5px 0 0; color: var(--text); font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
+.content-rights-empty { margin: 0; padding: 24px; border: 1px dashed var(--line-strong); border-radius: 8px; color: var(--muted); text-align: center; }
+.content-rights-pending { margin: 0; }
 /* #222 — Access Required 카드 정렬 재정렬.
  * 라벨·제목·본문·버튼의 시작선을 카드 padding-inline 안쪽 0으로 통일.
  * 버튼은 44px 높이로 통일, 카드 폭 + 좌우 패딩은 390/768/1280px 모두 안정. */
@@ -595,6 +614,9 @@ td { color: var(--text); }
   .payout-row-net { grid-column: 1 / -1; }
 }
 @media (max-width: 680px) {
+  .content-rights-heading, .content-rights-contract > header { flex-direction: column; }
+  .content-rights-heading .secondary-action { width: 100%; }
+  .content-rights-version dl { grid-template-columns: 1fr; }
   .payout-breakdown { margin: 14px 12px; padding: 14px; }
   .payout-breakdown-rows { grid-template-columns: 1fr; }
   .payout-row-net { grid-column: auto; }

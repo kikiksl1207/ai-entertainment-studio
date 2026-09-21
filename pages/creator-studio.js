@@ -183,6 +183,11 @@
     return res;
   }
 
+  window.LuminaCreatorStudioApi = {
+    fetch: fetchCreatorStudioApi,
+    currentUser: () => readAuth()?.user || null
+  };
+
   async function fetchStoryIntake(formData, idempotencyKey, options = {}) {
     let auth = readAuth();
     if (!options.token && !auth?.accessToken && auth?.refreshToken) {
@@ -348,6 +353,7 @@
     history.replaceState(null, "", `#${sectionId}`);
     document.querySelector(".studio-main")?.scrollTo?.({ top: 0, behavior: "smooth" });
     if (sectionId === "writer-manuscript" && !shell?.hidden) loadWriterWorks();
+    if (sectionId === "content-rights" && !shell?.hidden) window.LuminaCreatorContentRights?.load?.();
   }
 
   function closeStudioModal() {

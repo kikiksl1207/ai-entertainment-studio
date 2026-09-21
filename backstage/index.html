@@ -78,6 +78,7 @@
             <a href="#site-content">사이트 문구 관리 <b id="siteContentCountBadge">0</b></a>
             <a href="#moderation">크리에이터 콘텐츠 <b>5</b></a>
             <a href="#fan-missions">팬 미션 <b id="fanMissionCountBadge">0</b></a>
+            <a href="#content-rights">계약 설정 <b id="contentRightsCountBadge">0</b></a>
             <a href="#settlement">정산 현황 <b>3</b></a>
             <a href="#payouts">정산 처리 <b>4</b></a>
             <a href="#logs">운영 로그</a>
@@ -483,6 +484,63 @@
             </div>
           </section>
 
+          <section class="section-block" id="content-rights">
+            <div class="section-title">
+              <div><span class="section-kicker">Content Rights</span><h2 id="adminContentRightsTitle">콘텐츠 권리 계약 설정</h2></div>
+              <p id="adminContentRightsBoundary">승인은 계약 설정 승인일 뿐 법적 활성화, 정산 발생 또는 지급 승인이 아닙니다.</p>
+            </div>
+            <p class="content-rights-admin-state" id="adminContentRightsState" role="status" aria-live="polite">계약 설정을 불러올 준비가 되었습니다.</p>
+            <article class="table-card content-rights-admin-form-wrap">
+              <header>
+                <div><span class="section-kicker">Configuration</span><h3 id="adminContentRightsFormTitle">새 설정 초안</h3></div>
+                <button class="secondary-action" type="button" id="adminContentRightsReset">새 초안</button>
+              </header>
+              <form class="content-rights-admin-form" id="adminContentRightsForm">
+                <input name="mode" type="hidden" value="create" />
+                <input name="contractId" type="hidden" />
+                <input name="sourceVersionId" type="hidden" />
+                <div class="content-rights-admin-fields">
+                  <label><span data-rights-label="workType">작품 유형</span><select name="workType" required><option value="story">Story</option><option value="ott">OTT</option></select></label>
+                  <label><span data-rights-label="workId">작품 ID</span><input name="workId" type="text" required autocomplete="off" /></label>
+                  <label><span data-rights-label="contentVersionId">콘텐츠 버전 ID</span><input name="contentVersionId" type="text" required autocomplete="off" /></label>
+                  <label><span data-rights-label="exclusivity">독점 범위</span><select name="exclusivity" required><option value="exclusive">Exclusive</option><option value="nonexclusive">Non-exclusive</option></select></label>
+                  <fieldset class="content-rights-media"><legend data-rights-label="media">허용 미디어</legend>
+                    <label><input name="media" type="checkbox" value="story_publication" /> Story</label>
+                    <label><input name="media" type="checkbox" value="ott_streaming" /> OTT</label>
+                    <label><input name="media" type="checkbox" value="download" /> Download</label>
+                    <label><input name="media" type="checkbox" value="audio" /> Audio</label>
+                    <label><input name="media" type="checkbox" value="translation" /> Translation</label>
+                    <label><input name="media" type="checkbox" value="marketing" /> Marketing</label>
+                  </fieldset>
+                  <label><span data-rights-label="regions">지역 코드</span><input name="regions" type="text" required value="WORLDWIDE" /></label>
+                  <label><span data-rights-label="startsAt">시작 시각</span><input name="startsAt" type="datetime-local" required /></label>
+                  <label><span data-rights-label="endsAt">종료 시각 (선택)</span><input name="endsAt" type="datetime-local" /></label>
+                  <label><span data-rights-label="effectiveFrom">설정 적용 기준 시각</span><input name="effectiveFrom" type="datetime-local" required /></label>
+                  <label><span data-rights-label="creatorRole">권리자 역할</span><select name="creatorRole"><option value="author">Author</option><option value="rights_holder">OTT rights holder</option></select></label>
+                  <label><span data-rights-label="creatorUserId">권리자 사용자 ID</span><input name="creatorUserId" type="text" required autocomplete="off" /></label>
+                  <label><span data-rights-label="creatorBps">권리자 비율 (bps)</span><input name="authorRightsHolderShareBps" type="number" min="0" max="5000" step="1" required /></label>
+                  <label><span data-rights-label="agencyIdentifier">영업/에이전시 식별자 (선택)</span><input name="agencyIdentifier" type="text" autocomplete="off" /></label>
+                  <label><span data-rights-label="agencyUserId">영업/에이전시 사용자 ID (선택)</span><input name="agencyUserId" type="text" autocomplete="off" /></label>
+                  <label><span data-rights-label="agencyBps">영업/에이전시 비율 (bps)</span><input name="salesAgencyShareBps" type="number" min="0" max="1000" step="1" required value="0" /></label>
+                  <fieldset class="content-rights-flags"><legend data-rights-label="rights">허용 권리</legend>
+                    <label><input name="saleAllowed" type="checkbox" /> <span data-rights-label="saleAllowed">판매</span></label>
+                    <label><input name="aiTransformationAllowed" type="checkbox" /> <span data-rights-label="aiTransformationAllowed">AI 변환</span></label>
+                    <label><input name="generatedResultReuseAllowed" type="checkbox" /> <span data-rights-label="generatedResultReuseAllowed">생성 결과 재사용</span></label>
+                  </fieldset>
+                </div>
+                <div class="content-rights-policy-boundary" id="adminContentRightsPolicyBoundary">VAT, 유료/보너스 포인트, 환불 역산, 포인트 사용 정책은 미결정입니다. AI/영상 생성 비용은 회사 내부 비용이며 창작자 몫에서 차감하지 않는 설정만 저장됩니다.</div>
+                <div class="content-rights-admin-actions">
+                  <button class="primary-action" type="submit" id="adminContentRightsSubmit">설정 초안 저장</button>
+                  <p class="form-status" id="adminContentRightsFormState" role="status" aria-live="polite"></p>
+                </div>
+              </form>
+            </article>
+            <article class="table-card content-rights-admin-list-wrap">
+              <header><h3 id="adminContentRightsListTitle">설정 버전 및 이력</h3><button class="secondary-action" type="button" id="adminContentRightsRefresh">새로고침</button></header>
+              <div class="content-rights-admin-list" id="adminContentRightsList"></div>
+            </article>
+          </section>
+
           <section class="section-block" id="payouts">
             <div class="section-title"><div><span class="section-kicker">Payouts</span><h2>정산 처리</h2></div><p id="settlementNotice">정산 데이터는 예상치/확정 전입니다. 실제 지급 확정 전 환불, 차지백, 세무, 운영 확인이 필요합니다.</p></div>
             <div class="table-grid is-stacked">
@@ -552,5 +610,7 @@
 
     <script src="/backstage.js"></script>
     <script src="/backstage-site-content.js"></script>
+    <script src="/pages/content-rights-contract-ui.js"></script>
+    <script src="/backstage-content-rights.js"></script>
   </body>
 </html>

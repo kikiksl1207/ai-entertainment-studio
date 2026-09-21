@@ -289,6 +289,7 @@ const sectionLoaders = {
   moderation: loadModerationSection,
   "fan-missions": loadFanMissionsSection,
   "site-content": () => window.LuminaSiteContent?.load?.(),
+  "content-rights": () => window.LuminaBackstageContentRights?.load?.(),
   payouts: loadSettlementSection,
   logs: loadAuditSection
 };
@@ -456,6 +457,11 @@ async function backstageFetch(path, options = {}) {
   }
   return data;
 }
+
+window.LuminaBackstageApi = {
+  fetch: backstageFetch,
+  canWriteContentRights: () => currentAdminPermissions().includes("*") || currentAdminPermissions().includes("settlements:write")
+};
 
 function extractAuthPayload(data) {
   return normalizeAuthPayload(data);
@@ -3235,6 +3241,7 @@ function canAccessBackstageSection(sectionId) {
     moderation: ["cs_admin", "support_admin", "content_admin"],
     "fan-missions": [],
     "site-content": ["super_admin"],
+    "content-rights": ["commerce_admin", "settlement_admin", "finance_admin"],
     settlement: ["commerce_admin", "settlement_admin", "finance_admin"],
     payouts: ["commerce_admin", "settlement_admin", "finance_admin"]
   };
@@ -3245,6 +3252,7 @@ function canAccessBackstageSection(sectionId) {
     moderation: ["community:read", "community:write", "reports:read"],
     "fan-missions": ["*"],
     "site-content": ["*"],
+    "content-rights": ["payments:read"],
     settlement: ["payments:read", "settlement:read", "payout:read"],
     payouts: ["payments:read", "settlement:read", "payout:read", "payout:write"]
   };
