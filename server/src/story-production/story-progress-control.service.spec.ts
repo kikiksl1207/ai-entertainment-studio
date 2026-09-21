@@ -10,11 +10,15 @@ describe('StoryProgressControlService', () => {
     storyCustomChoice: { findUnique: jest.fn(), create: jest.fn() },
     storyReaderProgress: { findFirst: jest.fn(), findUnique: jest.fn() },
     storyWork: { findFirst: jest.fn() },
-    storyScene: { findFirst: jest.fn() },
-    storyPart: { findFirst: jest.fn() },
+    storyScene: { findFirst: jest.fn(), findMany: jest.fn() },
+    storyPart: { findFirst: jest.fn(), findMany: jest.fn() },
+    storyChoiceEvent: { count: jest.fn() },
+    storyRelease: { findFirst: jest.fn() },
+    storyReleaseCapability: { findUnique: jest.fn() },
+    storyAiRateCard: { findUnique: jest.fn() },
     userEntitlement: { findFirst: jest.fn() },
     feedSearchBlockedTerm: { findMany: jest.fn() },
-    storyResetQuotaBucket: { findMany: jest.fn() },
+    storyResetQuotaBucket: { findMany: jest.fn(), findUnique: jest.fn() },
     storyProgressCheckpoint: { findFirst: jest.fn() },
     storyQualityEvent: { upsert: jest.fn() },
   };
@@ -52,6 +56,105 @@ describe('StoryProgressControlService', () => {
     prisma.userEntitlement.findFirst.mockResolvedValue(null);
     moderation.preview.mockReturnValue({ decision: 'allow' });
     prisma.storyQualityEvent.upsert.mockResolvedValue({ id: 'quality-event' });
+  });
+
+  it('targets the first scene of the first published part for a full reset', async () => {
+    prisma.storyWork.findFirst.mockResolvedValue({
+      ...work,
+      priceLumina: new Decimal(0),
+      status: 'published',
+      fixtureSource: false,
+      activeReleaseId: 'release-1',
+      publishedAt: new Date('2026-09-20T00:00:00.000Z'),
+    });
+    prisma.storyPart.findFirst
+      .mockResolvedValueOnce(part)
+      .mockResolvedValueOnce({ id: 'part-1' });
+    prisma.storyPart.findMany.mockResolvedValue([
+      { id: 'part-1' },
+      { id: 'part-14' },
+      { id: 'part-66' },
+    ]);
+    prisma.storyScene.findMany.mockResolvedValue([
+      { id: 'part-14-main', partId: 'part-14', position: 1 },
+      { id: 'part-1-main', partId: 'part-1', position: 1 },
+      { id: 'part-66-main', partId: 'part-66', position: 1 },
+    ]);
+    prisma.storyRelease.findFirst.mockResolvedValue({ id: 'release-1' });
+    prisma.storyReleaseCapability.findUnique.mockResolvedValue({
+      status: 'active',
+      revision: 1,
+      rateCardId: 'rate-card-1',
+      fullResetLimit: 1,
+      actResetLimit: 3,
+    });
+    prisma.storyAiRateCard.findUnique.mockResolvedValue({ id: 'rate-card-1', status: 'active' });
+    prisma.storyChoiceEvent.count.mockResolvedValue(7);
+    prisma.storyResetQuotaBucket.findUnique.mockResolvedValue(null);
+
+    const result = await service.resetPreview(progress.userId, progress.id, {
+      target: 'full',
+      locale: 'ko',
+    });
+
+    expect(result).toMatchObject({
+      target: 'full',
+      targetAct: 1,
+      targetSceneId: 'part-1-main',
+      invalidatedEventCount: 7,
+    });
+    expect(prisma.storyPart.findFirst).toHaveBeenNthCalledWith(2, {
+      where: { workId: work.id, actNumber: 1, status: 'published', fixtureSource: false },
+      select: { id: true },
+      orderBy: { position: 'asc' },
+    });
+    expect(prisma.storyChoiceEvent.count).toHaveBeenCalledWith({
+      where: { progressId: progress.id, invalidatedAt: null },
+    });
+  });
+
+  it('targets the first part in an act without narrowing the invalidated scene range', async () => {
+    prisma.storyWork.findFirst.mockResolvedValue({ ...work, priceLumina: new Decimal(0) });
+    prisma.storyPart.findFirst
+      .mockResolvedValueOnce(part)
+      .mockResolvedValueOnce({ id: 'part-30' });
+    prisma.storyPart.findMany.mockResolvedValue([
+      { id: 'part-30' },
+      { id: 'part-45' },
+      { id: 'part-66' },
+    ]);
+    prisma.storyScene.findMany.mockResolvedValue([
+      { id: 'part-45-main', partId: 'part-45', position: 1 },
+      { id: 'part-30-main', partId: 'part-30', position: 1 },
+      { id: 'part-66-main', partId: 'part-66', position: 1 },
+    ]);
+    prisma.storyChoiceEvent.count.mockResolvedValue(3);
+    prisma.storyResetQuotaBucket.findUnique.mockResolvedValue(null);
+
+    const result = await service.resetPreview(progress.userId, progress.id, {
+      target: 'act',
+      actNumber: 2,
+      locale: 'ko',
+    });
+
+    expect(result).toMatchObject({
+      target: 'act',
+      targetAct: 2,
+      targetSceneId: 'part-30-main',
+      invalidatedEventCount: 3,
+    });
+    expect(prisma.storyPart.findFirst).toHaveBeenNthCalledWith(2, {
+      where: { workId: work.id, actNumber: 2, status: 'published', fixtureSource: false },
+      select: { id: true },
+      orderBy: { position: 'asc' },
+    });
+    expect(prisma.storyChoiceEvent.count).toHaveBeenCalledWith({
+      where: {
+        progressId: progress.id,
+        invalidatedAt: null,
+        sceneId: { in: ['part-45-main', 'part-30-main', 'part-66-main'] },
+      },
+    });
   });
 
   it('does not trust a client paid flag when no active server entitlement exists', async () => {

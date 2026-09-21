@@ -747,15 +747,14 @@ export class StoryProgressControlService {
       select: { id: true, partId: true, position: true },
       orderBy: [{ position: 'asc' }, { id: 'asc' }],
     });
-    const targetPartIds = new Set(
-      (
-        await client.storyPart.findMany({
-          where: { workId, actNumber: targetAct, status: 'published', fixtureSource: false },
-          select: { id: true },
-        })
-      ).map((part) => part.id),
-    );
-    const targetScene = scenes.find((scene) => targetPartIds.has(scene.partId));
+    const targetPart = await client.storyPart.findFirst({
+      where: { workId, actNumber: targetAct, status: 'published', fixtureSource: false },
+      select: { id: true },
+      orderBy: { position: 'asc' },
+    });
+    const targetScene = targetPart
+      ? scenes.find((scene) => scene.partId === targetPart.id)
+      : undefined;
     if (!targetScene) throw new NotFoundException('Reset target scene not found');
     const invalidatedSceneIds = scenes.map((scene) => scene.id);
     const invalidatedEventCount = await client.storyChoiceEvent.count({
