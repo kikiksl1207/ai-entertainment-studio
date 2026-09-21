@@ -46,6 +46,7 @@ import {
   type StoryContinuationProviderResult,
 } from './story-continuation.provider';
 import type { StoryContinuationClaim } from './story-continuation.repository';
+import type { StoryContinuationApprovedContext } from './story-continuation-context.assembler';
 import { StoryContinuationLegalActivationGate } from './story-continuation-legal-activation.gate';
 import {
   assembleContinuationSemanticPath,
@@ -299,7 +300,7 @@ export class StoryEconomicsService {
     }
     const memoryPins = continuationMemoryPins(memory);
     let sourceHash: string;
-    let approvedContext: unknown;
+    let approvedContext: StoryContinuationApprovedContext;
     try {
       sourceHash = continuationSourceHash({
         kind: input.sourceKind,
@@ -366,15 +367,6 @@ export class StoryEconomicsService {
       pathHash,
       memoryPins,
     });
-    const contextCharacters = stableContinuationJson(approvedContext).length;
-    const estimatedInputTokens = Math.max(1, Math.ceil(contextCharacters / 4));
-    if (estimatedInputTokens > capability.aiInputTokenLimit) {
-      throw new ForbiddenException({
-        code: 'STORY_AI_CONTEXT_BUDGET_EXCEEDED',
-        messageKey: 'story.progress.aiGeneration.contextBudgetExceeded',
-        retryable: false,
-      });
-    }
     const reusableContextFingerprint = continuationHash({
       workId: input.work.id,
       releaseChecksum: input.release.checksum,
@@ -542,8 +534,48 @@ export class StoryEconomicsService {
         generationStarted: false,
       });
     }
+    const preflight = await this.continuationProvider?.preflight?.({
+      operationId: key,
+      locale,
+      contextFingerprint,
+      promptVersion: context.promptVersion,
+      outputSchemaVersion: context.outputSchemaVersion,
+      inputTokenLimit: capability.aiInputTokenLimit,
+      outputTokenLimit: capability.aiOutputTokenLimit,
+      provider: rateCard.provider,
+      model: rateCard.model,
+      rateCardId: rateCard.id,
+      rateCardVersion: rateCard.version,
+      approvedContext,
+    });
+    if (preflight && !preflight.supported) {
+      throw new ConflictException({
+        code: 'STORY_CHOICE_GENERATION_UNAVAILABLE',
+        messageKey: 'story.choice.status.generationUnavailable',
+        retryable: false,
+        progressMutated: false,
+        generationStarted: false,
+      });
+    }
+    // Production adapters budget the complete provider payload, including its schema.
+    const estimatedInputTokens = preflight
+      ? preflight.inputTokenUpperBound
+      : Math.max(1, Math.ceil(stableContinuationJson(approvedContext).length / 4));
+    if (
+      !Number.isSafeInteger(estimatedInputTokens) ||
+      estimatedInputTokens! < 1 ||
+      estimatedInputTokens! > capability.aiInputTokenLimit
+    ) {
+      throw new ForbiddenException({
+        code: 'STORY_AI_CONTEXT_BUDGET_EXCEEDED',
+        messageKey: 'story.progress.aiGeneration.contextBudgetExceeded',
+        retryable: false,
+        progressMutated: false,
+        generationStarted: false,
+      });
+    }
     const estimatedCostKrw = calculateStoryUsageCost(this.rateNumbers(rateCard), {
-      inputTokens: estimatedInputTokens,
+      inputTokens: estimatedInputTokens!,
       outputTokens: capability.aiOutputTokenLimit,
     });
     if (storyBudgetDecision(
@@ -655,7 +687,7 @@ export class StoryEconomicsService {
         provider: rateCard.provider,
         model: rateCard.model,
         rateCardVersion: rateCard.version,
-        inputTokens: estimatedInputTokens,
+        inputTokens: estimatedInputTokens!,
         outputTokens: capability.aiOutputTokenLimit,
         estimatedCostKrw,
         allowanceDelta: 0,

@@ -24,9 +24,9 @@ import {
   StoryManuscriptPasteMultipartInterceptor, StoryManuscriptPasteOwnerGuard,
 } from './story-manuscript-file.controller';
 import {
-  DisabledStoryContinuationProvider,
-  StoryContinuationProvider,
-} from './story-continuation.provider';
+  STORY_CONTINUATION_OPENAI_PROVIDER,
+  STORY_CONTINUATION_WORKER_PROVIDER,
+} from './story-continuation-runtime.providers';
 import {
   PrismaStoryContinuationQueueRepository,
   StoryContinuationQueueRepository,
@@ -79,10 +79,8 @@ import { StoryAiActivationAdminController } from './story-ai-activation.controll
       provide: StoryReusableResultApprovalGate,
       useClass: PersistedStoryReusableResultApprovalGate,
     },
-    {
-      provide: StoryContinuationProvider,
-      useClass: DisabledStoryContinuationProvider,
-    },
+    STORY_CONTINUATION_OPENAI_PROVIDER,
+    STORY_CONTINUATION_WORKER_PROVIDER,
     {
       provide: StoryContinuationQueueRepository,
       useClass: PrismaStoryContinuationQueueRepository,

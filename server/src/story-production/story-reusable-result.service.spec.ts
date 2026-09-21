@@ -208,7 +208,10 @@ function integrationFixture() {
     auditEvent: { create: jest.fn() },
   };
   const prisma = { ...tx, $transaction: jest.fn(async (run) => run(tx)) };
-  const provider = { readiness: jest.fn().mockResolvedValue({ enabled: true }) };
+  const provider = {
+    readiness: jest.fn().mockResolvedValue({ enabled: true }),
+    preflight: jest.fn().mockResolvedValue({ supported: true, inputTokenUpperBound: 500 }),
+  };
   const legal = { authorize: jest.fn().mockResolvedValue({ active: true, reason: 'test_only' }) };
   const approval = {
     prepare: jest.fn().mockResolvedValue({ eligible: true, reason: 'test_only', snapshot: evidence }),
@@ -277,9 +280,11 @@ describe('shared story result cache integration', () => {
     await activation.promote('admin-id', f.getShared().id, f.getShared().resultChecksum);
     expect(f.getShared().status).toBe('approved');
     const providerChecksAfterFirst = f.provider.readiness.mock.calls.length;
+    const preflightChecksAfterFirst = f.provider.preflight.mock.calls.length;
     const allowanceWritesAfterFirst = f.tx.storyAiAllowanceBucket.updateMany.mock.calls.length;
     f.capability.includedAiRouteCount = 0;
     f.provider.readiness.mockResolvedValue({ enabled: false, reason: 'temporary_outage' });
+    f.provider.preflight.mockRejectedValue(new Error('must not preflight an approved cache hit'));
     await expect(f.service.requestRecommendedChoiceTx(f.tx, f.input('reader-2')))
       .resolves.toMatchObject({
         status: 'completed', provenance: 'ai_reused', allowanceRemaining: 0,
@@ -287,6 +292,7 @@ describe('shared story result cache integration', () => {
       });
 
     expect(f.provider.readiness).toHaveBeenCalledTimes(providerChecksAfterFirst);
+    expect(f.provider.preflight).toHaveBeenCalledTimes(preflightChecksAfterFirst);
     expect(f.tx.storyAiAllowanceBucket.updateMany).toHaveBeenCalledTimes(allowanceWritesAfterFirst);
     expect(f.generatedScenes).toEqual([
       expect.objectContaining({ userId: 'reader-1', progressId: 'progress-1', provenance: 'ai_generated' }),
