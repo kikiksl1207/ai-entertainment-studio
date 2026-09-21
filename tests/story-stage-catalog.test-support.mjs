@@ -292,7 +292,7 @@ export function registerCatalogTests({ getBrowser, repo, artifacts, base, api })
       assert.equal(await f.page.locator('[data-story-start]').innerText(), 'Start story');
       await f.page.locator('[data-story-start]').click();
       await f.page.waitForURL(`**sessionId=${progressId}&workId=${workId}`);
-      assert.deepEqual(f.c.writes, ['progress-create', 'quality-upsert']);
+      assert.deepEqual(f.c.writes, ['progress-create', 'route-root-create', 'progress-route-update', 'quality-upsert']);
       assert.equal(f.requests.filter((r) => r.method === 'POST').length, 1);
     } finally { await f.close(); }
   });

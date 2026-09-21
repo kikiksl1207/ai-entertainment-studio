@@ -73,3 +73,20 @@ test('purchase source contract: replay reports zero current debit and inactive g
   assert.equal(inactive.entitled, false);
   assert.deepEqual(c.writes, ['wallet-debit', 'purchase-ledger', 'purchase-grant']);
 });
+
+test('source contract: new progress executes the actual route root store', async () => {
+  const c = await contract({ state: 'new' });
+  await c.start();
+  assert.equal(c.routeNodes.length, 1);
+  const root = c.routeNodes[0];
+  assert.equal(root.progressId, c.ids.progress);
+  assert.equal(root.workId, c.ids.work);
+  assert.equal(root.targetSceneId, c.ids.scene);
+  assert.equal(root.stepKind, 'root');
+  assert.equal(root.depth, 0);
+  assert.match(root.routeHash, /^[a-f0-9]{64}$/);
+  assert.equal(c.storedProgress().routeNodeId, root.id);
+  assert.deepEqual(c.writes, ['progress-create', 'route-root-create', 'progress-route-update', 'quality-upsert']);
+  await c.start();
+  assert.equal(c.routeNodes.length, 1, 'Resume must not manufacture another root');
+});

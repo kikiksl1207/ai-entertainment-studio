@@ -16,10 +16,17 @@ export function loadStoryServerContract(repo) {
     const file = path.join(repo, relative);
     return ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
   }
+  const loadedPolicies = new Map();
   function policy(relative) {
+    const filename = path.resolve(repo, relative);
+    if (loadedPolicies.has(filename)) return loadedPolicies.get(filename).exports;
     const ast = source(relative);
     const mod = new Module(ast.fileName);
     mod.paths = [deps];
+    loadedPolicies.set(filename, mod);
+    mod.require = (specifier) => specifier.startsWith('.')
+      ? policy(path.relative(repo, path.resolve(path.dirname(filename), `${specifier}.ts`)))
+      : require(specifier);
     mod._compile(ts.transpileModule(ast.text, { compilerOptions: { module: ts.ModuleKind.CommonJS,
       target: ts.ScriptTarget.ES2022 } }).outputText, ast.fileName);
     return mod.exports;
@@ -27,6 +34,7 @@ export function loadStoryServerContract(repo) {
   const productionPolicy = policy('server/src/story-production/story-production.policy.ts');
   const progressPolicy = policy('server/src/story-production/story-progress-control.policy.ts');
   const walletPolicy = policy('server/src/common/wallet-mutation-safety.ts');
+  const routeStore = policy('server/src/story-production/story-route-identity.store.ts');
   function methods(relative, names) {
     const ast = source(relative);
     const members = ast.statements.filter(ts.isClassDeclaration).flatMap((x) => [...x.members]);
@@ -42,7 +50,8 @@ export function loadStoryServerContract(repo) {
     const code = ts.transpileModule(`const container = {${printed.join(',\n')}};`, {
       compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None },
     }).outputText;
-    const environment = { ...nest, ...productionPolicy, ...progressPolicy, ...walletPolicy, CURRENCY: 'LUMINA',
+    const environment = { ...nest, ...productionPolicy, ...progressPolicy, ...walletPolicy,
+      createStoryRouteRoot: routeStore.createStoryRouteRoot, CURRENCY: 'LUMINA',
       jsonArray: (x) => Array.isArray(x) ? x : [],
       jsonStringArray: (x) => Array.isArray(x) ? x.filter((y) => typeof y === 'string') : [],
       sessionKeyHash: (x) => createHash('sha256').update(x).digest('hex') };
@@ -74,16 +83,22 @@ export function loadStoryServerContract(repo) {
     const cap = economics.capabilityProjection({ status: 'active', revision: 4,
       aiInputTokenLimit: 10, aiOutputTokenLimit: 10, fullResetLimit: 1, actResetLimit: 3 });
     const writes = [];
+    const routeNodes = [];
     const prisma = {
       storyWork: { findFirst: async () => work, findUnique: async () => work },
-      storyRelease: { findFirst: async () => ({ id: work.activeReleaseId }) },
+      storyRelease: { findFirst: async () => ({ id: work.activeReleaseId,
+        checksum: 'a'.repeat(64), manuscriptVersionId: '77777777-7777-4777-8777-777777777777' }) },
       storyPart: { findMany: async () => [{ id: ids.part, actNumber: 1, position: 1, seasonKey: 'season-1',
         title: localized('Synthetic part'), priceLumina: price }] },
       storyScene: { findFirst: async () => ({ id: ids.scene, partId: ids.part }) },
       storyChoiceEvent: { findMany: async () => [] },
       storyReaderProgress: { findUnique: async () => progress, findFirst: async () => progress,
         create: async ({ data }) => { writes.push('progress-create'); progress = { ...data, id: ids.progress,
-          status: 'active', progressRevision: 1, visitedEndingKeys: [] }; return progress; } },
+          status: 'active', progressRevision: 1, visitedEndingKeys: [] }; return progress; },
+        update: async ({ where, data }) => { assert.equal(where.id, progress.id); writes.push('progress-route-update');
+          progress = { ...progress, ...data }; return progress; } },
+      storyProgressRouteNode: { create: async ({ data }) => { writes.push('route-root-create');
+        const node = { ...data, id: '88888888-8888-4888-8888-888888888888' }; routeNodes.push(node); return node; } },
       storyQualityEvent: { upsert: async () => { writes.push('quality-upsert'); return {}; } },
       storyResetQuotaBucket: { findMany: async () => options.exhausted ?
         [{ scopeKey: 'full', usedCount: 1, limitCount: 1 }, { scopeKey: 'act:1', usedCount: 3, limitCount: 3 }] : [] },
@@ -121,7 +136,7 @@ export function loadStoryServerContract(repo) {
     };
     const control = { ...controls, prisma, economics: econ, hasActivePaidEntitlement: async () => owned };
     const locale = options.locale || 'en';
-    return { ids, writes, cap,
+    return { ids, writes, cap, routeNodes, storedProgress: () => progress,
       readAccess: () => prod.readerAccess('local-user', ids.work, { locale }),
       readState: () => control.publicState('local-user', ids.work),
       purchase: (key, confirmation) => prod.purchaseWork('local-user', ids.work, key, confirmation),
