@@ -140,6 +140,24 @@ export class StoryLifecycleService {
         if (validation.ready !== true || Number(validation.blockingIssueCount ?? 0) > 0) {
           throw new ConflictException('Release validation is not ready');
         }
+        const continuityAnalysis = await tx.storyAnalysisJob.findFirst({
+          where: { manuscriptVersionId: release.manuscriptVersionId, status: 'completed' },
+          orderBy: { analysisVersion: 'desc' },
+          select: { id: true },
+        });
+        if (continuityAnalysis) {
+          const unresolvedCriticalCount = await tx.storyContinuityIssue.count({
+            where: {
+              workId,
+              analysisJobId: continuityAnalysis.id,
+              severity: 'critical',
+              status: 'open',
+            },
+          });
+          if (unresolvedCriticalCount > 0) {
+            throw new ConflictException('Unresolved critical continuity issue blocks publication');
+          }
+        }
         const parts = await tx.storyPart.findMany({
           where: { workId, status: 'published', fixtureSource: false },
           select: { id: true },

@@ -118,6 +118,18 @@ describe('story production policy', () => {
       },
     ];
     expect(deriveContinuityLedger(withPayoff).issues).toEqual([]);
+
+    expect(deriveContinuityLedger([
+      {
+        id: 'e-orphan-payoff',
+        evidenceType: 'payoff',
+        sourcePartKey: 'part-3',
+        sourceParagraphIndex: 2,
+        payload: { label: 'unknown promise' },
+      },
+    ]).issues).toEqual([
+      expect.objectContaining({ issueKey: 'orphan-payoff:unknown-promise', severity: 'warning' }),
+    ]);
   });
 
   it('accepts only currently active, unrevoked entitlements', () => {

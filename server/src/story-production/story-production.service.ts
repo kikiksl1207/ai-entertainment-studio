@@ -943,11 +943,11 @@ export class StoryProductionService {
     const existing = await this.prisma.storyAnalysisJob.findUnique({ where: { idempotencyKey: key } });
     if (existing) {
       if (existing.manuscriptVersionId !== manuscript.id) throw new ConflictException('Idempotency key belongs to another manuscript');
-      return existing;
+      return this.analysisJobProjection(existing);
     }
     const body = manuscript.structuredBody as unknown as { parts: CreateManuscriptVersionDto['parts'] };
     const analysis = analyzeStructuredManuscript(body.parts);
-    return this.prisma.$transaction(async (tx) => {
+    const completed = await this.prisma.$transaction(async (tx) => {
       const latest = await tx.storyAnalysisJob.findFirst({ where: { manuscriptVersionId: manuscript.id }, orderBy: { analysisVersion: 'desc' }, select: { analysisVersion: true } });
       const job = await tx.storyAnalysisJob.create({
         data: {
@@ -971,11 +971,56 @@ export class StoryProductionService {
         payload: item.payload as Record<string, string | number | boolean>,
       })));
       for (const entry of ledger.entries) {
-        await tx.storyContinuityEntry.create({ data: { workId: manuscript.workId, analysisJobId: job.id, ...entry } });
+        const storedEntry = await tx.storyContinuityEntry.create({
+          data: {
+            workId: manuscript.workId,
+            analysisJobId: job.id,
+            analysisVersion: job.analysisVersion,
+            ...entry,
+          },
+        });
+        await tx.storyContinuityEntryEvidence.createMany({
+          data: entry.evidenceIds.map((evidenceId) => ({
+            analysisJobId: job.id,
+            analysisVersion: job.analysisVersion,
+            entryId: storedEntry.id,
+            evidenceId,
+          })),
+        });
+        await tx.storyContinuityPathState.create({
+          data: {
+            workId: manuscript.workId,
+            analysisJobId: job.id,
+            analysisVersion: job.analysisVersion,
+            entryId: storedEntry.id,
+            pathScope: 'author_original',
+            pathKey: 'author_original',
+            state: entry.state,
+          },
+        });
       }
       for (const issue of ledger.issues) {
-        await tx.storyContinuityIssue.create({ data: { workId: manuscript.workId, analysisJobId: job.id, ...issue } });
+        const storedIssue = await tx.storyContinuityIssue.create({
+          data: {
+            workId: manuscript.workId,
+            analysisJobId: job.id,
+            analysisVersion: job.analysisVersion,
+            pathScope: 'author_original',
+            pathKey: 'author_original',
+            ...issue,
+          },
+        });
+        await tx.storyContinuityIssueEvidence.createMany({
+          data: issue.evidenceIds.map((evidenceId) => ({
+            analysisJobId: job.id,
+            analysisVersion: job.analysisVersion,
+            issueId: storedIssue.id,
+            evidenceId,
+          })),
+        });
       }
+      const criticalIssueCount = ledger.issues.filter((issue) => issue.severity === 'critical').length;
+      const warningIssueCount = ledger.issues.filter((issue) => issue.severity === 'warning').length;
       return tx.storyAnalysisJob.update({
         where: { id: job.id },
         data: {
@@ -986,11 +1031,13 @@ export class StoryProductionService {
             partCount: analysis.partCount,
             evidenceCount: storedEvidence.length,
             continuityEntryCount: ledger.entries.length,
-            criticalIssueCount: ledger.issues.length,
+            criticalIssueCount,
+            warningIssueCount,
           },
         },
       });
     });
+    return this.analysisJobProjection(completed);
   }
 
   async analysis(userId: string, analysisId: string) {
@@ -999,26 +1046,150 @@ export class StoryProductionService {
     const manuscript = await this.prisma.storyManuscriptVersion.findFirst({ where: { id: job.manuscriptVersionId, ownerUserId: userId } });
     if (!manuscript) throw new NotFoundException('Analysis job not found');
     const evidence = await this.prisma.storyAnalysisEvidence.findMany({ where: { analysisJobId: job.id }, orderBy: [{ sourcePartKey: 'asc' }, { sourceParagraphIndex: 'asc' }] });
-    return { job, evidence };
+    const result = isPlainRecord(job.result) ? job.result : {};
+    return {
+      job: {
+        id: job.id,
+        manuscriptVersionId: job.manuscriptVersionId,
+        analysisVersion: job.analysisVersion,
+        status: job.status,
+        counts: projectAnalysisCounts(result.counts),
+        partCount: result.partCount ?? 0,
+        evidenceCount: result.evidenceCount ?? evidence.length,
+        continuityEntryCount: result.continuityEntryCount ?? 0,
+        criticalIssueCount: result.criticalIssueCount ?? 0,
+        warningIssueCount: result.warningIssueCount ?? 0,
+        startedAt: job.startedAt,
+        completedAt: job.completedAt,
+      },
+      evidence: evidence.map((item) => ({
+        id: item.id,
+        evidenceType: item.evidenceType,
+        sourcePartKey: item.sourcePartKey,
+        sourceParagraphIndex: item.sourceParagraphIndex,
+      })),
+    };
   }
 
   async continuity(userId: string, workId: string) {
     await this.assertOwner(userId, workId);
-    const [entries, issues] = await Promise.all([
-      this.prisma.storyContinuityEntry.findMany({ where: { workId }, orderBy: [{ entryType: 'asc' }, { createdAt: 'asc' }] }),
-      this.prisma.storyContinuityIssue.findMany({ where: { workId }, orderBy: [{ severity: 'asc' }, { createdAt: 'asc' }] }),
+    const manuscript = await this.prisma.storyManuscriptVersion.findFirst({
+      where: { workId, ownerUserId: userId },
+      orderBy: { version: 'desc' },
+      select: { id: true, version: true },
+    });
+    const analysis = manuscript
+      ? await this.prisma.storyAnalysisJob.findFirst({
+          where: { manuscriptVersionId: manuscript.id, status: 'completed' },
+          orderBy: { analysisVersion: 'desc' },
+          select: { id: true, analysisVersion: true },
+        })
+      : null;
+    if (!manuscript || !analysis) {
+      return {
+        manuscriptVersion: manuscript?.version ?? null,
+        analysisVersion: null,
+        entries: [],
+        issues: [],
+        pathStates: { authorOriginal: [], readerDerived: [] },
+        decisionHistory: [],
+        publishGate: { blocked: false, unresolvedCriticalCount: 0, unresolvedWarningCount: 0 },
+      };
+    }
+    const [entries, issues, evidence, entryLinks, issueLinks, pathStates, decisions] = await Promise.all([
+      this.prisma.storyContinuityEntry.findMany({ where: { workId, analysisJobId: analysis.id }, orderBy: [{ entryType: 'asc' }, { createdAt: 'asc' }] }),
+      this.prisma.storyContinuityIssue.findMany({ where: { workId, analysisJobId: analysis.id }, orderBy: [{ severity: 'asc' }, { createdAt: 'asc' }] }),
+      this.prisma.storyAnalysisEvidence.findMany({ where: { analysisJobId: analysis.id }, select: { id: true, evidenceType: true, sourcePartKey: true, sourceParagraphIndex: true } }),
+      this.prisma.storyContinuityEntryEvidence.findMany({ where: { analysisJobId: analysis.id }, select: { entryId: true, evidenceId: true } }),
+      this.prisma.storyContinuityIssueEvidence.findMany({ where: { analysisJobId: analysis.id }, select: { issueId: true, evidenceId: true } }),
+      this.prisma.storyContinuityPathState.findMany({ where: { workId, analysisJobId: analysis.id }, orderBy: [{ pathScope: 'asc' }, { createdAt: 'asc' }] }),
+      this.prisma.storyContinuityDecisionAudit.findMany({ where: { workId, analysisJobId: analysis.id }, orderBy: [{ issueId: 'asc' }, { decisionRevision: 'asc' }] }),
     ]);
+    const evidenceById = new Map(evidence.map((item) => [item.id, item]));
+    const evidenceFor = (links: Array<{ evidenceId: string }>) => links
+      .map((link) => evidenceById.get(link.evidenceId))
+      .filter((item): item is NonNullable<typeof item> => Boolean(item));
+    const projectedEntries = entries.map((entry) => ({
+      id: entry.id,
+      analysisVersion: entry.analysisVersion,
+      entryType: entry.entryType,
+      ledgerKey: entry.ledgerKey,
+      label: entry.label,
+      evidence: evidenceFor(entryLinks.filter((link) => link.entryId === entry.id)),
+    }));
+    const projectedIssues = issues.map((issue) => ({
+      id: issue.id,
+      analysisVersion: issue.analysisVersion,
+      pathScope: issue.pathScope,
+      pathKey: issue.pathKey,
+      issueKey: issue.issueKey,
+      severity: issue.severity,
+      status: issue.status,
+      summary: issue.summary,
+      decisionRevision: issue.decisionRevision,
+      evidence: evidenceFor(issueLinks.filter((link) => link.issueId === issue.id)),
+    }));
     const publishBlocked = issues.some((issue) => issue.severity === 'critical' && issue.status === 'open');
-    return { entries, issues, publishGate: { blocked: publishBlocked, unresolvedCriticalCount: issues.filter((issue) => issue.severity === 'critical' && issue.status === 'open').length } };
+    const projectPathState = (scope: string) => pathStates
+      .filter((state) => state.pathScope === scope)
+      .map((state) => ({ entryId: state.entryId, pathKey: state.pathKey, state: state.state }));
+    return {
+      manuscriptVersion: manuscript.version,
+      analysisVersion: analysis.analysisVersion,
+      entries: projectedEntries,
+      issues: projectedIssues,
+      pathStates: {
+        authorOriginal: projectPathState('author_original'),
+        readerDerived: projectPathState('reader_derived'),
+      },
+      decisionHistory: decisions.map((decision) => ({
+        issueId: decision.issueId,
+        revision: decision.decisionRevision,
+        fromStatus: decision.fromStatus,
+        toStatus: decision.toStatus,
+        decision: decision.decision,
+        decidedAt: decision.createdAt,
+      })),
+      publishGate: {
+        blocked: publishBlocked,
+        unresolvedCriticalCount: issues.filter((issue) => issue.severity === 'critical' && issue.status === 'open').length,
+        unresolvedWarningCount: issues.filter((issue) => issue.severity === 'warning' && issue.status === 'open').length,
+      },
+    };
   }
 
   async decideContinuityIssue(userId: string, workId: string, issueId: string, body: DecideContinuityIssueDto) {
     await this.assertOwner(userId, workId);
     const issue = await this.prisma.storyContinuityIssue.findFirst({ where: { id: issueId, workId } });
     if (!issue) throw new NotFoundException('Continuity issue not found');
-    return this.prisma.storyContinuityIssue.update({
-      where: { id: issue.id },
-      data: { status: body.status, authorDecision: body.decision, decidedByUserId: userId, decidedAt: new Date(), updatedAt: new Date() },
+    return this.prisma.$transaction(async (tx) => {
+      const revision = issue.decisionRevision + 1;
+      await tx.storyContinuityDecisionAudit.create({
+        data: {
+          workId,
+          analysisJobId: issue.analysisJobId,
+          analysisVersion: issue.analysisVersion,
+          issueId: issue.id,
+          decisionRevision: revision,
+          fromStatus: issue.status,
+          toStatus: body.status,
+          decision: body.decision,
+          actorUserId: userId,
+        },
+      });
+      const updated = await tx.storyContinuityIssue.updateMany({
+        where: { id: issue.id, workId, decisionRevision: issue.decisionRevision },
+        data: {
+          status: body.status,
+          authorDecision: body.decision,
+          decidedByUserId: userId,
+          decidedAt: new Date(),
+          decisionRevision: { increment: 1 },
+          updatedAt: new Date(),
+        },
+      });
+      if (updated.count !== 1) throw new ConflictException('Continuity issue changed concurrently');
+      return tx.storyContinuityIssue.findUniqueOrThrow({ where: { id: issue.id } });
     });
   }
 
@@ -1192,6 +1363,49 @@ export class StoryProductionService {
     if (!key || key.length < 8 || key.length > 200) throw new BadRequestException('A valid Idempotency-Key header is required');
     return `story-analysis:${key}`;
   }
+
+  private analysisJobProjection(job: {
+    id: string;
+    manuscriptVersionId: string;
+    analysisVersion: number;
+    status: string;
+    result: unknown;
+    startedAt: Date | null;
+    completedAt: Date | null;
+  }) {
+    const result = isPlainRecord(job.result) ? job.result : {};
+    return {
+      id: job.id,
+      manuscriptVersionId: job.manuscriptVersionId,
+      analysisVersion: job.analysisVersion,
+      status: job.status,
+      counts: projectAnalysisCounts(result.counts),
+      partCount: Number(result.partCount ?? 0),
+      evidenceCount: Number(result.evidenceCount ?? 0),
+      continuityEntryCount: Number(result.continuityEntryCount ?? 0),
+      criticalIssueCount: Number(result.criticalIssueCount ?? 0),
+      warningIssueCount: Number(result.warningIssueCount ?? 0),
+      startedAt: job.startedAt,
+      completedAt: job.completedAt,
+    };
+  }
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function projectAnalysisCounts(value: unknown): Record<string, number> {
+  if (!isPlainRecord(value)) return {};
+  const allowed = new Set([
+    'scene', 'beat', 'dialogue', 'background', 'cast', 'time', 'place',
+    'branch_candidate', 'entity', 'event', 'foreshadow', 'payoff',
+  ]);
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([key, count]) => allowed.has(key) && typeof count === 'number' && Number.isFinite(count))
+      .map(([key, count]) => [key, Number(count)]),
+  );
 }
 
 function jsonArray(value: Prisma.JsonValue | null | undefined): Array<Record<string, unknown>> {

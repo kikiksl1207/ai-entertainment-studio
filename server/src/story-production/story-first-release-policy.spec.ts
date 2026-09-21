@@ -69,6 +69,8 @@ function fixture() {
       findMany: jest.fn().mockResolvedValue(choices.map((c) => ({ ...scene, id: c.targetSceneId }))),
     },
     storyChoice: { findMany: jest.fn().mockResolvedValue(choices), groupBy: jest.fn() },
+    storyAnalysisJob: { findFirst: jest.fn().mockResolvedValue(null) },
+    storyContinuityIssue: { count: jest.fn().mockResolvedValue(0) },
     storyCustomChoice: { findUnique: jest.fn().mockResolvedValue(null), create: mutations.customCreate },
     storyRelease: { findFirst: jest.fn().mockResolvedValue({ id: 'release' }), findMany: jest.fn().mockResolvedValue([{ id: 'release' }]) },
     storyReleaseCapability: { findUnique: jest.fn().mockResolvedValue(capability) },
@@ -547,6 +549,38 @@ describe('Release capability and regression contract', () => {
     const lifecycle = new StoryLifecycleService({ ...tx, $transaction: f.prisma.$transaction } as never);
     await expect(lifecycle.transitionPublication('admin', 'work', { toStatus: 'published', releaseId: 'release', expectedRevision: 1 } as never, 'publish-key-123'))
       .rejects.toMatchObject({ response: { code: 'STORY_SUGGESTED_CHOICE_LIMIT_EXCEEDED' } });
+    expect(tx.storyWork.updateMany).not.toHaveBeenCalled();
+    expect(tx.storyRelease.update).not.toHaveBeenCalled();
+  });
+
+  it('blocks publication when the release manuscript has an unresolved critical continuity issue', async () => {
+    const f = fixture();
+    const tx = {
+      ...f.prisma,
+      storyWork: { findUnique: jest.fn().mockResolvedValue({ ...f.work, status: 'release_ready', releaseRevision: 1 }), updateMany: jest.fn() },
+      storyRelease: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'release', manuscriptVersionId: 'manuscript-1', validationSummary: { ready: true } }),
+        update: jest.fn(),
+      },
+      storyPublicationTransition: { findUnique: jest.fn().mockResolvedValue(null) },
+      storyAnalysisJob: { findFirst: jest.fn().mockResolvedValue({ id: 'analysis-1' }) },
+      storyContinuityIssue: { count: jest.fn().mockResolvedValue(1) },
+    };
+    f.prisma.$transaction.mockImplementation(async (run) => run(tx));
+    const lifecycle = new StoryLifecycleService({ ...tx, $transaction: f.prisma.$transaction } as never);
+
+    await expect(lifecycle.transitionPublication(
+      'admin',
+      'work',
+      { toStatus: 'published', releaseId: 'release', expectedRevision: 1 } as never,
+      'publish-critical-key-123',
+    )).rejects.toThrow('Unresolved critical continuity issue blocks publication');
+
+    expect(tx.storyContinuityIssue.count).toHaveBeenCalledWith({
+      where: {
+        workId: 'work', analysisJobId: 'analysis-1', severity: 'critical', status: 'open',
+      },
+    });
     expect(tx.storyWork.updateMany).not.toHaveBeenCalled();
     expect(tx.storyRelease.update).not.toHaveBeenCalled();
   });

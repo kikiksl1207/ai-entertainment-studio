@@ -212,7 +212,7 @@ export function deriveContinuityLedger(evidence: Array<AnalysisEvidenceDraft & {
       .filter((entry) => entry.entryType === 'payoff')
       .map((entry) => slugKey(entry.label)),
   );
-  const issues = entries
+  const missingPayoffIssues = entries
     .filter(
       (entry) => entry.entryType === 'foreshadow' && !payoffKeys.has(slugKey(entry.label)),
     )
@@ -223,7 +223,23 @@ export function deriveContinuityLedger(evidence: Array<AnalysisEvidenceDraft & {
       evidenceIds: entry.evidenceIds,
     }));
 
-  return { entries, issues };
+  const foreshadowKeys = new Set(
+    entries
+      .filter((entry) => entry.entryType === 'foreshadow')
+      .map((entry) => slugKey(entry.label)),
+  );
+  const orphanPayoffIssues = entries
+    .filter(
+      (entry) => entry.entryType === 'payoff' && !foreshadowKeys.has(slugKey(entry.label)),
+    )
+    .map((entry) => ({
+      issueKey: `orphan-payoff:${slugKey(entry.label)}`,
+      severity: 'warning',
+      summary: `Payoff has no matching foreshadowing: ${entry.label}`,
+      evidenceIds: entry.evidenceIds,
+    }));
+
+  return { entries, issues: [...missingPayoffIssues, ...orphanPayoffIssues] };
 }
 
 export function hasActiveEntitlement(

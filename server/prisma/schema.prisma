@@ -2292,6 +2292,7 @@ model StoryAnalysisJob {
   createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
   @@unique([manuscriptVersionId, analysisVersion])
+  @@unique([id, analysisVersion], map: "uq_story_analysis_jobs_id_version")
   @@index([manuscriptVersionId, createdAt], map: "idx_story_analysis_manuscript")
   @@map("story_analysis_jobs")
 }
@@ -2305,44 +2306,114 @@ model StoryAnalysisEvidence {
   payload              Json
   createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
+  @@unique([analysisJobId, id], map: "uq_story_analysis_evidence_job_id")
   @@index([analysisJobId, evidenceType], map: "idx_story_analysis_evidence_job_type")
   @@map("story_analysis_evidence")
 }
 
 model StoryContinuityEntry {
-  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  workId        String   @map("work_id") @db.Uuid
-  analysisJobId String   @map("analysis_job_id") @db.Uuid
-  entryType     String   @map("entry_type")
-  ledgerKey     String   @map("ledger_key")
-  label         String
-  evidenceIds   Json     @default("[]") @map("evidence_ids")
-  state         String   @default("observed")
-  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workId          String   @map("work_id") @db.Uuid
+  analysisJobId   String   @map("analysis_job_id") @db.Uuid
+  analysisVersion Int      @map("analysis_version")
+  entryType       String   @map("entry_type")
+  ledgerKey       String   @map("ledger_key")
+  label           String
+  evidenceIds     Json     @default("[]") @map("evidence_ids")
+  state           String   @default("observed")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   @@unique([analysisJobId, entryType, ledgerKey])
+  @@unique([analysisJobId, id], map: "uq_story_continuity_entries_job_id")
   @@index([workId, entryType, state], map: "idx_story_continuity_entries_work")
   @@map("story_continuity_entries")
 }
 
 model StoryContinuityIssue {
-  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  workId          String    @map("work_id") @db.Uuid
-  analysisJobId   String    @map("analysis_job_id") @db.Uuid
-  issueKey        String    @map("issue_key")
-  severity        String
-  status          String    @default("open")
-  summary         String
-  evidenceIds     Json      @default("[]") @map("evidence_ids")
-  authorDecision  String?   @map("author_decision")
-  decidedByUserId String?   @map("decided_by_user_id") @db.Uuid
-  decidedAt       DateTime? @map("decided_at") @db.Timestamptz(6)
-  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt       DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workId           String    @map("work_id") @db.Uuid
+  analysisJobId    String    @map("analysis_job_id") @db.Uuid
+  analysisVersion  Int       @map("analysis_version")
+  pathScope        String    @default("author_original") @map("path_scope")
+  pathKey          String    @default("author_original") @map("path_key")
+  issueKey         String    @map("issue_key")
+  severity         String
+  status           String    @default("open")
+  summary          String
+  evidenceIds      Json      @default("[]") @map("evidence_ids")
+  authorDecision   String?   @map("author_decision")
+  decidedByUserId  String?   @map("decided_by_user_id") @db.Uuid
+  decidedAt        DateTime? @map("decided_at") @db.Timestamptz(6)
+  decisionRevision Int       @default(0) @map("decision_revision")
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
 
   @@unique([analysisJobId, issueKey])
+  @@unique([analysisJobId, id], map: "uq_story_continuity_issues_job_id")
   @@index([workId, severity, status], map: "idx_story_continuity_issues_publish")
   @@map("story_continuity_issues")
+}
+
+model StoryContinuityEntryEvidence {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  analysisJobId   String   @map("analysis_job_id") @db.Uuid
+  analysisVersion Int      @map("analysis_version")
+  entryId         String   @map("entry_id") @db.Uuid
+  evidenceId      String   @map("evidence_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([entryId, evidenceId])
+  @@index([analysisJobId, entryId], map: "idx_story_continuity_entry_evidence_job")
+  @@map("story_continuity_entry_evidence")
+}
+
+model StoryContinuityIssueEvidence {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  analysisJobId   String   @map("analysis_job_id") @db.Uuid
+  analysisVersion Int      @map("analysis_version")
+  issueId         String   @map("issue_id") @db.Uuid
+  evidenceId      String   @map("evidence_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([issueId, evidenceId])
+  @@index([analysisJobId, issueId], map: "idx_story_continuity_issue_evidence_job")
+  @@map("story_continuity_issue_evidence")
+}
+
+model StoryContinuityPathState {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workId           String   @map("work_id") @db.Uuid
+  analysisJobId    String   @map("analysis_job_id") @db.Uuid
+  analysisVersion  Int      @map("analysis_version")
+  entryId          String   @map("entry_id") @db.Uuid
+  pathScope        String   @map("path_scope")
+  pathKey          String   @map("path_key")
+  readerProgressId String?  @map("reader_progress_id") @db.Uuid
+  state            String   @default("observed")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([analysisJobId, entryId, pathScope, pathKey])
+  @@index([workId, pathScope, pathKey], map: "idx_story_continuity_path_states_work")
+  @@map("story_continuity_path_states")
+}
+
+model StoryContinuityDecisionAudit {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workId           String   @map("work_id") @db.Uuid
+  analysisJobId    String   @map("analysis_job_id") @db.Uuid
+  analysisVersion  Int      @map("analysis_version")
+  issueId          String   @map("issue_id") @db.Uuid
+  decisionRevision Int      @map("decision_revision")
+  fromStatus       String   @map("from_status")
+  toStatus         String   @map("to_status")
+  decision         String
+  actorUserId      String   @map("actor_user_id") @db.Uuid
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([issueId, decisionRevision])
+  @@index([analysisJobId, issueId], map: "idx_story_continuity_decisions_job_issue")
+  @@map("story_continuity_decision_audits")
 }
 
 model OttMediaWork {
