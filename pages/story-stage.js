@@ -34,7 +34,7 @@
       startFailed: "지금은 스토리를 시작할 수 없습니다. 잠시 후 다시 시도해 주세요.",
       sceneLoading: "장면을 불러오는 중입니다.",
       sceneFailed: "장면을 불러오지 못했습니다.",
-      sceneNoVisual: "장면 이미지가 등록되지 않았습니다.",
+      sceneNoVisual: "장면 이미지를 표시할 수 없습니다.",
       choices: "선택",
       choosing: "다음 장면을 불러오는 중입니다.",
       choiceFailed: "선택을 반영하지 못했습니다. 다시 시도해 주세요.",
@@ -93,7 +93,7 @@
       startFailed: "This story cannot be started right now. Please try again shortly.",
       sceneLoading: "Loading scene.",
       sceneFailed: "The scene could not be loaded.",
-      sceneNoVisual: "No scene image is registered.",
+      sceneNoVisual: "Scene image unavailable.",
       choices: "Choose",
       choosing: "Loading the next scene.",
       choiceFailed: "Your choice could not be applied. Please try again.",
@@ -152,7 +152,7 @@
       startFailed: "現在このストーリーを開始できません。しばらくしてからお試しください。",
       sceneLoading: "シーンを読み込んでいます。",
       sceneFailed: "シーンを読み込めませんでした。",
-      sceneNoVisual: "シーン画像が登録されていません。",
+      sceneNoVisual: "シーン画像を表示できません。",
       choices: "選択",
       choosing: "次のシーンを読み込んでいます。",
       choiceFailed: "選択を反映できませんでした。もう一度お試しください。",
@@ -211,7 +211,7 @@
       startFailed: "暂时无法开始此故事，请稍后重试。",
       sceneLoading: "正在加载场景。",
       sceneFailed: "无法加载场景。",
-      sceneNoVisual: "尚未上传场景图片。",
+      sceneNoVisual: "场景图片不可用。",
       choices: "选择",
       choosing: "正在加载下一个场景。",
       choiceFailed: "无法应用你的选择，请重试。",
@@ -270,7 +270,7 @@
       startFailed: "暫時無法開始此故事，請稍後重試。",
       sceneLoading: "正在載入場景。",
       sceneFailed: "無法載入場景。",
-      sceneNoVisual: "尚未上傳場景圖片。",
+      sceneNoVisual: "場景圖片無法顯示。",
       choices: "選擇",
       choosing: "正在載入下一個場景。",
       choiceFailed: "無法套用你的選擇，請重試。",
@@ -1011,12 +1011,21 @@
     }
   }
 
+  function visualAssetUrl(value) {
+    if (typeof value !== "string" || !value.trim() || value.includes("\\")) return "";
+    try {
+      const url = new URL(value, location.origin);
+      if (url.username || url.password) return "";
+      return /^https:\/\//i.test(value) || (value.startsWith("/") && !value.startsWith("//") && url.origin === location.origin) ? value : "";
+    } catch (_) { return ""; }
+  }
+
   function sceneBackground(scene) {
-    return scene?.visualManifest?.background?.publicAssetPath || scene?.backgroundAsset?.publicUrl || scene?.backgroundAsset?.url || scene?.backgroundUrl || "";
+    return visualAssetUrl(scene?.visualManifest?.background?.publicAssetPath || scene?.backgroundAsset?.publicUrl || scene?.backgroundAsset?.url || scene?.backgroundUrl);
   }
 
   function characterUrl(character) {
-    return character?.publicAssetPath || character?.publicAssetUrl || character?.assetUrl || character?.imageUrl || "";
+    return visualAssetUrl(character?.publicAssetPath || character?.publicAssetUrl || character?.assetUrl || character?.imageUrl);
   }
 
   function sceneCharacters(scene) {
@@ -1025,11 +1034,12 @@
       : Array.isArray(scene?.visualManifest?.characters)
         ? scene.visualManifest.characters
         : [];
-    return source.filter((character) => character?.placement !== "offscreen" && characterUrl(character));
+    return source.filter((character) => character?.placement !== "offscreen" && character?.fallbackUsed !== true && characterUrl(character));
   }
 
   function sceneCharacterSide(character, index) {
     const placement = character?.placement || character?.side;
+    if (placement === "left") return "left";
     if (placement === "center") return "center";
     if (placement === "right") return "right";
     return index % 2 ? "right" : "left";
@@ -1050,7 +1060,7 @@
   function readableBeats() {
     const source = state.scene?.beats;
     if (source != null && !Array.isArray(source)) return null;
-    const beats = source?.length ? source.map((beat) => ({ position: beat?.position,
+    const beats = source?.length ? source.map((beat) => ({ position: beat?.position, visualContext: beat?.visualContext,
       text: beatContent(beat?.content) || beatContent(beat?.text) || beatContent(beat?.body) }))
       : [{ position: 0, text: beatContent(state.scene?.sceneText) || beatContent(state.scene?.body) || beatContent(state.scene?.content) }];
     if (beats.some((beat) => !Number.isSafeInteger(beat.position) || beat.position < 0) ||
@@ -1069,6 +1079,61 @@
   function rememberReadingScroll() {
     const region = root.querySelector("[data-story-scene-focus]");
     if (region?.dataset.readingKey) state.readingScroll = { key: region.dataset.readingKey, top: region.scrollTop };
+  }
+
+  function readingVisual(reading) {
+    const context = reading.beats[reading.index].visualContext;
+    let source = state.scene;
+    if (context != null) {
+      // A supplied but invalid beat binding must not borrow another scene's art.
+      if (typeof context.sourceSceneKey !== "string" || !context.sourceSceneKey.trim() ||
+          context.manifest?.sceneKey !== context.sourceSceneKey || !["missing", "ready"].includes(context.assetReadiness) ||
+          (context.assetReadiness === "ready") !== (context.manifest?.background?.state === "ready")) {
+        return { background: "", characters: [], ready: false };
+      }
+      source = { visualManifest: context.manifest };
+    }
+    const background = sceneBackground(source);
+    const backgroundState = source?.visualManifest?.background?.state;
+    return { background, characters: sceneCharacters(source),
+      ready: Boolean(background) && (context ? context.assetReadiness === "ready" : backgroundState == null || backgroundState === "ready") };
+  }
+
+  function bindReadingImages(reading, visual) {
+    const stage = root.querySelector(".story-player-stage");
+    if (!stage) return;
+    const epoch = state.epoch;
+    const sessionId = state.sessionId;
+    const identity = readerIdentity();
+    const locale = state.locale;
+    const current = () => stage.isConnected && root.contains(stage) && currentRequest(epoch, sessionId) &&
+      identity === readerIdentity() && locale === state.locale && reading.key === readableBeats()?.key;
+    const fallback = stage.querySelector(".story-player-no-visual");
+    stage.querySelectorAll("img").forEach((element) => {
+      const background = element.classList.contains("story-player-background");
+      const settle = (loaded) => {
+        if (!current() || !stage.contains(element)) return;
+        if (loaded && element.naturalWidth > 0) {
+          element.hidden = false;
+          if (background) {
+            stage.dataset.visualStatus = visual.ready ? "ready" : "fallback";
+            stage.closest(".story-player").dataset.hasBackground = "true";
+            fallback.hidden = visual.ready;
+          }
+        } else if (!loaded) {
+          element.remove();
+          if (background) {
+            stage.dataset.visualStatus = "missing";
+            stage.closest(".story-player").dataset.hasBackground = "false";
+            fallback.hidden = false;
+          }
+        }
+      };
+      element.addEventListener("load", () => settle(true), { once: true });
+      element.addEventListener("error", () => settle(false), { once: true });
+      // Cached images may have settled before their scoped listeners were attached.
+      if (element.complete) settle(element.naturalWidth > 0);
+    });
   }
 
   function cancelBeatNavigation() {
@@ -1183,11 +1248,11 @@
     const scene = state.scene;
     if (!scene && state.progress?.status !== "completed") return renderState(tr("sceneFailed"), tr("loadErrorBody"), true);
     if (state.choices.length > 3) return blockScene(controlTr("sceneUnavailable"));
-    const background = sceneBackground(scene);
-    const characters = sceneCharacters(scene);
     const reading = readableBeats();
     const isEnding = state.progress?.status === "completed";
     if (!reading || (isEnding && state.choices.length) || (state.progress?.status === "active" && !state.choices.length && (scene?.ending || scene?.isEnding || scene?.endingType))) return blockScene(controlTr("sceneUnavailable"));
+    const visual = readingVisual(reading);
+    const { background, characters } = visual;
     const sceneText = reading.beats[reading.index].text;
     const lastBeat = reading.index === reading.beats.length - 1;
     const navigationBlocked = state.busy || aiRequestOpen() || !["active", "completed"].includes(state.progress?.status);
@@ -1196,15 +1261,16 @@
     const customChoice = customChoiceCapability(scene);
     const fixedChoices = state.choices;
     root.innerHTML = `
-      <section class="story-player" data-has-background="${background ? "true" : "false"}">
+      <section class="story-player" data-has-background="false">
         <a class="story-back" href="/story-stage">← ${escapeHtml(tr("backToStories"))}</a>
         ${!scene && isEnding ? `<div class="story-completed" tabindex="-1" data-story-scene-focus>
           <span class="story-ending-label">${escapeHtml(tr("ending"))}</span>
           <h2>${escapeHtml(tr("completed"))}</h2>
-        </div>` : `<div class="story-player-stage">
-          ${background ? `<img class="story-player-background" src="${escapeHtml(background)}" alt="" />` : `<div class="story-player-no-visual">${escapeHtml(tr("sceneNoVisual"))}</div>`}
+        </div>` : `<div class="story-player-stage" data-visual-status="${background ? "loading" : "missing"}">
+          <div class="story-player-no-visual" ${background && visual.ready ? "hidden" : ""}>${escapeHtml(tr("sceneNoVisual"))}</div>
+          ${background ? `<img class="story-player-background" src="${escapeHtml(background)}" alt="" hidden />` : ""}
           <div class="story-player-characters" aria-hidden="true">
-            ${characters.map((character, index) => `<img src="${escapeHtml(characterUrl(character))}" alt="" data-side="${escapeHtml(sceneCharacterSide(character, index))}" />`).join("")}
+            ${characters.map((character, index) => `<img src="${escapeHtml(characterUrl(character))}" alt="" data-side="${escapeHtml(sceneCharacterSide(character, index))}" hidden />`).join("")}
           </div>
           <div class="story-player-copy" tabindex="0" role="region" aria-label="${escapeHtml(readerTr("text"))}" data-story-scene-focus data-reading-key="${escapeHtml(reading.key)}">
             ${isEnding ? `<span class="story-ending-label">${escapeHtml(tr("ending"))}</span>` : ""}
@@ -1237,6 +1303,7 @@
         <p class="story-action-status" data-story-action-status aria-live="polite">${escapeHtml(state.beatNotice || (state.progress?.status !== "active" && !isEnding && !aiRequestOpen() ? controlTr("sceneUnavailable") : ""))}</p>
         ${renderResetControls(state.progress)}
       </section>`;
+    bindReadingImages(reading, visual);
     const readingRegion = root.querySelector("[data-story-scene-focus]");
     readingRegion.scrollTop = state.readingScroll?.key === reading.key ? state.readingScroll.top : 0;
     if (restoreFocus) readingRegion.focus({ preventScroll: true });
