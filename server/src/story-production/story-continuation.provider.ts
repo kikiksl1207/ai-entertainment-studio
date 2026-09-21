@@ -9,6 +9,10 @@ export type StoryContinuationProviderRequest = {
   outputSchemaVersion: string;
   inputTokenLimit: number;
   outputTokenLimit: number;
+  provider?: string;
+  model?: string;
+  rateCardId?: string;
+  rateCardVersion?: string;
   approvedContext?: StoryContinuationApprovedContext;
 };
 
@@ -32,7 +36,18 @@ export type StoryContinuationProviderResult = {
   };
 };
 
+export type StoryContinuationProviderPreflight = {
+  supported: boolean;
+  reason?: string;
+  budgetMethod?: string;
+  inputTokenUpperBound?: number;
+  inputTokenLimit?: number;
+};
+
 export abstract class StoryContinuationProvider {
+  preflight?: (request: StoryContinuationProviderRequest) => Promise<StoryContinuationProviderPreflight> =
+    async () => ({ supported: false, reason: 'provider_preflight_unavailable' });
+
   abstract readiness(): Promise<{ enabled: boolean; reason?: string }>;
   abstract generate(
     request: StoryContinuationProviderRequest,
@@ -51,6 +66,8 @@ export class StoryContinuationProviderError extends Error {
 
 @Injectable()
 export class DisabledStoryContinuationProvider extends StoryContinuationProvider {
+  preflight = async () => ({ supported: false, reason: 'provider_not_configured' });
+
   async readiness() {
     return { enabled: false, reason: 'provider_not_configured' };
   }
