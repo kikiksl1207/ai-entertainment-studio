@@ -62,9 +62,11 @@ function fixture(includedAiRouteCount = 2) {
     storyAiUsageLedger: { create: jest.fn() },
     storyReaderProgress: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
   };
+  const provider = { readiness: jest.fn().mockResolvedValue({ enabled: true }) };
   const service = new StoryEconomicsService(
     {} as never,
     { authorize: jest.fn().mockResolvedValue({ active: true, reason: 'test_only' }) } as never,
+    provider as never,
   );
   const input = {
     userId: 'reader-id',
@@ -86,7 +88,7 @@ function fixture(includedAiRouteCount = 2) {
     sourceKind: 'canonical' as const,
     locale: 'ko', idempotencyKey: 'recommended-idempotency-key',
   };
-  return { service, tx, input, createContinuation };
+  return { service, tx, input, createContinuation, provider };
 }
 
 describe('recommended choice enqueue transaction', () => {

@@ -7,7 +7,7 @@ import {
   Optional,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { createHash } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   ActivateStoryAiRateCardDto,
@@ -39,11 +39,15 @@ import {
   firstReleaseChoiceCapability,
 } from './story-progress-control.policy';
 import { projectStoredStorySceneVisualManifest } from '../story-stage/story-scene-visual-manifest-contract';
-import type { StoryContinuationProviderResult } from './story-continuation.provider';
+import {
+  StoryContinuationProvider,
+  type StoryContinuationProviderResult,
+} from './story-continuation.provider';
 import type { StoryContinuationClaim } from './story-continuation.repository';
 import { StoryContinuationLegalActivationGate } from './story-continuation-legal-activation.gate';
 import {
   assembleContinuationSemanticPath,
+  continuationHash,
   continuationExecutionFingerprint,
   approvedContinuationMemoryText,
   continuationMemoryPins,
@@ -52,6 +56,13 @@ import {
   localizedContinuationText,
   stableContinuationJson,
 } from './story-continuation-context.policy';
+import {
+  StoryReusableResultApprovalGate,
+} from './story-reusable-result-approval.gate';
+import {
+  STORY_AI_REUSE_COST_POLICY_VERSION,
+  storyReusableResultKey,
+} from './story-reusable-result.policy';
 
 type CustomChoiceContext = {
   progress: {
@@ -122,6 +133,8 @@ export class StoryEconomicsService {
   constructor(
     private readonly prisma: PrismaService,
     @Optional() private readonly legalActivation?: StoryContinuationLegalActivationGate,
+    @Optional() private readonly continuationProvider?: StoryContinuationProvider,
+    @Optional() private readonly reusableApproval?: StoryReusableResultApprovalGate,
   ) {}
 
   async recommendedChoiceReplay(
@@ -218,7 +231,6 @@ export class StoryEconomicsService {
       capability.status !== 'active' ||
       capability.revision !== input.progress.capabilityRevision ||
       capability.rateCardId !== input.progress.aiRateCardId ||
-      capability.includedAiRouteCount < 1 ||
       !rateCard ||
       rateCard.status !== 'active' ||
       !consent ||
@@ -233,8 +245,6 @@ export class StoryEconomicsService {
       throw new ForbiddenException({
         code: !legalActivation?.active
           ? 'STORY_AI_LEGAL_ACTIVATION_REQUIRED'
-          : capability?.includedAiRouteCount === 0
-          ? 'STORY_AI_ALLOWANCE_NOT_CONFIGURED'
           : 'STORY_AI_GENERATION_NOT_AUTHORIZED',
         messageKey: 'story.progress.aiGeneration.notAuthorized',
         retryable: false,
@@ -362,6 +372,160 @@ export class StoryEconomicsService {
         retryable: false,
       });
     }
+    const reusableContextFingerprint = continuationHash({
+      workId: input.work.id,
+      releaseChecksum: input.release.checksum,
+      manuscriptVersionId: input.release.manuscriptVersionId,
+      sourceHash,
+      pathHash,
+      memory: memoryPins.map(({ revision, contentHash }) => ({ revision, contentHash })),
+      analysisVersion: analysis.analysisVersion,
+      locale,
+    });
+    const reusableSource = input.sourceKind === 'generated' &&
+      typeof input.scene.sharedResultId === 'string'
+      ? await tx.storyAiReusableResult.findFirst({
+          where: {
+            id: input.scene.sharedResultId,
+            workId: input.work.id,
+            releaseId: input.release.id,
+            status: 'approved',
+          },
+          select: { id: true },
+        })
+      : null;
+    const reusableSourceEligible = input.sourceKind === 'canonical' || (
+      Boolean(reusableSource) &&
+      typeof input.choice.choiceKey === 'string' &&
+      input.choice.choiceKey.trim().length > 0
+    );
+    const reusableApproval = rights.generatedResultReuseAllowed && reusableSourceEligible
+      ? await this.reusableApproval?.evaluate({
+          workId: input.work.id,
+          releaseId: input.release.id,
+          releaseChecksum: input.release.checksum,
+          manuscriptVersionId: input.release.manuscriptVersionId,
+          rightsContractVersionId: rights.id,
+        })
+      : null;
+    let reuseKey: string | null = null;
+    let sharedResult: any = null;
+    if (reusableApproval?.eligible && reusableApproval.snapshot) {
+      reuseKey = storyReusableResultKey({
+        releaseId: input.release.id,
+        releaseChecksum: input.release.checksum,
+        sourceKind: input.sourceKind,
+        sourceCanonicalSceneId: input.sourceKind === 'canonical' ? input.scene.id : null,
+        sourceCanonicalChoiceId: input.sourceKind === 'canonical' ? input.choice.id : null,
+        sourceSharedResultId: input.sourceKind === 'generated' ? input.scene.sharedResultId : null,
+        sourceSharedChoiceKey: input.sourceKind === 'generated' ? input.choice.choiceKey.trim() : null,
+        sourceFingerprint: sourceHash,
+        semanticPathFingerprint: pathHash,
+        contextFingerprint: reusableContextFingerprint,
+        promptVersion: context.promptVersion,
+        outputSchemaVersion: context.outputSchemaVersion,
+        locale,
+        provider: rateCard.provider,
+        model: rateCard.model,
+        rateCardVersion: rateCard.version,
+        costPolicyVersion: STORY_AI_REUSE_COST_POLICY_VERSION,
+        evidence: reusableApproval.snapshot,
+      });
+      const claimToken = randomUUID();
+      sharedResult = await tx.storyAiReusableResult.upsert({
+        where: { reuseKey },
+        create: {
+          reuseKey,
+          workId: input.work.id,
+          releaseId: input.release.id,
+          releaseChecksum: input.release.checksum,
+          manuscriptVersionId: input.release.manuscriptVersionId,
+          sourceKind: input.sourceKind,
+          sourceCanonicalSceneId: input.sourceKind === 'canonical' ? input.scene.id : null,
+          sourceCanonicalChoiceId: input.sourceKind === 'canonical' ? input.choice.id : null,
+          sourceSharedResultId: input.sourceKind === 'generated' ? input.scene.sharedResultId : null,
+          sourceSharedChoiceKey: input.sourceKind === 'generated' ? input.choice.choiceKey.trim() : null,
+          sourceFingerprint: sourceHash,
+          semanticPathFingerprint: pathHash,
+          contextFingerprint: reusableContextFingerprint,
+          promptVersion: context.promptVersion,
+          outputSchemaVersion: context.outputSchemaVersion,
+          locale,
+          provider: rateCard.provider,
+          model: rateCard.model,
+          rateCardVersion: rateCard.version,
+          costPolicyVersion: STORY_AI_REUSE_COST_POLICY_VERSION,
+          rightsActivationKey: reusableApproval.snapshot.rightsActivationKey,
+          moderationPolicyVersion: reusableApproval.snapshot.moderationPolicyVersion,
+          moderationEvidenceVersion: reusableApproval.snapshot.moderationEvidenceVersion,
+          qualityPolicyVersion: reusableApproval.snapshot.qualityPolicyVersion,
+          claimToken,
+        },
+        update: {},
+      });
+      if (sharedResult.status === 'approved') {
+        return this.applyReusableResultTx(tx, {
+          input,
+          key,
+          capability,
+          rateCard,
+          consent,
+          analysis,
+          rightsContractId: rightsContract!.id,
+          rights,
+          contextFingerprint,
+          reusableContextFingerprint,
+          reuseKey,
+          sourceHash,
+          pathHash,
+          executionFingerprint,
+          sharedResult,
+        });
+      }
+      if (sharedResult.status === 'revoked') {
+        throw new ForbiddenException({
+          code: 'STORY_AI_SHARED_RESULT_REVOKED',
+          messageKey: 'story.progress.aiGeneration.sharedResultRevoked',
+          retryable: false,
+        });
+      }
+      if (sharedResult.claimToken !== claimToken) {
+        const claimed = sharedResult.claimToken === null
+          ? await tx.storyAiReusableResult.updateMany({
+              where: { id: sharedResult.id, status: 'pending', claimToken: null },
+              data: { claimToken, updatedAt: now },
+            })
+          : { count: 0 };
+        if (claimed.count === 1) {
+          sharedResult = { ...sharedResult, claimToken };
+        } else {
+          throw new ConflictException({
+            code: 'STORY_AI_SHARED_RESULT_PENDING',
+            messageKey: 'story.progress.aiGeneration.sharedResultPending',
+            retryable: true,
+            progressMutated: false,
+            generationStarted: false,
+          });
+        }
+      }
+    }
+    if (capability.includedAiRouteCount < 1) {
+      throw new ForbiddenException({
+        code: 'STORY_AI_ALLOWANCE_NOT_CONFIGURED',
+        messageKey: 'story.progress.aiGeneration.notAuthorized',
+        retryable: false,
+      });
+    }
+    const providerReadiness = await this.continuationProvider?.readiness();
+    if (!providerReadiness?.enabled) {
+      throw new ConflictException({
+        code: 'STORY_CHOICE_GENERATION_UNAVAILABLE',
+        messageKey: 'story.choice.status.generationUnavailable',
+        retryable: false,
+        progressMutated: false,
+        generationStarted: false,
+      });
+    }
     const estimatedCostKrw = calculateStoryUsageCost(this.rateNumbers(rateCard), {
       inputTokens: estimatedInputTokens,
       outputTokens: capability.aiOutputTokenLimit,
@@ -442,6 +606,9 @@ export class StoryEconomicsService {
         releaseChecksum: input.release.checksum,
         locale,
         contextFingerprint,
+        reusableContextFingerprint: sharedResult ? reusableContextFingerprint : null,
+        reuseKey,
+        sharedResultId: sharedResult?.id ?? null,
         promptVersion: context.promptVersion,
         outputSchemaVersion: context.outputSchemaVersion,
         contextReferences: {
@@ -449,6 +616,7 @@ export class StoryEconomicsService {
           sourceHash,
           pathHash,
           executionFingerprint,
+          sharedClaimToken: sharedResult?.claimToken ?? null,
           fullManuscriptIncluded: false,
           providerPayloadIncluded: false,
         },
@@ -1655,6 +1823,7 @@ export class StoryEconomicsService {
         );
       }
       let resultGeneratedSceneId: string | null = null;
+      let resultChecksum: string | null = null;
       if (finalStatus === 'completed') {
         if (
           progress.status !== 'ai_pending' ||
@@ -1662,7 +1831,7 @@ export class StoryEconomicsService {
         ) {
           throw new ConflictException('Pending story progress changed concurrently');
         }
-        const resultChecksum = createHash('sha256').update(stableJson({
+        resultChecksum = createHash('sha256').update(stableJson({
           title: body.resultTitle,
           beats: body.resultBeats,
           visualManifest: sanitizedVisualManifest ?? body.resultVisualManifest,
@@ -1813,6 +1982,140 @@ export class StoryEconomicsService {
         });
         if (restored.count !== 1) {
           throw new ConflictException('Pending story progress changed concurrently');
+        }
+      }
+      if (continuation.sharedResultId) {
+        const sharedResult = await tx.storyAiReusableResult.findUnique({
+          where: { id: continuation.sharedResultId },
+        });
+        const contextReferences = jsonRecord(continuation.contextReferences);
+        const sharedClaimToken = typeof contextReferences.sharedClaimToken === 'string'
+          ? contextReferences.sharedClaimToken
+          : null;
+        if (
+          !sharedResult ||
+          sharedResult.status !== 'pending' ||
+          sharedResult.reuseKey !== continuation.reuseKey ||
+          !sharedClaimToken ||
+          sharedResult.claimToken !== sharedClaimToken
+        ) {
+          throw new ConflictException('Shared result claim changed concurrently');
+        }
+        let reusableApproval: Awaited<ReturnType<StoryReusableResultApprovalGate['evaluate']>> | null = null;
+        if (
+          finalStatus === 'completed' &&
+          continuation.requestKind === 'recommended_choice' &&
+          rightsVersion?.generatedResultReuseAllowed &&
+          legalActivation?.active &&
+          resultChecksum
+        ) {
+          reusableApproval = await this.reusableApproval?.evaluate({
+            workId: continuation.workId,
+            releaseId: continuation.releaseId,
+            releaseChecksum: continuation.releaseChecksum!,
+            manuscriptVersionId: continuation.manuscriptVersionId!,
+            rightsContractVersionId: continuation.rightsContractVersionId!,
+            resultChecksum,
+          }) ?? null;
+        }
+        const approvalSnapshot = reusableApproval?.snapshot;
+        const approve = Boolean(
+          reusableApproval?.eligible &&
+          approvalSnapshot &&
+          approvalSnapshot.rightsActivationKey === sharedResult.rightsActivationKey &&
+          approvalSnapshot.moderationPolicyVersion === sharedResult.moderationPolicyVersion &&
+          approvalSnapshot.moderationEvidenceVersion === sharedResult.moderationEvidenceVersion &&
+          approvalSnapshot.qualityPolicyVersion === sharedResult.qualityPolicyVersion,
+        );
+        if (approve) {
+          for (const [index, beat] of body.resultBeats!.entries()) {
+            await tx.storyAiReusableBeat.create({
+              data: {
+                sharedResultId: sharedResult.id,
+                position: index + 1,
+                beatType: beat.beatType,
+                content: beat.content,
+              },
+            });
+          }
+          for (const [index, choice] of (body.nextChoices ?? []).entries()) {
+            await tx.storyAiReusableChoice.create({
+              data: {
+                sharedResultId: sharedResult.id,
+                position: index + 1,
+                choiceKey: choice.choiceKey.trim(),
+                label: choice.label,
+              },
+            });
+          }
+          const approved = await tx.storyAiReusableResult.updateMany({
+            where: {
+              id: sharedResult.id,
+              status: 'pending',
+              claimToken: sharedClaimToken,
+            },
+            data: {
+              status: 'approved',
+              claimToken: null,
+              resultChecksum,
+              title: body.resultTitle!,
+              visualManifest: (sanitizedVisualManifest ?? body.resultVisualManifest!) as Prisma.InputJsonValue,
+              endingKey: body.ending?.endingKey ?? null,
+              approvedAt: new Date(),
+              updatedAt: new Date(),
+            },
+          });
+          if (approved.count !== 1) {
+            throw new ConflictException('Shared result claim changed concurrently');
+          }
+          await tx.storyAiGeneratedScene.update({
+            where: { id: resultGeneratedSceneId! },
+            data: { sharedResultId: sharedResult.id },
+          });
+          await tx.auditEvent.create({
+            data: {
+              actorUserId: adminUserId,
+              actorType: adminUserId ? 'admin' : 'system',
+              action: 'story_ai_reusable_result.approve',
+              targetType: 'story_ai_reusable_result',
+              targetId: sharedResult.id,
+              metadata: {
+                resultChecksum,
+                evidenceVersionsMatched: true,
+                privateContextStored: false,
+              },
+            },
+          });
+        } else if (finalStatus === 'completed') {
+          const revoked = await tx.storyAiReusableResult.updateMany({
+            where: {
+              id: sharedResult.id,
+              status: 'pending',
+              claimToken: sharedClaimToken,
+            },
+            data: {
+              status: 'revoked',
+              claimToken: null,
+              revokedAt: new Date(),
+              revokeReason: reusableApproval?.reason ?? failureCode ?? 'reuse_evidence_unavailable',
+              updatedAt: new Date(),
+            },
+          });
+          if (revoked.count !== 1) {
+            throw new ConflictException('Shared result claim changed concurrently');
+          }
+        } else {
+          const released = await tx.storyAiReusableResult.updateMany({
+            where: {
+              id: sharedResult.id,
+              status: 'pending',
+              claimToken: sharedClaimToken,
+            },
+            data: { claimToken: null, updatedAt: new Date() },
+          });
+          if (released.count !== 1) {
+            throw new ConflictException('Shared result claim changed concurrently');
+          }
         }
       }
       const allowanceUpdate = await tx.storyAiAllowanceBucket.updateMany({
@@ -2222,15 +2525,280 @@ export class StoryEconomicsService {
     const allowance = await client.storyAiAllowanceBucket.findUnique({
       where: {
         userId_releaseId: {
-          userId: scope.userId,
-          releaseId: continuation.releaseId,
+            userId: scope.userId,
+            releaseId: continuation.releaseId,
+          },
         },
-      },
-    });
+      });
     return this.continuationProjection(
       continuation,
       allowance ? storyAllowanceRemaining(allowance) : 0,
       true,
+    );
+  }
+
+  private async applyReusableResultTx(
+    tx: Prisma.TransactionClient,
+    prepared: {
+      input: RecommendedChoiceRequest;
+      key: string;
+      capability: any;
+      rateCard: any;
+      consent: any;
+      analysis: any;
+      rightsContractId: string;
+      rights: any;
+      contextFingerprint: string;
+      reusableContextFingerprint: string;
+      reuseKey: string;
+      sourceHash: string;
+      pathHash: string;
+      executionFingerprint: string;
+      sharedResult: any;
+    },
+  ) {
+    const { input, sharedResult } = prepared;
+    const [beats, choices, allowance] = await Promise.all([
+      tx.storyAiReusableBeat.findMany({
+        where: { sharedResultId: sharedResult.id },
+        orderBy: [{ position: 'asc' }, { id: 'asc' }],
+      }),
+      tx.storyAiReusableChoice.findMany({
+        where: { sharedResultId: sharedResult.id },
+        orderBy: [{ position: 'asc' }, { id: 'asc' }],
+      }),
+      tx.storyAiAllowanceBucket.findUnique({
+        where: { userId_releaseId: { userId: input.userId, releaseId: input.release.id } },
+      }),
+    ]);
+    if (
+      sharedResult.status !== 'approved' ||
+      sharedResult.workId !== input.work.id ||
+      sharedResult.releaseId !== input.release.id ||
+      sharedResult.releaseChecksum !== input.release.checksum ||
+      !sharedResult.resultChecksum ||
+      !sharedResult.title ||
+      !sharedResult.visualManifest ||
+      beats.length < 1 || beats.length > 40 ||
+      choices.length > 3 ||
+      ((choices.length > 0) === Boolean(sharedResult.endingKey))
+    ) {
+      throw new ConflictException('Approved shared story result is incomplete');
+    }
+    const now = new Date();
+    const continuation = await tx.storyAiContinuation.create({
+      data: {
+        userId: input.userId,
+        workId: input.work.id,
+        releaseId: input.release.id,
+        progressId: input.progress.id,
+        requestKind: 'recommended_choice',
+        customChoiceId: null,
+        recommendedChoiceId: input.sourceKind === 'canonical' ? input.choice.id : null,
+        generatedChoiceId: input.sourceKind === 'generated' ? input.choice.id : null,
+        rateCardId: prepared.rateCard.id,
+        styleConsentId: prepared.consent.id,
+        styleConsentRevision: prepared.consent.revision,
+        capabilityRevision: prepared.capability.revision,
+        idempotencyKey: prepared.key,
+        sourcePartId: input.part.id,
+        sourceSceneId: input.sourceKind === 'canonical' ? input.scene.id : null,
+        sourceGeneratedSceneId: input.sourceKind === 'generated' ? input.scene.id : null,
+        sourceProgressRevision: input.progress.progressRevision,
+        checkpointSceneId: input.progress.checkpointSceneId,
+        manuscriptVersionId: input.release.manuscriptVersionId,
+        analysisJobId: prepared.analysis.id,
+        analysisVersion: prepared.analysis.analysisVersion,
+        rightsContractId: prepared.rightsContractId,
+        rightsContractVersionId: prepared.rights.id,
+        releaseChecksum: input.release.checksum,
+        locale: sharedResult.locale,
+        contextFingerprint: prepared.contextFingerprint,
+        reusableContextFingerprint: prepared.reusableContextFingerprint,
+        reuseKey: prepared.reuseKey,
+        sharedResultId: sharedResult.id,
+        promptVersion: sharedResult.promptVersion,
+        outputSchemaVersion: sharedResult.outputSchemaVersion,
+        contextReferences: {
+          sourceHash: prepared.sourceHash,
+          pathHash: prepared.pathHash,
+          executionFingerprint: prepared.executionFingerprint,
+          fullManuscriptIncluded: false,
+          providerPayloadIncluded: false,
+          sharedResultReused: true,
+        },
+        status: 'completed',
+        resultSceneId: null,
+        estimatedCostKrw: 0,
+        hardBudgetKrw: prepared.capability.hardBudgetKrw,
+        inputTokenLimit: prepared.capability.aiInputTokenLimit,
+        outputTokenLimit: prepared.capability.aiOutputTokenLimit,
+        actualCostKrw: 0,
+        completedAt: now,
+      },
+    });
+    const scene = await tx.storyAiGeneratedScene.create({
+      data: {
+        continuationId: continuation.id,
+        userId: input.userId,
+        workId: input.work.id,
+        releaseId: input.release.id,
+        progressId: input.progress.id,
+        sourcePartId: input.part.id,
+        sceneKey: `ai-reuse-${continuation.id}`,
+        resultChecksum: sharedResult.resultChecksum,
+        provenance: 'ai_reused',
+        sharedResultId: sharedResult.id,
+        title: sharedResult.title as Prisma.InputJsonValue,
+        visualManifest: sharedResult.visualManifest as Prisma.InputJsonValue,
+        endingType: sharedResult.endingKey ? 'ai_generated' : null,
+        status: 'ready',
+      },
+    });
+    for (const beat of beats) {
+      await tx.storyAiGeneratedBeat.create({
+        data: {
+          sceneId: scene.id,
+          position: beat.position,
+          beatType: beat.beatType,
+          content: beat.content as Prisma.InputJsonValue,
+        },
+      });
+    }
+    for (const choice of choices) {
+      await tx.storyAiGeneratedChoice.create({
+        data: {
+          sceneId: scene.id,
+          position: choice.position,
+          choiceKey: choice.choiceKey,
+          label: choice.label as Prisma.InputJsonValue,
+          routeKind: 'generation_required',
+        },
+      });
+    }
+    const nextPath = boundedPath([
+      ...jsonRecordArray(input.progress.pathSummary),
+      {
+        sourceSceneId: input.sourceKind === 'canonical' ? input.scene.id : null,
+        sourceGeneratedSceneId: input.sourceKind === 'generated' ? input.scene.id : null,
+        choiceId: input.choice.id,
+        generatedSceneId: scene.id,
+        provenance: 'ai_reused',
+      },
+    ]);
+    if (input.sourceKind === 'canonical') {
+      await tx.storyChoiceEvent.create({
+        data: {
+          progressId: input.progress.id,
+          sceneId: input.scene.id,
+          choiceId: input.choice.id,
+          targetSceneId: null,
+          endingKey: sharedResult.endingKey,
+          endingType: sharedResult.endingKey ? 'ai_generated' : null,
+          explicitRejoin: false,
+        },
+      });
+    }
+    if (sharedResult.endingKey) {
+      const pathSignature = createHash('sha256').update(stableJson(nextPath)).digest('hex');
+      await tx.storyEndingDiscovery.upsert({
+        where: {
+          userId_releaseId_endingKey_pathSignature: {
+            userId: input.userId,
+            releaseId: input.release.id,
+            endingKey: sharedResult.endingKey,
+            pathSignature,
+          },
+        },
+        create: {
+          userId: input.userId,
+          workId: input.work.id,
+          releaseId: input.release.id,
+          endingKey: sharedResult.endingKey,
+          endingKind: 'ai_generated',
+          pathSignature,
+          provenance: 'ai_reused',
+        },
+        update: { lastSeenAt: now },
+      });
+    }
+    const progressUpdate = await tx.storyReaderProgress.updateMany({
+      where: {
+        id: input.progress.id,
+        userId: input.userId,
+        workId: input.work.id,
+        activeReleaseId: input.release.id,
+        currentSceneId: input.sourceKind === 'canonical' ? input.scene.id : null,
+        currentGeneratedSceneId: input.sourceKind === 'generated' ? input.scene.id : null,
+        progressRevision: input.progress.progressRevision,
+        status: 'active',
+      },
+      data: {
+        currentSceneId: null,
+        currentGeneratedSceneId: sharedResult.endingKey ? null : scene.id,
+        currentBeatPosition: 0,
+        status: sharedResult.endingKey ? 'completed' : 'active',
+        progressRevision: { increment: 1 },
+        pathSummary: nextPath as Prisma.InputJsonValue,
+        visitedEndingKeys: sharedResult.endingKey
+          ? [...new Set([
+              ...jsonStringArray(input.progress.visitedEndingKeys),
+              sharedResult.endingKey,
+            ])]
+          : undefined,
+        updatedAt: now,
+      },
+    });
+    if (progressUpdate.count !== 1) {
+      throw new ConflictException('Story progress changed concurrently');
+    }
+    const completed = await tx.storyAiContinuation.update({
+      where: { id: continuation.id },
+      data: { resultGeneratedSceneId: scene.id },
+    });
+    await tx.storyAiUsageLedger.create({
+      data: {
+        continuationId: continuation.id,
+        userId: input.userId,
+        workId: input.work.id,
+        releaseId: input.release.id,
+        rateCardId: prepared.rateCard.id,
+        eventKind: 'shared_route_reused',
+        status: 'completed',
+        provider: sharedResult.provider,
+        model: sharedResult.model,
+        rateCardVersion: sharedResult.rateCardVersion,
+        inputTokens: 0,
+        outputTokens: 0,
+        cachedInputTokens: 0,
+        imageUnits: 0,
+        estimatedCostKrw: 0,
+        actualCostKrw: 0,
+        allowanceDelta: 0,
+        progressApplied: true,
+        provenance: 'ai_reused',
+        idempotencyKey: `usage-reuse:${continuation.id}`,
+      },
+    });
+    await tx.auditEvent.create({
+      data: {
+        actorUserId: input.userId,
+        actorType: 'user',
+        action: 'story_ai_continuation.reuse',
+        targetType: 'story_ai_continuation',
+        targetId: continuation.id,
+        metadata: {
+          sharedResultId: sharedResult.id,
+          providerCalled: false,
+          allowanceMutated: false,
+          actualCostKrw: 0,
+        },
+      },
+    });
+    return this.continuationProjection(
+      completed,
+      allowance ? storyAllowanceRemaining(allowance) : 0,
+      false,
     );
   }
 
@@ -2249,6 +2817,10 @@ export class StoryEconomicsService {
       privateInputReturned: false,
       providerPayloadReturned: false,
       internalCostReturned: false,
+      resultGeneratedSceneId: continuation.resultGeneratedSceneId ?? null,
+      provenance: jsonRecord(continuation.contextReferences).sharedResultReused === true
+        ? 'ai_reused'
+        : 'ai_generated',
       idempotentReplay,
       createdAt: continuation.createdAt,
       completedAt: continuation.completedAt,
@@ -2291,6 +2863,12 @@ function localizedStrings(value: Prisma.JsonValue): string[] {
 
 function jsonRecordArray(value: Prisma.JsonValue | null | undefined) {
   return Array.isArray(value) ? (value as Array<Record<string, unknown>>) : [];
+}
+
+function jsonRecord(value: Prisma.JsonValue | null | undefined): Record<string, unknown> {
+  return value && !Array.isArray(value) && typeof value === 'object'
+    ? value as Record<string, unknown>
+    : {};
 }
 
 function jsonStringArray(value: Prisma.JsonValue | null | undefined): string[] {

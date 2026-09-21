@@ -1,4 +1,5 @@
 import 'reflect-metadata';
+import { ConflictException } from '@nestjs/common';
 import { Decimal } from '@prisma/client/runtime/library';
 import { StoryProgressControlService } from './story-progress-control.service';
 import { StoryEconomicsService } from './story-economics.service';
@@ -105,7 +106,11 @@ function fixture() {
   const legalActivation = {
     authorize: jest.fn().mockResolvedValue({ active: true, reason: 'test_only' }),
   };
-  const economics = new StoryEconomicsService(prisma as never, legalActivation as never);
+  const economics = new StoryEconomicsService(
+    prisma as never,
+    legalActivation as never,
+    continuationProvider as never,
+  );
   const controls = new StoryProgressControlService(prisma as never, moderation as never, economics);
   const production = new StoryProductionService(
     prisma as never,
@@ -516,20 +521,24 @@ describe('First public release suggested choices', () => {
     expect(f.mutations.progressUpdate).not.toHaveBeenCalled();
   });
 
-  it('fails closed before ai_pending when the provider runtime is disabled', async () => {
+  it('delegates provider fail-closed handling before ai_pending', async () => {
     const f = fixture();
     f.choices[1].routeKind = 'generation_required';
     f.choices[1].targetSceneId = null as never;
     f.continuationProvider.readiness.mockResolvedValue({
       enabled: false, reason: 'provider_not_configured',
     });
-    const enqueue = jest.spyOn(f.economics, 'requestRecommendedChoiceTx');
+    const enqueue = jest.spyOn(f.economics, 'requestRecommendedChoiceTx')
+      .mockRejectedValue(new ConflictException({
+        code: 'STORY_CHOICE_GENERATION_UNAVAILABLE',
+        progressMutated: false,
+      }));
     await expect(f.production.selectChoice(
       'reader', 'progress', 'choice-2', 3, 'en', 'recommended-choice-key',
     )).rejects.toMatchObject({ response: {
       code: 'STORY_CHOICE_GENERATION_UNAVAILABLE', progressMutated: false,
     } });
-    expect(enqueue).not.toHaveBeenCalled();
+    expect(enqueue).toHaveBeenCalledTimes(1);
     expectNoWrites(f);
   });
 

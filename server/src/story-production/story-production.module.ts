@@ -37,6 +37,10 @@ import {
   StoryContinuationLegalActivationGate,
   UnconfiguredStoryContinuationLegalActivationGate,
 } from './story-continuation-legal-activation.gate';
+import {
+  StoryReusableResultApprovalGate,
+  UnconfiguredStoryReusableResultApprovalGate,
+} from './story-reusable-result-approval.gate';
 
 @Module({
   imports: [ModerationModule],
@@ -66,6 +70,10 @@ import {
     {
       provide: StoryContinuationLegalActivationGate,
       useClass: UnconfiguredStoryContinuationLegalActivationGate,
+    },
+    {
+      provide: StoryReusableResultApprovalGate,
+      useClass: UnconfiguredStoryReusableResultApprovalGate,
     },
     {
       provide: StoryContinuationProvider,

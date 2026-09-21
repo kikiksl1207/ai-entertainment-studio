@@ -2185,6 +2185,9 @@ model StoryAiContinuation {
   releaseChecksum         String?   @map("release_checksum")
   locale                  String    @default("ko")
   contextFingerprint      String    @default("") @map("context_fingerprint")
+  reusableContextFingerprint String? @map("reusable_context_fingerprint")
+  reuseKey                String?   @map("reuse_key")
+  sharedResultId          String?   @map("shared_result_id") @db.Uuid
   promptVersion           String    @default("legacy") @map("prompt_version")
   outputSchemaVersion     String    @default("legacy") @map("output_schema_version")
   contextReferences      Json      @default("{}") @map("context_references")
@@ -2214,6 +2217,7 @@ model StoryAiContinuation {
   @@index([workId, releaseId, contextFingerprint, status], map: "idx_story_ai_continuations_cache")
   @@index([sourceSceneId, recommendedChoiceId], map: "idx_story_ai_continuations_recommended_choice")
   @@index([sourceGeneratedSceneId, generatedChoiceId], map: "idx_story_ai_continuations_generated_choice")
+  @@index([sharedResultId, status], map: "idx_story_ai_continuations_shared_result")
   @@unique([id, userId, workId, releaseId, progressId], map: "uq_story_ai_continuations_owner_scope")
   @@map("story_ai_continuations")
 }
@@ -2229,6 +2233,7 @@ model StoryAiGeneratedScene {
   sceneKey       String   @map("scene_key")
   resultChecksum String   @map("result_checksum")
   provenance     String   @default("ai_generated")
+  sharedResultId String?  @map("shared_result_id") @db.Uuid
   title          Json
   visualManifest Json     @map("visual_manifest")
   endingType     String?  @map("ending_type")
@@ -2268,6 +2273,75 @@ model StoryAiGeneratedChoice {
   @@unique([sceneId, id], map: "uq_story_ai_generated_choices_scene_id")
   @@index([sceneId, position], map: "idx_story_ai_generated_choices_scene")
   @@map("story_ai_generated_choices")
+}
+
+model StoryAiReusableResult {
+  id                         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reuseKey                   String    @unique @map("reuse_key")
+  workId                     String    @map("work_id") @db.Uuid
+  releaseId                  String    @map("release_id") @db.Uuid
+  releaseChecksum            String    @map("release_checksum")
+  manuscriptVersionId        String    @map("manuscript_version_id") @db.Uuid
+  sourceKind                 String    @map("source_kind")
+  sourceCanonicalSceneId     String?   @map("source_canonical_scene_id") @db.Uuid
+  sourceCanonicalChoiceId    String?   @map("source_canonical_choice_id") @db.Uuid
+  sourceSharedResultId       String?   @map("source_shared_result_id") @db.Uuid
+  sourceSharedChoiceKey      String?   @map("source_shared_choice_key")
+  sourceFingerprint          String    @map("source_fingerprint")
+  semanticPathFingerprint    String    @map("semantic_path_fingerprint")
+  contextFingerprint         String    @map("context_fingerprint")
+  promptVersion              String    @map("prompt_version")
+  outputSchemaVersion        String    @map("output_schema_version")
+  locale                     String
+  provider                   String
+  model                      String
+  rateCardVersion            String    @map("rate_card_version")
+  costPolicyVersion          String    @map("cost_policy_version")
+  rightsActivationKey        String    @map("rights_activation_key")
+  moderationPolicyVersion    String    @map("moderation_policy_version")
+  moderationEvidenceVersion  String    @map("moderation_evidence_version")
+  qualityPolicyVersion       String    @map("quality_policy_version")
+  claimToken                 String?   @map("claim_token")
+  status                     String    @default("pending")
+  resultChecksum             String?   @map("result_checksum")
+  title                      Json?
+  visualManifest             Json?     @map("visual_manifest")
+  endingKey                  String?   @map("ending_key")
+  approvedAt                 DateTime? @map("approved_at") @db.Timestamptz(6)
+  revokedAt                  DateTime? @map("revoked_at") @db.Timestamptz(6)
+  revokeReason               String?   @map("revoke_reason")
+  createdAt                  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                  DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@index([workId, releaseId, status, createdAt], map: "idx_story_ai_reusable_results_release")
+  @@index([status, updatedAt], map: "idx_story_ai_reusable_results_lifecycle")
+  @@unique([id, workId, releaseId], map: "uq_story_ai_reusable_results_owner")
+  @@map("story_ai_reusable_results")
+}
+
+model StoryAiReusableBeat {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sharedResultId String   @map("shared_result_id") @db.Uuid
+  position       Int
+  beatType       String   @map("beat_type")
+  content        Json
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([sharedResultId, position])
+  @@map("story_ai_reusable_beats")
+}
+
+model StoryAiReusableChoice {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sharedResultId String   @map("shared_result_id") @db.Uuid
+  position       Int
+  choiceKey      String   @map("choice_key")
+  label          Json
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([sharedResultId, position])
+  @@unique([sharedResultId, choiceKey])
+  @@map("story_ai_reusable_choices")
 }
 
 model StoryAiUsageLedger {

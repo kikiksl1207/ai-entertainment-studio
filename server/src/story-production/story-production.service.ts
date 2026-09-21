@@ -745,8 +745,8 @@ export class StoryProductionService {
             generationStarted: false,
           });
         }
-        const providerReadiness = await this.continuationProvider?.readiness();
-        if (!this.economics || !providerReadiness?.enabled) {
+        if (!this.economics) {
+          await this.continuationProvider?.readiness();
           throw new ConflictException({
             code: 'STORY_CHOICE_GENERATION_UNAVAILABLE',
             messageKey: 'story.choice.status.generationUnavailable',
