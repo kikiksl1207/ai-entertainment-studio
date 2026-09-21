@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException, 
 import { Prisma, type StoryAnalysisJob } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
-import { semanticPinHash, semanticPins, type SemanticConfig, type SemanticPins } from './story-semantic-analysis.config';
+import { SEMANTIC_PACKING_PROFILE, semanticPinHash, semanticPins, type SemanticConfig, type SemanticPins } from './story-semantic-analysis.config';
 import { sha256 } from './story-semantic-analysis.source';
 import { SEMANTIC_PIPELINE, SemanticAnalysisError } from './story-semantic-analysis.types';
 
@@ -45,12 +45,13 @@ export class SemanticAnalysisRepository {
         await this.assertRateCard(tx, config);
         const latest = await tx.storyAnalysisJob.findFirst({ where: { manuscriptVersionId: manuscriptId },
           orderBy: { analysisVersion: 'desc' }, select: { analysisVersion: true } });
+        const pins = semanticPins({ ...config, packingProfile: SEMANTIC_PACKING_PROFILE });
         return tx.storyAnalysisJob.create({ data: {
           workId: manuscript.workId, manuscriptVersionId: manuscriptId, actorUserId: userId,
           analysisVersion: (latest?.analysisVersion ?? 0) + 1, idempotencyKey,
           pipeline: SEMANTIC_PIPELINE, phase: 'initializing', status: 'queued',
           sourceContentHash: manuscript.contentHash, sourceLocale: manuscript.locale, sourceDigest: manuscript.contentHash,
-          rateCardId: config.rateCardId, configPins: semanticPins(config), configHash: semanticPinHash(config),
+          rateCardId: config.rateCardId, configPins: pins, configHash: semanticPinHash(pins),
         } });
       }, { timeout: 5000 });
     } catch (error) {

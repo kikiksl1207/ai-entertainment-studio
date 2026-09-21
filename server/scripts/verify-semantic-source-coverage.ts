@@ -2,9 +2,10 @@
 import { readFileSync, statSync } from 'fs';
 import { createHash } from 'crypto';
 import { getEncoding } from 'js-tiktoken';
-import { MANUSCRIPT_FILE_LIMITS, prepareManuscript, preparePastedManuscript } from '../src/story-production/story-manuscript-file.policy';
+import { PayloadTooLargeException } from '@nestjs/common';
+import { PASTED_MANUSCRIPT_IDENTITY_VERSION, prepareManuscript, preparePastedManuscript, storedManuscriptBody } from '../src/story-production/story-manuscript-file.policy';
 import { manuscriptContentHash } from '../src/story-production/story-production.policy';
-import { semanticReservation, type SemanticPins } from '../src/story-production/story-semantic-analysis.config';
+import { SEMANTIC_PACKING_PROFILE, semanticReservation, type SemanticPins } from '../src/story-production/story-semantic-analysis.config';
 import { semanticRequest } from '../src/story-production/story-semantic-analysis.schema';
 import { boundary, inputBudget, nextSourceChunk, pieceFor } from '../src/story-production/story-semantic-analysis.source';
 import { storyContinuationModelEncoding } from '../src/story-production/story-continuation-tokenizer';
@@ -19,9 +20,12 @@ const hash = (value: string | Buffer) => createHash('sha256').update(value).dige
 function requireSafe(value: unknown, code: string): asserts value { if (!value) throw new Error(code); }
 
 function main() {
+  const started = performance.now();
   const name = process.argv[2] as keyof typeof sources;
   const mode = process.argv[3];
-  requireSafe(Object.prototype.hasOwnProperty.call(sources, name) && ['body', 'lossless-paste'].includes(mode), 'invalid_offline_arguments');
+  const packingProfile = process.argv[4] ?? SEMANTIC_PACKING_PROFILE;
+  requireSafe(Object.prototype.hasOwnProperty.call(sources, name) && ['body', 'lossless-paste'].includes(mode) &&
+    [SEMANTIC_PACKING_PROFILE, 'legacy_32'].includes(packingProfile), 'invalid_offline_arguments');
   globalThis.fetch = async () => { throw new Error('offline_network_forbidden'); };
   const raw = readFileSync(sources[name]);
   const originalStat = statSync(sources[name]);
@@ -53,23 +57,28 @@ function main() {
     requireSafe(headings.length > 0, 'source_boundaries_missing');
     const boundaries = headings.map((heading, index) => ({ partKey: `offline-part-${index}`, title: `Offline part ${index}`,
       start: index ? heading.index! : 0, end: headings[index + 1]?.index ?? rawText.length }));
-    // Use the authoritative intake parser per part even when the entire raw book
-    // exceeds its current total-paragraph admission cap. Report that limitation,
-    // not a silently altered parser or an implied successful upload.
-    const parts = boundaries.flatMap(part => {
-      const text = rawText.slice(part.start, part.end);
-      return preparePastedManuscript(Buffer.from(text), JSON.stringify({ locale: projection.locale, confirmed: true,
-        parts: [{ ...part, start: 0, end: text.length }] })).parts;
-    });
-    const paragraphCount = parts.reduce((count, part) => count + part.paragraphs.length, 0);
-    currentIntakeSupported = paragraphCount <= MANUSCRIPT_FILE_LIMITS.totalParagraphs;
-    prepared = { ...projection, parts, paragraphCount,
-      contentHash: manuscriptContentHash({ identityVersion: 3, locale: projection.locale, parts, sourceSha256: hash(raw) }),
-      source: { kind: 'utf8_paste', rawText, sha256: hash(raw), byteLength: raw.length }, confirmedBoundaries: boundaries };
+    try {
+      prepared = preparePastedManuscript(raw, JSON.stringify({ locale: projection.locale, confirmed: true, parts: boundaries }));
+      storedManuscriptBody(prepared);
+    } catch (error) {
+      if (!(error instanceof PayloadTooLargeException)) throw error;
+      // Hypothetical coverage remains useful for a rejected book, but never
+      // represent per-part parsing as a successful whole-book admission.
+      currentIntakeSupported = false;
+      const parts = boundaries.flatMap(part => {
+        const text = rawText.slice(part.start, part.end);
+        return preparePastedManuscript(Buffer.from(text), JSON.stringify({ locale: projection.locale, confirmed: true,
+          parts: [{ ...part, start: 0, end: text.length }] })).parts;
+      });
+      prepared = { ...projection, parts, paragraphCount: parts.reduce((count, part) => count + part.paragraphs.length, 0),
+        contentHash: manuscriptContentHash({ identityVersion: PASTED_MANUSCRIPT_IDENTITY_VERSION, locale: projection.locale, parts, sourceSha256: hash(raw) }),
+        source: { kind: 'utf8_paste', rawText, sha256: hash(raw), byteLength: raw.length }, confirmedBoundaries: boundaries };
+    }
     requireSafe(hash(prepared.parts.flatMap(part => part.paragraphs.map(paragraph => paragraph.text)).join('')) === hash(raw), 'lossless_source_coverage_failed');
   }
   // Illustrative local costing, not a production rate card or deployment config.
   const pins: SemanticPins = { provider: 'openai', model: 'gpt-4o-mini-2024-07-18',
+    ...(packingProfile === 'legacy_32' ? {} : { packingProfile: SEMANTIC_PACKING_PROFILE }),
     rateCardId: '11111111-1111-4111-8111-111111111111', rateCardVersion: 'offline-illustrative',
     inputKrwPerMillion: '1000', cachedInputKrwPerMillion: '500', outputKrwPerMillion: '2000',
     inputTokenLimit: 8192, outputTokenLimit: 2048, maxJobInputTokens: 10000000,
@@ -79,15 +88,20 @@ function main() {
   const identity = { manuscriptVersionId: '22222222-2222-4222-8222-222222222222', contentHash: prepared.contentHash, locale: prepared.locale };
   let cursor: SourceCursor = { part: 0, paragraph: 0, offset: 0 };
   let expected = { ...cursor }, chunks = 0, completed = 0, emptyOnly = 0, tiny = 0, framedInputTokens = 0, inputReservation = 0;
-  let lastFramedTokens = 0, minimumTextUnits = Infinity, maximumTextUnits = 0;
+  let plannerTokenizationProbes = 0, minimumTextUnits = Infinity, maximumTextUnits = 0, maximumPieces = 0;
   const coverageHash = createHash('sha256');
   while (true) {
     const chunk = nextSourceChunk(prepared.parts, cursor, identity, pins, input => {
-      lastFramedTokens = tokenizer.encode(JSON.stringify(semanticRequest(input, pins)), [], []).length;
-      return Math.ceil(lastFramedTokens * 1.1) + 256;
+      plannerTokenizationProbes++;
+      const framedTokens = tokenizer.encode(JSON.stringify(semanticRequest(input, pins)), [], []).length;
+      return Math.ceil(framedTokens * 1.1) + 256;
     });
     if (!chunk) break;
     const pieces = chunk.refs.map(ref => pieceFor(prepared.parts, ref));
+    // Prefix search may end with a rejected probe, so measure the accepted
+    // request independently rather than counting whichever probe ran last.
+    const acceptedFramedTokens = tokenizer.encode(JSON.stringify(semanticRequest({ ...identity, pieces }, pins)), [], []).length;
+    requireSafe(Math.ceil(acceptedFramedTokens * 1.1) + 256 === chunk.inputTokens && chunk.inputTokens <= pins.inputTokenLimit, 'accepted_token_budget_mismatch');
     if (!chunks) requireSafe(chunk.inputTokens === inputBudget({ ...identity, pieces }, pins), 'token_measure_mismatch');
     requireSafe(manuscriptContentHash(pieces) === chunk.sourceHash, 'chunk_hash_mismatch');
     let textUnits = 0, nonWhitespaceUnits = 0;
@@ -103,7 +117,8 @@ function main() {
         expected.part++; expected.paragraph = 0;
       }
     }
-    chunks++; completed += chunk.completedParagraphs; framedInputTokens += lastFramedTokens; inputReservation += chunk.inputTokens;
+    chunks++; completed += chunk.completedParagraphs; framedInputTokens += acceptedFramedTokens; inputReservation += chunk.inputTokens;
+    maximumPieces = Math.max(maximumPieces, pieces.length);
     if (!nonWhitespaceUnits) emptyOnly++;
     else if (nonWhitespaceUnits < 256) tiny++;
     minimumTextUnits = Math.min(minimumTextUnits, textUnits); maximumTextUnits = Math.max(maximumTextUnits, textUnits);
@@ -115,16 +130,25 @@ function main() {
   requireSafe(hash(readFileSync(sources[name])) === hash(raw) && statSync(sources[name]).mtimeMs === originalStat.mtimeMs, 'source_modified');
   const outputReservation = chunks * pins.outputTokenLimit;
   const cost = semanticReservation(pins, inputReservation, outputReservation, chunks);
+  let rawPhysicalLines = 0, rawBlankPhysicalLines = 0;
+  for (const match of rawText.matchAll(/[^\r\n]*(?:\r\n|\r|\n|$)/g)) if (match[0]) {
+    rawPhysicalLines++;
+    if (/^[ \t\r\n]*$/.test(match[0])) rawBlankPhysicalLines++;
+  }
   console.log(JSON.stringify({ name, scope: mode === 'body' ? 'existing_intake_body_only' : 'hypothetical_lossless_paste_not_author_approved',
-    sourceLocale: prepared.locale, currentIntakeSupported,
-    intakeUnsupportedReason: currentIntakeSupported ? null : 'current_intake_total_paragraph_limit',
+    sourceLocale: prepared.locale, currentIntakeSupported, packingProfile,
+    intakeIdentityVersion: mode === 'body' ? 2 : PASTED_MANUSCRIPT_IDENTITY_VERSION,
+    intakeUnsupportedReason: currentIntakeSupported ? null : 'current_intake_size_limit',
     sourceSha256: hash(raw), intakeSha256: hash(projectionBytes), projectedTextSha256: projectedHash,
     sourceBytes: raw.length, sourceUtf16: rawText.length, projectedUtf16: prepared.parts.reduce((sum, part) => sum + part.paragraphs.reduce((n, p) => n + p.text.length, 0), 0),
     parts: prepared.parts.length, paragraphs: prepared.paragraphCount, completedParagraphs: completed,
+    rawPhysicalLines, rawBlankPhysicalLines, contentHash: prepared.contentHash,
     chunks, emptyOnlyChunks: emptyOnly, tinyNonemptyChunksUnder256NonWhitespaceUtf16: tiny, minimumTextUnits, maximumTextUnits,
     framedInputTokens, reservedInputTokensIncludingBuffer: inputReservation, reservedOutputTokens: outputReservation,
+    maximumPieces, plannerTokenizationProbes, elapsedSeconds: (performance.now() - started) / 1000,
     illustrativeReservedCostKrw: cost.toString(), wholeJobCapSupported: inputReservation <= pins.maxJobInputTokens &&
       outputReservation <= pins.maxJobOutputTokens && cost.lte(pins.maxJobCostKrw),
-    exactCoverage: true, sourceUnchanged: true, paidCalls: 0, semanticQualityEvaluated: false, memoryQualityEvaluated: false }));
+    productionBudgetSupported: 'unknown', exactCoverage: true, sourceUnchanged: true, paidCalls: 0,
+    semanticQualityEvaluated: false, memoryQualityEvaluated: false }));
 }
 try { main(); } catch { console.error(JSON.stringify({ ok: false, code: 'offline_coverage_validation_failed', paidCalls: 0 })); process.exitCode = 1; }

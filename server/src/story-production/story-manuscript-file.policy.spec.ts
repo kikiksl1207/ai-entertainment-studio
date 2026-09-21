@@ -1,5 +1,6 @@
 import { HttpException } from '@nestjs/common';
-import { MANUSCRIPT_FILE_LIMITS, prepareManuscript, preparePastedManuscript, storedManuscriptBody } from './story-manuscript-file.policy';
+import { MANUSCRIPT_FILE_LIMITS, PASTED_MANUSCRIPT_IDENTITY_VERSION, prepareManuscript, preparePastedManuscript, storedManuscriptBody } from './story-manuscript-file.policy';
+import { manuscriptContentHash } from './story-production.policy';
 
 const document = (locale = 'ko') => ({ locale, parts: [{ partKey: 'p1', title: 'Synthetic',
   paragraphs: [{ kind: 'paragraph', text: '  Exact\r\ntext \u00e9 e\u0301 \ud55c\uae00 \ud83d\ude80  ' }] }] });
@@ -89,6 +90,70 @@ describe('confirmed raw paste', () => {
     ] });
     expect(input.parts[0].paragraphs.map(p => p.text).join('')).toBe(text);
     expect(input.parts[0].paragraphs).toHaveLength(2);
+  });
+
+  it('coalesces only blank lines, retaining BOM, mixed newlines, whitespace and nonblank line boundaries', () => {
+    const text = '\ufeffTitle\r\n\r\n \t\nDialogue\r\rEnding\n  ';
+    const input = parse(text, { locale: 'ko', confirmed: true, parts: [
+      { partKey: 'a', title: 'A', start: 0, end: text.length },
+    ] });
+    expect(input.parts[0].paragraphs.map(p => p.text)).toEqual([
+      '\ufeffTitle\r\n\r\n \t\n', 'Dialogue\r\r', 'Ending\n  ',
+    ]);
+    expect(Buffer.from(input.parts[0].paragraphs.map(p => p.text).join(''))).toEqual(Buffer.from(text));
+    expect(Buffer.from(storedManuscriptBody(input).intake.source.rawText)).toEqual(Buffer.from(text));
+    expect(storedManuscriptBody(input).intake.identityVersion).toBe(PASTED_MANUSCRIPT_IDENTITY_VERSION);
+    expect(input.contentHash).toBe(manuscriptContentHash({ identityVersion: 4, locale: 'ko',
+      parts: input.parts, sourceSha256: input.source.sha256 }));
+  });
+
+  it.each([9999, 10000, 10001, 20001])('keeps %i leading/trailing blank units within surrogate-safe paragraph bounds', count => {
+    const text = ' '.repeat(count) + '\n\ud83d\ude80\n' + '\n'.repeat(count) + 'Next';
+    const input = parse(text, { locale: 'ko', confirmed: true, parts: [
+      { partKey: 'a', title: 'A', start: 0, end: text.length },
+    ] });
+    const paragraphs = input.parts[0].paragraphs;
+    expect(paragraphs.map(p => p.text).join('')).toBe(text);
+    expect(paragraphs.every(p => p.text.length > 0 && p.text.length <= 10000)).toBe(true);
+    for (const p of paragraphs) {
+      expect(p.text).not.toMatch(/^[\uDC00-\uDFFF]|[\uD800-\uDBFF]$/);
+    }
+  });
+
+  it('attaches leading blank lines within their own part and never crosses confirmed boundaries', () => {
+    const text = '\n \t\nFirst\n\n\nSecond\n';
+    const end = text.indexOf('\nSecond');
+    const input = parse(text, { locale: 'ko', confirmed: true, parts: [
+      { partKey: 'a', title: 'A', start: 0, end },
+      { partKey: 'b', title: 'B', start: end, end: text.length },
+    ] });
+    expect(input.parts.map(part => part.paragraphs.map(p => p.text).join(''))).toEqual([text.slice(0, end), text.slice(end)]);
+    expect(input.parts.map(part => part.paragraphs.length)).toEqual([1, 1]);
+    expect(input.confirmedBoundaries?.map(part => [part.start, part.end])).toEqual([[0, end], [end, text.length]]);
+  });
+
+  it('admits many raw blank lines without raising the unchanged paragraph caps or altering JSON intake', () => {
+    const text = 'A\n' + '\n'.repeat(200001) + 'B';
+    const input = parse(text, { locale: 'ko', confirmed: true, parts: [
+      { partKey: 'a', title: 'A', start: 0, end: text.length },
+    ] });
+    expect(input.parts[0].paragraphs.map(p => p.text).join('')).toBe(text);
+    expect(input.paragraphCount).toBeLessThan(30);
+    const json = { locale: 'ko', parts: [{ partKey: 'a', title: 'A', paragraphs: [
+      { kind: 'paragraph', text: 'A\n' }, { kind: 'paragraph', text: '\n' }, { kind: 'paragraph', text: 'B' },
+    ] }] };
+    expect(prepareManuscript(bytes(json)).parts).toEqual(json.parts);
+    expect(MANUSCRIPT_FILE_LIMITS.totalParagraphs).toBe(200000);
+    expect(MANUSCRIPT_FILE_LIMITS.paragraphsPerPart).toBe(5000);
+    const nonblank = 'A\n'.repeat(5001);
+    expect(() => parse(nonblank, { locale: 'ko', confirmed: true, parts: [
+      { partKey: 'a', title: 'A', start: 0, end: nonblank.length },
+    ] })).toThrow(HttpException);
+    const partText = 'A\n'.repeat(5000);
+    const large = partText.repeat(41);
+    expect(() => parse(large, { locale: 'ko', confirmed: true, parts: Array.from({ length: 41 }, (_, i) => ({
+      partKey: `part-${i}`, title: 'A', start: i * partText.length, end: (i + 1) * partText.length,
+    })) })).toThrow(HttpException);
   });
 
   it('rejects a confirmed part edge inside a UTF-16 surrogate pair', () => {

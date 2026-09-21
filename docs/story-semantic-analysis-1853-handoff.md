@@ -1,8 +1,13 @@
 # Semantic Manuscript Extraction (#1853)
 
-Status: focused dependency/client/PG validation passed; complete actual-source
-planner metrics are pending the next serialized CPU slot. No paid requests or real
-manuscripts sent to a provider. Do not treat this as live model quality/readiness.
+The validated v4 intake/pinned-packing follow-up is documented in
+[Lossless Paste and Bounded Packing](story-semantic-analysis-1853-lossless-packing.md).
+The historical results and 32-piece baseline below are not test results for that
+follow-up; it has its own 186 passing tests and four actual-source offline reports.
+
+Historical baseline: focused dependency/client/PG validation passed, followed by
+actual-source metrics frozen at `0605980`. No paid requests or real manuscripts
+were sent to a provider. Do not treat either candidate as live model readiness.
 
 ## Scope and Meaning
 
@@ -83,9 +88,10 @@ Planning persists at most 8 chunks per short lease-guarded transaction. Each chu
 uses deterministic refs/hash into the original version, not copied manuscript
 text. Long paragraphs are subdivided at surrogate-safe UTF-16 half-open offsets
 relative to the original paragraph. No truncation, first-1000 paragraph cap, or
-silent omission. The current packaging limit is 32 pieces and 8192-character
-target for an 8192-token cap; the offline report quantifies its efficiency before
-any packaging change. Empty paragraphs are covered, not silently deleted.
+silent omission. The frozen baseline uses 32 pieces and an 8192-character
+target for an 8192-token cap. New jobs now pin the bounded 256-piece profile
+described in the follow-up; old jobs retain the baseline planner. Empty paragraphs
+are covered, not silently deleted.
 
 The proven local tokenizer counts the full serialized instructions/schema/input
 request, adding 10%+256 tokens. It performs no network counting. All chunks must
@@ -110,8 +116,9 @@ includes known pre-dispatch failures such as an aggregate budget rejection or a
 queued job's configuration/source validation failure before any provider call.
 Correcting a cap/configuration does not replan that job: its pins are immutable,
 the same key returns the existing failed projection, and a new key returns
-`ANALYSIS_VERSION_ALREADY_RESERVED`. Unchanged manuscript intake resolves to the
-same source version, so re-uploading identical text is not a recovery path. Do not
+`ANALYSIS_VERSION_ALREADY_RESERVED`. Within the same intake identity, unchanged
+manuscript intake resolves to the same source version. The explicit v3-to-v4
+identity transition is not a recovery API either. Do not
 tell an author to use a new key, rewrite the source, or bypass the DB guard.
 
 Distinguish these cases in readiness and UI messaging:
@@ -233,17 +240,19 @@ output reservations, tiny (<256 non-whitespace UTF-16 units) and empty-only chun
 counts, unchanged-source/full-span hashes and illustrative whole-job cap outcome.
 Passing source coverage is not semantic, cross-book memory, style or latency quality.
 
-Authoritative full Markdown line shapes are 48953 paragraphs (22593 blank) for
-Imjin and218961 (106857 blank) for Norse. Norse exceeds the current intake's200000
-paragraph cap. The offline full-source mode runs that same parser per part and
-reports `currentIntakeSupported:false`; it does not relax the admission cap or
-claim a successful whole-book upload. Existing body projections and complete raw
-source are different coverage scopes, both retaining `sourceLocale:ko`.
+Authoritative full Markdown physical line shapes are 48953 (22593 blank) for
+Imjin and218961 (106857 blank) for Norse. The frozen v3 parser made each line a
+paragraph, exceeding the 200000 cap for Norse. Its original offline full-source
+mode therefore used per-part parsing and correctly reported admission false.
+The linked v4 follow-up preserves every byte while coalescing blank lines and
+checks whole-book admission without lifting that cap. Existing body projections
+and complete raw source remain different coverage scopes, both `sourceLocale:ko`.
 
 Focused fake transport/source/lifecycle tests and guarded actual PG tests are
 `story-semantic-analysis.*.spec.ts`; PG requires
 `STORY_ANALYSIS_TEST_DATABASE_URL` pointing only to the dedicated loopback
-`lumina_analysis_qa` database. Use direct Jest `--runInBand` so npm pretest does not
+`lumina_analysis_packing_qa` database for this follow-up; the retained original
+`lumina_analysis_qa` database is not a cleanup target. Use direct Jest `--runInBand` so npm pretest does not
 generate another checkout's client.
 The defaults-OFF AppModule smoke uses the real module graph and own Prisma/QA DB,
 loopback health200 and clean close; provider keys/rate-card settings are absent and
@@ -271,8 +280,9 @@ includes real cross-client reservation/lease tests, pre-send cancellation, expir
 paid-dispatch/failure-persistence recovery, before-first-dispatch aggregate bounds,
 source immutability, pagination and approval separation.
 
-Not run yet: full actual-source tokenizer/planner reports below, broad shared story
-regression, PM authenticated writer HTTP integration, and live model quality/latency.
+The actual-source baseline was subsequently measured at `0605980`; the linked
+follow-up records current v4/packing results. Not claimed here: broad shared story
+regression, PM authenticated writer HTTP integration, or live model quality/latency.
 No fallback/mock completion is enabled by these tests; fake transports are test-only.
 
 ## Official API References

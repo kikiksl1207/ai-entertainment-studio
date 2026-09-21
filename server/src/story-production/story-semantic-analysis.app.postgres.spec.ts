@@ -13,7 +13,7 @@ const postgres = databaseUrl ? describe : describe.skip;
 postgres('Full AppModule defaults-OFF boot with own PostgreSQL', () => {
   it('requires no semantic/continuation key or rate card, serves health200, and closes cleanly', async () => {
     const parsed = new URL(databaseUrl!);
-    if (parsed.hostname !== '127.0.0.1' || parsed.port !== '55432' || parsed.pathname !== '/lumina_analysis_qa')
+    if (parsed.hostname !== '127.0.0.1' || parsed.port !== '55432' || parsed.pathname !== '/lumina_analysis_packing_qa')
       throw new Error('Dedicated semantic analysis QA database required');
     const previous = { ...process.env };
     const network = jest.spyOn(globalThis, 'fetch').mockImplementation(async () => { throw new Error('External requests forbidden in defaults-OFF smoke'); });

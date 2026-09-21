@@ -1,12 +1,16 @@
 import { Decimal } from '@prisma/client/runtime/library';
 import { manuscriptContentHash } from './story-production.policy';
 import { storyContinuationModelEncoding } from './story-continuation-tokenizer';
+import { SemanticAnalysisError } from './story-semantic-analysis.types';
+
+export const SEMANTIC_PACKING_PROFILE = 'framed_256_v1' as const;
 
 export type SemanticPins = {
   provider: string; model: string; rateCardId: string; rateCardVersion: string;
   inputKrwPerMillion: string; cachedInputKrwPerMillion: string; outputKrwPerMillion: string;
   inputTokenLimit: number; outputTokenLimit: number;
   maxJobInputTokens: number; maxJobOutputTokens: number; maxJobCostKrw: string;
+  packingProfile?: typeof SEMANTIC_PACKING_PROFILE;
 };
 export type SemanticConfig = SemanticPins & {
   enabled: boolean; workerEnabled: boolean; apiKey: string; timeoutMs: number;
@@ -14,6 +18,7 @@ export type SemanticConfig = SemanticPins & {
 export function semanticConfig(env: NodeJS.ProcessEnv = process.env): SemanticConfig {
   const get = (name: string) => env[`STORY_SEMANTIC_ANALYSIS_${name}`] ?? '';
   return {
+    packingProfile: SEMANTIC_PACKING_PROFILE,
     enabled: get('ENABLED') === 'true', workerEnabled: get('WORKER_ENABLED') === 'true',
     apiKey: get('API_KEY'), provider: get('PROVIDER'), model: get('MODEL'),
     rateCardId: get('RATE_CARD_ID'), rateCardVersion: get('RATE_CARD_VERSION'),
@@ -29,13 +34,29 @@ export function semanticConfig(env: NodeJS.ProcessEnv = process.env): SemanticCo
 }
 export function semanticPins(config: SemanticPins): SemanticPins {
   const { provider, model, rateCardId, rateCardVersion, inputKrwPerMillion, cachedInputKrwPerMillion,
-    outputKrwPerMillion, inputTokenLimit, outputTokenLimit, maxJobInputTokens, maxJobOutputTokens, maxJobCostKrw } = config;
+    outputKrwPerMillion, inputTokenLimit, outputTokenLimit, maxJobInputTokens, maxJobOutputTokens, maxJobCostKrw, packingProfile } = config;
   return { provider, model, rateCardId, rateCardVersion, inputKrwPerMillion, cachedInputKrwPerMillion,
-    outputKrwPerMillion, inputTokenLimit, outputTokenLimit, maxJobInputTokens, maxJobOutputTokens, maxJobCostKrw };
+    outputKrwPerMillion, inputTokenLimit, outputTokenLimit, maxJobInputTokens, maxJobOutputTokens, maxJobCostKrw,
+    ...(packingProfile === undefined ? {} : { packingProfile }) };
 }
 export const semanticPinHash = (config: SemanticPins) => manuscriptContentHash(semanticPins(config));
+export function semanticPackingProfile(pins: SemanticPins) {
+  if (pins.packingProfile === undefined) return 'legacy_32' as const;
+  if (pins.packingProfile === SEMANTIC_PACKING_PROFILE) return pins.packingProfile;
+  throw new SemanticAnalysisError('analysis_packing_profile_unsupported');
+}
+export function assertSemanticJobPins(runtime: SemanticPins, saved: SemanticPins, hash: string | null) {
+  semanticPackingProfile(saved);
+  // Only the planner is selected by the immutable job. Every provider, rate and
+  // budget field must still match current server configuration exactly.
+  const current = { ...runtime, packingProfile: saved.packingProfile };
+  if (hash !== semanticPinHash(saved) || hash !== semanticPinHash(current))
+    throw new SemanticAnalysisError('analysis_configuration_changed');
+}
 export function semanticConfigFailure(config: SemanticConfig): string | undefined {
   if (!config.enabled) return 'semantic_analysis_disabled';
+  if (config.packingProfile !== undefined && config.packingProfile !== SEMANTIC_PACKING_PROFILE)
+    return 'analysis_packing_profile_unsupported';
   if (!config.apiKey.trim() || config.provider !== 'openai' || !storyContinuationModelEncoding(config.model))
     return 'semantic_provider_configuration_invalid';
   if (!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(config.rateCardId) ||

@@ -5,7 +5,7 @@ import { randomUUID } from 'crypto';
 import { analyzeStructuredManuscript, deriveContinuityLedger, manuscriptContentHash, STORY_LOCALES, type ManuscriptPart } from './story-production.policy';
 import { SemanticAnalysisRepository } from './story-semantic-analysis.repository';
 import { SemanticAnalysisProvider, semanticPlainText } from './story-semantic-analysis.provider';
-import { semanticCost, semanticPinHash, semanticReservation, type SemanticPins } from './story-semantic-analysis.config';
+import { assertSemanticJobPins, semanticCost, semanticReservation, type SemanticPins } from './story-semantic-analysis.config';
 import { nextSourceChunk, pieceFor, sha256, sourceParts } from './story-semantic-analysis.source';
 import { SEMANTIC_PIPELINE, STYLE_CATEGORIES, SemanticAnalysisError, type SemanticInput, type SemanticResult,
   type SourceCursor, type SourceRef, type SemanticUsage } from './story-semantic-analysis.types';
@@ -106,8 +106,7 @@ export class SemanticAnalysisService {
       chunk = await this.db.storyAnalysisChunk.findFirst({ where: { analysisJobId: job.id,
         dispatchStartedAt: { not: null }, status: { not: 'completed' } }, orderBy: { ordinal: 'asc' } });
       if (chunk) throw new SemanticAnalysisError('provider_outcome_unknown', 'unknown');
-      if (job.configHash !== semanticPinHash(this.provider.config) ||
-        job.configHash !== semanticPinHash(job.configPins as unknown as SemanticPins)) throw new SemanticAnalysisError('analysis_configuration_changed');
+      assertSemanticJobPins(this.provider.config, job.configPins as unknown as SemanticPins, job.configHash);
       const parts = await this.source(job);
       if (signal.aborted) { await this.repository.leased(job, async () => undefined); return { status: 'idle' }; }
       if (job.phase === 'initializing') {
@@ -188,8 +187,10 @@ export class SemanticAnalysisService {
       throw new SemanticAnalysisError('analysis_source_changed');
     const parts = sourceParts(manuscript.structuredBody);
     const body = jsonRecord(manuscript.structuredBody), intake = jsonRecord(body.intake), raw = jsonRecord(intake.source);
-    const expected = intake.identityVersion === 3
-      ? manuscriptContentHash({ identityVersion: 3, locale: manuscript.locale, parts, sourceSha256: raw.sha256 })
+    if (intake.identityVersion !== undefined && ![1, 2, 3, 4].includes(intake.identityVersion as number))
+      throw new SemanticAnalysisError('analysis_source_identity_unsupported');
+    const expected = intake.identityVersion === 3 || intake.identityVersion === 4
+      ? manuscriptContentHash({ identityVersion: intake.identityVersion, locale: manuscript.locale, parts, sourceSha256: raw.sha256 })
       : intake.identityVersion === 2 ? manuscriptContentHash({ identityVersion: 2, locale: manuscript.locale, parts })
       : manuscriptContentHash({ parts });
     if (expected !== manuscript.contentHash || (typeof raw.rawText === 'string' && sha256(raw.rawText) !== raw.sha256))
