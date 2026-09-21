@@ -58,7 +58,7 @@ export function loadStoryServerContract(repo) {
     return new Function(...Object.keys(environment), `${code}\nreturn container;`)(...Object.values(environment));
   }
   const production = methods('server/src/story-production/story-production.service.ts',
-    ['detail', 'readerAccess', 'accessProjection', 'startProgress', 'currentProgress', 'purchaseWork', 'assertPurchaseReplay']);
+    ['detail', 'readerAccess', 'accessProjection', 'startProgress', 'currentProgress', 'updateBeatProgress', 'purchaseWork', 'assertPurchaseReplay']);
   const controls = methods('server/src/story-production/story-progress-control.service.ts', ['publicState']);
   const economics = methods('server/src/story-production/story-economics.service.ts', ['capabilityProjection']);
   return async function contract(options = {}) {
@@ -69,6 +69,7 @@ export function loadStoryServerContract(repo) {
     let owned = options.owned === true;
     let grant = owned ? { revokedAt: null, expiresAt: null, startsAt: new Date('2026-01-01') } : null;
     const ledgers = new Map();
+    const readerBeats = options.beats || [{ content: 'SYNTHETIC END OR SCENE', position: 0 }];
     const localized = (x) => Object.fromEntries(['ko', 'en', 'ja', 'zh-Hans', 'zh-Hant'].map((l) => [l, `${x} ${l}`]));
     const work = { id: ids.work, slug: 'private-local-story', title: localized('Synthetic title'),
       summary: localized('Synthetic synopsis'), defaultLocale: 'en', priceLumina: price,
@@ -76,7 +77,9 @@ export function loadStoryServerContract(repo) {
       status: 'published', publishedVersion: 1, publishedAt: new Date('2026-01-01') };
     let progress = !options.state || options.state === 'new' ? null : {
       id: ids.progress, status: options.state === 'active' ? 'active' : 'completed', currentAct: 1,
-      currentSceneId: options.state === 'completed-null' ? null : ids.scene,
+      currentSceneId: options.state === 'completed-null' || options.generated ? null : ids.scene,
+      currentGeneratedSceneId: options.generated ? ids.scene : null,
+      currentBeatPosition: options.currentBeatPosition ?? 0,
       checkpointSceneId: ids.scene, visitedEndingKeys: options.state === 'active' ? [] : ['local-ending'],
       storyVersion: options.versionMismatch ? 0 : 1, capabilityRevision: 4, progressRevision: 7, pathSummary: [],
     };
@@ -92,7 +95,15 @@ export function loadStoryServerContract(repo) {
         title: localized('Synthetic part'), priceLumina: price }] },
       storyScene: { findFirst: async () => ({ id: ids.scene, partId: ids.part }) },
       storyChoiceEvent: { findMany: async () => [] },
+      storyBeat: { findUnique: async ({ where }) => readerBeats.find((beat) => beat.position === where.sceneId_position.position) || null },
+      storyAiGeneratedBeat: { findUnique: async ({ where }) => readerBeats.find((beat) => beat.position === where.sceneId_position.position) || null },
       storyReaderProgress: { findUnique: async () => progress, findFirst: async () => progress,
+        updateMany: async ({ where, data }) => {
+          if (where.progressRevision !== progress.progressRevision) return { count: 0 };
+          writes.push('beat-update');
+          progress = { ...progress, currentBeatPosition: data.currentBeatPosition, progressRevision: progress.progressRevision + data.progressRevision.increment };
+          return { count: 1 };
+        },
         create: async ({ data }) => { writes.push('progress-create'); progress = { ...data, id: ids.progress,
           status: 'active', progressRevision: 1, visitedEndingKeys: [] }; return progress; },
         update: async ({ where, data }) => { assert.equal(where.id, progress.id); writes.push('progress-route-update');
@@ -130,16 +141,18 @@ export function loadStoryServerContract(repo) {
       // Scene assembly is outside the access/reentry contract; null-scene returns
       // are produced by the actual currentProgress method, not this scene double.
       sceneProjection: async (p) => ({ progressId: p.id, revision: p.progressRevision, status: p.status,
-        currentAct: 1, storyVersion: p.storyVersion, scene: { id: ids.scene,
-          beats: [{ content: 'SYNTHETIC END OR SCENE', position: 0 }], endingType: p.status === 'completed' ? 'normal' : null },
-        choices: [], releaseCapability: cap }),
+        currentAct: 1, storyVersion: p.storyVersion, currentBeatPosition: p.currentBeatPosition ?? 0, scene: { id: ids.scene,
+          beats: readerBeats, endingType: p.status === 'completed' ? 'normal' : null },
+        choices: options.readerChoices || [], releaseCapability: cap }),
     };
+    prod.generatedSceneProjection = prod.sceneProjection;
     const control = { ...controls, prisma, economics: econ, hasActivePaidEntitlement: async () => owned };
     const locale = options.locale || 'en';
     return { ids, writes, cap, routeNodes, storedProgress: () => progress,
       readAccess: () => prod.readerAccess('local-user', ids.work, { locale }),
       readState: () => control.publicState('local-user', ids.work),
       purchase: (key, confirmation) => prod.purchaseWork('local-user', ids.work, key, confirmation),
+      beat: (position, expectedRevision) => prod.updateBeatProgress('local-user', ids.progress, { position, expectedRevision }, locale),
       changePrice: (value) => { work.priceLumina = new Decimal(value); },
       revoke: () => { owned = false; if (grant) grant.revokedAt = new Date(); },
       detail: await prod.detail(work.slug, undefined, { locale }),

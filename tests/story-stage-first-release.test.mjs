@@ -5,6 +5,7 @@ import { readFile, mkdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { registerCatalogTests } from './story-stage-catalog.test-support.mjs';
+import { registerReaderTests } from './story-stage-reader.test-support.mjs';
 
 const require = createRequire(import.meta.url);
 const { chromium } = require(process.env.STORY_UI_PLAYWRIGHT || 'playwright');
@@ -69,10 +70,15 @@ async function fixture(options = {}) {
   const page = await context.newPage();
   page.setDefaultTimeout(10000);
   page.on('pageerror', (error) => errors.push(error.message));
-  await context.addInitScript(({ locale }) => {
+  await context.addInitScript(({ locale, readerAuth }) => {
     window.testLocale = locale;
     window.luminaI18n = { getLocale: () => window.testLocale };
-  }, { locale });
+    if (readerAuth) {
+      window.testReaderUser = readerAuth;
+      window.isLoggedIn = () => Boolean(window.testReaderUser);
+      window.getAuth = () => ({ user: { id: window.testReaderUser }, accessToken: 'local-reader-' + window.testReaderUser });
+    }
+  }, { locale, readerAuth: options.readerAuth });
   if (options.storage) {
     await context.addInitScript((entries) => {
       for (const [key, value] of entries) sessionStorage.setItem(key, value);
@@ -106,7 +112,8 @@ async function fixture(options = {}) {
       if (entry.method === 'POST' && /\/choices\/choice-[012]$/.test(url.pathname)) {
         assert.deepEqual(entry.body, { expectedRevision: current.revision });
         const choice = current.choices.find((item) => url.pathname.endsWith(`/${item.id}`));
-        current = { ...current, revision: current.revision + 1, scene: { ...current.scene, id: choice.targetSceneId, beats: [{ position: 0, content: choice.targetSceneId }] } };
+        current = { ...current, revision: current.revision + 1, currentBeatPosition: 0,
+          scene: { ...current.scene, id: choice.targetSceneId, beats: [{ position: 0, content: choice.targetSceneId }] } };
         return route.fulfill({ json: current });
       }
       if (entry.method === 'POST' && url.pathname.endsWith('/reset')) {
@@ -129,6 +136,7 @@ async function fixture(options = {}) {
         '/styles.css': ['styles.css', 'text/css'],
         '/styles/story-stage.css': ['styles/story-stage.css', 'text/css'],
         '/pages/story-stage.js': ['pages/story-stage.js', 'application/javascript'],
+        '/local-reader-asset.png': ['assets/brand/lumina-stage-logo.png', 'image/png'],
       }[url.pathname];
       if (allowed) return route.fulfill({ body: await readFile(path.join(repo, allowed[0])), contentType: allowed[1] });
       if (url.pathname === '/app.js') {
@@ -137,7 +145,7 @@ async function fixture(options = {}) {
           const app = await readFile(path.join(repo, 'app.js'), 'utf8');
           const start = app.indexOf('async function apiFetch(');
           const end = app.indexOf('\n/*', start);
-          body += `const API_BASE = ${JSON.stringify(api)}; function getAccessToken() { return null; } async function refreshAuthOnce() { return false; } ${app.slice(start, end)}; window.apiFetch = apiFetch;`;
+          body += `const API_BASE = ${JSON.stringify(api)}; function getAccessToken() { return window.getAuth?.()?.accessToken || null; } async function refreshAuthOnce() { return false; } ${app.slice(start, end)}; window.apiFetch = apiFetch;`;
         }
         return route.fulfill({ contentType: 'application/javascript', body });
       }
@@ -154,6 +162,8 @@ async function fixture(options = {}) {
     async close() { await context.close(); assert.deepEqual(errors, []); },
   };
 }
+
+registerReaderTests({ fixture, projection, sessionId, workId, artifacts, locales, repo });
 
 for (const locale of locales) {
   for (const paid of [false, true]) {
@@ -550,11 +560,14 @@ for (const locale of locales) {
         });
         const geometry = await f.page.evaluate(() => {
           const stage = document.querySelector('.story-player-stage').getBoundingClientRect();
-          const text = document.querySelector('.story-player-copy p').getBoundingClientRect();
-          return { width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth, stageBottom: stage.bottom, textBottom: text.bottom };
+          const region = document.querySelector('.story-player-copy');
+          region.scrollTop = region.scrollHeight;
+          return { width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth, stageBottom: stage.bottom,
+            regionBottom: region.getBoundingClientRect().bottom, endReachable: Math.abs(region.scrollHeight - region.clientHeight - region.scrollTop) <= 2 };
         });
         assert.ok(geometry.scroll <= geometry.width, JSON.stringify(geometry));
-        assert.ok(geometry.textBottom <= geometry.stageBottom);
+        assert.ok(geometry.regionBottom <= geometry.stageBottom);
+        assert.equal(geometry.endReachable, true);
         if (process.env.STORY_UI_READER_CAPTURES !== '0') await f.page.screenshot({ path: path.join(artifacts, `${locale}-${width}-choices.png`), fullPage: true });
         await f.page.locator('[data-story-reset-preview="act"]').click();
         await f.page.locator('[role="dialog"]').waitFor();

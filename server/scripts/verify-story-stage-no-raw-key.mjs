@@ -12,6 +12,7 @@ const dictionaries = [
   ['STORY_CONTROL_COPY', 'controlTr', 'fiveLocaleControls', 'safeControlValues'],
   ['ACCESS_COPY', 'accessTr', 'fiveLocaleAccess', 'safeAccessValues'],
   ['PURCHASE_COPY', 'purchaseTr', 'fiveLocalePurchase', 'safePurchaseValues'],
+  ['READER_COPY', 'readerTr', 'fiveLocaleReader', 'safeReaderValues'],
 ];
 
 export function verifyStoryStageSource(source) {
@@ -48,7 +49,7 @@ export function verifyStoryStageSource(source) {
 
   const checks = {};
   for (const [name, translator, completeCheck, safeCheck] of dictionaries) {
-    if (['ACCESS_COPY', 'PURCHASE_COPY'].includes(name) && !objects.has(name)) continue;
+    if (['ACCESS_COPY', 'PURCHASE_COPY', 'READER_COPY'].includes(name) && !objects.has(name)) continue;
     if (!objects.has(name)) throw new Error(`Story stage copy declaration missing: ${name}`);
     const audit = auditDictionary(objects.get(name), usedKeys.get(translator));
     checks[completeCheck] = audit.complete;
