@@ -97,9 +97,13 @@ describe('continuation status controller/service boundary', () => {
       releaseId: `release-${index}`,
       sourceProgressRevision: index + 4,
       status,
+      resultGeneratedSceneId: status === 'completed' ? 'generated-scene-2' : null,
       privateInput: 'synthetic private input',
       providerPayload: { text: 'synthetic provider payload' },
-      contextReferences: { memoryIds: ['private-memory'] },
+      contextReferences: {
+        memoryIds: ['private-memory'],
+        ...(status === 'completed' ? { sharedResultReused: true } : {}),
+      },
       estimatedCostKrw: '123.45',
       actualCostKrw: '10.00',
       failureCode: 'internal-only',
@@ -161,7 +165,10 @@ describe('continuation status controller/service boundary', () => {
       retryable: ['failed', 'timeout'].includes(row.status),
       progressApplied: row.status === 'completed',
       privateInputReturned: false, providerPayloadReturned: false,
-      internalCostReturned: false, idempotentReplay: false,
+      internalCostReturned: false,
+      resultGeneratedSceneId: row.resultGeneratedSceneId,
+      provenance: row.status === 'completed' ? 'ai_reused' : 'ai_generated',
+      idempotentReplay: false,
       createdAt: row.createdAt, completedAt: row.completedAt,
     };
     for (let request = 0; request < 2; request += 1) {

@@ -24,6 +24,7 @@ CREATE TABLE "story_ai_reusable_results" (
   "release_checksum" TEXT NOT NULL,
   "manuscript_version_id" UUID NOT NULL,
   "source_kind" TEXT NOT NULL,
+  "source_canonical_part_id" UUID,
   "source_canonical_scene_id" UUID,
   "source_canonical_choice_id" UUID,
   "source_shared_result_id" UUID,
@@ -56,12 +57,14 @@ CREATE TABLE "story_ai_reusable_results" (
   CONSTRAINT "story_ai_reusable_results_pkey" PRIMARY KEY ("id"),
   CONSTRAINT "story_ai_reusable_results_source_check" CHECK (
     ("source_kind" = 'canonical'
+      AND "source_canonical_part_id" IS NOT NULL
       AND "source_canonical_scene_id" IS NOT NULL
       AND "source_canonical_choice_id" IS NOT NULL
       AND "source_shared_result_id" IS NULL
       AND "source_shared_choice_key" IS NULL)
     OR
     ("source_kind" = 'generated'
+      AND "source_canonical_part_id" IS NULL
       AND "source_canonical_scene_id" IS NULL
       AND "source_canonical_choice_id" IS NULL
       AND "source_shared_result_id" IS NOT NULL
@@ -159,12 +162,21 @@ ALTER TABLE "story_ai_reusable_results"
   ADD CONSTRAINT "story_ai_reusable_results_manuscript_work_fk"
     FOREIGN KEY ("work_id", "manuscript_version_id")
     REFERENCES "story_manuscript_versions"("work_id", "id") ON DELETE RESTRICT,
+  ADD CONSTRAINT "story_ai_reusable_results_part_work_fk"
+    FOREIGN KEY ("work_id", "source_canonical_part_id")
+    REFERENCES "story_parts"("work_id", "id") ON DELETE RESTRICT,
+  ADD CONSTRAINT "story_ai_reusable_results_scene_part_fk"
+    FOREIGN KEY ("source_canonical_part_id", "source_canonical_scene_id")
+    REFERENCES "story_scenes"("part_id", "id") ON DELETE RESTRICT,
   ADD CONSTRAINT "story_ai_reusable_results_source_choice_fk"
     FOREIGN KEY ("source_canonical_scene_id", "source_canonical_choice_id")
     REFERENCES "story_choices"("scene_id", "id") ON DELETE RESTRICT,
-  ADD CONSTRAINT "story_ai_reusable_results_source_shared_fk"
-    FOREIGN KEY ("source_shared_result_id")
-    REFERENCES "story_ai_reusable_results"("id") ON DELETE RESTRICT;
+  ADD CONSTRAINT "story_ai_reusable_results_source_shared_owner_fk"
+    FOREIGN KEY ("source_shared_result_id", "work_id", "release_id")
+    REFERENCES "story_ai_reusable_results"("id", "work_id", "release_id") ON DELETE RESTRICT,
+  ADD CONSTRAINT "story_ai_reusable_results_source_shared_choice_fk"
+    FOREIGN KEY ("source_shared_result_id", "source_shared_choice_key")
+    REFERENCES "story_ai_reusable_choices"("shared_result_id", "choice_key") ON DELETE RESTRICT;
 
 ALTER TABLE "story_ai_reusable_beats"
   ADD CONSTRAINT "story_ai_reusable_beats_result_fk"
@@ -194,6 +206,9 @@ DECLARE
   beat_count INTEGER;
   choice_count INTEGER;
 BEGIN
+  IF TG_OP = 'INSERT' AND NEW."status" <> 'pending' THEN
+    RAISE EXCEPTION 'story AI reusable result must be inserted as pending';
+  END IF;
   IF TG_OP = 'UPDATE' AND (
     NEW."reuse_key" IS DISTINCT FROM OLD."reuse_key"
     OR NEW."work_id" IS DISTINCT FROM OLD."work_id"
@@ -201,6 +216,7 @@ BEGIN
     OR NEW."release_checksum" IS DISTINCT FROM OLD."release_checksum"
     OR NEW."manuscript_version_id" IS DISTINCT FROM OLD."manuscript_version_id"
     OR NEW."source_kind" IS DISTINCT FROM OLD."source_kind"
+    OR NEW."source_canonical_part_id" IS DISTINCT FROM OLD."source_canonical_part_id"
     OR NEW."source_canonical_scene_id" IS DISTINCT FROM OLD."source_canonical_scene_id"
     OR NEW."source_canonical_choice_id" IS DISTINCT FROM OLD."source_canonical_choice_id"
     OR NEW."source_shared_result_id" IS DISTINCT FROM OLD."source_shared_result_id"
@@ -225,7 +241,14 @@ BEGIN
   IF NEW."source_kind" = 'generated' AND NOT EXISTS (
     SELECT 1 FROM "story_ai_reusable_results" AS source_result
     WHERE source_result."id" = NEW."source_shared_result_id"
+      AND source_result."work_id" = NEW."work_id"
+      AND source_result."release_id" = NEW."release_id"
       AND source_result."status" = 'approved'
+      AND EXISTS (
+        SELECT 1 FROM "story_ai_reusable_choices" AS source_choice
+        WHERE source_choice."shared_result_id" = source_result."id"
+          AND source_choice."choice_key" = NEW."source_shared_choice_key"
+      )
   ) THEN
     RAISE EXCEPTION 'generated reusable result requires an approved shared source';
   END IF;

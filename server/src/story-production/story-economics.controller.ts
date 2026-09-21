@@ -27,6 +27,7 @@ import {
   UpsertStoryReleaseCapabilityDto,
   UpsertStoryStyleConsentDto,
 } from './dto/story-economics.dto';
+import { StoryAiContinuationStatusResponseDto } from './dto/story-continuation-response.dto';
 import { StoryEconomicsService } from './story-economics.service';
 import { StoryContinuationExecutor } from './story-continuation.executor';
 
@@ -45,7 +46,7 @@ export class StoryEconomicsController {
     @CurrentUser() user: AuthUser,
     @Param('progressId') progressId: string,
     @Param('continuationId') continuationId: string,
-  ) {
+  ): Promise<StoryAiContinuationStatusResponseDto> {
     return this.economics.continuationStatus(user.id, progressId, continuationId);
   }
 

@@ -7,6 +7,7 @@ export type StoryReusableResultKeyInput = {
   releaseId: string;
   releaseChecksum: string;
   sourceKind: 'canonical' | 'generated';
+  sourceCanonicalPartId: string | null;
   sourceCanonicalSceneId: string | null;
   sourceCanonicalChoiceId: string | null;
   sourceSharedResultId: string | null;
