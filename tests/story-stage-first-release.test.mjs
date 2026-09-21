@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { registerCatalogTests } from './story-stage-catalog.test-support.mjs';
 import { registerReaderTests } from './story-stage-reader.test-support.mjs';
+import { registerReaderVisualTests } from './story-stage-reader-visual.test-support.mjs';
 
 const require = createRequire(import.meta.url);
 const { chromium } = require(process.env.STORY_UI_PLAYWRIGHT || 'playwright');
@@ -63,6 +64,7 @@ async function fixture(options = {}) {
   const locale = options.locale || 'en';
   const context = await browser.newContext({ viewport: { width: options.width || 390, height: 844 }, serviceWorkers: 'block' });
   const requests = [];
+  const assetRequests = [];
   const errors = [];
   let current = options.current || projection(3, locale);
   let quota = { full: 1, act: 3 };
@@ -131,12 +133,22 @@ async function fixture(options = {}) {
       return route.abort('blockedbyclient');
     }
     if (url.origin === base && request.method() === 'GET') {
+      if (url.pathname.startsWith('/local-reader-') || url.pathname === '/assets/story/fallback.webp') {
+        const entry = { path: url.pathname, query: Object.fromEntries(url.searchParams) };
+        assetRequests.push(entry);
+        const custom = await options.assetHook?.(entry);
+        if (custom) return custom.abort ? route.abort('failed') : route.fulfill(custom);
+        if (url.pathname === '/assets/story/fallback.webp') return route.fulfill({ status: 404, body: '' });
+      }
       const allowed = {
         '/story-stage': ['story-stage/index.html', 'text/html'],
         '/styles.css': ['styles.css', 'text/css'],
         '/styles/story-stage.css': ['styles/story-stage.css', 'text/css'],
         '/pages/story-stage.js': ['pages/story-stage.js', 'application/javascript'],
         '/local-reader-asset.png': ['assets/brand/lumina-stage-logo.png', 'image/png'],
+        '/local-reader-background-a.png': ['assets/brand/lumina-stage-banner.png', 'image/png'],
+        '/local-reader-background-b.png': ['assets/brand/lumina-stage-logo.png', 'image/png'],
+        '/local-reader-character.png': ['assets/brand/lumina-stage-logo.png', 'image/png'],
       }[url.pathname];
       if (allowed) return route.fulfill({ body: await readFile(path.join(repo, allowed[0])), contentType: allowed[1] });
       if (url.pathname === '/app.js') {
@@ -153,9 +165,9 @@ async function fixture(options = {}) {
     }
     return route.abort('blockedbyclient');
   });
-  await page.goto(`${base}/story-stage?sessionId=${sessionId}${options.work ? `&workId=${workId}` : ''}`);
+  await page.goto(`${base}/story-stage?sessionId=${sessionId}${options.work ? `&workId=${workId}` : ''}`, { waitUntil: options.pendingAssets ? 'domcontentloaded' : 'load' });
   return {
-    page, requests, errors,
+    page, requests, assetRequests, errors,
     setCurrent(value) { current = value; },
     setHook(value) { hook = value; },
     async ready() { await page.locator('.story-player, .story-state h2').first().waitFor(); },
@@ -164,6 +176,7 @@ async function fixture(options = {}) {
 }
 
 registerReaderTests({ fixture, projection, sessionId, workId, artifacts, locales, repo });
+registerReaderVisualTests({ fixture, projection, sessionId, workId, artifacts, locales });
 
 for (const locale of locales) {
   for (const paid of [false, true]) {

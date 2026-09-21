@@ -430,11 +430,17 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+  pointer-events: none;
 }
+
+.story-player-stage img[hidden],
+.story-player-no-visual[hidden] { display: none; }
 
 .story-player-no-visual {
   position: absolute;
   inset: 0;
+  z-index: 2;
+  pointer-events: none;
   display: grid;
   justify-items: center;
   align-items: start;
