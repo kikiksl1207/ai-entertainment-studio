@@ -68,6 +68,11 @@ model User {
   reviewedArtistKnowledgeUrls  ArtistKnowledgeUrl[]       @relation("ArtistKnowledgeUrlReviewedBy")
   storyUploadSubmissions       StoryUploadSubmission[]
   ottMediaWorks                OttMediaWork[]
+  createdContentRightsContracts ContentRightsContract[]        @relation("ContentRightsContractCreatedBy")
+  createdContentRightsVersions  ContentRightsContractVersion[] @relation("ContentRightsVersionCreatedBy")
+  approvedContentRightsVersions ContentRightsContractVersion[] @relation("ContentRightsVersionApprovedBy")
+  contentRightsParties          ContentRightsContractParty[]   @relation("ContentRightsPartyUser")
+  contentRightsAudits           ContentRightsContractAudit[]   @relation("ContentRightsAuditActor")
 
   @@index([status], map: "idx_users_status")
   @@map("users")
@@ -2397,4 +2402,91 @@ model AuditEvent {
 
   @@index([targetType, targetId, createdAt], map: "idx_audit_events_target")
   @@map("audit_events")
+}
+
+model ContentRightsContract {
+  id              String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workType        String                       @map("work_type")
+  workId          String                       @map("work_id") @db.Uuid
+  createdByUserId String                       @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime                     @default(now()) @map("created_at") @db.Timestamptz(6)
+  versions        ContentRightsContractVersion[]
+  audits          ContentRightsContractAudit[]
+  createdBy       User                         @relation("ContentRightsContractCreatedBy", fields: [createdByUserId], references: [id])
+
+  @@unique([workType, workId])
+  @@index([createdAt], map: "idx_content_rights_contracts_created")
+  @@map("content_rights_contracts")
+}
+
+model ContentRightsContractVersion {
+  id                              String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  contractId                      String                       @map("contract_id") @db.Uuid
+  revision                        Int
+  sourceVersionId                 String?                      @map("source_version_id") @db.Uuid
+  contentVersionId                String                       @map("content_version_id") @db.Uuid
+  exclusivity                     String
+  media                           Json
+  regions                         Json
+  startsAt                        DateTime                     @map("starts_at") @db.Timestamptz(6)
+  endsAt                          DateTime?                    @map("ends_at") @db.Timestamptz(6)
+  saleAllowed                     Boolean                      @map("sale_allowed")
+  aiTransformationAllowed         Boolean                      @map("ai_transformation_allowed")
+  generatedResultReuseAllowed     Boolean                      @map("generated_result_reuse_allowed")
+  approvalState                   String                       @map("approval_state")
+  effectiveFrom                   DateTime                     @map("effective_from") @db.Timestamptz(6)
+  authorRightsHolderShareBps      Int                          @map("author_rights_holder_share_bps")
+  salesAgencyShareBps             Int                          @map("sales_agency_share_bps")
+  companyShareBps                 Int                          @map("company_share_bps")
+  pointUsagePolicy                String                       @map("point_usage_policy")
+  refundReversalPolicy            String                       @map("refund_reversal_policy")
+  paidPointPolicy                 String                       @map("paid_point_policy")
+  bonusPointPolicy                String                       @map("bonus_point_policy")
+  vatPolicy                       String                       @map("vat_policy")
+  internalGenerationCostTreatment String                       @map("internal_generation_cost_treatment")
+  createdByUserId                 String                       @map("created_by_user_id") @db.Uuid
+  approvedByUserId                String?                      @map("approved_by_user_id") @db.Uuid
+  createdAt                       DateTime                     @default(now()) @map("created_at") @db.Timestamptz(6)
+  contract                        ContentRightsContract        @relation(fields: [contractId], references: [id])
+  sourceVersion                   ContentRightsContractVersion? @relation("ContentRightsVersionSource", fields: [sourceVersionId], references: [id])
+  derivedVersions                 ContentRightsContractVersion[] @relation("ContentRightsVersionSource")
+  createdBy                       User                         @relation("ContentRightsVersionCreatedBy", fields: [createdByUserId], references: [id])
+  approvedBy                      User?                        @relation("ContentRightsVersionApprovedBy", fields: [approvedByUserId], references: [id])
+  parties                         ContentRightsContractParty[]
+  audits                          ContentRightsContractAudit[]
+
+  @@unique([contractId, revision])
+  @@index([contractId, effectiveFrom, revision], map: "idx_content_rights_versions_effective")
+  @@map("content_rights_contract_versions")
+}
+
+model ContentRightsContractParty {
+  id                String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  contractVersionId String                       @map("contract_version_id") @db.Uuid
+  role              String
+  userId            String                       @map("user_id") @db.Uuid
+  agencyIdentifier  String?                      @map("agency_identifier")
+  createdAt         DateTime                     @default(now()) @map("created_at") @db.Timestamptz(6)
+  contractVersion   ContentRightsContractVersion @relation(fields: [contractVersionId], references: [id])
+  user              User                         @relation("ContentRightsPartyUser", fields: [userId], references: [id])
+
+  @@unique([contractVersionId, role, userId])
+  @@index([userId, contractVersionId], map: "idx_content_rights_parties_user")
+  @@map("content_rights_contract_parties")
+}
+
+model ContentRightsContractAudit {
+  id                String                        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  contractId        String                        @map("contract_id") @db.Uuid
+  contractVersionId String                        @map("contract_version_id") @db.Uuid
+  actorUserId       String                        @map("actor_user_id") @db.Uuid
+  action            String
+  snapshotHash      String                        @map("snapshot_hash")
+  createdAt         DateTime                      @default(now()) @map("created_at") @db.Timestamptz(6)
+  contract          ContentRightsContract         @relation(fields: [contractId], references: [id])
+  contractVersion   ContentRightsContractVersion  @relation(fields: [contractVersionId], references: [id])
+  actor             User                          @relation("ContentRightsAuditActor", fields: [actorUserId], references: [id])
+
+  @@index([contractId, createdAt, id], map: "idx_content_rights_audits_contract")
+  @@map("content_rights_contract_audits")
 }
