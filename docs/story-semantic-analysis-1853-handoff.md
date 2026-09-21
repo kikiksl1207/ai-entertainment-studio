@@ -102,6 +102,37 @@ run per manuscript version, including failed/unknown runs. A new key cannot crea
 another paid run for that same version. Composite FKs bind job/source/work/owner
 and evidence/chunk/job. Source and config/chunk pins become immutable.
 
+### Recovery Readiness Gap
+
+There is currently NO sanctioned API, CLI, or administrative recovery operation
+for a RESERVED job that has reached `failed`. The one-run-per-version rule also
+includes known pre-dispatch failures such as an aggregate budget rejection or a
+queued job's configuration/source validation failure before any provider call.
+Correcting a cap/configuration does not replan that job: its pins are immutable,
+the same key returns the existing failed projection, and a new key returns
+`ANALYSIS_VERSION_ALREADY_RESERVED`. Unchanged manuscript intake resolves to the
+same source version, so re-uploading identical text is not a recovery path. Do not
+tell an author to use a new key, rewrite the source, or bypass the DB guard.
+
+Distinguish these cases in readiness and UI messaging:
+
+- Rejection BEFORE job creation (for example disabled/missing configuration or
+  admission rate-card mismatch) creates no new reservation. Correcting the
+  admission configuration can allow a new request, unless a prior job exists.
+- A terminal reserved job proven to have ZERO dispatches needs a future explicit,
+  audited retry/replan operation under ownership/version/lease guards. This path
+  is missing now. Classify by all durable dispatch/usage records, not only an error
+  code: a source/config failure after earlier completed chunks is not zero-cost.
+- Any ambiguous paid dispatch requires usage/budget reconciliation before deciding
+  further action. Keep its fence/reservation and unknown actual cost; never turn
+  lease expiry, a new HTTP key, or a cap increase into automatic paid regeneration.
+- The existing proven pre-send cancellation path keeps a job nonterminal and can
+  clear only that unsent chunk's fence under a valid lease. It is not a recovery
+  endpoint for terminal failed jobs and does not imply the entire job cost zero.
+
+This is an operational readiness blocker for recoverable author use, separate
+from the passing safety tests. The current failed job is NOT user-recoverable.
+
 Worker claim uses SKIP LOCKED and a 120-second lease. Every mutation verifies the
 same unexpired lease/CAS before commit. BEFORE the HTTP adapter, a durable chunk
 dispatch timestamp is committed. An expired unfinished fence recovers terminal
@@ -138,6 +169,8 @@ resume polling as evidence grows. UI must poll queued/running jobs and support
 all pages before presenting author review; it must not call first-page presence
 analysis completion or approval. A final-review/publication action remains a
 separate existing workflow. There is no evidence approval mutation in this slice.
+Analysis polling and author evidence review UI remain separate #1855 work; this
+backend candidate does not complete the whole writer workflow.
 
 The API deliberately separates these signals:
 
