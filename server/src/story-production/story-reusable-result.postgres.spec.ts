@@ -195,4 +195,13 @@ describePostgres('shared story result PostgreSQL ownership and lifecycle', () =>
         ${status === 'approved' ? "'result','{}','{}',CURRENT_TIMESTAMP,NULL,NULL" : "NULL,NULL,NULL,NULL,CURRENT_TIMESTAMP,'rejected'"});
     `, /story AI reusable result must be inserted as pending/);
   });
+
+  it('rejects rewriting approved_at after pending becomes approved', () => {
+    expectSqlReject(`
+      UPDATE story_ai_reusable_results
+      SET approved_at = approved_at + INTERVAL '1 second'
+      WHERE id = '70000000-0000-0000-0000-000000000001'
+        AND status = 'approved';
+    `, /story AI reusable result approval timestamp is immutable/);
+  });
 });
