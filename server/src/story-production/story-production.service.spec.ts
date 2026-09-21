@@ -32,6 +32,33 @@ describe('StoryProductionService', () => {
   beforeEach(() => jest.clearAllMocks());
   afterEach(() => jest.restoreAllMocks());
 
+  const mockExistingStartContext = (storyVersion: number) => {
+    const workId = '00000000-0000-0000-0000-000000000010';
+    prisma.storyWork.findFirst.mockResolvedValue({
+      id: workId,
+      slug: 'imjin-war',
+      status: 'published',
+      fixtureSource: false,
+      coverManifest: { url: '/public/story/imjin-war.webp' },
+      priceLumina: new Decimal(0),
+      publishedVersion: 1,
+      activeReleaseId: '00000000-0000-0000-0000-000000000030',
+    });
+    prisma.storyRelease.findFirst.mockResolvedValue({
+      id: '00000000-0000-0000-0000-000000000030',
+    });
+    prisma.storyPart.findMany.mockResolvedValue([
+      { id: 'part-1', actNumber: 1 },
+      { id: 'part-66', actNumber: 4 },
+    ]);
+    prisma.storyReaderProgress.findUnique.mockResolvedValue({
+      id: 'progress-1',
+      storyVersion,
+    });
+    prisma.storyScene.findFirst.mockResolvedValue(null);
+    return workId;
+  };
+
   it('starts a new reader on the first scene of the first published part', async () => {
     const workId = '00000000-0000-0000-0000-000000000010';
     prisma.storyWork.findFirst.mockResolvedValue({
@@ -86,6 +113,76 @@ describe('StoryProductionService', () => {
       }),
     });
     expect(currentProgress).toHaveBeenCalledWith('reader-1', 'progress-1', 'ko');
+  });
+
+  it('continues existing progress before resolving the first published scene', async () => {
+    const workId = mockExistingStartContext(1);
+    const currentProgress = jest
+      .spyOn(service, 'currentProgress')
+      .mockResolvedValue({ progressId: 'progress-1' } as never);
+
+    await expect(
+      service.startProgress('reader-1', workId, { mode: 'continue', locale: 'ko' }),
+    ).resolves.toEqual({ progressId: 'progress-1' });
+
+    expect(currentProgress).toHaveBeenCalledWith('reader-1', 'progress-1', 'ko');
+    expect(prisma.storyScene.findFirst).not.toHaveBeenCalled();
+    expect(prisma.storyReaderProgress.create).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['restart', 'story.progress.reset.previewRequired'],
+    ['checkpoint', 'story.progress.checkpoint.confirmRequired'],
+  ] as const)(
+    'requires the progress control command for existing %s mode before resolving a scene',
+    async (mode, messageKey) => {
+      const workId = mockExistingStartContext(1);
+
+      await expect(
+        service.startProgress('reader-1', workId, { mode, locale: 'ko' }),
+      ).rejects.toMatchObject({
+        response: {
+          code: 'STORY_PROGRESS_CONTROL_COMMAND_REQUIRED',
+          messageKey,
+          retryable: true,
+        },
+      });
+
+      expect(prisma.storyScene.findFirst).not.toHaveBeenCalled();
+      expect(prisma.storyReaderProgress.create).not.toHaveBeenCalled();
+    },
+  );
+
+  it('reports an existing progress version mismatch before resolving a scene', async () => {
+    const workId = mockExistingStartContext(2);
+
+    await expect(
+      service.startProgress('reader-1', workId, { mode: 'continue', locale: 'ko' }),
+    ).rejects.toMatchObject({
+      response: {
+        code: 'STORY_PROGRESS_VERSION_MISMATCH',
+        messageKey: 'story.progress.status.versionMismatch',
+        retryable: false,
+      },
+    });
+
+    expect(prisma.storyScene.findFirst).not.toHaveBeenCalled();
+    expect(prisma.storyReaderProgress.create).not.toHaveBeenCalled();
+  });
+
+  it('fails closed for new progress when the first published part has no scene', async () => {
+    const workId = mockExistingStartContext(1);
+    prisma.storyReaderProgress.findUnique.mockResolvedValue(null);
+
+    await expect(
+      service.startProgress('reader-1', workId, { mode: 'continue', locale: 'ko' }),
+    ).rejects.toThrow('Published story scene not found');
+
+    expect(prisma.storyScene.findFirst).toHaveBeenCalledWith({
+      where: { partId: 'part-1', status: 'published', fixtureSource: false },
+      orderBy: [{ position: 'asc' }, { id: 'asc' }],
+    });
+    expect(prisma.storyReaderProgress.create).not.toHaveBeenCalled();
   });
 
   it('returns only authenticated owner works as title-centered selector items', async () => {
