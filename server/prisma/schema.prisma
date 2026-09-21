@@ -2448,7 +2448,7 @@ model ContentRightsContractVersion {
   approvedByUserId                String?                      @map("approved_by_user_id") @db.Uuid
   createdAt                       DateTime                     @default(now()) @map("created_at") @db.Timestamptz(6)
   contract                        ContentRightsContract        @relation(fields: [contractId], references: [id])
-  sourceVersion                   ContentRightsContractVersion? @relation("ContentRightsVersionSource", fields: [sourceVersionId], references: [id])
+  sourceVersion                   ContentRightsContractVersion? @relation("ContentRightsVersionSource", fields: [contractId, sourceVersionId], references: [contractId, id])
   derivedVersions                 ContentRightsContractVersion[] @relation("ContentRightsVersionSource")
   createdBy                       User                         @relation("ContentRightsVersionCreatedBy", fields: [createdByUserId], references: [id])
   approvedBy                      User?                        @relation("ContentRightsVersionApprovedBy", fields: [approvedByUserId], references: [id])
@@ -2456,6 +2456,7 @@ model ContentRightsContractVersion {
   audits                          ContentRightsContractAudit[]
 
   @@unique([contractId, revision])
+  @@unique([contractId, id], map: "uq_content_rights_versions_contract_id")
   @@index([contractId, effectiveFrom, revision], map: "idx_content_rights_versions_effective")
   @@map("content_rights_contract_versions")
 }
@@ -2484,7 +2485,7 @@ model ContentRightsContractAudit {
   snapshotHash      String                        @map("snapshot_hash")
   createdAt         DateTime                      @default(now()) @map("created_at") @db.Timestamptz(6)
   contract          ContentRightsContract         @relation(fields: [contractId], references: [id])
-  contractVersion   ContentRightsContractVersion  @relation(fields: [contractVersionId], references: [id])
+  contractVersion   ContentRightsContractVersion  @relation(fields: [contractId, contractVersionId], references: [contractId, id])
   actor             User                          @relation("ContentRightsAuditActor", fields: [actorUserId], references: [id])
 
   @@index([contractId, createdAt, id], map: "idx_content_rights_audits_contract")

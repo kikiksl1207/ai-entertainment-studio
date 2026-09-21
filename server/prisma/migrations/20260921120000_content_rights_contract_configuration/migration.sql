@@ -12,7 +12,7 @@ CREATE TABLE "content_rights_contract_versions" (
   "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   "contract_id" UUID NOT NULL REFERENCES "content_rights_contracts"("id") ON DELETE RESTRICT ON UPDATE CASCADE,
   "revision" INTEGER NOT NULL CHECK ("revision" > 0),
-  "source_version_id" UUID REFERENCES "content_rights_contract_versions"("id") ON DELETE RESTRICT ON UPDATE CASCADE,
+  "source_version_id" UUID,
   "content_version_id" UUID NOT NULL,
   "exclusivity" TEXT NOT NULL CHECK ("exclusivity" IN ('exclusive', 'nonexclusive')),
   "media" JSONB NOT NULL,
@@ -37,6 +37,11 @@ CREATE TABLE "content_rights_contract_versions" (
   "approved_by_user_id" UUID REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE,
   "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE ("contract_id", "revision"),
+  CONSTRAINT "uq_content_rights_versions_contract_id" UNIQUE ("contract_id", "id"),
+  CONSTRAINT "content_rights_versions_source_same_contract_fkey"
+    FOREIGN KEY ("contract_id", "source_version_id")
+    REFERENCES "content_rights_contract_versions"("contract_id", "id")
+    ON DELETE RESTRICT ON UPDATE CASCADE,
   CHECK ("ends_at" IS NULL OR "ends_at" > "starts_at"),
   CHECK ("author_rights_holder_share_bps" + "sales_agency_share_bps" <= 5500),
   CHECK ("company_share_bps" = 10000 - "author_rights_holder_share_bps" - "sales_agency_share_bps"),
@@ -59,11 +64,15 @@ CREATE INDEX "idx_content_rights_parties_user" ON "content_rights_contract_parti
 CREATE TABLE "content_rights_contract_audits" (
   "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   "contract_id" UUID NOT NULL REFERENCES "content_rights_contracts"("id") ON DELETE RESTRICT ON UPDATE CASCADE,
-  "contract_version_id" UUID NOT NULL REFERENCES "content_rights_contract_versions"("id") ON DELETE RESTRICT ON UPDATE CASCADE,
+  "contract_version_id" UUID NOT NULL,
   "actor_user_id" UUID NOT NULL REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE,
   "action" TEXT NOT NULL CHECK ("action" IN ('created', 'revised', 'approved_configuration')),
   "snapshot_hash" TEXT NOT NULL CHECK ("snapshot_hash" ~ '^[a-f0-9]{64}$'),
-  "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP
+  "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "content_rights_audits_version_same_contract_fkey"
+    FOREIGN KEY ("contract_id", "contract_version_id")
+    REFERENCES "content_rights_contract_versions"("contract_id", "id")
+    ON DELETE RESTRICT ON UPDATE CASCADE
 );
 CREATE INDEX "idx_content_rights_audits_contract" ON "content_rights_contract_audits"("contract_id", "created_at", "id");
 
