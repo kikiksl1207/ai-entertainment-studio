@@ -99,10 +99,21 @@ function fixture() {
   };
   prisma.$transaction.mockImplementation(async (run) => run(prisma));
   const moderation = { preview: jest.fn() };
-  const economics = new StoryEconomicsService(prisma as never);
+  const continuationProvider = {
+    readiness: jest.fn().mockResolvedValue({ enabled: true }),
+  };
+  const legalActivation = {
+    authorize: jest.fn().mockResolvedValue({ active: true, reason: 'test_only' }),
+  };
+  const economics = new StoryEconomicsService(prisma as never, legalActivation as never);
   const controls = new StoryProgressControlService(prisma as never, moderation as never, economics);
-  const production = new StoryProductionService(prisma as never, economics);
-  return { progress, work, scene, part, choices, entitlement, prisma, mutations, moderation, economics, controls, production };
+  const production = new StoryProductionService(
+    prisma as never,
+    economics,
+    continuationProvider as never,
+    legalActivation as never,
+  );
+  return { progress, work, scene, part, choices, entitlement, prisma, mutations, moderation, continuationProvider, legalActivation, economics, controls, production };
 }
 
 function expectNoWrites(f: ReturnType<typeof fixture>) {
@@ -387,16 +398,112 @@ describe('First public release suggested choices', () => {
     }));
   });
 
-  it('does not mutate progress or start generation for a generation-required choice', async () => {
+  it('requires a bounded idempotency key before enqueueing a generation-required choice', async () => {
     const f = fixture();
     f.choices[1].routeKind = 'generation_required';
     f.choices[1].targetSceneId = null as never;
     await expect(f.production.selectChoice('reader', 'progress', 'choice-2', 3))
-      .rejects.toMatchObject({ response: {
-        code: 'STORY_CHOICE_GENERATION_REQUIRED',
-        progressMutated: false,
-        generationStarted: false,
-      } });
+      .rejects.toMatchObject({ status: 400 });
+    expectNoWrites(f);
+  });
+
+  it('queues a generation-required choice without custom input or authored convergence', async () => {
+    const f = fixture();
+    f.choices[1].routeKind = 'generation_required';
+    f.choices[1].targetSceneId = null as never;
+    const receipt = {
+      continuationId: 'continuation-id', status: 'queued',
+      privateInputReturned: false, providerPayloadReturned: false,
+    };
+    const enqueue = jest.spyOn(f.economics, 'requestRecommendedChoiceTx')
+      .mockResolvedValue(receipt as never);
+    await expect(f.production.selectChoice(
+      'reader', 'progress', 'choice-2', 3, 'en', 'recommended-choice-key',
+    )).resolves.toEqual(receipt);
+    expect(enqueue).toHaveBeenCalledWith(f.prisma, expect.objectContaining({
+      userId: 'reader', choice: expect.objectContaining({ id: 'choice-2' }),
+      locale: 'en', idempotencyKey: 'recommended-choice-key',
+    }));
+    expect(f.mutations.customCreate).not.toHaveBeenCalled();
+    expect(f.mutations.eventCreate).not.toHaveBeenCalled();
+    expect(f.mutations.progressUpdate).not.toHaveBeenCalled();
+  });
+
+  it('projects and enqueues only the current reader progress overlay', async () => {
+    const f = fixture();
+    Object.assign(f.progress, { currentSceneId: null, currentGeneratedSceneId: 'generated-scene' });
+    const generatedScene = {
+      id: 'generated-scene', continuationId: 'prior-continuation', userId: 'reader',
+      workId: 'work', releaseId: 'release', progressId: 'progress', sourcePartId: 'part',
+      sceneKey: 'ai-prior', title: { en: 'Private route' },
+      visualManifest: {
+        ...f.scene.visualManifest,
+        sceneKey: 'ai-prior',
+      },
+      endingType: null, status: 'ready',
+    };
+    const generatedChoice = {
+      id: 'generated-choice', sceneId: generatedScene.id, position: 1,
+      choiceKey: 'continue-private-route', label: { en: 'Continue' },
+      routeKind: 'generation_required',
+    };
+    Object.assign(f.prisma, {
+      storyAiGeneratedScene: { findFirst: jest.fn().mockResolvedValue(generatedScene) },
+      storyAiGeneratedBeat: { findMany: jest.fn().mockResolvedValue([
+        { id: 'generated-beat', sceneId: generatedScene.id, position: 1, beatType: 'paragraph', content: { en: 'Reader-only beat' } },
+      ]) },
+      storyAiGeneratedChoice: { findMany: jest.fn().mockResolvedValue([generatedChoice]) },
+    });
+    await expect(f.production.currentProgress('reader', 'progress', 'en')).resolves.toMatchObject({
+      scene: { id: 'generated-scene', beats: [{ content: { value: 'Reader-only beat', locale: 'en' } }] },
+      choices: [{ id: 'generated-choice', routeKind: 'generation_required' }],
+    });
+    const receipt = { continuationId: 'next-continuation', status: 'queued' };
+    const enqueue = jest.spyOn(f.economics, 'requestRecommendedChoiceTx').mockResolvedValue(receipt as never);
+    await expect(f.production.selectChoice(
+      'reader', 'progress', generatedChoice.id, 3, 'en', 'generated-choice-key',
+    )).resolves.toEqual(receipt);
+    expect(enqueue).toHaveBeenCalledWith(f.prisma, expect.objectContaining({
+      sourceKind: 'generated', scene: expect.objectContaining({ id: generatedScene.id }),
+      choice: expect.objectContaining({ id: generatedChoice.id }),
+    }));
+    expect(f.mutations.eventCreate).not.toHaveBeenCalled();
+    expect(f.mutations.progressUpdate).not.toHaveBeenCalled();
+  });
+
+  it('fails closed before ai_pending when the provider runtime is disabled', async () => {
+    const f = fixture();
+    f.choices[1].routeKind = 'generation_required';
+    f.choices[1].targetSceneId = null as never;
+    f.continuationProvider.readiness.mockResolvedValue({
+      enabled: false, reason: 'provider_not_configured',
+    });
+    const enqueue = jest.spyOn(f.economics, 'requestRecommendedChoiceTx');
+    await expect(f.production.selectChoice(
+      'reader', 'progress', 'choice-2', 3, 'en', 'recommended-choice-key',
+    )).rejects.toMatchObject({ response: {
+      code: 'STORY_CHOICE_GENERATION_UNAVAILABLE', progressMutated: false,
+    } });
+    expect(enqueue).not.toHaveBeenCalled();
+    expectNoWrites(f);
+  });
+
+  it('blocks the operational API before enqueue when legal activation is unavailable', async () => {
+    const f = fixture();
+    f.choices[1].routeKind = 'generation_required';
+    f.choices[1].targetSceneId = null as never;
+    f.legalActivation.authorize.mockResolvedValue({
+      active: false, reason: 'STORY_AI_LEGAL_ACTIVATION_REQUIRED',
+    });
+    const enqueue = jest.spyOn(f.economics, 'requestRecommendedChoiceTx');
+    await expect(f.production.selectChoice(
+      'reader', 'progress', 'choice-2', 3, 'en', 'recommended-choice-key',
+    )).rejects.toMatchObject({ status: 403, response: {
+      code: 'STORY_AI_LEGAL_ACTIVATION_REQUIRED',
+      progressMutated: false, generationStarted: false,
+    } });
+    expect(f.continuationProvider.readiness).not.toHaveBeenCalled();
+    expect(enqueue).not.toHaveBeenCalled();
     expectNoWrites(f);
   });
 

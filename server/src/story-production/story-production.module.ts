@@ -23,6 +23,20 @@ import {
   StoryManuscriptMultipartInterceptor, StoryManuscriptOwnerGuard,
   StoryManuscriptPasteMultipartInterceptor, StoryManuscriptPasteOwnerGuard,
 } from './story-manuscript-file.controller';
+import {
+  DisabledStoryContinuationProvider,
+  StoryContinuationProvider,
+} from './story-continuation.provider';
+import {
+  PrismaStoryContinuationQueueRepository,
+  StoryContinuationQueueRepository,
+} from './story-continuation.repository';
+import { StoryContinuationExecutor } from './story-continuation.executor';
+import { StoryContinuationContextAssembler } from './story-continuation-context.assembler';
+import {
+  StoryContinuationLegalActivationGate,
+  UnconfiguredStoryContinuationLegalActivationGate,
+} from './story-continuation-legal-activation.gate';
 
 @Module({
   imports: [ModerationModule],
@@ -47,6 +61,20 @@ import {
     StoryLifecycleService,
     StoryImjinReleaseBridgeService,
     StoryEconomicsService,
+    StoryContinuationExecutor,
+    StoryContinuationContextAssembler,
+    {
+      provide: StoryContinuationLegalActivationGate,
+      useClass: UnconfiguredStoryContinuationLegalActivationGate,
+    },
+    {
+      provide: StoryContinuationProvider,
+      useClass: DisabledStoryContinuationProvider,
+    },
+    {
+      provide: StoryContinuationQueueRepository,
+      useClass: PrismaStoryContinuationQueueRepository,
+    },
   ],
 })
 export class StoryProductionModule {}

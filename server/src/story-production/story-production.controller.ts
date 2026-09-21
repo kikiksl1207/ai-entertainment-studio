@@ -147,6 +147,7 @@ export class StoryProductionController {
     @Param('choiceId') choiceId: string,
     @Body() body: SelectStoryChoiceDto,
     @Query() query: StoryLocaleQueryDto,
+    @Headers('idempotency-key') idempotencyKey?: string,
   ) {
     return this.stories.selectChoice(
       user.id,
@@ -154,6 +155,7 @@ export class StoryProductionController {
       choiceId,
       body.expectedRevision,
       query.locale,
+      idempotencyKey,
     );
   }
 

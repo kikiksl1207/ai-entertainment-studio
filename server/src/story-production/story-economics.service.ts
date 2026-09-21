@@ -4,8 +4,10 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { createHash } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   ActivateStoryAiRateCardDto,
@@ -27,11 +29,25 @@ import {
   storyBudgetDecision,
   validateStoryReleaseCapability,
 } from './story-economics.policy';
-import { isPublicStorySourceSafe } from './story-production.policy';
+import { boundedPath, isPublicStorySourceSafe } from './story-production.policy';
 import {
   assertCustomChoiceReleasePolicy,
   firstReleaseChoiceCapability,
 } from './story-progress-control.policy';
+import { projectStoredStorySceneVisualManifest } from '../story-stage/story-scene-visual-manifest-contract';
+import type { StoryContinuationProviderResult } from './story-continuation.provider';
+import type { StoryContinuationClaim } from './story-continuation.repository';
+import { StoryContinuationLegalActivationGate } from './story-continuation-legal-activation.gate';
+import {
+  assembleContinuationSemanticPath,
+  continuationExecutionFingerprint,
+  approvedContinuationMemoryText,
+  continuationMemoryPins,
+  continuationPathHash,
+  continuationSourceHash,
+  localizedContinuationText,
+  stableContinuationJson,
+} from './story-continuation-context.policy';
 
 type CustomChoiceContext = {
   progress: {
@@ -64,9 +80,438 @@ type PreparedCustomChoice = {
   choiceEventIds: string[];
 };
 
+type RecommendedChoiceRequest = {
+  userId: string;
+  progress: any;
+  work: any;
+  part: any;
+  scene: any;
+  release: {
+    id: string;
+    workId: string;
+    version: number;
+    manuscriptVersionId: string;
+    checksum: string;
+    status: string;
+  };
+  choice: any;
+  sourceKind: 'canonical' | 'generated';
+  locale: string;
+  idempotencyKey?: string;
+};
+
 @Injectable()
 export class StoryEconomicsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly legalActivation?: StoryContinuationLegalActivationGate,
+  ) {}
+
+  async recommendedChoiceReplay(
+    userId: string,
+    progressId: string,
+    choiceId: string,
+    idempotencyKey: string,
+  ) {
+    const key = this.idempotencyKey('recommended-choice', idempotencyKey);
+    const continuation = await this.prisma.storyAiContinuation.findUnique({
+      where: { idempotencyKey: key },
+    });
+    if (!continuation) return null;
+    if (
+      continuation.requestKind !== 'recommended_choice' ||
+      continuation.userId !== userId ||
+      continuation.progressId !== progressId ||
+      (continuation.recommendedChoiceId ?? continuation.generatedChoiceId) !== choiceId
+    ) {
+      throw new ConflictException('Recommended choice idempotency conflict');
+    }
+    const allowance = await this.prisma.storyAiAllowanceBucket.findUnique({
+      where: { userId_releaseId: { userId, releaseId: continuation.releaseId } },
+    });
+    return this.continuationProjection(
+      continuation,
+      allowance ? storyAllowanceRemaining(allowance) : 0,
+      true,
+    );
+  }
+
+  async requestRecommendedChoiceTx(
+    tx: Prisma.TransactionClient,
+    input: RecommendedChoiceRequest,
+  ) {
+    const key = this.idempotencyKey('recommended-choice', input.idempotencyKey);
+    if (
+      input.choice.routeKind !== 'generation_required' ||
+      input.choice.targetSceneId ||
+      input.choice.sceneId !== input.scene.id
+    ) {
+      throw new ConflictException('Choice is not eligible for generated continuation');
+    }
+    const replay = await tx.storyAiContinuation.findUnique({
+      where: { idempotencyKey: key },
+    });
+    if (replay) {
+      if (
+        replay.requestKind !== 'recommended_choice' ||
+        replay.userId !== input.userId ||
+        replay.progressId !== input.progress.id ||
+        (replay.recommendedChoiceId ?? replay.generatedChoiceId) !== input.choice.id
+      ) {
+        throw new ConflictException('Recommended choice idempotency conflict');
+      }
+      const replayAllowance = await tx.storyAiAllowanceBucket.findUnique({
+        where: {
+          userId_releaseId: {
+            userId: input.userId,
+            releaseId: input.release.id,
+          },
+        },
+      });
+      return this.continuationProjection(
+        replay,
+        replayAllowance ? storyAllowanceRemaining(replayAllowance) : 0,
+        true,
+      );
+    }
+
+    const now = new Date();
+    const [capability, rateCard, consent, analysis, rightsContract] = await Promise.all([
+      tx.storyReleaseCapability.findUnique({ where: { releaseId: input.release.id } }),
+      tx.storyAiRateCard.findUnique({ where: { id: input.progress.aiRateCardId } }),
+      tx.storyStyleProfileConsent.findFirst({
+        where: {
+          workId: input.work.id,
+          manuscriptVersionId: input.release.manuscriptVersionId,
+          status: 'active',
+          rightsConfirmed: true,
+          aiBranchAllowed: true,
+          startsAt: { lte: now },
+          OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+        },
+      }),
+      tx.storyAnalysisJob.findFirst({
+        where: {
+          workId: input.work.id,
+          manuscriptVersionId: input.release.manuscriptVersionId,
+          status: 'completed',
+        },
+        orderBy: [{ analysisVersion: 'desc' }, { createdAt: 'desc' }],
+      }),
+      tx.contentRightsContract.findFirst({
+        where: { workType: 'story', workId: input.work.id },
+        include: {
+          versions: {
+            where: {
+              contentVersionId: input.release.manuscriptVersionId,
+              approvalState: 'approved_configuration',
+              aiTransformationAllowed: true,
+              effectiveFrom: { lte: now },
+              startsAt: { lte: now },
+              OR: [{ endsAt: null }, { endsAt: { gt: now } }],
+            },
+            orderBy: [{ revision: 'desc' }],
+            take: 1,
+          },
+        },
+      }),
+    ]);
+    const rights = rightsContract?.versions?.[0];
+    const legalActivation = rights
+      ? await this.legalActivation?.authorize({
+          workId: input.work.id,
+          releaseId: input.release.id,
+          manuscriptVersionId: input.release.manuscriptVersionId,
+          rightsContractVersionId: rights.id,
+        })
+      : null;
+    if (
+      !capability ||
+      capability.status !== 'active' ||
+      capability.revision !== input.progress.capabilityRevision ||
+      capability.rateCardId !== input.progress.aiRateCardId ||
+      capability.includedAiRouteCount < 1 ||
+      !rateCard ||
+      rateCard.status !== 'active' ||
+      !consent ||
+      !jsonStringArray(consent.allowedLocales).includes(input.locale) ||
+      !analysis ||
+      !rights ||
+      !legalActivation?.active ||
+      !jsonStringArray(rights.media).some((media) =>
+        ['story', 'story_publication', 'all'].includes(media),
+      )
+    ) {
+      throw new ForbiddenException({
+        code: !legalActivation?.active
+          ? 'STORY_AI_LEGAL_ACTIVATION_REQUIRED'
+          : capability?.includedAiRouteCount === 0
+          ? 'STORY_AI_ALLOWANCE_NOT_CONFIGURED'
+          : 'STORY_AI_GENERATION_NOT_AUTHORIZED',
+        messageKey: 'story.progress.aiGeneration.notAuthorized',
+        retryable: false,
+      });
+    }
+
+    const boundedProgressPath = boundedPath(jsonRecordArray(input.progress.pathSummary));
+    const [memory, sourceBeats, semanticPath] = await Promise.all([
+      tx.storyMemoryRecord.findMany({
+        where: {
+          workId: input.work.id,
+          manuscriptVersionId: input.release.manuscriptVersionId,
+          status: 'approved',
+          ...(analysis ? { analysisJobId: analysis.id } : {}),
+          memoryType: { in: ['entity', 'event', 'foreshadow', 'branch', 'style'] },
+        },
+        orderBy: [{ memoryType: 'asc' }, { memoryKey: 'asc' }],
+        select: { id: true, memoryType: true, revision: true, content: true },
+        take: 50,
+      }),
+      input.sourceKind === 'canonical'
+        ? tx.storyBeat.findMany({
+            where: { sceneId: input.scene.id },
+            orderBy: [{ position: 'asc' }, { id: 'asc' }],
+            select: { position: true, beatType: true, content: true },
+            take: 41,
+          })
+        : tx.storyAiGeneratedBeat.findMany({
+            where: { sceneId: input.scene.id },
+            orderBy: [{ position: 'asc' }, { id: 'asc' }],
+            select: { position: true, beatType: true, content: true },
+            take: 41,
+          }),
+      assembleContinuationSemanticPath(tx, {
+        pathSummary: boundedProgressPath as Prisma.JsonValue,
+        locale: input.locale,
+        userId: input.userId,
+        workId: input.work.id,
+        releaseId: input.release.id,
+        progressId: input.progress.id,
+      }),
+    ]);
+    if (sourceBeats.length < 1 || sourceBeats.length > 40) {
+      throw new ForbiddenException({
+        code: 'STORY_AI_CONTEXT_BUDGET_EXCEEDED',
+        messageKey: 'story.progress.aiGeneration.contextBudgetExceeded',
+        retryable: false,
+      });
+    }
+    const memoryPins = continuationMemoryPins(memory);
+    let sourceHash: string;
+    let approvedContext: unknown;
+    try {
+      sourceHash = continuationSourceHash({
+        kind: input.sourceKind,
+        locale: input.locale,
+        title: input.scene.title,
+        beats: sourceBeats,
+        choiceLabel: input.choice.label,
+      });
+      approvedContext = {
+        sourceScene: {
+          title: localizedContinuationText(input.scene.title, input.locale),
+          beats: sourceBeats.map((beat) => ({
+            beatType: beat.beatType,
+            content: localizedContinuationText(beat.content, input.locale),
+          })),
+        },
+        selectedChoice: {
+          label: localizedContinuationText(input.choice.label, input.locale),
+        },
+        path: semanticPath,
+        memories: memory.map((item) => ({
+          memoryType: item.memoryType,
+          content: approvedContinuationMemoryText(item.content, input.locale),
+        })),
+      };
+    } catch {
+      throw new ForbiddenException({
+        code: 'STORY_AI_CONTEXT_LOCALE_UNAVAILABLE',
+        messageKey: 'story.progress.aiGeneration.contextUnavailable',
+        retryable: false,
+      });
+    }
+    const pathHash = continuationPathHash(semanticPath);
+    const context = {
+      workId: input.work.id,
+      releaseId: input.release.id,
+      releaseVersion: input.release.version,
+      releaseChecksum: input.release.checksum,
+      manuscriptVersionId: input.release.manuscriptVersionId,
+      sourcePartId: input.part.id,
+      sourceSceneId: input.sourceKind === 'canonical' ? input.scene.id : null,
+      sourceGeneratedSceneId: input.sourceKind === 'generated' ? input.scene.id : null,
+      recommendedChoiceId: input.sourceKind === 'canonical' ? input.choice.id : null,
+      generatedChoiceId: input.sourceKind === 'generated' ? input.choice.id : null,
+      semanticPath,
+      memory: memoryPins,
+      analysis: analysis
+        ? { id: analysis.id, version: analysis.analysisVersion }
+        : null,
+      locale: input.locale,
+      capabilityRevision: capability.revision,
+      styleConsent: { id: consent.id, revision: consent.revision },
+      rights: { contractId: rightsContract!.id, versionId: rights.id, revision: rights.revision },
+      rateCard: { id: rateCard.id, version: rateCard.version },
+      promptVersion: 'story-continuation-v1',
+      outputSchemaVersion: 'story-continuation-output-v1',
+    };
+    const contextFingerprint = createHash('sha256')
+      .update(stableJson(context))
+      .digest('hex');
+    const executionFingerprint = continuationExecutionFingerprint({
+      contextFingerprint,
+      sourceHash,
+      pathHash,
+      memoryPins,
+    });
+    const contextCharacters = stableContinuationJson(approvedContext).length;
+    const estimatedInputTokens = Math.max(1, Math.ceil(contextCharacters / 4));
+    if (estimatedInputTokens > capability.aiInputTokenLimit) {
+      throw new ForbiddenException({
+        code: 'STORY_AI_CONTEXT_BUDGET_EXCEEDED',
+        messageKey: 'story.progress.aiGeneration.contextBudgetExceeded',
+        retryable: false,
+      });
+    }
+    const estimatedCostKrw = calculateStoryUsageCost(this.rateNumbers(rateCard), {
+      inputTokens: estimatedInputTokens,
+      outputTokens: capability.aiOutputTokenLimit,
+    });
+    if (storyBudgetDecision(
+      estimatedCostKrw,
+      Number(capability.warningBudgetKrw),
+      Number(capability.hardBudgetKrw),
+    ).decision === 'blocked') {
+      throw new ForbiddenException({
+        code: 'STORY_AI_HARD_BUDGET_EXCEEDED',
+        messageKey: 'story.progress.aiGeneration.budgetExceeded',
+        retryable: false,
+      });
+    }
+
+    const allowance = await tx.storyAiAllowanceBucket.upsert({
+      where: {
+        userId_releaseId: { userId: input.userId, releaseId: input.release.id },
+      },
+      create: {
+        userId: input.userId,
+        workId: input.work.id,
+        releaseId: input.release.id,
+        includedLimit: capability.includedAiRouteCount,
+      },
+      update: {},
+    });
+    if (storyAllowanceRemaining(allowance) < 1) {
+      throw new ForbiddenException({
+        code: 'STORY_AI_ALLOWANCE_EXHAUSTED',
+        messageKey: 'story.progress.aiGeneration.allowanceExhausted',
+        retryable: false,
+      });
+    }
+    const reserved = await tx.storyAiAllowanceBucket.updateMany({
+      where: { id: allowance.id, revision: allowance.revision },
+      data: {
+        reservedCount: { increment: 1 },
+        revision: { increment: 1 },
+        updatedAt: now,
+      },
+    });
+    if (reserved.count !== 1) {
+      throw new ConflictException('Story AI allowance changed concurrently');
+    }
+    const continuation = await tx.storyAiContinuation.create({
+      data: {
+        userId: input.userId,
+        workId: input.work.id,
+        releaseId: input.release.id,
+        progressId: input.progress.id,
+        requestKind: 'recommended_choice',
+        customChoiceId: null,
+        recommendedChoiceId: input.sourceKind === 'canonical' ? input.choice.id : null,
+        generatedChoiceId: input.sourceKind === 'generated' ? input.choice.id : null,
+        rateCardId: rateCard.id,
+        styleConsentId: consent.id,
+        styleConsentRevision: consent.revision,
+        capabilityRevision: capability.revision,
+        idempotencyKey: key,
+        sourcePartId: input.part.id,
+        sourceSceneId: input.sourceKind === 'canonical' ? input.scene.id : null,
+        sourceGeneratedSceneId: input.sourceKind === 'generated' ? input.scene.id : null,
+        sourceProgressRevision: input.progress.progressRevision,
+        checkpointSceneId: input.progress.checkpointSceneId,
+        manuscriptVersionId: input.release.manuscriptVersionId,
+        analysisJobId: analysis?.id,
+        analysisVersion: analysis?.analysisVersion,
+        rightsContractId: rightsContract!.id,
+        rightsContractVersionId: rights.id,
+        releaseChecksum: input.release.checksum,
+        locale: input.locale,
+        contextFingerprint,
+        promptVersion: context.promptVersion,
+        outputSchemaVersion: context.outputSchemaVersion,
+        contextReferences: {
+          memoryPins,
+          sourceHash,
+          pathHash,
+          executionFingerprint,
+          fullManuscriptIncluded: false,
+          providerPayloadIncluded: false,
+        },
+        estimatedCostKrw,
+        hardBudgetKrw: capability.hardBudgetKrw,
+        inputTokenLimit: capability.aiInputTokenLimit,
+        outputTokenLimit: capability.aiOutputTokenLimit,
+        maxAttempts: 3,
+      },
+    });
+    await tx.storyAiUsageLedger.create({
+      data: {
+        continuationId: continuation.id,
+        userId: input.userId,
+        workId: input.work.id,
+        releaseId: input.release.id,
+        rateCardId: rateCard.id,
+        eventKind: 'recommended_route_request',
+        status: 'reserved',
+        provider: rateCard.provider,
+        model: rateCard.model,
+        rateCardVersion: rateCard.version,
+        inputTokens: estimatedInputTokens,
+        outputTokens: capability.aiOutputTokenLimit,
+        estimatedCostKrw,
+        allowanceDelta: 0,
+        progressApplied: false,
+        provenance: 'ai_generated',
+        idempotencyKey: `usage-request:${continuation.id}`,
+      },
+    });
+    const progressUpdate = await tx.storyReaderProgress.updateMany({
+      where: {
+        id: input.progress.id,
+        userId: input.userId,
+        workId: input.work.id,
+        activeReleaseId: input.release.id,
+        currentSceneId: input.sourceKind === 'canonical' ? input.scene.id : null,
+        currentGeneratedSceneId: input.sourceKind === 'generated' ? input.scene.id : null,
+        progressRevision: input.progress.progressRevision,
+        status: 'active',
+      },
+      data: {
+        status: 'ai_pending',
+        progressRevision: { increment: 1 },
+        updatedAt: now,
+      },
+    });
+    if (progressUpdate.count !== 1) {
+      throw new ConflictException('Story progress changed concurrently');
+    }
+    return this.continuationProjection(
+      continuation,
+      storyAllowanceRemaining(allowance) - 1,
+      false,
+    );
+  }
 
   async createRateCard(adminUserId: string, body: CreateStoryAiRateCardDto) {
     const existing = await this.prisma.storyAiRateCard.findUnique({
@@ -726,6 +1171,7 @@ export class StoryEconomicsService {
           styleConsentId: input.prepared.consent.id,
           capabilityRevision: input.prepared.capability.revision,
           idempotencyKey: `continuation:${input.idempotencyKey}`,
+          sourcePartId: input.context.part.id,
           sourceSceneId: input.context.scene.id,
           sourceProgressRevision: progress.progressRevision,
           checkpointSceneId: progress.checkpointSceneId,
@@ -865,11 +1311,166 @@ export class StoryEconomicsService {
     );
   }
 
+  async continuationExecutionAuthorization(claim: StoryContinuationClaim) {
+    const continuation = await this.prisma.storyAiContinuation.findUnique({
+      where: { id: claim.continuationId },
+    });
+    if (
+      !continuation ||
+      continuation.status !== 'processing' ||
+      continuation.leaseToken !== claim.leaseToken ||
+      continuation.requestKind !== 'recommended_choice'
+    ) {
+      return { allowed: false as const, code: 'stale_worker_lease' };
+    }
+    const now = new Date();
+    const [work, release, capability, consent, rights, analysis, progress] = await Promise.all([
+      this.prisma.storyWork.findUnique({ where: { id: continuation.workId } }),
+      this.prisma.storyRelease.findUnique({ where: { id: continuation.releaseId } }),
+      this.prisma.storyReleaseCapability.findUnique({
+        where: { releaseId: continuation.releaseId },
+      }),
+      this.prisma.storyStyleProfileConsent.findUnique({
+        where: { id: continuation.styleConsentId },
+      }),
+      continuation.rightsContractVersionId
+        ? this.prisma.contentRightsContractVersion.findUnique({
+            where: { id: continuation.rightsContractVersionId },
+          })
+        : Promise.resolve(null),
+      continuation.analysisJobId && continuation.analysisVersion
+        ? this.prisma.storyAnalysisJob.findFirst({
+            where: {
+              id: continuation.analysisJobId,
+              workId: continuation.workId,
+              manuscriptVersionId: continuation.manuscriptVersionId ?? undefined,
+              analysisVersion: continuation.analysisVersion,
+              status: 'completed',
+            },
+          })
+        : Promise.resolve(null),
+      this.prisma.storyReaderProgress.findFirst({
+        where: {
+          id: continuation.progressId,
+          userId: continuation.userId,
+          workId: continuation.workId,
+          activeReleaseId: continuation.releaseId,
+          currentSceneId: continuation.sourceSceneId,
+          currentGeneratedSceneId: continuation.sourceGeneratedSceneId,
+          status: 'ai_pending',
+          progressRevision: continuation.sourceProgressRevision + 1,
+        },
+      }),
+    ]);
+    const legalActivation = await this.legalActivation?.authorize({
+      workId: continuation.workId,
+      releaseId: continuation.releaseId,
+      manuscriptVersionId: continuation.manuscriptVersionId,
+      rightsContractVersionId: continuation.rightsContractVersionId,
+    });
+    const allowed = Boolean(
+      work?.status === 'published' &&
+      Boolean(progress) &&
+      legalActivation?.active &&
+      Boolean(continuation.manuscriptVersionId) &&
+      Boolean(continuation.analysisJobId) &&
+      Boolean(continuation.analysisVersion) &&
+      Boolean(continuation.rightsContractId) &&
+      Boolean(continuation.rightsContractVersionId) &&
+      work.activeReleaseId === continuation.releaseId &&
+      release?.workId === continuation.workId &&
+      release.status === 'active' &&
+      release.manuscriptVersionId === continuation.manuscriptVersionId &&
+      release.checksum === continuation.releaseChecksum &&
+      capability?.status === 'active' &&
+      capability.revision === continuation.capabilityRevision &&
+      capability.rateCardId === continuation.rateCardId &&
+      consent?.status === 'active' &&
+      consent.rightsConfirmed &&
+      consent.aiBranchAllowed &&
+      consent.revision === continuation.styleConsentRevision &&
+      consent.manuscriptVersionId === continuation.manuscriptVersionId &&
+      consent.startsAt <= now &&
+      (!consent.expiresAt || consent.expiresAt > now) &&
+      jsonStringArray(consent.allowedLocales).includes(continuation.locale) &&
+      analysis?.id === continuation.analysisJobId &&
+      analysis.analysisVersion === continuation.analysisVersion &&
+      rights?.contractId === continuation.rightsContractId &&
+      rights.approvalState === 'approved_configuration' &&
+      rights.aiTransformationAllowed &&
+      rights.contentVersionId === continuation.manuscriptVersionId &&
+      rights.effectiveFrom <= now &&
+      rights.startsAt <= now &&
+      (!rights.endsAt || rights.endsAt > now) &&
+      jsonStringArray(rights.media).some((media) =>
+        ['story', 'story_publication', 'all'].includes(media),
+      )
+    );
+    return allowed
+      ? { allowed: true as const }
+      : { allowed: false as const, code: 'generation_authorization_changed' };
+  }
+
+  async settleClaimedContinuation(
+    claim: StoryContinuationClaim,
+    result: StoryContinuationProviderResult,
+  ) {
+    const continuation = await this.prisma.storyAiContinuation.findUnique({
+      where: { id: claim.continuationId },
+    });
+    if (!continuation) throw new NotFoundException('Story AI continuation not found');
+    const rateCard = await this.prisma.storyAiRateCard.findUnique({
+      where: { id: continuation.rateCardId },
+    });
+    if (!rateCard) throw new ConflictException('Story AI rate card is unavailable');
+    const actualCostKrw = calculateStoryUsageCost(this.rateNumbers(rateCard), result.usage);
+    return this.settleContinuation(
+      null,
+      claim.continuationId,
+      {
+        status: 'completed',
+        moderationDecision: 'allow',
+        ...result.usage,
+        actualCostKrw,
+        resultTitle: result.title,
+        resultBeats: result.beats,
+        resultVisualManifest: result.visualManifest,
+        nextChoices: result.nextChoices,
+        ending: result.ending,
+      },
+      `worker:${claim.continuationId}:${claim.leaseToken}`,
+      claim.leaseToken,
+    );
+  }
+
+  async failClaimedContinuation(
+    claim: StoryContinuationClaim,
+    failureCode: string,
+    status: 'failed' | 'timeout',
+  ) {
+    return this.settleContinuation(
+      null,
+      claim.continuationId,
+      {
+        status,
+        moderationDecision: 'reject',
+        inputTokens: 0,
+        outputTokens: 0,
+        cachedInputTokens: 0,
+        imageUnits: 0,
+        failureCode: failureCode.slice(0, 80),
+      },
+      `worker:${claim.continuationId}:${claim.leaseToken}`,
+      claim.leaseToken,
+    );
+  }
+
   async settleContinuation(
-    adminUserId: string,
+    adminUserId: string | null,
     continuationId: string,
     body: SettleStoryAiContinuationDto,
     idempotencyKey?: string,
+    expectedLeaseToken?: string,
   ) {
     const key = this.idempotencyKey('story-ai-settlement', idempotencyKey);
     const replay = await this.prisma.storyAiUsageLedger.findUnique({
@@ -892,7 +1493,15 @@ export class StoryEconomicsService {
       if (!['queued', 'processing'].includes(continuation.status)) {
         throw new ConflictException('Story AI continuation is already terminal');
       }
-      const [rateCard, allowance, progress, sourceScene, consent] = await Promise.all([
+      if (expectedLeaseToken && (
+        continuation.status !== 'processing' ||
+        continuation.leaseToken !== expectedLeaseToken ||
+        !continuation.leaseExpiresAt ||
+        continuation.leaseExpiresAt <= new Date()
+      )) {
+        throw new ConflictException('Story AI continuation lease is stale');
+      }
+      const [rateCard, allowance, progress, sourceScene, consent, release, capability, rightsVersion, work, analysis] = await Promise.all([
         tx.storyAiRateCard.findUnique({ where: { id: continuation.rateCardId } }),
         tx.storyAiAllowanceBucket.findUnique({
           where: {
@@ -903,21 +1512,66 @@ export class StoryEconomicsService {
           },
         }),
         tx.storyReaderProgress.findUnique({ where: { id: continuation.progressId } }),
-        tx.storyScene.findUnique({ where: { id: continuation.sourceSceneId } }),
+        continuation.sourceSceneId
+          ? tx.storyScene.findUnique({ where: { id: continuation.sourceSceneId } })
+          : tx.storyAiGeneratedScene.findFirst({
+              where: {
+                id: continuation.sourceGeneratedSceneId ?? undefined,
+                userId: continuation.userId,
+                workId: continuation.workId,
+                releaseId: continuation.releaseId,
+                progressId: continuation.progressId,
+                status: 'ready',
+              },
+            }),
         tx.storyStyleProfileConsent.findUnique({
           where: { id: continuation.styleConsentId },
         }),
+        tx.storyRelease.findUnique({ where: { id: continuation.releaseId } }),
+        tx.storyReleaseCapability.findUnique({ where: { releaseId: continuation.releaseId } }),
+        continuation.rightsContractVersionId
+          ? tx.contentRightsContractVersion.findUnique({
+              where: { id: continuation.rightsContractVersionId },
+            })
+          : Promise.resolve(null),
+        tx.storyWork.findUnique({ where: { id: continuation.workId } }),
+        continuation.analysisJobId && continuation.analysisVersion
+          ? tx.storyAnalysisJob.findFirst({
+              where: {
+                id: continuation.analysisJobId,
+                workId: continuation.workId,
+                manuscriptVersionId: continuation.manuscriptVersionId ?? undefined,
+                analysisVersion: continuation.analysisVersion,
+                status: 'completed',
+              },
+            })
+          : Promise.resolve(null),
       ]);
-      if (!rateCard || !allowance || !progress || !sourceScene || !consent) {
+      if (!rateCard || !allowance || !progress || !sourceScene || !consent || !release || !capability || !work) {
         throw new ConflictException('Story AI continuation dependency is unavailable');
       }
+      const legalActivation = await this.legalActivation?.authorize({
+        workId: continuation.workId,
+        releaseId: continuation.releaseId,
+        manuscriptVersionId: continuation.manuscriptVersionId,
+        rightsContractVersionId: continuation.rightsContractVersionId,
+      });
       const calculatedCost = calculateStoryUsageCost(this.rateNumbers(rateCard), {
         inputTokens: body.inputTokens,
         outputTokens: body.outputTokens,
         cachedInputTokens: body.cachedInputTokens,
         imageUnits: body.imageUnits,
       });
-      if (Math.abs(calculatedCost - body.actualCostKrw) > 0.01) {
+      if (
+        body.status === 'completed' &&
+        body.actualCostKrw === undefined
+      ) {
+        throw new BadRequestException('Completed continuation requires measured cost');
+      }
+      if (
+        body.actualCostKrw !== undefined &&
+        Math.abs(calculatedCost - body.actualCostKrw) > 0.01
+      ) {
         throw new BadRequestException('Measured usage cost does not match the rate card');
       }
       let finalStatus = body.status;
@@ -928,9 +1582,52 @@ export class StoryEconomicsService {
         consent.aiBranchAllowed &&
         consent.startsAt <= new Date() &&
         (!consent.expiresAt || consent.expiresAt > new Date());
+      const recommendedPinsActive =
+        continuation.requestKind !== 'recommended_choice' || (
+          work.status === 'published' &&
+          Boolean(continuation.manuscriptVersionId) &&
+          Boolean(continuation.analysisJobId) &&
+          Boolean(continuation.analysisVersion) &&
+          Boolean(continuation.rightsContractId) &&
+          Boolean(continuation.rightsContractVersionId) &&
+          work.activeReleaseId === continuation.releaseId &&
+          release.workId === continuation.workId &&
+          release.status === 'active' &&
+          release.manuscriptVersionId === continuation.manuscriptVersionId &&
+          release.checksum === continuation.releaseChecksum &&
+          capability.status === 'active' &&
+          capability.revision === continuation.capabilityRevision &&
+          capability.rateCardId === continuation.rateCardId &&
+          capability.includedAiRouteCount > 0 &&
+          allowance.workId === continuation.workId &&
+          progress.userId === continuation.userId &&
+          progress.workId === continuation.workId &&
+          progress.activeReleaseId === continuation.releaseId &&
+          (progress.currentSceneId ?? null) === continuation.sourceSceneId &&
+          (progress.currentGeneratedSceneId ?? null) === continuation.sourceGeneratedSceneId &&
+          legalActivation?.active &&
+          consent.revision === continuation.styleConsentRevision &&
+          consent.manuscriptVersionId === continuation.manuscriptVersionId &&
+          analysis?.id === continuation.analysisJobId &&
+          analysis.analysisVersion === continuation.analysisVersion &&
+          rightsVersion?.contractId === continuation.rightsContractId &&
+          rightsVersion.approvalState === 'approved_configuration' &&
+          rightsVersion.aiTransformationAllowed &&
+          rightsVersion.contentVersionId === continuation.manuscriptVersionId &&
+          rightsVersion.effectiveFrom <= new Date() &&
+          rightsVersion.startsAt <= new Date() &&
+          (!rightsVersion.endsAt || rightsVersion.endsAt > new Date()) &&
+          jsonStringArray(rightsVersion.media).some((media) =>
+            ['story', 'story_publication', 'all'].includes(media),
+          )
+        );
       if (finalStatus === 'completed' && !consentActive) {
         finalStatus = 'failed';
         failureCode = 'style_consent_inactive';
+      }
+      if (finalStatus === 'completed' && !recommendedPinsActive) {
+        finalStatus = 'failed';
+        failureCode = 'generation_authorization_changed';
       }
       if (finalStatus === 'completed' && body.moderationDecision !== 'allow') {
         finalStatus = 'failed';
@@ -946,7 +1643,7 @@ export class StoryEconomicsService {
       }
       if (
         finalStatus === 'completed' &&
-        body.actualCostKrw > Number(continuation.hardBudgetKrw)
+        body.actualCostKrw! > Number(continuation.hardBudgetKrw)
       ) {
         finalStatus = 'failed';
         failureCode = 'hard_budget_exceeded';
@@ -954,7 +1651,16 @@ export class StoryEconomicsService {
       if (finalStatus === 'completed' && (!body.resultTitle || !body.resultBeats?.length)) {
         throw new BadRequestException('Completed continuation requires a sanitized result');
       }
-      let resultSceneId: string | null = null;
+      const generatedSceneKey = `ai-${continuation.id}`;
+      let sanitizedVisualManifest: Prisma.InputJsonValue | undefined;
+      if (finalStatus === 'completed' && continuation.requestKind === 'recommended_choice') {
+        assertRecommendedContinuationOutput(body, generatedSceneKey);
+        sanitizedVisualManifest = sanitizeRecommendedVisualManifest(
+          body.resultVisualManifest!,
+          generatedSceneKey,
+        );
+      }
+      let resultGeneratedSceneId: string | null = null;
       if (finalStatus === 'completed') {
         if (
           progress.status !== 'ai_pending' ||
@@ -962,21 +1668,34 @@ export class StoryEconomicsService {
         ) {
           throw new ConflictException('Pending story progress changed concurrently');
         }
-        const scene = await tx.storyScene.create({
+        const resultChecksum = createHash('sha256').update(stableJson({
+          title: body.resultTitle,
+          beats: body.resultBeats,
+          visualManifest: sanitizedVisualManifest ?? body.resultVisualManifest,
+          nextChoices: body.nextChoices ?? [],
+          ending: body.ending ?? null,
+        })).digest('hex');
+        const scene = await tx.storyAiGeneratedScene.create({
           data: {
-            partId: sourceScene.partId,
-            sceneKey: `ai-${continuation.id}`,
-            position: sourceScene.position + 1,
-            status: 'published',
+            continuationId: continuation.id,
+            userId: continuation.userId,
+            workId: continuation.workId,
+            releaseId: continuation.releaseId,
+            progressId: continuation.progressId,
+            sourcePartId: continuation.sourcePartId,
+            sceneKey: generatedSceneKey,
+            resultChecksum,
+            provenance: 'ai_generated',
             title: body.resultTitle!,
-            visualManifest: {
+            visualManifest: sanitizedVisualManifest ?? (body.resultVisualManifest ?? {
               provenance: 'ai_generated',
-            },
-            fixtureSource: false,
+            }) as Prisma.InputJsonValue,
+            endingType: body.ending ? 'ai_generated' : null,
+            status: 'ready',
           },
         });
         for (const [index, beat] of body.resultBeats!.entries()) {
-          await tx.storyBeat.create({
+          await tx.storyAiGeneratedBeat.create({
             data: {
               sceneId: scene.id,
               position: index + 1,
@@ -985,47 +1704,114 @@ export class StoryEconomicsService {
             },
           });
         }
+        for (const [index, choice] of (body.nextChoices ?? []).entries()) {
+          await tx.storyAiGeneratedChoice.create({
+            data: {
+              sceneId: scene.id,
+              choiceKey: choice.choiceKey.trim(),
+              position: index + 1,
+              label: choice.label,
+              routeKind: 'generation_required',
+            },
+          });
+        }
         const path = jsonRecordArray(progress.pathSummary);
+        const nextPath = boundedPath([
+          ...path,
+          {
+            sourceSceneId: continuation.sourceSceneId,
+            sourceGeneratedSceneId: continuation.sourceGeneratedSceneId,
+            choiceId: continuation.recommendedChoiceId ?? continuation.generatedChoiceId,
+            generatedSceneId: scene.id,
+            provenance: 'ai_generated',
+          },
+        ]);
+        if (continuation.recommendedChoiceId) {
+          await tx.storyChoiceEvent.create({
+            data: {
+              progressId: progress.id,
+              sceneId: continuation.sourceSceneId!,
+              choiceId: continuation.recommendedChoiceId,
+              targetSceneId: null,
+              endingKey: body.ending?.endingKey,
+              endingType: body.ending ? 'ai_generated' : null,
+              explicitRejoin: false,
+            },
+          });
+        }
+        if (body.ending) {
+          await tx.storyEndingDiscovery.upsert({
+            where: {
+              userId_releaseId_endingKey_pathSignature: {
+                userId: continuation.userId,
+                releaseId: continuation.releaseId,
+                endingKey: body.ending.endingKey,
+                pathSignature: createHash('sha256').update(stableJson(nextPath)).digest('hex'),
+              },
+            },
+            create: {
+              userId: continuation.userId,
+              workId: continuation.workId,
+              releaseId: continuation.releaseId,
+              endingKey: body.ending.endingKey,
+              endingKind: 'ai_generated',
+              pathSignature: createHash('sha256').update(stableJson(nextPath)).digest('hex'),
+              provenance: 'ai_generated',
+            },
+            update: { lastSeenAt: new Date() },
+          });
+        }
         const progressUpdate = await tx.storyReaderProgress.updateMany({
           where: {
             id: progress.id,
+            userId: continuation.userId,
+            workId: continuation.workId,
+            activeReleaseId: continuation.releaseId,
+            currentSceneId: continuation.sourceSceneId,
+            currentGeneratedSceneId: continuation.sourceGeneratedSceneId,
             progressRevision: progress.progressRevision,
             status: 'ai_pending',
           },
           data: {
-            currentSceneId: scene.id,
+            currentSceneId: null,
+            currentGeneratedSceneId: body.ending ? null : scene.id,
             currentBeatPosition: 0,
-            status: 'active',
+            status: body.ending ? 'completed' : 'active',
             progressRevision: { increment: 1 },
-            pathSummary: [
-              ...path,
-              {
-                sourceSceneId: continuation.sourceSceneId,
-                nextSceneId: scene.id,
-                provenance: 'ai_generated',
-              },
-            ] as Prisma.InputJsonValue,
+            pathSummary: nextPath as Prisma.InputJsonValue,
+            visitedEndingKeys: body.ending
+              ? [...new Set([
+                  ...jsonStringArray(progress.visitedEndingKeys),
+                  body.ending.endingKey,
+                ])]
+              : undefined,
             updatedAt: new Date(),
           },
         });
         if (progressUpdate.count !== 1) {
           throw new ConflictException('Pending story progress changed concurrently');
         }
-        resultSceneId = scene.id;
+        resultGeneratedSceneId = scene.id;
       } else {
-        const checkpointSceneId = continuation.checkpointSceneId ?? continuation.sourceSceneId;
-        const checkpointScene = await tx.storyScene.findUnique({
-          where: { id: checkpointSceneId },
-        });
-        const checkpointPart = checkpointScene
-          ? await tx.storyPart.findUnique({ where: { id: checkpointScene.partId } })
-          : null;
         const restored = await tx.storyReaderProgress.updateMany({
-          where: { id: progress.id, status: 'ai_pending' },
+          where: {
+            id: progress.id,
+            status: 'ai_pending',
+            ...(continuation.requestKind === 'recommended_choice'
+              ? {
+                  userId: continuation.userId,
+                  workId: continuation.workId,
+                   activeReleaseId: continuation.releaseId,
+                   currentSceneId: continuation.sourceSceneId,
+                   currentGeneratedSceneId: continuation.sourceGeneratedSceneId,
+                   progressRevision: continuation.sourceProgressRevision + 1,
+                }
+              : {}),
+          },
           data: {
-            currentSceneId: checkpointSceneId,
+            currentSceneId: continuation.sourceSceneId,
+            currentGeneratedSceneId: continuation.sourceGeneratedSceneId,
             currentBeatPosition: 0,
-            currentAct: checkpointPart?.actNumber ?? progress.currentAct,
             status: 'active',
             progressRevision: { increment: 1 },
             updatedAt: new Date(),
@@ -1056,15 +1842,21 @@ export class StoryEconomicsService {
         data: {
           status: finalStatus,
           failureCode,
-          resultSceneId,
-          actualCostKrw: body.actualCostKrw,
+          resultSceneId: null,
+          resultGeneratedSceneId,
+          actualCostKrw: body.actualCostKrw ?? null,
+          leaseToken: null,
+          leaseOwner: null,
+          leaseExpiresAt: null,
           completedAt: new Date(),
         },
       });
-      await tx.storyCustomChoice.update({
-        where: { id: continuation.customChoiceId },
-        data: { status: finalStatus },
-      });
+      if (continuation.customChoiceId) {
+        await tx.storyCustomChoice.update({
+          where: { id: continuation.customChoiceId },
+          data: { status: finalStatus },
+        });
+      }
       await tx.storyAiUsageLedger.create({
         data: {
           continuationId: continuation.id,
@@ -1087,7 +1879,7 @@ export class StoryEconomicsService {
           cachedInputTokens: body.cachedInputTokens,
           imageUnits: body.imageUnits,
           estimatedCostKrw: continuation.estimatedCostKrw,
-          actualCostKrw: body.actualCostKrw,
+          actualCostKrw: body.actualCostKrw ?? null,
           allowanceDelta: finalStatus === 'completed' ? -1 : 0,
           progressApplied: finalStatus === 'completed',
           provenance: 'ai_generated',
@@ -1097,7 +1889,7 @@ export class StoryEconomicsService {
       await tx.auditEvent.create({
         data: {
           actorUserId: adminUserId,
-          actorType: 'admin',
+          actorType: adminUserId ? 'admin' : 'system',
           action: 'story_ai_continuation.settle',
           targetType: 'story_ai_continuation',
           targetId: continuation.id,
@@ -1471,4 +2263,83 @@ function localizedStrings(value: Prisma.JsonValue): string[] {
 
 function jsonRecordArray(value: Prisma.JsonValue | null | undefined) {
   return Array.isArray(value) ? (value as Array<Record<string, unknown>>) : [];
+}
+
+function jsonStringArray(value: Prisma.JsonValue | null | undefined): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string')
+    : [];
+}
+
+function stableJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`;
+  if (value && typeof value === 'object') {
+    return `{${Object.entries(value as Record<string, unknown>)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, item]) => `${JSON.stringify(key)}:${stableJson(item)}`)
+      .join(',')}}`;
+  }
+  return JSON.stringify(value) ?? 'null';
+}
+
+export function assertRecommendedContinuationOutput(
+  body: SettleStoryAiContinuationDto,
+  expectedSceneKey: string,
+) {
+  const hasChoices = Boolean(body.nextChoices?.length);
+  const hasEnding = Boolean(body.ending);
+  if (hasChoices === hasEnding) {
+    throw new BadRequestException(
+      'Generated continuation requires either next choices or an explicit ending',
+    );
+  }
+  if (!body.resultVisualManifest || !projectStoredStorySceneVisualManifest(
+    body.resultVisualManifest,
+    expectedSceneKey,
+  )) {
+    throw new BadRequestException('Generated continuation visual manifest is invalid');
+  }
+  const labels = (body.nextChoices ?? []).map((choice) => stableJson(choice.label));
+  const keys = (body.nextChoices ?? []).map((choice) => choice.choiceKey.trim());
+  if (
+    keys.some((key) => !/^[a-z0-9][a-z0-9_-]{0,79}$/i.test(key)) ||
+    new Set(keys).size !== keys.length ||
+    new Set(labels).size !== labels.length
+  ) {
+    throw new BadRequestException('Generated continuation choices must be distinct');
+  }
+  if (body.ending && !/^ai-[a-z0-9][a-z0-9_-]{0,116}$/i.test(body.ending.endingKey.trim())) {
+    throw new BadRequestException('Generated continuation ending key is invalid');
+  }
+}
+
+export function sanitizeRecommendedVisualManifest(
+  value: Record<string, unknown>,
+  expectedSceneKey: string,
+): Prisma.InputJsonValue {
+  const projected = projectStoredStorySceneVisualManifest(value, expectedSceneKey);
+  const fallback = value.fallback && typeof value.fallback === 'object' && !Array.isArray(value.fallback)
+    ? value.fallback as Record<string, unknown>
+    : {};
+  if (!projected) {
+    throw new BadRequestException('Generated continuation visual manifest is invalid');
+  }
+  return {
+    sceneKey: projected.sceneKey,
+    background: {
+      publicAssetPath: projected.background.publicAssetPath,
+      altKey: projected.background.altKey,
+      state: projected.background.state,
+    },
+    characters: projected.characters.map((character) => ({
+      characterKey: character.characterKey,
+      placement: character.placement,
+      expressionKey: character.expressionKey,
+      publicAssetPath: character.publicAssetPath,
+    })),
+    fallback: {
+      publicAssetPath: String(fallback.publicAssetPath),
+      altKey: String(fallback.altKey),
+    },
+  };
 }

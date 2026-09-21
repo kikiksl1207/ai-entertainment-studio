@@ -1709,6 +1709,7 @@ model StoryPart {
   updatedAt     DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
 
   @@unique([workId, position])
+  @@unique([workId, id], map: "uq_story_parts_work_id")
   @@index([workId, seasonKey, status, position], map: "idx_story_parts_work_season")
   @@map("story_parts")
 }
@@ -1727,6 +1728,7 @@ model StoryScene {
   updatedAt      DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
 
   @@unique([partId, sceneKey])
+  @@unique([partId, id], map: "uq_story_scenes_part_id")
   @@index([partId, status, position], map: "idx_story_scenes_part_position")
   @@map("story_scenes")
 }
@@ -1757,6 +1759,7 @@ model StoryChoice {
   createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   @@unique([sceneId, choiceKey])
+  @@unique([sceneId, id], map: "uq_story_choices_scene_id")
   @@index([sceneId, position], map: "idx_story_choices_scene_position")
   @@index([targetSceneId], map: "idx_story_choices_target_scene")
   @@map("story_choices")
@@ -1767,6 +1770,7 @@ model StoryReaderProgress {
   userId              String   @map("user_id") @db.Uuid
   workId              String   @map("work_id") @db.Uuid
   currentSceneId      String?  @map("current_scene_id") @db.Uuid
+  currentGeneratedSceneId String? @map("current_generated_scene_id") @db.Uuid
   currentBeatPosition Int      @default(0) @map("current_beat_position")
   currentAct          Int      @default(1) @map("current_act")
   progressRevision    Int      @default(1) @map("progress_revision")
@@ -1784,6 +1788,7 @@ model StoryReaderProgress {
 
   @@unique([userId, workId])
   @@unique([workId, id], map: "uq_story_reader_progress_work_id")
+  @@unique([userId, workId, id], map: "uq_story_reader_progress_user_work_id")
   @@index([userId, updatedAt], map: "idx_story_progress_user_updated")
   @@map("story_reader_progress")
 }
@@ -1907,6 +1912,7 @@ model StoryRelease {
 
   @@unique([workId, version])
   @@unique([workId, checksum])
+  @@unique([workId, id], map: "uq_story_releases_work_id")
   @@index([workId, status, createdAt], map: "idx_story_releases_work_status")
   @@map("story_releases")
 }
@@ -2157,18 +2163,42 @@ model StoryAiContinuation {
   workId                 String    @map("work_id") @db.Uuid
   releaseId              String    @map("release_id") @db.Uuid
   progressId             String    @map("progress_id") @db.Uuid
-  customChoiceId         String    @unique @map("custom_choice_id") @db.Uuid
+  requestKind             String    @default("custom_choice") @map("request_kind")
+  customChoiceId          String?   @unique @map("custom_choice_id") @db.Uuid
+  recommendedChoiceId     String?   @map("recommended_choice_id") @db.Uuid
+  generatedChoiceId       String?   @map("generated_choice_id") @db.Uuid
   rateCardId             String    @map("rate_card_id") @db.Uuid
   styleConsentId         String    @map("style_consent_id") @db.Uuid
+  styleConsentRevision    Int       @default(1) @map("style_consent_revision")
   capabilityRevision     Int       @map("capability_revision")
   idempotencyKey         String    @unique @map("idempotency_key")
-  sourceSceneId          String    @map("source_scene_id") @db.Uuid
+  sourcePartId            String    @map("source_part_id") @db.Uuid
+  sourceSceneId          String?   @map("source_scene_id") @db.Uuid
+  sourceGeneratedSceneId String?   @map("source_generated_scene_id") @db.Uuid
   sourceProgressRevision Int       @map("source_progress_revision")
   checkpointSceneId      String?   @map("checkpoint_scene_id") @db.Uuid
+  manuscriptVersionId     String?   @map("manuscript_version_id") @db.Uuid
+  analysisJobId           String?   @map("analysis_job_id") @db.Uuid
+  analysisVersion         Int?      @map("analysis_version")
+  rightsContractId        String?   @map("rights_contract_id") @db.Uuid
+  rightsContractVersionId String?   @map("rights_contract_version_id") @db.Uuid
+  releaseChecksum         String?   @map("release_checksum")
+  locale                  String    @default("ko")
+  contextFingerprint      String    @default("") @map("context_fingerprint")
+  promptVersion           String    @default("legacy") @map("prompt_version")
+  outputSchemaVersion     String    @default("legacy") @map("output_schema_version")
   contextReferences      Json      @default("{}") @map("context_references")
   status                 String    @default("queued")
   failureCode            String?   @map("failure_code")
+  attemptCount            Int       @default(0) @map("attempt_count")
+  maxAttempts             Int       @default(3) @map("max_attempts")
+  leaseToken              String?   @map("lease_token")
+  leaseOwner              String?   @map("lease_owner")
+  leaseExpiresAt          DateTime? @map("lease_expires_at") @db.Timestamptz(6)
+  nextAttemptAt           DateTime  @default(now()) @map("next_attempt_at") @db.Timestamptz(6)
+  lastErrorCode           String?   @map("last_error_code")
   resultSceneId          String?   @map("result_scene_id") @db.Uuid
+  resultGeneratedSceneId String?   @map("result_generated_scene_id") @db.Uuid
   estimatedCostKrw       Decimal   @map("estimated_cost_krw") @db.Decimal(18, 6)
   hardBudgetKrw          Decimal   @map("hard_budget_krw") @db.Decimal(18, 2)
   inputTokenLimit        Int       @map("input_token_limit")
@@ -2180,7 +2210,64 @@ model StoryAiContinuation {
 
   @@index([progressId, status, createdAt], map: "idx_story_ai_continuations_progress")
   @@index([workId, releaseId, createdAt], map: "idx_story_ai_continuations_release")
+  @@index([status, nextAttemptAt, leaseExpiresAt, createdAt], map: "idx_story_ai_continuations_claim")
+  @@index([workId, releaseId, contextFingerprint, status], map: "idx_story_ai_continuations_cache")
+  @@index([sourceSceneId, recommendedChoiceId], map: "idx_story_ai_continuations_recommended_choice")
+  @@index([sourceGeneratedSceneId, generatedChoiceId], map: "idx_story_ai_continuations_generated_choice")
+  @@unique([id, userId, workId, releaseId, progressId], map: "uq_story_ai_continuations_owner_scope")
   @@map("story_ai_continuations")
+}
+
+model StoryAiGeneratedScene {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  continuationId String   @unique @map("continuation_id") @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  workId         String   @map("work_id") @db.Uuid
+  releaseId      String   @map("release_id") @db.Uuid
+  progressId     String   @map("progress_id") @db.Uuid
+  sourcePartId   String   @map("source_part_id") @db.Uuid
+  sceneKey       String   @map("scene_key")
+  resultChecksum String   @map("result_checksum")
+  provenance     String   @default("ai_generated")
+  title          Json
+  visualManifest Json     @map("visual_manifest")
+  endingType     String?  @map("ending_type")
+  status         String   @default("ready")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([progressId, id], map: "uq_story_ai_generated_scenes_progress_id")
+  @@unique([continuationId, id], map: "uq_story_ai_generated_scenes_continuation_id")
+  @@index([userId, workId, releaseId, progressId, createdAt], map: "idx_story_ai_generated_scenes_owner")
+  @@index([workId, releaseId, resultChecksum, status], map: "idx_story_ai_generated_scenes_reuse_candidate")
+  @@map("story_ai_generated_scenes")
+}
+
+model StoryAiGeneratedBeat {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sceneId   String   @map("scene_id") @db.Uuid
+  position  Int
+  beatType  String   @map("beat_type")
+  content   Json
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([sceneId, position])
+  @@index([sceneId, position], map: "idx_story_ai_generated_beats_scene")
+  @@map("story_ai_generated_beats")
+}
+
+model StoryAiGeneratedChoice {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sceneId   String   @map("scene_id") @db.Uuid
+  choiceKey String   @map("choice_key")
+  position  Int
+  label     Json
+  routeKind String   @default("generation_required") @map("route_kind")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([sceneId, choiceKey])
+  @@unique([sceneId, id], map: "uq_story_ai_generated_choices_scene_id")
+  @@index([sceneId, position], map: "idx_story_ai_generated_choices_scene")
+  @@map("story_ai_generated_choices")
 }
 
 model StoryAiUsageLedger {
@@ -2259,6 +2346,7 @@ model StoryStyleProfileConsent {
   createdAt                  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt                  DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
 
+  @@unique([workId, id], map: "uq_story_style_consents_work_id")
   @@index([ownerUserId, status], map: "idx_story_style_consent_owner_status")
   @@index([manuscriptVersionId], map: "idx_story_style_consent_manuscript")
   @@map("story_style_profile_consents")

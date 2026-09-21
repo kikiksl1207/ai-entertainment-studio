@@ -44,6 +44,8 @@ import {
 import { projectStoredStorySceneVisualManifest } from '../story-stage/story-scene-visual-manifest-contract';
 import { prepareValidatedJsonManuscript } from './story-manuscript-file.policy';
 import { storeManuscriptVersion } from './story-manuscript-version.store';
+import { StoryContinuationProvider } from './story-continuation.provider';
+import { StoryContinuationLegalActivationGate } from './story-continuation-legal-activation.gate';
 
 const STORY_ENTITLEMENT_TYPES = [
   'story_work',
@@ -58,6 +60,8 @@ export class StoryProductionService {
   constructor(
     private readonly prisma: PrismaService,
     @Optional() private readonly economics?: StoryEconomicsService,
+    @Optional() private readonly continuationProvider?: StoryContinuationProvider,
+    @Optional() private readonly legalActivation?: StoryContinuationLegalActivationGate,
   ) {}
 
   async creatorCatalog(userId: string, query: StoryCatalogQueryDto) {
@@ -517,6 +521,9 @@ export class StoryProductionService {
       where: { id: progressId, userId },
     });
     if (!progress) throw new NotFoundException('Story progress not found');
+    if (progress.currentGeneratedSceneId) {
+      return this.generatedSceneProjection(progress, locale);
+    }
     if (!progress.currentSceneId) {
       return {
         progressId,
@@ -542,7 +549,7 @@ export class StoryProductionService {
     const progress = await this.prisma.storyReaderProgress.findFirst({
       where: { id: progressId, userId },
     });
-    if (!progress?.currentSceneId) {
+    if (!progress || (!progress.currentSceneId && !progress.currentGeneratedSceneId)) {
       throw new NotFoundException('Active story progress not found');
     }
     if (progress.status !== 'active') {
@@ -556,14 +563,23 @@ export class StoryProductionService {
         currentRevision: progress.progressRevision,
       });
     }
-    const beat = await this.prisma.storyBeat.findUnique({
-      where: {
-        sceneId_position: {
-          sceneId: progress.currentSceneId,
-          position: body.position,
-        },
-      },
-    });
+    const beat = progress.currentGeneratedSceneId
+      ? await this.prisma.storyAiGeneratedBeat.findUnique({
+          where: {
+            sceneId_position: {
+              sceneId: progress.currentGeneratedSceneId,
+              position: body.position,
+            },
+          },
+        })
+      : await this.prisma.storyBeat.findUnique({
+          where: {
+            sceneId_position: {
+              sceneId: progress.currentSceneId!,
+              position: body.position,
+            },
+          },
+        });
     if (!beat && body.position !== 0) {
       throw new BadRequestException(
         'Beat position is not available for the current scene',
@@ -597,10 +613,24 @@ export class StoryProductionService {
     choiceId: string,
     expectedRevision: number,
     locale = 'ko',
+    idempotencyKey?: string,
   ) {
-    await this.prisma.$transaction(async (tx) => {
+    if (this.economics && idempotencyKey) {
+      const replay = await this.economics.recommendedChoiceReplay(
+        userId,
+        progressId,
+        choiceId,
+        idempotencyKey,
+      );
+      if (replay) return replay;
+    }
+    let generationReceipt: unknown;
+    try {
+      generationReceipt = await this.prisma.$transaction(async (tx) => {
       const progress = await tx.storyReaderProgress.findFirst({ where: { id: progressId, userId } });
-      if (!progress?.currentSceneId) throw new NotFoundException('Active story progress not found');
+      if (!progress || (!progress.currentSceneId && !progress.currentGeneratedSceneId)) {
+        throw new NotFoundException('Active story progress not found');
+      }
       if (progress.status !== 'active') {
         throw new ConflictException('Story progress is awaiting another command');
       }
@@ -615,11 +645,32 @@ export class StoryProductionService {
       const work = await tx.storyWork.findFirst({
         where: { id: progress.workId, status: 'published', fixtureSource: false },
       });
-      const scene = await tx.storyScene.findFirst({
-        where: { id: progress.currentSceneId, status: 'published', fixtureSource: false },
-      });
+      const canonicalScene = progress.currentSceneId
+        ? await tx.storyScene.findFirst({
+            where: { id: progress.currentSceneId, status: 'published', fixtureSource: false },
+          })
+        : null;
+      const generatedScene = progress.currentGeneratedSceneId
+        ? await tx.storyAiGeneratedScene.findFirst({
+            where: {
+              id: progress.currentGeneratedSceneId,
+              userId,
+              workId: progress.workId,
+              releaseId: progress.activeReleaseId ?? undefined,
+              progressId: progress.id,
+              status: 'ready',
+            },
+          })
+        : null;
+      const scene = canonicalScene ?? generatedScene;
+      const sourceKind = generatedScene ? 'generated' as const : 'canonical' as const;
       const part = scene ? await tx.storyPart.findFirst({
-        where: { id: scene.partId, workId: progress.workId, status: 'published', fixtureSource: false },
+        where: {
+          id: canonicalScene?.partId ?? generatedScene?.sourcePartId,
+          workId: progress.workId,
+          status: 'published',
+          fixtureSource: false,
+        },
       }) : null;
       if (!work || !scene || !part) throw new NotFoundException('Published story progress not found');
       if (!work.priceLumina.isZero()) {
@@ -646,7 +697,14 @@ export class StoryProductionService {
       }
       const release = await tx.storyRelease.findFirst({
         where: { id: progress.activeReleaseId, workId: work.id, status: 'active' },
-        select: { id: true },
+        select: {
+          id: true,
+          workId: true,
+          version: true,
+          manuscriptVersionId: true,
+          checksum: true,
+          status: true,
+        },
       });
       if (!release) throw new NotFoundException('Published story not found');
       if (this.economics) {
@@ -655,21 +713,57 @@ export class StoryProductionService {
           throw new ConflictException('Story release capability changed');
         }
       }
-      const choices = await tx.storyChoice.findMany({
-        where: { sceneId: progress.currentSceneId },
-        orderBy: [{ position: 'asc' }, { id: 'asc' }],
-        take: STORY_FIRST_RELEASE_CHOICE_POLICY.maxSuggestedChoices + 1,
-      });
+      const choices = sourceKind === 'canonical'
+        ? await tx.storyChoice.findMany({
+            where: { sceneId: scene.id },
+            orderBy: [{ position: 'asc' }, { id: 'asc' }],
+            take: STORY_FIRST_RELEASE_CHOICE_POLICY.maxSuggestedChoices + 1,
+          })
+        : await tx.storyAiGeneratedChoice.findMany({
+            where: { sceneId: scene.id },
+            orderBy: [{ position: 'asc' }, { id: 'asc' }],
+            take: STORY_FIRST_RELEASE_CHOICE_POLICY.maxSuggestedChoices + 1,
+          });
       assertSuggestedChoiceCount(choices.length);
-      const choice = choices.find((item) => item.id === choiceId);
+      const choice: any = choices.find((item) => item.id === choiceId);
       if (!choice) throw new BadRequestException('Choice is not available for the current scene');
       if (choice.routeKind === 'generation_required') {
-        throw new ConflictException({
-          code: 'STORY_CHOICE_GENERATION_REQUIRED',
-          messageKey: 'story.choice.status.generationRequired',
-          retryable: false,
-          progressMutated: false,
-          generationStarted: false,
+        const legalActivation = await this.legalActivation?.authorize({
+          workId: work.id,
+          releaseId: release.id,
+          manuscriptVersionId: release.manuscriptVersionId,
+          rightsContractVersionId: null,
+        });
+        if (!legalActivation?.active) {
+          throw new ForbiddenException({
+            code: 'STORY_AI_LEGAL_ACTIVATION_REQUIRED',
+            messageKey: 'story.progress.aiGeneration.legalActivationRequired',
+            retryable: false,
+            progressMutated: false,
+            generationStarted: false,
+          });
+        }
+        const providerReadiness = await this.continuationProvider?.readiness();
+        if (!this.economics || !providerReadiness?.enabled) {
+          throw new ConflictException({
+            code: 'STORY_CHOICE_GENERATION_UNAVAILABLE',
+            messageKey: 'story.choice.status.generationUnavailable',
+            retryable: false,
+            progressMutated: false,
+            generationStarted: false,
+          });
+        }
+        return this.economics.requestRecommendedChoiceTx(tx, {
+          userId,
+          progress,
+          work,
+          part,
+          scene,
+          release,
+          choice,
+          sourceKind,
+          locale,
+          idempotencyKey,
         });
       }
       const target = choice.targetSceneId
@@ -692,7 +786,7 @@ export class StoryProductionService {
       const path = boundedPath([
         ...jsonArray(progress.pathSummary),
         {
-          sceneId: progress.currentSceneId,
+          sceneId: progress.currentSceneId!,
           choiceId: choice.id,
           nextSceneId: target?.id ?? null,
           explicitRejoin: Boolean(choice.declaredRejoinSceneId),
@@ -702,7 +796,7 @@ export class StoryProductionService {
       await tx.storyChoiceEvent.create({
         data: {
           progressId,
-          sceneId: progress.currentSceneId,
+          sceneId: progress.currentSceneId!,
           choiceId: choice.id,
           targetSceneId: target?.id,
           endingKey: choice.targetEndingKey,
@@ -779,7 +873,28 @@ export class StoryProductionService {
           retryable: true,
         });
       }
-    });
+      if (sourceKind === 'generated') {
+        throw new ConflictException('Generated story choice route is invalid');
+      }
+      return null;
+      });
+    } catch (error) {
+      if (
+        idempotencyKey &&
+        error && typeof error === 'object' && 'code' in error && error.code === 'P2002' &&
+        this.economics
+      ) {
+        const replay = await this.economics.recommendedChoiceReplay(
+          userId,
+          progressId,
+          choiceId,
+          idempotencyKey,
+        );
+        if (replay) return replay;
+      }
+      throw error;
+    }
+    if (generationReceipt) return generationReceipt;
     return this.currentProgress(userId, progressId, locale);
   }
 
@@ -1226,6 +1341,112 @@ export class StoryProductionService {
       if (updated.count !== 1) throw new ConflictException('Continuity issue changed concurrently');
       return tx.storyContinuityIssue.findUniqueOrThrow({ where: { id: issue.id } });
     });
+  }
+
+  private async generatedSceneProjection(
+    progress: {
+      id: string;
+      workId: string;
+      currentGeneratedSceneId: string | null;
+      currentBeatPosition: number;
+      currentAct: number;
+      progressRevision: number;
+      storyVersion: number;
+      activeReleaseId?: string | null;
+      capabilityRevision?: number | null;
+      pathSummary: Prisma.JsonValue;
+      status: string;
+    },
+    locale: string,
+  ) {
+    const scene = await this.prisma.storyAiGeneratedScene.findFirst({
+      where: {
+        id: progress.currentGeneratedSceneId!,
+        progressId: progress.id,
+        workId: progress.workId,
+        releaseId: progress.activeReleaseId ?? undefined,
+        status: 'ready',
+      },
+    });
+    const part = scene
+      ? await this.prisma.storyPart.findFirst({
+          where: {
+            id: scene.sourcePartId,
+            workId: scene.workId,
+            status: 'published',
+            fixtureSource: false,
+          },
+        })
+      : null;
+    const work = part
+      ? await this.prisma.storyWork.findFirst({
+          where: { id: part.workId, status: 'published', fixtureSource: false },
+        })
+      : null;
+    if (!scene || !part || !work) throw new NotFoundException('Generated story scene not found');
+    const visualManifest = projectStoredStorySceneVisualManifest(scene.visualManifest, scene.sceneKey);
+    if (!visualManifest) throw new NotFoundException('Generated story scene not found');
+    const [beats, choices, releaseCapability] = await Promise.all([
+      this.prisma.storyAiGeneratedBeat.findMany({
+        where: { sceneId: scene.id },
+        orderBy: [{ position: 'asc' }, { id: 'asc' }],
+        take: 41,
+      }),
+      this.prisma.storyAiGeneratedChoice.findMany({
+        where: { sceneId: scene.id },
+        orderBy: [{ position: 'asc' }, { id: 'asc' }],
+        take: STORY_FIRST_RELEASE_CHOICE_POLICY.maxSuggestedChoices + 1,
+      }),
+      this.economics && progress.activeReleaseId
+        ? this.economics.capabilityByRelease(progress.activeReleaseId)
+        : null,
+    ]);
+    if (beats.length < 1 || beats.length > 40) {
+      throw new NotFoundException('Generated story scene not found');
+    }
+    assertSuggestedChoiceCount(choices.length);
+    return {
+      progressId: progress.id,
+      status: progress.status,
+      revision: progress.progressRevision,
+      storyVersion: progress.storyVersion,
+      currentAct: progress.currentAct,
+      currentBeatPosition: progress.currentBeatPosition,
+      part: {
+        id: part.id,
+        seasonKey: part.seasonKey,
+        actNumber: part.actNumber,
+        position: part.position,
+        title: projectLocalizedValue(part.title, locale, work.defaultLocale),
+      },
+      scene: {
+        id: scene.id,
+        sceneKey: scene.sceneKey,
+        title: projectLocalizedValue(scene.title, locale, work.defaultLocale),
+        beats: beats.map((beat) => ({
+          id: beat.id,
+          position: beat.position,
+          type: beat.beatType,
+          content: projectLocalizedValue(beat.content, locale, work.defaultLocale),
+        })),
+        visualManifest,
+        endingType: scene.endingType,
+      },
+      choices: progress.status === 'active'
+        ? choices.map((choice) => ({
+            id: choice.id,
+            label: projectLocalizedValue(choice.label, locale, work.defaultLocale),
+            routeKind: 'generation_required',
+            explicitRejoin: false,
+            nextHint: null,
+          }))
+        : [],
+      path: boundedPath(jsonArray(progress.pathSummary)),
+      releaseCapability:
+        releaseCapability && progress.capabilityRevision === releaseCapability.revision
+          ? { ...firstReleaseChoiceCapability(), source: 'pinned_release_capability' }
+          : { ...firstReleaseChoiceCapability(), source: 'fail_closed' },
+    };
   }
 
   private async sceneProjection(

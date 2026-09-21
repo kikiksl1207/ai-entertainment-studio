@@ -250,6 +250,20 @@ export class StoryGeneratedBeatDto {
   content: Record<string, string>;
 }
 
+export class StoryGeneratedChoiceDto {
+  @IsString()
+  @MaxLength(80)
+  choiceKey: string;
+  @IsObject()
+  label: Record<string, string>;
+}
+
+export class StoryGeneratedEndingDto {
+  @IsString()
+  @MaxLength(120)
+  endingKey: string;
+}
+
 export class SettleStoryAiContinuationDto {
   @IsIn(['completed', 'failed', 'timeout'])
   status: 'completed' | 'failed' | 'timeout';
@@ -272,9 +286,10 @@ export class SettleStoryAiContinuationDto {
   @Min(0)
   imageUnits = 0;
   @Type(() => Number)
+  @IsOptional()
   @IsNumber()
   @Min(0)
-  actualCostKrw: number;
+  actualCostKrw?: number;
   @IsOptional()
   @IsString()
   @MaxLength(80)
@@ -289,6 +304,20 @@ export class SettleStoryAiContinuationDto {
   @ValidateNested({ each: true })
   @Type(() => StoryGeneratedBeatDto)
   resultBeats?: StoryGeneratedBeatDto[];
+  @IsOptional()
+  @IsObject()
+  resultVisualManifest?: Record<string, unknown>;
+  @IsOptional()
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(3)
+  @ValidateNested({ each: true })
+  @Type(() => StoryGeneratedChoiceDto)
+  nextChoices?: StoryGeneratedChoiceDto[];
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => StoryGeneratedEndingDto)
+  ending?: StoryGeneratedEndingDto;
 }
 
 export class ApproveStoryAiCompensationDto {

@@ -408,6 +408,7 @@ export class StoryProgressControlService {
         where: { id: progress.id, userId, progressRevision: body.expectedRevision },
         data: {
           currentSceneId: plan.targetSceneId,
+          currentGeneratedSceneId: null,
           currentBeatPosition: 0,
           currentAct: plan.targetAct,
           checkpointSceneId: plan.targetSceneId,

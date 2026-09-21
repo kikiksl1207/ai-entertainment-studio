@@ -1,11 +1,13 @@
 import {
   Body,
+  ConflictException,
   Controller,
   Get,
   Headers,
   Param,
   Post,
   Put,
+  Optional,
   UseGuards,
 } from '@nestjs/common';
 import { AuthUser } from '../auth/auth.types';
@@ -26,6 +28,7 @@ import {
   UpsertStoryStyleConsentDto,
 } from './dto/story-economics.dto';
 import { StoryEconomicsService } from './story-economics.service';
+import { StoryContinuationExecutor } from './story-continuation.executor';
 
 @Controller()
 @UseGuards(JwtAuthGuard)
@@ -88,7 +91,19 @@ export class StoryEconomicsController {
 @Controller('/admin/api/v1/story-ai')
 @UseGuards(AdminAuthGuard, AdminPermissionGuard)
 export class StoryEconomicsAdminController {
-  constructor(private readonly economics: StoryEconomicsService) {}
+  constructor(
+    private readonly economics: StoryEconomicsService,
+    @Optional() private readonly continuationExecutor?: StoryContinuationExecutor,
+  ) {}
+
+  @Post('continuations/run-once')
+  @RequireAdminPermissions('*')
+  runContinuationOnce(@CurrentUser() user: AuthUser) {
+    if (!this.continuationExecutor) {
+      throw new ConflictException('Story continuation executor is unavailable');
+    }
+    return this.continuationExecutor.executeOne(`admin:${user.id}`);
+  }
 
   @Post('rate-cards')
   @RequireAdminPermissions('*')
