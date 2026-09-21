@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { loadStoryServerContract } from './story-stage-server-contract.mjs';
+import { registerPurchaseTests } from './story-stage-purchase.test-support.mjs';
 
 // Registered in the reader suite to share exactly one serial Chrome process.
 export function registerCatalogTests({ getBrowser, repo, artifacts, base, api }) {
@@ -21,6 +22,7 @@ export function registerCatalogTests({ getBrowser, repo, artifacts, base, api })
     const accessible = free || owned;
     return { status: owned ? 'entitled' : free ? 'free' : auth ? 'purchase_required' : 'sign_in_required', accessible,
       entitled: accessible, entitlementGranted: owned, pricing: { amountLumina: free ? '0' : '125.5', currencyCode: 'LUMINA', free },
+      purchaseConfirmation: accessible ? null : { priceLumina: '125.5', releaseId: '66666666-6666-4666-8666-666666666666', releaseRevision: 4 },
       actions: { primary: !auth ? 'sign_in' : !accessible ? 'purchase' : resume ? 'continue' : 'start', authenticationRequired: !auth,
         canStart: auth && accessible, canContinue: auth && accessible && resume, canPurchase: auth && !accessible,
         canRestart: auth && accessible, canReset: auth && accessible && resume, canViewEndings: false }, endingCount: 0 };
@@ -60,6 +62,7 @@ export function registerCatalogTests({ getBrowser, repo, artifacts, base, api })
     await context.addInitScript(({ locale, authenticated }) => {
       window.testLocale = locale;
       window.testAuthenticated = authenticated;
+      window.testUserId = 'local-user';
       window.luminaI18n = { getLocale: () => window.testLocale };
     }, { locale: options.locale || 'en', authenticated: options.auth !== false });
     await context.route('**/*', async (route) => {
@@ -102,7 +105,8 @@ export function registerCatalogTests({ getBrowser, repo, artifacts, base, api })
           return route.fulfill({ contentType: 'text/javascript', body: `
             document.body.classList.remove('is-booting'); const API_BASE = ${JSON.stringify(api)};
             function isLoggedIn() { return window.testAuthenticated; }
-            function getAccessToken() { return window.testAuthenticated ? 'private-synthetic-token' : null; }
+            function getAuth() { return window.testAuthenticated ? { user: { id: window.testUserId }, accessToken: getAccessToken() } : null; }
+            function getAccessToken() { return window.testAuthenticated ? window.testUserId === 'local-user' ? 'private-synthetic-token' : 'other-synthetic-token' : null; }
             async function refreshAuthOnce() { window.testRefreshCount = (window.testRefreshCount || 0) + 1; return false; }
             ${app.slice(start, end)}
             window.apiFetch = apiFetch;
@@ -121,6 +125,8 @@ export function registerCatalogTests({ getBrowser, repo, artifacts, base, api })
       async close() { await context.close(); assert.deepEqual(failures, []); },
     };
   }
+
+  registerPurchaseTests({ fixture, owner, detail, progress, access, workId, otherId, progressId, artifacts, locales, gate, delay });
 
   for (const scenario of [
     { name: 'anonymous free', auth: false }, { name: 'anonymous paid', auth: false, free: false },
@@ -150,7 +156,7 @@ export function registerCatalogTests({ getBrowser, repo, artifacts, base, api })
           assert.deepEqual(posts[0].body, { mode: 'continue', locale: 'en' });
         } else {
           assert.equal(f.requests.filter((r) => r.method === 'POST').length, 0);
-          assert.equal(await f.page.locator('.story-detail-actions button:disabled').count(), scenario.auth === false ? 0 : 1);
+          assert.equal(await f.page.locator('[data-story-purchase]:enabled').count(), scenario.auth === false ? 0 : 1);
           assert.ok((await f.page.locator('[data-story-detail-status]').innerText()).length > 0);
         }
       } finally { await f.close(); }
@@ -217,12 +223,36 @@ export function registerCatalogTests({ getBrowser, repo, artifacts, base, api })
       const override = await options.hook?.(r, c);
       if (override) return override;
       if (r.path === '/api/v1/stories/private-local-story') return { body: c.detail };
-      if (r.path.endsWith('/access')) return { body: c.access };
-      if (r.path.endsWith('/progress-state')) return { body: c.state };
+      if (r.path.endsWith('/access')) return { body: await c.readAccess() };
+      if (r.path.endsWith('/progress-state')) return { body: await c.readState() };
+      if (r.path.endsWith('/purchase') && r.method === 'POST') {
+        try { return { body: await c.purchase(r.headers['idempotency-key'], r.body) }; }
+        catch (error) { return { status: error.getStatus(), body: error.getResponse() }; }
+      }
       if (r.path.endsWith('/progress') && r.method === 'POST') return { body: await c.start() };
       if (r.path.endsWith('/current-scene')) return { body: await c.current() };
     } });
     return { ...f, c };
+  }
+
+  for (const lost of [false, true]) {
+    test(`purchase server: actual purchase/access/progress methods, lost response=${lost}`, async () => {
+      const f = await serverFixture({ free: false, hook: async (r, c) => {
+        if (lost && r.path.endsWith('/purchase')) { await c.purchase(r.headers['idempotency-key'], r.body); return { abort: true }; }
+      } });
+      try {
+        await f.open();
+        await f.page.locator('[data-story-purchase]').click();
+        await f.page.locator('[data-story-purchase-confirm]').click();
+        await f.page.locator('[data-story-start]:enabled').waitFor();
+        assert.deepEqual(f.c.writes, ['wallet-debit', 'purchase-ledger', 'purchase-grant']);
+        assert.equal(f.requests.filter((r) => r.method === 'POST').length, 1);
+        const result = await f.c.purchase(f.requests.find((r) => r.path.endsWith('/purchase')).headers['idempotency-key']);
+        assert.equal(result.chargedAmountLumina, '0');
+        assert.equal(result.originalPurchaseAmountLumina, '125.5');
+        assert.deepEqual(f.c.writes, ['wallet-debit', 'purchase-ledger', 'purchase-grant']);
+      } finally { await f.close(); }
+    });
   }
 
   for (const state of ['completed-scene', 'completed-null']) for (const paid of [false, true]) for (const exhausted of [false, true]) {

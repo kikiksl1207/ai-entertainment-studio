@@ -67,6 +67,7 @@
 .story-detail-actions { padding: 12px 20px max(16px, env(safe-area-inset-bottom)); border-top: 1px solid #35363b; background: #1b1c22; overflow: auto; max-height: 42dvh; }
 .story-detail-actions p { margin: 0; font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
 .story-detail-actions p:empty { display: none; }
+.story-detail-actions .story-purchase-price { margin-top: 8px; font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .story-detail-actions > div { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .story-detail-actions .story-button { min-width: 0; max-width: 100%; min-height: 44px; white-space: normal; overflow-wrap: anywhere; }
 .story-catalog-tools { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
