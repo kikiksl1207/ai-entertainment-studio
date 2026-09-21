@@ -1,5 +1,43 @@
 # Story Continuation Integration Checkpoint
 
+## Latest Combined Candidate
+
+Runtime source `65bb0a8` includes the accepted purchase/whole-route/final-Imjin
+corrections, reader candidate `dcf548b`, semantic candidate `8ec53da` and OTT
+authored-graph candidate `717cee3`. These are development-branch integrations,
+not production deployment or approval of every included feature.
+
+- Own Prisma6.19.3 client generation and whole-server TypeScript noEmit passed.
+- A fresh dedicated `lumina_combined_qa64` applied all 64 migrations through
+  Prisma migrate deploy. Earlier retained QA databases were not reset.
+- Actual AppModule/JWT/ValidationPipe/filter/PG HTTP smoke passed 10/10 with both
+  semantic and continuation providers/workers explicitly OFF. It covers purchase
+  and authorization regression, not semantic or OTT behavioral acceptance.
+  Result: `E:/CodexMovedCache/qa-story-http-integration-1790027347387-results.json`.
+- Imjin source `b51ad9e` independently passed 9 grouped real-PG checks: all75
+  parts/155 beats/225 choices, every body digest, private directive separation,
+  rollback/replay/conflict and full authored-route traversal. Part74A reaches a
+  readable active part75; only75A completes. Synthetic local readiness rows are
+  not author, legal, semantic or production approval.
+- Reader candidate author tests passed25 functional checks and17 final
+  typography/layout checks (15 locale/viewport captures plus2 affected layouts).
+  Earlier source17 and visual/regression25 counts overlap. All text is reachable,
+  there is no forced-scroll receipt gate, and a completed/null scene has an
+  explicit completion view. Independent combined browser review remains queued.
+- Semantic candidate author validation passed67 focused tests, including17 real
+  PG and1 default-OFF AppModule smoke. Full-source offline planning is separately
+  measured; semantic interpretation quality, author review, approved memory and
+  terminal-job recovery are not accepted by those tests. Current32-piece packing
+  and raw Norse intake capacity are being improved before paid activation.
+- OTT graph candidate author tests passed134 with2 optional duration-probe skips.
+  Independent graph/PG and actual ffprobe checks are in progress. No branching
+  movie UI, final15-minute film, public playback or capacity claim follows.
+
+Original manuscripts and derived packages stay private on E. Product main,
+production migrations, customer wallets, paid providers and novel publication
+were not changed. Existing frozen source/test evidence remains valid for its
+specified scope; do not add overlapping counts into a product-completion total.
+
 ## Runtime Connection
 
 The production module now registers opt-in provider and worker factories. Both
@@ -71,9 +109,11 @@ The current 25-second provider timeout and prompt's one-to-forty-beat output
 contract do not establish that a long chapter can be generated at the intended
 length. Measure actual latency and output completeness before enabling long-form
 generation; do not count short synthetic output as a finished 10k-character part.
-Whole-route identity and reader-derived narrative memory are separate work.
-Current manuscript analysis is still deterministic paragraph/tag extraction, not
-semantic model analysis. The lifecycle memory builder's first-1,000-evidence cap
+Whole-route identity has since received bounded independent acceptance; reader-
+derived narrative memory remains separate. At the earlier checkpoint manuscript
+analysis was deterministic paragraph/tag extraction. The new semantic candidate
+is described above and does not approve its own observations. The legacy
+lifecycle memory builder's first-1,000-evidence cap
 and background-to-style mapping must not be presented as complete long-form
 author analysis. Asynchronous evidence extraction, explicit author review,
 approved style profiles and spoiler-aware reader-derived memory remain required.
