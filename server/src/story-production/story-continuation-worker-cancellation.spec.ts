@@ -3,7 +3,7 @@ import { runWithAbortTimeout, StoryContinuationExecutor } from './story-continua
 function fixture() {
   const claim = { continuationId: 'test', leaseToken: 'lease', attemptCount: 1, maxAttempts: 3,
     request: { operationId: 'test', locale: 'en', inputTokenLimit: 100, outputTokenLimit: 100 } };
-  const queue = { claimExpiredTerminal: jest.fn().mockResolvedValue(null), claimNext: jest.fn().mockResolvedValue(claim), releaseForRetry: jest.fn() };
+  const queue = { claimExpiredTerminal: jest.fn().mockResolvedValue(null), claimNext: jest.fn().mockResolvedValue(claim), releaseForRetry: jest.fn(), markDispatched: jest.fn(), releaseNotAcceptedForRetry: jest.fn() };
   const provider = { readiness: jest.fn().mockResolvedValue({ enabled: true }), generate: jest.fn() };
   const economics = { continuationExecutionAuthorization: jest.fn().mockResolvedValue({ allowed: true }), failClaimedContinuation: jest.fn(), settleClaimedContinuation: jest.fn() };
   const assembler = { assemble: jest.fn().mockResolvedValue({}) };

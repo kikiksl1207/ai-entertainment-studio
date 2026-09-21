@@ -29,8 +29,11 @@ export class StoryContinuationExecutor {
     if (signal?.aborted) return { status: 'cancelled' as const };
     const expired = await this.queue.claimExpiredTerminal(workerId, LEASE_MS);
     if (expired) {
-      await this.economics.failClaimedContinuation(expired, 'provider_timeout', 'timeout');
-      return { status: 'recovered_timeout' as const, continuationId: expired.continuationId };
+      const unknown = Boolean(expired.dispatchStartedAt);
+      await this.economics.failClaimedContinuation(expired,
+        unknown ? 'provider_outcome_unknown' : 'provider_timeout', unknown ? 'failed' : 'timeout');
+      return { status: unknown ? 'recovered_outcome_unknown' as const : 'recovered_timeout' as const,
+        continuationId: expired.continuationId };
     }
     const readiness = await this.provider.readiness();
     if (signal?.aborted) return { status: 'cancelled' as const };
@@ -40,6 +43,7 @@ export class StoryContinuationExecutor {
     const claim = await this.queue.claimNext(workerId, LEASE_MS);
     if (!claim) return { status: 'idle' as const };
     let providerStarted = false;
+    let fenceAttempted = false;
     try {
       throwIfCancelled(signal);
       const authorization = await this.economics.continuationExecutionAuthorization(claim);
@@ -53,10 +57,19 @@ export class StoryContinuationExecutor {
       }
       const approvedContext = await this.contextAssembler.assemble(claim);
       throwIfCancelled(signal);
+      const request = { ...claim.request, approvedContext };
+      const preflight = await this.provider.preflight?.(request);
+      if (preflight && !preflight.supported) {
+        throw new StoryContinuationProviderError(preflight.reason ?? 'provider_preflight_unavailable', false);
+      }
+      throwIfCancelled(signal);
+      fenceAttempted = true;
+      await this.queue.markDispatched(claim);
+      if (signal?.aborted) throw new StoryContinuationProviderError('provider_outcome_unknown', false);
       providerStarted = true;
       const providerResult = await runWithAbortTimeout(
         (signal) => this.provider.generate(
-          { ...claim.request, approvedContext },
+          request,
           signal,
         ),
         PROVIDER_TIMEOUT_MS,
@@ -85,13 +98,17 @@ export class StoryContinuationExecutor {
     } catch (error) {
       let providerError = normalizeProviderError(error);
       // A settlement/database error after generation must not replay a potentially paid call.
-      if (providerStarted && providerError.retryable &&
-          !['provider_rate_limited', 'provider_cancelled'].includes(providerError.code)) {
+      if (fenceAttempted && (!providerStarted || providerError.retryable) &&
+          !(providerStarted && providerError.code === 'provider_rate_limited')) {
         providerError = new StoryContinuationProviderError('provider_outcome_unknown', false);
       }
       if (providerError.retryable && claim.attemptCount < claim.maxAttempts) {
         const retryAt = new Date(Date.now() + Math.min(60_000, 1_000 * 2 ** claim.attemptCount));
-        await this.queue.releaseForRetry(claim, providerError.code, retryAt);
+        if (providerStarted && providerError.code === 'provider_rate_limited') {
+          await this.queue.releaseNotAcceptedForRetry(claim, retryAt);
+        } else {
+          await this.queue.releaseForRetry(claim, providerError.code, retryAt);
+        }
         return { status: 'retry_wait' as const, continuationId: claim.continuationId };
       }
       await this.economics.failClaimedContinuation(

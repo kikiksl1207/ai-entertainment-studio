@@ -59,6 +59,8 @@ function fixture() {
     claimExpiredTerminal: jest.fn().mockResolvedValue(null),
     claimNext: jest.fn().mockResolvedValue(claim),
     releaseForRetry: jest.fn(),
+    markDispatched: jest.fn(),
+    releaseNotAcceptedForRetry: jest.fn(),
   } as unknown as StoryContinuationQueueRepository;
   const provider = {
     readiness: jest.fn().mockResolvedValue({ enabled: true }),
@@ -106,6 +108,56 @@ describe('StoryContinuationExecutor', () => {
       status: 'disabled', reason: 'provider_not_configured',
     });
     expect(f.queue.claimNext).not.toHaveBeenCalled();
+    expect(f.provider.generate).not.toHaveBeenCalled();
+  });
+
+  it('commits the dispatch fence before invoking the provider', async () => {
+    const f = fixture();
+    let commit!: () => void;
+    jest.mocked(f.queue.markDispatched).mockImplementation(() => new Promise((resolve) => { commit = resolve; }));
+    const pending = f.executor.executeOne('worker');
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+    expect(f.queue.markDispatched).toHaveBeenCalledWith(claim);
+    expect(f.provider.generate).not.toHaveBeenCalled();
+    commit();
+    await expect(pending).resolves.toMatchObject({ status: 'completed' });
+    expect(f.provider.generate).toHaveBeenCalledTimes(1);
+  });
+
+  it('never generates when dispatch commit acknowledgement fails', async () => {
+    const f = fixture();
+    jest.mocked(f.queue.markDispatched).mockRejectedValue({ code: 'P1001' });
+    await expect(f.executor.executeOne('worker')).resolves.toMatchObject({ status: 'failed' });
+    expect(f.provider.generate).not.toHaveBeenCalled();
+    expect(f.queue.releaseForRetry).not.toHaveBeenCalled();
+    expect(f.economics.failClaimedContinuation).toHaveBeenCalledWith(claim, 'provider_outcome_unknown', 'failed');
+  });
+
+  it('preflights before marking a dispatch fence', async () => {
+    const f = fixture();
+    f.provider.preflight = jest.fn().mockResolvedValue({ supported: false, reason: 'provider_input_bound_exceeded' });
+    await expect(f.executor.executeOne('worker')).resolves.toMatchObject({ status: 'failed' });
+    expect(f.queue.markDispatched).not.toHaveBeenCalled();
+    expect(f.provider.generate).not.toHaveBeenCalled();
+  });
+
+  it('preflight cancellation can retry without dispatch or fence', async () => {
+    const f = fixture();
+    const controller = new AbortController();
+    f.provider.preflight = jest.fn().mockImplementation(async () => { controller.abort(); return { supported: true }; });
+    await expect(f.executor.executeOne('worker', controller.signal)).resolves.toMatchObject({ status: 'retry_wait' });
+    expect(f.queue.markDispatched).not.toHaveBeenCalled();
+    expect(f.provider.generate).not.toHaveBeenCalled();
+    expect(f.queue.releaseForRetry).toHaveBeenCalledWith(claim, 'provider_cancelled', expect.any(Date));
+  });
+
+  it('recovers a fenced expired attempt without probing or invoking the provider', async () => {
+    const f = fixture();
+    const fenced = { ...claim, dispatchStartedAt: new Date() };
+    jest.mocked(f.queue.claimExpiredTerminal).mockResolvedValue(fenced);
+    await expect(f.executor.executeOne('worker')).resolves.toMatchObject({ status: 'recovered_outcome_unknown' });
+    expect(f.economics.failClaimedContinuation).toHaveBeenCalledWith(fenced, 'provider_outcome_unknown', 'failed');
+    expect(f.provider.readiness).not.toHaveBeenCalled();
     expect(f.provider.generate).not.toHaveBeenCalled();
   });
 
@@ -201,9 +253,8 @@ describe('StoryContinuationExecutor', () => {
       new StoryContinuationProviderError('provider_rate_limited', true),
     );
     await expect(f.executor.executeOne('worker')).resolves.toMatchObject({ status: 'retry_wait' });
-    expect(f.queue.releaseForRetry).toHaveBeenCalledWith(
-      claim, 'provider_rate_limited', expect.any(Date),
-    );
+    expect(f.queue.releaseNotAcceptedForRetry).toHaveBeenCalledWith(claim, expect.any(Date));
+    expect(f.queue.releaseForRetry).not.toHaveBeenCalled();
     expect(f.economics.failClaimedContinuation).not.toHaveBeenCalled();
   });
 

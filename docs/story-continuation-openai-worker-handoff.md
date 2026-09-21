@@ -1,5 +1,7 @@
 # Story Continuation OpenAI Sidecar
 
+This document records the frozen `ad41748` slice. The bounded #1896 follow-up in [story-continuation-dispatch-tokenizer-handoff.md](story-continuation-dispatch-tokenizer-handoff.md) supersedes its byte-budget and unfenced crash-replay limitations and adds the required pinned tokenizer dependency/migration. Other activation boundaries remain unchanged.
+
 Status: opt-in implementation, not activated. No API key, generation request, deployment, payment change, dependency install or Prisma generation was performed. All adapter tests use fake transport. Existing production module remains unchanged.
 
 ## Integration Contract

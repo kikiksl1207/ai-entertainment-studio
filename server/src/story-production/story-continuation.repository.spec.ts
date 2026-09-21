@@ -12,7 +12,7 @@ function fixture() {
   };
   const prisma = {
     $queryRaw: jest.fn().mockResolvedValue([row]),
-    storyAiContinuation: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+    $executeRaw: jest.fn().mockResolvedValue(1),
   };
   const repository = new PrismaStoryContinuationQueueRepository(prisma as never);
   return { row, prisma, repository };
@@ -70,7 +70,7 @@ describe('continuation queue provider pins', () => {
   it('cannot return a stale lease to the queue', async () => {
     const f = fixture();
     const claim = await f.repository.claimNext('worker', 60_000);
-    f.prisma.storyAiContinuation.updateMany.mockResolvedValue({ count: 0 });
+    f.prisma.$executeRaw.mockResolvedValue(0);
     await expect(f.repository.releaseForRetry(claim!, 'transient', new Date()))
       .rejects.toBeInstanceOf(ConflictException);
   });

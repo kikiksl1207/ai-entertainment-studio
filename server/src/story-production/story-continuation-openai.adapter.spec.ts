@@ -1,6 +1,7 @@
 import { OpenAiStoryContinuationProvider, type StoryContinuationFetch } from './story-continuation-openai.adapter';
 import { readStoryContinuationOpenAiConfig, type StoryContinuationOpenAiConfig } from './story-continuation-openai.config';
 import { buildStoryContinuationOpenAiRequest, preflightStoryContinuationOpenAiRequest } from './story-continuation-openai.prompt';
+import { storyContinuationInputTokenBudget } from './story-continuation-tokenizer';
 import { DisabledStoryContinuationProvider, type StoryContinuationProviderRequest } from './story-continuation.provider';
 
 const config: StoryContinuationOpenAiConfig = {
@@ -61,7 +62,7 @@ describe('OpenAiStoryContinuationProvider (fake transport only)', () => {
 
   it('exposes provider preflight with safe diagnostics and no transport or secret-config dependency', async () => {
     const f = fixture();
-    await expect(f.provider.preflight(request())).resolves.toMatchObject({ supported: true, budgetMethod: 'utf8_bytes_plus_1024' });
+    await expect(f.provider.preflight(request())).resolves.toMatchObject({ supported: true, budgetMethod: 'js_tiktoken_o200k_base_v1' });
     await expect(f.provider.preflight({ ...request(), rateCardVersion: undefined })).resolves.toMatchObject({ supported: false, reason: 'provider_pin_mismatch' });
     await expect(new DisabledStoryContinuationProvider().preflight()).resolves.toMatchObject({ supported: false });
     expect(JSON.stringify(await f.provider.preflight(request()))).not.toContain(config.apiKey);
@@ -122,8 +123,8 @@ describe('OpenAiStoryContinuationProvider (fake transport only)', () => {
   it('counts serialized instructions/schema and framing, not only context length', async () => {
     const req = request();
     const body = buildStoryContinuationOpenAiRequest(req, config);
-    const total = Buffer.byteLength(JSON.stringify(body), 'utf8') + 1_024;
-    expect(total).toBeGreaterThan(Buffer.byteLength(JSON.stringify(req.approvedContext)));
+    const total = storyContinuationInputTokenBudget(body);
+    expect(total).toBeGreaterThan(storyContinuationInputTokenBudget({ model: config.model, context: req.approvedContext } as never));
     const f = fixture();
     await expect(f.provider.generate({ ...req, inputTokenLimit: total - 1 }, new AbortController().signal))
       .rejects.toMatchObject({ code: 'provider_input_bound_exceeded' });
@@ -131,7 +132,7 @@ describe('OpenAiStoryContinuationProvider (fake transport only)', () => {
     expect(() => buildStoryContinuationOpenAiRequest({ ...req, inputTokenLimit: total }, config)).not.toThrow();
   });
 
-  it('exposes the conservative-bound limitation on a synthetic 10k-character Korean scene before reservation, without truncation', () => {
+  it('fits a synthetic 10k-character Korean scene with instructions/schema into an 8k-token cap without truncation', () => {
     const req = request();
     req.locale = 'ko';
     const sentence = '\uc131\ubb38 \uc55e\uc5d0 \uc120 \uadf8\ub294 \uc57d\uc18d\uc744 \ub5a0\uc62c\ub838\ub2e4. \ub3d9\ub8cc\uc758 \uc120\ud0dd\uc744 \uc874\uc911\ud558\uba70 \ub2e4\ub978 \uae38\uc744 \ud0dd\ud588\ub2e4. ';
@@ -139,8 +140,8 @@ describe('OpenAiStoryContinuationProvider (fake transport only)', () => {
     req.approvedContext!.sourceScene.beats = Array.from({ length: 10 }, (_, i) => ({ beatType: 'paragraph', content: text.slice(i * 1_000, (i + 1) * 1_000) }));
     const original = JSON.stringify(req.approvedContext);
     const result = preflightStoryContinuationOpenAiRequest(req, config);
-    expect(result).toMatchObject({ supported: false, reason: 'provider_input_bound_exceeded', budgetMethod: 'utf8_bytes_plus_1024', inputTokenLimit: 8_192 });
-    expect(result.inputTokenUpperBound).toBeGreaterThan(20_000);
+    expect(result).toMatchObject({ supported: true, reason: 'provider_preflight_ready', budgetMethod: 'js_tiktoken_o200k_base_v1', inputTokenLimit: 8_192 });
+    expect(result.inputTokenUpperBound).toBeLessThanOrEqual(8_192);
     expect(JSON.stringify(req.approvedContext)).toBe(original);
     expect(buildStoryContinuationOpenAiRequest({ ...req, inputTokenLimit: 32_768 }, config).instructions)
       .toContain('Preserve the supplied approved author/style memories');
