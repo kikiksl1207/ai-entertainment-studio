@@ -1,8 +1,11 @@
 # Semantic Manuscript Extraction (#1853)
 
-Status: focused dependency/client/PG validation passed; complete actual-source
-planner metrics are pending the next serialized CPU slot. No paid requests or real
-manuscripts sent to a provider. Do not treat this as live model quality/readiness.
+Status: focused dependency/client/PG validation and four actual-source offline
+coverage runs passed. Norse exceeds the illustrative job cap; its full raw shape
+also exceeds the current intake paragraph cap. See the separately scoped
+[offline metrics](story-semantic-analysis-1853-offline-metrics.md). No paid requests
+or real manuscripts were sent to a provider. This is not live model quality or
+operational readiness; terminal failed-job recovery is still missing.
 
 ## Scope and Meaning
 
@@ -217,7 +220,7 @@ respectively. These numbers are observed, not universal parser expectations.
 The converter excludes metadata/choices from body projection; it is not the full
 raw Markdown. The read-only script verifies each projected quote in source order.
 
-After the own-dependency slot, run individually (no app bootstrap, no DB/provider):
+To reproduce the four completed modes, run individually (no app bootstrap, no DB/provider):
 
 ```text
 node -r ts-node/register/transpile-only scripts/verify-semantic-source-coverage.ts imjin body
@@ -271,8 +274,14 @@ includes real cross-client reservation/lease tests, pre-send cancellation, expir
 paid-dispatch/failure-persistence recovery, before-first-dispatch aggregate bounds,
 source immutability, pagination and approval separation.
 
-Not run yet: full actual-source tokenizer/planner reports below, broad shared story
-regression, PM authenticated writer HTTP integration, and live model quality/latency.
+Actual-source planner results: four sequential CLI runs exited0,129.220s total
+process wall time, no provider/DB/app/Jest calls. Scope, complete framed token
+totals, chunks/tiny/empty counts, hashes and illustrative cap failures are in the
+[offline metrics](story-semantic-analysis-1853-offline-metrics.md). These coverage
+results do not turn the Norse cap/admission failures into successful runtime jobs.
+
+Not run here: broad shared story regression, PM authenticated writer HTTP
+integration, and live model quality/latency. #1855 polling/review UI remains separate.
 No fallback/mock completion is enabled by these tests; fake transports are test-only.
 
 ## Official API References
