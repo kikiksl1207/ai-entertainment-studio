@@ -11,6 +11,7 @@ describe('Prisma repository contract (no database)', () => {
     const row = { id, ownerId, versionId, version: { workId }, intentKey: 'test-key', expected: EXPECTED,
       status: 'uploaded', expiresAt: new Date(Date.now() + 100_000), verified: null, subtitles: null, confirmationHash: null };
     const tx = { $queryRaw: jest.fn().mockResolvedValue([]),
+      ottMediaRevocation: { findUnique: jest.fn().mockResolvedValue(null), create: jest.fn() },
       ottMediaVersion: { findFirst: jest.fn().mockResolvedValue({ id: versionId, workId }) },
       ottMediaUpload: { findFirst: jest.fn().mockResolvedValue(row), findUnique: jest.fn().mockResolvedValue(null),
         create: jest.fn().mockResolvedValue({ ...row, status: 'pending_upload' }), update: jest.fn().mockResolvedValue(row) } };

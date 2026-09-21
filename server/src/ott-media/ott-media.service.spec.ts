@@ -172,6 +172,24 @@ describe('OTT owner intake contract (explicit storage/probe/persistence doubles)
     try { await service.preview(owner, file); failTest(); }
     catch (error) { expect(Object.keys((error as { response: { details: { messages: object } } }).response.details.messages)).toEqual([...LOCALES]); }
   });
+
+  it('revokes irreversibly without mutating confirmed bytes or subtitles; existing delivery grants fail closed', async () => {
+    await confirm();
+    const preview = await service.preview(owner, file);
+    const original = structuredClone(repo.uploads.get(file));
+    await expect(service.revoke(randomUUID(), file, {})).rejects.toMatchObject(code('NOT_FOUND'));
+    const results = await Promise.all([service.revoke(owner, file, {}), service.revoke(owner, file, {})]);
+    expect(results).toEqual([{ fileId: file, revoked: true }, { fileId: file, revoked: true }]);
+    expect(repo.uploads.get(file)).toEqual(original);
+    expect(storage.bytes.get(file)).toEqual(SAMPLE);
+    await expect(service.preview(owner, file)).rejects.toMatchObject(code('NOT_READY'));
+    await expect(service.browserSession(owner, file, {})).rejects.toMatchObject(code('NOT_READY'));
+    await expect(service.deliver(owner, file, preview.playback.headers['x-ott-expires'], preview.playback.headers['x-ott-signature']))
+      .rejects.toMatchObject(code('NOT_READY'));
+    await expect(service.confirm(owner, file, { subtitles: tracks })).rejects.toMatchObject(code('NOT_READY'));
+    await expect(service.createIntent(owner, version, 'intent-key-1', EXPECTED)).rejects.toMatchObject(code('NOT_READY'));
+    await expect(service.revoke(owner, file, { revoked: false })).rejects.toMatchObject(code('INVALID'));
+  });
 });
 
 function failTest(): never { throw new Error('expected OTT exception'); }

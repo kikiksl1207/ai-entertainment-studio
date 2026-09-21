@@ -9,6 +9,7 @@ export abstract class OttMediaRepository {
   abstract createVersion(ownerId: string, workId: string): Promise<WorkVersion>;
   abstract createIntent(ownerId: string, versionId: string, key: string, expected: ExpectedMedia): Promise<Upload>;
   abstract withUpload<T>(ownerId: string, id: string, fn: (upload: Upload) => Promise<T>): Promise<T>;
+  abstract revoke(ownerId: string, id: string): Promise<{ fileId: string; revoked: true }>;
 }
 
 @Injectable()
@@ -39,14 +40,15 @@ export class PrismaOttMediaRepository extends OttMediaRepository {
       if (!version) fail('NOT_FOUND');
       const replay = await tx.ottMediaUpload.findUnique({ where: { ownerId_intentKey: { ownerId, intentKey: key } }, include: { version: true } });
       if (replay) {
-        const old = this.map(replay);
+        if (await tx.ottMediaRevocation.findUnique({ where: { fileId: replay.id } })) fail('NOT_READY');
+        const old = mapOttMediaUpload(replay);
         if (old.versionId !== versionId || !this.sameExpected(old.expected, expected)) fail('CONFLICT');
         return old;
       }
       if (await tx.ottMediaUpload.findUnique({ where: { versionId } })) fail('CONFLICT');
       const created = await tx.ottMediaUpload.create({ data: { ownerId, versionId, intentKey: key,
         expected, expiresAt: new Date(Date.now() + 15 * 60_000) }, include: { version: true } });
-      return this.map(created);
+      return mapOttMediaUpload(created);
     }).catch(sanitizePersistenceError);
   }
 
@@ -55,13 +57,15 @@ export class PrismaOttMediaRepository extends OttMediaRepository {
       && a.audioLocale === b.audioLocale && a.declaredDurationMs === b.declaredDurationMs;
   }
 
-  private map(row: Prisma.OttMediaUploadGetPayload<{ include: { version: true } }>): Upload {
-    if (!['pending_upload', 'uploaded', 'confirmed'].includes(row.status)) fail('NOT_READY');
-    return { id: row.id, ownerId: row.ownerId, workId: row.version.workId, versionId: row.versionId,
-      intentKey: row.intentKey, expected: row.expected as unknown as ExpectedMedia,
-      status: row.status as Upload['status'], expiresAt: row.expiresAt,
-      verified: row.verified as unknown as Upload['verified'], subtitles: row.subtitles as unknown as Upload['subtitles'],
-      confirmationHash: row.confirmationHash };
+  async revoke(ownerId: string, id: string): Promise<{ fileId: string; revoked: true }> {
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM ott_media_uploads WHERE id=${id}::uuid AND owner_id=${ownerId}::uuid FOR UPDATE`;
+      const row = await tx.ottMediaUpload.findFirst({ where: { id, ownerId, version: { work: { ownerId } } } });
+      if (!row) fail('NOT_FOUND');
+      const prior = await tx.ottMediaRevocation.findUnique({ where: { fileId: id } });
+      if (!prior) await tx.ottMediaRevocation.create({ data: { fileId: id, ownerId } });
+      return { fileId: id, revoked: true as const };
+    }, { timeout: 90_000, maxWait: 5_000 }).catch(sanitizePersistenceError);
   }
 
   async withUpload<T>(ownerId: string, id: string, fn: (upload: Upload) => Promise<T>): Promise<T> {
@@ -69,7 +73,8 @@ export class PrismaOttMediaRepository extends OttMediaRepository {
       await tx.$queryRaw`SELECT id FROM ott_media_uploads WHERE id=${id}::uuid AND owner_id=${ownerId}::uuid FOR UPDATE`;
       const row = await tx.ottMediaUpload.findFirst({ where: { id, ownerId, version: { work: { ownerId } } }, include: { version: true } });
       if (!row) fail('NOT_FOUND');
-      const upload = this.map(row);
+      if (await tx.ottMediaRevocation.findUnique({ where: { fileId: id } })) fail('NOT_READY');
+      const upload = mapOttMediaUpload(row);
       const result = await fn(upload);
       if (upload.status !== row.status) {
         await tx.ottMediaUpload.update({ where: { id }, data: { status: upload.status,
@@ -79,6 +84,15 @@ export class PrismaOttMediaRepository extends OttMediaRepository {
       return result;
     }, { timeout: 90_000, maxWait: 5_000 }).catch(sanitizePersistenceError);
   }
+}
+
+export function mapOttMediaUpload(row: Prisma.OttMediaUploadGetPayload<{ include: { version: true } }>): Upload {
+  if (!['pending_upload', 'uploaded', 'confirmed'].includes(row.status)) fail('NOT_READY');
+  return { id: row.id, ownerId: row.ownerId, workId: row.version.workId, versionId: row.versionId,
+    intentKey: row.intentKey, expected: row.expected as unknown as ExpectedMedia,
+    status: row.status as Upload['status'], expiresAt: row.expiresAt,
+    verified: row.verified as unknown as Upload['verified'], subtitles: row.subtitles as unknown as Upload['subtitles'],
+    confirmationHash: row.confirmationHash };
 }
 
 function sanitizePersistenceError(error: unknown): never {

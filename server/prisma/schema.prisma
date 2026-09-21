@@ -2683,6 +2683,7 @@ model OttMediaWork {
   versions  OttMediaVersion[]
 
   @@index([ownerId])
+  @@unique([id, ownerId], map: "uq_ott_media_work_owner")
   @@map("ott_media_works")
 }
 
@@ -2695,6 +2696,7 @@ model OttMediaVersion {
   upload    OttMediaUpload?
 
   @@unique([workId, version])
+  @@unique([id, workId], map: "uq_ott_media_version_work")
   @@map("ott_media_versions")
 }
 
@@ -2711,9 +2713,101 @@ model OttMediaUpload {
   confirmationHash String?         @map("confirmation_hash")
   createdAt        DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
   version          OttMediaVersion @relation(fields: [versionId], references: [id])
+  revocation       OttMediaRevocation?
 
   @@unique([ownerId, intentKey])
+  @@unique([id, ownerId, versionId], map: "uq_ott_media_file_owner_version")
+  @@unique([id, ownerId], map: "uq_ott_media_file_owner")
   @@map("ott_media_uploads")
+}
+
+model OttMediaRevocation {
+  fileId    String         @id @map("file_id") @db.Uuid
+  ownerId   String         @map("owner_id") @db.Uuid
+  createdAt DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  file      OttMediaUpload @relation(fields: [fileId], references: [id])
+
+  @@map("ott_media_revocations")
+}
+
+model OttPlaybackManifest {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ownerId     String   @map("owner_id") @db.Uuid
+  workId      String   @map("work_id") @db.Uuid
+  revision    Int
+  graph       Json
+  checksum    String
+  requestKey  String   @map("request_key")
+  requestHash String   @map("request_hash")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([workId, revision])
+  @@unique([ownerId, requestKey])
+  @@unique([id, ownerId, workId], map: "uq_ott_playback_manifest_owner")
+  @@map("ott_playback_manifests")
+}
+
+model OttPlaybackAssetPin {
+  manifestId      String @map("manifest_id") @db.Uuid
+  ownerId         String @map("owner_id") @db.Uuid
+  workId          String @map("work_id") @db.Uuid
+  fileId          String @map("file_id") @db.Uuid
+  mediaVersionId  String @map("media_version_id") @db.Uuid
+  checksum        String
+  durationMs      Int    @map("duration_ms")
+  confirmationHash String @map("confirmation_hash")
+
+  @@id([manifestId, fileId])
+  @@map("ott_playback_asset_pins")
+}
+
+model OttPlaybackPreview {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  manifestId String   @map("manifest_id") @db.Uuid
+  ownerId    String   @map("owner_id") @db.Uuid
+  workId     String   @map("work_id") @db.Uuid
+  locale     String
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([manifestId, locale])
+  @@unique([id, manifestId, ownerId, workId], map: "uq_ott_playback_preview_owner")
+  @@map("ott_playback_previews")
+}
+
+model OttPlaybackProgress {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ownerId        String   @map("owner_id") @db.Uuid
+  workId         String   @map("work_id") @db.Uuid
+  manifestId     String   @map("manifest_id") @db.Uuid
+  previewId      String   @map("preview_id") @db.Uuid
+  currentNodeKey String   @map("current_node_key")
+  positionMs     Int      @map("position_ms")
+  revision       Int      @default(1)
+  status         String   @default("active")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([ownerId, previewId])
+  @@unique([id, ownerId], map: "uq_ott_playback_progress_owner")
+  @@map("ott_playback_progress")
+}
+
+model OttPlaybackCommand {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ownerId        String   @map("owner_id") @db.Uuid
+  progressId     String   @map("progress_id") @db.Uuid
+  idempotencyKey String   @map("idempotency_key")
+  kind           String
+  requestHash    String   @map("request_hash")
+  request        Json
+  fromRevision   Int      @map("from_revision")
+  toRevision     Int      @map("to_revision")
+  snapshot       Json
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([ownerId, idempotencyKey])
+  @@unique([progressId, toRevision])
+  @@map("ott_playback_commands")
 }
 
 model AuditEvent {

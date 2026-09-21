@@ -13,6 +13,7 @@ export const EXPECTED: ExpectedMedia = { sha256: sha256(SAMPLE), sizeBytes: SAMP
 export class MemoryRepository extends OttMediaRepository {
   versions = new Map<string, WorkVersion>();
   uploads = new Map<string, Upload>();
+  revoked = new Set<string>();
   private tail = Promise.resolve();
 
   private async serial<T>(fn: () => Promise<T>) {
@@ -45,6 +46,7 @@ export class MemoryRepository extends OttMediaRepository {
       if (!version || version.authorId !== ownerId) fail('NOT_FOUND');
       const replay = [...this.uploads.values()].find((u) => u.ownerId === ownerId && u.intentKey === key);
       if (replay) {
+        if (this.revoked.has(replay.id)) fail('NOT_READY');
         if (replay.versionId !== versionId || JSON.stringify(replay.expected) !== JSON.stringify(expected)) fail('CONFLICT');
         return cloneUpload(replay);
       }
@@ -61,10 +63,20 @@ export class MemoryRepository extends OttMediaRepository {
     return this.serial(async () => {
       const old = this.uploads.get(id);
       if (!old || old.ownerId !== ownerId) fail('NOT_FOUND');
+      if (this.revoked.has(id)) fail('NOT_READY');
       const draft = cloneUpload(old);
       const result = await fn(draft);
       this.uploads.set(id, draft);
       return result;
+    });
+  }
+
+  async revoke(ownerId: string, id: string): Promise<{ fileId: string; revoked: true }> {
+    return this.serial(async () => {
+      const upload = this.uploads.get(id);
+      if (!upload || upload.ownerId !== ownerId) fail('NOT_FOUND');
+      this.revoked.add(id);
+      return { fileId: id, revoked: true as const };
     });
   }
 }

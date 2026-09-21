@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Readable } from 'stream';
-import { MAX_DURATION_MS, Upload, expectedMedia, fail, intentKey, object, subtitles, uuid } from './ott-media.contract';
+import { MAX_BYTES, MAX_DURATION_MS, Upload, expectedMedia, fail, intentKey, object, subtitles, uuid } from './ott-media.contract';
 import { BrowserGrant, OttMediaDelivery } from './ott-media.delivery';
 import { OttMediaProbe, verifyObject } from './ott-media.probe';
 import { OttMediaRepository } from './ott-media.repository';
@@ -20,6 +20,27 @@ export class OttMediaService {
   createVersion(ownerId: string, workId: string, body: unknown) {
     object(body, []);
     return this.repository.createVersion(uuid(ownerId), uuid(workId));
+  }
+
+  async revoke(ownerId: string, fileId: string, body: unknown) {
+    object(body, []);
+    return this.repository.revoke(uuid(ownerId), uuid(fileId));
+  }
+
+  // Caller supplies an owner-checked, source-locked DB snapshot. Metadata alone
+  // is not a fresh byte check or a playback grant.
+  playbackUploadMetadata(upload: Upload) {
+    if (upload.status !== 'confirmed') this.assertUnexpired(upload);
+    this.assertConfirmed(upload);
+    return { fileId: upload.id, mediaVersionId: upload.versionId, ...upload.verified!,
+      confirmationHash: upload.confirmationHash!, subtitles: upload.subtitles! };
+  }
+
+  async inspectPlaybackUpload(upload: Upload) {
+    const metadata = this.playbackUploadMetadata(upload);
+    const media = await this.storage.open(upload.id);
+    try { this.assertConfirmedObject(upload, media); } finally { await media.close(); }
+    return metadata;
   }
 
   async createIntent(ownerId: string, versionId: string, key: unknown, body: unknown) {
@@ -133,6 +154,7 @@ export class OttMediaService {
     if (upload.status !== 'confirmed' || !upload.verified || !upload.confirmationHash || !upload.subtitles) fail('NOT_READY');
     const media = upload.verified;
     if (media.sha256 !== upload.expected.sha256 || media.sizeBytes !== upload.expected.sizeBytes || media.mimeType !== 'video/mp4'
+      || !Number.isSafeInteger(media.sizeBytes) || media.sizeBytes < 16 || media.sizeBytes > MAX_BYTES
       || !Number.isSafeInteger(media.durationMs) || media.durationMs <= 0 || media.durationMs > MAX_DURATION_MS
       || Math.abs(media.durationMs - upload.expected.declaredDurationMs) > 250) fail('NOT_READY');
     const tracks = subtitles(upload.subtitles, media.durationMs);
