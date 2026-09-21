@@ -45,7 +45,9 @@ function prepareRequest(request: StoryContinuationProviderRequest, config: Story
     sourceScene: {
       title: boundedText(context.sourceScene.title, 500),
       beats: context.sourceScene.beats.map((beat) => ({
-        beatType: boundedText(beat.beatType, 40), content: boundedText(beat.content, 16_000),
+        // Canonical imports group up to 7,500 UTF-16 units per beat; Korean text
+        // needs more than 16k UTF-8 bytes. The whole-request/token caps still apply.
+        beatType: boundedText(beat.beatType, 40), content: boundedText(beat.content, 32_000),
       })),
     },
     selectedChoice: { label: boundedText(context.selectedChoice.label, 1_000) },

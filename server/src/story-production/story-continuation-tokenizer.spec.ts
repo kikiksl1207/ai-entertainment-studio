@@ -59,4 +59,24 @@ describe('offline pinned story tokenizer', () => {
     expect(preflightStoryContinuationOpenAiRequest({ ...request, inputTokenLimit: 1000 }, config))
       .toMatchObject({ supported: false, reason: 'provider_input_bound_exceeded' });
   });
+
+  it('preserves canonical 7500-unit Korean beats while retaining byte and total-token bounds', () => {
+    const model = 'gpt-5-mini-2025-08-07';
+    const config = { ...readStoryContinuationOpenAiConfig({ get: () => undefined }), enabled: true,
+      provider: 'openai', model, rateCardId: 'qa-card', rateCardVersion: 'qa-v1', apiKey: 'fake-test-key',
+      visualAssetPath: '/assets/story/fallback.webp' };
+    const approvedContext = koreanContinuationContext();
+    approvedContext.sourceScene.beats = [{ beatType: 'narration', content: '한글 원문 그대로 유지. '.repeat(600).slice(0, 7500) }];
+    const request = { provider: 'openai', model, rateCardId: 'qa-card', rateCardVersion: 'qa-v1',
+      operationId: 'qa-operation', locale: 'ko', contextFingerprint: 'qa',
+      promptVersion: 'story-continuation-v1', outputSchemaVersion: 'story-continuation-output-v1',
+      inputTokenLimit: 32768, outputTokenLimit: 500, approvedContext };
+    expect(Buffer.byteLength(approvedContext.sourceScene.beats[0].content)).toBeGreaterThan(16000);
+    expect(JSON.parse(buildStoryContinuationOpenAiRequest(request, config).input[0].content[0].text))
+      .toEqual(approvedContext);
+    expect(preflightStoryContinuationOpenAiRequest({ ...request, inputTokenLimit: 1000 }, config).supported).toBe(false);
+    approvedContext.sourceScene.beats[0].content = '한'.repeat(10667);
+    expect(preflightStoryContinuationOpenAiRequest(request, config))
+      .toMatchObject({ supported: false, reason: 'provider_context_invalid' });
+  });
 });
