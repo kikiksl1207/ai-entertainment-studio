@@ -334,6 +334,10 @@ export class StoryLifecycleService {
       where: { id: job.manuscriptVersionId, workId, ownerUserId: userId },
     });
     if (!manuscript) throw new NotFoundException('Analysis source not found');
+    if (job.pipeline === 'semantic_extraction_v1') {
+      throw new ConflictException({ code: 'ANALYSIS_EVIDENCE_APPROVAL_REQUIRED',
+        message: 'Semantic candidates require an approved evidence-to-memory workflow' });
+    }
     if (this.economics && body.retrievalTypes.includes('style')) {
       const consent = await this.economics.activeStyleConsent(workId);
       if (!consent || consent.manuscriptVersionId !== manuscript.id) {
@@ -834,7 +838,7 @@ export class StoryLifecycleService {
       foreshadow: 'foreshadow',
       payoff: 'foreshadow',
       branch_candidate: 'branch',
-      background: 'style',
+      background: 'scene',
     };
     return map[evidenceType] ?? null;
   }

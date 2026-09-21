@@ -34,6 +34,7 @@ import {
 } from './dto/story-production.dto';
 import { StoryProgressControlService } from './story-progress-control.service';
 import { StoryProductionService } from './story-production.service';
+import { StoryAnalysisPageDto } from './dto/story-semantic-analysis.dto';
 
 type OptionalAuthRequest = { user?: AuthUser };
 
@@ -256,8 +257,19 @@ export class StoryProductionController {
   analysis(
     @CurrentUser() user: AuthUser,
     @Param('analysisId') analysisId: string,
+    @Query() query: StoryAnalysisPageDto,
   ) {
-    return this.stories.analysis(user.id, analysisId);
+    return this.stories.analysis(user.id, analysisId, query.cursor);
+  }
+
+  @Get('me/creator-studio/analyses/:analysisId/evidence/:evidenceId/source')
+  @UseGuards(JwtAuthGuard)
+  analysisCitation(
+    @CurrentUser() user: AuthUser,
+    @Param('analysisId') analysisId: string,
+    @Param('evidenceId') evidenceId: string,
+  ) {
+    return this.stories.analysisCitation(user.id, analysisId, evidenceId);
   }
 
   @Get('me/creator-studio/stories/:workId/continuity')
