@@ -39,6 +39,10 @@ export class OttMediaController {
   @Post('files/:fileId/confirm')
   confirm(@CurrentUser() user: AuthUser, @Param('fileId') id: string, @Body() body: unknown) { return this.service.confirm(user.id, id, body); }
 
+  @Post('files/:fileId/revoke')
+  @Header('Cache-Control', 'private, no-store')
+  revoke(@CurrentUser() user: AuthUser, @Param('fileId') id: string, @Body() body: unknown) { return this.service.revoke(user.id, id, body); }
+
   @Get('files/:fileId')
   @Header('Cache-Control', 'private, no-store')
   getFile(@CurrentUser() user: AuthUser, @Param('fileId') id: string) { return this.service.getFile(user.id, id); }

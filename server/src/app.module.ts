@@ -24,6 +24,7 @@ import { PaymentsModule } from './payments/payments.module';
 import { PopularVoteModule } from './popular-vote/popular-vote.module';
 import { PremiumVideosModule } from './premium-videos/premium-videos.module';
 import { OttMediaModule } from './ott-media/ott-media.module';
+import { OttPlaybackModule } from './ott-playback/ott-playback.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ArtistsModule } from './public/artists/artists.module';
 import { ShortformsModule } from './public/shortforms/shortforms.module';
@@ -67,6 +68,7 @@ import { WalletModule } from './wallet/wallet.module';
     FanLettersModule,
     PremiumVideosModule,
     OttMediaModule,
+    OttPlaybackModule,
     ChatModule,
     CommunityModule,
     CreatorImageRequestsModule,

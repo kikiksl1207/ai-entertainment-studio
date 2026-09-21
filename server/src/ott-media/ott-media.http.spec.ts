@@ -135,5 +135,8 @@ describe('loopback HTTP vertical flow: real stream storage/controller/cookie; ex
     const fresh = await call('POST', sessionPath, {}, { ...auth, origin: 'https://lumina-stage.com' });
     expect(fresh.status).toBe(201);
     expect((await call('GET', path, undefined, { cookie: (fresh.headers['set-cookie'] as string[])[0].split(';')[0], range: 'bytes=8-' })).status).toBe(206);
+    expect((await call('POST', `/api/v1/me/ott-media/files/${id}/revoke`, {}, auth)).json).toEqual({ fileId: id, revoked: true });
+    expect((await call('GET', path, undefined, { cookie, range: 'bytes=0-7' })).status).toBe(409);
+    expect((await call('POST', sessionPath, {}, { ...auth, origin: 'https://lumina-stage.com' })).status).toBe(409);
   });
 });
