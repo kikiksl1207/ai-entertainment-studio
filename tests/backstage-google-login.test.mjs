@@ -14,6 +14,9 @@ test('Backstage Google login uses an ID credential for authentication', () => {
   assert.doesNotMatch(source, /initTokenClient/);
   assert.doesNotMatch(source, /tokenResponse\.access_token/);
   assert.doesNotMatch(source, /google\.accounts\.id\.prompt/);
+  assert.match(source, /use_fedcm_for_button:\s*false/);
+  assert.match(source, /button_auto_select:\s*false/);
+  assert.doesNotMatch(source, /use_fedcm_for_prompt/);
   assert.match(html, /id="backstageGoogleButtonMount"/);
   assert.match(html, /id="backstageGoogleButtonFallback"/);
   assert.match(css, /\.google-action\[hidden\]\s*\{\s*display:\s*none/);

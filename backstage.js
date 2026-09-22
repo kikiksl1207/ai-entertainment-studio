@@ -587,7 +587,8 @@ function initGoogleAuth() {
     client_id: GOOGLE_CLIENT_ID,
     callback: handleGoogleCredentialResponse,
     cancel_on_tap_outside: false,
-    use_fedcm_for_prompt: true
+    use_fedcm_for_button: false,
+    button_auto_select: false
   });
   googleIdentityInitialized = true;
   return true;
@@ -628,6 +629,7 @@ async function handleGoogleCredentialResponse(credentialResponse) {
     return;
   }
 
+  let loginStage = "social_login";
   try {
     const data = await backstageFetch(publicApiPath("/auth/social/login"), {
       method: "POST",
@@ -638,12 +640,20 @@ async function handleGoogleCredentialResponse(credentialResponse) {
     });
     const auth = extractAuthPayload(data);
     if (!auth?.accessToken) throw new Error("Google 로그인 응답에서 토큰을 찾지 못했어요.");
+    loginStage = "session_store";
     setBackstageAuth(auth);
+    loginStage = "admin_access";
     await verifyAdminAccess();
+    loginStage = "dashboard";
     setStatus("Google 운영자 권한이 확인됐어요.", "success");
     showDashboard();
   } catch (error) {
     setBackstageAuth(null);
+    console.warn("[Backstage] Google operator login failed", {
+      stage: loginStage,
+      status: Number.isInteger(error?.status) ? error.status : null,
+      code: error?.body?.code || error?.body?.error?.code || null
+    });
     setStatus(googleLoginErrorMessage(error), "error");
   } finally {
     setLoading(false);
