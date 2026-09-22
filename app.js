@@ -229,6 +229,13 @@ const I18N_DICT = {
   "nav.chat": { "ko-KR": "캐릭터 채팅", "ja-JP": "キャラクターチャット", "en-US": "Character Chat", "zh-CN": "角色聊天", "zh-Hant": "角色聊天" },
   "nav.shortform": { "ko-KR": "숏폼", "ja-JP": "ショート", "en-US": "Shorts", "zh-CN": "短视频", "zh-Hant": "短影音" },
   "nav.story": { "ko-KR": "스토리", "ja-JP": "ストーリー", "en-US": "Story", "zh-CN": "故事", "zh-Hant": "故事" },
+  "nav.ott": { "ko-KR": "OTT", "ja-JP": "OTT", "en-US": "OTT", "zh-CN": "OTT", "zh-Hant": "OTT" },
+  "home.discovery.story.label": { "ko-KR": "스토리", "ja-JP": "ストーリー", "en-US": "Story", "zh-CN": "故事", "zh-Hant": "故事" },
+  "home.discovery.story": { "ko-KR": "공개된 이야기를 찾아보세요", "ja-JP": "公開中の物語を探す", "en-US": "Browse published stories", "zh-CN": "探索已公开的故事", "zh-Hant": "探索已公開的故事" },
+  "home.discovery.ott.label": { "ko-KR": "영상 작품", "ja-JP": "OTT作品", "en-US": "OTT", "zh-CN": "影视作品", "zh-Hant": "影視作品" },
+  "home.discovery.ott": { "ko-KR": "공개가 승인된 작품을 확인하세요", "ja-JP": "公開が承認された作品を見る", "en-US": "See titles cleared for release", "zh-CN": "查看已获准公开的作品", "zh-Hant": "查看已獲准公開的作品" },
+  "home.discovery.pick.label": { "ko-KR": "루미나 픽", "ja-JP": "ルミナピック", "en-US": "Lumina Pick", "zh-CN": "Lumina Pick", "zh-Hant": "Lumina Pick" },
+  "home.discovery.pick": { "ko-KR": "오늘의 아티스트에게 투표하세요", "ja-JP": "今日のアーティストに投票", "en-US": "Vote for today's artist", "zh-CN": "为今日艺人投票", "zh-Hant": "為今日藝人投票" },
   "nav.feedShorts": { "ko-KR": "쇼츠", "ja-JP": "ショート", "en-US": "Shorts", "zh-CN": "短视频", "zh-Hant": "短影音" },
   "nav.debut": { "ko-KR": "데뷔하기", "ja-JP": "デビュー申請", "en-US": "Debut", "zh-CN": "出道申请", "zh-Hant": "出道申請" },
   "nav.mypage": { "ko-KR": "마이페이지", "ja-JP": "マイページ", "en-US": "My Page", "zh-CN": "我的主页", "zh-Hant": "我的主頁" },
@@ -337,6 +344,7 @@ const I18N_DICT = {
   "tab.feed": { "ko-KR": "피드", "ja-JP": "フィード", "en-US": "Feed", "zh-CN": "动态", "zh-Hant": "動態" },
   "tab.shortform": { "ko-KR": "숏폼", "ja-JP": "ショート", "en-US": "Shorts", "zh-CN": "短视频", "zh-Hant": "短影音" },
   "tab.story": { "ko-KR": "스토리", "ja-JP": "物語", "en-US": "Story", "zh-CN": "故事", "zh-Hant": "故事" },
+  "tab.ott": { "ko-KR": "OTT", "ja-JP": "OTT", "en-US": "OTT", "zh-CN": "OTT", "zh-Hant": "OTT" },
   "tab.chat": { "ko-KR": "채팅", "ja-JP": "チャット", "en-US": "Chat", "zh-CN": "聊天", "zh-Hant": "聊天" },
   // ── 푸터 ──
   "footer.artistRoster": { "ko-KR": "아티스트 라인업", "ja-JP": "アーティスト一覧", "en-US": "Artist Roster", "zh-CN": "艺人阵容", "zh-Hant": "藝人陣容" },
@@ -3839,11 +3847,33 @@ function activateCurrentNavItem() {
     });
   }
 
-  // 하단 탭바 (모바일 768px↓) — 5개 탭 (홈/아티스트/루미나 픽/피드/숏폼) 동기 처리
+  // 하단 탭바 (모바일 768px↓) — 5개 탭 (홈/아티스트/스토리/OTT/피드) 동기 처리
   // data-tab-key는 파일명. 데뷔하기는 헤더 우측 CTA로 분리되어 탭바에 없음.
   document.querySelectorAll(".mobile-tab").forEach(tab => {
     const tabKey = (tab.dataset.tabKey || "").toLowerCase();
     tab.classList.toggle("is-active", tabKey === activeTabKey);
+  });
+}
+
+function normalizePublicDiscoveryNavigation() {
+  document.querySelectorAll(".main-nav").forEach(nav => {
+    if (nav.querySelector('a[href="/ott"]')) return;
+    const story = nav.querySelector('a[href="/story-stage"]');
+    if (!story) return;
+    const ott = document.createElement("a");
+    ott.href = "/ott";
+    ott.dataset.i18n = "nav.ott";
+    ott.textContent = t("nav.ott");
+    story.insertAdjacentElement("afterend", ott);
+  });
+
+  document.querySelectorAll(".mobile-tabbar").forEach(tabbar => {
+    tabbar.innerHTML = `
+      <a href="/" class="mobile-tab" data-tab-key="index"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.5L12 4l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg><span data-i18n="tab.home">${t("tab.home")}</span></a>
+      <a href="/characters" class="mobile-tab" data-tab-key="characters"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M4.5 20c.6-3.6 3.7-6 7.5-6s6.9 2.4 7.5 6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg><span data-i18n="tab.artists">${t("tab.artists")}</span></a>
+      <a href="/story-stage" class="mobile-tab" data-tab-key="story"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4.5h10.5A2.5 2.5 0 0 1 18 7v12.5H7.5A2.5 2.5 0 0 1 5 17z" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M8 8h7M8 12h7" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg><span data-i18n="tab.story">${t("tab.story")}</span></a>
+      <a href="/ott" class="mobile-tab" data-tab-key="ott"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="m10 9 5 3-5 3z" fill="currentColor"/></svg><span data-i18n="tab.ott">${t("tab.ott")}</span></a>
+      <a href="/lumina-feed" class="mobile-tab" data-tab-key="lumina-feed"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v10H7l-3 3z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg><span data-i18n="tab.feed">${t("tab.feed")}</span></a>`;
   });
 }
 
@@ -5685,6 +5715,7 @@ function markAppReady() {
 async function init() {
   // #064 i18n — UI 깜빡임 최소화 위해 가장 먼저 실행 (비로그인 시 즉시, 로그인 시 서버 동기화 포함)
   await initI18n();
+  normalizePublicDiscoveryNavigation();
 
   // 🔥 인증 UI는 API 호출 전에 먼저 초기화 (await에 막히지 않게)
   createAuthModal();
