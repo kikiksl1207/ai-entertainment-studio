@@ -6,8 +6,10 @@ Base: `674cce9f74ed477eb65d9ce3bd4c3e6c1c6a8b9e`.
 Branch: `codex/cloud-1900-ott-player-20260922`.
 Worktree: `E:/CodexMovedCache/worktrees/cloud-1900-ott-player-20260922`.
 
-Status: author validation complete, 50/50 first executions PASS. Independent
-acceptance is still pending. No tests or browser ran during the source-only
+Original `f21d5c8de8d144b3fc7c97d7089e8a8e2f7eb50d` author validation:
+50/50 first executions PASS. A subsequent independent source finding and its
+pending correction are recorded below; the original results are not results
+for that correction. Independent acceptance is still pending. No tests or browser ran during the source-only
 phase; execution began only after PM's explicit exclusive-slot grant. The
 existing reader/visual candidate is unchanged.
 
@@ -158,3 +160,53 @@ manuscript, token, or screenshot is committed. No PM dependency/client is
 borrowed or generated. No real paid/provider/wallet call, deployment, public
 movie launch, long-film capacity, translation-quality approval, or creator
 editor completion is claimed.
+
+## First Independent Return: Nested HTTP Errors
+
+After the original 50 passing fixture cases, QR1 identified a P2 by source
+inspection of the actual `HttpExceptionFilter`. Its wire response is
+`{success:false,error:{code,...}}`, but the original graph request handler read
+only `data.code`. A real `OTT_CONFLICT` response therefore took the generic
+blocking path instead of refetching current progress. Manual retry could recover;
+this finding does not establish corrupted progress or unauthorized delivery.
+It was source-confirmed, not an independently executed PG/browser reproduction.
+
+The original helper's top-level error code masked the integration mismatch.
+Original logs and all 15 PNG/JSON pairs remain untouched. Source plan/evidence:
+`E:/CodexMovedCache/qa-1900-independent-source-plan.md`.
+
+The narrow correction prefers the actual nested error code and retains a flat
+code fallback, matching existing application error consumers. It never renders
+raw diagnostics. The fixture helper now returns the global filter envelope.
+No common application, backend, layout, copy, or single-file player change is
+included in this correction.
+
+Focused regressions cover nested stale choice and position errors, a failed
+reconciliation read, nested-code precedence, direct flat-code compatibility,
+and 400/401/403/404/409/410/500/503 behavior. A native-browser case checks one
+stale choice request, one current read, the unchanged winning fixture branch,
+and a later save using the fetched revision. Fixture-state persistence is not
+real PostgreSQL evidence; QR1's separate actual Nest/JWT/PG/HTTPS run remains
+authoritative for that boundary.
+
+Correction validation passed on its first executions under a separate short
+exclusive slot, sequentially using the same E runtime/TEMP and retained MP4:
+
+- 23/23 graph VM/source cases, 0 failures/skips, 0.691 seconds:
+  `E:/CodexMovedCache/qa-1900-ott-player-20260922/vm-envelope-followup-initial.tap`.
+- 4/4 affected browser groups, 0 failures/skips, 8.308 seconds:
+  `E:/CodexMovedCache/qa-1900-ott-player-20260922/browser-envelope-followup-initial.tap`.
+  Selection: nested conflict, committed lost acknowledgment, missing
+  acknowledgment/save-choice serialization, and owner revocation.
+
+```powershell
+& 'E:/Program Files/nodejs/node.exe' --test tests/ott-graph-preview.test.mjs
+& 'E:/Program Files/nodejs/node.exe' --test --test-name-pattern='nested HTTP conflict|lost committed acknowledgement|missing acknowledgement|owner revocation' tests/ott-graph-preview.browser.test.mjs
+```
+
+No visual matrix was rerun and no new screenshots were created. Original f21
+evidence is historical, not proof of the correction. Both processes exited 0;
+browser cleanup completed, and a process query found no matching task or
+Playwright-profile process. No HTTP testserver was started. The short heavy
+slot was returned before documentation/commit/push. Real Nest/JWT/PG/HTTPS
+independent validation remains separate and pending at this handoff.

@@ -147,13 +147,98 @@ test('old successful replay reads current progress instead of restoring historic
   assert.equal(page.choices().length, 0);
 });
 
-test('conflict refetches once and never automatically retries a choice at a new revision', async () => {
+test('nested HTTP conflict refetches once, preserves the winning branch and saves at the newest revision', async () => {
   const server = graphServer(); const page = browser({ server }); await flush();
   server.states.set('en', { node: 'C', revision: 4, positionMs: 500, status: 'active' });
   page.choices()[0].fire('click'); await flush();
   assert.equal(page.commands().length, 1);
+  assert.equal(page.calls.filter(call => call.options.method === 'GET' && call.url.includes('/playback-progress/')).length, 1);
+  assert.deepEqual(server.states.get('en'), { node: 'C', revision: 4, positionMs: 500, status: 'active' });
+  assert.equal(server.receipts.size, 0, 'the stale choice never mutates the local server fixture');
+  assert.equal(page.storage.size, 0);
+  assert.equal(page.elements.previewRetry.hidden, true);
   assert.match(page.elements.previewState.textContent, /another window/);
   await page.play(); assert.ok(page.video.src.includes(ids.C));
+  assert.equal(page.video.currentTime, .5);
+  page.video.currentTime = .6; page.video.pause(); page.runTimer(350); await flush();
+  assert.deepEqual(JSON.parse(page.commands()[1].options.body), {
+    manifestId: ids.manifest, expectedRevision: 4, nodeKey: 'C', positionMs: 600
+  });
+  assert.deepEqual(server.states.get('en'), { node: 'C', revision: 5, positionMs: 600, status: 'active' });
+  assert.equal(page.commands().filter(call => call.url.endsWith('/choices')).length, 1, 'no new-revision choice resubmission');
+});
+
+test('nested HTTP stale position refetches the winning scene without resubmitting an old position', async () => {
+  const server = graphServer(); const page = browser({ server }); await flush(); await page.play();
+  server.states.set('en', { node: 'C', revision: 4, positionMs: 500, status: 'active' });
+  page.video.currentTime = .4; page.video.pause(); page.runTimer(350); await flush();
+  assert.equal(page.commands().length, 1);
+  assert.equal(page.commands()[0].options.method, 'PUT');
+  assert.equal(page.calls.filter(call => call.options.method === 'GET' && call.url.includes('/playback-progress/')).length, 1);
+  assert.equal(server.receipts.size, 0);
+  assert.deepEqual(server.states.get('en'), { node: 'C', revision: 4, positionMs: 500, status: 'active' });
+  await page.play(); assert.ok(page.video.src.includes(ids.C)); assert.equal(page.video.currentTime, .5);
+});
+
+test('nested conflict with failed current read retains the command until explicit reconciliation', async () => {
+  let unavailable = true;
+  const server = graphServer();
+  const page = browser({ server, intercept: call => {
+    if (call.options.method === 'GET' && call.url.includes('/playback-progress/') && unavailable) return failure(503);
+  } });
+  await flush(); server.states.set('en', { node: 'C', revision: 4, positionMs: 500, status: 'active' });
+  page.choices()[0].fire('click'); await flush();
+  assert.match(page.elements.graphSaveState.textContent, /unknown/);
+  assert.equal(page.storage.size, 1);
+  assert.equal(page.elements.previewStart.disabled, true);
+  unavailable = false;
+  page.elements.previewRetry.fire('click'); await flush();
+  assert.equal(page.commands().length, 1);
+  assert.equal(page.storage.size, 0);
+  assert.equal(server.states.get('en').revision, 4);
+  await page.play(); assert.ok(page.video.src.includes(ids.C));
+});
+
+test('nested error code takes precedence and direct flat conflict remains compatible', async () => {
+  const nested = await failure(409, 'OTT_NOT_READY').json();
+  const blocked = browser({ intercept: call => call.url.endsWith('/choices')
+    ? { ok: false, status: 409, json: async () => ({ ...nested, code: 'OTT_CONFLICT' }) } : undefined });
+  await flush(); blocked.choices()[0].fire('click'); await flush();
+  assert.equal(blocked.calls.filter(call => call.options.method === 'GET' && call.url.includes('/playback-progress/')).length, 0);
+  assert.equal(blocked.elements.previewStart.disabled, true);
+  assert.equal(blocked.commands().length, 1);
+
+  const server = graphServer();
+  const compatible = browser({ server, intercept: call => call.url.endsWith('/choices')
+    ? { ok: false, status: 409, json: async () => ({ code: 'OTT_CONFLICT' }) } : undefined });
+  await flush(); server.states.set('en', { node: 'C', revision: 4, positionMs: 500, status: 'active' });
+  compatible.choices()[0].fire('click'); await flush();
+  assert.match(compatible.elements.previewState.textContent, /another window/);
+  assert.equal(compatible.commands().length, 1);
+  assert.equal(compatible.elements.previewStart.disabled, false);
+});
+
+test('nested HTTP non-conflict statuses retain localized denial, retry and unknown-result behavior', async () => {
+  for (const status of [400, 401, 403, 404, 409, 410, 500, 503]) {
+    const page = browser({ intercept: call => call.url.endsWith('/choices') ? failure(status)
+      : call.url.endsWith('/auth/refresh') ? failure(401) : undefined });
+    await flush(); page.choices()[0].fire('click'); await flush();
+    assert.equal(page.commands().length, 1, `no automatic command retry for ${status}`);
+    assert.equal(page.calls.filter(call => call.options.method === 'GET' && call.url.includes('/playback-progress/')).length, 0);
+    assert.equal(page.elements.previewStart.disabled, true);
+    assert.doesNotMatch(page.elements.previewState.textContent + page.elements.graphSaveState.textContent,
+      /PRIVATE_DIAGNOSTIC|OTT_|private-fixture|statusCode|requestId/);
+    if ([401, 403, 404].includes(status)) {
+      assert.equal(page.elements.previewPlayer.hidden, true);
+      assert.equal(page.choices().length, 0);
+    } else if (status >= 500) {
+      assert.match(page.elements.graphSaveState.textContent, /unknown/);
+      assert.equal(page.storage.size, 1, 'unknown write retains its original key');
+    } else {
+      assert.equal(page.storage.size, 0, 'known rejected write is not replayed');
+      assert.equal(page.elements.previewRetry.hidden, false);
+    }
+  }
 });
 
 test('account switch fences late progress and removes private choices, tracks, and media', async () => {

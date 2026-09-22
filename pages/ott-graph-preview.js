@@ -131,7 +131,10 @@
         }
         const data = await response.json().catch(() => null);
         if (!alive(stamp)) throw new Error("stale");
-        if (!response.ok) throw Object.assign(new Error("request"), { status: response.status, code: data?.code });
+        if (!response.ok) {
+          const code = data?.error?.code ?? data?.code;
+          throw Object.assign(new Error("request"), { status: response.status, code: typeof code === "string" ? code : "" });
+        }
         return data;
       }
     } finally { clearTimeout(timeout); requests.delete(pending); }

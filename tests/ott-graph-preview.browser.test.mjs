@@ -201,6 +201,31 @@ test('browser functional: owner revocation denies session and never supplies fal
   } finally { await f.close(); }
 });
 
+test('browser functional: nested HTTP conflict refetches newest progress without stale choice replay', async () => {
+  const f = await fixture();
+  try {
+    f.server.states.set('en', { node: 'C', revision: 4, positionMs: 500, status: 'active' });
+    await f.page.locator('#graphChoices button').first().click();
+    await f.page.waitForFunction(() => document.getElementById('previewState').textContent === 'Loaded progress changed in another window.');
+    assert.equal(f.commands().length, 1);
+    assert.equal(f.calls.filter(call => call.options.method === 'GET' && call.url.includes('/playback-progress/')).length, 1);
+    assert.equal(f.server.receipts.size, 0);
+    assert.deepEqual(f.server.states.get('en'), { node: 'C', revision: 4, positionMs: 500, status: 'active' });
+    await f.play();
+    assert.ok((await f.page.locator('video').getAttribute('src')).includes(ids.C));
+    const saved = f.page.waitForResponse(response => response.url().endsWith('/position') && response.status() === 200);
+    await f.page.evaluate(() => { const video = document.querySelector('video'); video.pause(); video.currentTime = .9; });
+    await saved;
+    await f.page.waitForFunction(() => document.getElementById('graphSaveState').textContent === 'Progress saved.');
+    assert.deepEqual(JSON.parse(f.commands().at(-1).options.body), {
+      manifestId: ids.manifest, expectedRevision: 4, nodeKey: 'C', positionMs: 900
+    });
+    assert.deepEqual(f.server.states.get('en'), { node: 'C', revision: 5, positionMs: 900, status: 'active' });
+    assert.equal(f.commands().filter(call => call.url.endsWith('/choices')).length, 1);
+    assert.deepEqual(f.errors, []);
+  } finally { await f.close(); }
+});
+
 for (const locale of locales) for (const width of [390, 400, 1280]) {
   test(`browser visual: ${locale} ${width} native clip and three authored fixture choices`, async () => {
     assert.match(artifacts || '', /^E:[/\\]/i, 'explicit E-only screenshot directory');
