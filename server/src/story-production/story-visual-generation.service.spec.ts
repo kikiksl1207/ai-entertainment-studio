@@ -256,9 +256,10 @@ describe('StoryVisualGenerationService', () => {
     });
 
     expect(provider).toHaveBeenCalledTimes(2);
-    expect(f.generation()).toMatchObject({ status: 'ready', assetId: replacementAssetId, attemptCount: 2 });
+    expect(f.generation()).toMatchObject({ status: 'ready', assetId: replacementAssetId, attemptCount: 1 });
     expect(f.prisma.storyVisualGeneration.updateMany).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({ lastErrorCode: null }),
+      data: expect.not.objectContaining({ attemptCount: expect.anything() }),
     }));
     expect(f.prisma.asset.updateMany).toHaveBeenCalledWith({
       where: { id: assetId, visibility: 'public' }, data: { visibility: 'private' },
@@ -279,7 +280,7 @@ describe('StoryVisualGenerationService', () => {
     });
     expect(provider).toHaveBeenCalledTimes(2);
     expect(f.prisma.asset.create).toHaveBeenCalledTimes(1);
-    expect(f.generation()).toMatchObject({ attemptCount: 2 });
+    expect(f.generation()).toMatchObject({ attemptCount: 1 });
 
     const highQualityAssetId = '00000000-0000-4000-8000-000000000010';
     f.setConfig('OPENAI_IMAGE_QUALITY', 'high');
@@ -313,7 +314,7 @@ describe('StoryVisualGenerationService', () => {
       status: 'failed', sourceSceneKey, retryable: false,
     });
     expect(f.generation()).toMatchObject({
-      status: 'ready', assetId, attemptCount: 2,
+      status: 'ready', assetId, attemptCount: 1,
       lastErrorCode: expect.stringMatching(/^STALE_REPLACEMENT_FAILED_[a-f0-9]{40}$/),
     });
 
@@ -322,7 +323,7 @@ describe('StoryVisualGenerationService', () => {
     });
     expect(provider).toHaveBeenCalledTimes(1);
     expect(f.prisma.asset.create).not.toHaveBeenCalled();
-    expect(f.generation()).toMatchObject({ status: 'ready', assetId, attemptCount: 2 });
+    expect(f.generation()).toMatchObject({ status: 'ready', assetId, attemptCount: 1 });
   });
 
   it('rejects admin replacement unless the target already has a ready asset', async () => {

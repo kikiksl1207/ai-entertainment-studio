@@ -468,7 +468,6 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
           model: this.model(),
           quality: this.quality(),
           size: this.size(),
-          attemptCount: { increment: 1 },
           lastErrorCode: null,
           startedAt: new Date(),
           updatedAt: new Date(),
@@ -483,7 +482,7 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
         return { status: current?.status === 'failed' ? 'failed' : 'processing', sourceSceneKey } as const;
       }
       replacedAssetId = existing.assetId;
-      existing = { ...existing, status: 'generating', attemptCount: existing.attemptCount + 1,
+      existing = { ...existing, status: 'generating',
         lastErrorCode: null, startedAt: new Date(), updatedAt: new Date() };
     }
     if (!this.enabled()) return { status: 'unavailable', reason: 'generation_disabled' } as const;
