@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { createHash, randomUUID } from 'crypto';
-import { gunzipSync } from 'zlib';
+import { brotliDecompressSync, gunzipSync } from 'zlib';
 import { PrismaService } from '../prisma/prisma.service';
 import { StoryUploadStorageService } from '../story-upload/story-upload-storage.service';
 import { StoryUploadFileFields } from '../story-upload/story-upload.types';
@@ -200,10 +200,16 @@ export class StoryPublicationIntakeService {
     try {
       bundle = gunzipSync(compressed, { maxOutputLength: NORSE_BUNDLE_MAX_BYTES });
     } catch {
-      throw new ConflictException({
-        code: 'STORY_PUBLICATION_BUNDLE_INVALID',
-        message: 'The approved Norse source bundle is invalid',
-      });
+      try {
+        bundle = brotliDecompressSync(compressed, {
+          maxOutputLength: NORSE_BUNDLE_MAX_BYTES,
+        });
+      } catch {
+        throw new ConflictException({
+          code: 'STORY_PUBLICATION_BUNDLE_INVALID',
+          message: 'The approved Norse source bundle is invalid',
+        });
+      }
     }
     if (!bundle.subarray(0, NORSE_BUNDLE_MAGIC.length).equals(NORSE_BUNDLE_MAGIC)) {
       throw new ConflictException('The approved Norse source bundle identity is invalid');

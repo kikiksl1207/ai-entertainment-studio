@@ -238,7 +238,7 @@
     if (!story || !validFileCount) {
       if (inlineStatus) {
         inlineStatus.textContent = storyKey === "norse"
-          ? "원본 JSON 2개 또는 승인 GZIP 묶음 1개를 선택해 주세요."
+          ? "원본 JSON 2개 또는 승인 압축 묶음 1개를 선택해 주세요."
           : `${expectedCount}개 파일을 선택해 주세요.`;
         inlineStatus.className = "form-status is-error";
       }

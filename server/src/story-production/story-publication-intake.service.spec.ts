@@ -1,6 +1,32 @@
 import { StoryPublicationIntakeService } from './story-publication-intake.service';
+import { brotliCompressSync, gzipSync } from 'zlib';
 
 describe('StoryPublicationIntakeService queue projection', () => {
+  it.each([
+    ['gzip', gzipSync],
+    ['brotli', brotliCompressSync],
+  ])('restores the exact approved source bytes from a %s bundle', (_, compress) => {
+    const service = new StoryPublicationIntakeService({} as never, {} as never);
+    const analysis = Buffer.from('{"analysis":true}');
+    const sourceMap = Buffer.from('{"sourceMap":true}');
+    const firstLength = Buffer.allocUnsafe(4);
+    const secondLength = Buffer.allocUnsafe(4);
+    firstLength.writeUInt32BE(analysis.length);
+    secondLength.writeUInt32BE(sourceMap.length);
+    const bundle = Buffer.concat([
+      Buffer.from('LUMINA_NORSE_BUNDLE_V1\0', 'ascii'),
+      firstLength,
+      analysis,
+      secondLength,
+      sourceMap,
+    ]);
+
+    expect((service as any).unpackNorseBundle(compress(bundle))).toEqual([
+      analysis,
+      sourceMap,
+    ]);
+  });
+
   it('detects only the exact approved source hashes and omits private storage keys', async () => {
     const prisma = {
       storyUploadSubmission: {
