@@ -25,6 +25,8 @@ describe('story visual bible', () => {
     expect(first.privatePrompt).toContain('[LAYER-READY COMPOSITION]');
     expect(first.privatePrompt).toContain('one primary focal character and no more than two secondary');
     expect(first.privatePrompt).toContain('floating or disembodied heads');
+    expect(first.privatePrompt).toContain('fill the entire image edge to edge');
+    expect(first.privatePrompt).toContain('isolated character cutouts');
     expect(first.privatePrompt).toContain('Adjutant Han wears the same indigo official robe');
     expect(first.privatePrompt).toContain('이순신은 검은 수염과 붉은 철릭');
     expect(Array.from(first.privatePrompt).length).toBeLessThanOrEqual(7_000);
@@ -59,11 +61,16 @@ describe('story visual bible', () => {
     const bible = buildStoryVisualBible({
       workTitle: 'Work', workSummary: 'Summary', canonicalPrompts: ['Canonical style direction'],
     });
-    const result = composeStoryVisualPrompt(bible, `Scene direction ${'가'.repeat(7_100)}`);
+    const result = composeStoryVisualPrompt(
+      bible,
+      `Scene direction ${'가'.repeat(7_100)} closing consequence`,
+    );
 
     expect(result.indexOf('[PRIVATE VISUAL BIBLE')).toBeLessThan(result.indexOf('[SCENE-SPECIFIC DIRECTION]'));
     expect(result).toContain('Canonical style direction');
     expect(result).toContain('Do not illustrate them all.');
+    expect(result).toContain('[...middle of scene omitted for visual direction...]');
+    expect(result).toContain('closing consequence');
     expect(Array.from(result.split('[SCENE-SPECIFIC DIRECTION]')[1]).length).toBeLessThan(3_700);
   });
 });
