@@ -201,6 +201,21 @@
               <button class="secondary-action" type="button" id="studioProfileResetButton">현재 값 다시 불러오기</button>
             </div>
           </article>
+          <article class="panel" id="artistStoryIdentityPanel">
+            <div class="panel-header">
+              <div><span class="panel-kicker">STORY IDENTITY</span><h2 id="artistIdentityPanelTitle">스토리 이미지 정체성</h2></div>
+              <span class="badge" id="artistIdentityBadge">설정 전</span>
+            </div>
+            <div class="form-grid">
+              <label><span id="artistIdentityArtistLabel">대상 아티스트</span><select id="artistIdentityArtistSelect"></select></label>
+            </div>
+            <div class="artist-identity-assets" id="artistIdentityAssets"></div>
+            <p id="artistIdentityState" class="studio-form-state" role="status" aria-live="polite">기준 이미지를 선택해 주세요.</p>
+            <div class="composer-tools">
+              <button class="primary-action" type="button" id="artistIdentityAnalyze">선택 이미지 분석</button>
+              <button class="secondary-action" type="button" id="artistIdentityReview" disabled>설정 검토</button>
+            </div>
+          </article>
         </section>
 
         <section class="studio-section" id="feed">
@@ -324,6 +339,10 @@
               <span id="writerAnalysisPageCount" role="status"></span>
               <button id="writerAnalysisNext" class="secondary-action" type="button"><span aria-hidden="true">&rarr;</span></button>
             </nav>
+            <div class="writer-generation-entry" id="writerGenerationEntry" hidden>
+              <button id="writerGenerationReviewOpen" class="primary-action" type="button">생성 설정 검토</button>
+              <p id="writerGenerationReviewState" class="writer-analysis-meta" role="status" aria-live="polite"></p>
+            </div>
           </section>
         </section>
 
@@ -694,6 +713,44 @@
         <div class="modal-actions">
           <button class="secondary-action" type="button" id="studioModalCancel">취소</button>
           <button class="primary-action" type="button" id="studioModalConfirm">확인</button>
+        </div>
+      </div>
+    </div>
+    <div class="studio-modal is-hidden writer-generation-modal" id="writerGenerationModal" role="dialog" aria-modal="true" aria-labelledby="writerGenerationTitle">
+      <div class="modal-card">
+        <header>
+          <div>
+            <span class="eyebrow" id="writerGenerationEyebrow">AI 분석 결과</span>
+            <h2 id="writerGenerationTitle">스토리 생성 설정 검토</h2>
+          </div>
+          <button class="secondary-action" type="button" id="writerGenerationClose">닫기</button>
+        </header>
+        <p id="writerGenerationIntro">원고에서 찾은 기준입니다. 각 항목을 확인하거나 필요한 부분만 고쳐주세요.</p>
+        <p id="writerGenerationStatus" class="studio-form-state" role="status" aria-live="polite"></p>
+        <div id="writerGenerationSections" class="writer-generation-sections"></div>
+        <div class="modal-actions writer-generation-actions">
+          <button class="secondary-action" type="button" id="writerGenerationCancel">나중에</button>
+          <button class="secondary-action" type="button" id="writerGenerationSave">임시 저장</button>
+          <button class="primary-action" type="button" id="writerGenerationApprove">확인 후 적용</button>
+        </div>
+      </div>
+    </div>
+    <div class="studio-modal is-hidden writer-generation-modal" id="artistIdentityModal" role="dialog" aria-modal="true" aria-labelledby="artistIdentityModalTitle">
+      <div class="modal-card">
+        <header>
+          <div>
+            <span class="eyebrow" id="artistIdentityModalEyebrow">IMAGE ANALYSIS</span>
+            <h2 id="artistIdentityModalTitle">아티스트 이미지 기준 검토</h2>
+          </div>
+          <button class="secondary-action" type="button" id="artistIdentityClose">닫기</button>
+        </header>
+        <p id="artistIdentityModalIntro">고정할 외형과 스토리에 맞게 바꿀 요소를 확인해 주세요.</p>
+        <p id="artistIdentityModalStatus" class="studio-form-state" role="status" aria-live="polite"></p>
+        <div id="artistIdentitySections" class="writer-generation-sections"></div>
+        <div class="modal-actions writer-generation-actions">
+          <button class="secondary-action" type="button" id="artistIdentityLater">나중에</button>
+          <button class="secondary-action" type="button" id="artistIdentitySave">임시 저장</button>
+          <button class="primary-action" type="button" id="artistIdentityApprove">확인 후 적용</button>
         </div>
       </div>
     </div>

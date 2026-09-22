@@ -30,6 +30,17 @@
       storyStructure: "이야기 구성",
       storyStructureParts: "총 {count}개 파트",
       storyStructureDynamic: "선택에 따라 다음 장면과 제목이 달라집니다. 아직 만나지 않은 경로는 미리 공개되지 않습니다.",
+      participantTitle: "함께할 아티스트",
+      participantHelp: "좋아요·투표한 아티스트에서 고르거나 이름으로 검색할 수 있어요. 선택하지 않고 시작해도 됩니다.",
+      participantSearch: "아티스트 검색",
+      participantSearchPlaceholder: "아티스트 이름 입력",
+      participantSearchButton: "검색",
+      participantEmpty: "좋아요·투표한 아티스트가 아직 없어요. 이름으로 검색해 보세요.",
+      participantSelected: "선택됨",
+      participantVisualReady: "캐릭터 이미지 준비 완료",
+      participantVisualPending: "캐릭터 이미지 기준 준비 중",
+      participantClear: "선택 해제",
+      participantLocked: "이 진행 기록에 고정된 아티스트예요.",
       start: "스토리 시작",
       continue: "이어보기",
       starting: "시작하는 중입니다.",
@@ -92,6 +103,17 @@
       storyStructure: "Story structure",
       storyStructureParts: "{count} parts in total",
       storyStructureDynamic: "Your choices change the next scene and its title. Routes you have not reached remain hidden.",
+      participantTitle: "Participating artist",
+      participantHelp: "Choose an artist you liked or voted for, or search by name. You can also start without one.",
+      participantSearch: "Search artists",
+      participantSearchPlaceholder: "Enter an artist name",
+      participantSearchButton: "Search",
+      participantEmpty: "You have no liked or voted artists yet. Search by name.",
+      participantSelected: "Selected",
+      participantVisualReady: "Character image ready",
+      participantVisualPending: "Character image setup pending",
+      participantClear: "Clear selection",
+      participantLocked: "This artist is fixed to this story progress.",
       start: "Start story",
       continue: "Continue",
       starting: "Starting story.",
@@ -154,6 +176,17 @@
       storyStructure: "物語の構成",
       storyStructureParts: "全{count}パート",
       storyStructureDynamic: "選択によって次のシーンとタイトルが変わります。まだ到達していないルートは事前に公開されません。",
+      participantTitle: "参加アーティスト",
+      participantHelp: "いいね・投票したアーティストから選ぶか、名前で検索できます。選ばずに始めることもできます。",
+      participantSearch: "アーティスト検索",
+      participantSearchPlaceholder: "アーティスト名を入力",
+      participantSearchButton: "検索",
+      participantEmpty: "いいね・投票したアーティストはまだいません。名前で検索してください。",
+      participantSelected: "選択中",
+      participantVisualReady: "キャラクター画像準備完了",
+      participantVisualPending: "キャラクター画像設定準備中",
+      participantClear: "選択解除",
+      participantLocked: "このストーリー進行に固定されたアーティストです。",
       start: "ストーリー開始",
       continue: "続きから",
       starting: "ストーリーを開始しています。",
@@ -216,6 +249,17 @@
       storyStructure: "故事结构",
       storyStructureParts: "共{count}个章节",
       storyStructureDynamic: "你的选择会改变下一个场景及其标题。尚未到达的路线不会提前公开。",
+      participantTitle: "参与艺人",
+      participantHelp: "可从点赞或投票过的艺人中选择，也可按姓名搜索。也可以不选择直接开始。",
+      participantSearch: "搜索艺人",
+      participantSearchPlaceholder: "输入艺人姓名",
+      participantSearchButton: "搜索",
+      participantEmpty: "暂无点赞或投票过的艺人，请按姓名搜索。",
+      participantSelected: "已选择",
+      participantVisualReady: "角色图片已准备",
+      participantVisualPending: "角色图片设定准备中",
+      participantClear: "取消选择",
+      participantLocked: "该艺人已固定到本次故事进度。",
       start: "开始故事",
       continue: "继续阅读",
       starting: "正在开始故事。",
@@ -278,6 +322,17 @@
       storyStructure: "故事結構",
       storyStructureParts: "共{count}個章節",
       storyStructureDynamic: "你的選擇會改變下一個場景及其標題。尚未到達的路線不會提前公開。",
+      participantTitle: "參與藝人",
+      participantHelp: "可從按讚或投票過的藝人中選擇，也可按姓名搜尋。也可以不選擇直接開始。",
+      participantSearch: "搜尋藝人",
+      participantSearchPlaceholder: "輸入藝人姓名",
+      participantSearchButton: "搜尋",
+      participantEmpty: "暫無按讚或投票過的藝人，請按姓名搜尋。",
+      participantSelected: "已選擇",
+      participantVisualReady: "角色圖片已準備",
+      participantVisualPending: "角色圖片設定準備中",
+      participantClear: "取消選擇",
+      participantLocked: "該藝人已固定到本次故事進度。",
       start: "開始故事",
       continue: "繼續閱讀",
       starting: "正在開始故事。",
@@ -499,6 +554,12 @@
     readingScroll: null,
     beatNotice: "",
     visualRequestKey: "",
+    participantCandidates: [],
+    participantSearchResults: [],
+    participantQuery: "",
+    participantStatus: "idle",
+    selectedParticipantArtistId: "",
+    participantLocked: false,
   };
 
   const READER_COPY = {
@@ -930,6 +991,59 @@
     return !(state.purchaseConfirming && !operation && state.detailStatus === "ready" && !state.purchaseNotice);
   }
 
+  function participantCandidate(value) {
+    if (!value || !safeGraphId(value.artistId) || typeof value.displayName !== "string" || !value.displayName.trim()) return null;
+    const publicUrl = typeof value.thumbnail?.publicUrl === "string" && !/\s/.test(value.thumbnail.publicUrl)
+      ? visualAssetUrl(value.thumbnail.publicUrl)
+      : "";
+    return {
+      artistId: value.artistId,
+      slug: typeof value.slug === "string" ? value.slug : "",
+      displayName: value.displayName.trim(),
+      source: typeof value.source === "string" ? value.source : "search",
+      visualIdentityReady: value.visualIdentityReady === true,
+      thumbnail: publicUrl,
+    };
+  }
+
+  function participantItems() {
+    const fixed = participantCandidate(state.readerState?.participantArtist);
+    if (fixed) return [fixed];
+    const items = [...state.participantCandidates, ...state.participantSearchResults]
+      .map(participantCandidate).filter(Boolean);
+    return [...new Map(items.map((item) => [item.artistId, item])).values()];
+  }
+
+  function renderParticipantPicker(action) {
+    const fixed = participantCandidate(state.readerState?.participantArtist);
+    if (!fixed && action !== "start") return "";
+    const items = fixed ? [fixed] : participantItems();
+    const selectedId = fixed?.artistId || state.selectedParticipantArtistId;
+    return `<section class="story-participant-picker" aria-labelledby="storyParticipantTitle">
+      <div class="story-participant-heading">
+        <div><h3 id="storyParticipantTitle">${escapeHtml(tr("participantTitle"))}</h3>
+          <p>${escapeHtml(fixed ? tr("participantLocked") : tr("participantHelp"))}</p></div>
+        ${selectedId && !fixed ? `<button type="button" class="story-participant-clear" data-story-artist-clear>${escapeHtml(tr("participantClear"))}</button>` : ""}
+      </div>
+      ${!fixed ? `<form class="story-participant-search" data-story-artist-search-form role="search">
+        <label class="story-sr-only" for="storyArtistSearch">${escapeHtml(tr("participantSearch"))}</label>
+        <input id="storyArtistSearch" type="search" maxlength="80" value="${escapeHtml(state.participantQuery)}" placeholder="${escapeHtml(tr("participantSearchPlaceholder"))}" data-story-artist-search />
+        <button type="submit" class="story-button story-button-secondary">${escapeHtml(tr("participantSearchButton"))}</button>
+      </form>` : ""}
+      <div class="story-participant-list" role="list">
+        ${items.length ? items.map((item) => {
+          const selected = item.artistId === selectedId;
+          return `<button type="button" class="story-participant-item${selected ? " is-selected" : ""}" data-story-artist-id="${escapeHtml(item.artistId)}" aria-pressed="${selected}" ${fixed ? "disabled" : ""} role="listitem">
+            <span class="story-participant-thumb">${item.thumbnail ? `<img src="${escapeHtml(item.thumbnail)}" alt="" />` : `<span aria-hidden="true">${escapeHtml(item.displayName.slice(0, 1))}</span>`}</span>
+            <span class="story-participant-copy"><strong>${escapeHtml(item.displayName)}</strong>
+              <small>${escapeHtml(item.visualIdentityReady ? tr("participantVisualReady") : tr("participantVisualPending"))}</small></span>
+            ${selected ? `<span class="story-participant-selected">${escapeHtml(tr("participantSelected"))}</span>` : ""}
+          </button>`;
+        }).join("") : `<p class="story-participant-empty">${escapeHtml(state.participantStatus === "loading" ? tr("loading") : tr("participantEmpty"))}</p>`}
+      </div>
+    </section>`;
+  }
+
   function renderPack() {
     const dialog = state.dialog;
     if (!dialog || !state.detailSlug) return;
@@ -958,7 +1072,8 @@
           <section class="story-structure"><h3>${escapeHtml(tr("storyStructure"))}</h3>
             <strong>${escapeHtml(tr("storyStructureParts").replace("{count}", String(pack.parts.length)))}</strong>
             <p>${escapeHtml(tr("storyStructureDynamic"))}</p>
-          </section>` : ""}
+          </section>
+          ${renderParticipantPicker(action)}` : ""}
       </div>
       <footer class="story-detail-actions" aria-busy="${state.detailPending || purchaseBusy}">
         <p id="storyPurchaseStatus" data-story-detail-status role="status">${escapeHtml(state.detailStatus === "loading" || state.detailStatus === "access-loading" ? tr("loading") : state.detailStatus === "error" ? accessTr("detailUnavailable") : state.detailStatus === "access-error" ? state.detailError : action === "sign_in" ? tr("loginRequired") : purchaseStatus || (action === "unavailable" ? controlTr("sceneUnavailable") : ""))}</p>
@@ -1005,6 +1120,12 @@
     state.pack = null;
     state.readerAccess = null;
     state.readerState = null;
+    state.participantCandidates = [];
+    state.participantSearchResults = [];
+    state.participantQuery = "";
+    state.participantStatus = "idle";
+    state.selectedParticipantArtistId = "";
+    state.participantLocked = false;
     state.purchaseConfirming = false;
     state.purchaseNotice = "";
     document.body.classList.remove("story-detail-open");
@@ -1719,6 +1840,12 @@
     state.pack = null;
     state.readerAccess = null;
     state.readerState = null;
+    state.participantCandidates = [];
+    state.participantSearchResults = [];
+    state.participantQuery = "";
+    state.participantStatus = "idle";
+    state.selectedParticipantArtistId = "";
+    state.participantLocked = false;
     renderPack();
     try {
       // Public detail never opts into the shared helper's auth/refresh flow.
@@ -1742,12 +1869,21 @@
       if (!current()) return;
       if (owner?.workId !== workId || owner.slug !== slug || !owner.access) throw new Error("Invalid access");
       let progress = null;
+      let participantPayload = null;
       if (owner.access.accessible === true) {
-        progress = await request(`/api/v1/me/stories/${encodeURIComponent(workId)}/progress-state`, { auth: true });
+        [progress, participantPayload] = await Promise.all([
+          request(`/api/v1/me/stories/${encodeURIComponent(workId)}/progress-state`, { auth: true }),
+          request(`/api/v1/me/stories/${encodeURIComponent(workId)}/artist-candidates?take=20`, { auth: true }),
+        ]);
         if (!current()) return;
       }
       state.readerAccess = owner;
       state.readerState = progress;
+      state.participantCandidates = Array.isArray(participantPayload?.engaged) ? participantPayload.engaged : [];
+      state.participantSearchResults = [];
+      state.participantStatus = "ready";
+      state.participantLocked = participantPayload?.selectionLocked === true || Boolean(progress?.participantArtist);
+      state.selectedParticipantArtistId = safeGraphId(progress?.participantArtist?.artistId || participantPayload?.selectedArtistId);
       state.detailStatus = "ready";
       const operation = pendingPurchase(workId);
       if (owner.access.accessible === true && ["free", "entitled"].includes(owner.access.status) && operation && !operation.pending && !operation.blocked) {
@@ -1758,6 +1894,32 @@
       if (!current()) return;
       state.detailStatus = "access-error";
       state.detailError = error?.status === 401 ? tr("loginRequired") : accessTr("accessFailed");
+    }
+    renderPack();
+  }
+
+  async function searchParticipantArtists() {
+    const workId = safeGraphId(state.pack?.id);
+    const query = state.participantQuery.trim();
+    if (!workId || state.participantLocked || detailAction() !== "start") return;
+    if (!query) {
+      state.participantSearchResults = [];
+      state.participantStatus = "ready";
+      renderPack();
+      return;
+    }
+    const epoch = state.epoch;
+    state.participantStatus = "loading";
+    renderPack();
+    try {
+      const payload = await request(`/api/v1/me/stories/${encodeURIComponent(workId)}/artist-candidates?q=${encodeURIComponent(query)}&take=20`, { auth: true });
+      if (epoch !== state.epoch || workId !== state.pack?.id) return;
+      state.participantSearchResults = Array.isArray(payload?.searchResults) ? payload.searchResults : [];
+      state.participantStatus = "ready";
+    } catch (_) {
+      if (epoch !== state.epoch || workId !== state.pack?.id) return;
+      state.participantSearchResults = [];
+      state.participantStatus = "error";
     }
     renderPack();
   }
@@ -1833,7 +1995,13 @@
       const payload = await request(`/api/v1/stories/${encodeURIComponent(workId)}/progress`, {
         method: "POST",
         auth: true,
-        body: { mode: "continue", locale },
+        body: {
+          mode: "continue",
+          locale,
+          ...(safeGraphId(state.selectedParticipantArtistId)
+            ? { participantArtistId: state.selectedParticipantArtistId }
+            : {}),
+        },
       });
       const sessionId = safeGraphId(payload?.progressId);
       if (!sessionId || !Number.isInteger(payload.revision) || payload.revision < 1 || !Array.isArray(payload.choices) || payload.choices.length > 3) throw new Error("Invalid progress");
@@ -2176,6 +2344,15 @@
       renderCatalog();
       return;
     }
+    const artistButton = event.target.closest("[data-story-artist-id]");
+    if (artistButton && !state.participantLocked && detailAction() === "start") {
+      state.selectedParticipantArtistId = safeGraphId(artistButton.dataset.storyArtistId);
+      return renderPack();
+    }
+    if (event.target.closest("[data-story-artist-clear]") && !state.participantLocked) {
+      state.selectedParticipantArtistId = "";
+      return renderPack();
+    }
     const startButton = event.target.closest("[data-story-start]");
     if (startButton) return startStory();
     const beatButton = event.target.closest("[data-story-beat]");
@@ -2195,6 +2372,18 @@
     }
     if (event.target.closest("[data-story-reset-confirm]")) return confirmReset();
     if (event.target.closest("[data-story-retry]")) return state.sessionId ? loadScene() : state.graphWorkId ? loadGraph() : loadCatalog();
+  });
+
+  root.addEventListener("input", (event) => {
+    if (event.target.matches("[data-story-artist-search]")) {
+      state.participantQuery = event.target.value.slice(0, 80);
+    }
+  });
+
+  root.addEventListener("submit", (event) => {
+    if (!event.target.matches("[data-story-artist-search-form]")) return;
+    event.preventDefault();
+    searchParticipantArtists();
   });
 
   document.addEventListener("keydown", (event) => {

@@ -77,6 +77,24 @@ export class StartStoryProgressDto {
   @IsOptional()
   @IsIn(STORY_LOCALES)
   locale = 'ko';
+
+  @IsOptional()
+  @IsUUID()
+  participantArtistId?: string;
+}
+
+export class StoryArtistCandidateQueryDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  q?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(30)
+  take = 20;
 }
 
 export class UpdateBeatProgressDto {

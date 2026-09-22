@@ -4,8 +4,11 @@ import {
   Get,
   Header,
   Headers,
+  NotFoundException,
+  Optional,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
   Query,
   Req,
@@ -27,6 +30,7 @@ import {
   PurchaseStoryWorkDto,
   SelectStoryChoiceDto,
   StartStoryProgressDto,
+  StoryArtistCandidateQueryDto,
   StoryCatalogQueryDto,
   StoryGraphQueryDto,
   StoryLocaleQueryDto,
@@ -38,6 +42,12 @@ import { StoryProgressControlService } from './story-progress-control.service';
 import { StoryProductionService } from './story-production.service';
 import { StoryAnalysisPageDto } from './dto/story-semantic-analysis.dto';
 import { StoryAnalysisDiscoveryQueryDto } from './dto/story-analysis-discovery.dto';
+import {
+  ApproveCreatorGenerationProfileDto,
+  UpdateStoryGenerationProfileDto,
+} from '../generation-profile/dto/creator-generation-profile.dto';
+import { StoryGenerationProfileService } from './story-generation-profile.service';
+import { StoryArtistParticipantService } from './story-artist-participant.service';
 
 type OptionalAuthRequest = { user?: AuthUser };
 
@@ -46,6 +56,8 @@ export class StoryProductionController {
   constructor(
     private readonly stories: StoryProductionService,
     private readonly progressControls: StoryProgressControlService,
+    @Optional() private readonly generationProfiles?: StoryGenerationProfileService,
+    @Optional() private readonly storyParticipants?: StoryArtistParticipantService,
   ) {}
 
   @Get('stories')
@@ -102,6 +114,17 @@ export class StoryProductionController {
     @Body() body: StartStoryProgressDto,
   ) {
     return this.stories.startProgress(user.id, workId, body);
+  }
+
+  @Get('me/stories/:workId/artist-candidates')
+  @UseGuards(JwtAuthGuard)
+  artistCandidates(
+    @CurrentUser() user: AuthUser,
+    @Param('workId', ParseUUIDPipe) workId: string,
+    @Query() query: StoryArtistCandidateQueryDto,
+  ) {
+    if (!this.storyParticipants) throw new NotFoundException('Story participant service unavailable');
+    return this.storyParticipants.candidates(user.id, workId, query);
   }
 
   @Get('stories/:slug')
@@ -244,6 +267,36 @@ export class StoryProductionController {
     @Query() query: StoryAnalysisDiscoveryQueryDto,
   ) {
     return this.stories.manuscriptVersions(user.id, workId, query);
+  }
+
+  @Get('me/creator-studio/stories/:workId/generation-profile')
+  @UseGuards(JwtAuthGuard)
+  @Header('Cache-Control', 'private, no-store')
+  generationProfile(
+    @CurrentUser() user: AuthUser,
+    @Param('workId', ParseUUIDPipe) workId: string,
+  ) {
+    return this.generationProfiles!.getOrCreate(user.id, workId);
+  }
+
+  @Patch('me/creator-studio/stories/:workId/generation-profile')
+  @UseGuards(JwtAuthGuard)
+  updateGenerationProfile(
+    @CurrentUser() user: AuthUser,
+    @Param('workId', ParseUUIDPipe) workId: string,
+    @Body() body: UpdateStoryGenerationProfileDto,
+  ) {
+    return this.generationProfiles!.update(user.id, workId, body);
+  }
+
+  @Post('me/creator-studio/stories/:workId/generation-profile/approve')
+  @UseGuards(JwtAuthGuard)
+  approveGenerationProfile(
+    @CurrentUser() user: AuthUser,
+    @Param('workId', ParseUUIDPipe) workId: string,
+    @Body() body: ApproveCreatorGenerationProfileDto,
+  ) {
+    return this.generationProfiles!.approve(user.id, workId, body);
   }
 
   @Get('me/creator-studio/manuscripts/:manuscriptId/analyses')

@@ -16,7 +16,7 @@ const confirmation = (c) => {
 
 test('purchase source: clean consent omits retry; unknown/errors and legacy ready detail retain it', () => {
   const start = source.indexOf('function detailRetryVisible(');
-  const end = source.indexOf('\n  function renderPack(', start);
+  const end = source.indexOf('\n  function participantCandidate(', start);
   assert.ok(start > 0 && end > start);
   const evaluate = (overrides = {}, operation = null) => runInNewContext(`(${source.slice(start, end)})(operation)`, {
     state: { detailStatus: 'ready', purchaseConfirming: true, purchaseNotice: '', ...overrides }, operation,

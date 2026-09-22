@@ -63,6 +63,8 @@ import { StoryPublicationIntakeController } from './story-publication-intake.con
 import { StoryPublicationIntakeService } from './story-publication-intake.service';
 import { StoryPublicBetaAiActivationService } from './story-public-beta-ai-activation.service';
 import { StoryUploadModule } from '../story-upload/story-upload.module';
+import { StoryGenerationProfileService } from './story-generation-profile.service';
+import { StoryArtistParticipantService } from './story-artist-participant.service';
 
 @Module({
   imports: [ModerationModule, StoryUploadModule],
@@ -105,6 +107,8 @@ import { StoryUploadModule } from '../story-upload/story-upload.module';
     StoryPublicBetaPolicy,
     StoryPublicationIntakeService,
     StoryPublicBetaAiActivationService,
+    StoryGenerationProfileService,
+    StoryArtistParticipantService,
     StoryContinuationExecutor,
     StoryContinuationContextAssembler,
     {

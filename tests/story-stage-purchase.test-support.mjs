@@ -52,7 +52,7 @@ export function registerPurchaseTests({ fixture, owner, detail, progress, workId
       assert.deepEqual(posts(f)[0].body, body(quote));
       assert.equal(posts(f)[0].headers.authorization, 'Bearer private-synthetic-token');
       assert.match(posts(f)[0].headers['idempotency-key'], /^story-purchase-/);
-      assert.deepEqual(f.requests.slice(f.requests.indexOf(posts(f)[0]) + 1).map((r) => r.path.split('/').at(-1)), ['private-local-story', 'access', 'progress-state']);
+      assert.deepEqual(f.requests.slice(f.requests.indexOf(posts(f)[0]) + 1).map((r) => r.path.split('/').at(-1)), ['private-local-story', 'access', 'progress-state', 'artist-candidates']);
       assert.equal(f.requests.filter((r) => r.method === 'POST').length, 1, 'No automatic reader start');
       await f.page.locator('[data-story-start]').click();
       await f.page.waitForURL('**sessionId=*');

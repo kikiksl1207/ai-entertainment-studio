@@ -53,6 +53,7 @@ import { SemanticAnalysisService } from './story-semantic-analysis.service';
 import { appendStoryRoute, createStoryRouteRoot } from './story-route-identity.store';
 import { StoryVisualGenerationService } from './story-visual-generation.service';
 import { StoryPublicBetaPolicy } from './story-public-beta.policy';
+import { StoryArtistParticipantService } from './story-artist-participant.service';
 
 const STORY_ENTITLEMENT_TYPES = [
   'story_work',
@@ -72,6 +73,7 @@ export class StoryProductionService {
     @Optional() private readonly semanticAnalysis?: SemanticAnalysisService,
     @Optional() private readonly visualGeneration?: StoryVisualGenerationService,
     @Optional() private readonly publicBeta?: StoryPublicBetaPolicy,
+    @Optional() private readonly storyParticipants?: StoryArtistParticipantService,
   ) {}
 
   async creatorCatalog(userId: string, query: StoryCatalogQueryDto) {
@@ -527,6 +529,37 @@ export class StoryProductionService {
           retryable: false,
         });
       }
+      if (body.participantArtistId && this.storyParticipants) {
+        const existingParticipant = await this.prisma.storyProgressArtistParticipant.findUnique({
+          where: { progressId: existing.id },
+          select: { artistId: true },
+        });
+        if (!existingParticipant) {
+          if (
+            existing.currentBeatPosition !== 0 ||
+            existing.currentGeneratedSceneId ||
+            jsonArray(existing.pathSummary).length > 0
+          ) {
+            throw new ConflictException({
+              code: 'STORY_PARTICIPANT_LOCKED',
+              messageKey: 'story.participant.error.locked',
+              retryable: false,
+            });
+          }
+          await this.prisma.$transaction((tx) => this.storyParticipants!.bind(tx, {
+            progressId: existing.id,
+            userId,
+            workId,
+            artistId: body.participantArtistId!,
+          }));
+        } else if (existingParticipant.artistId !== body.participantArtistId) {
+          throw new ConflictException({
+            code: 'STORY_PARTICIPANT_LOCKED',
+            messageKey: 'story.participant.error.locked',
+            retryable: false,
+          });
+        }
+      }
       return this.currentProgress(userId, existing.id, body.locale);
     }
     if (body.mode === 'checkpoint') {
@@ -560,6 +593,14 @@ export class StoryProductionService {
           pathSummary: [],
         },
       });
+      if (body.participantArtistId && this.storyParticipants) {
+        await this.storyParticipants.bind(tx, {
+          progressId: created.id,
+          userId,
+          workId,
+          artistId: body.participantArtistId,
+        });
+      }
       const routeNodeId = await createStoryRouteRoot(tx, created, targetSceneId, firstPart.actNumber);
       return tx.storyReaderProgress.update({ where: { id: created.id }, data: { routeNodeId } });
     });
@@ -584,8 +625,11 @@ export class StoryProductionService {
       where: { id: progressId, userId },
     });
     if (!progress) throw new NotFoundException('Story progress not found');
+    const participantArtist = this.storyParticipants
+      ? await this.storyParticipants.projection(progress.id)
+      : null;
     if (progress.currentGeneratedSceneId) {
-      return this.generatedSceneProjection(progress, locale);
+      return { ...(await this.generatedSceneProjection(progress, locale)), participantArtist };
     }
     if (!progress.currentSceneId) {
       return {
@@ -598,9 +642,10 @@ export class StoryProductionService {
         choices: [],
         releaseCapability: firstReleaseChoiceCapability(),
         path: boundedPath(jsonArray(progress.pathSummary)),
+        participantArtist,
       };
     }
-    return this.sceneProjection(progress, locale);
+    return { ...(await this.sceneProjection(progress, locale)), participantArtist };
   }
 
   async updateBeatProgress(

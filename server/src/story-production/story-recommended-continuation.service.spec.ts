@@ -1,6 +1,10 @@
 import { ForbiddenException } from '@nestjs/common';
 import { Decimal } from '@prisma/client/runtime/library';
 import { StoryEconomicsService } from './story-economics.service';
+import {
+  creatorGenerationProfileFingerprint,
+  normalizeCreatorGenerationProfile,
+} from '../generation-profile/creator-generation-profile.policy';
 
 function fixture(includedAiRouteCount = 2) {
   const now = new Date();
@@ -94,6 +98,25 @@ function fixture(includedAiRouteCount = 2) {
 }
 
 describe('recommended choice enqueue transaction', () => {
+  const approvedProfile = () => {
+    const approvedSettings = {
+      schemaVersion: 'creator-generation-profile-v1' as const,
+      kind: 'story' as const,
+      sections: [
+        'writing_style', 'scene_scale', 'canon', 'timeline', 'narrative_devices',
+        'branch_behavior', 'visual_direction', 'visual_cast',
+      ].map((key) => ({ key, decision: 'accepted' as const, value: { summary: `${key} approved` }, evidence: [] })),
+    };
+    const normalizedSettings = normalizeCreatorGenerationProfile('story', approvedSettings);
+    const sourceFingerprint = 'a'.repeat(64);
+    return {
+      id: 'profile-id', status: 'approved', manuscriptVersionId: 'manuscript-id',
+      analysisJobId: 'analysis-id', profileVersion: 2, reviewRevision: 4,
+      sourceFingerprint, approvedSettings: normalizedSettings,
+      approvedFingerprint: creatorGenerationProfileFingerprint(sourceFingerprint, normalizedSettings),
+    };
+  };
+
   it('preflights the pinned complete request before reservation and uses its token budget', async () => {
     const f = fixture();
     f.provider.preflight = jest.fn().mockResolvedValue({ supported: true, inputTokenUpperBound: 900 });
@@ -177,6 +200,45 @@ describe('recommended choice enqueue transaction', () => {
     expect(f.tx.storyReaderProgress.updateMany).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ status: 'ai_pending', progressRevision: { increment: 1 } }),
     }));
+  });
+
+  it('pins an approved creator profile into generation, cache identity, and provider context', async () => {
+    const f = fixture();
+    const profile = approvedProfile();
+    Object.assign(f.tx, {
+      storyWorkGenerationProfile: { findFirst: jest.fn().mockResolvedValue(profile) },
+    });
+    f.provider.preflight = jest.fn().mockResolvedValue({ supported: true, inputTokenUpperBound: 900 });
+    await f.service.requestRecommendedChoiceTx(f.tx as never, f.input);
+    const data = f.createContinuation.mock.calls[0][0].data;
+    expect(data.contextReferences.generationProfilePin).toMatchObject({
+      id: 'profile-id', profileVersion: 2, reviewRevision: 4,
+      approvedFingerprint: profile.approvedFingerprint,
+    });
+    expect(f.provider.preflight).toHaveBeenCalledWith(expect.objectContaining({
+      approvedContext: expect.objectContaining({
+        generationProfile: expect.objectContaining({
+          sections: expect.arrayContaining([
+            { key: 'writing_style', value: { summary: 'writing_style approved' } },
+          ]),
+        }),
+      }),
+    }));
+  });
+
+  it('blocks a new-profile work until its latest profile is approved', async () => {
+    const f = fixture();
+    Object.assign(f.tx, {
+      storyWorkGenerationProfile: {
+        findFirst: jest.fn().mockResolvedValue({
+          ...approvedProfile(), status: 'needs_review', approvedFingerprint: null, approvedSettings: null,
+        }),
+      },
+    });
+    await expect(f.service.requestRecommendedChoiceTx(f.tx as never, f.input))
+      .rejects.toMatchObject({ response: { code: 'STORY_GENERATION_PROFILE_APPROVAL_REQUIRED' } });
+    expect(f.tx.storyAiAllowanceBucket.upsert).not.toHaveBeenCalled();
+    expect(f.createContinuation).not.toHaveBeenCalled();
   });
 
   it('returns the winning replay when the same idempotency key wins the allowance race', async () => {

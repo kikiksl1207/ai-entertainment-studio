@@ -2,6 +2,11 @@ import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@ne
 import { AuthUser } from '../auth/auth.types';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import {
+  ApproveCreatorGenerationProfileDto,
+  CreateArtistStoryIdentityDraftDto,
+  UpdateArtistStoryIdentityProfileDto,
+} from '../generation-profile/dto/creator-generation-profile.dto';
 import { CreatorStudioService } from './creator-studio.service';
 import {
   CreateCreatorStudioKnowledgeUrlDto,
@@ -95,5 +100,41 @@ export class CreatorStudioController {
     @Body() body: UpdateCreatorStudioArtistProfileDto,
   ) {
     return this.creatorStudioService.updateArtistProfile(user, artistId, body);
+  }
+
+  @Get('artists/:artistId/story-identity-profile')
+  getArtistStoryIdentityProfile(
+    @CurrentUser() user: AuthUser,
+    @Param('artistId') artistId: string,
+  ) {
+    return this.creatorStudioService.getArtistStoryIdentityProfile(user.id, artistId);
+  }
+
+  @Patch('artists/:artistId/story-identity-profile')
+  updateArtistStoryIdentityProfile(
+    @CurrentUser() user: AuthUser,
+    @Param('artistId') artistId: string,
+    @Body() body: UpdateArtistStoryIdentityProfileDto,
+  ) {
+    return this.creatorStudioService.updateArtistStoryIdentityProfile(user.id, artistId, body);
+  }
+
+  @Post('artists/:artistId/story-identity-profile/draft')
+  @UseGuards(JwtAuthGuard)
+  createArtistStoryIdentityDraft(
+    @CurrentUser() user: AuthUser,
+    @Param('artistId') artistId: string,
+    @Body() body: CreateArtistStoryIdentityDraftDto,
+  ) {
+    return this.creatorStudioService.createArtistStoryIdentityDraft(user.id, artistId, body);
+  }
+
+  @Post('artists/:artistId/story-identity-profile/approve')
+  approveArtistStoryIdentityProfile(
+    @CurrentUser() user: AuthUser,
+    @Param('artistId') artistId: string,
+    @Body() body: ApproveCreatorGenerationProfileDto,
+  ) {
+    return this.creatorStudioService.approveArtistStoryIdentityProfile(user.id, artistId, body);
   }
 }

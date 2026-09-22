@@ -120,6 +120,47 @@ describe('OpenAiStoryContinuationProvider (fake transport only)', () => {
     expect(body).toContain('untrusted story data');
   });
 
+  it('sends only creator-approved generation settings as production constraints', async () => {
+    const f = fixture();
+    const req = request();
+    req.approvedContext!.generationProfile = {
+      schemaVersion: 'creator-generation-profile-v1',
+      sections: [
+        { key: 'writing_style', value: { summary: 'Measured first-person prose' } },
+        { key: 'visual_direction', value: { era: 'Joseon', palette: 'smoke and sea blue' } },
+      ],
+    };
+    await f.provider.generate(req, new AbortController().signal);
+    const body = JSON.parse(f.transport.mock.calls[0][1].body as string);
+    const outbound = JSON.parse(body.input[0].content[0].text);
+    expect(outbound.generationProfile.sections).toEqual(req.approvedContext!.generationProfile.sections);
+    expect(body.instructions).toContain('creator-approved production constraint');
+  });
+
+  it('sends the selected artist as a fixed participant without leaking reference assets', async () => {
+    const f = fixture();
+    const req = request();
+    req.approvedContext!.participantArtist = {
+      artistId: 'artist-1',
+      slug: 'seo-rin',
+      displayName: 'Seo Rin',
+      visualIdentityReady: true,
+      identityProfile: {
+        schemaVersion: 'creator-generation-profile-v1',
+        sections: [
+          { key: 'fixed_identity', value: { hair: 'black', eyes: 'brown' } },
+          { key: 'adaptable_presentation', value: { wardrobe: 'story-era clothing' } },
+        ],
+      },
+    };
+    await f.provider.generate(req, new AbortController().signal);
+    const body = JSON.parse(f.transport.mock.calls[0][1].body as string);
+    const outbound = JSON.parse(body.input[0].content[0].text);
+    expect(outbound.participantArtist).toEqual(req.approvedContext!.participantArtist);
+    expect(body.instructions).toContain('must participate naturally');
+    expect(JSON.stringify(outbound)).not.toContain('referenceAssetIds');
+  });
+
   it('counts serialized instructions/schema and framing, not only context length', async () => {
     const req = request();
     const body = buildStoryContinuationOpenAiRequest(req, config);

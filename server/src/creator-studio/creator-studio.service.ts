@@ -4,10 +4,12 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
+import { createHash } from 'crypto';
 import { AuthUser } from '../auth/auth.types';
 import {
   ARTIST_URL_KNOWLEDGE_CONTRACT,
@@ -20,6 +22,19 @@ import {
 } from '../chat/artist-url-knowledge-contract';
 import { buildPublicAssetUrl } from '../common/asset-url';
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  assertCreatorGenerationProfileApprovable,
+  creatorGenerationProfileFingerprint,
+  creatorGenerationProfileProjection,
+  normalizeCreatorGenerationProfile,
+  stableJson,
+} from '../generation-profile/creator-generation-profile.policy';
+import {
+  ApproveCreatorGenerationProfileDto,
+  CreateArtistStoryIdentityDraftDto,
+  UpdateArtistStoryIdentityProfileDto,
+} from '../generation-profile/dto/creator-generation-profile.dto';
+import { ArtistIdentityAnalysisProvider } from '../generation-profile/artist-identity-analysis.provider';
 import {
   CreateCreatorStudioKnowledgeUrlDto,
   CreateCreatorStudioSettlementConversionDto,
@@ -50,6 +65,7 @@ export class CreatorStudioService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
+    @Optional() private readonly artistIdentityAnalysis?: ArtistIdentityAnalysisProvider,
   ) {}
 
   async getStudio(user: AuthUser) {
@@ -1085,6 +1101,224 @@ export class CreatorStudioService {
     };
   }
 
+  async getArtistStoryIdentityProfile(userId: string, artistId: string) {
+    this.assertUuid(artistId, 'artistId');
+    await this.assertArtistOperator(userId, artistId);
+    const profile = await this.prisma.artistStoryIdentityProfile.findFirst({
+      where: { artistId },
+      orderBy: { profileVersion: 'desc' },
+    });
+    return {
+      artistId,
+      profile: profile ? creatorGenerationProfileProjection(profile) : null,
+      setupRequired: !profile,
+    };
+  }
+
+  async updateArtistStoryIdentityProfile(
+    userId: string,
+    artistId: string,
+    input: UpdateArtistStoryIdentityProfileDto,
+    expectedSourceFingerprint?: string,
+  ) {
+    this.assertUuid(artistId, 'artistId');
+    await this.assertArtistOperator(userId, artistId);
+    const referenceAssetIds = [...new Set(input.referenceAssetIds)].sort();
+    if (referenceAssetIds.length !== input.referenceAssetIds.length) {
+      throw new BadRequestException({
+        code: 'ARTIST_IDENTITY_REFERENCE_DUPLICATE',
+        message: 'Reference images must be unique',
+      });
+    }
+    const source = await this.artistIdentitySource(artistId, referenceAssetIds);
+    if (expectedSourceFingerprint && source.fingerprint !== expectedSourceFingerprint) {
+      throw new ConflictException({
+        code: 'ARTIST_IDENTITY_SOURCE_CHANGED',
+        message: 'Reference images changed during analysis; run the analysis again',
+      });
+    }
+    const settings = normalizeCreatorGenerationProfile('artist', input.settings);
+    const draftFingerprint = creatorGenerationProfileFingerprint(source.fingerprint, settings);
+    return this.prisma.$transaction(async (tx) => {
+      const current = await tx.artistStoryIdentityProfile.findFirst({
+        where: { artistId },
+        orderBy: { profileVersion: 'desc' },
+      });
+      const data = {
+        sourceFingerprint: source.fingerprint,
+        referenceAssetIds,
+        status: 'needs_review',
+        draftSettings: settings as unknown as Prisma.InputJsonValue,
+        draftFingerprint,
+        approvedSettings: Prisma.DbNull,
+        approvedFingerprint: null,
+        approvedByUserId: null,
+        approvedAt: null,
+        analysisErrorCode: null,
+        updatedAt: new Date(),
+      };
+      const createVersion = !current || current.status === 'approved' ||
+        current.sourceFingerprint !== source.fingerprint;
+      const profile = createVersion
+        ? await tx.artistStoryIdentityProfile.create({
+            data: {
+              artistId,
+              profileVersion: (current?.profileVersion ?? 0) + 1,
+              ...data,
+            },
+          })
+        : await tx.artistStoryIdentityProfile.update({ where: { id: current.id }, data });
+      await tx.auditEvent.create({
+        data: {
+          actorUserId: userId,
+          actorType: 'creator',
+          action: 'artist_story_identity_profile.draft_saved',
+          targetType: 'artist_story_identity_profile',
+          targetId: profile.id,
+          beforeData: current ? {
+            status: current.status,
+            profileVersion: current.profileVersion,
+            sourceFingerprint: current.sourceFingerprint,
+            draftFingerprint: current.draftFingerprint,
+          } : Prisma.JsonNull,
+          afterData: {
+            status: profile.status,
+            profileVersion: profile.profileVersion,
+            sourceFingerprint: profile.sourceFingerprint,
+            draftFingerprint: profile.draftFingerprint,
+          },
+          metadata: {
+            artistId,
+            referenceAssetCount: referenceAssetIds.length,
+            referenceChecksums: source.referenceChecksums,
+          },
+        },
+      });
+      return { artistId, profile: creatorGenerationProfileProjection(profile) };
+    });
+  }
+
+  async createArtistStoryIdentityDraft(
+    userId: string,
+    artistId: string,
+    input: CreateArtistStoryIdentityDraftDto,
+  ) {
+    this.assertUuid(artistId, 'artistId');
+    await this.assertArtistOperator(userId, artistId);
+    if (!this.artistIdentityAnalysis) {
+      throw new ConflictException({
+        code: 'ARTIST_IDENTITY_ANALYSIS_NOT_CONFIGURED',
+        message: 'Artist identity analysis is not configured',
+      });
+    }
+    const referenceAssetIds = [...new Set(input.referenceAssetIds)].sort();
+    if (referenceAssetIds.length !== input.referenceAssetIds.length) {
+      throw new BadRequestException({
+        code: 'ARTIST_IDENTITY_REFERENCE_DUPLICATE',
+        message: 'Reference images must be unique',
+      });
+    }
+    const source = await this.artistIdentitySource(artistId, referenceAssetIds);
+    if (source.references.some((reference) => !reference.imageUrl || !/^https:\/\//i.test(reference.imageUrl))) {
+      throw new BadRequestException({
+        code: 'ARTIST_IDENTITY_REFERENCE_URL_UNAVAILABLE',
+        message: 'Reference images require a public HTTPS asset URL for analysis',
+      });
+    }
+    const settings = await this.artistIdentityAnalysis.analyze({
+      artistId,
+      displayName: source.displayName,
+      visualProfile: source.visualProfile,
+      references: source.references.map(({ assetId, imageUrl, usageType }) => ({
+        assetId,
+        imageUrl: imageUrl!,
+        usageType,
+      })),
+    });
+    return this.updateArtistStoryIdentityProfile(userId, artistId, {
+      referenceAssetIds,
+      settings,
+    } as unknown as UpdateArtistStoryIdentityProfileDto, source.fingerprint);
+  }
+
+  async approveArtistStoryIdentityProfile(
+    userId: string,
+    artistId: string,
+    input: ApproveCreatorGenerationProfileDto,
+  ) {
+    this.assertUuid(artistId, 'artistId');
+    await this.assertArtistOperator(userId, artistId);
+    const current = await this.prisma.artistStoryIdentityProfile.findFirst({
+      where: { artistId },
+      orderBy: { profileVersion: 'desc' },
+    });
+    if (!current || current.status !== 'needs_review' ||
+        current.draftFingerprint !== input.expectedDraftFingerprint) {
+      throw new ConflictException({
+        code: 'GENERATION_PROFILE_DRAFT_CHANGED',
+        message: 'Review the latest generation profile before approval',
+      });
+    }
+    const referenceAssetIds = this.jsonStringArray(current.referenceAssetIds);
+    const source = await this.artistIdentitySource(artistId, referenceAssetIds);
+    if (source.fingerprint !== current.sourceFingerprint) {
+      throw new ConflictException({
+        code: 'ARTIST_IDENTITY_SOURCE_CHANGED',
+        message: 'Reference images or artist profile changed; review is required again',
+      });
+    }
+    const settings = normalizeCreatorGenerationProfile('artist', current.draftSettings);
+    assertCreatorGenerationProfileApprovable(settings);
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.artistStoryIdentityProfile.updateMany({
+        where: {
+          id: current.id,
+          status: 'needs_review',
+          sourceFingerprint: source.fingerprint,
+          draftFingerprint: input.expectedDraftFingerprint,
+        },
+        data: {
+          status: 'approved',
+          approvedSettings: settings as unknown as Prisma.InputJsonValue,
+          approvedFingerprint: current.draftFingerprint,
+          approvedByUserId: userId,
+          approvedAt: new Date(),
+          reviewRevision: { increment: 1 },
+          updatedAt: new Date(),
+        },
+      });
+      if (updated.count !== 1) {
+        throw new ConflictException({
+          code: 'GENERATION_PROFILE_DRAFT_CHANGED',
+          message: 'Review the latest generation profile before approval',
+        });
+      }
+      const profile = await tx.artistStoryIdentityProfile.findUniqueOrThrow({ where: { id: current.id } });
+      await tx.auditEvent.create({
+        data: {
+          actorUserId: userId,
+          actorType: 'creator',
+          action: 'artist_story_identity_profile.approved',
+          targetType: 'artist_story_identity_profile',
+          targetId: profile.id,
+          beforeData: { status: current.status, reviewRevision: current.reviewRevision },
+          afterData: {
+            status: profile.status,
+            profileVersion: profile.profileVersion,
+            reviewRevision: profile.reviewRevision,
+            approvedFingerprint: profile.approvedFingerprint,
+          },
+          metadata: {
+            artistId,
+            referenceAssetCount: referenceAssetIds.length,
+            referenceChecksums: source.referenceChecksums,
+          },
+        },
+      });
+      return { artistId, profile: creatorGenerationProfileProjection(profile) };
+    });
+  }
+
   private presentOperator(
     operator: Prisma.ArtistOperatorGetPayload<{
       include: {
@@ -1152,6 +1386,79 @@ export class CreatorStudioService {
           rejected: 0,
           byStatus: {},
         },
+    };
+  }
+
+  private async artistIdentitySource(artistId: string, referenceAssetIds: string[]) {
+    if (referenceAssetIds.length < 1 || referenceAssetIds.length > 8) {
+      throw new BadRequestException({
+        code: 'ARTIST_IDENTITY_REFERENCE_COUNT_INVALID',
+        message: 'One to eight reference images are required',
+      });
+    }
+    const artist = await this.prisma.artist.findUnique({
+      where: { id: artistId },
+      select: {
+        id: true,
+        displayName: true,
+        visualProfile: {
+          select: {
+            visualKeywords: true,
+            styleNotes: true,
+            primaryColor: true,
+            secondaryColor: true,
+          },
+        },
+        artistAssets: {
+          where: { assetId: { in: referenceAssetIds } },
+          select: {
+            assetId: true,
+            usageType: true,
+            asset: {
+              select: {
+                assetType: true,
+                mimeType: true,
+                checksum: true,
+                storageKey: true,
+                metadata: true,
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!artist || artist.artistAssets.length !== referenceAssetIds.length) {
+      throw new BadRequestException({
+        code: 'ARTIST_IDENTITY_REFERENCE_NOT_OWNED',
+        message: 'Every reference image must belong to this artist',
+      });
+    }
+    const references = artist.artistAssets.map((row) => {
+      const metadata = this.recordOrEmpty(row.asset.metadata);
+      const lifecycle = this.recordOrEmpty(metadata.lifecycle);
+      const uploadIntent = this.recordOrEmpty(metadata.uploadIntent);
+      if (row.asset.assetType !== 'image' || !row.asset.mimeType.startsWith('image/') ||
+          !row.asset.checksum || lifecycle.status === 'archived' || uploadIntent.status === 'pending_upload') {
+        throw new BadRequestException({
+          code: 'ARTIST_IDENTITY_REFERENCE_NOT_READY',
+          message: 'Every reference must be a completed active image',
+        });
+      }
+      const imageUrl = buildPublicAssetUrl(this.configService, row.asset.storageKey, null);
+      return { assetId: row.assetId, checksum: row.asset.checksum, usageType: row.usageType, imageUrl };
+    }).sort((left, right) => left.assetId.localeCompare(right.assetId));
+    const fingerprint = createHash('sha256').update(stableJson({
+      artistId: artist.id,
+      displayName: artist.displayName,
+      visualProfile: artist.visualProfile,
+      references: references.map(({ assetId, checksum, usageType }) => ({ assetId, checksum, usageType })),
+    })).digest('hex');
+    return {
+      fingerprint,
+      referenceChecksums: references.map((item) => item.checksum),
+      displayName: artist.displayName,
+      visualProfile: artist.visualProfile,
+      references,
     };
   }
 
@@ -1851,6 +2158,12 @@ export class CreatorStudioService {
     if (!UUID_PATTERN.test(value)) {
       throw new BadRequestException(`${field} must be a UUID`);
     }
+  }
+
+  private jsonStringArray(value: Prisma.JsonValue | null | undefined) {
+    return Array.isArray(value)
+      ? value.filter((item): item is string => typeof item === 'string')
+      : [];
   }
 
   private mergeMetadata(current: Prisma.JsonValue | undefined, patch: Record<string, unknown>) {

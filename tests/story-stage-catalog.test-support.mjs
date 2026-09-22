@@ -84,6 +84,10 @@ export function registerCatalogTests({ getBrowser, repo, artifacts, base, api })
         if (r.method === 'GET' && r.path === '/api/v1/stories/second-local-story') return route.fulfill({ json: { ...detail(locale, options), id: otherId, slug: 'second-local-story' } });
         if (r.method === 'GET' && r.path === `/api/v1/me/stories/${workId}/access`) return route.fulfill({ json: owner(options) });
         if (r.method === 'GET' && r.path === `/api/v1/me/stories/${workId}/progress-state`) return route.fulfill({ json: progress(options) });
+        if (r.method === 'GET' && r.path === `/api/v1/me/stories/${workId}/artist-candidates`) return route.fulfill({ json: {
+          engaged: [], searchResults: [], query: r.query.q || '', selectedArtistId: null, selectionLocked: false,
+          policy: { maximumParticipants: 1, defaultSources: ['liked', 'voted'], searchableArtists: 'all_active_registered_artists', selectionScope: 'story_progress' },
+        } });
         if (r.method === 'POST' && r.path === `/api/v1/stories/${workId}/progress`) return route.fulfill({ json: { progressId, revision: 6, choices: [] } });
         if (r.method === 'GET' && r.path === `/api/v1/story-sessions/${progressId}/current-scene`) return route.fulfill({ json: {
           progressId, revision: 6, status: 'completed', scene: null, choices: [], releaseCapability: cap, currentAct: 1,

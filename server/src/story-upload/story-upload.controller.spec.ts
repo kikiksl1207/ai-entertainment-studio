@@ -16,4 +16,16 @@ describe('StoryUploadController', () => {
     const guards = Reflect.getMetadata(GUARDS_METADATA, handler) as unknown[];
     expect(guards).toContain(JwtAuthGuard);
   });
+
+  it.each([
+    ['getGenerationProfile', RequestMethod.GET, 'submissions/:submissionId/generation-profile'],
+    ['updateGenerationProfile', RequestMethod.PATCH, 'submissions/:submissionId/generation-profile'],
+    ['approveGenerationProfile', RequestMethod.POST, 'submissions/:submissionId/generation-profile/approve'],
+  ])('mounts %s as an authenticated generation-profile route', (name, method, path) => {
+    const handler = StoryUploadController.prototype[name as keyof StoryUploadController] as unknown as object;
+    expect(Reflect.getMetadata(METHOD_METADATA, handler)).toBe(method);
+    expect(Reflect.getMetadata(PATH_METADATA, handler)).toBe(path);
+    const guards = Reflect.getMetadata(GUARDS_METADATA, handler) as unknown[];
+    expect(guards).toContain(JwtAuthGuard);
+  });
 });

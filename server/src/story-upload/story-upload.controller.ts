@@ -1,7 +1,10 @@
 import {
   Body,
   Controller,
+  Get,
   Headers,
+  Param,
+  Patch,
   Post,
   UploadedFiles,
   UseGuards,
@@ -11,6 +14,10 @@ import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { AuthUser } from '../auth/auth.types';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import {
+  ApproveCreatorGenerationProfileDto,
+  UpdateStoryGenerationProfileDto,
+} from '../generation-profile/dto/creator-generation-profile.dto';
 import { StoryUploadIntakeDto } from './dto/story-upload-intake.dto';
 import { StoryUploadService } from './story-upload.service';
 import { StoryUploadFileFields } from './story-upload.types';
@@ -44,5 +51,34 @@ export class StoryUploadController {
     @UploadedFiles() files: StoryUploadFileFields,
   ) {
     return this.storyUploadService.intake(user.id, body, files ?? {}, idempotencyKey);
+  }
+
+  @Get('submissions/:submissionId/generation-profile')
+  @UseGuards(JwtAuthGuard)
+  getGenerationProfile(
+    @CurrentUser() user: AuthUser,
+    @Param('submissionId') submissionId: string,
+  ) {
+    return this.storyUploadService.getGenerationProfile(user.id, submissionId);
+  }
+
+  @Patch('submissions/:submissionId/generation-profile')
+  @UseGuards(JwtAuthGuard)
+  updateGenerationProfile(
+    @CurrentUser() user: AuthUser,
+    @Param('submissionId') submissionId: string,
+    @Body() body: UpdateStoryGenerationProfileDto,
+  ) {
+    return this.storyUploadService.updateGenerationProfile(user.id, submissionId, body);
+  }
+
+  @Post('submissions/:submissionId/generation-profile/approve')
+  @UseGuards(JwtAuthGuard)
+  approveGenerationProfile(
+    @CurrentUser() user: AuthUser,
+    @Param('submissionId') submissionId: string,
+    @Body() body: ApproveCreatorGenerationProfileDto,
+  ) {
+    return this.storyUploadService.approveGenerationProfile(user.id, submissionId, body);
   }
 }

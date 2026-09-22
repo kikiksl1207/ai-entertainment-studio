@@ -1,6 +1,11 @@
 import { StoryVisualGenerationService } from './story-visual-generation.service';
 import * as sharp from 'sharp';
 import { createHash } from 'crypto';
+import {
+  creatorGenerationProfileFingerprint,
+  normalizeCreatorGenerationProfile,
+} from '../generation-profile/creator-generation-profile.policy';
+import { continuationGenerationProfileSnapshot } from './story-continuation-context.policy';
 
 describe('StoryVisualGenerationService', () => {
   const workId = '00000000-0000-4000-8000-000000000001';
@@ -33,6 +38,7 @@ describe('StoryVisualGenerationService', () => {
         localizedDisplaySnapshot: { ko: { title: '불타는 바다의 기록자', summary: '임진왜란 역사 서사' } },
         sceneAssetManifest: { state: 'prompt_backed' } }) },
       storyAiContinuation: { findFirst: jest.fn() },
+      storyWorkGenerationProfile: { findFirst: jest.fn() },
       storyBeat: { findFirst: jest.fn().mockResolvedValue({ id: 'beat-id' }),
         findMany: jest.fn().mockResolvedValue([{ content: { ko: '이순신은 늘 같은 검은 수염과 붉은 철릭 차림으로 갑판에 섰다.' } }]) },
       storyVisualPrompt: {
@@ -555,5 +561,51 @@ describe('StoryVisualGenerationService', () => {
     const promptText = register.mock.calls[0][2].promptText;
     expect(Array.from(promptText.split('Scene text: ')[1])).toHaveLength(6_000);
     expect(provider).not.toHaveBeenCalled();
+  });
+
+  it('binds the exact approved visual direction and cast to an AI branch image prompt', async () => {
+    const f = fixture();
+    const continuationId = '00000000-0000-4000-8000-000000000008';
+    const generatedSceneId = '00000000-0000-4000-8000-000000000007';
+    const approvedSettings = {
+      schemaVersion: 'creator-generation-profile-v1' as const,
+      kind: 'story' as const,
+      sections: [
+        { key: 'visual_direction', decision: 'accepted' as const,
+          value: { era: 'Joseon naval war', palette: 'sea blue and ember' }, evidence: [] },
+        { key: 'visual_cast', decision: 'edited' as const,
+          value: { admiral: 'fixed face, black beard, red military robe' }, evidence: [] },
+      ],
+    };
+    const normalizedSettings = normalizeCreatorGenerationProfile('story', approvedSettings);
+    const sourceFingerprint = 'a'.repeat(64);
+    const profile = {
+      id: 'profile-id', status: 'approved', profileVersion: 1, reviewRevision: 2,
+      sourceFingerprint, approvedSettings: normalizedSettings,
+      approvedFingerprint: creatorGenerationProfileFingerprint(sourceFingerprint, normalizedSettings),
+    };
+    const snapshot = continuationGenerationProfileSnapshot(profile as never);
+    f.prisma.storyAiContinuation.findFirst.mockResolvedValue({
+      workId, releaseId, resultGeneratedSceneId: generatedSceneId,
+      manuscriptVersionId: 'manuscript-id', analysisJobId: 'analysis-id',
+      contextReferences: { generationProfilePin: snapshot.pin },
+    });
+    f.prisma.storyWorkGenerationProfile.findFirst.mockResolvedValue(profile);
+    const register = jest.spyOn(f.service, 'registerAiBranchPrompt').mockResolvedValue({
+      workId, releaseId, generatedSceneId, sourceSceneKey: 'ai-route-0001', created: true,
+    });
+
+    await f.service.registerGeneratedContinuationPrompt(continuationId, {
+      title: { ko: '불길 속의 선택' },
+      beats: [{ beatType: 'paragraph', content: { ko: '그는 불타는 갑판으로 돌아섰다.' } }],
+      visualManifest: {}, nextChoices: [],
+      usage: { inputTokens: 1, outputTokens: 1, cachedInputTokens: 0, imageUnits: 0 },
+    });
+
+    const promptText = register.mock.calls[0][2].promptText;
+    expect(promptText).toContain('exact creator-approved visual identity');
+    expect(promptText).toContain('Joseon naval war');
+    expect(promptText).toContain('fixed face, black beard, red military robe');
+    expect(promptText).not.toContain('writing_style');
   });
 });

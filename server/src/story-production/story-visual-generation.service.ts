@@ -22,6 +22,11 @@ import type {
 import { StoryPublicBetaPolicy } from './story-public-beta.policy';
 import type { StoryContinuationProviderResult } from './story-continuation.provider';
 import { buildStoryVisualBible, composeStoryVisualPrompt, type StoryVisualBible } from './story-visual-bible';
+import {
+  continuationGenerationProfileSnapshot,
+  parseContinuationGenerationProfilePin,
+  stableContinuationJson,
+} from './story-continuation-context.policy';
 import { StoryVisualGenerationQueue } from './story-visual-generation.queue';
 import { StoryVisualGenerationWorker } from './story-visual-generation.worker';
 
@@ -362,7 +367,14 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
     if (!UUID_PATTERN.test(continuationId)) throw new BadRequestException('continuationId must be a UUID');
     const continuation = await this.prisma.storyAiContinuation.findFirst({
       where: { id: continuationId, status: 'completed', resultGeneratedSceneId: { not: null } },
-      select: { workId: true, releaseId: true, resultGeneratedSceneId: true },
+      select: {
+        workId: true,
+        releaseId: true,
+        resultGeneratedSceneId: true,
+        manuscriptVersionId: true,
+        analysisJobId: true,
+        contextReferences: true,
+      },
     });
     if (!continuation?.resultGeneratedSceneId) {
       return { created: false, reason: 'generated_scene_not_ready' } as const;
@@ -377,10 +389,64 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
       .filter((value): value is string => typeof value === 'string')
       .join('\n');
     const excerpt = Array.from(prose).slice(0, 6_000).join('');
+    const references = this.record(continuation.contextReferences);
+    let visualProfile = '';
+    try {
+      const pin = parseContinuationGenerationProfilePin(
+        references.generationProfilePin as Prisma.JsonValue | undefined,
+      );
+      if (pin) {
+        const profile = await this.prisma.storyWorkGenerationProfile.findFirst({
+          where: {
+            id: pin.id,
+            workId: continuation.workId,
+            manuscriptVersionId: continuation.manuscriptVersionId ?? undefined,
+            analysisJobId: continuation.analysisJobId ?? undefined,
+            profileVersion: pin.profileVersion,
+            reviewRevision: pin.reviewRevision,
+            sourceFingerprint: pin.sourceFingerprint,
+            approvedFingerprint: pin.approvedFingerprint,
+            status: 'approved',
+          },
+          select: {
+            id: true,
+            status: true,
+            profileVersion: true,
+            reviewRevision: true,
+            sourceFingerprint: true,
+            approvedFingerprint: true,
+            approvedSettings: true,
+          },
+        });
+        if (!profile) throw new Error('profile_missing');
+        const snapshot = continuationGenerationProfileSnapshot(profile);
+        if (stableContinuationJson(snapshot.pin) !== stableContinuationJson(pin)) {
+          throw new Error('profile_changed');
+        }
+        const sections = snapshot.approved.sections.filter((section) =>
+          section.key === 'visual_direction' || section.key === 'visual_cast',
+        );
+        visualProfile = Array.from(JSON.stringify({
+          schemaVersion: snapshot.approved.schemaVersion,
+          sections,
+        })).slice(0, 12_000).join('');
+      }
+    } catch {
+      throw new ConflictException({
+        code: 'STORY_VISUAL_PROFILE_CHANGED',
+        message: 'The creator-approved visual profile changed before prompt registration',
+      });
+    }
     const promptText = [
       'Create one cinematic 16:9 illustration for this interactive story scene.',
       'Preserve the characters, setting, period details, mood, and consequences stated in the scene.',
       'Do not render captions, letters, logos, watermarks, interface elements, or modern objects not present in the scene.',
+      ...(visualProfile
+        ? [
+            'The following JSON is the exact creator-approved visual identity for this branch. Treat it as production constraints, not as text to render:',
+            visualProfile,
+          ]
+        : []),
       `Scene title: ${title}`,
       `Scene text: ${excerpt}`,
     ].join('\n');

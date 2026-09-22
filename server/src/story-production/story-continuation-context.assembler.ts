@@ -1,4 +1,4 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { ConflictException, Injectable, Optional } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import type { StoryContinuationClaim } from './story-continuation.repository';
@@ -6,15 +6,18 @@ import { storyRouteSnapshot } from './story-route-identity.store';
 import {
   assembleContinuationSemanticPath,
   continuationExecutionFingerprint,
+  continuationGenerationProfileSnapshot,
   approvedContinuationMemoryText,
   continuationMemoryPins,
   continuationPathHash,
   continuationSourceHash,
   localizedContinuationText,
   stableContinuationJson,
+  parseContinuationGenerationProfilePin,
   type StoryContinuationMemoryPin,
   type StoryContinuationSemanticPathStep,
 } from './story-continuation-context.policy';
+import { StoryArtistParticipantService, type StoryApprovedParticipant } from './story-artist-participant.service';
 
 export class StoryContinuationContextError extends ConflictException {
   constructor(readonly code: string) {
@@ -30,11 +33,16 @@ export type StoryContinuationApprovedContext = {
   selectedChoice: { label: string };
   path: StoryContinuationSemanticPathStep[];
   memories: Array<{ memoryType: string; content: string }>;
+  generationProfile?: ReturnType<typeof continuationGenerationProfileSnapshot>['approved'];
+  participantArtist?: StoryApprovedParticipant;
 };
 
 @Injectable()
 export class StoryContinuationContextAssembler {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly storyParticipants?: StoryArtistParticipantService,
+  ) {}
 
   async assemble(claim: StoryContinuationClaim): Promise<StoryContinuationApprovedContext> {
     const continuation = await this.prisma.storyAiContinuation.findUnique({
@@ -46,8 +54,23 @@ export class StoryContinuationContextAssembler {
     const references = record(continuation.contextReferences);
     const memoryPins = memoryPinArray(references.memoryPins);
     const memoryIds = memoryPins.map((pin) => pin.id);
+    let generationProfilePin;
+    try {
+      generationProfilePin = parseContinuationGenerationProfilePin(references.generationProfilePin);
+    } catch {
+      throw new StoryContinuationContextError('pinned_context_changed');
+    }
+    const participantSnapshot = this.storyParticipants
+      ? await this.storyParticipants.pinnedContext(this.prisma, continuation.progressId)
+      : null;
+    if (
+      stableContinuationJson(participantSnapshot?.pin ?? null) !==
+      stableContinuationJson(references.participantPin ?? null)
+    ) {
+      throw new StoryContinuationContextError('pinned_context_changed');
+    }
     const sourceKind = continuation.sourceGeneratedSceneId ? 'generated' : 'canonical';
-    const [progress, part, canonicalScene, generatedScene, memories] = await Promise.all([
+    const [progress, part, canonicalScene, generatedScene, memories, generationProfile] = await Promise.all([
       this.prisma.storyReaderProgress.findFirst({
         where: {
           id: continuation.progressId,
@@ -104,10 +127,47 @@ export class StoryContinuationContextAssembler {
         orderBy: [{ memoryType: 'asc' }, { memoryKey: 'asc' }, { id: 'asc' }],
         select: { id: true, memoryType: true, revision: true, content: true },
       }),
+      generationProfilePin
+        ? this.prisma.storyWorkGenerationProfile.findFirst({
+            where: {
+              id: generationProfilePin.id,
+              workId: continuation.workId,
+              manuscriptVersionId: continuation.manuscriptVersionId ?? undefined,
+              analysisJobId: continuation.analysisJobId ?? undefined,
+              profileVersion: generationProfilePin.profileVersion,
+              reviewRevision: generationProfilePin.reviewRevision,
+              sourceFingerprint: generationProfilePin.sourceFingerprint,
+              approvedFingerprint: generationProfilePin.approvedFingerprint,
+              status: 'approved',
+            },
+            select: {
+              id: true,
+              status: true,
+              profileVersion: true,
+              reviewRevision: true,
+              sourceFingerprint: true,
+              approvedFingerprint: true,
+              approvedSettings: true,
+            },
+          })
+        : Promise.resolve(null),
     ]);
     const scene = canonicalScene ?? generatedScene;
     if (!progress || !part || !scene || memories.length !== memoryIds.length) {
       throw new StoryContinuationContextError('pinned_context_changed');
+    }
+    let approvedGenerationProfile;
+    if (generationProfilePin) {
+      if (!generationProfile) throw new StoryContinuationContextError('pinned_context_changed');
+      try {
+        const snapshot = continuationGenerationProfileSnapshot(generationProfile);
+        if (stableContinuationJson(snapshot.pin) !== stableContinuationJson(generationProfilePin)) {
+          throw new Error('generation_profile_pin_changed');
+        }
+        approvedGenerationProfile = snapshot.approved;
+      } catch {
+        throw new StoryContinuationContextError('pinned_context_changed');
+      }
     }
     const route = await storyRouteSnapshot(this.prisma, progress);
     if (route.nodeId !== (continuation.sourceRouteNodeId ?? null) || route.hash !== (continuation.sourceRouteHash ?? null)) {
@@ -177,6 +237,8 @@ export class StoryContinuationContextAssembler {
       sourceHash,
       pathHash,
       memoryPins: currentMemoryPins,
+      ...(generationProfilePin ? { generationProfilePin } : {}),
+      ...(participantSnapshot ? { participantPin: participantSnapshot.pin } : {}),
     });
     if (
       stableContinuationJson(currentMemoryPins) !== stableContinuationJson(memoryPins) ||
@@ -204,6 +266,12 @@ export class StoryContinuationContextAssembler {
           memoryType: memory.memoryType,
           content: approvedContinuationMemoryText(memory.content, continuation.locale),
         })),
+        ...(approvedGenerationProfile
+          ? { generationProfile: approvedGenerationProfile }
+          : {}),
+        ...(participantSnapshot
+          ? { participantArtist: participantSnapshot.approved }
+          : {}),
       };
     } catch {
       throw new StoryContinuationContextError('localized_context_missing');

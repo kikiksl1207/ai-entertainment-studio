@@ -329,6 +329,8 @@ model Artist {
   fanMissionParticipations FanMissionParticipation[]
   conceptVotes             ConceptVote[]
   knowledgeUrls            ArtistKnowledgeUrl[]
+  storyIdentityProfiles    ArtistStoryIdentityProfile[]
+  storyProgressParticipants StoryProgressArtistParticipant[]
 
   @@index([status, sortOrder], map: "idx_artists_status_sort")
   @@map("artists")
@@ -488,6 +490,7 @@ model StoryUploadSubmission {
   updatedAt          DateTime                    @default(now()) @map("updated_at") @db.Timestamptz(6)
   user               User                        @relation(fields: [userId], references: [id])
   files              StoryUploadSubmissionFile[]
+  generationProfiles StoryUploadGenerationProfile[]
 
   @@unique([userId, requestKeyHash], map: "story_upload_submissions_user_request_key")
   @@index([userId, status, createdAt], map: "idx_story_upload_submissions_user_status_created")
@@ -512,6 +515,81 @@ model StoryUploadSubmissionFile {
   @@unique([submissionId, category, position], map: "story_upload_files_submission_category_position")
   @@index([submissionId], map: "idx_story_upload_files_submission")
   @@map("story_upload_submission_files")
+}
+
+model StoryUploadGenerationProfile {
+  id                  String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  submissionId        String                @map("submission_id") @db.Uuid
+  ownerUserId         String                @map("owner_user_id") @db.Uuid
+  sourceFingerprint   String                @map("source_fingerprint") @db.VarChar(64)
+  profileVersion      Int                   @default(1) @map("profile_version")
+  reviewRevision      Int                   @default(0) @map("review_revision")
+  status              String                @default("pending_analysis") @db.VarChar(32)
+  draftSettings       Json                  @default("{}") @map("draft_settings")
+  draftFingerprint    String?               @map("draft_fingerprint") @db.VarChar(64)
+  approvedSettings    Json?                 @map("approved_settings")
+  approvedFingerprint String?               @map("approved_fingerprint") @db.VarChar(64)
+  approvedByUserId    String?               @map("approved_by_user_id") @db.Uuid
+  approvedAt          DateTime?             @map("approved_at") @db.Timestamptz(6)
+  analysisErrorCode   String?               @map("analysis_error_code") @db.VarChar(80)
+  createdAt           DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime              @default(now()) @map("updated_at") @db.Timestamptz(6)
+  submission          StoryUploadSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  @@unique([submissionId, profileVersion], map: "uq_story_upload_generation_profiles_version")
+  @@unique([id, ownerUserId], map: "uq_story_upload_generation_profiles_owner")
+  @@index([ownerUserId, status, updatedAt], map: "idx_story_upload_generation_profiles_owner_status")
+  @@map("story_upload_generation_profiles")
+}
+
+model StoryWorkGenerationProfile {
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workId              String   @map("work_id") @db.Uuid
+  ownerUserId         String   @map("owner_user_id") @db.Uuid
+  manuscriptVersionId String   @map("manuscript_version_id") @db.Uuid
+  analysisJobId       String   @map("analysis_job_id") @db.Uuid
+  sourceFingerprint   String   @map("source_fingerprint") @db.VarChar(64)
+  profileVersion      Int      @default(1) @map("profile_version")
+  reviewRevision      Int      @default(0) @map("review_revision")
+  status              String   @default("needs_review") @db.VarChar(32)
+  draftSettings       Json     @default("{}") @map("draft_settings")
+  draftFingerprint    String?  @map("draft_fingerprint") @db.VarChar(64)
+  approvedSettings    Json?    @map("approved_settings")
+  approvedFingerprint String?  @map("approved_fingerprint") @db.VarChar(64)
+  approvedByUserId    String?  @map("approved_by_user_id") @db.Uuid
+  approvedAt          DateTime? @map("approved_at") @db.Timestamptz(6)
+  analysisErrorCode   String?  @map("analysis_error_code") @db.VarChar(80)
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([workId, profileVersion], map: "uq_story_work_generation_profiles_version")
+  @@index([analysisJobId], map: "idx_story_work_generation_profiles_analysis")
+  @@index([ownerUserId, status, updatedAt], map: "idx_story_work_generation_profiles_owner_status")
+  @@map("story_work_generation_profiles")
+}
+
+model ArtistStoryIdentityProfile {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  artistId            String    @map("artist_id") @db.Uuid
+  sourceFingerprint   String    @map("source_fingerprint") @db.VarChar(64)
+  referenceAssetIds   Json      @default("[]") @map("reference_asset_ids")
+  profileVersion      Int       @default(1) @map("profile_version")
+  reviewRevision      Int       @default(0) @map("review_revision")
+  status              String    @default("pending_analysis") @db.VarChar(32)
+  draftSettings       Json      @default("{}") @map("draft_settings")
+  draftFingerprint    String?   @map("draft_fingerprint") @db.VarChar(64)
+  approvedSettings    Json?     @map("approved_settings")
+  approvedFingerprint String?   @map("approved_fingerprint") @db.VarChar(64)
+  approvedByUserId    String?   @map("approved_by_user_id") @db.Uuid
+  approvedAt          DateTime? @map("approved_at") @db.Timestamptz(6)
+  analysisErrorCode   String?   @map("analysis_error_code") @db.VarChar(80)
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+  artist              Artist    @relation(fields: [artistId], references: [id], onDelete: Cascade)
+
+  @@unique([artistId, profileVersion], map: "uq_artist_story_identity_profiles_version")
+  @@index([artistId, status, updatedAt], map: "idx_artist_story_identity_profiles_status")
+  @@map("artist_story_identity_profiles")
 }
 
 model StoryPublicationImportJob {
@@ -1825,12 +1903,38 @@ model StoryReaderProgress {
   status              String   @default("active")
   createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt           DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  participantArtist   StoryProgressArtistParticipant?
 
   @@unique([userId, workId])
   @@unique([workId, id], map: "uq_story_reader_progress_work_id")
   @@unique([userId, workId, id], map: "uq_story_reader_progress_user_work_id")
   @@index([userId, updatedAt], map: "idx_story_progress_user_updated")
   @@map("story_reader_progress")
+}
+
+model StoryProgressArtistParticipant {
+  id                          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  progressId                  String   @unique @map("progress_id") @db.Uuid
+  userId                      String   @map("user_id") @db.Uuid
+  workId                      String   @map("work_id") @db.Uuid
+  artistId                    String   @map("artist_id") @db.Uuid
+  selectionSource             String   @map("selection_source") @db.VarChar(32)
+  identityProfileId           String?  @map("identity_profile_id") @db.Uuid
+  identityProfileVersion      Int?     @map("identity_profile_version")
+  identityReviewRevision      Int?     @map("identity_review_revision")
+  identitySourceFingerprint   String?  @map("identity_source_fingerprint") @db.VarChar(64)
+  identityApprovedFingerprint String?  @map("identity_approved_fingerprint") @db.VarChar(64)
+  referenceAssetIds           Json     @default("[]") @map("reference_asset_ids")
+  referenceChecksums          Json     @default("[]") @map("reference_checksums")
+  participantFingerprint      String   @map("participant_fingerprint") @db.VarChar(64)
+  createdAt                   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  progress                    StoryReaderProgress @relation(fields: [progressId], references: [id], onDelete: Cascade)
+  artist                      Artist   @relation(fields: [artistId], references: [id], onDelete: Restrict)
+
+  @@unique([userId, workId], map: "uq_story_progress_artist_participants_user_work")
+  @@index([artistId, createdAt], map: "idx_story_progress_artist_participants_artist")
+  @@map("story_progress_artist_participants")
 }
 
 model StoryChoiceEvent {

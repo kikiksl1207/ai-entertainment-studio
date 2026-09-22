@@ -54,12 +54,14 @@ import {
   assembleContinuationSemanticPath,
   continuationHash,
   continuationExecutionFingerprint,
+  continuationGenerationProfileSnapshot,
   approvedContinuationMemoryText,
   continuationMemoryPins,
   continuationPathHash,
   continuationSourceHash,
   localizedContinuationText,
   stableContinuationJson,
+  type StoryContinuationGenerationProfilePin,
 } from './story-continuation-context.policy';
 import {
   StoryReusableResultApprovalGate,
@@ -68,6 +70,7 @@ import {
   STORY_AI_REUSE_COST_POLICY_VERSION,
   storyReusableResultKey,
 } from './story-reusable-result.policy';
+import { StoryArtistParticipantService, type StoryParticipantPin } from './story-artist-participant.service';
 
 type CustomChoiceContext = {
   progress: {
@@ -140,6 +143,7 @@ export class StoryEconomicsService {
     @Optional() private readonly legalActivation?: StoryContinuationLegalActivationGate,
     @Optional() private readonly continuationProvider?: StoryContinuationProvider,
     @Optional() private readonly reusableApproval?: StoryReusableResultApprovalGate,
+    @Optional() private readonly storyParticipants?: StoryArtistParticipantService,
   ) {}
 
   async recommendedChoiceReplay(
@@ -182,7 +186,27 @@ export class StoryEconomicsService {
     if (replay) return replay;
 
     const now = new Date();
-    const [capability, rateCard, consent, analysis, rightsContract] = await Promise.all([
+    const generationProfileQuery = (tx as any).storyWorkGenerationProfile
+      ? (tx as any).storyWorkGenerationProfile.findFirst({
+          where: {
+            workId: input.work.id,
+            manuscriptVersionId: input.release.manuscriptVersionId,
+          },
+          orderBy: { profileVersion: 'desc' },
+          select: {
+            id: true,
+            status: true,
+            manuscriptVersionId: true,
+            analysisJobId: true,
+            profileVersion: true,
+            reviewRevision: true,
+            sourceFingerprint: true,
+            approvedFingerprint: true,
+            approvedSettings: true,
+          },
+        })
+      : Promise.resolve(null);
+    const [capability, rateCard, consent, analysis, rightsContract, latestGenerationProfile] = await Promise.all([
       tx.storyReleaseCapability.findUnique({ where: { releaseId: input.release.id } }),
       tx.storyAiRateCard.findUnique({ where: { id: input.progress.aiRateCardId } }),
       tx.storyStyleProfileConsent.findFirst({
@@ -221,6 +245,7 @@ export class StoryEconomicsService {
           },
         },
       }),
+      generationProfileQuery,
     ]);
     const rights = rightsContract?.versions?.[0];
     const legalActivation = rights
@@ -256,6 +281,35 @@ export class StoryEconomicsService {
         retryable: false,
       });
     }
+
+    let generationProfilePin: StoryContinuationGenerationProfilePin | undefined;
+    let approvedGenerationProfile: ReturnType<typeof continuationGenerationProfileSnapshot>['approved'] | undefined;
+    if (latestGenerationProfile) {
+      if (
+        latestGenerationProfile.manuscriptVersionId !== input.release.manuscriptVersionId ||
+        latestGenerationProfile.analysisJobId !== analysis.id
+      ) {
+        throw new ForbiddenException({
+          code: 'STORY_GENERATION_PROFILE_APPROVAL_REQUIRED',
+          messageKey: 'story.progress.aiGeneration.profileApprovalRequired',
+          retryable: false,
+        });
+      }
+      try {
+        const snapshot = continuationGenerationProfileSnapshot(latestGenerationProfile);
+        generationProfilePin = snapshot.pin;
+        approvedGenerationProfile = snapshot.approved;
+      } catch {
+        throw new ForbiddenException({
+          code: 'STORY_GENERATION_PROFILE_APPROVAL_REQUIRED',
+          messageKey: 'story.progress.aiGeneration.profileApprovalRequired',
+          retryable: false,
+        });
+      }
+    }
+    const participantSnapshot = this.storyParticipants
+      ? await this.storyParticipants.pinnedContext(tx, input.progress.id)
+      : null;
 
     const boundedProgressPath = boundedPath(jsonRecordArray(input.progress.pathSummary));
     const [memory, sourceBeats, semanticPath] = await Promise.all([
@@ -327,6 +381,12 @@ export class StoryEconomicsService {
           memoryType: item.memoryType,
           content: approvedContinuationMemoryText(item.content, locale),
         })),
+        ...(approvedGenerationProfile
+          ? { generationProfile: approvedGenerationProfile }
+          : {}),
+        ...(participantSnapshot
+          ? { participantArtist: participantSnapshot.approved }
+          : {}),
       };
     } catch {
       throw new ForbiddenException({
@@ -359,6 +419,8 @@ export class StoryEconomicsService {
       capabilityRevision: capability.revision,
       styleConsent: { id: consent.id, revision: consent.revision },
       rights: { contractId: rightsContract!.id, versionId: rights.id, revision: rights.revision },
+      ...(generationProfilePin ? { generationProfile: generationProfilePin } : {}),
+      ...(participantSnapshot ? { participantArtist: participantSnapshot.pin } : {}),
       rateCard: { id: rateCard.id, version: rateCard.version },
       promptVersion: 'story-continuation-v1',
       outputSchemaVersion: 'story-continuation-output-v1',
@@ -371,6 +433,8 @@ export class StoryEconomicsService {
       sourceHash,
       pathHash,
       memoryPins,
+      ...(generationProfilePin ? { generationProfilePin } : {}),
+      ...(participantSnapshot ? { participantPin: participantSnapshot.pin } : {}),
     });
     const reusableContextFingerprint = continuationHash({
       workId: input.work.id,
@@ -381,6 +445,8 @@ export class StoryEconomicsService {
       routeIdentity: { version: STORY_ROUTE_IDENTITY_VERSION, hash: sharingRouteHash },
       memory: memoryPins.map(({ revision, contentHash }) => ({ revision, contentHash })),
       analysisVersion: analysis.analysisVersion,
+      ...(generationProfilePin ? { generationProfilePin } : {}),
+      ...(participantSnapshot ? { participantPin: participantSnapshot.pin } : {}),
       locale,
     });
     const reusableSource = input.sourceKind === 'generated' &&
@@ -498,6 +564,8 @@ export class StoryEconomicsService {
           sourceHash,
           pathHash,
           executionFingerprint,
+          generationProfilePin,
+          participantPin: participantSnapshot?.pin,
           sharedResult,
           route,
         });
@@ -680,6 +748,8 @@ export class StoryEconomicsService {
           sourceHash,
           pathHash,
           executionFingerprint,
+          ...(generationProfilePin ? { generationProfilePin } : {}),
+          ...(participantSnapshot ? { participantPin: participantSnapshot.pin } : {}),
           sharedClaimToken: sharedResult?.claimToken ?? null,
           fullManuscriptIncluded: false,
           providerPayloadIncluded: false,
@@ -2550,6 +2620,8 @@ export class StoryEconomicsService {
       sourceHash: string;
       pathHash: string;
       executionFingerprint: string;
+      generationProfilePin?: StoryContinuationGenerationProfilePin;
+      participantPin?: StoryParticipantPin;
       sharedResult: any;
       route: { nodeId: string | null; hash: string | null };
     },
@@ -2622,6 +2694,12 @@ export class StoryEconomicsService {
           sourceHash: prepared.sourceHash,
           pathHash: prepared.pathHash,
           executionFingerprint: prepared.executionFingerprint,
+          ...(prepared.generationProfilePin
+            ? { generationProfilePin: prepared.generationProfilePin }
+            : {}),
+          ...(prepared.participantPin
+            ? { participantPin: prepared.participantPin }
+            : {}),
           fullManuscriptIncluded: false,
           providerPayloadIncluded: false,
           sharedResultReused: true,

@@ -35,6 +35,7 @@ import {
 } from './story-progress-control.policy';
 import { sessionKeyHash } from './story-lifecycle.policy';
 import { StoryEconomicsService } from './story-economics.service';
+import { StoryArtistParticipantService } from './story-artist-participant.service';
 
 type ResetPlan = {
   targetSceneId: string;
@@ -49,6 +50,7 @@ export class StoryProgressControlService {
     private readonly prisma: PrismaService,
     private readonly moderation: ModerationService,
     @Optional() private readonly economics?: StoryEconomicsService,
+    @Optional() private readonly storyParticipants?: StoryArtistParticipantService,
   ) {}
 
   async submitCustomChoice(
@@ -533,6 +535,7 @@ export class StoryProgressControlService {
         customChoiceUnavailableReason: firstReleaseCustomChoiceDenial(),
         releaseCapability: { ...configuredCapability, ...firstReleaseChoiceCapability() },
         localeSlots: STORY_PROGRESS_LOCALE_SLOTS,
+        participantArtist: null,
       };
     }
     const scopeKeys = ['full', `act:${progress.currentAct}`];
@@ -559,6 +562,9 @@ export class StoryProgressControlService {
       act?.limitCount ?? configuredLimits.act,
     );
     const versionMatches = progress.storyVersion === work.publishedVersion;
+    const participantArtist = this.storyParticipants
+      ? await this.storyParticipants.projection(progress.id)
+      : null;
     return {
       statusKey: storyProgressStatusKey({
         hasProgress: true,
@@ -611,6 +617,7 @@ export class StoryProgressControlService {
       customChoiceUnavailableReason: firstReleaseCustomChoiceDenial(),
       releaseCapability: { ...configuredCapability, ...firstReleaseChoiceCapability() },
       localeSlots: STORY_PROGRESS_LOCALE_SLOTS,
+      participantArtist,
     };
   }
 

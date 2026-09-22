@@ -27,6 +27,58 @@
   let writerReceipt = null;
   let studioAuthMarker = null;
   let studioAuthEpoch = 0;
+  let artistIdentityResponse = null;
+  let artistIdentityBusy = false;
+  let artistIdentityRequestEpoch = 0;
+
+  const artistIdentityCopy = {
+    ko: {
+      title: "스토리 이미지 정체성", artist: "대상 아티스트", unset: "설정 전", review: "검토 필요", approved: "적용 완료",
+      select: "기준 이미지를 1~8장 선택해 주세요.", noImages: "분석할 공개 이미지가 없습니다.", analyze: "선택 이미지 분석", open: "설정 검토",
+      analyzing: "이미지를 분석하고 있습니다.", loading: "설정을 불러오고 있습니다.", ready: "분석 결과를 확인해 주세요.", saved: "임시 저장했습니다.",
+      failed: "분석 또는 저장을 완료하지 못했습니다.", count: "선택 {count}/8", modalTitle: "아티스트 이미지 기준 검토",
+      modalIntro: "고정할 외형과 스토리에 맞게 바꿀 요소를 확인해 주세요.", close: "닫기", later: "나중에", save: "임시 저장", approve: "확인 후 적용",
+      fixed_identity: "항상 유지할 외형", adaptable_presentation: "스토리별 변형 범위", accept: "맞음", edit: "수정해서 사용", evidence: "판단 근거",
+      summary: "요약", faceTraits: "얼굴 특징", hairTraits: "머리 특징", bodySilhouette: "체형·실루엣", distinctiveMarks: "고유 표식", basePalette: "기본 색상",
+      mutableAttributes: "바꿀 수 있는 요소", forbiddenChanges: "바꾸면 안 되는 요소", storyAdaptationRule: "스토리 적용 규칙"
+    },
+    en: {
+      title: "Story visual identity", artist: "Artist", unset: "Not set", review: "Review required", approved: "Applied",
+      select: "Select 1-8 reference images.", noImages: "No public images are available for analysis.", analyze: "Analyze images", open: "Review settings",
+      analyzing: "Analyzing images.", loading: "Loading settings.", ready: "Review the analysis result.", saved: "Draft saved.", failed: "Analysis or save could not be completed.",
+      count: "Selected {count}/8", modalTitle: "Review artist image rules", modalIntro: "Confirm fixed identity and story-specific adaptations.", close: "Close", later: "Later", save: "Save draft", approve: "Apply after review",
+      fixed_identity: "Fixed appearance", adaptable_presentation: "Story adaptations", accept: "Correct", edit: "Edit", evidence: "Evidence",
+      summary: "Summary", faceTraits: "Face", hairTraits: "Hair", bodySilhouette: "Body silhouette", distinctiveMarks: "Distinctive marks", basePalette: "Base palette",
+      mutableAttributes: "Mutable attributes", forbiddenChanges: "Forbidden changes", storyAdaptationRule: "Story adaptation rule"
+    },
+    ja: {
+      title: "ストーリー画像アイデンティティ", artist: "対象アーティスト", unset: "未設定", review: "確認が必要", approved: "適用済み",
+      select: "基準画像を1〜8枚選択してください。", noImages: "分析できる公開画像がありません。", analyze: "画像を分析", open: "設定を確認",
+      analyzing: "画像を分析しています。", loading: "設定を読み込んでいます。", ready: "分析結果を確認してください。", saved: "下書きを保存しました。", failed: "分析または保存を完了できませんでした。",
+      count: "選択 {count}/8", modalTitle: "アーティスト画像基準の確認", modalIntro: "固定する外見とストーリー別の変更範囲を確認してください。", close: "閉じる", later: "後で", save: "下書き保存", approve: "確認して適用",
+      fixed_identity: "常に維持する外見", adaptable_presentation: "ストーリー別の変更範囲", accept: "正しい", edit: "修正", evidence: "判断根拠",
+      summary: "要約", faceTraits: "顔の特徴", hairTraits: "髪の特徴", bodySilhouette: "体型・シルエット", distinctiveMarks: "固有の特徴", basePalette: "基本色",
+      mutableAttributes: "変更可能な要素", forbiddenChanges: "変更禁止の要素", storyAdaptationRule: "ストーリー適用ルール"
+    },
+    "zh-Hans": {
+      title: "故事视觉身份", artist: "目标艺人", unset: "未设置", review: "需要审核", approved: "已应用",
+      select: "请选择1至8张参考图。", noImages: "没有可供分析的公开图片。", analyze: "分析图片", open: "审核设置",
+      analyzing: "正在分析图片。", loading: "正在加载设置。", ready: "请审核分析结果。", saved: "草稿已保存。", failed: "未能完成分析或保存。",
+      count: "已选 {count}/8", modalTitle: "审核艺人图像规则", modalIntro: "确认固定外观和故事适配范围。", close: "关闭", later: "稍后", save: "保存草稿", approve: "审核后应用",
+      fixed_identity: "固定外观", adaptable_presentation: "故事适配范围", accept: "正确", edit: "修改", evidence: "判断依据",
+      summary: "摘要", faceTraits: "面部特征", hairTraits: "发型特征", bodySilhouette: "体型轮廓", distinctiveMarks: "独特标记", basePalette: "基础配色",
+      mutableAttributes: "可变元素", forbiddenChanges: "禁止变更", storyAdaptationRule: "故事适配规则"
+    },
+    "zh-Hant": {
+      title: "故事視覺身份", artist: "目標藝人", unset: "未設定", review: "需要審核", approved: "已套用",
+      select: "請選擇1至8張參考圖。", noImages: "沒有可供分析的公開圖片。", analyze: "分析圖片", open: "審核設定",
+      analyzing: "正在分析圖片。", loading: "正在載入設定。", ready: "請審核分析結果。", saved: "草稿已儲存。", failed: "未能完成分析或儲存。",
+      count: "已選 {count}/8", modalTitle: "審核藝人圖像規則", modalIntro: "確認固定外觀和故事適配範圍。", close: "關閉", later: "稍後", save: "儲存草稿", approve: "審核後套用",
+      fixed_identity: "固定外觀", adaptable_presentation: "故事適配範圍", accept: "正確", edit: "修改", evidence: "判斷依據",
+      summary: "摘要", faceTraits: "臉部特徵", hairTraits: "髮型特徵", bodySilhouette: "體型輪廓", distinctiveMarks: "獨特標記", basePalette: "基礎配色",
+      mutableAttributes: "可變元素", forbiddenChanges: "禁止變更", storyAdaptationRule: "故事適配規則"
+    }
+  };
 
   const storyIntakeFileRules = {
     manuscripts: { maxCount: 10, maxBytes: 50 * 1024 * 1024, extensions: new Set([".md", ".txt", ".docx", ".pdf", ".json"]) },
@@ -473,6 +525,7 @@
 
     renderArtists(artists, usedSlots, slotLimit);
     populateProfileEditor(artists);
+    populateArtistIdentityEditor(artists);
     populateKnowledgeUrlArtistSelect(artists);
   }
 
@@ -613,6 +666,289 @@
       setProfileState("프로필이 저장되었습니다.", "good");
     } catch (_) {
       setProfileState("프로필 저장에 실패했습니다. 잠시 후 다시 시도해주세요.", "danger");
+    }
+  }
+
+  function artistIdentityLocale() {
+    const locale = window.luminaI18n?.getLocale?.() || window.luminaI18n?.getRegionalLocale?.() || document.documentElement.lang || "ko";
+    const normalized = String(locale).replace("_", "-").toLowerCase();
+    if (normalized.startsWith("zh-hant") || normalized.includes("tw") || normalized.includes("hk")) return "zh-Hant";
+    if (normalized.startsWith("zh")) return "zh-Hans";
+    if (normalized.startsWith("ja")) return "ja";
+    if (normalized.startsWith("en")) return "en";
+    return "ko";
+  }
+
+  function ait(key, values = {}) {
+    let value = artistIdentityCopy[artistIdentityLocale()]?.[key] || artistIdentityCopy.ko[key] || key;
+    Object.entries(values).forEach(([name, replacement]) => { value = value.replace(`{${name}}`, String(replacement)); });
+    return value;
+  }
+
+  function selectedArtistIdentityItem() {
+    const id = document.getElementById("artistIdentityArtistSelect")?.value;
+    return studioArtists.find(item => artistId(item) === id) || studioArtists[0] || null;
+  }
+
+  function populateArtistIdentityEditor(artists) {
+    const select = document.getElementById("artistIdentityArtistSelect");
+    if (!select) return;
+    select.innerHTML = artists.map(item => `<option value="${escapeHtml(artistId(item))}">${escapeHtml(artistName(item))}</option>`).join("");
+    applyArtistIdentityCopy();
+    loadArtistIdentityProfile();
+  }
+
+  function applyArtistIdentityCopy() {
+    text("artistIdentityPanelTitle", ait("title"));
+    text("artistIdentityArtistLabel", ait("artist"));
+    text("artistIdentityAnalyze", ait("analyze"));
+    text("artistIdentityReview", ait("open"));
+    text("artistIdentityModalTitle", ait("modalTitle"));
+    text("artistIdentityModalIntro", ait("modalIntro"));
+    text("artistIdentityClose", ait("close"));
+    text("artistIdentityLater", ait("later"));
+    text("artistIdentitySave", ait("save"));
+    text("artistIdentityApprove", ait("approve"));
+    if (artistIdentityResponse) renderArtistIdentityStatus();
+    if (!document.getElementById("artistIdentityModal")?.classList.contains("is-hidden")) renderArtistIdentitySections();
+  }
+
+  function validArtistIdentityProfileResponse(value, id) {
+    if (!value || value.artistId !== id) return false;
+    if (value.profile === null) return value.setupRequired === true;
+    const profile = value.profile;
+    const settings = profile.status === "approved" ? profile.approvedSettings : profile.draftSettings;
+    return /^[0-9a-f-]{36}$/i.test(profile.id || "") && /^[a-f0-9]{64}$/i.test(profile.sourceFingerprint || "") &&
+      Array.isArray(profile.referenceAssetIds) && profile.referenceAssetIds.length >= 1 && profile.referenceAssetIds.length <= 8 &&
+      settings?.schemaVersion === "creator-generation-profile-v1" && settings?.kind === "artist" &&
+      Array.isArray(settings.sections) && ["fixed_identity", "adaptable_presentation"].every(key => settings.sections.some(section => section?.key === key));
+  }
+
+  async function artistIdentityRequest(id, suffix = "", options = {}) {
+    const token = readAuth()?.accessToken;
+    if (!token) throw new Error("auth");
+    const response = await fetch(`${apiBase}/api/v1/me/creator-studio/artists/${encodeURIComponent(id)}/story-identity-profile${suffix}`, {
+      ...options,
+      headers: { Authorization: `Bearer ${token}`, ...(options.headers || {}) }
+    });
+    const value = await response.json().catch(() => null);
+    if (!response.ok) {
+      const error = new Error(value?.message || value?.code || "request failed");
+      error.status = response.status;
+      error.code = value?.code || value?.error?.code;
+      throw error;
+    }
+    return value;
+  }
+
+  function renderArtistIdentityAssets(selectedIds = null) {
+    const root = document.getElementById("artistIdentityAssets");
+    const item = selectedArtistIdentityItem();
+    const assets = Array.isArray(item?.artist?.assets) ? item.artist.assets.filter(asset => asset.assetType === "image" && asset.url).slice(0, 24) : [];
+    if (!root) return;
+    if (!assets.length) {
+      root.replaceChildren();
+      text("artistIdentityState", ait("noImages"));
+      document.getElementById("artistIdentityAnalyze").disabled = true;
+      return;
+    }
+    const selected = new Set(selectedIds || assets.filter(asset => asset.isPrimary).map(asset => asset.id));
+    if (!selected.size) assets.slice(0, Math.min(3, assets.length)).forEach(asset => selected.add(asset.id));
+    root.innerHTML = assets.map(asset => `
+      <label class="artist-identity-asset">
+        <input type="checkbox" value="${escapeHtml(asset.id)}" ${selected.has(asset.id) ? "checked" : ""} />
+        <img src="${escapeHtml(asset.url)}" alt="" loading="lazy" />
+        <span>${escapeHtml(asset.usageType || "image")}</span>
+      </label>`).join("");
+    root.querySelectorAll("input").forEach(input => input.addEventListener("change", () => {
+      const checked = [...root.querySelectorAll("input:checked")];
+      if (checked.length > 8) input.checked = false;
+      text("artistIdentityState", ait("count", { count: root.querySelectorAll("input:checked").length }));
+      document.getElementById("artistIdentityAnalyze").disabled = root.querySelectorAll("input:checked").length < 1 || artistIdentityBusy;
+    }));
+    text("artistIdentityState", ait("count", { count: root.querySelectorAll("input:checked").length }));
+    document.getElementById("artistIdentityAnalyze").disabled = false;
+  }
+
+  function selectedArtistIdentityAssetIds() {
+    return [...document.querySelectorAll("#artistIdentityAssets input:checked")].map(input => input.value).slice(0, 8);
+  }
+
+  function renderArtistIdentityStatus() {
+    const profile = artistIdentityResponse?.profile;
+    const approved = profile?.status === "approved";
+    text("artistIdentityBadge", approved ? ait("approved") : profile ? ait("review") : ait("unset"));
+    text("artistIdentityState", approved ? ait("approved") : profile ? ait("ready") : ait("select"));
+    const review = document.getElementById("artistIdentityReview");
+    if (review) review.disabled = !profile || artistIdentityBusy;
+  }
+
+  async function loadArtistIdentityProfile() {
+    const item = selectedArtistIdentityItem();
+    const id = artistId(item);
+    const requestEpoch = ++artistIdentityRequestEpoch;
+    artistIdentityResponse = null;
+    renderArtistIdentityAssets();
+    if (!id) return;
+    artistIdentityBusy = true;
+    text("artistIdentityState", ait("loading"));
+    try {
+      const value = await artistIdentityRequest(id);
+      if (requestEpoch !== artistIdentityRequestEpoch || !validArtistIdentityProfileResponse(value, id)) return;
+      artistIdentityResponse = value;
+      renderArtistIdentityAssets(value.profile?.referenceAssetIds || null);
+      renderArtistIdentityStatus();
+    } catch (_) {
+      if (requestEpoch === artistIdentityRequestEpoch) text("artistIdentityState", ait("failed"));
+    } finally {
+      if (requestEpoch === artistIdentityRequestEpoch) {
+        artistIdentityBusy = false;
+        const count = selectedArtistIdentityAssetIds().length;
+        document.getElementById("artistIdentityAnalyze").disabled = count < 1;
+        document.getElementById("artistIdentityReview").disabled = !artistIdentityResponse?.profile;
+      }
+    }
+  }
+
+  async function analyzeArtistIdentity() {
+    const id = artistId(selectedArtistIdentityItem());
+    const referenceAssetIds = selectedArtistIdentityAssetIds();
+    if (!id || !referenceAssetIds.length || artistIdentityBusy) return;
+    artistIdentityBusy = true;
+    document.getElementById("artistIdentityAnalyze").disabled = true;
+    document.getElementById("artistIdentityReview").disabled = true;
+    text("artistIdentityState", ait("analyzing"));
+    try {
+      const value = await artistIdentityRequest(id, "/draft", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ referenceAssetIds })
+      });
+      if (!validArtistIdentityProfileResponse(value, id)) throw new Error("projection");
+      artistIdentityResponse = value;
+      renderArtistIdentityStatus();
+      openArtistIdentityModal();
+    } catch (_) {
+      text("artistIdentityState", ait("failed"));
+    } finally {
+      artistIdentityBusy = false;
+      document.getElementById("artistIdentityAnalyze").disabled = selectedArtistIdentityAssetIds().length < 1;
+      document.getElementById("artistIdentityReview").disabled = !artistIdentityResponse?.profile;
+    }
+  }
+
+  function activeArtistIdentitySettings() {
+    const profile = artistIdentityResponse?.profile;
+    return profile?.status === "approved" ? profile.approvedSettings : profile?.draftSettings;
+  }
+
+  function openArtistIdentityModal() {
+    if (!activeArtistIdentitySettings()) return;
+    applyArtistIdentityCopy();
+    renderArtistIdentitySections();
+    document.getElementById("artistIdentityModal")?.classList.remove("is-hidden");
+    document.body.style.overflow = "hidden";
+    document.getElementById("artistIdentityClose")?.focus();
+  }
+
+  function closeArtistIdentityModal() {
+    document.getElementById("artistIdentityModal")?.classList.add("is-hidden");
+    if (!document.querySelector(".studio-modal:not(.is-hidden)")) document.body.style.overflow = "";
+  }
+
+  function artistIdentityFieldNames(key) {
+    return key === "fixed_identity"
+      ? ["summary", "faceTraits", "hairTraits", "bodySilhouette", "distinctiveMarks", "basePalette"]
+      : ["summary", "mutableAttributes", "forbiddenChanges", "storyAdaptationRule"];
+  }
+
+  function renderArtistIdentitySections() {
+    const settings = activeArtistIdentitySettings();
+    const root = document.getElementById("artistIdentitySections");
+    if (!settings || !root) return;
+    const approved = artistIdentityResponse.profile.status === "approved";
+    root.replaceChildren(...["fixed_identity", "adaptable_presentation"].map(key => {
+      const section = settings.sections.find(item => item.key === key);
+      const article = document.createElement("article"); article.className = "writer-generation-section"; article.dataset.key = key;
+      const header = document.createElement("header");
+      const heading = document.createElement("h3"); heading.textContent = ait(key);
+      const state = document.createElement("p"); state.textContent = section.decision === "edited" ? ait("edit") : section.decision === "accepted" ? ait("accept") : ait("review");
+      header.append(heading, state); article.append(header);
+      artistIdentityFieldNames(key).forEach(field => {
+        const label = document.createElement("label");
+        const name = document.createElement("span"); name.textContent = ait(field);
+        const textarea = document.createElement("textarea"); textarea.dataset.field = field; textarea.disabled = approved; textarea.maxLength = 8000;
+        const value = section.value?.[field]; textarea.value = Array.isArray(value) ? value.join("\n") : String(value || "");
+        textarea.addEventListener("input", () => selectArtistIdentityDecision(article, section, "edited"));
+        label.append(name, textarea); article.append(label);
+      });
+      const controls = document.createElement("div"); controls.className = "writer-generation-decisions";
+      [["accepted", "accept"], ["edited", "edit"]].forEach(([decision, label]) => {
+        const button = document.createElement("button"); button.type = "button"; button.className = "secondary-action"; button.textContent = ait(label); button.disabled = approved;
+        button.classList.toggle("is-selected", section.decision === decision);
+        button.addEventListener("click", () => selectArtistIdentityDecision(article, section, decision));
+        controls.append(button);
+      });
+      const details = document.createElement("details"); details.className = "writer-generation-evidence";
+      const summary = document.createElement("summary"); summary.textContent = ait("evidence");
+      const list = document.createElement("ul"); (section.evidence || []).forEach(evidence => { const li = document.createElement("li"); li.textContent = evidence.summary || evidence.sourceRef; list.append(li); });
+      details.append(summary, list); article.append(controls, details); return article;
+    }));
+    text("artistIdentityModalStatus", approved ? ait("approved") : ait("ready"));
+    document.getElementById("artistIdentitySave").disabled = approved;
+    document.getElementById("artistIdentityApprove").disabled = approved;
+  }
+
+  function selectArtistIdentityDecision(article, section, decision) {
+    if (artistIdentityResponse?.profile?.status === "approved") return;
+    section.decision = decision;
+    article.querySelectorAll(".writer-generation-decisions button").forEach((button, index) => button.classList.toggle("is-selected", ["accepted", "edited"][index] === decision));
+    article.querySelector("header p").textContent = ait(decision === "edited" ? "edit" : "accept");
+  }
+
+  function collectArtistIdentitySettings() {
+    const settings = structuredClone(activeArtistIdentitySettings());
+    settings.sections.forEach(section => {
+      const article = document.querySelector(`#artistIdentitySections [data-key="${section.key}"]`);
+      artistIdentityFieldNames(section.key).forEach(field => {
+        const value = article?.querySelector(`[data-field="${field}"]`)?.value.trim() || "";
+        section.value[field] = Array.isArray(section.value[field]) ? value.split("\n").map(item => item.trim()).filter(Boolean) : value;
+      });
+      section.decision = activeArtistIdentitySettings().sections.find(item => item.key === section.key).decision;
+    });
+    return settings;
+  }
+
+  async function saveArtistIdentity(approve) {
+    const id = artistId(selectedArtistIdentityItem());
+    const profile = artistIdentityResponse?.profile;
+    if (!id || !profile || profile.status === "approved" || artistIdentityBusy) return;
+    artistIdentityBusy = true;
+    document.getElementById("artistIdentitySave").disabled = true;
+    document.getElementById("artistIdentityApprove").disabled = true;
+    text("artistIdentityModalStatus", ait("loading"));
+    try {
+      let value = await artistIdentityRequest(id, "", {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ referenceAssetIds: profile.referenceAssetIds, settings: collectArtistIdentitySettings() })
+      });
+      if (!validArtistIdentityProfileResponse(value, id)) throw new Error("projection");
+      artistIdentityResponse = value;
+      if (approve) {
+        value = await artistIdentityRequest(id, "/approve", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ expectedDraftFingerprint: value.profile.draftFingerprint })
+        });
+        if (!validArtistIdentityProfileResponse(value, id) || value.profile.status !== "approved") throw new Error("approval");
+        artistIdentityResponse = value;
+      }
+      renderArtistIdentityStatus(); renderArtistIdentitySections();
+      text("artistIdentityModalStatus", approve ? ait("approved") : ait("saved"));
+    } catch (_) {
+      text("artistIdentityModalStatus", ait("failed"));
+    } finally {
+      artistIdentityBusy = false;
+      const approved = artistIdentityResponse?.profile?.status === "approved";
+      document.getElementById("artistIdentitySave").disabled = approved;
+      document.getElementById("artistIdentityApprove").disabled = approved;
     }
   }
 
@@ -1797,6 +2133,16 @@
   document.getElementById("studioProfileArtistSelect")?.addEventListener("change", () => {
     fillProfileEditor(selectedProfileItem());
   });
+  document.getElementById("artistIdentityArtistSelect")?.addEventListener("change", loadArtistIdentityProfile);
+  document.getElementById("artistIdentityAnalyze")?.addEventListener("click", analyzeArtistIdentity);
+  document.getElementById("artistIdentityReview")?.addEventListener("click", openArtistIdentityModal);
+  document.getElementById("artistIdentityClose")?.addEventListener("click", closeArtistIdentityModal);
+  document.getElementById("artistIdentityLater")?.addEventListener("click", closeArtistIdentityModal);
+  document.getElementById("artistIdentitySave")?.addEventListener("click", () => saveArtistIdentity(false));
+  document.getElementById("artistIdentityApprove")?.addEventListener("click", () => saveArtistIdentity(true));
+  document.getElementById("artistIdentityModal")?.addEventListener("click", event => {
+    if (event.target === event.currentTarget) closeArtistIdentityModal();
+  });
   document.getElementById("studioProfileResetButton")?.addEventListener("click", () => {
     fillProfileEditor(selectedProfileItem());
   });
@@ -1826,6 +2172,7 @@
     renderWriterParts();
     if (!document.getElementById("writerManuscriptWork")?.disabled) writerSourceChanged();
     syncWriterSubmit();
+    applyArtistIdentityCopy();
   });
   document.getElementById("storyIntakeReset")?.addEventListener("click", clearStoryIntake);
   document.getElementById("storyIntakeSourceClass")?.addEventListener("change", () => {
@@ -1862,14 +2209,20 @@
     }
   });
   document.addEventListener("keydown", event => {
-    if (event.key === "Escape") closeStudioModal();
+    if (event.key === "Escape") {
+      closeStudioModal();
+      closeArtistIdentityModal();
+    }
   });
   document.addEventListener("click", event => {
     const button = event.target.closest("[data-profile-artist]");
     if (!button) return;
     const select = document.getElementById("studioProfileArtistSelect");
     if (select) select.value = button.getAttribute("data-profile-artist");
+    const identitySelect = document.getElementById("artistIdentityArtistSelect");
+    if (identitySelect) identitySelect.value = button.getAttribute("data-profile-artist");
     fillProfileEditor(selectedProfileItem());
+    loadArtistIdentityProfile();
     document.getElementById("studioProfileArtistSelect")?.scrollIntoView({ behavior: "smooth", block: "center" });
   });
   document.addEventListener("click", event => {

@@ -4,9 +4,20 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  NotFoundException,
   PayloadTooLargeException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import {
+  assertCreatorGenerationProfileApprovable,
+  creatorGenerationProfileFingerprint,
+  creatorGenerationProfileProjection,
+  normalizeCreatorGenerationProfile,
+} from '../generation-profile/creator-generation-profile.policy';
+import {
+  ApproveCreatorGenerationProfileDto,
+  UpdateStoryGenerationProfileDto,
+} from '../generation-profile/dto/creator-generation-profile.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { StoryUploadIntakeDto } from './dto/story-upload-intake.dto';
 import { StoryUploadStorageService } from './story-upload-storage.service';
@@ -67,7 +78,15 @@ type ReceiptRow = {
   totalBytes: bigint;
   createdAt: Date;
   _count: { files: number };
+  generationProfiles?: Array<{
+    status: string;
+    profileVersion: number;
+    reviewRevision: number;
+  }>;
 };
+
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export function assertStoryUploadTotalBytes(
   files: readonly Pick<StoryUploadFile, 'size'>[],
@@ -162,8 +181,22 @@ export class StoryUploadService {
                 storageKey: file.storageKey,
               })),
             },
+            generationProfiles: {
+              create: {
+                ownerUserId: userId,
+                sourceFingerprint: fingerprint,
+                status: 'pending_analysis',
+              },
+            },
           },
-          include: { _count: { select: { files: true } } },
+          include: {
+            _count: { select: { files: true } },
+            generationProfiles: {
+              orderBy: { profileVersion: 'desc' },
+              take: 1,
+              select: { status: true, profileVersion: true, reviewRevision: true },
+            },
+          },
         });
 
         await tx.auditEvent.create({
@@ -196,6 +229,167 @@ export class StoryUploadService {
       this.assertReplayFingerprint(replay.requestFingerprint, fingerprint);
       return this.receipt(replay, true);
     }
+  }
+
+  async getGenerationProfile(userId: string, submissionId: string) {
+    this.assertUuid(submissionId, 'submissionId');
+    const submission = await this.prisma.storyUploadSubmission.findFirst({
+      where: { id: submissionId, userId },
+      include: {
+        generationProfiles: {
+          orderBy: { profileVersion: 'desc' },
+          take: 1,
+        },
+      },
+    });
+    const profile = submission?.generationProfiles[0];
+    if (!submission || !profile) throw new NotFoundException('Story upload generation profile not found');
+    return {
+      submissionId: submission.id,
+      title: submission.title,
+      profile: creatorGenerationProfileProjection(profile),
+    };
+  }
+
+  async updateGenerationProfile(
+    userId: string,
+    submissionId: string,
+    input: UpdateStoryGenerationProfileDto,
+  ) {
+    this.assertUuid(submissionId, 'submissionId');
+    const settings = normalizeCreatorGenerationProfile('story', input.settings);
+    return this.prisma.$transaction(async (tx) => {
+      const submission = await tx.storyUploadSubmission.findFirst({
+        where: { id: submissionId, userId },
+        include: {
+          generationProfiles: {
+            orderBy: { profileVersion: 'desc' },
+            take: 1,
+          },
+        },
+      });
+      if (!submission) throw new NotFoundException('Story upload generation profile not found');
+      const current = submission.generationProfiles[0];
+      const sourceFingerprint = current?.sourceFingerprint ?? submission.requestFingerprint;
+      const draftFingerprint = creatorGenerationProfileFingerprint(sourceFingerprint, settings);
+      const data = {
+        ownerUserId: userId,
+        sourceFingerprint,
+        status: 'needs_review',
+        draftSettings: settings as unknown as Prisma.InputJsonValue,
+        draftFingerprint,
+        approvedSettings: Prisma.DbNull,
+        approvedFingerprint: null,
+        approvedByUserId: null,
+        approvedAt: null,
+        analysisErrorCode: null,
+        updatedAt: new Date(),
+      };
+      const profile = !current || current.status === 'approved'
+        ? await tx.storyUploadGenerationProfile.create({
+            data: {
+              submissionId: submission.id,
+              profileVersion: (current?.profileVersion ?? 0) + 1,
+              ...data,
+            },
+          })
+        : await tx.storyUploadGenerationProfile.update({
+            where: { id: current.id },
+            data,
+          });
+      await tx.auditEvent.create({
+        data: {
+          actorUserId: userId,
+          actorType: 'creator',
+          action: 'story_generation_profile.draft_saved',
+          targetType: 'story_upload_generation_profile',
+          targetId: profile.id,
+          beforeData: current ? {
+            status: current.status,
+            profileVersion: current.profileVersion,
+            draftFingerprint: current.draftFingerprint,
+          } : Prisma.JsonNull,
+          afterData: {
+            status: profile.status,
+            profileVersion: profile.profileVersion,
+            draftFingerprint: profile.draftFingerprint,
+          },
+          metadata: { submissionId: submission.id, sourceFingerprint },
+        },
+      });
+      return { submissionId: submission.id, profile: creatorGenerationProfileProjection(profile) };
+    });
+  }
+
+  async approveGenerationProfile(
+    userId: string,
+    submissionId: string,
+    input: ApproveCreatorGenerationProfileDto,
+  ) {
+    this.assertUuid(submissionId, 'submissionId');
+    return this.prisma.$transaction(async (tx) => {
+      const submission = await tx.storyUploadSubmission.findFirst({
+        where: { id: submissionId, userId },
+        include: {
+          generationProfiles: {
+            orderBy: { profileVersion: 'desc' },
+            take: 1,
+          },
+        },
+      });
+      const current = submission?.generationProfiles[0];
+      if (!submission || !current) throw new NotFoundException('Story upload generation profile not found');
+      if (current.status !== 'needs_review' || current.draftFingerprint !== input.expectedDraftFingerprint) {
+        throw new ConflictException({
+          code: 'GENERATION_PROFILE_DRAFT_CHANGED',
+          message: 'Review the latest generation profile before approval',
+        });
+      }
+      const settings = normalizeCreatorGenerationProfile('story', current.draftSettings);
+      assertCreatorGenerationProfileApprovable(settings);
+      const updated = await tx.storyUploadGenerationProfile.updateMany({
+        where: {
+          id: current.id,
+          status: 'needs_review',
+          draftFingerprint: input.expectedDraftFingerprint,
+          sourceFingerprint: submission.requestFingerprint,
+        },
+        data: {
+          status: 'approved',
+          approvedSettings: settings as unknown as Prisma.InputJsonValue,
+          approvedFingerprint: current.draftFingerprint,
+          approvedByUserId: userId,
+          approvedAt: new Date(),
+          reviewRevision: { increment: 1 },
+          updatedAt: new Date(),
+        },
+      });
+      if (updated.count !== 1) {
+        throw new ConflictException({
+          code: 'GENERATION_PROFILE_DRAFT_CHANGED',
+          message: 'Review the latest generation profile before approval',
+        });
+      }
+      const profile = await tx.storyUploadGenerationProfile.findUniqueOrThrow({ where: { id: current.id } });
+      await tx.auditEvent.create({
+        data: {
+          actorUserId: userId,
+          actorType: 'creator',
+          action: 'story_generation_profile.approved',
+          targetType: 'story_upload_generation_profile',
+          targetId: profile.id,
+          beforeData: { status: current.status, reviewRevision: current.reviewRevision },
+          afterData: {
+            status: profile.status,
+            profileVersion: profile.profileVersion,
+            reviewRevision: profile.reviewRevision,
+            approvedFingerprint: profile.approvedFingerprint,
+          },
+          metadata: { submissionId: submission.id, sourceFingerprint: submission.requestFingerprint },
+        },
+      });
+      return { submissionId: submission.id, profile: creatorGenerationProfileProjection(profile) };
+    });
   }
 
   private prepareFiles(fileFields: StoryUploadFileFields) {
@@ -354,7 +548,14 @@ export class StoryUploadService {
   private async findReceipt(userId: string, requestKeyHash: string) {
     return this.prisma.storyUploadSubmission.findUnique({
       where: { userId_requestKeyHash: { userId, requestKeyHash } },
-      include: { _count: { select: { files: true } } },
+      include: {
+        _count: { select: { files: true } },
+        generationProfiles: {
+          orderBy: { profileVersion: 'desc' },
+          take: 1,
+          select: { status: true, profileVersion: true, reviewRevision: true },
+        },
+      },
     });
   }
 
@@ -368,6 +569,7 @@ export class StoryUploadService {
   }
 
   private receipt(row: ReceiptRow, replayed: boolean) {
+    const profile = row.generationProfiles?.[0];
     return {
       submissionId: row.id,
       status: row.status,
@@ -376,7 +578,19 @@ export class StoryUploadService {
       totalBytes: Number(row.totalBytes),
       replayed,
       receivedAt: row.createdAt.toISOString(),
+      generationProfile: {
+        status: profile?.status ?? 'pending_analysis',
+        profileVersion: profile?.profileVersion ?? 1,
+        reviewRevision: profile?.reviewRevision ?? 0,
+        reviewRequired: true,
+      },
     };
+  }
+
+  private assertUuid(value: string, field: string) {
+    if (!UUID_PATTERN.test(value)) {
+      throw this.badRequest('STORY_UPLOAD_ID_INVALID', `storyUpload.${field}.invalid`);
+    }
   }
 
   private isUniqueViolation(error: unknown) {

@@ -2,10 +2,15 @@ import { ConflictException } from '@nestjs/common';
 import { StoryContinuationContextAssembler } from './story-continuation-context.assembler';
 import {
   continuationExecutionFingerprint,
+  continuationGenerationProfileSnapshot,
   continuationMemoryPins,
   continuationPathHash,
   continuationSourceHash,
 } from './story-continuation-context.policy';
+import {
+  creatorGenerationProfileFingerprint,
+  normalizeCreatorGenerationProfile,
+} from '../generation-profile/creator-generation-profile.policy';
 import { StoryContinuationClaim } from './story-continuation.repository';
 
 const claim: StoryContinuationClaim = {
@@ -74,6 +79,7 @@ function fixture(progressExists = true, inputTokenLimit = 1000) {
     storyAiGeneratedScene: { findMany: jest.fn().mockResolvedValue([]) },
     storyAiGeneratedChoice: { findMany: jest.fn().mockResolvedValue([]) },
     storyMemoryRecord: { findMany: jest.fn().mockResolvedValue(memories) },
+    storyWorkGenerationProfile: { findFirst: jest.fn().mockResolvedValue(null) },
     storyChoiceEvent: { findMany: jest.fn().mockResolvedValue(history) },
   };
   return { prisma, continuation, semanticPath, assembler: new StoryContinuationContextAssembler(prisma as never) };
@@ -126,5 +132,66 @@ describe('StoryContinuationContextAssembler', () => {
   it('rejects the complete outbound context when the input limit is exceeded', async () => {
     const f = fixture(true, 10);
     await expect(f.assembler.assemble(claim)).rejects.toThrow('approved_context_bound_exceeded');
+  });
+
+  it('revalidates and projects the exact creator-approved generation profile', async () => {
+    const f = fixture();
+    const approvedSettings = {
+      schemaVersion: 'creator-generation-profile-v1' as const,
+      kind: 'story' as const,
+      sections: [
+        'writing_style', 'scene_scale', 'canon', 'timeline', 'narrative_devices',
+        'branch_behavior', 'visual_direction', 'visual_cast',
+      ].map((key) => ({ key, decision: 'accepted' as const, value: { summary: `${key} lock` }, evidence: [] })),
+    };
+    const normalizedSettings = normalizeCreatorGenerationProfile('story', approvedSettings);
+    const sourceFingerprint = 'a'.repeat(64);
+    const profile = {
+      id: 'profile-id', status: 'approved', profileVersion: 2, reviewRevision: 3,
+      sourceFingerprint,
+      approvedSettings: normalizedSettings,
+      approvedFingerprint: creatorGenerationProfileFingerprint(sourceFingerprint, normalizedSettings),
+    };
+    const snapshot = continuationGenerationProfileSnapshot(profile as never);
+    (f.continuation.contextReferences as Record<string, unknown>).generationProfilePin = snapshot.pin;
+    f.continuation.contextReferences.executionFingerprint = continuationExecutionFingerprint({
+      contextFingerprint: f.continuation.contextFingerprint,
+      sourceHash: f.continuation.contextReferences.sourceHash,
+      pathHash: f.continuation.contextReferences.pathHash,
+      memoryPins: f.continuation.contextReferences.memoryPins,
+      generationProfilePin: snapshot.pin,
+    });
+    f.prisma.storyWorkGenerationProfile.findFirst.mockResolvedValue(profile);
+
+    await expect(f.assembler.assemble(claim)).resolves.toMatchObject({
+      generationProfile: {
+        schemaVersion: 'creator-generation-profile-v1',
+        sections: expect.arrayContaining([
+          { key: 'writing_style', value: { summary: 'writing_style lock' } },
+          { key: 'visual_cast', value: { summary: 'visual_cast lock' } },
+        ]),
+      },
+    });
+    expect(f.prisma.storyWorkGenerationProfile.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ id: 'profile-id', status: 'approved' }),
+    }));
+  });
+
+  it('rejects a changed approved generation profile before provider transmission', async () => {
+    const f = fixture();
+    const pin = {
+      id: 'profile-id', profileVersion: 1, reviewRevision: 1,
+      sourceFingerprint: 'a'.repeat(64), approvedFingerprint: 'b'.repeat(64),
+    };
+    (f.continuation.contextReferences as Record<string, unknown>).generationProfilePin = pin;
+    f.continuation.contextReferences.executionFingerprint = continuationExecutionFingerprint({
+      contextFingerprint: f.continuation.contextFingerprint,
+      sourceHash: f.continuation.contextReferences.sourceHash,
+      pathHash: f.continuation.contextReferences.pathHash,
+      memoryPins: f.continuation.contextReferences.memoryPins,
+      generationProfilePin: pin,
+    });
+    f.prisma.storyWorkGenerationProfile.findFirst.mockResolvedValue(null);
+    await expect(f.assembler.assemble(claim)).rejects.toThrow('pinned_context_changed');
   });
 });
