@@ -24,6 +24,10 @@ test('home and primary mobile surfaces expose Home Artists Story OTT Feed with K
   assert.match(home, /href="\/story-stage"/);
   assert.match(home, /href="\/ott"/);
   assert.match(home, /href="\/lumina-pick"/);
+  assert.match(home, /home\.discovery\.story\.label">스토리</);
+  assert.match(home, /home\.discovery\.ott\.label">영상 작품</);
+  assert.match(home, /home\.discovery\.pick\.label">루미나 픽</);
+  assert.doesNotMatch(home, /<strong>(?:Story|OTT|Pick)<\/strong>/);
 });
 
 test('public API projection is gated and omits private identifiers', () => {

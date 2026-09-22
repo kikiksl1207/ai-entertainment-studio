@@ -46,12 +46,26 @@ test('public discovery works at desktop and mobile widths and captures verified 
   try {
     for (const width of [390, 400, 1280]) {
       const page = await browser.newPage({ viewport: { width, height: width < 500 ? 844 : 800 } });
-      await page.addInitScript(() => sessionStorage.setItem('ls_splashed', '1'));
+      await page.addInitScript(() => {
+        sessionStorage.setItem('ls_splashed', '1');
+        localStorage.setItem('lumina_locale', 'ko-KR');
+      });
 
       await page.goto(`${base}/`, { waitUntil: 'networkidle' });
       await page.locator('.hero-product-links a[href="/story-stage"]').waitFor();
       await page.locator('.hero-product-links a[href="/ott"]').waitFor();
       await page.locator('.hero-product-links a[href="/lumina-pick"]').waitFor();
+      const tileLabels = await page.locator('.hero-product-links strong').allTextContents();
+      assert.deepEqual(tileLabels, ['스토리', '영상 작품', '루미나 픽']);
+      const tileStyle = await page.locator('.hero-product-links a').first().evaluate((element) => {
+        const style = getComputedStyle(element);
+        const secondary = getComputedStyle(element.querySelector('span'));
+        return { background: style.backgroundColor, border: style.borderColor, color: style.color, secondaryColor: secondary.color, secondarySize: secondary.fontSize };
+      });
+      assert.match(tileStyle.background, /^rgba?\((?:255,\s*){2}255,/);
+      assert.notEqual(tileStyle.background, 'rgb(255, 255, 255)');
+      assert.match(tileStyle.color, /^rgb\((?:24[0-9]|25[0-5]),/);
+      assert.equal(Number.parseFloat(tileStyle.secondarySize) >= 12, true);
       if (width < 500) {
         const tabs = await page.locator('.mobile-tab').evaluateAll((nodes) => nodes.map((node) => node.dataset.tabKey));
         assert.deepEqual(tabs, ['index', 'characters', 'story', 'ott', 'lumina-feed']);
@@ -68,6 +82,8 @@ test('public discovery works at desktop and mobile widths and captures verified 
     }
   } finally {
     await browser.close();
+    server.closeAllConnections?.();
     await new Promise((resolve) => server.close(resolve));
+    server.unref();
   }
 });

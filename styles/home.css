@@ -25,17 +25,17 @@
 
 .hero-product-links a {
   min-width: 0;
-  padding: 12px 13px;
-  border: 1px solid rgba(113, 78, 184, 0.2);
+  padding: 13px 14px;
+  border: 1px solid rgba(219, 207, 255, 0.18);
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.72);
-  color: var(--text);
+  background: rgba(255, 255, 255, 0.055);
+  color: #f7f4ff;
 }
 
 .hero-product-links strong,
 .hero-product-links span { display: block; }
-.hero-product-links strong { font-size: 13px; }
-.hero-product-links span { margin-top: 4px; color: var(--muted); font-size: 11px; line-height: 1.35; }
+.hero-product-links strong { color: #ffffff; font-size: 14px; line-height: 1.35; }
+.hero-product-links span { margin-top: 5px; color: rgba(231, 225, 245, 0.76); font-size: 12px; line-height: 1.45; }
 
 @media (max-width: 480px) {
   .hero-product-links { grid-template-columns: 1fr; }
