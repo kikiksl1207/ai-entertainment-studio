@@ -482,6 +482,7 @@ model StoryUploadSubmission {
   sourceClass        String                      @map("source_class") @db.VarChar(32)
   rightsReference    String?                     @map("rights_reference") @db.VarChar(200)
   status             String                      @default("received") @db.VarChar(32)
+  promotedWorkId     String?                     @unique @map("promoted_work_id") @db.Uuid
   totalBytes         BigInt                      @map("total_bytes")
   createdAt          DateTime                    @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt          DateTime                    @default(now()) @map("updated_at") @db.Timestamptz(6)

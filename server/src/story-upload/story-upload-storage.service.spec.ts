@@ -37,6 +37,37 @@ describe('StoryUploadStorageService', () => {
         ),
       ),
     ).resolves.toEqual(buffer);
+    await expect(
+      storage.getObject({
+        storageProvider: 'local',
+        storageKey: 'private/story-upload/ref/request/manuscript/00.txt',
+        expectedBytes: buffer.length,
+      }),
+    ).resolves.toEqual(buffer);
+  });
+
+  it('rejects a stored object whose received size no longer matches its receipt', async () => {
+    root = await mkdtemp(join(tmpdir(), 'story-upload-storage-'));
+    const storage = new StoryUploadStorageService(
+      new ConfigService({
+        NODE_ENV: 'test',
+        OBJECT_STORAGE_PROVIDER: 'local',
+        STORY_UPLOAD_LOCAL_STORAGE_ROOT: root,
+      }),
+    );
+    const buffer = Buffer.from('Synthetic manuscript');
+    await storage.putObject({
+      storageKey: 'private/story-upload/ref/request/manuscript/00.txt',
+      mimeType: 'text/plain',
+      buffer,
+    });
+    await expect(
+      storage.getObject({
+        storageProvider: 'local',
+        storageKey: 'private/story-upload/ref/request/manuscript/00.txt',
+        expectedBytes: buffer.length + 1,
+      }),
+    ).rejects.toBeInstanceOf(ServiceUnavailableException);
   });
 
   it('does not allow local-only storage in staging', async () => {

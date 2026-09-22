@@ -58,9 +58,12 @@ import {
 } from './story-visual-generation.controller';
 import { StoryVisualGenerationService } from './story-visual-generation.service';
 import { StoryPublicBetaPolicy } from './story-public-beta.policy';
+import { StoryPublicationIntakeController } from './story-publication-intake.controller';
+import { StoryPublicationIntakeService } from './story-publication-intake.service';
+import { StoryUploadModule } from '../story-upload/story-upload.module';
 
 @Module({
-  imports: [ModerationModule],
+  imports: [ModerationModule, StoryUploadModule],
   controllers: [
     StoryAiActivationAdminController,
     StoryManuscriptFileController,
@@ -74,6 +77,7 @@ import { StoryPublicBetaPolicy } from './story-public-beta.policy';
     StoryEconomicsAdminController,
     StoryVisualGenerationController,
     StoryVisualGenerationAdminController,
+    StoryPublicationIntakeController,
   ],
   providers: [
     SemanticAnalysisRepository,
@@ -96,6 +100,7 @@ import { StoryPublicBetaPolicy } from './story-public-beta.policy';
     StoryEconomicsService,
     StoryVisualGenerationService,
     StoryPublicBetaPolicy,
+    StoryPublicationIntakeService,
     StoryContinuationExecutor,
     StoryContinuationContextAssembler,
     {

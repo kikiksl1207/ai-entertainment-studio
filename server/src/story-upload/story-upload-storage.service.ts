@@ -1,5 +1,5 @@
 import { createHash, createHmac } from 'crypto';
-import { mkdir, stat, writeFile } from 'fs/promises';
+import { mkdir, readFile, stat, writeFile } from 'fs/promises';
 import { dirname, resolve, sep } from 'path';
 import {
   BadRequestException,
@@ -86,6 +86,49 @@ export class StoryUploadStorageService {
     return { storageProvider };
   }
 
+  async getObject(input: {
+    storageProvider: StoryUploadStorageProvider;
+    storageKey: string;
+    expectedBytes: number;
+  }): Promise<Buffer> {
+    const configuredProvider = this.provider();
+    this.assertStorageModeAllowed(configuredProvider);
+    this.assertStorageKey(input.storageKey);
+    if (configuredProvider !== input.storageProvider) {
+      throw this.storageUnavailable();
+    }
+
+    let buffer: Buffer;
+    if (configuredProvider === 'local') {
+      const target = this.localObjectPath(input.storageKey);
+      buffer = await readFile(target).catch(() => {
+        throw this.storageUnavailable();
+      });
+    } else {
+      const downloadUrl = this.buildSignedUrl(
+        configuredProvider,
+        input.storageKey,
+        'GET',
+        undefined,
+        120,
+      );
+      let response: Response;
+      try {
+        response = await fetch(downloadUrl, { method: 'GET' });
+      } catch {
+        throw this.storageUnavailable();
+      }
+      if (!response.ok) throw this.storageUnavailable();
+      const declaredLength = Number(response.headers.get('content-length'));
+      if (Number.isFinite(declaredLength) && declaredLength !== input.expectedBytes) {
+        throw this.storageUnavailable();
+      }
+      buffer = Buffer.from(await response.arrayBuffer());
+    }
+    if (buffer.length !== input.expectedBytes) throw this.storageUnavailable();
+    return buffer;
+  }
+
   private assertStorageModeAllowed(provider: StoryUploadStorageProvider) {
     const nodeEnv = this.configService.get<string>('NODE_ENV') ?? 'development';
     if ((nodeEnv === 'production' || nodeEnv === 'staging') && provider === 'local') {
@@ -94,6 +137,17 @@ export class StoryUploadStorageService {
   }
 
   private async putLocalObject(storageKey: string, buffer: Buffer) {
+    const target = this.localObjectPath(storageKey);
+
+    await mkdir(dirname(target), { recursive: true });
+    await writeFile(target, buffer);
+    const written = await stat(target);
+    if (written.size !== buffer.length) {
+      throw this.storageUnavailable();
+    }
+  }
+
+  private localObjectPath(storageKey: string) {
     const configuredRoot =
       this.configService.get<string>('STORY_UPLOAD_LOCAL_STORAGE_ROOT') ??
       'storage/private-story-upload';
@@ -105,13 +159,7 @@ export class StoryUploadStorageService {
         messageKey: 'storyUpload.intake.storageKeyInvalid',
       });
     }
-
-    await mkdir(dirname(target), { recursive: true });
-    await writeFile(target, buffer);
-    const written = await stat(target);
-    if (written.size !== buffer.length) {
-      throw this.storageUnavailable();
-    }
+    return target;
   }
 
   private assertStorageKey(storageKey: string) {
@@ -131,7 +179,7 @@ export class StoryUploadStorageService {
   private buildSignedUrl(
     provider: Exclude<StoryUploadStorageProvider, 'local'>,
     storageKey: string,
-    method: 'PUT' | 'HEAD',
+    method: 'PUT' | 'HEAD' | 'GET',
     mimeType: string | undefined,
     expiresInSeconds: number,
   ) {
