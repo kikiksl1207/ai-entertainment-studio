@@ -1,5 +1,24 @@
 # Story Continuation Integration Checkpoint
 
+## Owned Analysis Discovery API Integration
+
+Runtime `9e91db3` incorporates frozen `3deab1c`; all eight candidate paths
+match exactly. Independent actual AppModule/JWT/filter/PG65 review accepted
+five first-run groups: owner-only metadata, immutable keyset paging, cursor
+scope and DB ownership constraints, read-only table fingerprints, and safe
+reserved-job recovery with no automatic provider request. Report:
+`E:/CodexMovedCache/qa-analysis-discovery-independent-report.md`.
+PM client66 whole-project type checking and the two affected unit/projection
+suites passed: 30 tests, zero failures/skips, 13.904s, first run. Result:
+`E:/CodexMovedCache/qa-pm-discovery-9e91db3-units.json`.
+
+Frontend candidate `052fcec` is frozen, not yet independently accepted. Its
+author passed 12 affected VM tests, four browser groups after correcting one
+test-harness parse error, and six first-run mobile/locale/desktop captures.
+No product correction was made during that validation. Prior failed harness
+output is retained. Actual combined browser/server discovery is the remaining
+independent gate; semantic decisions and final approval UI are still absent.
+
 ## Writer Analysis UI Integration
 
 Runtime `e563aa2` incorporates frozen partial UI `9a6d71b`; all ten candidate
