@@ -39,9 +39,16 @@
           <span id="previewSubtitles"></span>
         </div>
         <button id="previewStart" type="button">미리보기 재생</button>
+        <section id="graphBranches" class="preview-branches" hidden aria-labelledby="graphBranchTitle">
+          <h2 id="graphBranchTitle"></h2>
+          <div id="graphChoices" class="preview-choices"></div>
+        </section>
+        <p id="graphEnding" class="preview-ending" hidden></p>
+        <p id="graphSaveState" class="preview-save-state" role="status" aria-live="polite" hidden></p>
       </section>
       <button id="previewRetry" type="button" hidden>다시 확인</button>
     </main>
     <script src="/pages/ott-private-preview.js"></script>
+    <script src="/pages/ott-graph-preview.js"></script>
   </body>
 </html>
