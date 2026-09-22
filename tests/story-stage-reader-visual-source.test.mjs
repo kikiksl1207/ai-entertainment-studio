@@ -31,6 +31,7 @@ function harness(context, legacy = {}) {
   const api = runInNewContext(`${visualHelpers}\n${bindingHelpers}\n({ readingVisual, bindReadingImages, visualAssetUrl, sceneCharacterSide })`, {
     state, root: { querySelector: () => stage, contains: () => stage.isConnected },
     location: { origin: 'http://127.0.0.1:18700' }, URL,
+    API_ORIGIN: 'https://api.lumina-stage.com',
     readerIdentity: () => identity, readableBeats: () => currentReading,
     currentRequest: (epoch, session) => epoch === state.epoch && session === state.sessionId,
   });
@@ -67,8 +68,9 @@ test('visual source: invalid binding cannot borrow legacy art; fallback assets d
   const h = harness(value);
   assert.equal(h.readingVisual(h.reading).ready, false);
   assert.equal(h.readingVisual(h.reading).characters.length, 0);
-  for (const url of ['javascript:alert(1)', 'data:image/png;base64,test', '//other.invalid/image.png', '/\\other.invalid/image.png', 'https://user:secret@host/image.png']) assert.equal(h.visualAssetUrl(url), '');
-  assert.equal(h.visualAssetUrl('https://public.example/image.png'), 'https://public.example/image.png');
+  for (const url of ['javascript:alert(1)', 'data:image/png;base64,test', '//other.invalid/image.png', '/\\other.invalid/image.png', 'https://user:secret@host/image.png', 'https://public.example/image.png']) assert.equal(h.visualAssetUrl(url), '');
+  assert.equal(h.visualAssetUrl('/api/v1/assets/public/id/original'), 'https://api.lumina-stage.com/api/v1/assets/public/id/original');
+  assert.equal(h.visualAssetUrl('https://api.lumina-stage.com/api/v1/assets/public/id/original'), 'https://api.lumina-stage.com/api/v1/assets/public/id/original');
 });
 
 test('visual source: broken background removes only its image and reveals neutral fallback; character error is isolated', () => {

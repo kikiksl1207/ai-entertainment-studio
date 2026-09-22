@@ -48,7 +48,13 @@ export interface StoryChoiceVisualRoute {
 }
 
 function isSafePublicAssetPath(value?: string | null): value is string {
-  return Boolean(value?.startsWith('/') && !value.includes('..'));
+  return Boolean(
+    value?.startsWith('/') &&
+    !value.startsWith('//') &&
+    !value.includes('..') &&
+    !value.includes('\\') &&
+    !/[\u0000-\u001f\u007f]/.test(value),
+  );
 }
 
 export function projectStorySceneVisualManifest(

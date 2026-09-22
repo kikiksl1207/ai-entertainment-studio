@@ -30,6 +30,7 @@ pg('authored import real PostgreSQL constraints and transactions (private QA onl
     expect(parts.every(part => part.status === 'draft' && part.priceLumina.toString() === '37')).toBe(true);
     const receipt = await db.storyAuthoredImport.findUniqueOrThrow({ where: { workId: f.work.id } });
     expect(receipt).toMatchObject({ sourceSceneCount: 6, beatCount: 6, choiceCount: 9, actCount: 2 });
+    expect(await db.storyVisualPrompt.count({ where: { workId: f.work.id } })).toBe(6);
     const scenes = await db.storyScene.findMany({ where: { partId: { in: parts.map(part => part.id) } } });
     expect(scenes.every(scene => scene.status === 'draft' && scene.endingType === null)).toBe(true);
     const choices = await db.storyChoice.findMany({ where: { sceneId: { in: scenes.map(scene => scene.id) } } });
@@ -73,6 +74,7 @@ pg('authored import real PostgreSQL constraints and transactions (private QA onl
       .rejects.toMatchObject({ response: { code: 'AUTHORED_IMPORT_FAILED' } });
     expect(await db.storyPart.count({ where: { workId: f.work.id } })).toBe(0);
     expect(await db.storyAuthoredImport.count({ where: { workId: f.work.id } })).toBe(0);
+    expect(await db.storyVisualPrompt.count({ where: { workId: f.work.id } })).toBe(0);
   });
 
   it('enforces paired visual JSON fields and immutable receipts in the database', async () => {
@@ -85,6 +87,9 @@ pg('authored import real PostgreSQL constraints and transactions (private QA onl
     await expect(db.storyBeat.update({ where: { id: beat.id }, data: { visualManifest: { sceneKey: null } } })).rejects.toThrow();
     await expect(db.storyAuthoredImport.update({ where: { workId: f.work.id }, data: { planChecksum: 'f'.repeat(64) } })).rejects.toThrow();
     await expect(db.storyAuthoredImport.delete({ where: { workId: f.work.id } })).rejects.toThrow();
+    const prompt = await db.storyVisualPrompt.findFirstOrThrow({ where: { workId: f.work.id } });
+    await expect(db.storyVisualPrompt.update({ where: { id: prompt.id }, data: { promptText: `${prompt.promptText} changed` } })).rejects.toThrow();
+    await expect(db.storyVisualPrompt.delete({ where: { id: prompt.id } })).rejects.toThrow();
   });
 
   it('never treats caller ready as approval and detects changed materialized content first', async () => {
@@ -118,6 +123,7 @@ pg('authored import real PostgreSQL constraints and transactions (private QA onl
       expect(rows.scenes).toHaveLength(216);
       expect(rows.choices).toHaveLength(648);
       expect(new Set(rows.beats.map(beat => beat.sourceSceneKey)).size).toBe(2138);
+      expect(await db.storyVisualPrompt.count({ where: { workId: f.work.id } })).toBe(2138);
       // Only digests/booleans enter assertion output, never actual private prose.
       for (const [i, part] of rows.parts.entries()) {
         const scene = rows.scenes.find(row => row.partId === part.id)!;

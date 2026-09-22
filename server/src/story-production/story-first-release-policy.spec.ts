@@ -736,6 +736,7 @@ describe('Release capability and regression contract', () => {
     const f = fixture();
     const tx = {
       ...f.prisma,
+      $queryRaw: jest.fn().mockResolvedValue([{ id: 'work' }]),
       storyAuthoredImport: { findUnique: jest.fn().mockResolvedValue(null) },
       storyWork: { findUnique: jest.fn().mockResolvedValue({ ...f.work, status: 'release_ready', releaseRevision: 1 }), updateMany: jest.fn() },
       storyRelease: { findFirst: jest.fn().mockResolvedValue({ id: 'release', validationSummary: { ready: true } }), update: jest.fn() },
@@ -754,6 +755,7 @@ describe('Release capability and regression contract', () => {
     const f = fixture();
     const tx = {
       ...f.prisma,
+      $queryRaw: jest.fn().mockResolvedValue([{ id: 'work' }]),
       storyAuthoredImport: { findUnique: jest.fn().mockResolvedValue(null) },
       storyWork: { findUnique: jest.fn().mockResolvedValue({ ...f.work, status: 'release_ready', releaseRevision: 1 }), updateMany: jest.fn() },
       storyRelease: {

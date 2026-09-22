@@ -52,6 +52,12 @@ import { StoryAiActivationAdminController } from './story-ai-activation.controll
 import { SemanticAnalysisRepository } from './story-semantic-analysis.repository';
 import { SemanticAnalysisService } from './story-semantic-analysis.service';
 import { SEMANTIC_PROVIDER_FACTORY, SEMANTIC_WORKER_FACTORY } from './story-semantic-analysis.worker';
+import {
+  StoryVisualGenerationAdminController,
+  StoryVisualGenerationController,
+} from './story-visual-generation.controller';
+import { StoryVisualGenerationService } from './story-visual-generation.service';
+import { StoryPublicBetaPolicy } from './story-public-beta.policy';
 
 @Module({
   imports: [ModerationModule],
@@ -66,6 +72,8 @@ import { SEMANTIC_PROVIDER_FACTORY, SEMANTIC_WORKER_FACTORY } from './story-sema
     StoryImjinReleaseBridgeAdminController,
     StoryEconomicsController,
     StoryEconomicsAdminController,
+    StoryVisualGenerationController,
+    StoryVisualGenerationAdminController,
   ],
   providers: [
     SemanticAnalysisRepository,
@@ -86,6 +94,8 @@ import { SEMANTIC_PROVIDER_FACTORY, SEMANTIC_WORKER_FACTORY } from './story-sema
     StoryLifecycleService,
     StoryImjinReleaseBridgeService,
     StoryEconomicsService,
+    StoryVisualGenerationService,
+    StoryPublicBetaPolicy,
     StoryContinuationExecutor,
     StoryContinuationContextAssembler,
     {

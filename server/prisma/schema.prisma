@@ -1952,6 +1952,52 @@ model StoryAuthoredImport {
   @@map("story_authored_imports")
 }
 
+model StoryVisualPrompt {
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workId              String   @map("work_id") @db.Uuid
+  releaseId           String   @map("release_id") @db.Uuid
+  releaseChecksum     String   @map("release_checksum") @db.VarChar(64)
+  sourceSceneKey      String   @map("source_scene_key") @db.VarChar(160)
+  promptText          String   @map("prompt_text")
+  promptSha256        String   @map("prompt_sha256") @db.VarChar(64)
+  sourceKind          String   @map("source_kind") @db.VarChar(32)
+  sourceBindingSha256 String   @map("source_binding_sha256") @db.VarChar(64)
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([workId, releaseId, sourceSceneKey], map: "uq_story_visual_prompts_release_scene")
+  @@unique([workId, releaseId, sourceSceneKey, promptSha256], map: "uq_story_visual_prompts_generation_binding")
+  @@unique([workId, releaseId, sourceSceneKey, promptSha256, releaseChecksum], map: "uq_story_visual_prompts_checksum_binding")
+  @@index([workId, releaseId, createdAt], map: "idx_story_visual_prompts_release")
+  @@map("story_visual_prompts")
+}
+
+model StoryVisualGeneration {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workId          String    @map("work_id") @db.Uuid
+  releaseId       String    @map("release_id") @db.Uuid
+  releaseChecksum String    @map("release_checksum") @db.VarChar(64)
+  sourceSceneKey  String    @map("source_scene_key") @db.VarChar(160)
+  promptSha256    String    @map("prompt_sha256") @db.VarChar(64)
+  status          String    @default("pending") @db.VarChar(24)
+  provider        String?   @db.VarChar(32)
+  model           String?   @db.VarChar(80)
+  quality         String?   @db.VarChar(16)
+  size            String?   @db.VarChar(32)
+  assetId         String?   @map("asset_id") @db.Uuid
+  checksumSha256  String?   @map("checksum_sha256") @db.VarChar(64)
+  attemptCount    Int       @default(0) @map("attempt_count")
+  lastErrorCode   String?   @map("last_error_code") @db.VarChar(80)
+  requestedAt     DateTime  @default(now()) @map("requested_at") @db.Timestamptz(6)
+  startedAt       DateTime? @map("started_at") @db.Timestamptz(6)
+  completedAt     DateTime? @map("completed_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([workId, releaseId, sourceSceneKey], map: "uq_story_visual_generations_release_scene")
+  @@index([workId, releaseId, status, updatedAt], map: "idx_story_visual_generations_release_status")
+  @@index([status, updatedAt], map: "idx_story_visual_generations_status")
+  @@map("story_visual_generations")
+}
+
 model StoryPublicationTransition {
   id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   workId         String   @map("work_id") @db.Uuid

@@ -53,7 +53,7 @@ export function authoredImportFixture(options: { preSceneProduction?: string } =
       text, segmentBytes: blocks.map(block => Buffer.byteLength(block)), paragraphSegments, metadataSegments, scenes, choices });
     analysisParts.push({ partKey, title, paragraphs: paragraphSegments.map(index => ({
       kind: scenes.some(scene => scene.segment === index) ? 'scene_break' : 'paragraph', text: blocks[index] })) });
-    const designText = '# Synthetic design\n\n- \uC774\uBBF8\uC9C0 \uC9C0\uC2DC: PRIVATE_ONE\n\n- \uC774\uBBF8\uC9C0 \uC9C0\uC2DC: PRIVATE_TWO\n';
+    const designText = '# Synthetic design\n\n- \uC774\uBBF8\uC9C0 \uC9C0\uC2DC: A private synthetic first scene image direction.\n\n- \uC774\uBBF8\uC9C0 \uC9C0\uC2DC: A private synthetic second scene image direction.\n';
     const designIdentity = source(`design/${n}.md`, designText);
     const designBlocks = designText.match(/[^\r\n]*(?:\r\n|\n|\r|$)/g)!.filter(Boolean);
     designs.push({ part: n, declared: 2, designObserved: 2, inlineObserved: 0, selectedObserved: 2,

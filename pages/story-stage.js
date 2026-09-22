@@ -35,6 +35,7 @@
       sceneLoading: "장면을 불러오는 중입니다.",
       sceneFailed: "장면을 불러오지 못했습니다.",
       sceneNoVisual: "장면 이미지를 표시할 수 없습니다.",
+      sceneImageGenerating: "장면 이미지를 준비하고 있습니다.",
       choices: "선택",
       choosing: "다음 장면을 불러오는 중입니다.",
       choiceFailed: "선택을 반영하지 못했습니다. 다시 시도해 주세요.",
@@ -94,6 +95,7 @@
       sceneLoading: "Loading scene.",
       sceneFailed: "The scene could not be loaded.",
       sceneNoVisual: "Scene image unavailable.",
+      sceneImageGenerating: "Preparing the scene image.",
       choices: "Choose",
       choosing: "Loading the next scene.",
       choiceFailed: "Your choice could not be applied. Please try again.",
@@ -153,6 +155,7 @@
       sceneLoading: "シーンを読み込んでいます。",
       sceneFailed: "シーンを読み込めませんでした。",
       sceneNoVisual: "シーン画像を表示できません。",
+      sceneImageGenerating: "シーン画像を準備しています。",
       choices: "選択",
       choosing: "次のシーンを読み込んでいます。",
       choiceFailed: "選択を反映できませんでした。もう一度お試しください。",
@@ -212,6 +215,7 @@
       sceneLoading: "正在加载场景。",
       sceneFailed: "无法加载场景。",
       sceneNoVisual: "场景图片不可用。",
+      sceneImageGenerating: "正在准备场景图片。",
       choices: "选择",
       choosing: "正在加载下一个场景。",
       choiceFailed: "无法应用你的选择，请重试。",
@@ -271,6 +275,7 @@
       sceneLoading: "正在載入場景。",
       sceneFailed: "無法載入場景。",
       sceneNoVisual: "場景圖片無法顯示。",
+      sceneImageGenerating: "正在準備場景圖片。",
       choices: "選擇",
       choosing: "正在載入下一個場景。",
       choiceFailed: "無法套用你的選擇，請重試。",
@@ -483,6 +488,7 @@
     completedBeat: null,
     readingScroll: null,
     beatNotice: "",
+    visualRequestKey: "",
   };
 
   const READER_COPY = {
@@ -642,11 +648,7 @@
 
   function coverUrl(pack) {
     const value = pack?.cover?.publicAssetPath || pack?.cover?.publicUrl || pack?.cover?.url;
-    if (typeof value !== "string" || /[\\\s]/.test(value)) return "";
-    try {
-      const url = new URL(value, location.origin);
-      return url.protocol === "https:" || (value.startsWith("/") && !value.startsWith("//")) ? url.href : "";
-    } catch (_) { return ""; }
+    return typeof value === "string" && !/\s/.test(value) ? visualAssetUrl(value) : "";
   }
 
   function packTitle(pack) {
@@ -1015,9 +1017,51 @@
     if (typeof value !== "string" || !value.trim() || value.includes("\\")) return "";
     try {
       const url = new URL(value, location.origin);
-      if (url.username || url.password) return "";
+      const apiOrigin = new URL(API_ORIGIN).origin;
+      if (url.username || url.password || ![location.origin, apiOrigin].includes(url.origin)) return "";
+      if (value.startsWith("/api/v1/") && !value.startsWith("//")) return API_ORIGIN + value;
       return /^https:\/\//i.test(value) || (value.startsWith("/") && !value.startsWith("//") && url.origin === location.origin) ? value : "";
     } catch (_) { return ""; }
+  }
+
+  function readingVisualKey(reading) {
+    const context = reading?.beats?.[reading.index]?.visualContext;
+    if (context != null) {
+      if (context.generationAvailable !== true || context.assetReadiness !== "missing" ||
+          context.manifest?.sceneKey !== context.sourceSceneKey ||
+          context.manifest?.background?.state !== "fallback") return "";
+    } else if (state.scene?.visualGenerationAvailable !== true) return "";
+    const key = context?.sourceSceneKey || state.scene?.sceneKey;
+    return typeof key === "string" && /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,159}$/.test(key) ? key : "";
+  }
+
+  async function ensureReadingVisual(reading, visual) {
+    const sourceSceneKey = readingVisualKey(reading);
+    const scopedKey = `${state.sessionId}:${sourceSceneKey}`;
+    if (visual.ready || !sourceSceneKey || !signedIn() || state.visualRequestKey === scopedKey) return;
+    const sessionId = state.sessionId;
+    const identity = readerIdentity();
+    const readingKey = reading.key;
+    state.visualRequestKey = scopedKey;
+    actionStatus(tr("sceneImageGenerating"));
+    try {
+      const result = await request(`/api/v1/me/story-progress/${encodeURIComponent(sessionId)}/scene-visual`, {
+        method: "POST",
+        auth: true,
+        body: { sourceSceneKey },
+      });
+      if (sessionId !== state.sessionId || identity !== readerIdentity() || readingKey !== readableBeats()?.key) return;
+      if (result?.status === "ready") await loadScene({ restorePending: false });
+      else if (result?.status === "processing") setTimeout(() => {
+        if (state.visualRequestKey === scopedKey) state.visualRequestKey = "";
+        const currentReading = readableBeats();
+        if (currentReading?.key === readingKey) ensureReadingVisual(currentReading, readingVisual(currentReading));
+      }, 5000);
+    } catch (_) {
+      // Image generation is optional; the story remains readable with its fallback.
+    } finally {
+      if (state.visualRequestKey === scopedKey) state.visualRequestKey = "";
+    }
   }
 
   function sceneBackground(scene) {
@@ -1304,6 +1348,7 @@
         ${renderResetControls(state.progress)}
       </section>`;
     bindReadingImages(reading, visual);
+    ensureReadingVisual(reading, visual);
     const readingRegion = root.querySelector("[data-story-scene-focus]");
     readingRegion.scrollTop = state.readingScroll?.key === reading.key ? state.readingScroll.top : 0;
     if (restoreFocus) readingRegion.focus({ preventScroll: true });

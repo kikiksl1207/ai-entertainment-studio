@@ -3,6 +3,7 @@ import { Decimal } from '@prisma/client/runtime/library';
 import { StoryCatalogQueryDto } from './dto/story-production.dto';
 import { StoryProductionService } from './story-production.service';
 import { firstReleaseChoiceCapability } from './story-progress-control.policy';
+import { StoryPublicBetaPolicy } from './story-public-beta.policy';
 
 describe('StoryProductionService', () => {
   const prisma = {
@@ -335,6 +336,42 @@ describe('StoryProductionService', () => {
       purchaseAction: null,
       actions: { primary: 'start', canStart: true, canPurchase: false },
     });
+  });
+
+  it('exposes only exact beta releases and grants temporary free access without changing stored price', async () => {
+    const allowedWorkId = '00000000-0000-4000-8000-000000000001';
+    const allowedReleaseId = '00000000-0000-4000-8000-000000000011';
+    const checksum = 'a'.repeat(64);
+    const beta = new StoryPublicBetaPolicy({ get: (key: string) => ({
+      STORY_PUBLIC_BETA_ENABLED: 'true',
+      STORY_PUBLIC_BETA_RELEASES: JSON.stringify([{ workId: allowedWorkId, releaseId: allowedReleaseId,
+        releaseChecksum: checksum, freeAccess: true }]),
+    } as Record<string, string>)[key] } as never);
+    const betaService = new StoryProductionService(prisma as never, undefined, undefined, undefined, undefined,
+      undefined, beta);
+    prisma.storyWork.findMany.mockResolvedValue([
+      { id: allowedWorkId, slug: 'allowed-story', defaultLocale: 'ko', title: { ko: 'Allowed' }, summary: { ko: 'Summary' },
+        coverManifest: { url: '/public/story/allowed.webp' }, priceLumina: new Decimal(500), fixtureSource: false,
+        publishedAt: new Date(), activeReleaseId: allowedReleaseId, releaseRevision: 2 },
+      { id: '00000000-0000-4000-8000-000000000002', slug: 'other-story', defaultLocale: 'ko',
+        title: { ko: 'Other' }, summary: { ko: 'Summary' }, coverManifest: { url: '/public/story/other.webp' },
+        priceLumina: new Decimal(0), fixtureSource: false, publishedAt: new Date(),
+        activeReleaseId: '00000000-0000-4000-8000-000000000012', releaseRevision: 1 },
+    ]);
+    prisma.storyRelease.findMany.mockResolvedValue([
+      { id: allowedReleaseId, workId: allowedWorkId, checksum },
+      { id: '00000000-0000-4000-8000-000000000012', workId: '00000000-0000-4000-8000-000000000002',
+        checksum: 'b'.repeat(64) },
+    ]);
+    prisma.userEntitlement.findMany.mockResolvedValue([]);
+    prisma.storyReaderProgress.findMany.mockResolvedValue([]);
+
+    const result = await betaService.catalog('reader-id', new StoryCatalogQueryDto());
+
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]).toMatchObject({ id: allowedWorkId,
+      access: { status: 'free', entitled: true, priceLumina: null, purchaseAction: null } });
+    expect(result.items[0].access.purchaseConfirmation).toBeNull();
   });
 
   it('returns a read-only reader access projection with price and replay state', async () => {

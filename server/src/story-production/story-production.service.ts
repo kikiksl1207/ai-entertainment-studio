@@ -51,6 +51,8 @@ import { StoryContinuationProvider } from './story-continuation.provider';
 import { StoryContinuationLegalActivationGate } from './story-continuation-legal-activation.gate';
 import { SemanticAnalysisService } from './story-semantic-analysis.service';
 import { appendStoryRoute, createStoryRouteRoot } from './story-route-identity.store';
+import { StoryVisualGenerationService } from './story-visual-generation.service';
+import { StoryPublicBetaPolicy } from './story-public-beta.policy';
 
 const STORY_ENTITLEMENT_TYPES = [
   'story_work',
@@ -68,6 +70,8 @@ export class StoryProductionService {
     @Optional() private readonly continuationProvider?: StoryContinuationProvider,
     @Optional() private readonly legalActivation?: StoryContinuationLegalActivationGate,
     @Optional() private readonly semanticAnalysis?: SemanticAnalysisService,
+    @Optional() private readonly visualGeneration?: StoryVisualGenerationService,
+    @Optional() private readonly publicBeta?: StoryPublicBetaPolicy,
   ) {}
 
   async creatorCatalog(userId: string, query: StoryCatalogQueryDto) {
@@ -140,15 +144,18 @@ export class StoryProductionService {
         id: { in: rows.map((row) => row.activeReleaseId).filter((id): id is string => Boolean(id)) },
         status: 'active',
       },
-      select: { id: true },
+      select: { id: true, workId: true, checksum: true },
     });
-    const activeReleaseIds = new Set(activeReleases.map((release) => release.id));
+    const activeReleasesById = new Map(activeReleases.map((release) => [release.id, release]));
     const safeRows = rows.filter((row) =>
       isPublicStorySourceSafe({
         fixtureSource: row.fixtureSource,
         slug: row.slug,
         manifest: row.coverManifest,
-      }) && Boolean(row.activeReleaseId && activeReleaseIds.has(row.activeReleaseId)),
+      }) && Boolean(row.activeReleaseId && activeReleasesById.has(row.activeReleaseId)) &&
+        (!row.activeReleaseId || !this.publicBeta || this.publicBeta.allows(
+          row.id, row.activeReleaseId, activeReleasesById.get(row.activeReleaseId)!.checksum,
+        )),
     );
     const page = safeRows.slice(0, query.limit);
     const entitledIds = await this.entitledReferenceIds(
@@ -183,6 +190,8 @@ export class StoryProductionService {
         const title = projectLocalizedValue(row.title, query.locale, row.defaultLocale);
         const summary = projectLocalizedValue(row.summary, query.locale, row.defaultLocale);
         const progress = progressByWorkId.get(row.id);
+        const release = row.activeReleaseId ? activeReleasesById.get(row.activeReleaseId) : null;
+        const betaFreeAccess = Boolean(release && this.publicBeta?.freeAccess(row.id, release.id, release.checksum));
         return {
           id: row.id,
           slug: row.slug,
@@ -196,7 +205,7 @@ export class StoryProductionService {
             Boolean(userId),
             Boolean(progress?.currentSceneId),
             jsonStringArray(progress?.visitedEndingKeys).length,
-            undefined,
+            betaFreeAccess ? true : undefined,
             row,
           ),
           releaseCapability: capabilities?.get(row.id) ?? firstReleaseChoiceCapability(),
@@ -230,6 +239,8 @@ export class StoryProductionService {
       where: { id: work.activeReleaseId!, workId: work.id, status: 'active' },
     });
     if (!activeRelease) throw new NotFoundException('Published story not found');
+    this.publicBeta?.assertAllowed(work.id, activeRelease.id, activeRelease.checksum);
+    const betaFreeAccess = this.publicBeta?.freeAccess(work.id, activeRelease.id, activeRelease.checksum) ?? false;
 
     const parts = await this.prisma.storyPart.findMany({
       where: {
@@ -243,7 +254,7 @@ export class StoryProductionService {
     const referenceIds = [work.id, ...parts.map((part) => part.id)];
     const entitledIds = await this.entitledReferenceIds(userId, referenceIds);
     const workEntitlementGranted = entitledIds.has(work.id);
-    const workAccessible = workEntitlementGranted || work.priceLumina.isZero();
+    const workAccessible = workEntitlementGranted || work.priceLumina.isZero() || betaFreeAccess;
     const progress = userId
       ? await this.prisma.storyReaderProgress.findUnique({
           where: { userId_workId: { userId, workId: work.id } },
@@ -280,7 +291,7 @@ export class StoryProductionService {
             Boolean(userId),
             false,
             0,
-            work.priceLumina.isZero() || part.priceLumina.isZero(),
+            betaFreeAccess || work.priceLumina.isZero() || part.priceLumina.isZero(),
           ),
         };
       }),
@@ -290,7 +301,7 @@ export class StoryProductionService {
         Boolean(userId),
         Boolean(progress?.currentSceneId),
         endingRecords.length,
-        undefined,
+        betaFreeAccess ? true : undefined,
         work,
       ),
       replay: userId
@@ -342,7 +353,7 @@ export class StoryProductionService {
         true,
         Boolean(progress?.currentSceneId),
         endingCount,
-        undefined,
+        work.betaFreeAccess ? true : undefined,
         work,
       ),
       replay: {
@@ -412,17 +423,22 @@ export class StoryProductionService {
         await tx.$queryRaw`SELECT id FROM story_releases WHERE id = ${work.activeReleaseId}::uuid FOR SHARE`;
       }
       const release = work.activeReleaseId ? await tx.storyRelease.findFirst({
-        where: { id: work.activeReleaseId, workId, status: 'active' }, select: { id: true },
+        where: { id: work.activeReleaseId, workId, status: 'active' }, select: { id: true, checksum: true },
       }) : null;
       if (work.status !== 'published' || !work.publishedAt || work.publishedAt > new Date() ||
-        !release || !isPublicStorySourceSafe({
+        !isPublicStorySourceSafe({
           fixtureSource: work.fixtureSource, slug: work.slug, manifest: work.coverManifest,
         })) stale();
+      if (!release) stale();
+      const checkedRelease = release!;
+      this.publicBeta?.assertAllowed(work.id, checkedRelease.id, checkedRelease.checksum);
       if (entitlement && hasActiveEntitlement([entitlement])) {
         return { entitled: true, charged: false, idempotentReplay: true,
           chargedAmountLumina: '0', outcome: 'already_entitled' };
       }
-      if (work.priceLumina.isZero()) {
+      if (work.priceLumina.isZero() || this.publicBeta?.freeAccess(
+        work.id, checkedRelease.id, checkedRelease.checksum,
+      )) {
         return { entitled: true, charged: false, idempotentReplay: true,
           chargedAmountLumina: '0', outcome: 'free' };
       }
@@ -485,7 +501,8 @@ export class StoryProductionService {
       orderBy: { position: 'asc' },
     });
     if (!parts.length) throw new NotFoundException('Published story part not found');
-    const entitled = work.priceLumina.isZero() || (await this.hasEntitlement(userId, [work.id, ...parts.map((part) => part.id)]));
+    const entitled = work.priceLumina.isZero() || work.betaFreeAccess ||
+      (await this.hasEntitlement(userId, [work.id, ...parts.map((part) => part.id)]));
     if (!entitled) throw new ForbiddenException('Story entitlement required');
     const existing = await this.prisma.storyReaderProgress.findUnique({
       where: { userId_workId: { userId, workId } },
@@ -1424,7 +1441,7 @@ export class StoryProductionService {
     const part = await this.prisma.storyPart.findUnique({ where: { id: scene.partId } });
     const work = part ? await this.prisma.storyWork.findUnique({ where: { id: part.workId } }) : null;
     if (!part || !work || work.status !== 'published' || part.status !== 'published') throw new NotFoundException('Published story scene not found');
-    const visualManifest = projectStoredStorySceneVisualManifest(
+    let visualManifest = projectStoredStorySceneVisualManifest(
       scene.visualManifest,
       scene.sceneKey,
     );
@@ -1442,14 +1459,33 @@ export class StoryProductionService {
         ? this.economics.capabilityByRelease(progress.activeReleaseId)
         : null,
     ]);
+    const visualKeys = [scene.sceneKey, ...beats.map(beat => beat.sourceSceneKey)
+      .filter((key): key is string => Boolean(key))];
+    const [readyVisuals, promptKeys] = this.visualGeneration && progress.activeReleaseId
+      ? await Promise.all([
+          this.visualGeneration.readyVisuals(work.id, progress.activeReleaseId, visualKeys),
+          this.visualGeneration.promptKeys(work.id, progress.activeReleaseId, visualKeys),
+        ])
+      : [new Map<string, { sourceSceneKey: string; publicAssetPath: string }>(), new Set<string>()];
+    const canonicalVisual = readyVisuals.get(scene.sceneKey);
+    if (canonicalVisual) {
+      visualManifest = this.applyReadyVisual(visualManifest, canonicalVisual.publicAssetPath);
+    }
     // One look-ahead detects invalid authored scenes without truncating their branches.
     assertSuggestedChoiceCount(choices.length);
     const projectedBeats = beats.map((beat) => {
       const visual = projectAuthoredBeatVisual(beat);
       if (!visual.valid) throw new NotFoundException('Published story visual segment not found');
+      const generated = beat.sourceSceneKey ? readyVisuals.get(beat.sourceSceneKey) : null;
+      const visualContext = visual.visualContext
+        ? { ...visual.visualContext,
+          generationAvailable: Boolean(beat.sourceSceneKey && promptKeys.has(beat.sourceSceneKey) && !generated),
+          ...(generated ? { assetReadiness: 'ready' as const,
+            manifest: this.applyReadyVisual(visual.visualContext.manifest, generated.publicAssetPath) } : {}) }
+        : undefined;
       return { id: beat.id, position: beat.position, type: beat.beatType,
         content: projectLocalizedValue(beat.content, locale, work.defaultLocale),
-        ...(visual.visualContext ? { visualContext: visual.visualContext } : {}) };
+        ...(visualContext ? { visualContext } : {}) };
     });
     const visibleChoices = progress.status === 'active' ? choices : [];
     const nextIds = visibleChoices.map((choice) => choice.targetSceneId).filter((id): id is string => Boolean(id));
@@ -1484,6 +1520,7 @@ export class StoryProductionService {
         title: projectLocalizedValue(scene.title, locale, work.defaultLocale),
         beats: projectedBeats,
         visualManifest,
+        visualGenerationAvailable: promptKeys.has(scene.sceneKey) && !canonicalVisual,
         endingType: scene.endingType,
       },
       choices: visibleChoices.filter((choice) => !choice.targetSceneId || nextById.has(choice.targetSceneId)).map((choice) => {
@@ -1513,15 +1550,20 @@ export class StoryProductionService {
     };
   }
 
+  private applyReadyVisual<T extends { background: { altKey: string } }>(manifest: T, publicAssetPath: string) {
+    return { ...manifest, background: { ...manifest.background, publicAssetPath, state: 'ready' as const } };
+  }
+
   private async publicWorkById(workId: string) {
     const work = await this.prisma.storyWork.findFirst({ where: { id: workId, status: 'published', fixtureSource: false, activeReleaseId: { not: null }, publishedAt: { lte: new Date() } } });
     if (!work || !isPublicStorySourceSafe({ fixtureSource: work.fixtureSource, slug: work.slug, manifest: work.coverManifest })) throw new NotFoundException('Published story not found');
     const release = await this.prisma.storyRelease.findFirst({
       where: { id: work.activeReleaseId!, workId: work.id, status: 'active' },
-      select: { id: true },
+      select: { id: true, checksum: true },
     });
     if (!release) throw new NotFoundException('Published story not found');
-    return work;
+    this.publicBeta?.assertAllowed(work.id, release.id, release.checksum);
+    return { ...work, betaFreeAccess: this.publicBeta?.freeAccess(work.id, release.id, release.checksum) ?? false };
   }
 
   private accessProjection(
@@ -1587,11 +1629,6 @@ export class StoryProductionService {
   }
 
 }
-
-function isPlainRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
 
 function jsonArray(value: Prisma.JsonValue | null | undefined): Array<Record<string, unknown>> {
   return Array.isArray(value) ? (value as Array<Record<string, unknown>>) : [];

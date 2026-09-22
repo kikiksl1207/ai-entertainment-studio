@@ -58,9 +58,17 @@ export async function verifyAuthoredImportDraftTx(tx: Prisma.TransactionClient, 
   assertReleaseIdentity(release, receipt.releaseChecksum);
   manuscriptSource(manuscript);
   const snapshot = await authoredMaterializedSnapshot(tx, workId);
+  const visualPrompts = await tx.storyVisualPrompt.findMany({
+    where: { workId, releaseId },
+    select: { sourceSceneKey: true, promptSha256: true, sourceBindingSha256: true },
+  });
+  const authoredSceneKeys = new Set(snapshot.beats.map(beat => beat.sourceSceneKey).filter(Boolean));
   if (snapshot.parts.length !== receipt.partCount || snapshot.scenes.length !== receipt.partCount ||
       snapshot.beats.length !== receipt.beatCount || snapshot.choices.length !== receipt.choiceCount ||
       new Set(snapshot.beats.map(beat => beat.sourceSceneKey)).size !== receipt.sourceSceneCount ||
+      visualPrompts.length !== receipt.sourceSceneCount ||
+      visualPrompts.some(prompt => !authoredSceneKeys.has(prompt.sourceSceneKey) ||
+        prompt.sourceBindingSha256 !== receipt.sourceMapSha256) ||
       snapshot.scenes.some(scene => scene.endingType !== null) ||
       snapshot.choices.filter(choice => choice.targetEndingKey !== null).length !== 1 ||
       snapshot.choices.some(choice => choice.position > 1 && (choice.routeKind !== 'generation_required' ||
@@ -182,6 +190,19 @@ export class StoryAuthoredImportService {
         sceneId: sceneRows[i].id, position: beat.position, beatType: 'narration', content: { [prepared.locale]: beat.text },
         sourceSceneKey: beat.sourceSceneKey, visualManifest: missingAuthoredSceneVisual(beat.sourceSceneKey) })));
       for (let i = 0; i < beatRows.length; i += 256) await tx.storyBeat.createMany({ data: beatRows.slice(i, i + 256) });
+      const visualPromptRows = prepared.parts.flatMap(part => part.visualPrompts.map(prompt => ({
+        workId,
+        releaseId: release.id,
+        releaseChecksum: release.checksum,
+        sourceSceneKey: prompt.sourceSceneKey,
+        promptText: prompt.promptText,
+        promptSha256: prompt.promptSha256,
+        sourceKind: 'authored_import',
+        sourceBindingSha256: prepared.sourceMapSha256,
+      })));
+      for (let i = 0; i < visualPromptRows.length; i += 256) {
+        await tx.storyVisualPrompt.createMany({ data: visualPromptRows.slice(i, i + 256) });
+      }
       const choiceRows = prepared.parts.flatMap((part, i) => part.choices.map(choice => ({
         sceneId: sceneRows[i].id, choiceKey: choice.choiceKey, position: choice.readerOrdinal,
         label: { [prepared.locale]: choice.label }, routeKind: choice.routeKind,
@@ -200,7 +221,8 @@ export class StoryAuthoredImportService {
       await tx.auditEvent.create({ data: { actorUserId: ownerUserId, actorType: 'user',
         action: 'story_authored_import.private_materialized', targetType: 'story_work', targetId: workId,
         metadata: { receiptId: receipt.id, planChecksum, partCount: prepared.counts.parts,
-          sourceSceneCount: prepared.counts.sourceScenes, publishReady: false } } });
+          sourceSceneCount: prepared.counts.sourceScenes, visualPromptCount: visualPromptRows.length,
+          publishReady: false } } });
       return { receiptId: receipt.id, idempotentReplay: false };
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, maxWait: 2000, timeout: 30000 });
     for (let attempt = 0; attempt < 3; attempt++) {

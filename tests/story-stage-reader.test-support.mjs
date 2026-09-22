@@ -273,7 +273,7 @@ export function registerReaderTests({ fixture, projection, sessionId, workId, ar
         await region.evaluate((el) => { el.scrollTop = el.scrollHeight; });
         assert.equal(await region.evaluate((el) => Math.abs(el.scrollHeight - el.clientHeight - el.scrollTop) <= 2), true);
         assert.equal(await f.page.locator('.story-player-background, .story-player-characters img').evaluateAll((images) => images.length === 2 && images.every((el) => el.complete && el.naturalWidth > 0)), true);
-        assert.equal(await f.page.locator('.story-player-no-visual').count(), 0);
+        assert.equal(await f.page.locator('.story-player-no-visual').isHidden(), true);
         await f.page.locator('[data-story-beat="next"]').evaluate((el) => el.scrollIntoView({ block: 'center', behavior: 'instant' }));
         const nextBounds = await f.page.locator('[data-story-beat="next"]').evaluate((el) => { const r = el.getBoundingClientRect(); const top = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2); return { width: r.width, height: r.height, y: r.y, uncovered: el.contains(top), covering: top?.outerHTML.slice(0, 300) }; });
         assert.ok(nextBounds.width >= 44 && nextBounds.height >= 44 && nextBounds.uncovered, JSON.stringify(nextBounds));

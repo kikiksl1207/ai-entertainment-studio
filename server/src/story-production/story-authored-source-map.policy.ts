@@ -12,6 +12,7 @@ const CHOICES = /^## (?:\uCD5C\uC885 )?\uC120\uD0DD\uC9C0(?: 3\uAC1C)?$/;
 const BODY = '## \uBCF8\uBB38 \uC6D0\uACE0';
 const PRE_SCENE_PRODUCTION = /^(?:- )?(?:\uBC30\uACBD(?: \uC774\uBBF8\uC9C0)?|\uB4F1\uC7A5 ?\uC778\uBB3C|\uC774\uC804 \uC120\uD0DD(?: \uC694\uC57D)?):[^\r\n]*(?:\r\n|\r|\n)?$/;
 const PRE_SCENE_PRODUCTION_GROUP = /^- \uC774\uC804 \uC120\uD0DD \uC694\uC57D:[^\r\n]+(?:\r\n|\r|\n)- \uB4F1\uC7A5 \uC778\uBB3C:[^\r\n]+(?:\r\n|\r|\n)- \uC2DC\uAC04:[^\r\n]+(?:\r\n|\r|\n)?$/;
+const DESIGN_PROMPT = /^- \uC774\uBBF8\uC9C0 (?:\uD504\uB86C\uD504\uD2B8|\uC9C0\uC2DC):\s*(.+)$/gm;
 const PRIVATE_SECTIONS = new Set([
   '## \uC774\uC804 \uC120\uD0DD \uC694\uC57D', '## \uBC30\uACBD \uD55C \uC904',
   '## \uB2E4\uC74C \uD30C\uD2B8 \uC5F0\uACB0 \uC815\uBCF4', '## \uB4F1\uC7A5 \uC778\uBB3C',
@@ -290,16 +291,25 @@ export function prepareAuthoredSourceMap(buffer: Buffer, manuscript: PreparedMan
     const designIdentity = sourceIdentity(design.sourcePath, designText);
     if (design.part !== position || row.scene_design !== design.sourcePath || designIdentity.sha256 !== design.sourceSha256) invalid('AUTHORED_DESIGN_BINDING_MISMATCH');
     segmentsFor(designText, design.segmentBytes);
-    const designCount = [...designText.matchAll(/^- \uC774\uBBF8\uC9C0 (?:\uD504\uB86C\uD504\uD2B8|\uC9C0\uC2DC):/gm)].length;
+    const designPrompts = [...designText.matchAll(DESIGN_PROMPT)].map(match => text(match[1].trim(), 32_000));
+    const designCount = designPrompts.length;
     let inImages = false;
-    let inlineCount = 0;
+    const inlinePrompts: string[] = [];
     for (const line of raw.split(/\r\n|\r|\n/)) {
       if (line.startsWith('## ')) inImages = /^## \uC7A5\uBA74\uBCC4 (?:\uBC30\uACBD )?\uC774\uBBF8\uC9C0 \uC9C0\uC2DC/.test(line);
-      else if (inImages && /^\d+\. /.test(line)) inlineCount++;
+      else if (inImages) {
+        const inline = line.match(/^\d+\.\s+(.+)$/);
+        if (inline) inlinePrompts.push(text(inline[1].trim(), 32_000));
+      }
     }
+    const inlineCount = inlinePrompts.length;
     const imageCount = designCount || inlineCount;
+    const selectedPrompts = designCount ? designPrompts : inlinePrompts;
     if (design.designObserved !== designCount || design.inlineObserved !== inlineCount ||
-        design.selectedObserved !== imageCount || design.declared !== imageCount || row.image_prompts !== imageCount) invalid('AUTHORED_DESIGN_COVERAGE_MISMATCH');
+        design.selectedObserved !== imageCount || design.declared !== imageCount || row.image_prompts !== imageCount ||
+        selectedPrompts.length !== sourceScenes.length || selectedPrompts.some(prompt => prompt.length < 20)) {
+      invalid('AUTHORED_DESIGN_COVERAGE_MISMATCH');
+    }
     observedImages += imageCount; observedScenes += sourceScenes.length;
     provenance.push({ sourceFileId: text(part.sourceFileId, 100), sourceSha256: identity.sha256, sourceBytes: identity.bytes,
       segmentBytes: part.segmentBytes, analysisParagraphSegments: observedParagraphs,
@@ -309,7 +319,10 @@ export function prepareAuthoredSourceMap(buffer: Buffer, manuscript: PreparedMan
       scenes: packing.scenes.map((scene, i) => ({ ...scene, markerSegment: sourceScenes[i].segment })),
       designSha256: designIdentity.sha256, designBytes: designIdentity.bytes, designSegmentBytes: design.segmentBytes });
     return { partKey, position, actNumber: act, title: text(part.title), sourceSha256: identity.sha256,
-      sourceBytes: identity.bytes, packing, choices: preparedChoices };
+      sourceBytes: identity.bytes, packing,
+      visualPrompts: sourceScenes.map((scene, i) => ({ sourceSceneKey: text(scene.sceneKey, 160),
+        promptText: selectedPrompts[i], promptSha256: authoredHash(selectedPrompts[i]) })),
+      choices: preparedChoices };
   });
   if (manifest.scenes !== observedScenes || manifest.choices !== parts.length * 3 || manifest.acts !== priorAct ||
       manifest.image_prompts !== observedImages) invalid('AUTHORED_MANIFEST_TOTALS_MISMATCH');

@@ -111,6 +111,9 @@ async function fixture(options = {}) {
         return route.fulfill({ json: { target, targetAct: target === 'full' ? 1 : current.currentAct,
           targetSceneId: 'scene-reset', invalidatedEventCount: 2, remainingBefore: quota[target], remainingAfter: Math.max(0, quota[target] - 1), canExecute: quota[target] > 0, expectedRevision: current.revision } });
       }
+      if (entry.method === 'POST' && url.pathname.endsWith('/scene-visual')) {
+        return route.fulfill({ json: { status: 'unavailable', reason: 'generation_disabled' } });
+      }
       if (entry.method === 'POST' && /\/choices\/choice-[012]$/.test(url.pathname)) {
         assert.deepEqual(entry.body, { expectedRevision: current.revision });
         const choice = current.choices.find((item) => url.pathname.endsWith(`/${item.id}`));

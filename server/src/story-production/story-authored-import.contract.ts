@@ -73,6 +73,11 @@ export type AuthoredInitialPart = {
   sourceSha256: string;
   sourceBytes: number;
   packing: AuthoredScenePacking;
+  visualPrompts: Array<{
+    sourceSceneKey: string;
+    promptText: string;
+    promptSha256: string;
+  }>;
   choices: [AuthoredInitialChoice, AuthoredInitialChoice, AuthoredInitialChoice];
 };
 

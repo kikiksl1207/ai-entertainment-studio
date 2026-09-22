@@ -134,5 +134,14 @@ describe('story scene visual manifest API contract', () => {
         'scene-a',
       ),
     ).toBeNull();
+    expect(
+      projectStoredStorySceneVisualManifest(
+        {
+          sceneKey: 'scene-a',
+          fallback: { publicAssetPath: '//tracking.example/image.webp', altKey: 'fallback' },
+        },
+        'scene-a',
+      ),
+    ).toBeNull();
   });
 });

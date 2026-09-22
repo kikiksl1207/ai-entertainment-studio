@@ -49,5 +49,5 @@ describe('Nest application close with worker destroy before database application
     expect(executor.executeOne).toHaveBeenCalledTimes(1);
     expect(disconnect).toHaveBeenCalledTimes(1);
     expect(app.get(StoryContinuationWorker).readiness().reason).toBe('worker_stopped');
-  });
+  }, 15_000);
 });

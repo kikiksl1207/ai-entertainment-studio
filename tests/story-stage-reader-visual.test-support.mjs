@@ -141,6 +141,25 @@ export function registerReaderVisualTests({ fixture, projection, sessionId, work
     } finally { await f.close(); }
   });
 
+  test('beat visual: only a verified missing prompt requests one optional generated image', async () => {
+    const value = current(); const visual = value.scene.beats[0].visualContext;
+    visual.generationAvailable = true;
+    visual.assetReadiness = 'missing';
+    visual.manifest.background = { state: 'fallback', publicAssetPath: '/assets/story/fallback.webp',
+      altKey: 'story.scene.fallback' };
+    visual.manifest.characters = [];
+    const f = await reader({ current: value });
+    try {
+      await f.ready();
+      await f.page.waitForFunction(() => performance.getEntriesByType('resource').length >= 0);
+      await f.page.waitForTimeout(100);
+      const requests = f.requests.filter((request) => request.method === 'POST' && request.path.endsWith('/scene-visual'));
+      assert.equal(requests.length, 1);
+      assert.deepEqual(requests[0].body, { sourceSceneKey: 'source-a' });
+      assert.equal(await f.page.locator('.story-player-copy p').textContent(), value.scene.beats[0].content);
+    } finally { await f.close(); }
+  });
+
   test('beat visual: a loaded fallback bitmap is not promoted to ready story artwork', async () => {
     const value = current(); const visual = value.scene.beats[0].visualContext;
     visual.assetReadiness = 'missing'; visual.manifest.background.state = 'fallback'; visual.manifest.characters = [];

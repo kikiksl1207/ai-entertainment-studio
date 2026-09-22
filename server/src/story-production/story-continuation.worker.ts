@@ -114,9 +114,8 @@ export class StoryContinuationWorker implements OnApplicationBootstrap, OnModule
 
   private wait(ms: number) {
     return new Promise<void>((resolve) => {
+      const done = () => { clearTimeout(timer); this.wake = undefined; resolve(); };
       const timer = setTimeout(done, ms);
-      const self = this;
-      function done() { clearTimeout(timer); self.wake = undefined; resolve(); }
       this.wake = done;
     });
   }

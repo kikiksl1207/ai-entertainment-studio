@@ -114,11 +114,14 @@ describe('authored compact source map validation', () => {
     const before = [authoredHash(buffer), authoredHash(analysis)];
     const root = JSON.parse(buffer.toString('utf8'));
     const finalA = root.parts.at(-1).choices[0];
+    const finalAEvidenceSegments = Array.isArray(finalA.evidenceSegments) ? finalA.evidenceSegments :
+      Array.isArray(finalA.evidence) ? finalA.evidence.map((item: any) => item.segment) : [];
     const evidence = root.endingEvidence.find((item: any) => item.part === root.parts.length &&
-      finalA.evidenceSegments.includes(item.source.segment) && item.provenanceClaims.includes('author_default'));
+      finalAEvidenceSegments.includes(item.source.segment) && item.provenanceClaims.includes('author_default'));
     const result = prepareAuthoredSourceMap(buffer, prepareManuscript(analysis),
       { endingKey: 'author_main', evidenceSegment: evidence.source.segment });
-    expect(result.counts).toMatchObject({ parts: 216, acts: 11, sourceScenes: 2138, choices: 648, verifiedVisualAssets: 0 });
+    expect(result.counts).toMatchObject({ parts: 216, acts: 11, sourceScenes: 2138, choices: 648,
+      verifiedDesignPrompts: 2138, verifiedVisualAssets: 0 });
     expect(result.parts.every(part => part.packing.beats.length <= 40)).toBe(true);
     expect([authoredHash(readFileSync(actualMap!)), authoredHash(readFileSync(actualAnalysis!))]).toEqual(before);
   });
