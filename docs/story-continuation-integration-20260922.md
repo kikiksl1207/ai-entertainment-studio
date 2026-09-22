@@ -1,5 +1,32 @@
 # Story Continuation Integration Checkpoint
 
+## OTT Graph Player Integration
+
+Runtime `2c13abf` incorporates frozen UI `3ebd420` via `80fb5c5` and
+`2c13abf`, preserving all eight candidate paths. Independent review accepted
+seven groups against actual schema65 AppModule/JWT/ValidationPipe/filter/PG
+and loopback HTTPS with real private upload/ffprobe/cookies/Range delivery.
+Coverage includes stale-choice reconciliation, pinned branches/rejoin,
+lost acknowledgments, position/choice competition, ownership and late-session
+fences, six localized layouts with persisted ending/resume, and revocation.
+Report: `E:/CodexMovedCache/qa-1900-independent-report.md`.
+
+Three initial harness conditions and affected-only resumes are retained.
+The earlier source-confirmed nested-error P2 was corrected by the author;
+the original faulty source was not independently runtime-reproduced. No
+remaining P1/P2 was identified within the executed seven-group scope.
+Actual A/B/C file IDs used identical retained two-second test bytes, so this
+does not demonstrate different movie content or a 15-minute film. Only two
+synthetic subtitle tracks were provided; five UI languages are not five
+approved movie translations. Production TLS/login/app-shell, public OTT,
+creator graph editing and actual films remain separate work.
+
+Writer UI #1855 is a separate partial candidate in author browser validation.
+Initial author-proof `aa6a4f8` is frozen after author Stage B97/Stage A107
+checks, but is not integrated or independently accepted yet. Its bootstrap
+check is not actual JWT/DTO/filter approval-route coverage. It does not wire
+long-form output lengths, timing, usage settlement or semantic author approval.
+
 ## Verified Workspace Cleanup
 
 Removed only the completed E worktree
@@ -43,8 +70,8 @@ six dependency-free visual source checks after integration, all passed. Existing
 16px/400/1.7 reading and no-forced-scroll behavior is retained. The absent
 fallback file is handled honestly, not replaced by invented story imagery.
 Actual Imjin/Norse scene artwork and production publication remain outstanding.
-OTT branch player #1900 is now assigned to Cloud in a separate E worktree;
-its source implementation is not part of this accepted visual candidate.
+OTT branch player #1900 was subsequently independently accepted and integrated
+as described above; it is not included in this six-group visual result.
 
 ## Latest Combined Candidate
 
