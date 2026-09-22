@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common';
 import { validateStoryContinuationProviderResult } from './story-continuation-output.policy';
 import { StoryContinuationProvider, StoryContinuationProviderError, type StoryContinuationProviderRequest, type StoryContinuationProviderResult } from './story-continuation.provider';
 import { storyContinuationConfigFailure, type StoryContinuationOpenAiConfig } from './story-continuation-openai.config';
@@ -122,7 +123,11 @@ export class OpenAiStoryContinuationProvider extends StoryContinuationProvider {
         locale: request.locale, sceneKey,
         inputTokenLimit: request.inputTokenLimit, outputTokenLimit: request.outputTokenLimit,
       });
-    } catch { fail('provider_output_invalid'); }
+    } catch (error) {
+      fail(error instanceof BadRequestException
+        ? safeOutputValidationCode(error.message)
+        : 'provider_output_invalid');
+    }
   }
 }
 
@@ -175,6 +180,26 @@ function record(value: unknown): Record<string, unknown> {
 
 function exactKeys(value: Record<string, unknown>, keys: string[]) {
   if (Object.keys(value).length !== keys.length || keys.some((key) => !Object.prototype.hasOwnProperty.call(value, key))) fail('provider_malformed_output');
+}
+
+function safeOutputValidationCode(message: string) {
+  const codes: Record<string, string> = {
+    'Generated continuation output is invalid': 'provider_output_shape_invalid',
+    'Generated continuation requires 1 to 40 beats': 'provider_output_beats_invalid',
+    'Generated continuation beat type is invalid': 'provider_output_beat_type_invalid',
+    'Generated continuation requires 1 to 3 choices or one ending': 'provider_output_route_invalid',
+    'Generated continuation choice key is invalid': 'provider_output_choice_key_invalid',
+    'Generated continuation choices must be distinct': 'provider_output_choices_duplicate',
+    'Generated continuation ending key is invalid': 'provider_output_ending_key_invalid',
+    'Generated continuation usage exceeds its pinned limits': 'provider_output_usage_limit',
+    'Generated continuation usage is invalid': 'provider_output_usage_invalid',
+    'Generated continuation visual fallback is invalid': 'provider_output_visual_invalid',
+    'Generated localized text is invalid': 'provider_output_locale_shape_invalid',
+    'Generated localized text must contain only the requested locale': 'provider_output_locale_invalid',
+    'Generated localized text exceeds its byte limit': 'provider_output_text_limit',
+    'Generated continuation output exceeds the byte limit': 'provider_output_total_limit',
+  };
+  return codes[message] ?? 'provider_output_invalid';
 }
 
 function fail(code: string, retryable = false): never { throw new StoryContinuationProviderError(code, retryable); }

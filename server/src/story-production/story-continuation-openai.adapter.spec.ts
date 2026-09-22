@@ -158,7 +158,18 @@ describe('OpenAiStoryContinuationProvider (fake transport only)', () => {
 
   it.each(['ko', 'en', 'ja', 'zh-Hans', 'zh-Hant'])('pins exact locale %s in schema', (locale) => {
     const body = buildStoryContinuationOpenAiRequest({ ...request(), locale }, config);
-    expect(body.text.format.schema.properties.title).toEqual({ type: 'object', additionalProperties: false, required: [locale], properties: { [locale]: { type: 'string' } } });
+    expect(body.text.format.schema.properties.title).toEqual({
+      type: 'object', additionalProperties: false, required: [locale],
+      properties: { [locale]: { type: 'string', minLength: 1, maxLength: 160 } },
+    });
+  });
+
+  it('pins provider-enforceable bounds for prose and route keys', () => {
+    const schema = buildStoryContinuationOpenAiRequest(request(), config).text.format.schema;
+    const serialized = JSON.stringify(schema);
+    expect(serialized).toContain('"maxLength":10000');
+    expect(serialized).toContain('^[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$');
+    expect(serialized).toContain('^ai-[a-zA-Z0-9][a-zA-Z0-9_-]{0,116}$');
   });
 
   it.each([
@@ -172,7 +183,9 @@ describe('OpenAiStoryContinuationProvider (fake transport only)', () => {
   ])('rejects invalid output without fallback %#', async (change) => {
     const f = fixture();
     f.transport.mockResolvedValue(new Response(JSON.stringify(envelope({ ...output(), ...change }))));
-    await expect(f.provider.generate(request(), new AbortController().signal)).rejects.toMatchObject({ retryable: false });
+    await expect(f.provider.generate(request(), new AbortController().signal)).rejects.toMatchObject({
+      code: expect.stringMatching(/^provider_(?:output_|malformed_output$)/), retryable: false,
+    });
     expect(f.transport).toHaveBeenCalledTimes(1);
   });
 
