@@ -191,7 +191,9 @@ export class StoryPublicationIntakeService {
   }
 
   async processApprovedJob(actorUserId: string, jobId: string) {
-    return this.prisma.$transaction(async (tx) => {
+    let stage = 'lock_job';
+    try {
+      return await this.prisma.$transaction(async (tx) => {
       const locked = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
         SELECT "id" FROM "story_publication_import_jobs"
         WHERE "id" = ${jobId}::uuid FOR UPDATE
@@ -208,6 +210,7 @@ export class StoryPublicationIntakeService {
       const plan = this.readStoredPlan(job.planSnapshot);
 
       if (job.status === 'queued') {
+        stage = 'prepare_release';
         const existingWork = await tx.storyWork.findUnique({
           where: { slug: plan.slug },
           select: { id: true, slug: true, activeReleaseId: true, status: true },
@@ -304,8 +307,9 @@ export class StoryPublicationIntakeService {
         throw new ConflictException('Story publication job bindings are missing');
       }
       if (job.status === 'structuring') {
-        const end = Math.min(job.batchCursor + 12, plan.parts.length);
+        const end = Math.min(job.batchCursor + 4, plan.parts.length);
         const batch = plan.parts.slice(job.batchCursor, end);
+        stage = `structure_parts_${job.batchCursor}_${end}`;
         await tx.storyPart.createMany({
           data: batch.map((part) => ({
             id: randomUUID(),
@@ -326,6 +330,7 @@ export class StoryPublicationIntakeService {
           select: { id: true, position: true },
         });
         const partByPosition = new Map(storedParts.map((part) => [part.position, part.id]));
+        stage = `structure_scenes_${job.batchCursor}_${end}`;
         await tx.storyScene.createMany({
           data: batch.map((part) => ({
             id: randomUUID(),
@@ -351,8 +356,9 @@ export class StoryPublicationIntakeService {
       }
 
       if (job.status === 'materializing') {
-        const end = Math.min(job.batchCursor + 6, plan.parts.length);
+        const end = Math.min(job.batchCursor + 2, plan.parts.length);
         const batch = plan.parts.slice(job.batchCursor, end);
+        stage = `materialize_bindings_${job.batchCursor}_${end}`;
         const storedParts = await tx.storyPart.findMany({
           where: { workId: job.workId },
           select: { id: true, position: true },
@@ -382,7 +388,9 @@ export class StoryPublicationIntakeService {
             };
           });
         });
+        stage = `materialize_beats_${job.batchCursor}_${end}`;
         await tx.storyBeat.createMany({ data: beatRows, skipDuplicates: true });
+        stage = `materialize_choices_${job.batchCursor}_${end}`;
         await tx.storyChoice.createMany({
           data: batch.flatMap((part) => {
             const sceneId = this.requiredId(sceneByPartKey, part.partKey);
@@ -405,6 +413,7 @@ export class StoryPublicationIntakeService {
           where: { id: job.releaseId },
           select: { checksum: true },
         });
+        stage = `materialize_prompts_${job.batchCursor}_${end}`;
         await tx.storyVisualPrompt.createMany({
           data: plan.prompts
             .filter((prompt) => batchSceneKeys.has(prompt.sourceSceneKey))
@@ -431,6 +440,7 @@ export class StoryPublicationIntakeService {
       if (job.status !== 'finalizing') {
         throw new ConflictException('Story publication job status is invalid');
       }
+      stage = 'finalize_release';
       const release = await tx.storyRelease.findUniqueOrThrow({
         where: { id: job.releaseId },
         select: { checksum: true },
@@ -537,11 +547,23 @@ export class StoryPublicationIntakeService {
         },
       });
       return this.importJobReceipt(completed, plan.parts.length, work);
-    }, {
-      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
-      maxWait: 5_000,
-      timeout: 30_000,
-    });
+      }, {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+        maxWait: 5_000,
+        timeout: 30_000,
+      });
+    } catch (error) {
+      if (error instanceof NotFoundException || error instanceof ConflictException) {
+        throw error;
+      }
+      const prismaCode = error instanceof Prisma.PrismaClientKnownRequestError
+        ? error.code
+        : 'UNKNOWN';
+      throw new ConflictException({
+        code: 'STORY_PUBLICATION_JOB_STAGE_FAILED',
+        message: `Story publication failed at ${stage} (${prismaCode})`,
+      });
+    }
   }
 
   async promote(
