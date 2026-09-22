@@ -1,4 +1,4 @@
-import { Injectable, ServiceUnavailableException } from '@nestjs/common';
+import { Inject, Injectable, Optional, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   CREATOR_GENERATION_PROFILE_SCHEMA,
@@ -15,12 +15,20 @@ export type ArtistIdentityAnalysisInput = {
 
 export type ArtistIdentityAnalysisTransport = (url: string, init: RequestInit) => Promise<Response>;
 
+export const ARTIST_IDENTITY_ANALYSIS_TRANSPORT = Symbol('ARTIST_IDENTITY_ANALYSIS_TRANSPORT');
+
 @Injectable()
 export class ArtistIdentityAnalysisProvider {
+  private readonly transport: ArtistIdentityAnalysisTransport;
+
   constructor(
     private readonly configService: ConfigService,
-    private readonly transport: ArtistIdentityAnalysisTransport = (url, init) => fetch(url, init),
-  ) {}
+    @Optional()
+    @Inject(ARTIST_IDENTITY_ANALYSIS_TRANSPORT)
+    transport?: ArtistIdentityAnalysisTransport,
+  ) {
+    this.transport = transport ?? ((url, init) => fetch(url, init));
+  }
 
   async analyze(input: ArtistIdentityAnalysisInput, signal = new AbortController().signal) {
     const config = this.config();
