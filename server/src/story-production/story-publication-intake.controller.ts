@@ -5,11 +5,12 @@ import {
   Headers,
   Param,
   Post,
+  UploadedFile,
   UploadedFiles,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
-import { FileFieldsInterceptor } from '@nestjs/platform-express';
+import { FileFieldsInterceptor, FileInterceptor } from '@nestjs/platform-express';
 import { AuthUser } from '../auth/auth.types';
 import { RequireAdminPermissions } from '../auth/decorators/admin-permissions.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -17,7 +18,10 @@ import { AdminAuthGuard } from '../auth/guards/admin-auth.guard';
 import { AdminPermissionGuard } from '../auth/guards/admin-permission.guard';
 import { StoryUploadIntakeDto } from '../story-upload/dto/story-upload-intake.dto';
 import { StoryUploadService } from '../story-upload/story-upload.service';
-import { StoryUploadFileFields } from '../story-upload/story-upload.types';
+import {
+  StoryUploadFile,
+  StoryUploadFileFields,
+} from '../story-upload/story-upload.types';
 import { PromoteStoryUploadDto } from './dto/story-publication-intake.dto';
 import { StoryPublicationIntakeService } from './story-publication-intake.service';
 
@@ -48,6 +52,45 @@ export class StoryPublicationIntakeController {
     @UploadedFiles() files: StoryUploadFileFields,
   ) {
     return this.publication.publishApproved(user.id, body, files ?? {});
+  }
+
+  @Post('submissions/publish-approved/start')
+  @RequireAdminPermissions('*')
+  startApprovedUpload(
+    @CurrentUser() user: AuthUser,
+    @Body() body: PromoteStoryUploadDto,
+  ) {
+    return this.publication.startApprovedUpload(user.id, body);
+  }
+
+  @Post('submissions/jobs/:jobId/source-chunks/:position')
+  @RequireAdminPermissions('*')
+  @UseInterceptors(FileInterceptor('chunk', {
+    limits: { files: 1, fields: 0, fileSize: 768 * 1024 },
+  }))
+  uploadApprovedSourceChunk(
+    @CurrentUser() user: AuthUser,
+    @Param('jobId') jobId: string,
+    @Param('position') position: string,
+    @Headers('x-total-chunks') totalChunks: string | undefined,
+    @UploadedFile() chunk: StoryUploadFile | undefined,
+  ) {
+    return this.publication.uploadApprovedSourceChunk(
+      user.id,
+      jobId,
+      position,
+      totalChunks,
+      chunk,
+    );
+  }
+
+  @Post('submissions/jobs/:jobId/prepare')
+  @RequireAdminPermissions('*')
+  prepareApprovedSourceChunks(
+    @CurrentUser() user: AuthUser,
+    @Param('jobId') jobId: string,
+  ) {
+    return this.publication.prepareApprovedSourceChunks(user.id, jobId);
   }
 
   @Post('submissions/jobs/:jobId/process')

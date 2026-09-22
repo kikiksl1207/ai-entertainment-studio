@@ -25,6 +25,24 @@ describe('StoryPublicationIntakeController', () => {
     expect(
       Reflect.getMetadata(
         ADMIN_PERMISSIONS_KEY,
+        StoryPublicationIntakeController.prototype.startApprovedUpload,
+      ),
+    ).toEqual(['*']);
+    expect(
+      Reflect.getMetadata(
+        ADMIN_PERMISSIONS_KEY,
+        StoryPublicationIntakeController.prototype.uploadApprovedSourceChunk,
+      ),
+    ).toEqual(['*']);
+    expect(
+      Reflect.getMetadata(
+        ADMIN_PERMISSIONS_KEY,
+        StoryPublicationIntakeController.prototype.prepareApprovedSourceChunks,
+      ),
+    ).toEqual(['*']);
+    expect(
+      Reflect.getMetadata(
+        ADMIN_PERMISSIONS_KEY,
         StoryPublicationIntakeController.prototype.processApprovedJob,
       ),
     ).toEqual(['*']);
@@ -120,5 +138,50 @@ describe('StoryPublicationIntakeController', () => {
       controller.processApprovedJob({ id: 'owner' } as never, 'job-id'),
     ).resolves.toEqual({ status: 'structuring' });
     expect(publication.processApprovedJob).toHaveBeenCalledWith('owner', 'job-id');
+  });
+
+  it('passes approved source chunks through the authenticated publication job', async () => {
+    const publication = {
+      startApprovedUpload: jest.fn().mockResolvedValue({ status: 'uploading' }),
+      uploadApprovedSourceChunk: jest.fn().mockResolvedValue({ uploadedChunks: 1 }),
+      prepareApprovedSourceChunks: jest.fn().mockResolvedValue({ status: 'queued' }),
+    };
+    const controller = new StoryPublicationIntakeController(
+      publication as never,
+      {} as never,
+    );
+    const body: PromoteStoryUploadDto = {
+      storyKey: 'norse',
+      finalManuscriptConfirmed: true,
+      rightsConfirmed: true,
+      publicReleaseConfirmed: true,
+    };
+    const chunk = { size: 12, buffer: Buffer.from('approved-data') } as never;
+
+    await controller.startApprovedUpload({ id: 'owner' } as never, body);
+    await controller.uploadApprovedSourceChunk(
+      { id: 'owner' } as never,
+      'job-id',
+      '0',
+      '10',
+      chunk,
+    );
+    await controller.prepareApprovedSourceChunks(
+      { id: 'owner' } as never,
+      'job-id',
+    );
+
+    expect(publication.startApprovedUpload).toHaveBeenCalledWith('owner', body);
+    expect(publication.uploadApprovedSourceChunk).toHaveBeenCalledWith(
+      'owner',
+      'job-id',
+      '0',
+      '10',
+      chunk,
+    );
+    expect(publication.prepareApprovedSourceChunks).toHaveBeenCalledWith(
+      'owner',
+      'job-id',
+    );
   });
 });

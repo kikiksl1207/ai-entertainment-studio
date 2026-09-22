@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -8,7 +9,10 @@ import { createHash, randomUUID } from 'crypto';
 import { brotliDecompressSync, gunzipSync } from 'zlib';
 import { PrismaService } from '../prisma/prisma.service';
 import { StoryUploadStorageService } from '../story-upload/story-upload-storage.service';
-import { StoryUploadFileFields } from '../story-upload/story-upload.types';
+import {
+  StoryUploadFile,
+  StoryUploadFileFields,
+} from '../story-upload/story-upload.types';
 import { PromoteStoryUploadDto } from './dto/story-publication-intake.dto';
 import { missingAuthoredSceneVisual } from './story-authored-beat-visual.policy';
 import {
@@ -33,6 +37,10 @@ const NORSE_SOURCE_MAP_SHA256 =
 const DISABLED_RATE_CARD_VERSION = 'story-public-beta-disabled-ai-2026-09-22';
 const NORSE_BUNDLE_MAGIC = Buffer.from('LUMINA_NORSE_BUNDLE_V1\0', 'ascii');
 const NORSE_BUNDLE_MAX_BYTES = 40 * 1024 * 1024;
+const NORSE_APPROVED_PART_COUNT = 216;
+const APPROVED_SOURCE_CHUNK_MAX_BYTES = 768 * 1024;
+const APPROVED_SOURCE_MAX_CHUNKS = 64;
+const APPROVED_SOURCE_COMPRESSED_MAX_BYTES = 8 * 1024 * 1024;
 
 type PublicationPart = {
   partKey: string;
@@ -193,6 +201,173 @@ export class StoryPublicationIntakeService {
       },
     });
     return this.importJobReceipt(created, plan.parts.length);
+  }
+
+  async startApprovedUpload(
+    actorUserId: string,
+    input: PromoteStoryUploadDto,
+  ) {
+    if (input.storyKey !== 'norse') {
+      throw new BadRequestException('Chunked approved upload is only required for Norse');
+    }
+    const identity = {
+      actorUserId_storyKey_sourceBindingSha256: {
+        actorUserId,
+        storyKey: input.storyKey,
+        sourceBindingSha256: NORSE_SOURCE_MAP_SHA256,
+      },
+    } as const;
+    const existing = await this.prisma.storyPublicationImportJob.findUnique({
+      where: identity,
+    });
+    if (existing) {
+      if (existing.status === 'published' || this.hasStoredPlan(existing.planSnapshot)) {
+        return this.importJobReceipt(existing, NORSE_APPROVED_PART_COUNT);
+      }
+      const uploadedChunks = await this.prisma.storyPublicationSourceChunk.count({
+        where: { jobId: existing.id },
+      });
+      return this.sourceUploadReceipt(existing.id, uploadedChunks);
+    }
+    const created = await this.prisma.storyPublicationImportJob.create({
+      data: {
+        actorUserId,
+        storyKey: input.storyKey,
+        sourceBindingSha256: NORSE_SOURCE_MAP_SHA256,
+        status: 'queued',
+        planSnapshot: {
+          sourceUpload: { contract: 'norse-approved-bundle-chunks-v1' },
+        },
+      },
+    });
+    return this.sourceUploadReceipt(created.id, 0);
+  }
+
+  async uploadApprovedSourceChunk(
+    actorUserId: string,
+    jobId: string,
+    positionValue: string,
+    totalChunksValue: string | undefined,
+    chunk: StoryUploadFile | undefined,
+  ) {
+    const position = Number(positionValue);
+    const totalChunks = Number(totalChunksValue);
+    if (
+      !Number.isInteger(position) ||
+      !Number.isInteger(totalChunks) ||
+      position < 0 ||
+      totalChunks < 1 ||
+      totalChunks > APPROVED_SOURCE_MAX_CHUNKS ||
+      position >= totalChunks
+    ) {
+      throw new BadRequestException('Approved source chunk position is invalid');
+    }
+    if (!chunk?.buffer?.length || chunk.size !== chunk.buffer.length) {
+      throw new BadRequestException('Approved source chunk is missing');
+    }
+    if (chunk.size > APPROVED_SOURCE_CHUNK_MAX_BYTES) {
+      throw new BadRequestException('Approved source chunk is too large');
+    }
+    const job = await this.prisma.storyPublicationImportJob.findUnique({
+      where: { id: jobId },
+    });
+    if (!job || job.actorUserId !== actorUserId || job.storyKey !== 'norse') {
+      throw new NotFoundException('Story publication job not found');
+    }
+    if (job.status === 'published' || this.hasStoredPlan(job.planSnapshot)) {
+      return this.importJobReceipt(job, NORSE_APPROVED_PART_COUNT);
+    }
+    const checksumSha256 = this.sha256(chunk.buffer);
+    const existing = await this.prisma.storyPublicationSourceChunk.findUnique({
+      where: { jobId_position: { jobId, position } },
+    });
+    if (
+      existing &&
+      (existing.totalChunks !== totalChunks || existing.checksumSha256 !== checksumSha256)
+    ) {
+      throw new ConflictException('Approved source chunk does not match the existing upload');
+    }
+    if (!existing) {
+      await this.prisma.storyPublicationSourceChunk.create({
+        data: {
+          jobId,
+          position,
+          totalChunks,
+          payload: Uint8Array.from(chunk.buffer),
+          checksumSha256,
+        },
+      });
+    }
+    const uploadedChunks = await this.prisma.storyPublicationSourceChunk.count({
+      where: { jobId },
+    });
+    return this.sourceUploadReceipt(jobId, uploadedChunks, totalChunks);
+  }
+
+  async prepareApprovedSourceChunks(actorUserId: string, jobId: string) {
+    const job = await this.prisma.storyPublicationImportJob.findUnique({
+      where: { id: jobId },
+    });
+    if (!job || job.actorUserId !== actorUserId || job.storyKey !== 'norse') {
+      throw new NotFoundException('Story publication job not found');
+    }
+    if (job.status === 'published' || this.hasStoredPlan(job.planSnapshot)) {
+      return this.importJobReceipt(job, NORSE_APPROVED_PART_COUNT);
+    }
+    const chunks = await this.prisma.storyPublicationSourceChunk.findMany({
+      where: { jobId },
+      orderBy: { position: 'asc' },
+    });
+    const totalChunks = chunks[0]?.totalChunks ?? 0;
+    if (
+      !totalChunks ||
+      chunks.length !== totalChunks ||
+      chunks.some((chunk, index) =>
+        chunk.position !== index || chunk.totalChunks !== totalChunks)
+    ) {
+      throw new ConflictException('Approved source chunks are incomplete');
+    }
+    const compressedBytes = chunks.reduce(
+      (total, chunk) => total + chunk.payload.length,
+      0,
+    );
+    if (compressedBytes > APPROVED_SOURCE_COMPRESSED_MAX_BYTES) {
+      throw new ConflictException('Approved source bundle is too large');
+    }
+    const sourceBuffers = this.unpackNorseBundle(Buffer.concat(
+      chunks.map((chunk) => Buffer.from(chunk.payload)),
+    ));
+    const buffers = new Map<string, Buffer>();
+    for (const buffer of sourceBuffers) buffers.set(this.sha256(buffer), buffer);
+    if (
+      buffers.size !== 2 ||
+      this.detectStoryKey([...buffers.keys()].map((checksumSha256) => ({ checksumSha256 }))) !== 'norse'
+    ) {
+      throw new ConflictException({
+        code: 'STORY_PUBLICATION_SOURCE_IDENTITY_MISMATCH',
+        message: 'The selected files do not match the approved manuscript',
+      });
+    }
+    const plan = this.norsePlan(
+      this.requiredBuffer(buffers, NORSE_ANALYSIS_SHA256),
+      this.requiredBuffer(buffers, NORSE_SOURCE_MAP_SHA256),
+    );
+    if (plan.sourceBindingSha256 !== job.sourceBindingSha256) {
+      throw new ConflictException('Approved source binding changed during upload');
+    }
+    const [updated] = await this.prisma.$transaction([
+      this.prisma.storyPublicationImportJob.update({
+        where: { id: jobId },
+        data: {
+          status: 'queued',
+          batchCursor: 0,
+          planSnapshot: this.storedPlan(plan),
+          errorCode: null,
+        },
+      }),
+      this.prisma.storyPublicationSourceChunk.deleteMany({ where: { jobId } }),
+    ]);
+    return this.importJobReceipt(updated, plan.parts.length);
   }
 
   private unpackNorseBundle(compressed: Buffer) {
@@ -1107,6 +1282,36 @@ export class StoryPublicationIntakeService {
       parts: plan.parts,
       prompts: plan.prompts,
     } as unknown as Prisma.InputJsonValue;
+  }
+
+  private hasStoredPlan(value: Prisma.JsonValue | null) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+    const plan = value as Record<string, unknown>;
+    const manuscript = plan.manuscript;
+    return (
+      ['imjin', 'norse'].includes(String(plan.storyKey)) &&
+      typeof plan.slug === 'string' &&
+      manuscript !== null &&
+      typeof manuscript === 'object' &&
+      !Array.isArray(manuscript) &&
+      Array.isArray(plan.parts) &&
+      Array.isArray(plan.prompts)
+    );
+  }
+
+  private sourceUploadReceipt(
+    jobId: string,
+    uploadedChunks: number,
+    totalChunks: number | null = null,
+  ) {
+    return {
+      jobId,
+      status: 'uploading',
+      processedParts: 0,
+      totalParts: NORSE_APPROVED_PART_COUNT,
+      uploadedChunks,
+      totalChunks,
+    };
   }
 
   private readStoredPlan(value: Prisma.JsonValue | null): PublicationPlanSnapshot {

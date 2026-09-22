@@ -27,7 +27,12 @@ const bundle = Buffer.concat([
 ]);
 const compressed = extname(outputPath).toLowerCase() === '.br'
   ? brotliCompressSync(bundle, {
-      params: { [zlibConstants.BROTLI_PARAM_QUALITY]: 10 },
+      params: {
+        [zlibConstants.BROTLI_PARAM_QUALITY]: 10,
+        [zlibConstants.BROTLI_PARAM_MODE]: zlibConstants.BROTLI_MODE_TEXT,
+        [zlibConstants.BROTLI_PARAM_LGWIN]: 23,
+        [zlibConstants.BROTLI_PARAM_SIZE_HINT]: bundle.length,
+      },
     })
   : gzipSync(bundle, { level: 9 });
 await writeFile(outputPath, compressed);

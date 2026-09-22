@@ -254,17 +254,61 @@
       inlineStatus.className = "form-status";
     }
     try {
-      const payload = new FormData();
-      [...input.files].forEach((file) => payload.append("manuscripts", file));
-      payload.append("storyKey", storyKey);
-      payload.append("finalManuscriptConfirmed", "true");
-      payload.append("rightsConfirmed", "true");
-      payload.append("publicReleaseConfirmed", "true");
-      let result = await api.fetch(`${endpoint}/publish-approved`, {
-        method: "POST",
-        auth: true,
-        body: payload
-      });
+      const confirmations = {
+        storyKey,
+        finalManuscriptConfirmed: true,
+        rightsConfirmed: true,
+        publicReleaseConfirmed: true
+      };
+      const sourceFile = input.files[0];
+      const useChunkedUpload = storyKey === "norse" && input.files.length === 1 && sourceFile.size > 512 * 1024;
+      let result;
+      if (useChunkedUpload) {
+        result = await api.fetch(`${endpoint}/publish-approved/start`, {
+          method: "POST",
+          auth: true,
+          body: confirmations
+        });
+        if (result?.status === "uploading") {
+          const chunkSize = 512 * 1024;
+          const totalChunks = Math.ceil(sourceFile.size / chunkSize);
+          for (let position = 0; position < totalChunks; position += 1) {
+            if (inlineStatus) {
+              inlineStatus.textContent = `승인 원고를 안전하게 나눠 전송하고 있습니다. ${position + 1}/${totalChunks}`;
+            }
+            const chunkPayload = new FormData();
+            const start = position * chunkSize;
+            const chunk = sourceFile.slice(start, Math.min(start + chunkSize, sourceFile.size));
+            chunkPayload.append("chunk", chunk, `${sourceFile.name}.part-${position + 1}`);
+            result = await api.fetch(
+              `${endpoint}/jobs/${encodeURIComponent(result.jobId)}/source-chunks/${position}`,
+              {
+                method: "POST",
+                auth: true,
+                headers: { "X-Total-Chunks": String(totalChunks) },
+                body: chunkPayload
+              }
+            );
+          }
+          if (inlineStatus) inlineStatus.textContent = "승인 원고를 재조립하고 원본 체크섬을 확인하고 있습니다.";
+          result = await api.fetch(
+            `${endpoint}/jobs/${encodeURIComponent(result.jobId)}/prepare`,
+            { method: "POST", auth: true }
+          );
+        }
+      } else {
+        const payload = new FormData();
+        [...input.files].forEach((file) => payload.append("manuscripts", file));
+        payload.append("storyKey", storyKey);
+        payload.append("finalManuscriptConfirmed", "true");
+        payload.append("rightsConfirmed", "true");
+        payload.append("publicReleaseConfirmed", "true");
+        result = await api.fetch(`${endpoint}/publish-approved`, {
+          method: "POST",
+          auth: true,
+          body: payload
+        });
+      }
       const phaseLabels = {
         queued: "공개 데이터를 준비하고 있습니다.",
         structuring: "파트와 장면 뼈대를 만들고 있습니다.",

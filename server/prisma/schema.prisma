@@ -527,10 +527,26 @@ model StoryPublicationImportJob {
   errorCode           String?   @map("error_code") @db.VarChar(120)
   createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt           DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  sourceChunks        StoryPublicationSourceChunk[]
 
   @@unique([actorUserId, storyKey, sourceBindingSha256], map: "story_publication_import_jobs_identity")
   @@index([actorUserId, status, updatedAt], map: "idx_story_publication_import_jobs_actor_status")
   @@map("story_publication_import_jobs")
+}
+
+model StoryPublicationSourceChunk {
+  id             String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  jobId          String                    @map("job_id") @db.Uuid
+  position       Int
+  totalChunks    Int                       @map("total_chunks")
+  payload        Bytes                     @db.ByteA
+  checksumSha256 String                    @map("checksum_sha256") @db.VarChar(64)
+  createdAt      DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
+  job            StoryPublicationImportJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@unique([jobId, position], map: "story_publication_source_chunks_job_position")
+  @@index([jobId], map: "idx_story_publication_source_chunks_job")
+  @@map("story_publication_source_chunks")
 }
 
 model ArtistAsset {
