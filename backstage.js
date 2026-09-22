@@ -1,5 +1,6 @@
-const BACKSTAGE_API_BASE = (window.LUMINA_API_BASE || "https://api.lumina-stage.com").replace(/\/$/, "");
-const BACKSTAGE_BASE_HAS_API_PREFIX = /\/api\/v1$/.test(BACKSTAGE_API_BASE);
+const BACKSTAGE_API_BASE = (window.LUMINA_API_BASE || "https://api.lumina-stage.com")
+  .replace(/\/$/, "")
+  .replace(/\/api\/v1$/, "");
 const BACKSTAGE_AUTH_KEY = "lumina_backstage_auth";
 const SHARED_AUTH_KEYS = [BACKSTAGE_AUTH_KEY, "lumina_auth", "lumina.session"];
 const BACKSTAGE_SECTION_KEY = "lumina_backstage_active_section";
@@ -672,11 +673,11 @@ async function handleGoogleLogin() {
 }
 
 function publicApiPath(path) {
-  return BACKSTAGE_BASE_HAS_API_PREFIX ? path : `/api/v1${path}`;
+  return `/api/v1${path}`;
 }
 
 function adminApiPath(path) {
-  return BACKSTAGE_BASE_HAS_API_PREFIX ? `/admin/api/v1${path}` : `/api/v1/admin/api/v1${path}`;
+  return `/admin/api/v1${path}`;
 }
 async function verifyAdminAccess() {
   const adminContext = await backstageFetch(adminApiPath("/me"), { auth: true });

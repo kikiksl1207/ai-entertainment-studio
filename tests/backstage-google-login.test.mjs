@@ -19,8 +19,15 @@ test('Backstage Google login uses an ID credential for authentication', () => {
   assert.doesNotMatch(source, /use_fedcm_for_prompt/);
   assert.match(html, /id="backstageGoogleButtonMount"/);
   assert.match(html, /id="backstageGoogleButtonFallback"/);
-  assert.match(html, /backstage\.js\?v=20260922-google-auth-4/);
+  assert.match(html, /backstage\.js\?v=20260922-google-auth-5/);
   assert.match(css, /\.google-action\[hidden\]\s*\{\s*display:\s*none/);
+});
+
+test('Backstage keeps public and admin routes on their deployed prefixes', () => {
+  assert.match(source, /function publicApiPath\(path\)\s*\{\s*return `\/api\/v1\$\{path\}`;/);
+  assert.match(source, /function adminApiPath\(path\)\s*\{\s*return `\/admin\/api\/v1\$\{path\}`;/);
+  assert.doesNotMatch(source, /BACKSTAGE_BASE_HAS_API_PREFIX/);
+  assert.doesNotMatch(source, /`\/api\/v1\/admin\/api\/v1/);
 });
 
 test('Backstage Google login separates authentication and operator permission failures', () => {
