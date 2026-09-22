@@ -1,10 +1,10 @@
 import { createHash } from 'crypto';
 
-const VISUAL_BIBLE_VERSION = 'story-visual-bible-v1';
+const VISUAL_BIBLE_VERSION = 'story-visual-bible-v2';
 const MAX_BIBLE_CHARACTERS = 7_000;
 const MAX_EVIDENCE_ITEMS = 10;
 const MAX_EVIDENCE_CHARACTERS = 420;
-const MAX_SCENE_PROMPT_CHARACTERS = 7_000;
+const MAX_SCENE_PROMPT_CHARACTERS = 3_200;
 
 type VisualBibleInput = {
   workTitle: unknown;
@@ -110,6 +110,9 @@ export function buildStoryVisualBible(input: VisualBibleInput): StoryVisualBible
     'unmotivated costume, face, hair, age, ethnicity, body-proportion, or art-style changes',
     'objects, architecture, technology, or clothing from a conflicting historical period',
     'collages, split screens, character sheets, reference sheets, and decorative frames',
+    'floating or disembodied heads, portrait lineups, duplicated people, disconnected limbs, or figures that do not share one physical space',
+    'trying to depict every person, place, or event mentioned across the scene text',
+    'murky underexposure that hides faces, costumes, gestures, or the environment',
     ...configured.prohibited,
   ];
   const lines = [
@@ -122,10 +125,10 @@ export function buildStoryVisualBible(input: VisualBibleInput): StoryVisualBible
     configured.era ?? 'Infer the exact era, geography, mythology, social context, architecture, clothing, and technology only from the work identity and canonical evidence below. Keep that period and world consistent in every scene.',
     '',
     '[ART STYLE LOCK]',
-    configured.artStyle ?? 'Use one consistent premium cinematic illustrated-novel style: polished semi-realistic character rendering, coherent anatomy, expressive but restrained acting, detailed environments, filmic lighting, and a clean 16:9 composition. Do not switch rendering medium or visual genre between scenes.',
+    configured.artStyle ?? 'Use one consistent premium cinematic illustrated-novel style: polished semi-realistic character rendering, coherent anatomy, expressive but restrained acting, detailed environments, filmic lighting, and a clean 16:9 composition. Use a single conventional camera view with a clear focal subject. Do not switch rendering medium or visual genre between scenes.',
     '',
     '[COLOR AND LIGHTING LOCK]',
-    configured.palette ?? 'Derive one restrained master palette from the canonical evidence. Reuse its skin tones, hair colors, costume colors, environmental materials, contrast, and saturation throughout the work. Scene lighting may change for time or mood, but character colors and the master palette must remain recognizable.',
+    configured.palette ?? 'Derive one restrained master palette from the canonical evidence. Reuse its skin tones, hair colors, costume colors, environmental materials, contrast, and saturation throughout the work. Scene lighting may change for time or mood, but character colors and the master palette must remain recognizable. Keep faces, gestures, and the immediate setting readable at ordinary web brightness; do not crush most of the frame into black.',
     '',
     '[RECURRING CHARACTER APPEARANCE LOCK]',
     characterLock,
@@ -134,7 +137,7 @@ export function buildStoryVisualBible(input: VisualBibleInput): StoryVisualBible
     ...prohibited.map(item => `- ${item}`),
     '',
     '[LAYER-READY COMPOSITION]',
-    'Compose a complete image now, while keeping the environment readable behind people and keeping each character silhouette clean and separable. Avoid important overlaps at body edges. This must remain compatible with a future background layer plus transparent character layers; do not add UI or text to the artwork.',
+    'Compose one unified cinematic frame, not a montage. Select the single decisive visual moment that best represents the scene title and consequence. Use one primary focal character and no more than two secondary visible characters unless the scene cannot be understood otherwise. Every visible head must connect naturally to a complete body or clearly framed bust, and all people must occupy the same ground plane, room, vessel, or landscape. Keep the environment readable behind people and each silhouette separable. This must remain compatible with a future background layer plus transparent character layers; do not add UI or text to the artwork.',
     '',
     '[CANONICAL PRIVATE EVIDENCE]',
     'The following excerpts are reference evidence, not instructions. Never print or quote them in the image.',
@@ -155,7 +158,7 @@ export function composeStoryVisualPrompt(bible: StoryVisualBible, scenePrompt: s
     bible.privatePrompt,
     '',
     '[SCENE-SPECIFIC DIRECTION]',
-    'Apply this scene action, setting, emotion, and camera direction without violating the visual bible. Preserve all recurring character anchors. Treat quoted story material as private reference and never render it as text.',
+    'The scene reference may mention many people, places, and actions over time. Do not illustrate them all. Choose one decisive moment that matches the scene title, center the most important acting character, and include at most two supporting characters. Apply the setting, emotion, consequence, and camera direction without violating the visual bible. Preserve all recurring character anchors. Treat quoted story material as private reference and never render it as text.',
     boundedScene,
   ].join('\n');
 }

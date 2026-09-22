@@ -176,7 +176,7 @@ describe('StoryVisualGenerationService', () => {
     });
     expect(provider).toHaveBeenCalledTimes(2);
     const providerBody = JSON.parse(String((provider.mock.calls[0][1] as RequestInit).body));
-    expect(providerBody.prompt).toContain('[PRIVATE VISUAL BIBLE story-visual-bible-v1]');
+    expect(providerBody.prompt).toContain('[PRIVATE VISUAL BIBLE story-visual-bible-v2]');
     expect(providerBody.prompt).toContain('[RECURRING CHARACTER APPEARANCE LOCK]');
     expect(providerBody.prompt).toContain('Joseon naval historical drama');
     expect(providerBody.prompt).toContain('이순신은 늘 같은 검은 수염과 붉은 철릭');
@@ -185,7 +185,7 @@ describe('StoryVisualGenerationService', () => {
     expect(f.prisma.asset.create).toHaveBeenCalledTimes(1);
     const storedMetadata = f.prisma.asset.create.mock.calls[0][0].data.metadata;
     expect(storedMetadata.storyVisual).toMatchObject({
-      visualBibleVersion: 'story-visual-bible-v1',
+      visualBibleVersion: 'story-visual-bible-v2',
       visualBibleFingerprint: expect.stringMatching(/^[a-f0-9]{20}$/),
       effectivePromptSha256: expect.stringMatching(/^[a-f0-9]{64}$/),
     });
@@ -279,7 +279,7 @@ describe('StoryVisualGenerationService', () => {
     const createdMetadata = f.prisma.asset.create.mock.calls[0][0].data.metadata;
     expect(createdMetadata.storyVisual).toMatchObject({
       replacesAssetId: assetId,
-      visualBibleVersion: 'story-visual-bible-v1',
+      visualBibleVersion: 'story-visual-bible-v2',
       effectivePromptSha256: expect.stringMatching(/^[a-f0-9]{64}$/),
     });
     const effectivePromptSha256 = createdMetadata.storyVisual.effectivePromptSha256;
