@@ -2,7 +2,7 @@
   "use strict";
 
   const api = window.LuminaBackstageApi;
-  const endpoint = "/api/v1/admin/api/v1/backstage/story-publication/submissions";
+  const endpoint = "/admin/api/v1/backstage/story-publication/submissions";
   const knownStories = [
     {
       key: "imjin",
