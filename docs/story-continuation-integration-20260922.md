@@ -1,5 +1,36 @@
 # Story Continuation Integration Checkpoint
 
+## Initial Author Proof Integration
+
+Runtime `c7a45eb` incorporates frozen initial-proof `aa6a4f8`. Independent
+review accepted seven actual AppModule/JWT/DTO/filter/PG groups: owner-scoped
+proposal/confirm/revoke, atomic rollback, replay/lost acknowledgment, canonical
+SQL immutability, two-client isolation, admin lifecycle/revocation and narrow
+legacy compatibility. Report:
+`E:/CodexMovedCache/qa-1896-initial-proof-independent-report.md`.
+
+Initial harness timestamp/concurrency/fixture/enum assumptions and scoped
+continuations remain recorded. Contending confirm returned503 unknown and
+contending publication returned500 before a fresh revoked409; the safety and
+same-key reconciliation checks passed, not seamless success under every race.
+No actual source, paid provider or author consent was inferred from the small
+synthetic fixture. The independent scope does not include a public-reader GET.
+
+PM generated its own client66, applied all66 Prisma migrations to new dedicated
+`lumina_combined_qa66`, passed whole-server noEmit and the existing actual
+AppModule/JWT/filter/PG purchase/authorization10 on exact `c7a45eb`.
+Result: `E:/CodexMovedCache/qa-story-http-integration-1790040630009-results.json`.
+The final type-check process was still running when PM started the HTTP smoke;
+this was an accidental overlap inside the PM slot, not a fully serial run.
+Both exited0 before the slot was handed off. No other worker heavy execution
+overlapped them; future handoff requires explicit process completion.
+
+This is only the initial immutable edition proof. Full #1896 length admission,
+job inheritance, output/ending checks, known-usage settlement, shared-result
+policy and coordinated deadlines remain unwired. #1901 revision/serial updates,
+the legacy Imjin receipt/mapping gap, semantic author decisions, the final UI
+and actual production approval remain separate. Do not autoapprove old editions.
+
 ## OTT Graph Player Integration
 
 Runtime `2c13abf` incorporates frozen UI `3ebd420` via `80fb5c5` and
@@ -26,11 +57,11 @@ synthetic subtitle tracks were provided; five UI languages are not five
 approved movie translations. Production TLS/login/app-shell, public OTT,
 creator graph editing and actual films remain separate work.
 
-Writer UI #1855 is a separate partial candidate in author browser validation.
-Initial author-proof `aa6a4f8` is frozen after author Stage B97/Stage A107
-checks, but is not integrated or independently accepted yet. Its bootstrap
-check is not actual JWT/DTO/filter approval-route coverage. It does not wire
-long-form output lengths, timing, usage settlement or semantic author approval.
+Writer UI #1855 is frozen separately at `9a6d71b` after author24 VM,
+four corrected-fixture browser groups and15 first visual captures; independent
+review is next. Initial author-proof subsequently received independent
+acceptance and integration as described above. Its author bootstrap-only check
+must not be confused with the new independent actual API coverage.
 
 ## Verified Workspace Cleanup
 
