@@ -111,6 +111,7 @@ test('visual source: detached, epoch, session, identity, locale and beat changes
 test('visual source: image settlement cannot rerender text, advance progress, or override hidden-image CSS', () => {
   assert.doesNotMatch(bindingHelpers.slice(bindingHelpers.indexOf('function bindReadingImages(')), /renderScene\(|request\(|scrollTop\s*=|\.revision\s*=/);
   assert.match(css, /\.story-player-stage img\[hidden\],\s*\.story-player-no-visual\[hidden\] \{ display: none; \}/);
-  assert.match(css, /font-size: 16px;\s*font-weight: 400;\s*line-height: 1.7;/);
+  assert.match(css, /\.story-player-visual-layers,\s*\.story-player-background-layer,\s*\.story-player-background/);
+  assert.match(css, /font-size: 17px;\s*font-weight: 400;\s*line-height: 1.82;/);
   assert.doesNotMatch(source, /readBeatKeys/);
 });

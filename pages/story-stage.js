@@ -1327,22 +1327,30 @@
         ${!scene && isEnding ? `<div class="story-completed" tabindex="-1" data-story-scene-focus>
           <span class="story-ending-label">${escapeHtml(tr("ending"))}</span>
           <h2>${escapeHtml(tr("completed"))}</h2>
-        </div>` : `<div class="story-player-stage" data-visual-status="${background ? "loading" : "missing"}">
-          <div class="story-player-no-visual" ${background && visual.ready ? "hidden" : ""}>${escapeHtml(tr("sceneNoVisual"))}</div>
-          ${background ? `<img class="story-player-background" src="${escapeHtml(background)}" alt="" hidden />` : ""}
-          <div class="story-player-characters" aria-hidden="true">
-            ${characters.map((character, index) => `<img src="${escapeHtml(characterUrl(character))}" alt="" data-side="${escapeHtml(sceneCharacterSide(character, index))}" hidden />`).join("")}
+        </div>` : `<div class="story-reader-shell">
+          <div class="story-player-stage" data-visual-status="${background ? "loading" : "missing"}">
+            <div class="story-player-visual-layers">
+              <div class="story-player-no-visual" ${background && visual.ready ? "hidden" : ""}>${escapeHtml(tr("sceneNoVisual"))}</div>
+              <div class="story-player-background-layer" aria-hidden="true">
+                ${background ? `<img class="story-player-background" src="${escapeHtml(background)}" alt="" hidden />` : ""}
+              </div>
+              <div class="story-player-characters" aria-hidden="true">
+                ${characters.map((character, index) => `<img src="${escapeHtml(characterUrl(character))}" alt="" data-side="${escapeHtml(sceneCharacterSide(character, index))}" hidden />`).join("")}
+              </div>
+            </div>
           </div>
-          <div class="story-player-copy" tabindex="0" role="region" aria-label="${escapeHtml(readerTr("text"))}" data-story-scene-focus data-reading-key="${escapeHtml(reading.key)}">
+          ${reading.beats.length > 1 ? `<div class="story-reader-progress">
+            <output data-story-beat-counter aria-live="polite">${reading.index + 1} / ${reading.beats.length}</output>
+          </div>` : ""}
+          <article class="story-player-copy" tabindex="0" aria-label="${escapeHtml(readerTr("text"))}" data-story-scene-focus data-reading-key="${escapeHtml(reading.key)}">
             ${isEnding ? `<span class="story-ending-label">${escapeHtml(tr("ending"))}</span>` : ""}
             <p>${escapeHtml(sceneText)}</p>
-          </div>
+          </article>
+          ${reading.beats.length > 1 ? `<nav class="story-beat-navigation" aria-label="${escapeHtml(readerTr("page").replace("{current}", reading.index + 1).replace("{total}", reading.beats.length))}">
+            <button type="button" data-story-beat="previous" aria-label="${escapeHtml(readerTr("previous"))}" title="${escapeHtml(readerTr("previous"))}" ${navigationBlocked || reading.index === 0 ? "disabled" : ""}><span aria-hidden="true">&#8592;</span></button>
+            <button type="button" data-story-beat="next" aria-label="${escapeHtml(readerTr("next"))}" title="${escapeHtml(readerTr("next"))}" ${navigationBlocked || lastBeat ? "disabled" : ""}><span aria-hidden="true">&#8594;</span></button>
+          </nav>` : ""}
         </div>`}
-        ${reading.beats.length > 1 ? `<nav class="story-beat-navigation" aria-label="${escapeHtml(readerTr("page").replace("{current}", reading.index + 1).replace("{total}", reading.beats.length))}">
-          <button type="button" data-story-beat="previous" aria-label="${escapeHtml(readerTr("previous"))}" title="${escapeHtml(readerTr("previous"))}" ${navigationBlocked || reading.index === 0 ? "disabled" : ""}><span aria-hidden="true">&#8592;</span></button>
-          <output data-story-beat-counter aria-live="polite">${reading.index + 1} / ${reading.beats.length}</output>
-          <button type="button" data-story-beat="next" aria-label="${escapeHtml(readerTr("next"))}" title="${escapeHtml(readerTr("next"))}" ${navigationBlocked || lastBeat ? "disabled" : ""}><span aria-hidden="true">&#8594;</span></button>
-        </nav>` : ""}
         ${fixedChoices.length && !isEnding && lastBeat ? `
           <div class="story-choice-panel">
             <h2>${escapeHtml(tr("choices"))}</h2>
@@ -2196,6 +2204,16 @@
       const last = targets.at(-1);
       if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+      return;
+    }
+    if (!state.resetPreview && ["ArrowLeft", "ArrowRight"].includes(event.key) && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey &&
+        !event.target.closest("input, textarea, select, button, a, [contenteditable='true']")) {
+      const direction = event.key === "ArrowLeft" ? "previous" : "next";
+      const button = root.querySelector(`[data-story-beat="${direction}"]:not(:disabled)`);
+      if (button) {
+        event.preventDefault();
+        button.click();
+      }
       return;
     }
     if (!state.resetPreview) return;

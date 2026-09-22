@@ -260,24 +260,39 @@ export function registerReaderTests({ fixture, projection, sessionId, workId, ar
         const geometry = await f.page.evaluate(() => {
           const stage = document.querySelector('.story-player-stage'); const region = document.querySelector('[data-story-scene-focus]'); const nav = document.querySelector('.story-beat-navigation');
           const narrativeStyle = getComputedStyle(region.querySelector('p'));
-          return { stageHeight: stage.getBoundingClientRect().height, regionScrolls: region.scrollHeight > region.clientHeight, horizontal: document.documentElement.scrollWidth <= innerWidth,
-            contained: region.getBoundingClientRect().bottom <= stage.getBoundingClientRect().bottom && nav.getBoundingClientRect().top >= stage.getBoundingClientRect().bottom,
+          const stageBounds = stage.getBoundingClientRect(); const regionBounds = region.getBoundingClientRect();
+          return { stageHeight: stageBounds.height, stageRatio: stageBounds.width / stageBounds.height, regionScrolls: region.scrollHeight > region.clientHeight, horizontal: document.documentElement.scrollWidth <= innerWidth,
+            separated: regionBounds.top > stageBounds.bottom, navRendered: nav.getBoundingClientRect().width >= 44,
             documentHeight: document.documentElement.scrollHeight, narrative: { fontSize: parseFloat(narrativeStyle.fontSize), fontWeight: narrativeStyle.fontWeight, lineHeight: parseFloat(narrativeStyle.lineHeight) } };
         });
-        assert.ok(geometry.stageHeight <= 622 && geometry.stageHeight >= 300);
-        assert.equal(geometry.regionScrolls, true); assert.equal(geometry.horizontal, true); assert.equal(geometry.contained, true);
+        assert.ok(geometry.stageHeight > 190 && geometry.stageHeight <= 610);
+        assert.ok(geometry.stageRatio > 1.76 && geometry.stageRatio < 1.79, JSON.stringify(geometry));
+        assert.equal(geometry.regionScrolls, true); assert.equal(geometry.horizontal, true); assert.equal(geometry.separated, true); assert.equal(geometry.navRendered, true);
         assert.ok(geometry.documentHeight < 2400, 'Long beat must not stretch the whole document');
         assert.ok(geometry.narrative.fontSize >= 16);
         assert.ok(['400', '500'].includes(geometry.narrative.fontWeight));
-        assert.ok(geometry.narrative.lineHeight / geometry.narrative.fontSize >= 1.69);
+        assert.ok(geometry.narrative.lineHeight / geometry.narrative.fontSize >= 1.74);
+        const next = f.page.locator('[data-story-beat="next"]');
+        const hoverCapable = await f.page.evaluate(() => matchMedia('(hover: hover)').matches);
+        if (width > 680 && hoverCapable) {
+          await next.focus();
+          assert.equal(await next.evaluate((el) => document.activeElement === el), true);
+        } else assert.equal(await next.evaluate((el) => getComputedStyle(el).opacity), '1');
         await region.evaluate((el) => { el.scrollTop = el.scrollHeight; });
         assert.equal(await region.evaluate((el) => Math.abs(el.scrollHeight - el.clientHeight - el.scrollTop) <= 2), true);
+        await f.page.waitForFunction(() => {
+          const images = [...document.querySelectorAll('.story-player-background, .story-player-characters img')];
+          return images.length === 2 && images.every((image) => image.complete && image.naturalWidth > 0);
+        });
         assert.equal(await f.page.locator('.story-player-background, .story-player-characters img').evaluateAll((images) => images.length === 2 && images.every((el) => el.complete && el.naturalWidth > 0)), true);
         assert.equal(await f.page.locator('.story-player-no-visual').isHidden(), true);
-        await f.page.locator('[data-story-beat="next"]').evaluate((el) => el.scrollIntoView({ block: 'center', behavior: 'instant' }));
-        const nextBounds = await f.page.locator('[data-story-beat="next"]').evaluate((el) => { const r = el.getBoundingClientRect(); const top = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2); return { width: r.width, height: r.height, y: r.y, uncovered: el.contains(top), covering: top?.outerHTML.slice(0, 300) }; });
+        await next.evaluate((el) => el.scrollIntoView({ block: 'center', behavior: 'instant' }));
+        const nextBounds = await next.evaluate((el) => { const r = el.getBoundingClientRect(); const top = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2); return { width: r.width, height: r.height, y: r.y, uncovered: el.contains(top), covering: top?.outerHTML.slice(0, 300) }; });
         assert.ok(nextBounds.width >= 44 && nextBounds.height >= 44 && nextBounds.uncovered, JSON.stringify(nextBounds));
-        await turn(f, 'next', '2 / 3'); await turn(f, 'next', '3 / 3');
+        await region.focus();
+        await f.page.keyboard.press('ArrowRight');
+        await f.page.waitForFunction(() => document.querySelector('[data-story-beat-counter]')?.textContent === '2 / 3' && document.querySelector('#storyStageRoot')?.getAttribute('aria-busy') !== 'true');
+        await turn(f, 'next', '3 / 3');
         assert.equal(await region.locator('p').textContent(), value.scene.beats[2].content);
         assert.equal(await f.page.locator('[data-choice-id]').count(), 3);
         await region.evaluate((el) => { el.scrollTop = el.scrollHeight; });
@@ -290,18 +305,17 @@ export function registerReaderTests({ fixture, projection, sessionId, workId, ar
         }
         const labels = await f.page.locator('[data-story-beat]').evaluateAll((buttons) => buttons.map((button) => ({ label: button.getAttribute('aria-label'), title: button.title })));
         assert.ok(labels.every(({ label, title }) => label && label === title && !label.includes('story.')));
-        await f.page.evaluate(() => {
-          const region = document.querySelector('[data-story-scene-focus]').getBoundingClientRect();
-          const headerHeight = document.querySelector('.site-header').getBoundingClientRect().height;
-          window.scrollTo({ top: window.scrollY + region.top - headerHeight - 12, behavior: 'instant' });
-        });
-        const captureBounds = await f.page.locator('[data-choice-id]').evaluateAll((choices) => choices.map((el) => { const r = el.getBoundingClientRect(); return { top: r.top, bottom: r.bottom, uncovered: el.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)) }; }));
+        const captureBounds = [];
+        for (const choice of await f.page.locator('[data-choice-id]').all()) {
+          await choice.evaluate((el) => el.scrollIntoView({ block: 'center', behavior: 'instant' }));
+          captureBounds.push(await choice.evaluate((el) => { const r = el.getBoundingClientRect(); return { top: r.top, bottom: r.bottom, uncovered: el.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)) }; }));
+        }
         assert.ok(captureBounds.every((choice) => choice.uncovered), JSON.stringify(captureBounds));
         await f.page.screenshot({ path: path.join(artifacts, `${locale}-${width}-reader.png`) });
         await writeFile(path.join(artifacts, `${locale}-${width}-reader.json`), JSON.stringify({ locale, width, height: 844, ...geometry,
           fullTextCharacters: value.scene.beats.map((beat) => beat.content.length), displayedBeat: 3, reachableChoices: 3,
           loadedImages: 2, choiceHitTargetsUncovered: true, navigationLabels: labels, captureBounds,
-          caption: 'Private intercepted fixture: complete long text in a bounded scrolling reader; last beat displayed, three choices reachable without a forced-scroll gate. The visible bitmap is the checked-in brand-logo test asset, not generated story artwork.' }, null, 2));
+          caption: 'Private intercepted fixture: 16:9 visual stage and separate editorial reading panel; last beat displayed and three choices reachable. The visible bitmap is the checked-in brand-logo test asset, not generated story artwork.' }, null, 2));
       } finally { await f.close(); }
     });
   }

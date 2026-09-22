@@ -579,10 +579,10 @@ for (const locale of locales) {
           const region = document.querySelector('.story-player-copy');
           region.scrollTop = region.scrollHeight;
           return { width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth, stageBottom: stage.bottom,
-            regionBottom: region.getBoundingClientRect().bottom, endReachable: Math.abs(region.scrollHeight - region.clientHeight - region.scrollTop) <= 2 };
+            regionTop: region.getBoundingClientRect().top, endReachable: Math.abs(region.scrollHeight - region.clientHeight - region.scrollTop) <= 2 };
         });
         assert.ok(geometry.scroll <= geometry.width, JSON.stringify(geometry));
-        assert.ok(geometry.regionBottom <= geometry.stageBottom);
+        assert.ok(geometry.regionTop > geometry.stageBottom, JSON.stringify(geometry));
         assert.equal(geometry.endReachable, true);
         if (process.env.STORY_UI_READER_CAPTURES !== '0') await f.page.screenshot({ path: path.join(artifacts, `${locale}-${width}-choices.png`), fullPage: true });
         await f.page.locator('[data-story-reset-preview="act"]').click();

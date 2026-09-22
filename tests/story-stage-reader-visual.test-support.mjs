@@ -249,7 +249,7 @@ export function registerReaderVisualTests({ fixture, projection, sessionId, work
   });
 
   for (const locale of locales) for (const width of [390, 400, 1280]) {
-    test(`beat visual layout: ${locale} ${width} missing/ready scenes keep all text and controls reachable`, async () => {
+    test(`beat visual layout: ${locale} ${width} separates artwork, prose and reachable controls`, async () => {
       const value = current({ locale, long: true });
       const first = value.scene.beats[0].visualContext;
       first.assetReadiness = 'missing'; first.manifest.background = { state: 'fallback', publicAssetPath: '/assets/story/fallback.webp' }; first.manifest.characters = [];
@@ -271,21 +271,32 @@ export function registerReaderVisualTests({ fixture, projection, sessionId, work
         const metrics = await f.page.evaluate(() => {
           const region = document.querySelector('[data-story-scene-focus]'); const stage = document.querySelector('.story-player-stage');
           const font = getComputedStyle(region.querySelector('p')); const nav = document.querySelector('.story-beat-navigation');
-          return { stageHeight: stage.getBoundingClientRect().height, regionHeight: region.clientHeight, fullTextReachable: Math.abs(region.scrollHeight - region.clientHeight - region.scrollTop) < 2,
-            horizontalOverflow: document.documentElement.scrollWidth > innerWidth, contained: region.getBoundingClientRect().bottom <= stage.getBoundingClientRect().bottom && nav.getBoundingClientRect().top >= stage.getBoundingClientRect().bottom,
+          const stageBounds = stage.getBoundingClientRect(); const regionBounds = region.getBoundingClientRect();
+          return { stageHeight: stageBounds.height, stageRatio: stageBounds.width / stageBounds.height, regionHeight: region.clientHeight, fullTextReachable: Math.abs(region.scrollHeight - region.clientHeight - region.scrollTop) < 2,
+            horizontalOverflow: document.documentElement.scrollWidth > innerWidth, separated: regionBounds.top > stageBounds.bottom, navRendered: nav.getBoundingClientRect().width >= 44,
             fontSize: parseFloat(font.fontSize), fontWeight: font.fontWeight, lineHeight: parseFloat(font.lineHeight), documentHeight: document.documentElement.scrollHeight };
         });
-        assert.equal(metrics.horizontalOverflow, false); assert.equal(metrics.contained, true); assert.equal(metrics.fullTextReachable, true);
-        assert.ok(metrics.stageHeight <= 622 && metrics.documentHeight < 2400);
-        assert.equal(metrics.fontSize, 16); assert.equal(metrics.fontWeight, '400'); assert.equal(metrics.lineHeight, 27.2);
+        assert.equal(metrics.horizontalOverflow, false); assert.equal(metrics.separated, true); assert.equal(metrics.navRendered, true); assert.equal(metrics.fullTextReachable, true);
+        assert.ok(metrics.stageHeight > 190 && metrics.stageHeight <= 610 && metrics.documentHeight < 2400);
+        assert.ok(metrics.stageRatio > 1.76 && metrics.stageRatio < 1.79, JSON.stringify(metrics));
+        assert.equal(metrics.fontSize, width <= 680 ? 16 : 17); assert.equal(metrics.fontWeight, '400');
+        assert.ok(metrics.lineHeight / metrics.fontSize >= 1.74);
         const pixels = await imagePixels(f);
-        await f.page.evaluate(() => { const region = document.querySelector('[data-story-scene-focus]').getBoundingClientRect(); const header = document.querySelector('.site-header').getBoundingClientRect(); window.scrollTo({ top: scrollY + region.top - header.height - 12, behavior: 'instant' }); });
-        const controlsVisible = await f.page.locator('[data-choice-id], [data-story-beat]').evaluateAll((buttons) => buttons.every((el) => { const r = el.getBoundingClientRect(); return r.width >= 44 && r.height >= 44 && el.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)); }));
-        assert.equal(controlsVisible, true);
+        const controlBounds = [];
+        for (const control of await f.page.locator('[data-choice-id], [data-story-beat]').all()) {
+          await control.evaluate((el) => el.scrollIntoView({ block: 'center', behavior: 'instant' }));
+          if (await control.getAttribute('data-story-beat')) {
+            await control.focus();
+            await f.page.waitForFunction((direction) => Number(getComputedStyle(document.querySelector(`[data-story-beat="${direction}"]`)).opacity) > 0.9, await control.getAttribute('data-story-beat'));
+          }
+          controlBounds.push(await control.evaluate((el) => { const r = el.getBoundingClientRect(); return { width: r.width, height: r.height, disabled: el.disabled, uncovered: el.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)) }; }));
+        }
+        const controlsVisible = controlBounds.every((control) => control.width >= 44 && control.height >= 44 && (control.disabled || control.uncovered));
+        assert.equal(controlsVisible, true, JSON.stringify(controlBounds));
         const prefix = path.join(artifacts, `${locale}-${width}-beat-visual`);
         await f.page.screenshot({ path: prefix + '.png' });
         await writeFile(prefix + '.json', JSON.stringify({ locale, width, ...metrics, pixels, controlsVisible, firstSceneMissing: true, lastSceneReady: true, loadedImages: 2,
-          fullTextCharacters: value.scene.beats.map((beat) => beat.content.length), caption: 'Local intercepted fixture only. Missing source scene uses neutral CSS; ready scene uses checked-in brand bitmaps to verify binding, not real story art or a public work. Final beat is scrolled to its end; earlier text remains scrollable. Global auth/header bootstrap is outside this fixture approval.' }, null, 2));
+          fullTextCharacters: value.scene.beats.map((beat) => beat.content.length), caption: 'Local intercepted fixture only. Missing source scene uses neutral CSS; ready scene uses checked-in brand bitmaps to verify separate background and character layers, not real story art or a public work. Final beat is scrolled to its end and the prose panel stays separate from the artwork.' }, null, 2));
       } finally { await f.close(); }
     });
   }
