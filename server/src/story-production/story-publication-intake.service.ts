@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { createHash, randomUUID } from 'crypto';
+import { gunzipSync } from 'zlib';
 import { PrismaService } from '../prisma/prisma.service';
 import { StoryUploadStorageService } from '../story-upload/story-upload-storage.service';
 import { StoryUploadFileFields } from '../story-upload/story-upload.types';
@@ -30,6 +31,8 @@ const NORSE_ANALYSIS_SHA256 =
 const NORSE_SOURCE_MAP_SHA256 =
   'f6482c710acbc7b63f98783f3ca7f06ebc37d22f5566deb51e719f438eae6bc5';
 const DISABLED_RATE_CARD_VERSION = 'story-public-beta-disabled-ai-2026-09-22';
+const NORSE_BUNDLE_MAGIC = Buffer.from('LUMINA_NORSE_BUNDLE_V1\0', 'ascii');
+const NORSE_BUNDLE_MAX_BYTES = 40 * 1024 * 1024;
 
 type PublicationPart = {
   partKey: string;
@@ -141,18 +144,20 @@ export class StoryPublicationIntakeService {
   ) {
     const files = fileFields.manuscripts ?? [];
     const expectedCount = input.storyKey === 'imjin' ? 1 : 2;
-    if (files.length !== expectedCount) {
+    const sourceBuffers = input.storyKey === 'norse' && files.length === 1
+      ? this.unpackNorseBundle(files[0].buffer)
+      : files.map((file) => file.buffer);
+    if (sourceBuffers.length !== expectedCount || files.some(
+      (file) => !file.buffer?.length || file.size !== file.buffer.length,
+    )) {
       throw new ConflictException({
         code: 'STORY_PUBLICATION_APPROVED_FILE_COUNT_MISMATCH',
         message: `Exactly ${expectedCount} approved source file(s) are required`,
       });
     }
     const buffers = new Map<string, Buffer>();
-    for (const file of files) {
-      if (!file.buffer?.length || file.size !== file.buffer.length) {
-        throw new ConflictException('Approved story source file is invalid');
-      }
-      buffers.set(this.sha256(file.buffer), file.buffer);
+    for (const buffer of sourceBuffers) {
+      buffers.set(this.sha256(buffer), buffer);
     }
     if (buffers.size !== expectedCount || this.detectStoryKey(
       [...buffers.keys()].map((checksumSha256) => ({ checksumSha256 })),
@@ -188,6 +193,39 @@ export class StoryPublicationIntakeService {
       },
     });
     return this.importJobReceipt(created, plan.parts.length);
+  }
+
+  private unpackNorseBundle(compressed: Buffer) {
+    let bundle: Buffer;
+    try {
+      bundle = gunzipSync(compressed, { maxOutputLength: NORSE_BUNDLE_MAX_BYTES });
+    } catch {
+      throw new ConflictException({
+        code: 'STORY_PUBLICATION_BUNDLE_INVALID',
+        message: 'The approved Norse source bundle is invalid',
+      });
+    }
+    if (!bundle.subarray(0, NORSE_BUNDLE_MAGIC.length).equals(NORSE_BUNDLE_MAGIC)) {
+      throw new ConflictException('The approved Norse source bundle identity is invalid');
+    }
+    let cursor = NORSE_BUNDLE_MAGIC.length;
+    const sources: Buffer[] = [];
+    for (let index = 0; index < 2; index += 1) {
+      if (cursor + 4 > bundle.length) {
+        throw new ConflictException('The approved Norse source bundle is truncated');
+      }
+      const length = bundle.readUInt32BE(cursor);
+      cursor += 4;
+      if (length < 1 || cursor + length > bundle.length) {
+        throw new ConflictException('The approved Norse source bundle length is invalid');
+      }
+      sources.push(bundle.subarray(cursor, cursor + length));
+      cursor += length;
+    }
+    if (cursor !== bundle.length) {
+      throw new ConflictException('The approved Norse source bundle has trailing data');
+    }
+    return sources;
   }
 
   async processApprovedJob(actorUserId: string, jobId: string) {

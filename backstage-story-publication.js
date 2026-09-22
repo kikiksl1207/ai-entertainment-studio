@@ -232,9 +232,14 @@
     const inlineStatus = form.querySelector("[data-story-upload-status]");
     const button = form.querySelector('button[type="submit"]');
     const expectedCount = storyKey === "norse" ? 2 : 1;
-    if (!story || !input || input.files.length !== expectedCount) {
+    const validFileCount = storyKey === "norse"
+      ? input && (input.files.length === 1 || input.files.length === 2)
+      : input && input.files.length === expectedCount;
+    if (!story || !validFileCount) {
       if (inlineStatus) {
-        inlineStatus.textContent = `${expectedCount}개 파일을 선택해 주세요.`;
+        inlineStatus.textContent = storyKey === "norse"
+          ? "원본 JSON 2개 또는 승인 GZIP 묶음 1개를 선택해 주세요."
+          : `${expectedCount}개 파일을 선택해 주세요.`;
         inlineStatus.className = "form-status is-error";
       }
       return;

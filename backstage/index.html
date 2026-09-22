@@ -295,9 +295,9 @@
               <form class="table-card story-publication-upload-card" data-story-upload-form="norse">
                 <header>
                   <div><span class="section-kicker">Approved Source</span><h3>북유럽신화 최종본</h3></div>
-                  <span class="status-badge is-review">JSON 2개</span>
+                  <span class="status-badge is-review">JSON 2개 / GZIP 1개</span>
                 </header>
-                <p>분석 원고와 작가 원문 맵 두 파일을 함께 선택해야 정확한 최종본으로 식별됩니다.</p>
+                <p>분석 원고와 작가 원문 맵 두 파일 또는 원본 바이트를 보존한 승인 GZIP 묶음을 선택합니다.</p>
                 <input type="hidden" name="title" value="북유럽 신화: 로키의 선택" />
                 <input type="hidden" name="originalLocale" value="ko" />
                 <input type="hidden" name="sourceClass" value="public_domain" />
@@ -305,7 +305,7 @@
                 <input type="hidden" name="storyKey" value="norse" />
                 <label class="story-upload-file-control">
                   <span>분석 원고 + 작가 원문 맵</span>
-                  <input type="file" name="manuscripts" accept=".json" multiple required />
+                  <input type="file" name="manuscripts" accept=".json,.gz" multiple required />
                 </label>
                 <fieldset class="story-publication-confirmations story-upload-confirmations">
                   <legend>바로 공개하기 전 확인</legend>
