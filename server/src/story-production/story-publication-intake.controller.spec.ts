@@ -19,6 +19,12 @@ describe('StoryPublicationIntakeController', () => {
     expect(
       Reflect.getMetadata(
         ADMIN_PERMISSIONS_KEY,
+        StoryPublicationIntakeController.prototype.publishApproved,
+      ),
+    ).toEqual(['*']);
+    expect(
+      Reflect.getMetadata(
+        ADMIN_PERMISSIONS_KEY,
         StoryPublicationIntakeController.prototype.promote,
       ),
     ).toEqual(['*']);
@@ -67,6 +73,32 @@ describe('StoryPublicationIntakeController', () => {
       body,
       files,
       undefined,
+    );
+  });
+
+  it('passes exact approved files directly to publication', async () => {
+    const publication = {
+      publishApproved: jest.fn().mockResolvedValue({ work: { id: 'work' } }),
+    };
+    const controller = new StoryPublicationIntakeController(
+      publication as never,
+      {} as never,
+    );
+    const body: PromoteStoryUploadDto = {
+      storyKey: 'norse',
+      finalManuscriptConfirmed: true,
+      rightsConfirmed: true,
+      publicReleaseConfirmed: true,
+    };
+    const files = { manuscripts: [{ size: 12 }, { size: 24 }] } as never;
+
+    await expect(
+      controller.publishApproved({ id: 'owner' } as never, body, files),
+    ).resolves.toEqual({ work: { id: 'work' } });
+    expect(publication.publishApproved).toHaveBeenCalledWith(
+      'owner',
+      body,
+      files,
     );
   });
 });

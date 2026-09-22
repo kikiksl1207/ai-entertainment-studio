@@ -35,6 +35,21 @@ export class StoryPublicationIntakeController {
     return this.publication.submissions();
   }
 
+  @Post('submissions/publish-approved')
+  @RequireAdminPermissions('*')
+  @UseInterceptors(
+    FileFieldsInterceptor([{ name: 'manuscripts', maxCount: 2 }], {
+      limits: { files: 2, fields: 10, fileSize: 50 * 1024 * 1024 },
+    }),
+  )
+  publishApproved(
+    @CurrentUser() user: AuthUser,
+    @Body() body: PromoteStoryUploadDto,
+    @UploadedFiles() files: StoryUploadFileFields,
+  ) {
+    return this.publication.publishApproved(user.id, body, files ?? {});
+  }
+
   @Post('submissions')
   @RequireAdminPermissions('*')
   @UseInterceptors(

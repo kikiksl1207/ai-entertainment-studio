@@ -7,18 +7,20 @@
     {
       key: "imjin",
       title: "임진왜란",
+      slug: "records-of-the-burning-sea-imjin-war",
       checksums: ["34e2f00f1c375ca5a5af6733f74287224f3d63213a0981e4bc3655b6ed7db125"]
     },
     {
       key: "norse",
       title: "북유럽신화",
+      slug: "norse-myth-loki-crossroads",
       checksums: [
         "74462e693982cbb72733b3db465e435c008309dbcb76c603b908ed1369cb37f8",
         "f6482c710acbc7b63f98783f3ca7f06ebc37d22f5566deb51e719f438eae6bc5"
       ]
     }
   ];
-  const state = { items: [], loading: false, loaded: false, promotingId: null, uploadingKey: null };
+  const state = { items: [], publishedWorks: [], loading: false, loaded: false, promotingId: null, uploadingKey: null };
 
   const list = document.getElementById("storyPublicationSubmissionList");
   const statusCards = document.getElementById("storyPublicationStatusCards");
@@ -103,6 +105,9 @@
   }
 
   function storyState(story) {
+    if (state.publishedWorks.some((work) => work?.slug === story.slug && work?.status === "published")) {
+      return { label: "공개 완료", className: "is-approved", detail: "독자 화면에 공개 중" };
+    }
     const candidates = state.items
       .filter((item) => identify(item).story?.key === story.key)
       .sort((left, right) => new Date(right.createdAt || 0) - new Date(left.createdAt || 0));
@@ -206,6 +211,7 @@
       const response = await api.fetch(endpoint, { auth: true });
       if (!response || !Array.isArray(response.items)) throw new Error("접수 목록 응답 형식이 올바르지 않습니다.");
       state.items = response.items;
+      state.publishedWorks = Array.isArray(response.publishedWorks) ? response.publishedWorks : [];
       state.loaded = true;
       setStatus(`${state.items.length.toLocaleString("ko-KR")}건을 확인했습니다.`, "success");
     } catch (error) {
@@ -243,14 +249,14 @@
       inlineStatus.className = "form-status";
     }
     try {
-      await api.fetch(endpoint, {
+      await api.fetch(`${endpoint}/publish-approved`, {
         method: "POST",
         auth: true,
         body: new FormData(form)
       });
       form.reset();
       if (inlineStatus) {
-        inlineStatus.textContent = `${story.title} 최종본을 접수했습니다.`;
+        inlineStatus.textContent = `${story.title} 최종본을 공개했습니다.`;
         inlineStatus.className = "form-status is-success";
       }
       state.loaded = false;
@@ -263,7 +269,7 @@
     } finally {
       state.uploadingKey = null;
       button.disabled = false;
-      button.textContent = "접수 등록";
+      button.textContent = "확인 후 바로 공개";
       button.removeAttribute("aria-busy");
     }
   }

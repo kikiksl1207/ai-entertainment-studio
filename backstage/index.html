@@ -275,13 +275,20 @@
                 <input type="hidden" name="originalLocale" value="ko" />
                 <input type="hidden" name="sourceClass" value="public_domain" />
                 <input type="hidden" name="submissionType" value="final" />
+                <input type="hidden" name="storyKey" value="imjin" />
                 <label class="story-upload-file-control">
                   <span>최종 원고</span>
                   <input type="file" name="manuscripts" accept=".md" required />
                 </label>
+                <fieldset class="story-publication-confirmations story-upload-confirmations">
+                  <legend>바로 공개하기 전 확인</legend>
+                  <label><input type="checkbox" name="finalManuscriptConfirmed" value="true" required /> 최종 원고가 맞습니다.</label>
+                  <label><input type="checkbox" name="rightsConfirmed" value="true" required /> 공개 권리를 확인했습니다.</label>
+                  <label><input type="checkbox" name="publicReleaseConfirmed" value="true" required /> 즉시 공개에 동의합니다.</label>
+                </fieldset>
                 <div class="story-upload-action">
                   <span class="form-status" data-story-upload-status role="status" aria-live="polite"></span>
-                  <button class="primary-action" type="submit">접수 등록</button>
+                  <button class="primary-action" type="submit">확인 후 바로 공개</button>
                 </div>
               </form>
 
@@ -295,13 +302,20 @@
                 <input type="hidden" name="originalLocale" value="ko" />
                 <input type="hidden" name="sourceClass" value="public_domain" />
                 <input type="hidden" name="submissionType" value="final" />
+                <input type="hidden" name="storyKey" value="norse" />
                 <label class="story-upload-file-control">
                   <span>분석 원고 + 작가 원문 맵</span>
                   <input type="file" name="manuscripts" accept=".json" multiple required />
                 </label>
+                <fieldset class="story-publication-confirmations story-upload-confirmations">
+                  <legend>바로 공개하기 전 확인</legend>
+                  <label><input type="checkbox" name="finalManuscriptConfirmed" value="true" required /> 최종 원고가 맞습니다.</label>
+                  <label><input type="checkbox" name="rightsConfirmed" value="true" required /> 공개 권리를 확인했습니다.</label>
+                  <label><input type="checkbox" name="publicReleaseConfirmed" value="true" required /> 즉시 공개에 동의합니다.</label>
+                </fieldset>
                 <div class="story-upload-action">
                   <span class="form-status" data-story-upload-status role="status" aria-live="polite"></span>
-                  <button class="primary-action" type="submit">접수 등록</button>
+                  <button class="primary-action" type="submit">확인 후 바로 공개</button>
                 </div>
               </form>
             </div>

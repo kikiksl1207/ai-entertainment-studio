@@ -7,6 +7,7 @@ import { Prisma } from '@prisma/client';
 import { createHash, randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { StoryUploadStorageService } from '../story-upload/story-upload-storage.service';
+import { StoryUploadFileFields } from '../story-upload/story-upload.types';
 import { PromoteStoryUploadDto } from './dto/story-publication-intake.dto';
 import { missingAuthoredSceneVisual } from './story-authored-beat-visual.policy';
 import {
@@ -72,23 +73,38 @@ export class StoryPublicationIntakeService {
   ) {}
 
   async submissions() {
-    const rows = await this.prisma.storyUploadSubmission.findMany({
-      include: {
-        files: {
-          orderBy: [{ category: 'asc' }, { position: 'asc' }],
-          select: {
-            category: true,
-            position: true,
-            extension: true,
-            fileSizeBytes: true,
-            checksumSha256: true,
+    const [rows, publishedWorks] = await Promise.all([
+      this.prisma.storyUploadSubmission.findMany({
+        include: {
+          files: {
+            orderBy: [{ category: 'asc' }, { position: 'asc' }],
+            select: {
+              category: true,
+              position: true,
+              extension: true,
+              fileSizeBytes: true,
+              checksumSha256: true,
+            },
           },
         },
-      },
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-      take: 50,
-    });
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        take: 50,
+      }),
+      this.prisma.storyWork.findMany({
+        where: {
+          slug: {
+            in: [
+              'records-of-the-burning-sea-imjin-war',
+              'norse-myth-loki-crossroads',
+            ],
+          },
+          status: 'published',
+        },
+        select: { id: true, slug: true, activeReleaseId: true, status: true },
+      }),
+    ]);
     return {
+      publishedWorks,
       items: rows.map((row) => ({
         id: row.id,
         title: row.title,
@@ -108,6 +124,43 @@ export class StoryPublicationIntakeService {
         })),
       })),
     };
+  }
+
+  async publishApproved(
+    actorUserId: string,
+    input: PromoteStoryUploadDto,
+    fileFields: StoryUploadFileFields,
+  ) {
+    const files = fileFields.manuscripts ?? [];
+    const expectedCount = input.storyKey === 'imjin' ? 1 : 2;
+    if (files.length !== expectedCount) {
+      throw new ConflictException({
+        code: 'STORY_PUBLICATION_APPROVED_FILE_COUNT_MISMATCH',
+        message: `Exactly ${expectedCount} approved source file(s) are required`,
+      });
+    }
+    const buffers = new Map<string, Buffer>();
+    for (const file of files) {
+      if (!file.buffer?.length || file.size !== file.buffer.length) {
+        throw new ConflictException('Approved story source file is invalid');
+      }
+      buffers.set(this.sha256(file.buffer), file.buffer);
+    }
+    if (buffers.size !== expectedCount || this.detectStoryKey(
+      [...buffers.keys()].map((checksumSha256) => ({ checksumSha256 })),
+    ) !== input.storyKey) {
+      throw new ConflictException({
+        code: 'STORY_PUBLICATION_SOURCE_IDENTITY_MISMATCH',
+        message: 'The selected files do not match the approved manuscript',
+      });
+    }
+    const plan = input.storyKey === 'imjin'
+      ? this.imjinPlan(this.requiredBuffer(buffers, IMJIN_RELEASE_SOURCE.sha256))
+      : this.norsePlan(
+          this.requiredBuffer(buffers, NORSE_ANALYSIS_SHA256),
+          this.requiredBuffer(buffers, NORSE_SOURCE_MAP_SHA256),
+        );
+    return this.publish(actorUserId, null, plan, input);
   }
 
   async promote(
@@ -168,7 +221,7 @@ export class StoryPublicationIntakeService {
 
   private async publish(
     actorUserId: string,
-    submissionId: string,
+    submissionId: string | null,
     plan: PublicationPlan,
     confirmation: PromoteStoryUploadDto,
   ) {
@@ -198,26 +251,34 @@ export class StoryPublicationIntakeService {
     };
     const checksum = releaseChecksum(releaseSnapshot);
     return this.prisma.$transaction(async (tx) => {
-      const locked = await tx.$queryRaw<Array<{
-        id: string;
-        promoted_work_id: string | null;
-      }>>(Prisma.sql`
-        SELECT "id", "promoted_work_id"
-        FROM "story_upload_submissions"
-        WHERE "id" = ${submissionId}::uuid
-        FOR UPDATE
-      `);
-      if (!locked.length) throw new NotFoundException('Story upload submission not found');
-      if (locked[0].promoted_work_id) {
-        const existing = await tx.storyWork.findUnique({
-          where: { id: locked[0].promoted_work_id },
-          select: { id: true, slug: true, activeReleaseId: true, status: true },
-        });
-        if (!existing) throw new ConflictException('Promoted story work is missing');
-        return { work: existing, idempotentReplay: true };
+      if (submissionId) {
+        const locked = await tx.$queryRaw<Array<{
+          id: string;
+          promoted_work_id: string | null;
+        }>>(Prisma.sql`
+          SELECT "id", "promoted_work_id"
+          FROM "story_upload_submissions"
+          WHERE "id" = ${submissionId}::uuid
+          FOR UPDATE
+        `);
+        if (!locked.length) throw new NotFoundException('Story upload submission not found');
+        if (locked[0].promoted_work_id) {
+          const existing = await tx.storyWork.findUnique({
+            where: { id: locked[0].promoted_work_id },
+            select: { id: true, slug: true, activeReleaseId: true, status: true },
+          });
+          if (!existing) throw new ConflictException('Promoted story work is missing');
+          return { work: existing, idempotentReplay: true };
+        }
       }
-      const existingSlug = await tx.storyWork.findUnique({ where: { slug: plan.slug } });
+      const existingSlug = await tx.storyWork.findUnique({
+        where: { slug: plan.slug },
+        select: { id: true, slug: true, activeReleaseId: true, status: true },
+      });
       if (existingSlug) {
+        if (!submissionId && existingSlug.status === 'published') {
+          return { work: existingSlug, idempotentReplay: true };
+        }
         throw new ConflictException({
           code: 'STORY_PUBLICATION_SLUG_ALREADY_EXISTS',
           message: 'This approved story is already registered from another upload',
@@ -395,7 +456,9 @@ export class StoryPublicationIntakeService {
           workId,
           releaseId,
           actorUserId,
-          idempotencyKey: `story-upload-publication:${submissionId}`,
+          idempotencyKey: submissionId
+            ? `story-upload-publication:${submissionId}`
+            : `story-approved-publication:${plan.sourceBindingSha256}`,
           fromStatus: 'release_ready',
           toStatus: 'published',
           beforeRevision: 1,
@@ -407,17 +470,21 @@ export class StoryPublicationIntakeService {
           },
         },
       });
-      await tx.storyUploadSubmission.update({
-        where: { id: submissionId },
-        data: { status: 'published', promotedWorkId: workId },
-      });
+      if (submissionId) {
+        await tx.storyUploadSubmission.update({
+          where: { id: submissionId },
+          data: { status: 'published', promotedWorkId: workId },
+        });
+      }
       await tx.auditEvent.create({
         data: {
           actorUserId,
           actorType: 'admin_owner',
-          action: 'story_upload.public_beta_published',
-          targetType: 'story_upload_submission',
-          targetId: submissionId,
+          action: submissionId
+            ? 'story_upload.public_beta_published'
+            : 'story_approved_source.public_beta_published',
+          targetType: submissionId ? 'story_upload_submission' : 'story_work',
+          targetId: submissionId ?? workId,
           afterData: {
             workId,
             releaseId,

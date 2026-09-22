@@ -29,6 +29,9 @@ describe('StoryPublicationIntakeService queue projection', () => {
           },
         ]),
       },
+      storyWork: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
     };
     const service = new StoryPublicationIntakeService(prisma as never, {} as never);
     const result = await service.submissions();

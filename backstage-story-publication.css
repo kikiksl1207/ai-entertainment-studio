@@ -68,6 +68,11 @@
   margin-top: 12px;
 }
 
+.story-upload-confirmations {
+  grid-template-columns: 1fr;
+  margin-top: 12px;
+}
+
 .story-upload-action .primary-action {
   flex: 0 0 auto;
   min-height: 40px;
