@@ -445,6 +445,7 @@ export class StoryPublicationIntakeService {
         where: { id: job.releaseId },
         select: { checksum: true },
       });
+      stage = 'finalize_rate_card';
       const rateCard = await tx.storyAiRateCard.upsert({
         where: { version: DISABLED_RATE_CARD_VERSION },
         create: {
@@ -462,6 +463,7 @@ export class StoryPublicationIntakeService {
         },
         update: {},
       });
+      stage = 'finalize_capability';
       await tx.storyReleaseCapability.upsert({
         where: { releaseId: job.releaseId },
         create: {
@@ -485,6 +487,7 @@ export class StoryPublicationIntakeService {
         },
         update: {},
       });
+      stage = 'finalize_transition';
       await tx.storyPublicationTransition.upsert({
         where: { idempotencyKey: `story-approved-publication:${plan.sourceBindingSha256}` },
         create: {
@@ -505,6 +508,7 @@ export class StoryPublicationIntakeService {
         update: {},
       });
       const publishedAt = new Date();
+      stage = 'finalize_work';
       const work = await tx.storyWork.update({
         where: { id: job.workId },
         data: {
@@ -515,6 +519,7 @@ export class StoryPublicationIntakeService {
         },
         select: { id: true, slug: true, activeReleaseId: true, status: true },
       });
+      stage = 'finalize_audit';
       await tx.auditEvent.create({
         data: {
           actorUserId,
@@ -537,6 +542,7 @@ export class StoryPublicationIntakeService {
           },
         },
       });
+      stage = 'finalize_job';
       const completed = await tx.storyPublicationImportJob.update({
         where: { id: job.id },
         data: {
@@ -559,9 +565,12 @@ export class StoryPublicationIntakeService {
       const prismaCode = error instanceof Prisma.PrismaClientKnownRequestError
         ? error.code
         : 'UNKNOWN';
+      const errorKind = error instanceof Error
+        ? error.constructor.name.replace(/[^A-Za-z0-9_]/g, '').slice(0, 60)
+        : 'UnknownError';
       throw new ConflictException({
         code: 'STORY_PUBLICATION_JOB_STAGE_FAILED',
-        message: `Story publication failed at ${stage} (${prismaCode})`,
+        message: `Story publication failed at ${stage} (${prismaCode}:${errorKind})`,
       });
     }
   }
