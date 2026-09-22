@@ -19,6 +19,7 @@ import type {
   RegisterStoryVisualPromptsDto,
 } from './dto/story-visual-generation.dto';
 import { StoryPublicBetaPolicy } from './story-public-beta.policy';
+import type { StoryContinuationProviderResult } from './story-continuation.provider';
 import { StoryVisualGenerationQueue } from './story-visual-generation.queue';
 import { StoryVisualGenerationWorker } from './story-visual-generation.worker';
 
@@ -288,6 +289,42 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
       return { workId, releaseId: release.id, generatedSceneId, sourceSceneKey: scene.sceneKey, created: false };
     }
     return { workId, releaseId: release.id, generatedSceneId, sourceSceneKey: scene.sceneKey, created: true };
+  }
+
+  async registerGeneratedContinuationPrompt(
+    continuationId: string,
+    result: StoryContinuationProviderResult,
+  ) {
+    if (!UUID_PATTERN.test(continuationId)) throw new BadRequestException('continuationId must be a UUID');
+    const continuation = await this.prisma.storyAiContinuation.findFirst({
+      where: { id: continuationId, status: 'completed', resultGeneratedSceneId: { not: null } },
+      select: { workId: true, releaseId: true, resultGeneratedSceneId: true },
+    });
+    if (!continuation?.resultGeneratedSceneId) {
+      return { created: false, reason: 'generated_scene_not_ready' } as const;
+    }
+    const release = await this.prisma.storyRelease.findFirst({
+      where: { id: continuation.releaseId, workId: continuation.workId, status: 'active' },
+      select: { checksum: true },
+    });
+    if (!release) return { created: false, reason: 'release_not_active' } as const;
+    const title = Object.values(result.title).find((value): value is string => typeof value === 'string') ?? '';
+    const prose = result.beats.flatMap(beat => Object.values(beat.content))
+      .filter((value): value is string => typeof value === 'string')
+      .join('\n');
+    const excerpt = Array.from(prose).slice(0, 6_000).join('');
+    const promptText = [
+      'Create one cinematic 16:9 illustration for this interactive story scene.',
+      'Preserve the characters, setting, period details, mood, and consequences stated in the scene.',
+      'Do not render captions, letters, logos, watermarks, interface elements, or modern objects not present in the scene.',
+      `Scene title: ${title}`,
+      `Scene text: ${excerpt}`,
+    ].join('\n');
+    return this.registerAiBranchPrompt(
+      continuation.workId,
+      continuation.resultGeneratedSceneId,
+      { releaseId: continuation.releaseId, releaseChecksum: release.checksum, promptText },
+    );
   }
 
   async syncQueue(workId?: string) {

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { ModerationService } from '../moderation/moderation.service';
 import { StoryEconomicsService } from './story-economics.service';
 import {
@@ -12,6 +12,7 @@ import { StoryContinuationContextAssembler } from './story-continuation-context.
 import { StoryContinuationContextError } from './story-continuation-context.assembler';
 import { validateStoryContinuationProviderResult } from './story-continuation-output.policy';
 import { createStoryContinuationTimingPolicy } from './story-continuation-timing.policy';
+import { StoryVisualGenerationService } from './story-visual-generation.service';
 
 const CONTINUATION_TIMING = createStoryContinuationTimingPolicy();
 const PROVIDER_TIMEOUT_MS = CONTINUATION_TIMING.executorDeadlineMs;
@@ -19,12 +20,15 @@ const LEASE_MS = CONTINUATION_TIMING.leaseMs;
 
 @Injectable()
 export class StoryContinuationExecutor {
+  private readonly logger = new Logger(StoryContinuationExecutor.name);
+
   constructor(
     private readonly queue: StoryContinuationQueueRepository,
     private readonly provider: StoryContinuationProvider,
     private readonly economics: StoryEconomicsService,
     private readonly contextAssembler: StoryContinuationContextAssembler,
     private readonly moderation: ModerationService,
+    @Optional() private readonly visuals?: StoryVisualGenerationService,
   ) {}
 
   async executeOne(workerId: string, signal?: AbortSignal) {
@@ -96,6 +100,14 @@ export class StoryContinuationExecutor {
         throw new StoryContinuationProviderError('server_moderation_rejected', false);
       }
       await this.economics.settleClaimedContinuation(claim, result);
+      try {
+        await this.visuals?.registerGeneratedContinuationPrompt(claim.continuationId, result);
+      } catch {
+        this.logger.warn({
+          event: 'story_continuation_visual_prompt_registration_failed',
+          continuationId: claim.continuationId,
+        });
+      }
       return { status: 'completed' as const, continuationId: claim.continuationId };
     } catch (error) {
       let providerError = normalizeProviderError(error);

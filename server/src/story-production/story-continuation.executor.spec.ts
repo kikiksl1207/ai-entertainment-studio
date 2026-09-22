@@ -82,11 +82,12 @@ function fixture() {
   };
   const contextAssembler = { assemble: jest.fn().mockResolvedValue(approvedContext) };
   const moderation = { preview: jest.fn().mockReturnValue({ decision: 'allow' }) };
+  const visuals = { registerGeneratedContinuationPrompt: jest.fn() };
   const executor = new StoryContinuationExecutor(
     queue, provider, economics as never, contextAssembler as never,
-    moderation as never,
+    moderation as never, visuals as never,
   );
-  return { queue, provider, economics, contextAssembler, moderation, approvedContext, executor };
+  return { queue, provider, economics, contextAssembler, moderation, visuals, approvedContext, executor };
 }
 
 describe('StoryContinuationExecutor', () => {
@@ -122,6 +123,36 @@ describe('StoryContinuationExecutor', () => {
     commit();
     await expect(pending).resolves.toMatchObject({ status: 'completed' });
     expect(f.provider.generate).toHaveBeenCalledTimes(1);
+    expect(f.visuals.registerGeneratedContinuationPrompt).toHaveBeenCalledWith(
+      claim.continuationId,
+      expect.objectContaining({
+        title: result.title,
+        beats: result.beats,
+        nextChoices: result.nextChoices,
+        visualManifest: expect.objectContaining({
+          sceneKey: 'ai-continuation-id',
+          background: expect.objectContaining({
+            publicAssetPath: '/assets/story/fallback.webp',
+            state: 'fallback',
+          }),
+        }),
+      }),
+    );
+  });
+
+  it('does not fail a completed continuation when visual prompt registration fails', async () => {
+    const f = fixture();
+    f.visuals.registerGeneratedContinuationPrompt.mockRejectedValue(new Error('private visual failure'));
+    await expect(f.executor.executeOne('worker')).resolves.toMatchObject({ status: 'completed' });
+    expect(f.economics.settleClaimedContinuation).toHaveBeenCalledWith(
+      claim,
+      expect.objectContaining({
+        title: result.title,
+        beats: result.beats,
+        nextChoices: result.nextChoices,
+      }),
+    );
+    expect(f.economics.failClaimedContinuation).not.toHaveBeenCalled();
   });
 
   it('never generates when dispatch commit acknowledgement fails', async () => {

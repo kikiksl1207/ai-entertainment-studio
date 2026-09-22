@@ -21,6 +21,7 @@ describe('StoryVisualGenerationService', () => {
       storyPart: { findFirst: jest.fn().mockResolvedValue({ id: partId }), findMany: jest.fn() },
       storyWork: { findFirst: jest.fn().mockResolvedValue({ id: workId, activeReleaseId: releaseId }) },
       storyRelease: { findFirst: jest.fn().mockResolvedValue({ id: releaseId, checksum }) },
+      storyAiContinuation: { findFirst: jest.fn() },
       storyBeat: { findFirst: jest.fn().mockResolvedValue({ id: 'beat-id' }), findMany: jest.fn() },
       storyVisualPrompt: {
         findUnique: jest.fn().mockResolvedValue({ workId, releaseId, releaseChecksum: checksum,
@@ -244,6 +245,48 @@ describe('StoryVisualGenerationService', () => {
       sourceKind: 'ai_branch',
       sourceBindingSha256: expect.stringMatching(/^[a-f0-9]{64}$/),
     }) });
+    expect(provider).not.toHaveBeenCalled();
+  });
+
+  it('derives a bounded visual prompt after a generated continuation is stored', async () => {
+    const f = fixture();
+    const provider = jest.spyOn(global, 'fetch');
+    const continuationId = '00000000-0000-4000-8000-000000000008';
+    const generatedSceneId = '00000000-0000-4000-8000-000000000007';
+    f.prisma.storyAiContinuation.findFirst.mockResolvedValue({
+      workId,
+      releaseId,
+      resultGeneratedSceneId: generatedSceneId,
+    });
+    const register = jest.spyOn(f.service, 'registerAiBranchPrompt').mockResolvedValue({
+      workId,
+      releaseId,
+      generatedSceneId,
+      sourceSceneKey: 'ai-route-0001',
+      created: true,
+    });
+    const longTail = '가'.repeat(6_100);
+
+    await expect(f.service.registerGeneratedContinuationPrompt(continuationId, {
+      title: { ko: '민간 구조를 향해' },
+      beats: [{ beatType: 'paragraph', content: { ko: `첫 장면 ${longTail}` } }],
+      visualManifest: {
+        sceneKey: 'ai-route-0001',
+        background: { state: 'fallback', altKey: 'story.visual.fallback' },
+        characters: [],
+        fallback: { publicAssetPath: '/assets/story/fallback.webp', altKey: 'story.visual.fallback' },
+      },
+      nextChoices: [],
+      usage: { inputTokens: 1, outputTokens: 1, cachedInputTokens: 0, imageUnits: 0 },
+    })).resolves.toMatchObject({ created: true });
+
+    expect(register).toHaveBeenCalledWith(workId, generatedSceneId, expect.objectContaining({
+      releaseId,
+      releaseChecksum: checksum,
+      promptText: expect.stringContaining('Scene title: 민간 구조를 향해'),
+    }));
+    const promptText = register.mock.calls[0][2].promptText;
+    expect(Array.from(promptText.split('Scene text: ')[1])).toHaveLength(6_000);
     expect(provider).not.toHaveBeenCalled();
   });
 });

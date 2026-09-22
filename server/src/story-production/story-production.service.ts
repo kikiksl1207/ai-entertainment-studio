@@ -1354,9 +1354,9 @@ export class StoryProductionService {
         })
       : null;
     if (!scene || !part || !work) throw new NotFoundException('Generated story scene not found');
-    const visualManifest = projectStoredStorySceneVisualManifest(scene.visualManifest, scene.sceneKey);
+    let visualManifest = projectStoredStorySceneVisualManifest(scene.visualManifest, scene.sceneKey);
     if (!visualManifest) throw new NotFoundException('Generated story scene not found');
-    const [beats, choices, releaseCapability] = await Promise.all([
+    const [beats, choices, releaseCapability, readyVisuals, promptKeys] = await Promise.all([
       this.prisma.storyAiGeneratedBeat.findMany({
         where: { sceneId: scene.id },
         orderBy: [{ position: 'asc' }, { id: 'asc' }],
@@ -1370,7 +1370,17 @@ export class StoryProductionService {
       this.economics && progress.activeReleaseId
         ? this.economics.capabilityByRelease(progress.activeReleaseId)
         : null,
+      this.visualGeneration && progress.activeReleaseId
+        ? this.visualGeneration.readyVisuals(work.id, progress.activeReleaseId, [scene.sceneKey])
+        : new Map<string, { sourceSceneKey: string; publicAssetPath: string }>(),
+      this.visualGeneration && progress.activeReleaseId
+        ? this.visualGeneration.promptKeys(work.id, progress.activeReleaseId, [scene.sceneKey])
+        : new Set<string>(),
     ]);
+    const generatedVisual = readyVisuals.get(scene.sceneKey);
+    if (generatedVisual) {
+      visualManifest = this.applyReadyVisual(visualManifest, generatedVisual.publicAssetPath);
+    }
     if (beats.length < 1 || beats.length > 40) {
       throw new NotFoundException('Generated story scene not found');
     }
@@ -1400,6 +1410,7 @@ export class StoryProductionService {
           content: projectLocalizedValue(beat.content, locale, work.defaultLocale),
         })),
         visualManifest,
+        visualGenerationAvailable: promptKeys.has(scene.sceneKey) && !generatedVisual,
         endingType: scene.endingType,
       },
       choices: progress.status === 'active'
