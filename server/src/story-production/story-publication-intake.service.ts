@@ -406,7 +406,7 @@ export class StoryPublicationIntakeService {
         releaseId,
         releaseChecksum: checksum,
         ...prompt,
-        sourceKind: 'approved_public_beta_import',
+        sourceKind: 'admin_verified',
         sourceBindingSha256: plan.sourceBindingSha256,
       }));
       for (let index = 0; index < promptRows.length; index += 256) {
