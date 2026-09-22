@@ -418,6 +418,7 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
     let effective: Awaited<ReturnType<StoryVisualGenerationService['effectiveVisualPrompt']>> | null = null;
     let replacedAssetId: string | null = null;
     let replacementFailureCode: string | null = null;
+    let replacementClaimCode: string | null = null;
     if (existing.status === 'ready' && existing.assetId) {
       if (!replaceStale) return this.readyResult(sourceSceneKey, existing.assetId, true);
       effective = await this.effectiveVisualPrompt(workId, releaseId, releaseChecksum, prompt.promptText);
@@ -444,9 +445,23 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
         ...requestedIdentity,
       }));
       const failureCode = this.staleReplacementFailureCode(replacementIdentitySha256);
+      const claimCode = this.staleReplacementClaimCode(replacementIdentitySha256);
       replacementFailureCode = failureCode;
+      replacementClaimCode = claimCode;
       if (existing.lastErrorCode === failureCode) {
         return { status: 'failed', sourceSceneKey, retryable: false } as const;
+      }
+      if (existing.lastErrorCode === claimCode) {
+        const staleBefore = new Date(Date.now() - this.numberFromEnv('STORY_IMAGE_GENERATION_STALE_SECONDS', 180) * 1000);
+        if (existing.updatedAt >= staleBefore) return { status: 'processing', sourceSceneKey } as const;
+        const expired = await this.prisma.storyVisualGeneration.updateMany({
+          where: { id: existing.id, status: 'ready', assetId: existing.assetId,
+            lastErrorCode: claimCode, updatedAt: { lt: staleBefore } },
+          data: { lastErrorCode: failureCode, startedAt: null, updatedAt: new Date() },
+        });
+        return expired.count
+          ? { status: 'failed', sourceSceneKey, retryable: false } as const
+          : { status: 'processing', sourceSceneKey } as const;
       }
       if (!this.enabled()) return { status: 'unavailable', reason: 'generation_disabled' } as const;
       const replacementPreflight = this.providerPreflight();
@@ -463,12 +478,11 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
           lastErrorCode: existing.lastErrorCode,
         },
         data: {
-          status: 'generating',
           provider: 'openai',
           model: this.model(),
           quality: this.quality(),
           size: this.size(),
-          lastErrorCode: null,
+          lastErrorCode: claimCode,
           startedAt: new Date(),
           updatedAt: new Date(),
         },
@@ -483,7 +497,7 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
       }
       replacedAssetId = existing.assetId;
       existing = { ...existing, status: 'generating',
-        lastErrorCode: null, startedAt: new Date(), updatedAt: new Date() };
+        lastErrorCode: claimCode, startedAt: new Date(), updatedAt: new Date() };
     }
     if (!this.enabled()) return { status: 'unavailable', reason: 'generation_disabled' } as const;
     const preflight = this.providerPreflight();
@@ -571,7 +585,10 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
       return this.readyResult(sourceSceneKey, asset.id, false);
     } catch (error) {
       const code = signal?.aborted ? 'PROVIDER_OUTCOME_UNKNOWN' : this.safeGenerationError(error);
-      await this.prisma.storyVisualGeneration.updateMany({ where: { id: existing.id, status: 'generating' },
+      await this.prisma.storyVisualGeneration.updateMany({
+        where: replacedAssetId && replacementClaimCode
+          ? { id: existing.id, status: 'ready', assetId: replacedAssetId, lastErrorCode: replacementClaimCode }
+          : { id: existing.id, status: 'generating' },
         data: replacedAssetId && replacementFailureCode
           ? { status: 'ready', assetId: replacedAssetId, lastErrorCode: replacementFailureCode,
             startedAt: null, updatedAt: new Date() }
@@ -615,6 +632,10 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
 
   private staleReplacementFailureCode(effectivePromptSha256: string) {
     return `STALE_REPLACEMENT_FAILED_${effectivePromptSha256.slice(0, 40)}`;
+  }
+
+  private staleReplacementClaimCode(effectivePromptSha256: string) {
+    return `STALE_REPLACEMENT_IN_PROGRESS_${effectivePromptSha256.slice(0, 40)}`;
   }
 
   private async ensureGeneration(prompt: { workId: string; releaseId: string; releaseChecksum: string;

@@ -52,6 +52,15 @@ describe('StoryVisualGenerationService', () => {
         create: jest.fn(async ({ data }: any) => (generation = { id: 'generation-id', status: 'pending',
           attemptCount: 0, updatedAt: new Date(), assetId: null, ...data })),
         updateMany: jest.fn(async ({ data }: any) => {
+          if (generation?.status === 'ready' && !data.status &&
+              String(data.lastErrorCode).startsWith('STALE_REPLACEMENT_IN_PROGRESS_')) {
+            generation = { ...generation, ...data };
+            return { count: 1 };
+          }
+          if (generation?.status === 'ready' && data.status === 'ready') {
+            generation = { ...generation, ...data };
+            return { count: 1 };
+          }
           if (generation && ['pending', 'failed'].includes(generation.status) && data.status === 'generating') {
             generation = { ...generation, status: data.status,
               attemptCount: data.attemptCount ? generation.attemptCount + 1 : generation.attemptCount,
@@ -259,8 +268,11 @@ describe('StoryVisualGenerationService', () => {
     expect(f.generation()).toMatchObject({ status: 'ready', assetId: replacementAssetId, attemptCount: 1 });
     expect(f.prisma.storyVisualGeneration.updateMany).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({ lastErrorCode: null }),
-      data: expect.not.objectContaining({ attemptCount: expect.anything() }),
+      data: expect.objectContaining({
+        lastErrorCode: expect.stringMatching(/^STALE_REPLACEMENT_IN_PROGRESS_[a-f0-9]{40}$/),
+      }),
     }));
+    expect(f.prisma.storyVisualGeneration.updateMany.mock.calls[0][0].data).not.toHaveProperty('attemptCount');
     expect(f.prisma.asset.updateMany).toHaveBeenCalledWith({
       where: { id: assetId, visibility: 'public' }, data: { visibility: 'private' },
     });
@@ -323,6 +335,28 @@ describe('StoryVisualGenerationService', () => {
     });
     expect(provider).toHaveBeenCalledTimes(1);
     expect(f.prisma.asset.create).not.toHaveBeenCalled();
+    expect(f.generation()).toMatchObject({ status: 'ready', assetId, attemptCount: 1 });
+  });
+
+  it('serves the prior ready asset while the same admin replacement is already in progress', async () => {
+    const f = fixture();
+    f.setGeneration({ id: 'generation-id', workId, releaseId, releaseChecksum: checksum, sourceSceneKey,
+      promptSha256, status: 'ready', attemptCount: 1, updatedAt: new Date(), assetId, lastErrorCode: null });
+    f.prisma.asset.findFirst.mockResolvedValue({ id: assetId, metadata: {
+      storyVisual: { workId, releaseId, sourceSceneKey, promptSha256 },
+    } });
+    const provider = jest.spyOn(global, 'fetch').mockResolvedValue({ ok: false, status: 500 } as Response);
+    const input = { releaseId, releaseChecksum: checksum, sourceSceneKey };
+
+    await f.service.replaceStale(workId, input);
+    const claimCode = f.prisma.storyVisualGeneration.updateMany.mock.calls[0][0].data.lastErrorCode;
+    f.setGeneration({ id: 'generation-id', workId, releaseId, releaseChecksum: checksum, sourceSceneKey,
+      promptSha256, status: 'ready', attemptCount: 1, updatedAt: new Date(), assetId, lastErrorCode: claimCode });
+    provider.mockClear();
+
+    await expect(f.service.replaceStale(workId, input))
+      .resolves.toEqual({ status: 'processing', sourceSceneKey });
+    expect(provider).not.toHaveBeenCalled();
     expect(f.generation()).toMatchObject({ status: 'ready', assetId, attemptCount: 1 });
   });
 
