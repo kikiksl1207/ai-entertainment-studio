@@ -33,7 +33,7 @@ export function validateStoryContinuationProviderResult(
   });
   const hasChoices = Array.isArray(value.nextChoices) && value.nextChoices.length > 0;
   const hasEnding = Boolean(value.ending);
-  if (hasChoices === hasEnding || (hasChoices && value.nextChoices!.length > 3)) {
+  if ((!hasChoices && !hasEnding) || (hasChoices && value.nextChoices!.length > 3)) {
     invalid('Generated continuation requires 1 to 3 choices or one ending');
   }
   const choices = (value.nextChoices ?? []).map((choice) => {
@@ -70,7 +70,7 @@ export function validateStoryContinuationProviderResult(
     beats,
     visualManifest,
     ...(choices.length ? { nextChoices: choices } : {}),
-    ...(endingKey ? { ending: { endingKey } } : {}),
+    ...(!choices.length && endingKey ? { ending: { endingKey } } : {}),
     usage,
   };
   if (Buffer.byteLength(JSON.stringify(sanitized), 'utf8') > MAX_OUTPUT_BYTES) {

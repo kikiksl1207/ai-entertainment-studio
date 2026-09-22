@@ -164,7 +164,7 @@ describe('OpenAiStoryContinuationProvider (fake transport only)', () => {
   it.each([
     { title: { ko: 'wrong locale' } }, { title: { en: 'right', ko: 'extra' } },
     { nextChoices: Array.from({ length: 4 }, (_, i) => ({ choiceKey: `c${i}`, label: { en: `Choice ${i}` } })) },
-    { nextChoices: [], ending: null }, { ending: { endingKey: 'ai-end' } },
+    { nextChoices: [], ending: null },
     { nextChoices: [], ending: { endingKey: '' } },
     { visualManifest: { background: { publicAssetPath: 'https://invented.invalid/image.png' } } },
     { beats: [] }, { beats: [{ beatType: 'image', content: { en: 'bad' } }] },
@@ -182,6 +182,16 @@ describe('OpenAiStoryContinuationProvider (fake transport only)', () => {
     const result = await f.provider.generate(request(), new AbortController().signal);
     expect(result.ending).toEqual({ endingKey: 'ai-end' });
     expect(result.nextChoices).toBeUndefined();
+  });
+
+  it('keeps choices when structured output redundantly includes an ending', async () => {
+    const f = fixture();
+    f.transport.mockResolvedValue(new Response(JSON.stringify(envelope({
+      ...output(), ending: { endingKey: 'ai-end' },
+    }))));
+    const result = await f.provider.generate(request(), new AbortController().signal);
+    expect(result.nextChoices).toEqual(output().nextChoices);
+    expect(result.ending).toBeUndefined();
   });
 
   it.each([

@@ -28,6 +28,15 @@ describe('continuation output ending defense', () => {
     expect(result.ending).toEqual({ endingKey: 'ai-end' });
     expect(result.nextChoices).toBeUndefined();
   });
+
+  it('keeps continuation choices when a provider redundantly also marks an ending', () => {
+    const result = validateStoryContinuationProviderResult({
+      ...valid,
+      nextChoices: [{ choiceKey: 'continue', label: { en: 'Continue' } }],
+    }, input);
+    expect(result.nextChoices).toEqual([{ choiceKey: 'continue', label: { en: 'Continue' } }]);
+    expect(result.ending).toBeUndefined();
+  });
   it.each([null, undefined, false, 0])('rejects empty routing %#', (ending) => {
     expect(() => validateStoryContinuationProviderResult({ ...valid, ending } as StoryContinuationProviderResult, input))
       .toThrow(BadRequestException);
