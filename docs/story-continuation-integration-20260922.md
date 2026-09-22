@@ -1,5 +1,31 @@
 # Story Continuation Integration Checkpoint
 
+## Writer Analysis UI Integration
+
+Runtime `e563aa2` incorporates frozen partial UI `9a6d71b`; all ten candidate
+paths match exactly. Independent actual browser/AppModule/JWT/filter/PG review
+accepted six groups: explicit enqueue and same-key unknown recovery, real token
+refresh and late private-response fencing,205-item pagination/running append,
+bounded hash-checked citations, honest incomplete/failed states, five mobile
+locales plus a representative desktop. Report:
+`E:/CodexMovedCache/qa-1855-analysis-review-independent-report.md`.
+PM then passed all24 analysis/paste VM tests on `e563aa2`, first run,1.012s.
+
+Readiness was enabled only for local synthetic admission with a dummy
+credential and zero-rate card; workers were OFF and outbound attempts zero.
+Evidence/states were explicitly seeded, not real model output. First config,
+wire fault-injection and text-oracle failures remain recorded. A control at the
+bottom edge was initially behind the existing fixed navigation; native center
+scrolling and close/reopen verified reachability without changing product CSS.
+This is not whole-studio navigation acceptance or a first-run-clean report.
+
+The accepted slice does not include cross-device owned discovery, semantic
+decisions or final proof UI. New server candidate `3deab1c` (schema65, own37
+first-pass checks) is in independent review; its frontend binding is a separate
+bounded follow-up. The follow-up also checks private draft cleanup on actual
+account changes while preserving unsent drafts on same-owner refresh/browsing.
+No new provider, publication or full writer workflow approval follows.
+
 ## Initial Author Proof Integration
 
 Runtime `c7a45eb` incorporates frozen initial-proof `aa6a4f8`. Independent
