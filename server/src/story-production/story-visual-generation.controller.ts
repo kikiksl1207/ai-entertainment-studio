@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, Res, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { ServerResponse } from 'http';
 import { AuthUser } from '../auth/auth.types';
@@ -9,7 +9,9 @@ import { AdminPermissionGuard } from '../auth/guards/admin-permission.guard';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import {
   RegisterStoryVisualPromptsDto,
+  RegisterStoryVisualAiBranchPromptDto,
   RequestStoryVisualDto,
+  SyncStoryVisualQueueDto,
 } from './dto/story-visual-generation.dto';
 import { StoryVisualGenerationService } from './story-visual-generation.service';
 
@@ -62,5 +64,27 @@ export class StoryVisualGenerationAdminController {
     @Body() body: RegisterStoryVisualPromptsDto,
   ) {
     return this.visuals.registerVerifiedPrompts(workId, body);
+  }
+
+  @Get('queue')
+  @RequireAdminPermissions('*')
+  queueStatus(@Query('workId') workId?: string) {
+    return this.visuals.queueStatus(workId);
+  }
+
+  @Post('queue/sync')
+  @RequireAdminPermissions('*')
+  syncQueue(@Body() body: SyncStoryVisualQueueDto) {
+    return this.visuals.syncQueue(body.workId);
+  }
+
+  @Post(':workId/ai-branches/:generatedSceneId/prompt')
+  @RequireAdminPermissions('*')
+  registerAiBranchPrompt(
+    @Param('workId') workId: string,
+    @Param('generatedSceneId') generatedSceneId: string,
+    @Body() body: RegisterStoryVisualAiBranchPromptDto,
+  ) {
+    return this.visuals.registerAiBranchPrompt(workId, generatedSceneId, body);
   }
 }

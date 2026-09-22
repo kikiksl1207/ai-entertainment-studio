@@ -26,7 +26,9 @@ describe('StoryVisualGenerationService', () => {
         findUnique: jest.fn().mockResolvedValue({ workId, releaseId, releaseChecksum: checksum,
           sourceSceneKey, promptSha256, promptText: 'A sufficiently detailed private scene image direction.' }),
         findMany: jest.fn().mockResolvedValue([{ sourceSceneKey }]),
+        create: jest.fn(),
       },
+      storyAiGeneratedScene: { findFirst: jest.fn() },
       storyVisualGeneration: {
         findUnique: jest.fn(async () => generation),
         findUniqueOrThrow: jest.fn(async () => generation),
@@ -216,6 +218,32 @@ describe('StoryVisualGenerationService', () => {
     await expect(f.service.requestForProgress('user-id', progressId, sourceSceneKey)).resolves.toEqual({
       status: 'unavailable', reason: 'beta_generation_limit_reached',
     });
+    expect(provider).not.toHaveBeenCalled();
+  });
+
+  it('registers an immutable prompt connection for a generated AI branch without calling the image provider', async () => {
+    const f = fixture();
+    const generatedSceneId = '00000000-0000-4000-8000-000000000007';
+    f.prisma.storyVisualPrompt.findUnique.mockResolvedValue(null);
+    f.prisma.storyAiGeneratedScene.findFirst.mockResolvedValue({
+      id: generatedSceneId,
+      sceneKey: 'ai-route-0001',
+      resultChecksum: 'c'.repeat(64),
+    });
+    const provider = jest.spyOn(global, 'fetch');
+
+    await expect(f.service.registerAiBranchPrompt(workId, generatedSceneId, {
+      releaseId,
+      releaseChecksum: checksum,
+      promptText: 'A verified branch scene direction with consistent character and setting details.',
+    })).resolves.toMatchObject({ sourceSceneKey: 'ai-route-0001', created: true });
+    expect(f.prisma.storyVisualPrompt.create).toHaveBeenCalledWith({ data: expect.objectContaining({
+      workId,
+      releaseId,
+      sourceSceneKey: 'ai-route-0001',
+      sourceKind: 'ai_branch',
+      sourceBindingSha256: expect.stringMatching(/^[a-f0-9]{64}$/),
+    }) });
     expect(provider).not.toHaveBeenCalled();
   });
 });

@@ -1,9 +1,12 @@
 import {
   BadRequestException,
+  BeforeApplicationShutdown,
   ConflictException,
   Injectable,
   Logger,
   NotFoundException,
+  OnApplicationBootstrap,
+  OnModuleDestroy,
   Optional,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -11,8 +14,13 @@ import { Prisma } from '@prisma/client';
 import { createHash, createHmac } from 'crypto';
 import * as sharp from 'sharp';
 import { PrismaService } from '../prisma/prisma.service';
-import type { RegisterStoryVisualPromptsDto } from './dto/story-visual-generation.dto';
+import type {
+  RegisterStoryVisualAiBranchPromptDto,
+  RegisterStoryVisualPromptsDto,
+} from './dto/story-visual-generation.dto';
 import { StoryPublicBetaPolicy } from './story-public-beta.policy';
+import { StoryVisualGenerationQueue } from './story-visual-generation.queue';
+import { StoryVisualGenerationWorker } from './story-visual-generation.worker';
 
 const SOURCE_SCENE_KEY = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,159}$/;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -31,14 +39,31 @@ type ReadyVisual = {
 };
 
 @Injectable()
-export class StoryVisualGenerationService {
+export class StoryVisualGenerationService implements OnApplicationBootstrap, OnModuleDestroy, BeforeApplicationShutdown {
   private readonly logger = new Logger(StoryVisualGenerationService.name);
+  private readonly queue: StoryVisualGenerationQueue;
+  private readonly worker: StoryVisualGenerationWorker;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     @Optional() private readonly publicBeta?: StoryPublicBetaPolicy,
-  ) {}
+  ) {
+    this.queue = new StoryVisualGenerationQueue(prisma, config);
+    this.worker = new StoryVisualGenerationWorker({ executeOne: signal => this.executeQueuedVisual(signal) }, config);
+  }
+
+  onApplicationBootstrap() {
+    this.worker.onApplicationBootstrap();
+  }
+
+  onModuleDestroy() {
+    return this.worker.onModuleDestroy();
+  }
+
+  beforeApplicationShutdown() {
+    return this.worker.beforeApplicationShutdown();
+  }
 
   async readyVisuals(workId: string, releaseId: string, sourceSceneKeys: string[]) {
     const keys = [...new Set(sourceSceneKeys.filter(key => SOURCE_SCENE_KEY.test(key)))];
@@ -195,7 +220,109 @@ export class StoryVisualGenerationService {
     return { workId, promptCount: normalized.length, createdCount: missing.length, promptSetSha256 };
   }
 
-  private async generate(workId: string, releaseId: string, releaseChecksum: string, sourceSceneKey: string) {
+  async registerAiBranchPrompt(
+    workId: string,
+    generatedSceneId: string,
+    input: RegisterStoryVisualAiBranchPromptDto,
+  ) {
+    if (!UUID_PATTERN.test(workId) || !UUID_PATTERN.test(generatedSceneId)) {
+      throw new BadRequestException('workId and generatedSceneId must be UUIDs');
+    }
+    const release = await this.prisma.storyRelease.findFirst({
+      where: { id: input.releaseId, workId, status: 'active' },
+      select: { id: true, checksum: true },
+    });
+    if (!release || release.checksum !== input.releaseChecksum) {
+      throw new ConflictException({ code: 'STORY_VISUAL_RELEASE_CHANGED', message: 'Story release binding changed' });
+    }
+    const scene = await this.prisma.storyAiGeneratedScene.findFirst({
+      where: { id: generatedSceneId, workId, releaseId: release.id, status: 'ready' },
+      select: { id: true, sceneKey: true, resultChecksum: true },
+    });
+    if (!scene || !SOURCE_SCENE_KEY.test(scene.sceneKey)) {
+      throw new NotFoundException('Generated story scene not found');
+    }
+    const promptText = input.promptText.trim();
+    const promptSha256 = this.sha256Hex(promptText);
+    const sourceBindingSha256 = this.sha256Hex(JSON.stringify({
+      generatedSceneId: scene.id,
+      resultChecksum: scene.resultChecksum,
+      promptSha256,
+    }));
+    const existing = await this.prisma.storyVisualPrompt.findUnique({
+      where: { workId_releaseId_sourceSceneKey: { workId, releaseId: release.id, sourceSceneKey: scene.sceneKey } },
+    });
+    if (existing) {
+      if (existing.promptSha256 !== promptSha256 || existing.releaseChecksum !== release.checksum ||
+          existing.sourceBindingSha256 !== sourceBindingSha256 || existing.sourceKind !== 'ai_branch') {
+        throw new ConflictException({
+          code: 'STORY_VISUAL_PROMPT_IMMUTABLE',
+          message: 'Existing visual prompt cannot be replaced',
+        });
+      }
+      return { workId, releaseId: release.id, generatedSceneId, sourceSceneKey: scene.sceneKey, created: false };
+    }
+    try {
+      await this.prisma.storyVisualPrompt.create({ data: {
+        workId,
+        releaseId: release.id,
+        releaseChecksum: release.checksum,
+        sourceSceneKey: scene.sceneKey,
+        promptText,
+        promptSha256,
+        sourceKind: 'ai_branch',
+        sourceBindingSha256,
+      } });
+    } catch (error) {
+      if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2002') throw error;
+      const concurrent = await this.prisma.storyVisualPrompt.findUnique({
+        where: { workId_releaseId_sourceSceneKey: { workId, releaseId: release.id, sourceSceneKey: scene.sceneKey } },
+      });
+      if (!concurrent || concurrent.promptSha256 !== promptSha256 ||
+          concurrent.sourceBindingSha256 !== sourceBindingSha256 || concurrent.sourceKind !== 'ai_branch') {
+        throw new ConflictException({
+          code: 'STORY_VISUAL_PROMPT_IMMUTABLE',
+          message: 'Existing visual prompt cannot be replaced',
+        });
+      }
+      return { workId, releaseId: release.id, generatedSceneId, sourceSceneKey: scene.sceneKey, created: false };
+    }
+    return { workId, releaseId: release.id, generatedSceneId, sourceSceneKey: scene.sceneKey, created: true };
+  }
+
+  async syncQueue(workId?: string) {
+    return this.queue.sync(workId);
+  }
+
+  async queueStatus(workId?: string) {
+    return {
+      worker: this.worker.readiness(),
+      ...await this.queue.status(workId),
+    };
+  }
+
+  private async executeQueuedVisual(signal?: AbortSignal) {
+    const sync = await this.queue.sync();
+    const candidate = await this.queue.next();
+    if (!candidate) return { status: sync.limitReached ? 'limit_reached' : 'idle' } as const;
+    if (signal?.aborted) return { status: 'failed' } as const;
+    const result = await this.generate(candidate.workId, candidate.releaseId, candidate.releaseChecksum,
+      candidate.sourceSceneKey, signal);
+    if (result.status === 'ready') return { status: 'completed' } as const;
+    if (result.status === 'unavailable' && result.reason === 'generation_disabled') return { status: 'disabled' } as const;
+    if (result.status === 'unavailable' && result.reason === 'beta_generation_limit_reached') {
+      return { status: 'limit_reached' } as const;
+    }
+    return { status: result.status === 'processing' ? 'idle' : 'failed' } as const;
+  }
+
+  private async generate(
+    workId: string,
+    releaseId: string,
+    releaseChecksum: string,
+    sourceSceneKey: string,
+    signal?: AbortSignal,
+  ) {
     const prompt = await this.prisma.storyVisualPrompt.findUnique({
       where: { workId_releaseId_sourceSceneKey: { workId, releaseId, sourceSceneKey } },
     });
@@ -247,7 +374,7 @@ export class StoryVisualGenerationService {
     }
 
     try {
-      const image = await this.generateImage(prompt.promptText);
+      const image = await this.generateImage(prompt.promptText, signal);
       const checksumSha256 = this.sha256Hex(image);
       const storage = await this.uploadImage(workId, releaseId, sourceSceneKey, prompt.promptSha256, image);
       const asset = await this.prisma.$transaction(async tx => {
@@ -277,7 +404,7 @@ export class StoryVisualGenerationService {
         promptSha256: prompt.promptSha256, model: this.model(), quality: this.quality(), bytes: image.length });
       return this.readyResult(sourceSceneKey, asset.id, false);
     } catch (error) {
-      const code = this.safeGenerationError(error);
+      const code = signal?.aborted ? 'PROVIDER_OUTCOME_UNKNOWN' : this.safeGenerationError(error);
       await this.prisma.storyVisualGeneration.updateMany({ where: { id: existing.id, status: 'generating' },
         data: { status: 'failed', lastErrorCode: code, startedAt: null, updatedAt: new Date() } });
       this.logger.warn({ event: 'story_visual_generation_failed', workId, sourceSceneKey,
@@ -325,13 +452,14 @@ export class StoryVisualGenerationService {
       totalCount >= this.numberFromEnv('STORY_IMAGE_GENERATION_MAX_TOTAL', 160);
   }
 
-  private async generateImage(prompt: string) {
+  private async generateImage(prompt: string, signal?: AbortSignal) {
+    const timeout = AbortSignal.timeout(this.numberFromEnv('STORY_IMAGE_GENERATION_TIMEOUT_MS', 120_000));
     const response = await fetch('https://api.openai.com/v1/images/generations', {
       method: 'POST',
       headers: { authorization: `Bearer ${this.requiredEnv('OPENAI_API_KEY')}`, 'content-type': 'application/json' },
       body: JSON.stringify({ model: this.model(), prompt, n: 1, size: this.size(), quality: this.quality(),
         output_format: 'webp', output_compression: 86, moderation: 'auto' }),
-      signal: AbortSignal.timeout(this.numberFromEnv('STORY_IMAGE_GENERATION_TIMEOUT_MS', 120_000)),
+      signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
     });
     if (!response.ok) throw new Error(`OPENAI_${response.status}`);
     const payload = await response.json() as { data?: Array<{ b64_json?: unknown }> };

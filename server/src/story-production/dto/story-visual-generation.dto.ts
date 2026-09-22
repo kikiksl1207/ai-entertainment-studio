@@ -10,6 +10,7 @@ import {
   MinLength,
   ValidateNested,
   IsUUID,
+  IsOptional,
 } from 'class-validator';
 
 const SOURCE_SCENE_KEY = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,159}$/;
@@ -56,4 +57,25 @@ export class RegisterStoryVisualPromptsDto {
   @ValidateNested({ each: true })
   @Type(() => StoryVisualPromptItemDto)
   prompts!: StoryVisualPromptItemDto[];
+}
+
+export class SyncStoryVisualQueueDto {
+  @IsOptional()
+  @IsUUID()
+  workId?: string;
+}
+
+export class RegisterStoryVisualAiBranchPromptDto {
+  @IsUUID()
+  releaseId!: string;
+
+  @IsString()
+  @Length(64, 64)
+  @Matches(/^[a-f0-9]{64}$/)
+  releaseChecksum!: string;
+
+  @IsString()
+  @MinLength(20)
+  @MaxLength(32_000)
+  promptText!: string;
 }
