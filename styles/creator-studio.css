@@ -895,6 +895,24 @@ label { gap: 8px; }
 .writer-manuscript-confirm { display: flex; align-items: flex-start; gap: 10px; min-width: 0; line-height: 1.5; overflow-wrap: anywhere; }
 .writer-manuscript-confirm input { flex: 0 0 auto; width: 18px; height: 18px; margin: 2px 0 0; }
 .writer-manuscript-confirm span { min-width: 0; }
+.writer-analysis { min-width: 0; margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--line); }
+.writer-analysis [hidden], .writer-analysis[hidden] { display: none !important; }
+.writer-analysis h2 { margin: 0 0 12px; font-size: 20px; }
+.writer-analysis p { line-height: 1.7; overflow-wrap: anywhere; }
+.writer-analysis-meta { color: var(--muted); font-size: 13px; }
+.writer-analysis progress { display: block; width: 100%; height: 12px; accent-color: var(--accent, #de58a4); }
+.writer-analysis-boundary { padding-left: 12px; border-left: 3px solid var(--warn); }
+.writer-analysis-evidence { min-width: 0; }
+.writer-analysis-item { padding: 16px 0; border-top: 1px solid var(--line); }
+.writer-analysis-item h3 { margin: 0 0 6px; font-size: 16px; line-height: 1.6; overflow-wrap: anywhere; }
+.writer-analysis-item p, .writer-analysis-item blockquote { font-size: 16px; font-weight: 400; }
+.writer-analysis-item blockquote { margin: 12px 0; padding: 8px 12px; border-left: 2px solid var(--line-strong); white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.7; }
+.writer-analysis-pages { display: grid; grid-template-columns: 44px minmax(0, 1fr) 44px; align-items: center; gap: 12px; margin-top: 16px; }
+.writer-analysis-pages button { width: 44px; height: 44px; padding: 0; font-size: 20px; }
+.writer-analysis-pages span { text-align: center; line-height: 1.5; overflow-wrap: anywhere; }
+.writer-analysis button { min-height: 44px; max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+.writer-analysis button:disabled { cursor: default; opacity: .55; }
+.writer-analysis .is-danger { color: var(--danger, #ff9aa6); }
 .story-intake-panel { display: grid; gap: 16px; }
 .story-intake-notice { margin: 0; }
 .story-intake-file-field input[type="file"] { padding: 9px 10px; }

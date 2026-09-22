@@ -24,6 +24,9 @@
   let writerFeedback = null;
   let writerSubmitting = false;
   let writerSubmitted = false;
+  let writerReceipt = null;
+  let studioAuthMarker = null;
+  let studioAuthEpoch = 0;
 
   const storyIntakeFileRules = {
     manuscripts: { maxCount: 10, maxBytes: 50 * 1024 * 1024, extensions: new Set([".md", ".txt", ".docx", ".pdf", ".json"]) },
@@ -67,6 +70,23 @@
     };
   }
 
+  function sameStudioAuth(left, right) {
+    return Boolean(left && right && left.accessToken === right.accessToken && left.refreshToken === right.refreshToken &&
+      (left.user?.id || left.user?.email) === (right.user?.id || right.user?.email));
+  }
+
+  function studioIdentity() {
+    const auth = readAuth();
+    if (!sameStudioAuth(studioAuthMarker, auth)) studioAuthEpoch++;
+    studioAuthMarker = auth;
+    return { ownerId: auth?.user?.id || auth?.user?.email || null, epoch: studioAuthEpoch };
+  }
+
+  function currentStudioIdentity(identity) {
+    const current = studioIdentity();
+    return Boolean(identity?.ownerId && current.ownerId === identity.ownerId && current.epoch === identity.epoch);
+  }
+
   function readStudioHandoff() {
     try {
       const raw = sessionStorage.getItem(studioHandoffKey);
@@ -98,11 +118,13 @@
         body: JSON.stringify({ refreshToken }),
         signal: controller.signal
       });
+      if (!sameStudioAuth(auth, readAuth())) return null;
       if (!res.ok) {
         writeAuth(null);
         return null;
       }
       const data = await res.json().catch(() => null);
+      if (!sameStudioAuth(auth, readAuth())) return null;
       const accessToken = data?.accessToken || data?.tokens?.accessToken || data?.access_token;
       const nextRefreshToken = data?.refreshToken || data?.tokens?.refreshToken || data?.refresh_token || refreshToken;
       if (!accessToken) {
@@ -116,7 +138,9 @@
         refreshToken: nextRefreshToken,
         user: data?.user || auth.user
       });
+      if ((nextAuth.user?.id || nextAuth.user?.email) !== (auth.user?.id || auth.user?.email)) return null;
       writeAuth(nextAuth);
+      studioAuthMarker = nextAuth;
       return nextAuth;
     } catch (_) {
       return null;
@@ -156,10 +180,12 @@
   }
 
   async function fetchCreatorStudioApi(path, options = {}) {
+    if (options.identity && !currentStudioIdentity(options.identity)) throw new DOMException("Context changed", "AbortError");
     let auth = readAuth();
     if (!options.token && !auth?.accessToken && auth?.refreshToken) {
       auth = await refreshStudioAuthOnce();
     }
+    if (options.identity && !currentStudioIdentity(options.identity)) throw new DOMException("Context changed", "AbortError");
     const token = options.token || auth?.accessToken;
     const headers = { ...(options.headers || {}) };
     if (token) headers.Authorization = "Bearer " + token;
@@ -170,6 +196,7 @@
       body: options.body ? JSON.stringify(options.body) : undefined,
       signal: options.signal
     });
+    if (options.identity && !currentStudioIdentity(options.identity)) throw new DOMException("Context changed", "AbortError");
     if (res.status === 401 && !options._retried) {
       const refreshed = await refreshStudioAuthOnce();
       if (refreshed?.accessToken) {
@@ -185,7 +212,15 @@
 
   window.LuminaCreatorStudioApi = {
     fetch: fetchCreatorStudioApi,
-    currentUser: () => readAuth()?.user || null
+    currentUser: () => readAuth()?.user || null,
+    identity: studioIdentity,
+    isCurrent: currentStudioIdentity
+  };
+
+  window.LuminaCreatorManuscript = {
+    receipt: () => writerReceipt,
+    context: () => ({ workId: document.getElementById("writerManuscriptWork")?.value || "",
+      sourceLocale: document.getElementById("writerManuscriptLocale")?.value || "ko" })
   };
 
   async function fetchStoryIntake(formData, idempotencyKey, options = {}) {
@@ -215,8 +250,10 @@
   }
 
   async function fetchWriterPaste(workId, formData, options = {}) {
+    if (!currentStudioIdentity(options.identity)) return null;
     let auth = readAuth();
     if (!options.token && !auth?.accessToken && auth?.refreshToken) auth = await refreshStudioAuthOnce();
+    if (!currentStudioIdentity(options.identity)) return null;
     const token = options.token || auth?.accessToken;
     if (!token) return null;
     const res = await fetch(apiBase + "/api/v1/me/creator-studio/stories/" + encodeURIComponent(workId) + "/manuscripts/paste", {
@@ -224,9 +261,10 @@
       headers: { Authorization: "Bearer " + token },
       body: formData
     });
+    if (!currentStudioIdentity(options.identity)) return null;
     if (res.status === 401 && !options._retried) {
       const refreshed = await refreshStudioAuthOnce();
-      if (refreshed?.accessToken) return fetchWriterPaste(workId, formData, { token: refreshed.accessToken, _retried: true });
+      if (refreshed?.accessToken) return fetchWriterPaste(workId, formData, { ...options, token: refreshed.accessToken, _retried: true });
     }
     return res;
   }
@@ -1011,6 +1049,7 @@
 
   function writerMatchesReview(review) {
     if (!review || !writerBoundariesReviewed || review !== writerReview) return false;
+    if (!currentStudioIdentity(review.identity)) return false;
     const current = writerInput();
     return !current.error && current.workId === review.workId && current.locale === review.locale &&
       current.body === review.body && current.expectedRaw === review.expectedRaw &&
@@ -1026,7 +1065,11 @@
       !writerMatchesReview(writerReview) || shell?.hidden || !(auth?.accessToken || auth?.refreshToken);
   }
 
-  function invalidateWriterReview() {
+  function invalidateWriterReview(clearReceipt = true) {
+    if (clearReceipt) {
+      writerReceipt = null;
+      window.LuminaCreatorAnalysis?.invalidate?.();
+    }
     writerBoundariesReviewed = false;
     writerReview = null;
     writerFeedback = null;
@@ -1160,6 +1203,7 @@
     const review = writerInput();
     if (review.error) return writerState(review.error, "danger", review.values);
     writerReview = review;
+    writerReview.identity = studioIdentity();
     writerBoundariesReviewed = true;
     syncWriterSubmit();
     writerSourceChanged();
@@ -1182,7 +1226,7 @@
     writerFeedback = { key: "submitting", tone: "" };
     writerSourceChanged();
     try {
-      const response = await fetchWriterPaste(review.workId, formData);
+      const response = await fetchWriterPaste(review.workId, formData, { identity: review.identity });
       if (!writerMatchesReview(review)) return;
       if (!response) {
         writerFeedback = { key: "authRequired", tone: "danger" };
@@ -1194,6 +1238,8 @@
         const receipt = await response.json().catch(() => null);
         if (!writerMatchesReview(review)) return;
         if (receipt?.manuscript?.workId !== review.workId || receipt.manuscript.locale !== review.locale ||
+            !/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(receipt.manuscript.id || "") ||
+            !/^[0-9a-f]{64}$/i.test(receipt.manuscript.contentHash || "") ||
             !Number.isSafeInteger(receipt.manuscript.version) || receipt.manuscript.version < 1 ||
             receipt?.received?.sourceKind !== "utf8_paste" ||
             receipt.received.byteLength !== review.bytes.byteLength ||
@@ -1201,6 +1247,9 @@
             receipt.analysisStarted !== false || typeof receipt.idempotentReplay !== "boolean") {
           writerFeedback = { key: "invalidReceipt", tone: "danger" };
         } else {
+          writerReceipt = Object.freeze({ id: receipt.manuscript.id, workId: review.workId,
+            sourceLocale: review.locale, version: receipt.manuscript.version,
+            contentHash: receipt.manuscript.contentHash, identity: review.identity });
           writerSubmitted = true;
           confirm.checked = false;
           writerFeedback = {
@@ -1209,6 +1258,7 @@
             values: { version: receipt.manuscript.version, count: receipt.received.parts,
               bytes: receipt.received.byteLength.toLocaleString() }
           };
+          window.LuminaCreatorAnalysis?.receive?.(writerReceipt);
         }
       }
     } catch (_) {
@@ -1222,8 +1272,9 @@
   async function loadWriterWorks() {
     const select = document.getElementById("writerManuscriptWork");
     if (!select || writerSubmitting) return;
-    invalidateWriterReview();
+    invalidateWriterReview(false);
     const request = ++writerCatalogRequest;
+    const identity = studioIdentity();
     const previous = select.value;
     select.disabled = true;
     select.replaceChildren(new Option(writerText("loading"), ""));
@@ -1235,7 +1286,7 @@
       do {
         const params = new URLSearchParams({ locale: document.getElementById("writerManuscriptLocale")?.value || "ko", limit: "30" });
         if (cursor) params.set("cursor", cursor);
-        const response = await fetchCreatorStudioApi("/api/v1/me/creator-studio/stories?" + params);
+        const response = await fetchCreatorStudioApi("/api/v1/me/creator-studio/stories?" + params, { identity });
         if (!response.ok) throw new Error("catalog");
         const page = await response.json();
         if (!Array.isArray(page?.items)) throw new Error("catalog");
@@ -1245,15 +1296,16 @@
         if (cursor) seen.add(cursor);
         if (works.length > 1000) throw new Error("catalog");
       } while (cursor);
-      if (request !== writerCatalogRequest) return;
+      if (request !== writerCatalogRequest || !currentStudioIdentity(identity)) return;
       select.replaceChildren(new Option(writerText("chooseWork"), ""));
       works.forEach(item => select.add(new Option(item.title?.value || item.slug || item.workId, item.workId)));
       select.disabled = !works.length;
       if (works.some(item => item.workId === previous)) select.value = previous;
       writerState(works.length ? "chooseWork" : "noWorks", works.length ? "" : "danger");
       if (select.value) writerSourceChanged();
+      window.LuminaCreatorAnalysis?.contextChanged?.();
     } catch (_) {
-      if (request !== writerCatalogRequest) return;
+      if (request !== writerCatalogRequest || !currentStudioIdentity(identity)) return;
       select.replaceChildren(new Option(writerText("catalogFailed"), ""));
       writerState("catalogFailed", "danger");
     }
@@ -1755,6 +1807,7 @@
   document.getElementById("writerManuscriptWork")?.addEventListener("change", () => {
     invalidateWriterReview();
     writerSourceChanged();
+    window.LuminaCreatorAnalysis?.contextChanged?.();
   });
   document.getElementById("writerManuscriptLocale")?.addEventListener("change", () => {
     invalidateWriterReview();

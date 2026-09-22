@@ -8,6 +8,8 @@ const html = readFileSync(new URL('../creator-studio/index.html', import.meta.ur
 const css = readFileSync(new URL('../styles/creator-studio.css', import.meta.url), 'utf8');
 const dictionary = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
 const workId = '11111111-1111-4111-8111-111111111111';
+const manuscriptId = '33333333-3333-4333-8333-333333333333';
+const contentHash = 'a'.repeat(64);
 
 class Element {
   constructor(id = '') {
@@ -56,12 +58,12 @@ function page(fetch) {
     querySelector: () => null,
     addEventListener() {}
   };
-  const localStorage = { getItem: key => key === 'lumina_auth'
-    ? JSON.stringify({ accessToken: 'test-token', user: { id: 'test-user' } }) : null };
+  const storage = new Map([['lumina_auth', JSON.stringify({ accessToken: 'test-token', user: { id: 'test-user' } })]]);
+  const localStorage = { getItem: key => storage.get(key) || null, setItem: (key, value) => storage.set(key, value), removeItem: key => storage.delete(key) };
   const context = { document, window: { LUMINA_API_BASE: 'https://example.invalid',
     luminaI18n: { t: key => key }, addEventListener() {} }, localStorage,
     sessionStorage: { getItem: () => null }, location: { hash: '' }, fetch,
-    TextEncoder, Blob, FormData, URLSearchParams, AbortController, Option: Element,
+    TextEncoder, Blob, FormData, URLSearchParams, AbortController, DOMException, Option: Element,
     setTimeout, clearTimeout, console };
   const verifyCall = script.lastIndexOf('  verify();');
   assert.ok(verifyCall > 0, 'test loads the real writer handlers');
@@ -69,7 +71,7 @@ function page(fetch) {
     '  globalThis.writerTest = { writerBodyEdited, addWriterPart, reviewWriterParts, submitWriterManuscript, syncWriterSubmit };' +
     script.slice(verifyCall + '  verify();'.length);
   vm.runInNewContext(injected, context, { filename: 'creator-studio.js' });
-  return { elements, writer: context.writerTest };
+  return { elements, writer: context.writerTest, window: context.window, storage };
 }
 
 function prepareTwoParts(screen, body = '첫째😀\r\n둘째\r\n') {
@@ -92,7 +94,7 @@ test('review and explicit confirmation gate one exact multipart POST', async () 
   let release;
   const gate = new Promise(resolve => { release = resolve; });
   const screen = page(async (url, options) => { calls.push({ url, options }); await gate;
-    return { ok: true, json: async () => ({ manuscript: { workId, locale: 'ko', version: 3 },
+    return { ok: true, json: async () => ({ manuscript: { id: manuscriptId, contentHash, workId, locale: 'ko', version: 3 },
       received: { sourceKind: 'utf8_paste', byteLength: new TextEncoder().encode(body).byteLength, parts: 2 },
       analysisStarted: false, idempotentReplay: false }) }; });
   const body = prepareTwoParts(screen);
@@ -122,6 +124,12 @@ test('review and explicit confirmation gate one exact multipart POST', async () 
   await pending;
   assert.match(elements.writerManuscriptState.textContent, /writerManuscript\.received/);
   assert.equal(elements.writerManuscriptSubmit.disabled, true);
+  const receipt = screen.window.LuminaCreatorManuscript.receipt();
+  assert.equal(receipt.id, manuscriptId);
+  assert.equal(receipt.contentHash, contentHash);
+  assert.equal(receipt.identity.ownerId, 'test-user');
+  assert.equal('body' in receipt, false);
+  assert.equal('bytes' in receipt, false);
 });
 
 test('changed source invalidates review; server rejection permits a checked retry', async () => {
@@ -129,7 +137,7 @@ test('changed source invalidates review; server rejection permits a checked retr
   const screen = page(async (_url, options) => {
     calls.push(options);
     if (calls.length === 1) return { ok: false, status: 400 };
-    return { ok: true, json: async () => ({ manuscript: { workId, locale: 'ko', version: 4 },
+    return { ok: true, json: async () => ({ manuscript: { id: manuscriptId, contentHash, workId, locale: 'ko', version: 4 },
       received: { sourceKind: 'utf8_paste', byteLength: new TextEncoder().encode(screen.elements.writerManuscriptBody.value).byteLength, parts: 2 },
       analysisStarted: false, idempotentReplay: true }) };
   });
@@ -192,6 +200,44 @@ test('an incomplete server receipt is never shown as success', async () => {
   await screen.writer.submitWriterManuscript();
   assert.match(screen.elements.writerManuscriptState.textContent, /writerManuscript\.invalidReceipt/);
   assert.doesNotMatch(screen.elements.writerManuscriptState.textContent, /writerManuscript\.received/);
+});
+
+test('account change while paste awaits 401 never refreshes or resends old manuscript', async () => {
+  const calls = [];
+  let release;
+  const gate = new Promise(resolve => { release = resolve; });
+  const screen = page(async (url, options) => { calls.push({ url, options }); await gate; return { ok: false, status: 401 }; });
+  prepareTwoParts(screen);
+  screen.elements.writerManuscriptConfirm.checked = true;
+  const pending = screen.writer.submitWriterManuscript();
+  screen.storage.set('lumina_auth', JSON.stringify({ accessToken: 'second-token', refreshToken: 'second-refresh', user: { id: 'second-user' } }));
+  release(); await pending;
+  assert.equal(calls.length, 1);
+  assert.equal(screen.window.LuminaCreatorManuscript.receipt(), null);
+  assert.equal(screen.elements.writerManuscriptSubmit.disabled, true);
+});
+
+test('late refresh cannot replace a new account or retry its scoped analysis request', async () => {
+  const calls = [];
+  let release;
+  const gate = new Promise(resolve => { release = resolve; });
+  const screen = page(async (url, options) => {
+    calls.push({ url, options });
+    if (url.endsWith('/auth/refresh')) {
+      await gate;
+      return { ok: true, json: async () => ({ accessToken: 'late-old-token', user: { id: 'test-user' } }) };
+    }
+    return { ok: false, status: 401 };
+  });
+  screen.storage.set('lumina_auth', JSON.stringify({ accessToken: 'test-token', refreshToken: 'old-refresh', user: { id: 'test-user' } }));
+  const api = screen.window.LuminaCreatorStudioApi;
+  const pending = api.fetch('/api/v1/me/creator-studio/analyses/' + manuscriptId, { identity: api.identity() });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(calls.length, 2);
+  screen.storage.set('lumina_auth', JSON.stringify({ accessToken: 'second-token', user: { id: 'second-user' } }));
+  release(); await pending;
+  assert.equal(calls.length, 2);
+  assert.equal(JSON.parse(screen.storage.get('lumina_auth')).user.id, 'second-user');
 });
 
 test('five-locale copy and narrow mobile layout remain wired', () => {
