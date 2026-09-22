@@ -43,10 +43,13 @@
           </form>
 
           <div class="login-divider"><span>또는</span></div>
-          <button class="google-action" type="button" id="backstageGoogleButton">
-            <span>G</span>
-            Google 운영자 로그인
-          </button>
+          <div class="google-action-shell" id="backstageGoogleButton" aria-label="Google 운영자 로그인">
+            <div class="google-button-mount" id="backstageGoogleButtonMount"></div>
+            <button class="google-action" type="button" id="backstageGoogleButtonFallback">
+              <span>G</span>
+              Google 운영자 로그인
+            </button>
+          </div>
         </div>
 
         <aside class="login-guard">

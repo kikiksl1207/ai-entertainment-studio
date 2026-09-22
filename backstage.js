@@ -13,6 +13,8 @@ const emailInput = document.getElementById("backstageEmail");
 const passwordInput = document.getElementById("backstagePassword");
 const loginButton = document.getElementById("backstageLoginButton");
 const googleButton = document.getElementById("backstageGoogleButton");
+const googleButtonMount = document.getElementById("backstageGoogleButtonMount");
+const googleButtonFallback = document.getElementById("backstageGoogleButtonFallback");
 const loginStatus = document.getElementById("backstageLoginStatus");
 const operatorEmail = document.getElementById("backstageOperatorEmail");
 const logoutButton = document.getElementById("backstageLogoutButton");
@@ -416,7 +418,9 @@ function setStatus(message, type = "info") {
 
 function setLoading(isLoading) {
   loginButton.disabled = isLoading;
-  googleButton.disabled = isLoading;
+  googleButton.classList.toggle("is-loading", isLoading);
+  googleButton.setAttribute("aria-busy", isLoading ? "true" : "false");
+  googleButtonFallback.disabled = isLoading;
   loginButton.textContent = isLoading ? "권한 확인 중..." : "백스테이지 입장";
 }
 
@@ -589,6 +593,34 @@ function initGoogleAuth() {
   return true;
 }
 
+function renderGoogleLoginButton() {
+  if (!window.google?.accounts?.id || !googleButtonMount) {
+    return false;
+  }
+  if (googleButtonMount.childElementCount) return true;
+
+  const availableWidth = Math.floor(googleButton.getBoundingClientRect().width || 400);
+  google.accounts.id.renderButton(googleButtonMount, {
+    type: "standard",
+    theme: "outline",
+    size: "large",
+    text: "signin_with",
+    shape: "pill",
+    logo_alignment: "left",
+    width: Math.min(400, Math.max(240, availableWidth)),
+    locale: "ko"
+  });
+  googleButtonFallback.hidden = true;
+  return true;
+}
+
+async function prepareGoogleLoginButton() {
+  await loadGoogleSDK();
+  if (!initGoogleAuth() || !renderGoogleLoginButton()) {
+    throw new Error("Google 로그인 버튼 초기화 실패");
+  }
+}
+
 async function handleGoogleCredentialResponse(credentialResponse) {
   if (!credentialResponse?.credential) {
     setStatus("Google 로그인 정보를 받지 못했어요. 다시 시도해 주세요.", "error");
@@ -620,29 +652,14 @@ async function handleGoogleCredentialResponse(credentialResponse) {
 
 async function handleGoogleLogin() {
   setLoading(true);
-  setStatus("Google 로그인 창을 준비하고 있어요.");
+  setStatus("Google 로그인 버튼을 준비하고 있어요.");
   try {
-    await loadGoogleSDK();
-    if (!initGoogleAuth()) throw new Error("Google SDK 초기화 실패");
-    google.accounts.id.prompt((notification) => {
-      if (notification.isNotDisplayed?.()) {
-        setLoading(false);
-        setStatus("브라우저에서 Google 로그인 창을 표시하지 못했어요. 팝업 차단을 확인해 주세요.", "error");
-        return;
-      }
-      if (notification.isSkippedMoment?.()) {
-        setLoading(false);
-        setStatus("Google 계정 선택이 건너뛰어졌어요. 다시 눌러 계정을 선택해 주세요.", "error");
-        return;
-      }
-      if (notification.isDismissedMoment?.() && notification.getDismissedReason?.() !== "credential_returned") {
-        setLoading(false);
-        setStatus("Google 로그인이 취소됐어요.");
-      }
-    });
+    await prepareGoogleLoginButton();
+    setStatus("Google 버튼을 눌러 운영자 계정을 선택해 주세요.");
   } catch {
+    setStatus("Google 로그인 버튼을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.", "error");
+  } finally {
     setLoading(false);
-    setStatus("Google 로그인 준비에 실패했어요. 브라우저 팝업 차단 여부를 확인해 주세요.", "error");
   }
 }
 
@@ -4472,6 +4489,9 @@ function updateTodayLabel() {
 function showLogin() {
   dashboardView.classList.add("is-hidden");
   loginView.classList.remove("is-hidden");
+  prepareGoogleLoginButton().catch(() => {
+    googleButtonFallback.hidden = false;
+  });
 }
 
 function showDashboard() {
@@ -4672,7 +4692,7 @@ document.querySelectorAll("[data-load-more]").forEach((button) => {
 
 fanMissionForm?.addEventListener("submit", handleFanMissionSubmit);
 loginForm.addEventListener("submit", handleLogin);
-googleButton.addEventListener("click", handleGoogleLogin);
+googleButtonFallback.addEventListener("click", handleGoogleLogin);
 logoutButton.addEventListener("click", () => {
   setBackstageAuth(null);
   passwordInput.value = "";
