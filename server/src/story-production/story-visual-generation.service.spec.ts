@@ -36,7 +36,8 @@ describe('StoryVisualGenerationService', () => {
           attemptCount: 0, updatedAt: new Date(), assetId: null, ...data })),
         updateMany: jest.fn(async ({ data }: any) => {
           if (generation && ['pending', 'failed'].includes(generation.status) && data.status === 'generating') {
-            generation = { ...generation, status: data.status, attemptCount: generation.attemptCount + 1,
+            generation = { ...generation, status: data.status,
+              attemptCount: data.attemptCount ? generation.attemptCount + 1 : generation.attemptCount,
               updatedAt: data.updatedAt };
             return { count: 1 };
           }
@@ -177,7 +178,7 @@ describe('StoryVisualGenerationService', () => {
       status: 'ready', sourceSceneKey,
       publicAssetPath: `/api/v1/story-visual-assets/${assetId}`, reused: false,
     });
-    expect(f.generation()).toMatchObject({ status: 'ready', attemptCount: 2, assetId });
+    expect(f.generation()).toMatchObject({ status: 'ready', attemptCount: 1, assetId });
   });
 
   it('rejects a malformed or wrong-sized provider image without uploading it', async () => {

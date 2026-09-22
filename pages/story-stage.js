@@ -1058,7 +1058,11 @@
         if (currentReading?.key === readingKey) ensureReadingVisual(currentReading, readingVisual(currentReading));
       }, 5000);
     } catch (_) {
-      // Image generation is optional; the story remains readable with its fallback.
+      setTimeout(() => {
+        if (state.visualRequestKey === scopedKey) state.visualRequestKey = "";
+        const currentReading = readableBeats();
+        if (currentReading?.key === readingKey) ensureReadingVisual(currentReading, readingVisual(currentReading));
+      }, 5000);
     } finally {
       if (state.visualRequestKey === scopedKey) state.visualRequestKey = "";
     }

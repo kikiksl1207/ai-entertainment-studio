@@ -217,12 +217,12 @@ export class StoryVisualGenerationService {
       });
       return { status: 'failed', sourceSceneKey, retryable: false } as const;
     }
-    const maxAttempts = this.maxGenerationAttempts(existing);
+    const storageRecovery = this.isStorageRecovery(existing);
     const claimed = await this.prisma.storyVisualGeneration.updateMany({
       where: {
         id: existing.id,
         promptSha256: prompt.promptSha256,
-        attemptCount: { lt: maxAttempts },
+        attemptCount: storageRecovery ? MAX_GENERATION_ATTEMPTS : { lt: MAX_GENERATION_ATTEMPTS },
         OR: [
           { status: { in: ['pending', 'failed'] } },
           { status: 'generating', updatedAt: { lt: staleBefore } },
@@ -234,7 +234,7 @@ export class StoryVisualGenerationService {
         model: this.model(),
         quality: this.quality(),
         size: this.size(),
-        attemptCount: { increment: 1 },
+        ...(storageRecovery ? {} : { attemptCount: { increment: 1 } }),
         lastErrorCode: null,
         startedAt: new Date(),
         updatedAt: new Date(),
@@ -392,10 +392,11 @@ export class StoryVisualGenerationService {
     return this.config.get<string>('STORY_IMAGE_DATABASE_FALLBACK_ENABLED') === 'true';
   }
 
-  private maxGenerationAttempts(generation: { status: string; attemptCount: number; lastErrorCode?: string | null }) {
+  private isStorageRecovery(generation: { status: string; attemptCount: number; lastErrorCode?: string | null }) {
     if (this.databaseFallbackEnabled() && generation.status === 'failed' &&
-        generation.lastErrorCode?.startsWith('OBJECT_STORAGE_')) return MAX_GENERATION_ATTEMPTS + 1;
-    return MAX_GENERATION_ATTEMPTS;
+        generation.attemptCount === MAX_GENERATION_ATTEMPTS &&
+        generation.lastErrorCode?.startsWith('OBJECT_STORAGE_')) return true;
+    return false;
   }
 
   private providerPreflight() {
