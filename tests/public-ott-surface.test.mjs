@@ -21,6 +21,7 @@ test('home and primary mobile surfaces expose Home Artists Story OTT Feed with K
     assert.doesNotMatch(html, />\?\?\?</);
   }
   const home = read('index.html');
+  const app = read('app.js');
   assert.match(home, /href="\/story-stage"/);
   assert.match(home, /href="\/ott"/);
   assert.match(home, /href="\/lumina-pick"/);
@@ -28,6 +29,9 @@ test('home and primary mobile surfaces expose Home Artists Story OTT Feed with K
   assert.match(home, /home\.discovery\.ott\.label">영상 작품</);
   assert.match(home, /home\.discovery\.pick\.label">루미나 픽</);
   assert.doesNotMatch(home, /<strong>(?:Story|OTT|Pick)<\/strong>/);
+  for (const key of ['home', 'artists', 'story', 'ott', 'feed']) {
+    assert.match(app, new RegExp(`<span data-i18n="tab\\.${key}">`));
+  }
 });
 
 test('public API projection is gated and omits private identifiers', () => {
@@ -39,6 +43,8 @@ test('public API projection is gated and omits private identifiers', () => {
   assert.match(contract, /fixtureSource: false/);
   assert.match(contract, /cleared_for_public_streaming/);
   assert.match(service, /approvalState: 'approved_configuration'/);
+  assert.match(service, /contentVersionId: \{ in: mediaVersionIds \}/);
+  assert.match(service, /mediaVersionIds\.every/);
   assert.match(service, /media\.includes\('ott_streaming'\)/);
   assert.match(service, /status: 'confirmed'/);
   assert.match(service, /upload\.revocation/);

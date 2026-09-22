@@ -37,13 +37,14 @@ test('public discovery works at desktop and mobile widths and captures verified 
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   const address = server.address();
   const base = `http://127.0.0.1:${address.port}`;
-  const browser = await chromium.launch({
-    headless: true,
-    ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE
-      ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE }
-      : {}),
-  });
+  let browser;
   try {
+    browser = await chromium.launch({
+      headless: true,
+      ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE
+        ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE }
+        : {}),
+    });
     for (const width of [390, 400, 1280]) {
       const page = await browser.newPage({ viewport: { width, height: width < 500 ? 844 : 800 } });
       await page.addInitScript(() => {
@@ -70,6 +71,20 @@ test('public discovery works at desktop and mobile widths and captures verified 
         const tabs = await page.locator('.mobile-tab').evaluateAll((nodes) => nodes.map((node) => node.dataset.tabKey));
         assert.deepEqual(tabs, ['index', 'characters', 'story', 'ott', 'lumina-feed']);
       }
+      if (width === 390) {
+        const expectedLabels = {
+          'ko-KR': ['홈', '아티스트', '스토리', 'OTT', '피드'],
+          'en-US': ['Home', 'Artists', 'Story', 'OTT', 'Feed'],
+          'ja-JP': ['ホーム', 'アーティスト', '物語', 'OTT', 'フィード'],
+          'zh-CN': ['首页', '艺人', '故事', 'OTT', '动态'],
+          'zh-Hant': ['首頁', '藝人', '故事', 'OTT', '動態'],
+        };
+        for (const [locale, expected] of Object.entries(expectedLabels)) {
+          await page.evaluate((nextLocale) => window.luminaI18n.setLocale(nextLocale), locale);
+          assert.deepEqual(await page.locator('.mobile-tab span').allTextContents(), expected);
+        }
+        await page.evaluate(() => window.luminaI18n.setLocale('ko-KR'));
+      }
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
       await page.screenshot({ path: join(artifacts, `home-${width}.png`), fullPage: false });
 
@@ -81,7 +96,7 @@ test('public discovery works at desktop and mobile widths and captures verified 
       await page.close();
     }
   } finally {
-    await browser.close();
+    await browser?.close();
     server.closeAllConnections?.();
     await new Promise((resolve) => server.close(resolve));
     server.unref();

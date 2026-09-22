@@ -10,7 +10,7 @@ The public OTT surface is intentionally separate from Story and from the existin
 - `source: "authored_uploaded_clips"`
 - `fixtureSource: false`
 - `rightsAuthorization: "cleared_for_public_streaming"`
-- an authorization time, publication time, work ID, authored playback manifest ID, and rights-contract version ID
+- an authorization time, publication time, work ID, authored playback manifest ID, and the approved rights-contract version IDs that cover every media version in the manifest
 - complete `ko`, `en`, `ja`, `zh-Hans`, and `zh-Hant` title, synopsis, and creator-name text
 
 The registry is an explicit publication allowlist, not a replacement for persisted checks. Before each public list/detail projection, the server also requires:
@@ -19,7 +19,7 @@ The registry is an explicit publication allowlist, not a replacement for persist
 - an internally valid graph with at least one clip;
 - exact immutable asset pins for every referenced source;
 - confirmed, unrevoked uploads whose versions and confirmation hashes still match;
-- an approved rights-contract configuration for the same OTT work and manifest, with `ott_streaming`, an approver, and a currently effective time window.
+- approved rights-contract configurations for the same OTT work that collectively cover every media version in the manifest, each with `ott_streaming`, an approver, and a currently effective time window.
 
 Any failed lookup, invalid value, exception, or withdrawn prerequisite excludes that title. One invalid release does not expose partial private data.
 

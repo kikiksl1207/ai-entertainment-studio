@@ -61,19 +61,23 @@ export class OttPublicService {
       if (uploads.length !== fileRefs.size || uploads.some((upload) =>
         fileRefs.get(upload.id) !== upload.versionId || !upload.confirmationHash || !upload.verified || upload.revocation)) return false;
 
-      const rights = await this.prisma.contentRightsContractVersion.findFirst({
+      const mediaVersionIds = [...new Set(fileRefs.values())];
+      const rights = await this.prisma.contentRightsContractVersion.findMany({
         where: {
-          id: release.rightsContractVersionId,
-          contentVersionId: manifest.id,
+          id: { in: release.rightsContractVersionIds },
+          contentVersionId: { in: mediaVersionIds },
           approvalState: 'approved_configuration',
           approvedByUserId: { not: null },
           contract: { workType: 'ott', workId: manifest.workId },
         },
-        select: { media: true, startsAt: true, endsAt: true, effectiveFrom: true },
+        select: { contentVersionId: true, media: true, startsAt: true, endsAt: true, effectiveFrom: true },
       });
-      const media = Array.isArray(rights?.media) ? rights.media : [];
-      return Boolean(rights && media.includes('ott_streaming') && rights.startsAt <= now &&
-        rights.effectiveFrom <= now && (!rights.endsAt || rights.endsAt > now));
+      const coveredMediaVersions = new Set(rights.map((right) => right.contentVersionId));
+      return rights.length === release.rightsContractVersionIds.length &&
+        coveredMediaVersions.size === mediaVersionIds.length &&
+        mediaVersionIds.every((versionId) => coveredMediaVersions.has(versionId)) &&
+        rights.every((right) => Array.isArray(right.media) && right.media.includes('ott_streaming') &&
+          right.startsAt <= now && right.effectiveFrom <= now && (!right.endsAt || right.endsAt > now));
     } catch {
       return false;
     }

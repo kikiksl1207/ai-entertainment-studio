@@ -4,7 +4,7 @@ export type OttPublicReleaseCandidate = {
   slug: string;
   workId: string;
   manifestId: string;
-  rightsContractVersionId: string;
+  rightsContractVersionIds: string[];
   status: 'published';
   source: 'authored_uploaded_clips';
   fixtureSource: false;
@@ -57,7 +57,7 @@ export function toOttPublicCatalogItem(release: OttPublicReleaseCandidate): OttP
 function parseRelease(value: unknown): OttPublicReleaseCandidate {
   const item = record(value);
   const allowed = [
-    'slug', 'workId', 'manifestId', 'rightsContractVersionId', 'status', 'source',
+    'slug', 'workId', 'manifestId', 'rightsContractVersionIds', 'status', 'source',
     'fixtureSource', 'rightsAuthorization', 'authorizedAt', 'publishedAt',
     'title', 'synopsis', 'creatorName',
   ];
@@ -69,7 +69,7 @@ function parseRelease(value: unknown): OttPublicReleaseCandidate {
     slug: item.slug,
     workId: uuid(item.workId),
     manifestId: uuid(item.manifestId),
-    rightsContractVersionId: uuid(item.rightsContractVersionId),
+    rightsContractVersionIds: uuidList(item.rightsContractVersionIds),
     status: item.status,
     source: item.source,
     fixtureSource: item.fixtureSource,
@@ -102,6 +102,13 @@ function record(value: unknown): Record<string, unknown> {
 function uuid(value: unknown): string {
   if (typeof value !== 'string' || !UUID.test(value)) throw new Error('invalid uuid');
   return value;
+}
+
+function uuidList(value: unknown): string[] {
+  if (!Array.isArray(value) || value.length < 1 || value.length > 100) throw new Error('invalid uuid list');
+  const values = value.map(uuid);
+  if (new Set(values).size !== values.length) throw new Error('duplicate uuid');
+  return values;
 }
 
 function date(value: unknown): Date {
