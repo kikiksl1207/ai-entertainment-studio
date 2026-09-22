@@ -129,6 +129,23 @@ describe('StoryVisualGenerationService', () => {
     expect(provider).not.toHaveBeenCalled();
   });
 
+  it('generates an exact admin sample without requiring reader progress', async () => {
+    const f = fixture(false);
+    const provider = jest.spyOn(global, 'fetch');
+
+    await expect(f.service.generateSample(workId, {
+      releaseId,
+      releaseChecksum: checksum,
+      sourceSceneKey,
+    })).resolves.toEqual({ status: 'unavailable', reason: 'generation_disabled' });
+
+    expect(f.prisma.storyReaderProgress.findFirst).not.toHaveBeenCalled();
+    expect(f.prisma.storyVisualPrompt.findUnique).toHaveBeenCalledWith({
+      where: { workId_releaseId_sourceSceneKey: { workId, releaseId, sourceSceneKey } },
+    });
+    expect(provider).not.toHaveBeenCalled();
+  });
+
   it('authorizes the exact generated scene owned by the active reader progress', async () => {
     const f = fixture(false);
     const generatedSceneId = '00000000-0000-4000-8000-000000000007';

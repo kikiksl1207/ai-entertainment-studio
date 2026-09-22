@@ -34,4 +34,15 @@ describe('StoryVisualGenerationController security boundary', () => {
     await controller.replaceStale('work-id', body);
     expect(visuals.replaceStale).toHaveBeenCalledWith('work-id', body);
   });
+
+  it('protects exact sample generation with full admin permission', async () => {
+    const visuals = { generateSample: jest.fn().mockResolvedValue({ status: 'ready' }) };
+    const controller = new StoryVisualGenerationAdminController(visuals as never);
+    const method = StoryVisualGenerationAdminController.prototype.generateSample;
+
+    expect(Reflect.getMetadata(ADMIN_PERMISSIONS_KEY, method)).toEqual(['*']);
+    const body = { releaseId: 'release-id', releaseChecksum: 'a'.repeat(64), sourceSceneKey: 'scene-1' };
+    await controller.generateSample('work-id', body);
+    expect(visuals.generateSample).toHaveBeenCalledWith('work-id', body);
+  });
 });

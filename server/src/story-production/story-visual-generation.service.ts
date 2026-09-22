@@ -208,6 +208,21 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
     return this.generate(workId, release.id, release.checksum, input.sourceSceneKey, undefined, true);
   }
 
+  async generateSample(workId: string, input: ReplaceStaleStoryVisualDto) {
+    if (!UUID_PATTERN.test(workId)) throw new BadRequestException('workId must be a UUID');
+    const work = await this.prisma.storyWork.findFirst({
+      where: { id: workId, status: 'published', fixtureSource: false, activeReleaseId: input.releaseId },
+      select: { id: true },
+    });
+    const release = work ? await this.prisma.storyRelease.findFirst({
+      where: { id: input.releaseId, workId, status: 'active', checksum: input.releaseChecksum },
+      select: { id: true, checksum: true },
+    }) : null;
+    if (!work || !release) throw new NotFoundException('Active story release not found');
+    this.publicBeta?.assertAllowed(workId, release.id, release.checksum);
+    return this.generate(workId, release.id, release.checksum, input.sourceSceneKey);
+  }
+
   async registerVerifiedPrompts(workId: string, input: RegisterStoryVisualPromptsDto) {
     const work = await this.prisma.storyWork.findFirst({
       where: { id: workId, fixtureSource: false },

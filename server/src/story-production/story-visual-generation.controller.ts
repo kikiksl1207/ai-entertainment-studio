@@ -76,6 +76,15 @@ export class StoryVisualGenerationAdminController {
     return this.visuals.replaceStale(workId, body);
   }
 
+  @Post(':workId/generate-sample')
+  @RequireAdminPermissions('*')
+  generateSample(
+    @Param('workId') workId: string,
+    @Body() body: ReplaceStaleStoryVisualDto,
+  ) {
+    return this.visuals.generateSample(workId, body);
+  }
+
   @Get('queue')
   @RequireAdminPermissions('*')
   queueStatus(@Query('workId') workId?: string) {
