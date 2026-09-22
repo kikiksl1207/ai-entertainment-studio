@@ -11,6 +11,11 @@ lost acknowledgments, position/choice competition, ownership and late-session
 fences, six localized layouts with persisted ending/resume, and revocation.
 Report: `E:/CodexMovedCache/qa-1900-independent-report.md`.
 
+PM confirmed all eight integrated paths exactly match `3ebd420`, then ran
+the dependency-free graph and legacy preview suites:33 PASS/0 FAIL/0 SKIP,
+0.827 seconds, first execution on `4cdf112`. This overlaps the author and
+independent scope; it is not additional whole-product acceptance.
+
 Three initial harness conditions and affected-only resumes are retained.
 The earlier source-confirmed nested-error P2 was corrected by the author;
 the original faulty source was not independently runtime-reproduced. No
@@ -49,6 +54,17 @@ process, resolved E-parent and reparse checks before the move. PM confirmed the
 old path absent and new path present. Candidate674 remains on its remote branch
 and in PM integration; independent evidence remains outside the moved clone.
 This was workspace reuse, not another claimed deletion or new disk-space saving.
+
+After OTT independent acceptance and integration, PM also removed only
+`E:/CodexMovedCache/worktrees/cloud-1900-ott-player-20260922` with native Git
+worktree removal. Exact E parent, clean normal/ignored state, matching fresh
+remote3ebd420, zero root/nested reparse points and zero other process references
+were verified. Current writer/proof sources had no execution reference to it;
+the old QA runner had already returned with all clients/processes closed.
+The inspection command itself was excluded from the process count. Removed:
+1,222 files/1,005,379,253 bytes; path absence confirmed. Source is in the remote
+branch and integrated PM runtime, while all separate QA artifacts remain.
+Historical report source paths now refer to the removed clone, not lost code.
 
 ## Beat Visual Integration
 
