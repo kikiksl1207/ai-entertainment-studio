@@ -2072,6 +2072,36 @@ model StoryFinalSubmission {
   @@map("story_final_submissions")
 }
 
+model StoryAuthorFinalReviewProof {
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  finalSubmissionId   String   @unique @map("final_submission_id") @db.Uuid
+  reviewId            String   @unique @map("review_id") @db.Uuid
+  reviewRevision      Int      @map("review_revision")
+  ownerUserId         String   @map("owner_user_id") @db.Uuid
+  workId              String   @map("work_id") @db.Uuid
+  manuscriptVersionId String   @map("manuscript_version_id") @db.Uuid
+  releaseId           String   @unique @map("release_id") @db.Uuid
+  authoredImportId    String   @unique @map("authored_import_id") @db.Uuid
+  contractVersion     String   @map("contract_version")
+  proposalHash        String   @map("proposal_hash")
+  contentChecksum     String   @map("content_checksum")
+  anchorScope         Boolean  @map("anchor_scope")
+  bindingSnapshot     Json     @map("binding_snapshot")
+  proofHash           String   @map("proof_hash")
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("story_author_final_review_proofs")
+}
+
+model StoryAuthorFinalReviewRevocation {
+  proofId     String   @id @map("proof_id") @db.Uuid
+  actorUserId String   @map("actor_user_id") @db.Uuid
+  reasonCode  String   @map("reason_code")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("story_author_final_review_revocations")
+}
+
 model StoryQualityEvent {
   id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   workId         String   @map("work_id") @db.Uuid

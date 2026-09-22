@@ -26,3 +26,10 @@ export function storyContinuationInputTokenBudget(body: { model: string }): numb
   const tokens = tokenizer.encode(serialized, [], []).length;
   return Math.ceil(tokens * 1.1) + 256;
 }
+
+export function storyContinuationTextTokens(model: string, text: string): number {
+  if (!storyContinuationModelEncoding(model)) throw new StoryContinuationProviderError('provider_model_encoding_unknown', false);
+  if (Buffer.byteLength(text, 'utf8') > 256_000) throw new StoryContinuationProviderError('provider_input_bound_exceeded', false);
+  tokenizer ??= getEncoding('o200k_base');
+  return tokenizer.encode(text, [], []).length;
+}

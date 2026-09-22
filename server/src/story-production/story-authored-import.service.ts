@@ -9,6 +9,9 @@ import { authoredHash, prepareAuthoredSourceMap } from './story-authored-source-
 import { releaseChecksum } from './story-lifecycle.policy';
 import { prepareManuscript } from './story-manuscript-file.policy';
 import { manuscriptContentHash } from './story-production.policy';
+import { authoredMaterializedSnapshot } from './story-authored-materialized.snapshot';
+import { lockAuthorMaterializedRows, validAuthorFinalReviewProof } from './story-author-final-review.store';
+export { authoredMaterializedSnapshot } from './story-authored-materialized.snapshot';
 
 function conflict(code: string): never {
   throw new ConflictException({ code, message: 'Authored initial import conditions are not satisfied' });
@@ -38,26 +41,8 @@ function assertReleaseIdentity(release: StoryRelease, expected: string) {
   if (computed !== release.checksum || computed !== expected) conflict('AUTHORED_RELEASE_CONTENT_CHANGED');
 }
 
-export async function authoredMaterializedSnapshot(tx: Prisma.TransactionClient, workId: string) {
-  const parts = await tx.storyPart.findMany({ where: { workId }, orderBy: { position: 'asc' }, take: 1001,
-    select: { id: true, seasonKey: true, actNumber: true, position: true, status: true, title: true,
-      priceLumina: true, fixtureSource: true } });
-  const scenes = await tx.storyScene.findMany({ where: { partId: { in: parts.map(part => part.id) } },
-    orderBy: [{ partId: 'asc' }, { position: 'asc' }], take: 1001,
-    select: { id: true, partId: true, sceneKey: true, position: true, status: true, title: true,
-      visualManifest: true, endingType: true, fixtureSource: true } });
-  const ids = scenes.map(scene => scene.id);
-  const beats = await tx.storyBeat.findMany({ where: { sceneId: { in: ids } },
-    orderBy: [{ sceneId: 'asc' }, { position: 'asc' }], take: 40001,
-    select: { id: true, sceneId: true, position: true, beatType: true, content: true, sourceSceneKey: true, visualManifest: true } });
-  const choices = await tx.storyChoice.findMany({ where: { sceneId: { in: ids } },
-    orderBy: [{ sceneId: 'asc' }, { position: 'asc' }], take: 3001,
-    select: { id: true, sceneId: true, choiceKey: true, position: true, label: true, routeKind: true,
-      targetSceneId: true, targetEndingKey: true, declaredRejoinSceneId: true } });
-  return { parts: parts.map(part => ({ ...part, priceLumina: part.priceLumina.toString() })), scenes, beats, choices };
-}
 
-export async function assertAuthoredImportPublicationTx(tx: Prisma.TransactionClient, workId: string, releaseId: string) {
+export async function verifyAuthoredImportDraftTx(tx: Prisma.TransactionClient, workId: string, releaseId: string) {
   const receipt = await tx.storyAuthoredImport.findUnique({ where: { workId } });
   if (!receipt) return;
   if (receipt.releaseId !== releaseId) conflict('AUTHORED_IMPORTED_RELEASE_MISMATCH');
@@ -81,9 +66,27 @@ export async function assertAuthoredImportPublicationTx(tx: Prisma.TransactionCl
       snapshot.choices.some(choice => choice.position > 1 && (choice.routeKind !== 'generation_required' ||
         choice.targetSceneId !== null || choice.targetEndingKey !== null || choice.declaredRejoinSceneId !== null)) ||
       releaseChecksum(snapshot) !== receipt.materializedChecksum) conflict('AUTHORED_MATERIALIZED_CONTENT_CHANGED');
-  // StoryFinalSubmission.checksum currently binds manuscript content only. No
-  // existing reviewed record binds this plan, per-scene visuals, and ending.
-  conflict('AUTHORED_IMPORT_REVIEW_BINDING_REQUIRED');
+  if (release.status !== 'candidate' || work.activeReleaseId !== null || work.publishedAt !== null ||
+      snapshot.parts.some(part => part.status !== 'draft') || snapshot.scenes.some(scene => scene.status !== 'draft')) {
+    conflict('AUTHORED_PRIVATE_CANDIDATE_REQUIRED');
+  }
+  return { receipt, release, manuscript, work, snapshot };
+}
+
+export async function assertAuthoredImportPublicationTx(tx: Prisma.TransactionClient, workId: string, releaseId: string) {
+  const receipt = await tx.storyAuthoredImport.findUnique({ where: { workId } });
+  if (!receipt) return;
+  await lockAuthorMaterializedRows(tx, workId);
+  const work = await tx.storyWork.findUnique({ where: { id: workId } });
+  if (work?.activeReleaseId === releaseId && work.publishedAt !== null &&
+      ['published', 'sale_suspended'].includes(work.status)) {
+    await validAuthorFinalReviewProof(tx, { workId, releaseId, scope: 'publication' });
+    return;
+  }
+  const verified = await verifyAuthoredImportDraftTx(tx, workId, releaseId);
+  if (!verified) conflict('AUTHORED_IMPORT_REVIEW_BINDING_REQUIRED');
+  await validAuthorFinalReviewProof(tx, { workId, releaseId, scope: 'publication' });
+  return { partIds: verified!.snapshot.parts.map(part => part.id), sceneIds: verified!.snapshot.scenes.map(scene => scene.id) };
 }
 
 @Injectable()

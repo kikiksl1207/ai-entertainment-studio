@@ -28,12 +28,16 @@ import {
 import { StoryEconomicsService } from './story-economics.service';
 import { assertSuggestedChoiceCount } from './story-progress-control.policy';
 import { assertAuthoredImportPublicationTx } from './story-authored-import.service';
+import { AuthorReviewProposalDto, SubmitWriterReviewDto } from './dto/story-author-final-review.dto';
+import { StoryAuthorFinalReviewService } from './story-author-final-review.service';
+import { authorReviewConflict } from './story-author-final-review.policy';
 
 @Injectable()
 export class StoryLifecycleService {
   constructor(
     private readonly prisma: PrismaService,
     @Optional() private readonly economics?: StoryEconomicsService,
+    @Optional() private readonly authorReview?: StoryAuthorFinalReviewService,
   ) {}
 
   async lifecycle(userId: string, workId: string) {
@@ -119,8 +123,14 @@ export class StoryLifecycleService {
     const existing = await this.prisma.storyPublicationTransition.findUnique({
       where: { idempotencyKey: key },
     });
-    if (existing) return this.transitionProjection(existing, true);
+    if (existing) {
+      if (existing.actorUserId !== actorUserId || existing.workId !== workId ||
+          existing.releaseId !== (body.releaseId ?? null) || existing.toStatus !== body.toStatus ||
+          existing.beforeRevision !== body.expectedRevision) throw new ConflictException('Publication idempotency conflict');
+      return this.transitionProjection(existing, true);
+    }
     return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw(Prisma.sql`SELECT id FROM story_works WHERE id = ${workId}::uuid FOR UPDATE`);
       const work = await tx.storyWork.findUnique({ where: { id: workId } });
       if (!work) throw new NotFoundException('Story work not found');
       if (work.releaseRevision !== body.expectedRevision) this.stale(work.releaseRevision);
@@ -135,9 +145,10 @@ export class StoryLifecycleService {
       const release = body.releaseId
         ? await tx.storyRelease.findFirst({ where: { id: body.releaseId, workId } })
         : null;
+      let authoredPromotion: { partIds: string[]; sceneIds: string[] } | undefined;
       if (body.toStatus === 'published') {
         if (!release) throw new BadRequestException('Validated release is required');
-        await assertAuthoredImportPublicationTx(tx, workId, release.id);
+        authoredPromotion = await assertAuthoredImportPublicationTx(tx, workId, release.id);
         const validation = release.validationSummary as Record<string, unknown>;
         if (validation.ready !== true || Number(validation.blockingIssueCount ?? 0) > 0) {
           throw new ConflictException('Release validation is not ready');
@@ -163,11 +174,12 @@ export class StoryLifecycleService {
           }
         }
         const parts = await tx.storyPart.findMany({
-          where: { workId, status: 'published', fixtureSource: false },
+          where: { workId, status: authoredPromotion ? 'draft' : 'published', fixtureSource: false,
+            ...(authoredPromotion ? { id: { in: authoredPromotion.partIds } } : {}) },
           select: { id: true },
         });
         const scenes = await tx.storyScene.findMany({
-          where: { partId: { in: parts.map((part) => part.id) }, status: 'published', fixtureSource: false },
+          where: { partId: { in: parts.map((part) => part.id) }, status: authoredPromotion ? 'draft' : 'published', fixtureSource: false },
           select: { id: true },
         });
         const choiceCounts = await tx.storyChoice.groupBy({
@@ -182,6 +194,15 @@ export class StoryLifecycleService {
       }
       const afterRevision = work.releaseRevision + 1;
       if (body.toStatus === 'published' && release) {
+        if (authoredPromotion) {
+          const promotedParts = await tx.storyPart.updateMany({ where: { id: { in: authoredPromotion.partIds },
+            workId, status: 'draft', fixtureSource: false }, data: { status: 'published', publishedAt: new Date() } });
+          const promotedScenes = await tx.storyScene.updateMany({ where: { id: { in: authoredPromotion.sceneIds },
+            status: 'draft', fixtureSource: false }, data: { status: 'published' } });
+          if (promotedParts.count !== authoredPromotion.partIds.length || promotedScenes.count !== authoredPromotion.sceneIds.length) {
+            authorReviewConflict('AUTHORED_DRAFT_PROMOTION_CHANGED');
+          }
+        }
         if (work.activeReleaseId && work.activeReleaseId !== release.id) {
           await tx.storyRelease.updateMany({
             where: { id: work.activeReleaseId, status: 'active' },
@@ -237,7 +258,7 @@ export class StoryLifecycleService {
         },
       });
       return this.transitionProjection(transition, false);
-    });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, maxWait: 2000, timeout: 30000 });
   }
 
   async releases(userId: string, workId: string) {
@@ -527,17 +548,47 @@ export class StoryLifecycleService {
     return this.reviewProjection(current);
   }
 
-  async submitReview(userId: string, reviewId: string, idempotencyKey?: string) {
+  authorReviewProposal(userId: string, reviewId: string, body: AuthorReviewProposalDto) {
+    if (!this.authorReview) authorReviewConflict('AUTHOR_REVIEW_UNAVAILABLE');
+    return this.authorReview.propose(userId, reviewId, body);
+  }
+
+  revokeAuthorReview(userId: string, proofId: string) {
+    if (!this.authorReview) authorReviewConflict('AUTHOR_REVIEW_UNAVAILABLE');
+    return this.authorReview.revoke(userId, proofId);
+  }
+
+  async submitReview(userId: string, reviewId: string, idempotencyKey?: string, body?: SubmitWriterReviewDto) {
+    const owned = await this.prisma.storyWriterReview.findFirst({ where: { id: reviewId, ownerUserId: userId } });
+    if (!owned) throw new NotFoundException('Writer review not found');
+    await this.assertOwner(userId, owned.workId);
     const key = this.idempotencyKey('story-final-submit', idempotencyKey);
+    if (body?.authoredReview) {
+      if (!this.authorReview) authorReviewConflict('AUTHOR_REVIEW_UNAVAILABLE');
+      return this.authorReview.confirm(userId, reviewId, body.authoredReview, key);
+    }
     const existing = await this.prisma.storyFinalSubmission.findUnique({ where: { idempotencyKey: key } });
-    if (existing) return this.submissionProjection(existing, true);
+    if (existing) {
+      if (existing.reviewId !== reviewId || existing.manuscriptVersionId !== owned.manuscriptVersionId) {
+        throw new ConflictException('Final submission idempotency conflict');
+      }
+      return this.submissionProjection(existing, true);
+    }
     const existingForReview = await this.prisma.storyFinalSubmission.findUnique({
       where: { reviewId },
     });
-    if (existingForReview) return this.submissionProjection(existingForReview, true);
+    if (existingForReview) {
+      if (existingForReview.manuscriptVersionId !== owned.manuscriptVersionId) throw new ConflictException('Final submission binding changed');
+      return this.submissionProjection(existingForReview, true);
+    }
     return this.prisma.$transaction(async (tx) => {
       const review = await tx.storyWriterReview.findFirst({ where: { id: reviewId, ownerUserId: userId } });
       if (!review) throw new NotFoundException('Writer review not found');
+      const work = await tx.storyWork.findFirst({ where: { id: review.workId, ownerUserId: userId } });
+      if (!work) throw new NotFoundException('Writer review not found');
+      if (await tx.storyAuthoredImport.findUnique({ where: { workId: work.id } })) {
+        authorReviewConflict('AUTHOR_FINAL_REVIEW_CONFIRMATION_REQUIRED');
+      }
       if (review.state !== 'final_confirmation' && review.state !== 'submission_failed') {
         throw new ConflictException('Final confirmation is required');
       }
