@@ -15,6 +15,7 @@ import type { RegisterStoryVisualPromptsDto } from './dto/story-visual-generatio
 import { StoryPublicBetaPolicy } from './story-public-beta.policy';
 
 const SOURCE_SCENE_KEY = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,159}$/;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_GENERATION_ATTEMPTS = 1;
 const IMAGE_MODELS = new Set(['gpt-image-2', 'gpt-image-1.5', 'gpt-image-1-mini']);
 const IMAGE_QUALITIES = new Set(['low', 'medium', 'high']);
@@ -60,6 +61,31 @@ export class StoryVisualGenerationService {
       sourceSceneKey: row.sourceSceneKey,
       publicAssetPath: this.publicAssetPath(row.assetId),
     }] as const] : []));
+  }
+
+  async publicVisualAsset(assetId: string) {
+    if (!UUID_PATTERN.test(assetId)) throw new BadRequestException('assetId must be a UUID');
+    const asset = await this.prisma.asset.findFirst({
+      where: { id: assetId, assetType: 'image', visibility: 'public', mimeType: 'image/webp' },
+      select: { id: true, storageProvider: true, mimeType: true, fileSizeBytes: true, checksum: true, metadata: true },
+    });
+    if (!asset) throw new NotFoundException('Story visual not found');
+    const metadata = this.record(asset.metadata);
+    const storyVisual = this.record(metadata.storyVisual);
+    if (!storyVisual.workId || !storyVisual.sourceSceneKey) throw new NotFoundException('Story visual not found');
+    if (asset.storageProvider !== 'database') {
+      return { kind: 'redirect', url: `/api/v1/assets/public/${asset.id}/original` } as const;
+    }
+    const inlineImage = this.record(storyVisual.inlineImage);
+    if (inlineImage.encoding !== 'base64' || typeof inlineImage.data !== 'string' ||
+        inlineImage.data.length > 24 * 1024 * 1024) throw new NotFoundException('Story visual not found');
+    const image = Buffer.from(inlineImage.data, 'base64');
+    if (image.length < 1024 || image.length > 16 * 1024 * 1024 ||
+        image.toString('ascii', 0, 4) !== 'RIFF' || image.toString('ascii', 8, 12) !== 'WEBP' ||
+        !asset.checksum || this.sha256Hex(image) !== asset.checksum) {
+      throw new NotFoundException('Story visual not found');
+    }
+    return { kind: 'inline', mimeType: asset.mimeType, image } as const;
   }
 
   async promptKeys(workId: string, releaseId: string, sourceSceneKeys: string[]) {
@@ -191,11 +217,12 @@ export class StoryVisualGenerationService {
       });
       return { status: 'failed', sourceSceneKey, retryable: false } as const;
     }
+    const maxAttempts = this.maxGenerationAttempts(existing);
     const claimed = await this.prisma.storyVisualGeneration.updateMany({
       where: {
         id: existing.id,
         promptSha256: prompt.promptSha256,
-        attemptCount: { lt: MAX_GENERATION_ATTEMPTS },
+        attemptCount: { lt: maxAttempts },
         OR: [
           { status: { in: ['pending', 'failed'] } },
           { status: 'generating', updatedAt: { lt: staleBefore } },
@@ -224,6 +251,9 @@ export class StoryVisualGenerationService {
       const checksumSha256 = this.sha256Hex(image);
       const storage = await this.uploadImage(workId, releaseId, sourceSceneKey, prompt.promptSha256, image);
       const asset = await this.prisma.$transaction(async tx => {
+        const inlineImage = storage.inlineBase64 ? {
+          inlineImage: { encoding: 'base64', data: storage.inlineBase64 },
+        } : {};
         const created = await tx.asset.create({ data: {
           assetType: 'image',
           visibility: 'public',
@@ -235,7 +265,7 @@ export class StoryVisualGenerationService {
           metadata: {
             lifecycle: { status: 'active' },
             storyVisual: { workId, releaseId, releaseChecksum, sourceSceneKey, promptSha256: prompt.promptSha256,
-              provider: 'openai', model: this.model(), quality: this.quality(), size: this.size() },
+              provider: 'openai', model: this.model(), quality: this.quality(), size: this.size(), ...inlineImage },
           },
         } });
         await tx.storyVisualGeneration.update({ where: { id: existing.id }, data: {
@@ -339,7 +369,14 @@ export class StoryVisualGenerationService {
     const url = this.presignedPutUrl(provider, key, 'image/webp');
     const response = await fetch(url, { method: 'PUT', headers: { 'content-type': 'image/webp' },
       body: image as unknown as BodyInit });
-    if (!response.ok) throw new Error(`OBJECT_STORAGE_${response.status}`);
+    if (!response.ok) {
+      if (this.databaseFallbackEnabled()) {
+        this.logger.warn({ event: 'story_visual_database_fallback', workId, sourceSceneKey,
+          objectStorageStatus: response.status });
+        return { provider: 'database', key, inlineBase64: image.toString('base64') };
+      }
+      throw new Error(`OBJECT_STORAGE_${response.status}`);
+    }
     return { provider, key };
   }
 
@@ -348,7 +385,17 @@ export class StoryVisualGenerationService {
   }
 
   private publicAssetPath(assetId: string) {
-    return `/api/v1/assets/public/${assetId}/original`;
+    return `/api/v1/story-visual-assets/${assetId}`;
+  }
+
+  private databaseFallbackEnabled() {
+    return this.config.get<string>('STORY_IMAGE_DATABASE_FALLBACK_ENABLED') === 'true';
+  }
+
+  private maxGenerationAttempts(generation: { status: string; attemptCount: number; lastErrorCode?: string | null }) {
+    if (this.databaseFallbackEnabled() && generation.status === 'failed' &&
+        generation.lastErrorCode?.startsWith('OBJECT_STORAGE_')) return MAX_GENERATION_ATTEMPTS + 1;
+    return MAX_GENERATION_ATTEMPTS;
   }
 
   private providerPreflight() {

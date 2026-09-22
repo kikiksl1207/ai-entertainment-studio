@@ -1,5 +1,6 @@
 import { StoryVisualGenerationService } from './story-visual-generation.service';
 import * as sharp from 'sharp';
+import { createHash } from 'crypto';
 
 describe('StoryVisualGenerationService', () => {
   const workId = '00000000-0000-4000-8000-000000000001';
@@ -34,7 +35,7 @@ describe('StoryVisualGenerationService', () => {
         create: jest.fn(async ({ data }: any) => (generation = { id: 'generation-id', status: 'pending',
           attemptCount: 0, updatedAt: new Date(), assetId: null, ...data })),
         updateMany: jest.fn(async ({ data }: any) => {
-          if (generation?.status === 'pending') {
+          if (generation && ['pending', 'failed'].includes(generation.status) && data.status === 'generating') {
             generation = { ...generation, status: data.status, attemptCount: generation.attemptCount + 1,
               updatedAt: data.updatedAt };
             return { count: 1 };
@@ -66,10 +67,11 @@ describe('StoryVisualGenerationService', () => {
       OBJECT_STORAGE_ACCESS_KEY_ID: 'access-key',
       OBJECT_STORAGE_SECRET_ACCESS_KEY: 'secret-key',
       OBJECT_STORAGE_KEY_PREFIX: 'lumina-stage',
+      STORY_IMAGE_DATABASE_FALLBACK_ENABLED: 'true',
     };
     const config = { get: jest.fn((key: string) => values[key]) };
     return { prisma, config, service: new StoryVisualGenerationService(prisma, config as never),
-      generation: () => generation };
+      generation: () => generation, setGeneration: (value: any) => { generation = value; } };
   }
 
   afterEach(() => jest.restoreAllMocks());
@@ -103,16 +105,79 @@ describe('StoryVisualGenerationService', () => {
 
     await expect(f.service.requestForProgress('user-id', progressId, sourceSceneKey)).resolves.toEqual({
       status: 'ready', sourceSceneKey,
-      publicAssetPath: `/api/v1/assets/public/${assetId}/original`, reused: false,
+      publicAssetPath: `/api/v1/story-visual-assets/${assetId}`, reused: false,
     });
     await expect(f.service.requestForProgress('user-id', progressId, sourceSceneKey)).resolves.toEqual({
       status: 'ready', sourceSceneKey,
-      publicAssetPath: `/api/v1/assets/public/${assetId}/original`, reused: true,
+      publicAssetPath: `/api/v1/story-visual-assets/${assetId}`, reused: true,
     });
     expect(provider).toHaveBeenCalledTimes(2);
     expect(f.prisma.storyVisualGeneration.create).toHaveBeenCalledTimes(1);
     expect(f.prisma.asset.create).toHaveBeenCalledTimes(1);
     expect(f.generation()).toMatchObject({ status: 'ready', attemptCount: 1, assetId });
+  });
+
+  it('keeps a generated beta image in the database when object storage rejects the upload', async () => {
+    const f = fixture();
+    const image = await sharp({
+      create: { width: 1536, height: 1024, channels: 3, background: '#556677' },
+    }).webp().toBuffer();
+    jest.spyOn(global, 'fetch')
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [{ b64_json: image.toString('base64') }] }) } as Response)
+      .mockResolvedValueOnce({ ok: false, status: 403 } as Response);
+
+    await expect(f.service.requestForProgress('user-id', progressId, sourceSceneKey)).resolves.toEqual({
+      status: 'ready', sourceSceneKey,
+      publicAssetPath: `/api/v1/story-visual-assets/${assetId}`, reused: false,
+    });
+    expect(f.prisma.asset.create).toHaveBeenCalledWith({ data: expect.objectContaining({
+      storageProvider: 'database',
+      metadata: expect.objectContaining({
+        storyVisual: expect.objectContaining({
+          inlineImage: { encoding: 'base64', data: expect.any(String) },
+        }),
+      }),
+    }) });
+  });
+
+  it('serves a verified database fallback image from the public story endpoint', async () => {
+    const f = fixture();
+    const image = await sharp({
+      create: { width: 1536, height: 1024, channels: 3, background: '#778899' },
+    }).webp().toBuffer();
+    f.prisma.asset.findFirst = jest.fn().mockResolvedValue({
+      id: assetId,
+      storageProvider: 'database',
+      mimeType: 'image/webp',
+      fileSizeBytes: BigInt(image.length),
+      checksum: createHash('sha256').update(image).digest('hex'),
+      metadata: {
+        storyVisual: { workId, sourceSceneKey, inlineImage: { encoding: 'base64', data: image.toString('base64') } },
+      },
+    });
+
+    await expect(f.service.publicVisualAsset(assetId)).resolves.toEqual({
+      kind: 'inline', mimeType: 'image/webp', image,
+    });
+  });
+
+  it('retries once when the prior paid generation only failed at object storage', async () => {
+    const f = fixture();
+    f.setGeneration({ id: 'generation-id', workId, releaseId, releaseChecksum: checksum, sourceSceneKey,
+      promptSha256, status: 'failed', attemptCount: 1, lastErrorCode: 'OBJECT_STORAGE_403',
+      updatedAt: new Date(), assetId: null });
+    const image = await sharp({
+      create: { width: 1536, height: 1024, channels: 3, background: '#99aabb' },
+    }).webp().toBuffer();
+    jest.spyOn(global, 'fetch')
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [{ b64_json: image.toString('base64') }] }) } as Response)
+      .mockResolvedValueOnce({ ok: false, status: 403 } as Response);
+
+    await expect(f.service.requestForProgress('user-id', progressId, sourceSceneKey)).resolves.toEqual({
+      status: 'ready', sourceSceneKey,
+      publicAssetPath: `/api/v1/story-visual-assets/${assetId}`, reused: false,
+    });
+    expect(f.generation()).toMatchObject({ status: 'ready', attemptCount: 2, assetId });
   });
 
   it('rejects a malformed or wrong-sized provider image without uploading it', async () => {

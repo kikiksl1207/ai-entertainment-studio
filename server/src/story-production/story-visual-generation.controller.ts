@@ -1,5 +1,6 @@
-import { Body, Controller, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Res, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
+import { ServerResponse } from 'http';
 import { AuthUser } from '../auth/auth.types';
 import { RequireAdminPermissions } from '../auth/decorators/admin-permissions.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -25,6 +26,27 @@ export class StoryVisualGenerationController {
     @Body() body: RequestStoryVisualDto,
   ) {
     return this.visuals.requestForProgress(user.id, progressId, body.sourceSceneKey);
+  }
+}
+
+@Controller('story-visual-assets')
+export class StoryVisualAssetController {
+  constructor(private readonly visuals: StoryVisualGenerationService) {}
+
+  @Get(':assetId')
+  async deliver(@Param('assetId') assetId: string, @Res() response: ServerResponse) {
+    const delivery = await this.visuals.publicVisualAsset(assetId);
+    if (delivery.kind === 'redirect') {
+      response.statusCode = 302;
+      response.setHeader('location', delivery.url);
+      response.end();
+      return;
+    }
+    response.statusCode = 200;
+    response.setHeader('content-type', delivery.mimeType);
+    response.setHeader('content-length', String(delivery.image.length));
+    response.setHeader('cache-control', 'public, max-age=31536000, immutable');
+    response.end(delivery.image);
   }
 }
 

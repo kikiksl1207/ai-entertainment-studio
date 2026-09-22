@@ -54,6 +54,7 @@ import { SemanticAnalysisService } from './story-semantic-analysis.service';
 import { SEMANTIC_PROVIDER_FACTORY, SEMANTIC_WORKER_FACTORY } from './story-semantic-analysis.worker';
 import {
   StoryVisualGenerationAdminController,
+  StoryVisualAssetController,
   StoryVisualGenerationController,
 } from './story-visual-generation.controller';
 import { StoryVisualGenerationService } from './story-visual-generation.service';
@@ -76,6 +77,7 @@ import { StoryUploadModule } from '../story-upload/story-upload.module';
     StoryEconomicsController,
     StoryEconomicsAdminController,
     StoryVisualGenerationController,
+    StoryVisualAssetController,
     StoryVisualGenerationAdminController,
     StoryPublicationIntakeController,
   ],
