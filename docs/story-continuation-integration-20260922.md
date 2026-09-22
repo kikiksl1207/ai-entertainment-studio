@@ -2,6 +2,17 @@
 
 ## Owned Analysis Discovery API Integration
 
+Final discovery UI gate remains PENDING, zero of four independent groups.
+First preparation stopped because this PM checkpoint document was uncommitted.
+After the document-only clean pin `424d143`, a fresh 66-migration DB and real
+browser manuscript intake201 succeeded, but PG fixture preparation failed
+before group1. No product defect or independent acceptance was established;
+no further retry or candidate integration was performed. Exact UI `052fcec`
+remains clean and pushed on its separate branch. Both initial outcomes are
+retained in `E:/CodexMovedCache/qa-1855-discovery-ui-independent-report.md`.
+All QA processes and target DB connections returned to zero. At weekly49%
+against the user's50% ceiling, new execution is stopped at this checkpoint.
+
 Runtime `9e91db3` incorporates frozen `3deab1c`; all eight candidate paths
 match exactly. Independent actual AppModule/JWT/filter/PG65 review accepted
 five first-run groups: owner-only metadata, immutable keyset paging, cursor
