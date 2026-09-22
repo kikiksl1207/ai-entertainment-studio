@@ -1,5 +1,28 @@
 # Story Continuation Integration Checkpoint
 
+## Verified Workspace Cleanup
+
+Removed only the completed E worktree
+`E:/CodexMovedCache/worktrees/cloud-1848-reader-20260922` after both active
+builders confirmed no dependency, exact resolved-path/reparse/process checks,
+empty normal/ignored status and a fresh remote-tip check for
+`dcf548ba6a0deb31a1b8a2e365ebcd9891a915e7`. Git worktree removal succeeded;
+1,161 files totaling1,004,777,748 bytes were removed. The remote source branch,
+independent QA evidence, original manuscripts/media, current worktrees and active
+dependencies remain. No C-drive deletion or bypass of the earlier cleanup
+policy denial was attempted. Historical local-source paths in older handoffs
+refer to this now-removed clone; its exact source remains recoverable from Git.
+
+Cloud subsequently reused the completed accepted visual clone instead of
+creating another full copy: native Git worktree move from
+`E:/CodexMovedCache/worktrees/cloud-1881-beat-visual-20260922` to
+`E:/CodexMovedCache/worktrees/cloud-1855-analysis-review-20260922`, then a new
+writer-UI branch at `849f963`. Cloud reported clean/ignored/remote674, dependency,
+process, resolved E-parent and reparse checks before the move. PM confirmed the
+old path absent and new path present. Candidate674 remains on its remote branch
+and in PM integration; independent evidence remains outside the moved clone.
+This was workspace reuse, not another claimed deletion or new disk-space saving.
+
 ## Beat Visual Integration
 
 Runtime `da495d7` adds reader candidate `674cce9` to the schema65 runtime below.
