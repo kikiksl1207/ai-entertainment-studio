@@ -63,11 +63,25 @@ describe('StoryPublicationIntakeService queue projection', () => {
     const stored = (service as any).storedPlan(plan);
     expect(stored.storageContract).toBe('story-publication-plan-br-base64-v1');
     expect(JSON.stringify(stored)).not.toContain('승인 원고 본문');
-    expect((service as any).readStoredPlan(stored)).toMatchObject({
+    const restored = (service as any).readStoredPlan(stored);
+    expect(restored).toMatchObject({
       storyKey: 'norse',
       slug: 'norse-test',
       parts: [{ partKey: 'part-1' }],
     });
+    const archived = (service as any).archivedManuscriptBody(
+      restored,
+      '00000000-0000-0000-0000-000000000001',
+    );
+    expect(archived).toMatchObject({
+      format: 'approved-source-archive-reference-v1',
+      archive: {
+        storage: 'story_publication_source_chunks',
+        bundleContract: 'norse-approved-bundle-v1',
+      },
+      materialized: { partCount: 1 },
+    });
+    expect(JSON.stringify(archived)).not.toContain('승인 원고 본문');
   });
 
   it('detects only the exact approved source hashes and omits private storage keys', async () => {

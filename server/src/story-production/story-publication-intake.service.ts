@@ -48,6 +48,8 @@ const APPROVED_SOURCE_MAX_CHUNKS = 64;
 const APPROVED_SOURCE_COMPRESSED_MAX_BYTES = 8 * 1024 * 1024;
 const PUBLICATION_PLAN_MAX_BYTES = 64 * 1024 * 1024;
 const PUBLICATION_PLAN_STORAGE_CONTRACT = 'story-publication-plan-br-base64-v1';
+const SOURCE_UPLOAD_MARKER = 'source_upload_chunks_v1';
+const PLAN_STORAGE_MARKER = 'plan_br_v1';
 
 type PublicationPart = {
   partKey: string;
@@ -232,11 +234,21 @@ export class StoryPublicationIntakeService {
         batchCursor: true,
         workId: true,
         releaseId: true,
+        errorCode: true,
       },
     });
     if (existing) {
       if (existing.status === 'published' || existing.workId) {
         return this.importJobReceipt(existing, NORSE_APPROVED_PART_COUNT);
+      }
+      if (existing.errorCode === PLAN_STORAGE_MARKER) {
+        return this.importJobReceipt(existing, NORSE_APPROVED_PART_COUNT);
+      }
+      if (existing.errorCode === SOURCE_UPLOAD_MARKER) {
+        const uploadedChunks = await this.prisma.storyPublicationSourceChunk.count({
+          where: { jobId: existing.id },
+        });
+        return this.sourceUploadReceipt(existing.id, uploadedChunks);
       }
       await this.prisma.storyPublicationImportJob.delete({ where: { id: existing.id } });
     }
@@ -246,6 +258,7 @@ export class StoryPublicationIntakeService {
         storyKey: input.storyKey,
         sourceBindingSha256: NORSE_SOURCE_MAP_SHA256,
         status: 'queued',
+        errorCode: SOURCE_UPLOAD_MARKER,
         planSnapshot: {
           sourceUpload: { contract: 'norse-approved-bundle-chunks-v1' },
         },
@@ -373,10 +386,9 @@ export class StoryPublicationIntakeService {
           status: 'queued',
           batchCursor: 0,
           planSnapshot: this.storedPlan(plan),
-          errorCode: null,
+          errorCode: PLAN_STORAGE_MARKER,
         },
       }),
-      this.prisma.storyPublicationSourceChunk.deleteMany({ where: { jobId } }),
     ]);
     return this.importJobReceipt(updated, plan.parts.length);
   }
@@ -496,7 +508,7 @@ export class StoryPublicationIntakeService {
             version: 1,
             locale: plan.manuscript.locale,
             contentHash: plan.manuscript.contentHash,
-            structuredBody: plan.manuscript.structuredBody as Prisma.InputJsonValue,
+            structuredBody: this.archivedManuscriptBody(plan, job.id),
           },
         });
         await tx.storyRelease.create({
@@ -1402,6 +1414,36 @@ export class StoryPublicationIntakeService {
         ko: { title: plan.title, summary: plan.summary },
       },
     };
+  }
+
+  private archivedManuscriptBody(
+    plan: PublicationPlanSnapshot,
+    publicationJobId: string,
+  ): Prisma.InputJsonValue {
+    if (plan.storyKey !== 'norse') {
+      return plan.manuscript.structuredBody as Prisma.InputJsonValue;
+    }
+    return {
+      format: 'approved-source-archive-reference-v1',
+      locale: plan.manuscript.locale,
+      contentHash: plan.manuscript.contentHash,
+      sourceBindingSha256: plan.sourceBindingSha256,
+      archive: {
+        storage: 'story_publication_source_chunks',
+        publicationJobId,
+        bundleContract: 'norse-approved-bundle-v1',
+        compression: 'brotli',
+        sourceSha256: {
+          analysis: NORSE_ANALYSIS_SHA256,
+          authoredSourceMap: NORSE_SOURCE_MAP_SHA256,
+        },
+      },
+      materialized: {
+        partCount: plan.parts.length,
+        promptCount: plan.prompts.length,
+        readerContentStoredInStoryTables: true,
+      },
+    } as Prisma.InputJsonValue;
   }
 
   private importJobReceipt(
