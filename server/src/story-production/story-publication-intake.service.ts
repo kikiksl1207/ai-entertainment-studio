@@ -523,7 +523,7 @@ export class StoryPublicationIntakeService {
       await tx.auditEvent.create({
         data: {
           actorUserId,
-          actorType: 'admin_owner',
+          actorType: 'admin',
           action: 'story_approved_source.public_beta_published',
           targetType: 'story_work',
           targetId: job.workId,
@@ -900,7 +900,7 @@ export class StoryPublicationIntakeService {
       await tx.auditEvent.create({
         data: {
           actorUserId,
-          actorType: 'admin_owner',
+          actorType: 'admin',
           action: submissionId
             ? 'story_upload.public_beta_published'
             : 'story_approved_source.public_beta_published',
