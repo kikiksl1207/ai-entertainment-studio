@@ -261,49 +261,54 @@ function renderCharacterDetail() {
 
   const gallery = document.getElementById("detailGallery");
   if (gallery) {
+    const galleryUnavailable = artist.galleryMode === "hidden";
     const galleryItems = artist.gallery?.length
       ? artist.gallery.map(item => Array.isArray(item)
         ? { caption: item[0] || "Gallery", src: item[1] }
         : item)
-      : [
-          { caption: "Cover", src: artist.images.cover },
-          { caption: "Thumbnail", src: artist.images.thumb }
-        ];
+      : [];
 
     // detail-body-grid 인라인 스타일 직접 적용 (CSS 충돌 완전 차단)
     const bodyGrid = gallery.closest(".detail-body-grid");
     if (bodyGrid) {
       Object.assign(bodyGrid.style, {
         display: "grid",
-        gridTemplateColumns: "1fr 1fr",
+        gridTemplateColumns: galleryUnavailable ? "1fr" : "1fr 1fr",
         gap: "24px",
         alignItems: "stretch",
         marginBottom: "40px"
       });
     }
 
-    gallery.innerHTML = isHidden ? "" : `
-      <div id="galleryHeader" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:8px;flex-shrink:0;">
-        <div style="display:flex;align-items:center;gap:10px;">
-          <span style="font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);">포토 갤러리</span>
-          <strong style="font-size:17px;font-weight:700;color:var(--ink);">공식 이미지</strong>
+    if (galleryUnavailable) {
+      gallery.hidden = true;
+      gallery.innerHTML = "";
+    } else {
+      gallery.hidden = false;
+      gallery.innerHTML = isHidden ? "" : `
+        <div id="galleryHeader" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:8px;flex-shrink:0;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);">포토 갤러리</span>
+            <strong style="font-size:17px;font-weight:700;color:var(--ink);">공식 이미지</strong>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <button id="galleryPrev" aria-label="이전" style="background:var(--panel);border:1px solid var(--line);color:var(--ink);width:36px;height:36px;border-radius:50%;font-size:24px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;">‹</button>
+            <span id="galleryCounter" style="font-size:12px;color:var(--muted);min-width:64px;text-align:center;"></span>
+            <button id="galleryNext" aria-label="다음" style="background:var(--panel);border:1px solid var(--line);color:var(--ink);width:36px;height:36px;border-radius:50%;font-size:24px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;">›</button>
+          </div>
         </div>
-        <div style="display:flex;align-items:center;gap:8px;">
-          <button id="galleryPrev" aria-label="이전" style="background:var(--panel);border:1px solid var(--line);color:var(--ink);width:36px;height:36px;border-radius:50%;font-size:24px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;">‹</button>
-          <span id="galleryCounter" style="font-size:12px;color:var(--muted);min-width:64px;text-align:center;"></span>
-          <button id="galleryNext" aria-label="다음" style="background:var(--panel);border:1px solid var(--line);color:var(--ink);width:36px;height:36px;border-radius:50%;font-size:24px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;">›</button>
-        </div>
-      </div>
-      <div id="gallerySlider" style="width:100%;flex:1;min-height:0;overflow:hidden;border-radius:14px;background:#16122a;">
-        <div id="galleryTrack" style="display:flex;height:100%;"></div>
-      </div>`;
+        <div id="gallerySlider" style="width:100%;flex:1;min-height:0;overflow:hidden;border-radius:14px;background:#16122a;">
+          <div id="galleryTrack" style="display:flex;height:100%;"></div>
+        </div>`;
 
-    initGallerySlider(galleryItems, artist.publicName);
-    initLightbox(galleryItems, artist.publicName);
+      if (!isHidden && galleryItems.length > 0) {
+        initGallerySlider(galleryItems, artist.publicName);
+        initLightbox(galleryItems, artist.publicName);
 
-    // #031: 운영 API에서 정확한 gallery 가져와서 갱신 (에밀리 코드 패턴 적용)
-    // /api/v1/artists 목록 응답에 assets가 빠져있는 경우 대비 → 개별 API 호출
-    fetchAndUpdateDetailGallery(artist.slug, artist.publicName);
+        // 운영 API에 로컬보다 최신 갤러리가 있으면 상세 화면을 갱신한다.
+        fetchAndUpdateDetailGallery(artist.slug, artist.publicName);
+      }
+    }
   }
 
   const profile = document.getElementById("detailProfile");
