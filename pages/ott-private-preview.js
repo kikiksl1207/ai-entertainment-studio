@@ -1,6 +1,9 @@
 (function initPrivateOttPreview() {
   "use strict";
 
+  const entryParams = new URLSearchParams(location.search);
+  if (entryParams.has("manifestId") || entryParams.has("previewId")) return;
+
   const apiBase = (window.LUMINA_API_BASE || "https://api.lumina-stage.com").replace(/\/$/, "");
   const fileIds = new URLSearchParams(location.search).getAll("fileId");
   const fileId = fileIds[0] || "";
