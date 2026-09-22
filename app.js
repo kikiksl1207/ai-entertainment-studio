@@ -3935,7 +3935,7 @@ function activateCurrentNavItem() {
     });
   }
 
-  // 하단 탭바 (모바일 768px↓) — 5개 탭 (홈/아티스트/스토리/OTT/피드) 동기 처리
+  // 하단 탭바 (모바일 768px↓) — 공개 탐색 6개 탭 동기 처리
   // data-tab-key는 파일명. 데뷔하기는 헤더 우측 CTA로 분리되어 탭바에 없음.
   document.querySelectorAll(".mobile-tab").forEach(tab => {
     const tabKey = (tab.dataset.tabKey || "").toLowerCase();
@@ -3945,14 +3945,13 @@ function activateCurrentNavItem() {
 
 function normalizePublicDiscoveryNavigation() {
   document.querySelectorAll(".main-nav").forEach(nav => {
-    if (nav.querySelector('a[href="/ott"]')) return;
-    const story = nav.querySelector('a[href="/story-stage"]');
-    if (!story) return;
-    const ott = document.createElement("a");
-    ott.href = "/ott";
-    ott.dataset.i18n = "nav.ott";
-    ott.textContent = t("nav.ott");
-    story.insertAdjacentElement("afterend", ott);
+    nav.innerHTML = `
+      <a href="/" data-i18n="nav.home">${t("nav.home")}</a>
+      <a href="/characters" data-i18n="nav.artists">${t("nav.artists")}</a>
+      <a href="/story-stage" data-i18n="nav.story">${t("nav.story")}</a>
+      <a href="/ott" data-i18n="nav.ott">${t("nav.ott")}</a>
+      <a href="/lumina-feed" data-i18n="nav.luminaFeed">${t("nav.luminaFeed")}</a>
+      <a href="/lumina-pick" data-i18n="nav.luminaPick">${t("nav.luminaPick")}</a>`;
   });
 
   document.querySelectorAll(".mobile-tabbar").forEach(tabbar => {
@@ -3961,7 +3960,8 @@ function normalizePublicDiscoveryNavigation() {
       <a href="/characters" class="mobile-tab" data-tab-key="characters"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M4.5 20c.6-3.6 3.7-6 7.5-6s6.9 2.4 7.5 6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg><span data-i18n="tab.artists">${t("tab.artists")}</span></a>
       <a href="/story-stage" class="mobile-tab" data-tab-key="story"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4.5h10.5A2.5 2.5 0 0 1 18 7v12.5H7.5A2.5 2.5 0 0 1 5 17z" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M8 8h7M8 12h7" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg><span data-i18n="tab.story">${t("tab.story")}</span></a>
       <a href="/ott" class="mobile-tab" data-tab-key="ott"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="m10 9 5 3-5 3z" fill="currentColor"/></svg><span data-i18n="tab.ott">${t("tab.ott")}</span></a>
-      <a href="/lumina-feed" class="mobile-tab" data-tab-key="lumina-feed"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v10H7l-3 3z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg><span data-i18n="tab.feed">${t("tab.feed")}</span></a>`;
+      <a href="/lumina-feed" class="mobile-tab" data-tab-key="lumina-feed"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v10H7l-3 3z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg><span data-i18n="tab.feed">${t("tab.feed")}</span></a>
+      <a href="/lumina-pick" class="mobile-tab" data-tab-key="lumina-pick"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.7 5.5 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg><span data-i18n="tab.pick">${t("tab.pick")}</span></a>`;
   });
 }
 

@@ -3042,9 +3042,10 @@ p {
     width: 13px;
     height: 13px;
   }
-  /* 하단 탭바 — fixed bottom, blur 배경, 5개 탭, 핫핑크-보라 그라데이션 액센트 (데뷔하기 톤 통일) */
+  /* 하단 탭바 — fixed bottom, blur 배경, 공개 탐색 6개 탭 */
   .mobile-tabbar {
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
     position: fixed;
     bottom: 0;
     left: 0;
@@ -3075,23 +3076,24 @@ p {
     pointer-events: none;
   }
   .mobile-tab {
-    flex: 1;
+    min-width: 0;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     gap: 3px;
-    padding: 6px 4px;
+    padding: 6px 1px;
     color: rgba(255, 130, 200, 0.62);
-    font-size: 10.5px;
+    font-size: 9px;
     font-weight: 600;
     letter-spacing: 0;
     text-align: center;
+    white-space: nowrap;
     transition: color 0.15s;
   }
   .mobile-tab svg {
-    width: 22px;
-    height: 22px;
+    width: 20px;
+    height: 20px;
     flex-shrink: 0;
   }
   .mobile-tab:hover,

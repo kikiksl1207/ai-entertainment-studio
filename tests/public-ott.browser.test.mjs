@@ -69,15 +69,15 @@ test('public discovery works at desktop and mobile widths and captures verified 
       assert.equal(Number.parseFloat(tileStyle.secondarySize) >= 12, true);
       if (width < 500) {
         const tabs = await page.locator('.mobile-tab').evaluateAll((nodes) => nodes.map((node) => node.dataset.tabKey));
-        assert.deepEqual(tabs, ['index', 'characters', 'story', 'ott', 'lumina-feed']);
+        assert.deepEqual(tabs, ['index', 'characters', 'story', 'ott', 'lumina-feed', 'lumina-pick']);
       }
       if (width === 390) {
         const expectedLabels = {
-          'ko-KR': ['홈', '아티스트', '스토리', 'OTT', '피드'],
-          'en-US': ['Home', 'Artists', 'Story', 'OTT', 'Feed'],
-          'ja-JP': ['ホーム', 'アーティスト', '物語', 'OTT', 'フィード'],
-          'zh-CN': ['首页', '艺人', '故事', 'OTT', '动态'],
-          'zh-Hant': ['首頁', '藝人', '故事', 'OTT', '動態'],
+          'ko-KR': ['홈', '아티스트', '스토리', 'OTT', '피드', '루미나 픽'],
+          'en-US': ['Home', 'Artists', 'Story', 'OTT', 'Feed', 'Lumina Pick'],
+          'ja-JP': ['ホーム', 'アーティスト', '物語', 'OTT', 'フィード', 'ルミナピック'],
+          'zh-CN': ['首页', '艺人', '故事', 'OTT', '动态', 'Lumina Pick'],
+          'zh-Hant': ['首頁', '藝人', '故事', 'OTT', '動態', 'Lumina Pick'],
         };
         for (const [locale, expected] of Object.entries(expectedLabels)) {
           await page.evaluate((nextLocale) => window.luminaI18n.setLocale(nextLocale), locale);

@@ -13,11 +13,11 @@ test('public OTT surface is separate and never links owner-private playback', ()
   assert.match(script, /viewing|감상 이용은 제공되지 않습니다/);
 });
 
-test('home and primary mobile surfaces expose Home Artists Story OTT Feed with Korean fallbacks', () => {
+test('home and primary mobile surfaces expose the canonical six-item discovery order', () => {
   for (const path of ['index.html', 'story-stage/index.html', 'ott/index.html']) {
     const html = read(path);
     const tabs = [...html.matchAll(/class="mobile-tab"[^>]*data-tab-key="([^"]+)"/g)].map((match) => match[1]);
-    assert.deepEqual(tabs, ['index', 'characters', 'story', 'ott', 'lumina-feed'], path);
+    assert.deepEqual(tabs, ['index', 'characters', 'story', 'ott', 'lumina-feed', 'lumina-pick'], path);
     assert.doesNotMatch(html, />\?\?\?</);
   }
   const home = read('index.html');
@@ -29,7 +29,7 @@ test('home and primary mobile surfaces expose Home Artists Story OTT Feed with K
   assert.match(home, /home\.discovery\.ott\.label">영상 작품</);
   assert.match(home, /home\.discovery\.pick\.label">루미나 픽</);
   assert.doesNotMatch(home, /<strong>(?:Story|OTT|Pick)<\/strong>/);
-  for (const key of ['home', 'artists', 'story', 'ott', 'feed']) {
+  for (const key of ['home', 'artists', 'story', 'ott', 'feed', 'pick']) {
     assert.match(app, new RegExp(`<span data-i18n="tab\\.${key}">`));
   }
 });
