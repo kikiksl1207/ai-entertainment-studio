@@ -25,6 +25,12 @@ describe('StoryPublicationIntakeController', () => {
     expect(
       Reflect.getMetadata(
         ADMIN_PERMISSIONS_KEY,
+        StoryPublicationIntakeController.prototype.processApprovedJob,
+      ),
+    ).toEqual(['*']);
+    expect(
+      Reflect.getMetadata(
+        ADMIN_PERMISSIONS_KEY,
         StoryPublicationIntakeController.prototype.promote,
       ),
     ).toEqual(['*']);
@@ -100,5 +106,19 @@ describe('StoryPublicationIntakeController', () => {
       body,
       files,
     );
+  });
+
+  it('continues a staged publication job as the authenticated operator', async () => {
+    const publication = {
+      processApprovedJob: jest.fn().mockResolvedValue({ status: 'structuring' }),
+    };
+    const controller = new StoryPublicationIntakeController(
+      publication as never,
+      {} as never,
+    );
+    await expect(
+      controller.processApprovedJob({ id: 'owner' } as never, 'job-id'),
+    ).resolves.toEqual({ status: 'structuring' });
+    expect(publication.processApprovedJob).toHaveBeenCalledWith('owner', 'job-id');
   });
 });

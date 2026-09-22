@@ -65,6 +65,14 @@ type PublicationPlan = {
   prompts: PublicationPrompt[];
 };
 
+type PublicationPlanSnapshot = Omit<PublicationPlan, 'manuscript'> & {
+  manuscript: {
+    locale: string;
+    contentHash: string;
+    structuredBody: Prisma.JsonValue;
+  };
+};
+
 @Injectable()
 export class StoryPublicationIntakeService {
   constructor(
@@ -160,7 +168,380 @@ export class StoryPublicationIntakeService {
           this.requiredBuffer(buffers, NORSE_ANALYSIS_SHA256),
           this.requiredBuffer(buffers, NORSE_SOURCE_MAP_SHA256),
         );
-    return this.publish(actorUserId, null, plan, input);
+    const existing = await this.prisma.storyPublicationImportJob.findUnique({
+      where: {
+        actorUserId_storyKey_sourceBindingSha256: {
+          actorUserId,
+          storyKey: plan.storyKey,
+          sourceBindingSha256: plan.sourceBindingSha256,
+        },
+      },
+    });
+    if (existing) return this.importJobReceipt(existing, plan.parts.length);
+    const created = await this.prisma.storyPublicationImportJob.create({
+      data: {
+        actorUserId,
+        storyKey: plan.storyKey,
+        sourceBindingSha256: plan.sourceBindingSha256,
+        status: 'queued',
+        planSnapshot: this.storedPlan(plan),
+      },
+    });
+    return this.importJobReceipt(created, plan.parts.length);
+  }
+
+  async processApprovedJob(actorUserId: string, jobId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const locked = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+        SELECT "id" FROM "story_publication_import_jobs"
+        WHERE "id" = ${jobId}::uuid FOR UPDATE
+      `);
+      if (!locked.length) throw new NotFoundException('Story publication job not found');
+      const job = await tx.storyPublicationImportJob.findUnique({ where: { id: jobId } });
+      if (!job || job.actorUserId !== actorUserId) {
+        throw new NotFoundException('Story publication job not found');
+      }
+      if (job.status === 'published') return this.importJobReceipt(job, job.batchCursor);
+      if (job.status === 'failed') {
+        throw new ConflictException(job.errorCode || 'Story publication job failed');
+      }
+      const plan = this.readStoredPlan(job.planSnapshot);
+
+      if (job.status === 'queued') {
+        const existingWork = await tx.storyWork.findUnique({
+          where: { slug: plan.slug },
+          select: { id: true, slug: true, activeReleaseId: true, status: true },
+        });
+        if (existingWork?.status === 'published') {
+          const completed = await tx.storyPublicationImportJob.update({
+            where: { id: job.id },
+            data: {
+              status: 'published',
+              batchCursor: plan.parts.length,
+              workId: existingWork.id,
+              releaseId: existingWork.activeReleaseId,
+              planSnapshot: Prisma.DbNull,
+            },
+          });
+          return this.importJobReceipt(completed, plan.parts.length, existingWork);
+        }
+        if (existingWork) throw new ConflictException('Story slug is already preparing');
+
+        const workId = randomUUID();
+        const manuscriptVersionId = randomUUID();
+        const releaseId = randomUUID();
+        const releaseSnapshot = this.releaseSnapshot(plan, manuscriptVersionId);
+        const checksum = releaseChecksum(releaseSnapshot);
+        await tx.storyWork.create({
+          data: {
+            id: workId,
+            ownerUserId: actorUserId,
+            slug: plan.slug,
+            status: 'release_ready',
+            defaultLocale: 'ko',
+            supportedLocales: ['ko', 'en', 'ja', 'zh-Hans', 'zh-Hant'],
+            title: { ko: plan.title },
+            summary: { ko: plan.summary },
+            coverManifest: {
+              publicAssetPath: plan.coverPath,
+              altKey: `story.cover.${plan.storyKey}`,
+            },
+            priceLumina: 0,
+            fixtureSource: false,
+            publishedVersion: 1,
+            customChoiceEnabled: false,
+            activeReleaseId: null,
+            releaseRevision: 1,
+            publishedAt: null,
+          },
+        });
+        await tx.storyManuscriptVersion.create({
+          data: {
+            id: manuscriptVersionId,
+            workId,
+            ownerUserId: actorUserId,
+            version: 1,
+            locale: plan.manuscript.locale,
+            contentHash: plan.manuscript.contentHash,
+            structuredBody: plan.manuscript.structuredBody as Prisma.InputJsonValue,
+          },
+        });
+        await tx.storyRelease.create({
+          data: {
+            id: releaseId,
+            workId,
+            version: 1,
+            status: 'active',
+            ...releaseSnapshot,
+            checksum,
+            validationSummary: {
+              ready: true,
+              blockingIssueCount: 0,
+              sourceIdentityVerified: true,
+              publicBetaScope: 'authored_route_only',
+            },
+            diffSummary: {
+              sourceBindingSha256: plan.sourceBindingSha256,
+              sourceRawTextIncluded: false,
+            },
+            createdByUserId: actorUserId,
+            activatedAt: new Date(),
+          },
+        });
+        const prepared = await tx.storyPublicationImportJob.update({
+          where: { id: job.id },
+          data: {
+            status: 'structuring',
+            batchCursor: 0,
+            workId,
+            releaseId,
+          },
+        });
+        return this.importJobReceipt(prepared, plan.parts.length);
+      }
+
+      if (!job.workId || !job.releaseId) {
+        throw new ConflictException('Story publication job bindings are missing');
+      }
+      if (job.status === 'structuring') {
+        const end = Math.min(job.batchCursor + 12, plan.parts.length);
+        const batch = plan.parts.slice(job.batchCursor, end);
+        await tx.storyPart.createMany({
+          data: batch.map((part) => ({
+            id: randomUUID(),
+            workId: job.workId!,
+            seasonKey: 'season-1',
+            actNumber: part.actNumber,
+            position: part.position,
+            status: 'published',
+            title: { ko: part.title },
+            priceLumina: 0,
+            fixtureSource: false,
+            publishedAt: new Date(),
+          })),
+          skipDuplicates: true,
+        });
+        const storedParts = await tx.storyPart.findMany({
+          where: { workId: job.workId, position: { gte: job.batchCursor + 1, lte: end } },
+          select: { id: true, position: true },
+        });
+        const partByPosition = new Map(storedParts.map((part) => [part.position, part.id]));
+        await tx.storyScene.createMany({
+          data: batch.map((part) => ({
+            id: randomUUID(),
+            partId: this.requiredId(partByPosition, part.position),
+            sceneKey: `${part.partKey}-main`,
+            position: 1,
+            status: 'published',
+            title: { ko: part.title },
+            visualManifest: missingAuthoredSceneVisual(`${part.partKey}-main`),
+            endingType: null,
+            fixtureSource: false,
+          })),
+          skipDuplicates: true,
+        });
+        const next = await tx.storyPublicationImportJob.update({
+          where: { id: job.id },
+          data: {
+            status: end === plan.parts.length ? 'materializing' : 'structuring',
+            batchCursor: end === plan.parts.length ? 0 : end,
+          },
+        });
+        return this.importJobReceipt(next, plan.parts.length);
+      }
+
+      if (job.status === 'materializing') {
+        const end = Math.min(job.batchCursor + 6, plan.parts.length);
+        const batch = plan.parts.slice(job.batchCursor, end);
+        const storedParts = await tx.storyPart.findMany({
+          where: { workId: job.workId },
+          select: { id: true, position: true },
+        });
+        const partByPosition = new Map(storedParts.map((part) => [part.position, part.id]));
+        const storedScenes = await tx.storyScene.findMany({
+          where: { partId: { in: storedParts.map((part) => part.id) } },
+          select: { id: true, partId: true },
+        });
+        const sceneByPartId = new Map(storedScenes.map((scene) => [scene.partId, scene.id]));
+        const sceneByPartKey = new Map(plan.parts.map((part) => {
+          const partId = this.requiredId(partByPosition, part.position);
+          return [part.partKey, this.requiredId(sceneByPartId, partId)] as const;
+        }));
+        const batchSceneKeys = new Set<string>();
+        const beatRows = batch.flatMap((part) => {
+          const sceneId = this.requiredId(sceneByPartKey, part.partKey);
+          return part.beats.map((beat, index) => {
+            batchSceneKeys.add(beat.sourceSceneKey);
+            return {
+              sceneId,
+              position: index + 1,
+              beatType: 'narration',
+              content: { ko: beat.text },
+              sourceSceneKey: beat.sourceSceneKey,
+              visualManifest: missingAuthoredSceneVisual(beat.sourceSceneKey),
+            };
+          });
+        });
+        await tx.storyBeat.createMany({ data: beatRows, skipDuplicates: true });
+        await tx.storyChoice.createMany({
+          data: batch.flatMap((part) => {
+            const sceneId = this.requiredId(sceneByPartKey, part.partKey);
+            return part.choices.map((choice) => ({
+              sceneId,
+              choiceKey: choice.choiceKey,
+              position: choice.position,
+              label: { ko: choice.label },
+              routeKind: choice.routeKind,
+              targetSceneId: choice.targetPartKey
+                ? this.requiredId(sceneByPartKey, choice.targetPartKey)
+                : null,
+              targetEndingKey: choice.targetEndingKey,
+              declaredRejoinSceneId: null,
+            }));
+          }),
+          skipDuplicates: true,
+        });
+        const release = await tx.storyRelease.findUniqueOrThrow({
+          where: { id: job.releaseId },
+          select: { checksum: true },
+        });
+        await tx.storyVisualPrompt.createMany({
+          data: plan.prompts
+            .filter((prompt) => batchSceneKeys.has(prompt.sourceSceneKey))
+            .map((prompt) => ({
+              workId: job.workId!,
+              releaseId: job.releaseId!,
+              releaseChecksum: release.checksum,
+              ...prompt,
+              sourceKind: 'admin_verified',
+              sourceBindingSha256: plan.sourceBindingSha256,
+            })),
+          skipDuplicates: true,
+        });
+        const next = await tx.storyPublicationImportJob.update({
+          where: { id: job.id },
+          data: {
+            status: end === plan.parts.length ? 'finalizing' : 'materializing',
+            batchCursor: end,
+          },
+        });
+        return this.importJobReceipt(next, plan.parts.length);
+      }
+
+      if (job.status !== 'finalizing') {
+        throw new ConflictException('Story publication job status is invalid');
+      }
+      const release = await tx.storyRelease.findUniqueOrThrow({
+        where: { id: job.releaseId },
+        select: { checksum: true },
+      });
+      const rateCard = await tx.storyAiRateCard.upsert({
+        where: { version: DISABLED_RATE_CARD_VERSION },
+        create: {
+          version: DISABLED_RATE_CARD_VERSION,
+          provider: 'disabled',
+          model: 'not_activated',
+          status: 'active',
+          currencyCode: 'KRW',
+          inputCostPerMillion: 0,
+          outputCostPerMillion: 0,
+          cachedInputCostPerMillion: 0,
+          imageUnitCost: 0,
+          createdByUserId: actorUserId,
+          effectiveAt: new Date(),
+        },
+        update: {},
+      });
+      await tx.storyReleaseCapability.upsert({
+        where: { releaseId: job.releaseId },
+        create: {
+          workId: job.workId,
+          releaseId: job.releaseId,
+          rateCardId: rateCard.id,
+          fixedChoiceCount: 3,
+          customChoiceEnabled: false,
+          customChoiceMaxLength: 200,
+          fullResetLimit: 1,
+          actResetLimit: 3,
+          includedAiRouteCount: 0,
+          aiInputTokenLimit: 0,
+          aiOutputTokenLimit: 0,
+          warningBudgetKrw: 0,
+          hardBudgetKrw: 0,
+          status: 'active',
+          validationErrors: [],
+          revision: 1,
+          updatedByUserId: actorUserId,
+        },
+        update: {},
+      });
+      await tx.storyPublicationTransition.upsert({
+        where: { idempotencyKey: `story-approved-publication:${plan.sourceBindingSha256}` },
+        create: {
+          workId: job.workId,
+          releaseId: job.releaseId,
+          actorUserId,
+          idempotencyKey: `story-approved-publication:${plan.sourceBindingSha256}`,
+          fromStatus: 'release_ready',
+          toStatus: 'published',
+          beforeRevision: 1,
+          afterRevision: 2,
+          publicSummary: {
+            sourceIdentityVerified: true,
+            scope: 'authored_route_only',
+            aiGeneratedBranchesActivated: false,
+          },
+        },
+        update: {},
+      });
+      const publishedAt = new Date();
+      const work = await tx.storyWork.update({
+        where: { id: job.workId },
+        data: {
+          status: 'published',
+          activeReleaseId: job.releaseId,
+          releaseRevision: 2,
+          publishedAt,
+        },
+        select: { id: true, slug: true, activeReleaseId: true, status: true },
+      });
+      await tx.auditEvent.create({
+        data: {
+          actorUserId,
+          actorType: 'admin_owner',
+          action: 'story_approved_source.public_beta_published',
+          targetType: 'story_work',
+          targetId: job.workId,
+          afterData: {
+            workId: job.workId,
+            releaseId: job.releaseId,
+            status: 'published',
+            storyKey: plan.storyKey,
+          },
+          metadata: {
+            sourceBindingSha256: plan.sourceBindingSha256,
+            partCount: plan.parts.length,
+            promptCount: plan.prompts.length,
+            releaseChecksum: release.checksum,
+            aiGeneratedBranchesActivated: false,
+          },
+        },
+      });
+      const completed = await tx.storyPublicationImportJob.update({
+        where: { id: job.id },
+        data: {
+          status: 'published',
+          batchCursor: plan.parts.length,
+          planSnapshot: Prisma.DbNull,
+          errorCode: null,
+        },
+      });
+      return this.importJobReceipt(completed, plan.parts.length, work);
+    }, {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      maxWait: 5_000,
+      timeout: 30_000,
+    });
   }
 
   async promote(
@@ -633,6 +1014,102 @@ export class StoryPublicationIntakeService {
       })),
       prompts: source.parts.flatMap((part) => part.visualPrompts),
     };
+  }
+
+  private storedPlan(plan: PublicationPlan): Prisma.InputJsonValue {
+    return {
+      storyKey: plan.storyKey,
+      slug: plan.slug,
+      title: plan.title,
+      summary: plan.summary,
+      coverPath: plan.coverPath,
+      manuscript: {
+        locale: plan.manuscript.locale,
+        contentHash: plan.manuscript.contentHash,
+        structuredBody: storedManuscriptBody(plan.manuscript),
+      },
+      sourceBindingSha256: plan.sourceBindingSha256,
+      parts: plan.parts,
+      prompts: plan.prompts,
+    } as unknown as Prisma.InputJsonValue;
+  }
+
+  private readStoredPlan(value: Prisma.JsonValue | null): PublicationPlanSnapshot {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      throw new ConflictException('Story publication plan is missing');
+    }
+    const plan = value as unknown as PublicationPlanSnapshot;
+    if (
+      !['imjin', 'norse'].includes(plan.storyKey) ||
+      !plan.slug ||
+      !plan.manuscript?.contentHash ||
+      !Array.isArray(plan.parts) ||
+      !Array.isArray(plan.prompts)
+    ) {
+      throw new ConflictException('Story publication plan is invalid');
+    }
+    return plan;
+  }
+
+  private releaseSnapshot(
+    plan: PublicationPlanSnapshot,
+    manuscriptVersionId: string,
+  ) {
+    return {
+      manuscriptVersionId,
+      branchGraphSnapshot: {
+        contract: 'story-public-beta-exact-source-v1',
+        fixedChoiceCount: 3,
+        customChoiceEnabled: false,
+        aiGeneratedBranchesActivated: false,
+      },
+      endingSetSnapshot: {
+        authorMain: true,
+        generatedEndingsActivated: false,
+      },
+      sceneAssetManifest: {
+        state: 'prompt_backed',
+        promptCount: plan.prompts.length,
+      },
+      localizedDisplaySnapshot: {
+        ko: { title: plan.title, summary: plan.summary },
+      },
+    };
+  }
+
+  private importJobReceipt(
+    job: {
+      id: string;
+      status: string;
+      batchCursor: number;
+      workId: string | null;
+      releaseId: string | null;
+      errorCode?: string | null;
+    },
+    totalParts: number,
+    work?: {
+      id: string;
+      slug: string;
+      activeReleaseId: string | null;
+      status: string;
+    },
+  ) {
+    return {
+      jobId: job.id,
+      status: job.status,
+      processedParts: job.batchCursor,
+      totalParts,
+      workId: job.workId,
+      releaseId: job.releaseId,
+      errorCode: job.errorCode ?? null,
+      work: work ?? null,
+    };
+  }
+
+  private requiredId<Key>(map: ReadonlyMap<Key, string>, key: Key) {
+    const value = map.get(key);
+    if (!value) throw new ConflictException('Story publication materialization binding is missing');
+    return value;
   }
 
   private detectStoryKey(files: Array<{ checksumSha256: string }>) {

@@ -50,6 +50,15 @@ export class StoryPublicationIntakeController {
     return this.publication.publishApproved(user.id, body, files ?? {});
   }
 
+  @Post('submissions/jobs/:jobId/process')
+  @RequireAdminPermissions('*')
+  processApprovedJob(
+    @CurrentUser() user: AuthUser,
+    @Param('jobId') jobId: string,
+  ) {
+    return this.publication.processApprovedJob(user.id, jobId);
+  }
+
   @Post('submissions')
   @RequireAdminPermissions('*')
   @UseInterceptors(

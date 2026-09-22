@@ -255,11 +255,33 @@
       payload.append("finalManuscriptConfirmed", "true");
       payload.append("rightsConfirmed", "true");
       payload.append("publicReleaseConfirmed", "true");
-      await api.fetch(`${endpoint}/publish-approved`, {
+      let result = await api.fetch(`${endpoint}/publish-approved`, {
         method: "POST",
         auth: true,
         body: payload
       });
+      const phaseLabels = {
+        queued: "공개 데이터를 준비하고 있습니다.",
+        structuring: "파트와 장면 뼈대를 만들고 있습니다.",
+        materializing: "본문, 선택지, 이미지 프롬프트를 넣고 있습니다.",
+        finalizing: "독자 공개 상태를 최종 확인하고 있습니다."
+      };
+      for (let step = 0; result?.status !== "published" && step < 100; step += 1) {
+        if (!result?.jobId || result.status === "failed") {
+          throw new Error(result?.errorCode || "공개 작업을 이어갈 수 없습니다.");
+        }
+        if (inlineStatus) {
+          const progress = Number.isFinite(Number(result.processedParts)) && Number(result.totalParts) > 0
+            ? ` ${Number(result.processedParts).toLocaleString("ko-KR")}/${Number(result.totalParts).toLocaleString("ko-KR")}`
+            : "";
+          inlineStatus.textContent = `${phaseLabels[result.status] || "공개 작업을 진행하고 있습니다."}${progress}`;
+        }
+        result = await api.fetch(`${endpoint}/jobs/${encodeURIComponent(result.jobId)}/process`, {
+          method: "POST",
+          auth: true
+        });
+      }
+      if (result?.status !== "published") throw new Error("공개 작업 단계가 예상보다 많습니다.");
       form.reset();
       if (inlineStatus) {
         inlineStatus.textContent = `${story.title} 최종본을 공개했습니다.`;

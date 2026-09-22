@@ -514,6 +514,25 @@ model StoryUploadSubmissionFile {
   @@map("story_upload_submission_files")
 }
 
+model StoryPublicationImportJob {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  actorUserId         String    @map("actor_user_id") @db.Uuid
+  storyKey            String    @map("story_key") @db.VarChar(24)
+  sourceBindingSha256 String    @map("source_binding_sha256") @db.VarChar(64)
+  status              String    @default("queued") @db.VarChar(24)
+  planSnapshot        Json?     @map("plan_snapshot")
+  batchCursor         Int       @default(0) @map("batch_cursor")
+  workId              String?   @map("work_id") @db.Uuid
+  releaseId           String?   @map("release_id") @db.Uuid
+  errorCode           String?   @map("error_code") @db.VarChar(120)
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([actorUserId, storyKey, sourceBindingSha256], map: "story_publication_import_jobs_identity")
+  @@index([actorUserId, status, updatedAt], map: "idx_story_publication_import_jobs_actor_status")
+  @@map("story_publication_import_jobs")
+}
+
 model ArtistAsset {
   id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   artistId  String   @map("artist_id") @db.Uuid
