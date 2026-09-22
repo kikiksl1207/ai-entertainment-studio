@@ -19,6 +19,7 @@ import {
 } from './dto/story-lifecycle.dto';
 import { StoryLifecycleService } from './story-lifecycle.service';
 import { StoryImjinReleaseBridgeService } from './story-imjin-release-bridge.service';
+import { AuthorReviewProposalDto, SubmitWriterReviewDto } from './dto/story-author-final-review.dto';
 
 @Controller()
 @UseGuards(JwtAuthGuard)
@@ -115,8 +116,20 @@ export class StoryLifecycleController {
     @CurrentUser() user: AuthUser,
     @Param('reviewId') reviewId: string,
     @Headers('idempotency-key') idempotencyKey?: string,
+    @Body() body?: SubmitWriterReviewDto,
   ) {
-    return this.lifecycle.submitReview(user.id, reviewId, idempotencyKey);
+    return this.lifecycle.submitReview(user.id, reviewId, idempotencyKey, body);
+  }
+
+  @Post('me/creator-studio/reviews/:reviewId/authored-proposal')
+  authorReviewProposal(@CurrentUser() user: AuthUser, @Param('reviewId') reviewId: string,
+    @Body() body: AuthorReviewProposalDto) {
+    return this.lifecycle.authorReviewProposal(user.id, reviewId, body);
+  }
+
+  @Post('me/creator-studio/author-review-proofs/:proofId/revoke')
+  revokeAuthorReview(@CurrentUser() user: AuthUser, @Param('proofId') proofId: string) {
+    return this.lifecycle.revokeAuthorReview(user.id, proofId);
   }
 
   @Post('me/creator-studio/stories/:workId/quality-aggregates')

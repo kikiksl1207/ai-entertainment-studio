@@ -18,6 +18,7 @@ import {
   StoryAuthoredImportMultipartInterceptor,
 } from './story-authored-import.controller';
 import { StoryAuthoredImportService } from './story-authored-import.service';
+import { StoryAuthorFinalReviewService } from './story-author-final-review.service';
 import {
   StoryProductionController,
   StoryProgressAdminController,
@@ -78,6 +79,7 @@ import { SEMANTIC_PROVIDER_FACTORY, SEMANTIC_WORKER_FACTORY } from './story-sema
     StoryManuscriptPasteOwnerGuard,
     StoryManuscriptPasteMultipartInterceptor,
     StoryAuthoredImportService,
+    StoryAuthorFinalReviewService,
     StoryAuthoredImportMultipartInterceptor,
     StoryProductionService,
     StoryProgressControlService,
