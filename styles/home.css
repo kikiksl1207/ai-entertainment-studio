@@ -16,6 +16,31 @@
   padding-top: 24px;
 }
 
+.hero-product-links {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.hero-product-links a {
+  min-width: 0;
+  padding: 12px 13px;
+  border: 1px solid rgba(113, 78, 184, 0.2);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--text);
+}
+
+.hero-product-links strong,
+.hero-product-links span { display: block; }
+.hero-product-links strong { font-size: 13px; }
+.hero-product-links span { margin-top: 4px; color: var(--muted); font-size: 11px; line-height: 1.35; }
+
+@media (max-width: 480px) {
+  .hero-product-links { grid-template-columns: 1fr; }
+}
+
 .hero-metrics {
   margin-top: 16px;
   padding-top: 0;

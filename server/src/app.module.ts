@@ -28,6 +28,7 @@ import { OttPlaybackModule } from './ott-playback/ott-playback.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ArtistsModule } from './public/artists/artists.module';
 import { ShortformsModule } from './public/shortforms/shortforms.module';
+import { OttPublicModule } from './public/ott/ott-public.module';
 import { RewardsModule } from './rewards/rewards.module';
 import { SiteContentModule } from './site-content/site-content.module';
 import { StoryUploadModule } from './story-upload/story-upload.module';
@@ -57,6 +58,7 @@ import { WalletModule } from './wallet/wallet.module';
     AiPremiumContentModule,
     ArtistsModule,
     ShortformsModule,
+    OttPublicModule,
     WalletModule,
     LuminaProductsModule,
     LuminaStationModule,

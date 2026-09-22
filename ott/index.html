@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OTT | Lumina Stage</title>
+    <link rel="canonical" href="https://www.lumina-stage.com/ott" />
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/styles/ott.css?v=public-ott-20260922" />
+    <meta name="description" content="공개와 감상 권한이 확인된 Lumina Stage OTT 작품을 찾아보세요." />
+    <meta name="robots" content="index, follow" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="OTT | Lumina Stage" />
+    <meta property="og:description" content="공개가 승인된 Lumina Stage OTT 작품을 만나는 곳." />
+    <meta property="og:url" content="https://www.lumina-stage.com/ott" />
+  </head>
+  <body class="is-booting ott-page">
+    <header class="site-header">
+      <div class="shell header-inner">
+        <a class="brand" href="/">
+          <img class="brand-logo" src="/assets/brand/lumina-stage-logo.png" alt="Lumina Stage" onerror="this.style.display='none'" />
+          <span class="brand-copy"><strong>Lumina Stage</strong><small data-i18n="brand.tagline">아티스트 레이블</small></span>
+        </a>
+        <nav class="main-nav" aria-label="메인 메뉴">
+          <a href="/" data-i18n="nav.home">홈</a>
+          <a href="/characters" data-i18n="nav.artists">아티스트</a>
+          <a href="/story-stage" data-i18n="nav.story">스토리</a>
+          <a href="/ott" data-i18n="nav.ott">OTT</a>
+          <a href="/lumina-pick" data-i18n="nav.luminaPick">루미나 픽</a>
+          <a href="/lumina-feed" data-i18n="nav.luminaFeed">루미나 피드</a>
+        </nav>
+        <a class="debut-cta-mobile" href="/debut" data-i18n="cta.debut">데뷔하기</a>
+        <div class="header-auth">
+          <a class="auth-btn auth-btn-login" href="#" data-i18n="auth.login">로그인</a>
+          <a class="auth-btn auth-btn-signup" href="#" data-i18n="auth.signup">회원가입</a>
+        </div>
+      </div>
+    </header>
+
+    <main class="ott-main">
+      <section class="ott-hero" aria-labelledby="ottTitle">
+        <div class="shell ott-hero-inner">
+          <div>
+            <p class="ott-kicker">LUMINA OTT</p>
+            <h1 id="ottTitle">OTT</h1>
+            <p id="ottDescription">공개와 감상 권한이 확인된 작품만 소개합니다.</p>
+          </div>
+          <div class="ott-hero-mark" aria-hidden="true"><span>PLAY</span></div>
+        </div>
+      </section>
+
+      <section class="shell ott-catalog" aria-labelledby="ottCatalogTitle">
+        <header class="ott-section-heading">
+          <div>
+            <p class="ott-kicker" id="ottCatalogKicker">CATALOG</p>
+            <h2 id="ottCatalogTitle">공개 작품</h2>
+          </div>
+          <p id="ottCatalogNote">현재 공개 기준을 충족한 작품을 확인할 수 있습니다.</p>
+        </header>
+        <div id="ottCatalogRoot" class="ott-catalog-root" aria-live="polite">
+          <div class="ott-status">
+            <strong>공개 작품을 확인하고 있어요.</strong>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="shell footer-inner">
+        <div><strong>Lumina Stage</strong><p data-i18n="footer.tagline">아티스트와 팬이 같은 무대에서 만나는 공간입니다.</p></div>
+        <div class="footer-links">
+          <a href="/characters" data-i18n="footer.artistRoster">아티스트 라인업</a>
+          <a href="/story-stage" data-i18n="nav.story">스토리</a>
+          <a href="/terms" data-i18n="footer.terms">이용약관</a>
+          <a href="/privacy" data-i18n="footer.privacy">개인정보처리방침</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="/data/characters.js"></script>
+    <script src="/app.js"></script>
+    <script src="/pages/ott.js?v=public-ott-20260922"></script>
+
+    <nav class="mobile-tabbar" aria-label="모바일 하단 메뉴">
+      <a href="/" class="mobile-tab" data-tab-key="index"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.5L12 4l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg><span data-i18n="tab.home">홈</span></a>
+      <a href="/characters" class="mobile-tab" data-tab-key="characters"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M4.5 20c.6-3.6 3.7-6 7.5-6s6.9 2.4 7.5 6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg><span data-i18n="tab.artists">아티스트</span></a>
+      <a href="/story-stage" class="mobile-tab" data-tab-key="story"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4.5h10.5A2.5 2.5 0 0 1 18 7v12.5H7.5A2.5 2.5 0 0 1 5 17z" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M8 8h7M8 12h7" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg><span data-i18n="tab.story">스토리</span></a>
+      <a href="/ott" class="mobile-tab" data-tab-key="ott"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="m10 9 5 3-5 3z" fill="currentColor"/></svg><span data-i18n="tab.ott">OTT</span></a>
+      <a href="/lumina-feed" class="mobile-tab" data-tab-key="lumina-feed"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v10H7l-3 3z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg><span data-i18n="tab.feed">피드</span></a>
+    </nav>
+  </body>
+</html>
