@@ -9,12 +9,33 @@ import { assertSemanticJobPins, semanticCost, semanticReservation, type Semantic
 import { nextSourceChunk, pieceFor, sha256, sourceParts } from './story-semantic-analysis.source';
 import { SEMANTIC_PIPELINE, STYLE_CATEGORIES, SemanticAnalysisError, type SemanticInput, type SemanticResult,
   type SourceCursor, type SourceRef, type SemanticUsage } from './story-semantic-analysis.types';
+import { StoryAnalysisDiscoveryQueryDto } from './dto/story-analysis-discovery.dto';
 
 @Injectable()
 export class SemanticAnalysisService {
   private cache?: { jobId: string; parts: ManuscriptPart[]; digest: string };
   constructor(private readonly repository: SemanticAnalysisRepository, private readonly provider: SemanticAnalysisProvider) {}
   private get db() { return this.repository.prisma; }
+
+  manuscripts(userId: string, workId: string, query: StoryAnalysisDiscoveryQueryDto) {
+    return this.repository.manuscripts(userId, workId, query);
+  }
+
+  async analyses(userId: string, manuscriptId: string, query: StoryAnalysisDiscoveryQueryDto) {
+    const page = await this.repository.analyses(userId, manuscriptId, query);
+    return { ...page, items: page.items.map(job => ({
+      id: job.id, manuscriptVersionId: job.manuscriptVersionId, analysisVersion: job.analysisVersion,
+      status: job.status, kind: job.pipeline, phase: job.phase, sourceLocale: job.sourceLocale,
+      sourceContentHash: job.sourceContentHash,
+      semanticCompleted: job.pipeline === SEMANTIC_PIPELINE && job.status === 'completed',
+      progress: { totalParagraphs: job.totalParagraphs, plannedParagraphs: job.plannedParagraphs,
+        completedParagraphs: job.completedParagraphs, plannedChunks: job.plannedChunks,
+        completedChunks: job.completedChunks, coverageComplete: job.pipeline === SEMANTIC_PIPELINE &&
+          job.status === 'completed' && job.completedParagraphs === job.totalParagraphs },
+      approval: 'not_approved', memoryApproved: false, errorCode: job.errorCode,
+      createdAt: job.createdAt, startedAt: job.startedAt, completedAt: job.completedAt,
+    })) };
+  }
 
   async enqueue(userId: string, manuscriptId: string, key?: string) {
     const readiness = await this.provider.readiness();

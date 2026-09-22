@@ -1,14 +1,85 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, ConflictException, HttpException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { Prisma, type StoryAnalysisJob } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { SEMANTIC_PACKING_PROFILE, semanticPinHash, semanticPins, type SemanticConfig, type SemanticPins } from './story-semantic-analysis.config';
 import { sha256 } from './story-semantic-analysis.source';
 import { SEMANTIC_PIPELINE, SemanticAnalysisError } from './story-semantic-analysis.types';
+import { StoryAnalysisDiscoveryQueryDto } from './dto/story-analysis-discovery.dto';
+
+const manuscriptMetadata = {
+  id: true, workId: true, version: true, locale: true, contentHash: true, createdAt: true,
+} satisfies Prisma.StoryManuscriptVersionSelect;
+
+const analysisMetadata = {
+  id: true, manuscriptVersionId: true, analysisVersion: true, status: true, pipeline: true,
+  phase: true, sourceLocale: true, sourceContentHash: true, totalParagraphs: true,
+  plannedParagraphs: true, completedParagraphs: true, plannedChunks: true, completedChunks: true,
+  errorCode: true, createdAt: true, startedAt: true, completedAt: true,
+} satisfies Prisma.StoryAnalysisJobSelect;
 
 @Injectable()
 export class SemanticAnalysisRepository {
   constructor(readonly prisma: PrismaService) {}
+
+  private async discoveryRead<T>(query: StoryAnalysisDiscoveryQueryDto, run: (tx: Prisma.TransactionClient) => Promise<T>) {
+    if (!Number.isInteger(query.limit) || query.limit < 1 || query.limit > 30)
+      throw new BadRequestException({ code: 'ANALYSIS_DISCOVERY_LIMIT_INVALID' });
+    try {
+      // Ownership, cursor and page use one snapshot; no leases, writes or provider readiness.
+      return await this.prisma.$transaction(run, {
+        isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead, maxWait: 2000, timeout: 5000,
+      });
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      throw new ServiceUnavailableException({ code: 'ANALYSIS_DISCOVERY_UNAVAILABLE' });
+    }
+  }
+
+  manuscripts(userId: string, workId: string, query: StoryAnalysisDiscoveryQueryDto) {
+    return this.discoveryRead(query, async tx => {
+      const owned = await tx.storyWork.findFirst({ where: { id: workId, ownerUserId: userId }, select: { id: true } });
+      if (!owned) throw new NotFoundException('Story work not found');
+      const scope = { workId, ownerUserId: userId };
+      const anchor = query.cursor ? await tx.storyManuscriptVersion.findFirst({
+        where: { ...scope, id: query.cursor }, select: { version: true },
+      }) : null;
+      if (query.cursor && !anchor) throw new BadRequestException({ code: 'ANALYSIS_DISCOVERY_CURSOR_INVALID' });
+      const rows = await tx.storyManuscriptVersion.findMany({
+        where: { ...scope, ...(anchor ? { version: { lt: anchor.version } } : {}) },
+        orderBy: { version: 'desc' }, take: query.limit + 1, select: manuscriptMetadata,
+      });
+      const items = rows.slice(0, query.limit);
+      return { workId, items, hasMore: rows.length > query.limit,
+        nextCursor: rows.length > query.limit ? items.at(-1)!.id : null };
+    });
+  }
+
+  analyses(userId: string, manuscriptId: string, query: StoryAnalysisDiscoveryQueryDto) {
+    return this.discoveryRead(query, async tx => {
+      const manuscript = await tx.storyManuscriptVersion.findFirst({
+        where: { id: manuscriptId, ownerUserId: userId }, select: { workId: true },
+      });
+      if (!manuscript || !await tx.storyWork.findFirst({
+        where: { id: manuscript.workId, ownerUserId: userId }, select: { id: true },
+      })) throw new NotFoundException('Manuscript version not found');
+      const scope: Prisma.StoryAnalysisJobWhereInput = {
+        workId: manuscript.workId, manuscriptVersionId: manuscriptId,
+        OR: [{ actorUserId: userId }, { actorUserId: null, pipeline: 'structural_legacy' }],
+      };
+      const anchor = query.cursor ? await tx.storyAnalysisJob.findFirst({
+        where: { ...scope, id: query.cursor }, select: { analysisVersion: true },
+      }) : null;
+      if (query.cursor && !anchor) throw new BadRequestException({ code: 'ANALYSIS_DISCOVERY_CURSOR_INVALID' });
+      const rows = await tx.storyAnalysisJob.findMany({
+        where: { ...scope, ...(anchor ? { analysisVersion: { lt: anchor.analysisVersion } } : {}) },
+        orderBy: { analysisVersion: 'desc' }, take: query.limit + 1, select: analysisMetadata,
+      });
+      const items = rows.slice(0, query.limit);
+      return { manuscriptVersionId: manuscriptId, items, hasMore: rows.length > query.limit,
+        nextCursor: rows.length > query.limit ? items.at(-1)!.id : null };
+    });
+  }
 
   async enqueue(userId: string, manuscriptId: string, key: string | undefined, config: SemanticConfig, disabledReason?: string) {
     if (!key?.trim() || key.trim().length < 8 || key.trim().length > 200)
@@ -40,7 +111,12 @@ export class SemanticAnalysisRepository {
           return existing;
         }
         const prior = await tx.storyAnalysisJob.findFirst({ where: { manuscriptVersionId: manuscriptId, pipeline: SEMANTIC_PIPELINE } });
-        if (prior) throw new ConflictException({ code: 'ANALYSIS_VERSION_ALREADY_RESERVED', analysisJobId: prior.id });
+        if (prior) {
+          if (prior.workId !== manuscript.workId || prior.actorUserId !== userId)
+            throw new NotFoundException('Analysis job not found');
+          throw new ConflictException({ code: 'ANALYSIS_VERSION_ALREADY_RESERVED', analysisJobId: prior.id,
+            details: { analysisJobId: prior.id } });
+        }
         if (disabledReason) throw new ServiceUnavailableException({ code: 'SEMANTIC_ANALYSIS_UNAVAILABLE', reason: disabledReason });
         await this.assertRateCard(tx, config);
         const latest = await tx.storyAnalysisJob.findFirst({ where: { manuscriptVersionId: manuscriptId },

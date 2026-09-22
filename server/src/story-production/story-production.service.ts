@@ -46,6 +46,7 @@ import { projectStoredStorySceneVisualManifest } from '../story-stage/story-scen
 import { projectAuthoredBeatVisual } from './story-authored-beat-visual.policy';
 import { prepareValidatedJsonManuscript } from './story-manuscript-file.policy';
 import { storeManuscriptVersion } from './story-manuscript-version.store';
+import { StoryAnalysisDiscoveryQueryDto } from './dto/story-analysis-discovery.dto';
 import { StoryContinuationProvider } from './story-continuation.provider';
 import { StoryContinuationLegalActivationGate } from './story-continuation-legal-activation.gate';
 import { SemanticAnalysisService } from './story-semantic-analysis.service';
@@ -1136,6 +1137,16 @@ export class StoryProductionService {
   async analyzeManuscript(userId: string, manuscriptId: string, idempotencyKey?: string) {
     if (!this.semanticAnalysis) throw new ServiceUnavailableException({ code: 'SEMANTIC_ANALYSIS_UNAVAILABLE' });
     return this.semanticAnalysis.enqueue(userId, manuscriptId, idempotencyKey);
+  }
+
+  manuscriptVersions(userId: string, workId: string, query: StoryAnalysisDiscoveryQueryDto) {
+    if (!this.semanticAnalysis) throw new ServiceUnavailableException('Semantic analysis service unavailable');
+    return this.semanticAnalysis.manuscripts(userId, workId, query);
+  }
+
+  analysisJobs(userId: string, manuscriptId: string, query: StoryAnalysisDiscoveryQueryDto) {
+    if (!this.semanticAnalysis) throw new ServiceUnavailableException('Semantic analysis service unavailable');
+    return this.semanticAnalysis.analyses(userId, manuscriptId, query);
   }
 
   async analysis(userId: string, analysisId: string, cursor?: string) {
