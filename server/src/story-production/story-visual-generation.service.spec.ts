@@ -257,6 +257,9 @@ describe('StoryVisualGenerationService', () => {
 
     expect(provider).toHaveBeenCalledTimes(2);
     expect(f.generation()).toMatchObject({ status: 'ready', assetId: replacementAssetId, attemptCount: 2 });
+    expect(f.prisma.storyVisualGeneration.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ lastErrorCode: null }),
+    }));
     expect(f.prisma.asset.updateMany).toHaveBeenCalledWith({
       where: { id: assetId, visibility: 'public' }, data: { visibility: 'private' },
     });

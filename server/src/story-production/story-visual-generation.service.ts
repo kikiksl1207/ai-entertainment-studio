@@ -460,7 +460,7 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
           status: 'ready',
           assetId: existing.assetId,
           promptSha256: prompt.promptSha256,
-          NOT: { lastErrorCode: failureCode },
+          lastErrorCode: existing.lastErrorCode,
         },
         data: {
           status: 'generating',
