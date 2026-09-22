@@ -30,6 +30,7 @@ describe('StoryProgressControlService', () => {
     userId: '00000000-0000-0000-0000-000000000002',
     workId: '00000000-0000-0000-0000-000000000003',
     currentSceneId: '00000000-0000-0000-0000-000000000004',
+    currentGeneratedSceneId: null,
     currentAct: 1,
     progressRevision: 3,
     storyVersion: 2,
@@ -210,6 +211,22 @@ describe('StoryProgressControlService', () => {
       customChoiceCapability: false,
     });
     expect(JSON.stringify(result)).not.toContain(progress.id);
+  });
+
+  it('allows a reader to resume from an active AI-generated scene', async () => {
+    prisma.storyReaderProgress.findUnique.mockResolvedValue({
+      ...progress,
+      currentSceneId: null,
+      currentGeneratedSceneId: '00000000-0000-0000-0000-000000000006',
+    });
+    prisma.storyResetQuotaBucket.findMany.mockResolvedValue([]);
+    prisma.storyProgressCheckpoint.findFirst.mockResolvedValue(null);
+    prisma.userEntitlement.findFirst.mockResolvedValue({ id: 'entitlement-id' });
+
+    await expect(service.publicState(progress.userId, work.id)).resolves.toMatchObject({
+      statusKey: STORY_PROGRESS_MESSAGE_KEYS.ready,
+      canResume: true,
+    });
   });
 
   it('projects exhausted quotas while first-release paid custom choices remain deferred', async () => {

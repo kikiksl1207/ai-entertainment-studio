@@ -23,6 +23,7 @@ describe('StoryProductionService', () => {
       create: jest.fn(),
       update: jest.fn(),
     },
+    storyChoiceEvent: { findMany: jest.fn() },
     storyQualityEvent: { upsert: jest.fn() },
     storyRelease: { findMany: jest.fn(), findFirst: jest.fn() },
     storyProgressRouteNode: { create: jest.fn().mockResolvedValue({ id: 'route-root' }) },
@@ -338,6 +339,79 @@ describe('StoryProductionService', () => {
     });
   });
 
+  it('projects an AI-generated route in the catalog as resumable progress', async () => {
+    const workId = '00000000-0000-0000-0000-000000000001';
+    prisma.storyWork.findMany.mockResolvedValue([{
+      id: workId,
+      slug: 'generated-route-story',
+      defaultLocale: 'ko',
+      title: { ko: 'Generated route story' },
+      summary: { ko: 'Summary' },
+      coverManifest: { url: '/public/story/generated-route.webp' },
+      priceLumina: new Decimal(0),
+      fixtureSource: false,
+      publishedAt: new Date(),
+      activeReleaseId: '00000000-0000-0000-0000-000000000011',
+    }]);
+    prisma.storyRelease.findMany.mockResolvedValue([{
+      id: '00000000-0000-0000-0000-000000000011',
+      workId,
+    }]);
+    prisma.userEntitlement.findMany.mockResolvedValue([]);
+    prisma.storyReaderProgress.findMany.mockResolvedValue([{
+      workId,
+      currentSceneId: null,
+      currentGeneratedSceneId: '00000000-0000-0000-0000-000000000050',
+      visitedEndingKeys: [],
+    }]);
+
+    const result = await service.catalog('reader-id', new StoryCatalogQueryDto());
+
+    expect(result.items[0].access.actions).toMatchObject({
+      primary: 'continue',
+      canContinue: true,
+      canReset: true,
+    });
+  });
+
+  it('projects an AI-generated route in story details as resumable progress', async () => {
+    const workId = '00000000-0000-0000-0000-000000000001';
+    prisma.storyWork.findFirst.mockResolvedValue({
+      id: workId,
+      slug: 'generated-route-story',
+      status: 'published',
+      defaultLocale: 'ko',
+      title: { ko: 'Generated route story' },
+      summary: { ko: 'Summary' },
+      coverManifest: { url: '/public/story/generated-route.webp' },
+      priceLumina: new Decimal(0),
+      fixtureSource: false,
+      publishedAt: new Date(),
+      activeReleaseId: '00000000-0000-0000-0000-000000000011',
+    });
+    prisma.storyRelease.findFirst.mockResolvedValue({
+      id: '00000000-0000-0000-0000-000000000011',
+      workId,
+      status: 'active',
+    });
+    prisma.storyPart.findMany.mockResolvedValue([]);
+    prisma.userEntitlement.findMany.mockResolvedValue([]);
+    prisma.storyReaderProgress.findUnique.mockResolvedValue({
+      id: '00000000-0000-0000-0000-000000000040',
+      currentSceneId: null,
+      currentGeneratedSceneId: '00000000-0000-0000-0000-000000000050',
+      checkpointSceneId: null,
+    });
+    prisma.storyChoiceEvent.findMany.mockResolvedValue([]);
+
+    const result = await service.detail('generated-route-story', 'reader-id', { locale: 'ko' });
+
+    expect(result).toMatchObject({
+      access: { actions: { primary: 'continue', canContinue: true, canReset: true } },
+      replay: { continue: true },
+    });
+  });
+
   it('exposes only exact beta releases and grants temporary free access without changing stored price', async () => {
     const allowedWorkId = '00000000-0000-4000-8000-000000000001';
     const allowedReleaseId = '00000000-0000-4000-8000-000000000011';
@@ -395,6 +469,7 @@ describe('StoryProductionService', () => {
     prisma.storyReaderProgress.findUnique.mockResolvedValue({
       id: '00000000-0000-0000-0000-000000000040',
       currentSceneId: '00000000-0000-0000-0000-000000000050',
+      currentGeneratedSceneId: null,
       checkpointSceneId: null,
       visitedEndingKeys: ['ending-a'],
     });
@@ -414,6 +489,40 @@ describe('StoryProductionService', () => {
       },
       replay: { continue: true, reset: true, endingCount: 1 },
       aiCapability: firstReleaseChoiceCapability(),
+    });
+  });
+
+  it('returns continue access when the active reader route is AI-generated', async () => {
+    const workId = '00000000-0000-0000-0000-000000000010';
+    prisma.storyWork.findFirst.mockResolvedValue({
+      id: workId,
+      slug: 'generated-route-story',
+      status: 'published',
+      defaultLocale: 'ko',
+      title: { ko: 'Generated route story' },
+      fixtureSource: false,
+      coverManifest: { url: '/public/story/generated-route.webp' },
+      priceLumina: new Decimal(0),
+      activeReleaseId: '00000000-0000-0000-0000-000000000030',
+      publishedAt: new Date(),
+    });
+    prisma.storyRelease.findFirst.mockResolvedValue({
+      id: '00000000-0000-0000-0000-000000000030',
+    });
+    prisma.userEntitlement.findMany.mockResolvedValue([]);
+    prisma.storyReaderProgress.findUnique.mockResolvedValue({
+      id: '00000000-0000-0000-0000-000000000040',
+      currentSceneId: null,
+      currentGeneratedSceneId: '00000000-0000-0000-0000-000000000050',
+      checkpointSceneId: null,
+      visitedEndingKeys: [],
+    });
+
+    const result = await service.readerAccess('reader-id', workId, { locale: 'ko' });
+
+    expect(result).toMatchObject({
+      access: { actions: { primary: 'continue', canContinue: true, canReset: true } },
+      replay: { continue: true, reset: true },
     });
   });
 

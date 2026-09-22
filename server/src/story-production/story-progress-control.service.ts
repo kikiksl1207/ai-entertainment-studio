@@ -566,7 +566,8 @@ export class StoryProgressControlService {
         versionMatches,
         quotaExhausted: fullRemaining === 0 && actRemaining === 0,
       }),
-      canResume: Boolean(progress.currentSceneId) && progress.status === 'active' && versionMatches,
+      canResume: Boolean(progress.currentSceneId || progress.currentGeneratedSceneId) &&
+        progress.status === 'active' && versionMatches,
       checkpointLabel: checkpoint
         ? {
             messageKey: STORY_PROGRESS_MESSAGE_KEYS.checkpoint,

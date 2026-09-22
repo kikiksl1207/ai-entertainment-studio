@@ -169,6 +169,7 @@ export class StoryProductionService {
             select: {
               workId: true,
               currentSceneId: true,
+              currentGeneratedSceneId: true,
               visitedEndingKeys: true,
             },
           })
@@ -203,7 +204,7 @@ export class StoryProductionService {
             row.priceLumina,
             entitledIds.has(row.id),
             Boolean(userId),
-            Boolean(progress?.currentSceneId),
+            Boolean(progress?.currentSceneId || progress?.currentGeneratedSceneId),
             jsonStringArray(progress?.visitedEndingKeys).length,
             betaFreeAccess ? true : undefined,
             row,
@@ -299,14 +300,14 @@ export class StoryProductionService {
         work.priceLumina,
         workEntitlementGranted,
         Boolean(userId),
-        Boolean(progress?.currentSceneId),
+        Boolean(progress?.currentSceneId || progress?.currentGeneratedSceneId),
         endingRecords.length,
         betaFreeAccess ? true : undefined,
         work,
       ),
       replay: userId
         ? {
-            continue: Boolean(progress?.currentSceneId),
+            continue: Boolean(progress?.currentSceneId || progress?.currentGeneratedSceneId),
             restart: workAccessible,
             checkpoint: Boolean(progress?.checkpointSceneId),
             branchReplay: workAccessible,
@@ -335,6 +336,7 @@ export class StoryProductionService {
         select: {
           id: true,
           currentSceneId: true,
+          currentGeneratedSceneId: true,
           checkpointSceneId: true,
           visitedEndingKeys: true,
         },
@@ -351,13 +353,13 @@ export class StoryProductionService {
         work.priceLumina,
         entitlementGranted,
         true,
-        Boolean(progress?.currentSceneId),
+        Boolean(progress?.currentSceneId || progress?.currentGeneratedSceneId),
         endingCount,
         work.betaFreeAccess ? true : undefined,
         work,
       ),
       replay: {
-        continue: Boolean(progress?.currentSceneId),
+        continue: Boolean(progress?.currentSceneId || progress?.currentGeneratedSceneId),
         checkpoint: Boolean(progress?.checkpointSceneId),
         reset: Boolean(progress),
         endingCount,
