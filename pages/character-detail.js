@@ -210,7 +210,7 @@ function renderCharacterDetail() {
   hero.className = `detail-hero-card ${status.className}`;
   hero.innerHTML = isHidden
     ? `<div class="detail-hero-secret"><span class="eyebrow">${artist.type}</span><strong>${artist.publicName}</strong><em class="catalog-status-caption">${status.label}</em></div>`
-    : `<div class="detail-hero-frame"><img class="detail-hero-image detail-hero-image-${artist.slug}" src="${artist.images.thumb || artist.images.cover}" alt="${artist.publicName}" /></div>`;
+    : `<div class="detail-hero-frame"><img class="detail-hero-image detail-hero-image-${artist.slug}" src="${artist.images.cover || artist.images.thumb}" alt="${artist.publicName}" /></div>`;
 
   const intro = document.getElementById("detailIntro");
   if (intro) {
@@ -248,7 +248,7 @@ function renderCharacterDetail() {
 
   const meta = document.getElementById("detailMeta");
   if (meta) {
-    const tierLabel = { main: "메인", premium: "프리미엄", sub: "서브", experiment: "실험" };
+    const tierLabel = { main: "메인", premium: "프리미엄", sub: "서브", experiment: "실험", candidate: "신규" };
     meta.innerHTML = `
       <span class="status-badge status-badge-${artist.status}">${status.label}</span>
       <span class="detail-type-tag">${artist.type}</span>

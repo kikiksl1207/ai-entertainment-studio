@@ -183,6 +183,19 @@
   object-position: center top;
 }
 
+.detail-hero-image-nam-ian,
+.detail-hero-image-jang-taegeon,
+.detail-hero-image-bae-seongpil,
+.detail-hero-image-jung-doyun,
+.detail-hero-image-lim-jaeguk,
+.detail-hero-image-seo-hamin {
+  object-position: 18% center;
+}
+
+.detail-hero-image-ryu-taeo {
+  object-position: 82% center;
+}
+
 .detail-copy {
   display: flex;
   flex-direction: column;

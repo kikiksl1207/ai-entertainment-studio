@@ -27,7 +27,7 @@ function renderCharacterCatalog(filter = "all", tagFilter = "", statusFilter = "
   const root = document.getElementById("characterCatalog");
   if (!root) return;
 
-  const tierLabel = { main: "메인", premium: "프리미엄", sub: "서브", experiment: "실험" };
+  const tierLabel = { main: "메인", premium: "프리미엄", sub: "서브", experiment: "실험", candidate: "신규" };
   // 5개 메인 type — 여기에 안 잡히면 "기타" 필터에서 자동 노출 (향후 새 type 추가 시점 판단용)
   const KNOWN_TYPES = ["아티스트", "모델", "배우", "엔터테이너", "스포츠"];
 

@@ -38,7 +38,7 @@ test('all handoff characters have local cover and thumbnail assets', () => {
   for (const slug of [...fullGallerySlugs, ...coverOnlySlugs]) {
     const character = bySlug.get(slug);
     assert.ok(character, `${slug}: character record is missing`);
-    assert.equal(character.status, 'secret', `${slug}: must remain private until approval`);
+    assert.equal(character.status, 'public', `${slug}: must be publicly visible`);
     assert.ok(existsSync(localAssetPath(character.images.cover)), `${slug}: cover is missing`);
     assert.ok(existsSync(localAssetPath(character.images.thumb)), `${slug}: thumbnail is missing`);
   }
@@ -87,4 +87,16 @@ test('character detail hides an unavailable gallery instead of filling it', () =
   assert.match(detailPage, /artist\.galleryMode === "hidden"/);
   assert.match(detailPage, /gallery\.hidden = true/);
   assert.doesNotMatch(detailPage, /caption: "Cover", src: artist\.images\.cover/);
+});
+
+test('public catalog uses thumbnails and detail pages use main cover images', () => {
+  const catalogPage = readFileSync(`${root}/pages/character-catalog.js`, 'utf8');
+  const detailPage = readFileSync(`${root}/pages/character-detail.js`, 'utf8');
+  const detailStyles = readFileSync(`${root}/styles/character-detail.css`, 'utf8');
+  assert.match(catalogPage, /a\.images\.thumb \|\| a\.images\.cover/);
+  assert.match(detailPage, /artist\.images\.cover \|\| artist\.images\.thumb/);
+  assert.match(catalogPage, /candidate: "신규"/);
+  assert.match(detailPage, /candidate: "신규"/);
+  assert.match(detailStyles, /detail-hero-image-nam-ian/);
+  assert.match(detailStyles, /detail-hero-image-ryu-taeo/);
 });

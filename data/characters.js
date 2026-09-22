@@ -248,7 +248,7 @@
     {
       name: "강시아", publicName: "강시아", slug: "kang-sia",
       gender: "female",
-      type: "모델", tier: "candidate", status: "secret",
+      type: "모델", tier: "candidate", status: "public",
       role: "도시형 라이프스타일",
       artistDescription: "애써 꾸미지 않아도 시선이 머무는 사람이 있어요. 도시의 오후처럼 담담하고 세련되게 남겠습니다.",
       summary: "도시의 오후를 닮은 에포트리스 시크.",
@@ -280,7 +280,7 @@
     {
       name: "이지원", publicName: "이지원", slug: "lee-jiwon",
       gender: "female",
-      type: "배우", tier: "candidate", status: "secret",
+      type: "배우", tier: "candidate", status: "public",
       role: "쿨한 톱스타",
       artistDescription: "흔들리지 않는 시선으로 장면을 밀고 나가요. 말보다 먼저 분위기가 도착하는 배우입니다.",
       summary: "쿨한 아우라로 장면을 장악하는 배우.",
@@ -343,7 +343,7 @@
     {
       name: "백리아", publicName: "백리아", slug: "baek-ria",
       gender: "female",
-      type: "아티스트", tier: "candidate", status: "secret",
+      type: "아티스트", tier: "candidate", status: "public",
       role: "청량 직캠 보컬",
       artistDescription: "여름처럼 맑게 웃고, 직캠처럼 오래 남을게요. 첫 소절부터 시원하게 닿고 싶어요.",
       summary: "여름빛 보컬과 직캠 감성의 청량 아이돌.",
@@ -375,7 +375,7 @@
     {
       name: "오유나", publicName: "오유나", slug: "oh-yuna",
       gender: "female",
-      type: "아티스트", tier: "candidate", status: "secret",
+      type: "아티스트", tier: "candidate", status: "public",
       role: "여름 페스티벌 디바",
       artistDescription: "무대 위의 계절을 바꿀 수 있다면, 저는 늘 여름을 선택할래요. 뜨겁고 선명하게 기억될게요.",
       summary: "여름 페스티벌을 닮은 솔로 디바.",
@@ -438,7 +438,7 @@
     {
       name: "서하민", publicName: "서하민", slug: "seo-hamin",
       gender: "male",
-      type: "엔터테이너", tier: "candidate", status: "secret",
+      type: "엔터테이너", tier: "candidate", status: "public",
       role: "커뮤니티 MC",
       artistDescription: "어색한 공기도 제가 먼저 풀어볼게요. 팬과 아티스트 사이를 가장 즐겁게 잇는 진행자가 되겠습니다.",
       summary: "팬덤의 분위기를 여는 유쾌한 MC.",
@@ -469,7 +469,7 @@
     {
       name: "류태오", publicName: "류태오", slug: "ryu-taeo",
       gender: "male",
-      type: "스포츠", tier: "candidate", status: "secret",
+      type: "스포츠", tier: "candidate", status: "public",
       role: "스포츠 챌린지",
       artistDescription: "끝까지 가는 힘을 믿어요. 밝게 웃고, 크게 뛰고, 응원의 박자를 무대까지 가져가겠습니다.",
       summary: "끝까지 뛰는 스포츠 챌린지 아티스트.",
@@ -500,7 +500,7 @@
     {
       name: "남이안", publicName: "남이안", slug: "nam-ian",
       gender: "male",
-      type: "크리에이터", tier: "candidate", status: "secret",
+      type: "크리에이터", tier: "candidate", status: "public",
       role: "행동과학 크리에이터",
       artistDescription: "사소한 행동에서 반복되는 질서를 찾아 기록합니다. 익숙한 일상을 낯선 질문으로 다시 보여드릴게요.",
       summary: "사소한 행동에서 거대한 질서를 발견하는 Lumina Stage의 지식 탐험가.",
@@ -524,7 +524,7 @@
     {
       name: "장태건", publicName: "장태건", slug: "jang-taegeon",
       gender: "male",
-      type: "엔터테이너", tier: "candidate", status: "secret",
+      type: "엔터테이너", tier: "candidate", status: "public",
       role: "액션 퍼포먼스 디렉터",
       artistDescription: "위험한 순간에는 사람부터 뒤로 보냅니다. 안전하게 끝까지 완성하는 현장을 만들겠습니다.",
       summary: "가장 위험한 순간에 사람부터 뒤로 보내는 Lumina Stage의 현장 해결사.",
@@ -548,7 +548,7 @@
     {
       name: "배성필", publicName: "배성필", slug: "bae-seongpil",
       gender: "male",
-      type: "프로듀서", tier: "candidate", status: "secret",
+      type: "프로듀서", tier: "candidate", status: "public",
       role: "베테랑 흥행 프로듀서",
       artistDescription: "좋은 사람과 정확한 타이밍을 연결하면 불가능해 보이던 무대도 열립니다. 판이 완성될 때까지 방법을 찾겠습니다.",
       summary: "사람과 타이밍을 엮어 불가능한 무대를 성사시키는 노련한 판 설계자.",
@@ -572,7 +572,7 @@
     {
       name: "정도윤", publicName: "정도윤", slug: "jung-doyun",
       gender: "male",
-      type: "크리에이터", tier: "candidate", status: "secret",
+      type: "크리에이터", tier: "candidate", status: "public",
       role: "법률 스토리텔러",
       artistDescription: "어려운 제도도 생활의 언어로 풀어내겠습니다. 부당한 순간에는 끝까지 근거를 들고 말하겠습니다.",
       summary: "생활의 언어로 시작해 부당함 앞에서는 끝까지 목소리를 높이는 현실형 변론가.",
@@ -596,7 +596,7 @@
     {
       name: "임재국", publicName: "임재국", slug: "lim-jaeguk",
       gender: "male",
-      type: "프로듀서", tier: "candidate", status: "secret",
+      type: "프로듀서", tier: "candidate", status: "public",
       role: "관찰 예능·다큐멘터리 총괄 PD",
       artistDescription: "사람이 말하기 전에 습관과 현장이 먼저 보내는 신호가 있습니다. 그 변화를 놓치지 않고 이야기로 남기겠습니다.",
       summary: "말보다 먼저 사람의 습관과 현장의 변화를 읽는 Lumina Stage의 관찰자.",
@@ -620,7 +620,7 @@
     {
       name: "서이카", publicName: "서이카", slug: "seo-ika",
       gender: "female",
-      type: "크리에이터", tier: "candidate", status: "secret",
+      type: "크리에이터", tier: "candidate", status: "public",
       role: "스토리 게임 라이브 스트리머",
       artistDescription: "무서운 장면에서도 팀의 마음부터 살필게요. 놓친 단서를 함께 찾고 끝까지 안전하게 돌아오겠습니다.",
       summary: "남의 마음은 먼저 알아채지만 자기 상처는 가장 늦게 돌보는 다정한 게임 크리에이터.",
@@ -646,7 +646,7 @@
     {
       name: "백토가", publicName: "백토가", slug: "baek-toga",
       gender: "male",
-      type: "스포츠", tier: "candidate", status: "secret",
+      type: "스포츠", tier: "candidate", status: "public",
       role: "퍼스널 트레이너",
       artistDescription: "복잡한 설명보다 한 번의 정확한 동작을 보여드리겠습니다. 오늘 바로 할 수 있는 변화부터 시작하죠.",
       summary: "복잡한 말보다 한 번의 정확한 행동으로 사람을 움직이는 생활형 트레이너.",
@@ -672,7 +672,7 @@
     {
       name: "권반동", publicName: "권반동", slug: "kwon-bandong",
       gender: "male",
-      type: "크리에이터", tier: "candidate", status: "secret",
+      type: "크리에이터", tier: "candidate", status: "public",
       role: "아웃도어 생존 콘텐츠 디렉터",
       artistDescription: "출발보다 귀환을 먼저 계획합니다. 약속한 사람을 모두 데리고 돌아오는 현장을 만들겠습니다.",
       summary: "약속한 귀환까지 계획에 넣는 현장형 생존 콘텐츠 디렉터.",
