@@ -290,7 +290,7 @@ export class StoryPublicationIntakeService {
           id: workId,
           ownerUserId: actorUserId,
           slug: plan.slug,
-          status: 'published',
+          status: 'release_ready',
           defaultLocale: 'ko',
           supportedLocales: ['ko', 'en', 'ja', 'zh-Hans', 'zh-Hant'],
           title: { ko: plan.title },
@@ -303,9 +303,9 @@ export class StoryPublicationIntakeService {
           fixtureSource: false,
           publishedVersion: 1,
           customChoiceEnabled: false,
-          activeReleaseId: releaseId,
-          releaseRevision: 2,
-          publishedAt,
+          activeReleaseId: null,
+          releaseRevision: 1,
+          publishedAt: null,
         },
       });
       await tx.storyManuscriptVersion.create({
@@ -468,6 +468,15 @@ export class StoryPublicationIntakeService {
             scope: 'authored_route_only',
             aiGeneratedBranchesActivated: false,
           },
+        },
+      });
+      await tx.storyWork.update({
+        where: { id: workId },
+        data: {
+          status: 'published',
+          activeReleaseId: releaseId,
+          releaseRevision: 2,
+          publishedAt,
         },
       });
       if (submissionId) {
