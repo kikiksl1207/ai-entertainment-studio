@@ -649,11 +649,9 @@ async function handleGoogleCredentialResponse(credentialResponse) {
     showDashboard();
   } catch (error) {
     setBackstageAuth(null);
-    console.warn("[Backstage] Google operator login failed", {
-      stage: loginStage,
-      status: Number.isInteger(error?.status) ? error.status : null,
-      code: error?.body?.code || error?.body?.error?.code || null
-    });
+    const failureStatus = Number.isInteger(error?.status) ? error.status : "none";
+    const failureCode = error?.body?.code || error?.body?.error?.code || "none";
+    console.warn(`[Backstage] Google operator login failed stage=${loginStage} status=${failureStatus} code=${failureCode}`);
     setStatus(googleLoginErrorMessage(error), "error");
   } finally {
     setLoading(false);
