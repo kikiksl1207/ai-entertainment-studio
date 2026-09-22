@@ -60,7 +60,7 @@ const sectionState = {
 };
 const GOOGLE_CLIENT_ID = "213795475154-votjkhv4cvgg49cvajast3clenhoj5db.apps.googleusercontent.com";
 let googleSdkPromise = null;
-let googleTokenClient = null;
+let googleIdentityInitialized = false;
 
 const statusClassMap = {
   "접수": "is-pending",
@@ -420,6 +420,22 @@ function setLoading(isLoading) {
   loginButton.textContent = isLoading ? "권한 확인 중..." : "백스테이지 입장";
 }
 
+function googleLoginErrorMessage(error) {
+  if (error?.status === 403) {
+    return "Google 계정은 확인됐지만 운영자 권한이 없어요. 허용된 운영자 계정으로 로그인해 주세요.";
+  }
+  if (error?.status === 401) {
+    return "Google 로그인 정보 확인에 실패했어요. Google 계정을 다시 선택해 주세요.";
+  }
+  if (error?.status === 429) {
+    return "로그인 시도가 잠시 제한됐어요. 1분 뒤 다시 시도해 주세요.";
+  }
+  if (error?.status >= 500) {
+    return "로그인 서버가 응답하지 않았어요. 잠시 후 다시 시도해 주세요.";
+  }
+  return "Google 운영자 로그인을 완료하지 못했어요. 잠시 후 다시 시도해 주세요.";
+}
+
 async function backstageFetch(path, options = {}) {
   let auth = getBackstageAuth();
   if (options.auth && !auth?.accessToken && auth?.refreshToken) {
@@ -537,7 +553,7 @@ function applyAdminContext(data) {
 }
 
 function loadGoogleSDK() {
-  if (window.google?.accounts?.oauth2) return Promise.resolve();
+  if (window.google?.accounts?.id) return Promise.resolve();
   if (googleSdkPromise) return googleSdkPromise;
 
   googleSdkPromise = new Promise((resolve, reject) => {
@@ -560,24 +576,22 @@ function loadGoogleSDK() {
 }
 
 function initGoogleAuth() {
-  if (googleTokenClient) return true;
-  if (!window.google?.accounts?.oauth2) return false;
+  if (googleIdentityInitialized) return true;
+  if (!window.google?.accounts?.id) return false;
 
-  googleTokenClient = google.accounts.oauth2.initTokenClient({
+  google.accounts.id.initialize({
     client_id: GOOGLE_CLIENT_ID,
-    scope: "openid email profile",
-    callback: handleGoogleTokenResponse,
-    error_callback: (error) => {
-      if (error?.type === "popup_closed" || error?.type === "popup_failed_to_open") return;
-      setStatus("Google 로그인 창을 열지 못했어요. 잠시 후 다시 시도해 주세요.", "error");
-    }
+    callback: handleGoogleCredentialResponse,
+    cancel_on_tap_outside: false,
+    use_fedcm_for_prompt: true
   });
+  googleIdentityInitialized = true;
   return true;
 }
 
-async function handleGoogleTokenResponse(tokenResponse) {
-  if (!tokenResponse?.access_token) {
-    setStatus("Google access token을 받지 못했어요.", "error");
+async function handleGoogleCredentialResponse(credentialResponse) {
+  if (!credentialResponse?.credential) {
+    setStatus("Google 로그인 정보를 받지 못했어요. 다시 시도해 주세요.", "error");
     setLoading(false);
     return;
   }
@@ -587,7 +601,7 @@ async function handleGoogleTokenResponse(tokenResponse) {
       method: "POST",
       body: {
         provider: "google",
-        token: tokenResponse.access_token
+        token: credentialResponse.credential
       }
     });
     const auth = extractAuthPayload(data);
@@ -598,10 +612,7 @@ async function handleGoogleTokenResponse(tokenResponse) {
     showDashboard();
   } catch (error) {
     setBackstageAuth(null);
-    const message = error.status === 403
-      ? "Google 계정은 로그인됐지만 관리자 권한이 아직 없어요."
-      : "Google 운영자 로그인에 실패했어요. 권한 부여 상태를 확인해 주세요.";
-    setStatus(message, "error");
+    setStatus(googleLoginErrorMessage(error), "error");
   } finally {
     setLoading(false);
   }
@@ -613,7 +624,22 @@ async function handleGoogleLogin() {
   try {
     await loadGoogleSDK();
     if (!initGoogleAuth()) throw new Error("Google SDK 초기화 실패");
-    googleTokenClient.requestAccessToken();
+    google.accounts.id.prompt((notification) => {
+      if (notification.isNotDisplayed?.()) {
+        setLoading(false);
+        setStatus("브라우저에서 Google 로그인 창을 표시하지 못했어요. 팝업 차단을 확인해 주세요.", "error");
+        return;
+      }
+      if (notification.isSkippedMoment?.()) {
+        setLoading(false);
+        setStatus("Google 계정 선택이 건너뛰어졌어요. 다시 눌러 계정을 선택해 주세요.", "error");
+        return;
+      }
+      if (notification.isDismissedMoment?.() && notification.getDismissedReason?.() !== "credential_returned") {
+        setLoading(false);
+        setStatus("Google 로그인이 취소됐어요.");
+      }
+    });
   } catch {
     setLoading(false);
     setStatus("Google 로그인 준비에 실패했어요. 브라우저 팝업 차단 여부를 확인해 주세요.", "error");
