@@ -141,7 +141,9 @@ export function registerCatalogTests({ getBrowser, repo, artifacts, base, api })
         assert.equal(await f.page.locator('[data-story-start]').count(), canRead ? 1 : 0);
         assert.equal(await f.page.locator('[data-story-catalog-view]').count(), 1);
         assert.equal(await f.page.locator('.story-pack-copy small').count(), 0, 'No fabricated part counts');
-        assert.equal(await f.page.locator('.story-detail-modal .story-chapters li').count(), 1);
+        assert.equal(await f.page.locator('.story-detail-modal .story-structure').count(), 1);
+        assert.equal(await f.page.locator('.story-detail-modal .story-structure').innerText().then((value) => value.includes(sentences.en)), false,
+          'Unreached route titles stay hidden');
         assert.equal(await f.page.locator('a[href*="checkout"], a[href*="charge"], [data-story-resume]').count(), 0);
         for (const r of f.requests.filter((r) => r.path.startsWith('/api/v1/stories'))) assert.equal(r.headers.authorization, undefined, 'public GET has no authentication');
         const reads = f.requests.filter((r) => r.path.endsWith('/access'));
@@ -170,7 +172,7 @@ export function registerCatalogTests({ getBrowser, repo, artifacts, base, api })
         try {
           await f.open();
           assert.equal(await f.page.locator('[data-story-start]').count(), 0);
-          assert.equal(await f.page.locator('.story-detail-modal .story-chapters').count(), phase === 'detail' ? 0 : 1);
+          assert.equal(await f.page.locator('.story-detail-modal .story-structure').count(), phase === 'detail' ? 0 : 1);
           assert.doesNotMatch(await f.page.locator('.story-detail-modal').innerText(), /INTERNAL_|SECRET_|story\.private/);
           if (phase === 'detail') assert.equal(await f.page.evaluate(() => window.testRefreshCount || 0), 0);
           f.setHook(null);

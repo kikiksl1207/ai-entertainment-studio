@@ -5,7 +5,7 @@ import { koreanContinuationContext } from './story-continuation-korean-context.f
 import { buildStoryContinuationOpenAiRequest, preflightStoryContinuationOpenAiRequest } from './story-continuation-openai.prompt';
 
 describe('offline pinned story tokenizer', () => {
-  it.each(['gpt-4.1-2025-04-14', 'gpt-4o-2024-08-06', 'gpt-5-mini-2025-08-07'])('uses the package exact model table: %s', (model) => {
+  it.each(['gpt-4.1-2025-04-14', 'gpt-4o-2024-08-06', 'gpt-5-mini-2025-08-07', 'gpt-5.4-mini-2026-03-17'])('uses a pinned o200k model mapping: %s', (model) => {
     expect(storyContinuationModelEncoding(model)).toBe('o200k_base');
   });
   it.each(['gpt-4.1', 'gpt-4.1-2099-01-01', 'future-2026-09-22', 'gpt-4-turbo-2024-04-09'])('fails closed for unknown/unsupported encodings: %s', (model) => {
@@ -32,6 +32,13 @@ describe('offline pinned story tokenizer', () => {
       .toBe('provider_model_encoding_unknown');
   });
 
+  it('reuses the server OpenAI key when no continuation-specific key is configured', () => {
+    const config = readStoryContinuationOpenAiConfig({
+      get: (key: string) => key === 'OPENAI_API_KEY' ? 'shared-server-key' : undefined,
+    });
+    expect(config.apiKey).toBe('shared-server-key');
+  });
+
   it('preserves a varied 10k Korean scene, author style, material choice and semantic path under 8192 tokens', () => {
     const model = 'gpt-4.1-2025-04-14';
     const approvedContext = koreanContinuationContext();
@@ -56,6 +63,8 @@ describe('offline pinned story tokenizer', () => {
     } }, config);
     expect(alternate.input[0].content[0].text).not.toBe(body.input[0].content[0].text);
     expect(body.instructions).toContain('Do not force convergence');
+    expect(body.instructions).toContain('fresh scene title');
+    expect(body.instructions).toContain('80% to 120%');
     expect(preflightStoryContinuationOpenAiRequest({ ...request, inputTokenLimit: 1000 }, config))
       .toMatchObject({ supported: false, reason: 'provider_input_bound_exceeded' });
   });

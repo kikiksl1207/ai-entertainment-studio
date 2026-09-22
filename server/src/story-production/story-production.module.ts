@@ -61,6 +61,7 @@ import { StoryVisualGenerationService } from './story-visual-generation.service'
 import { StoryPublicBetaPolicy } from './story-public-beta.policy';
 import { StoryPublicationIntakeController } from './story-publication-intake.controller';
 import { StoryPublicationIntakeService } from './story-publication-intake.service';
+import { StoryPublicBetaAiActivationService } from './story-public-beta-ai-activation.service';
 import { StoryUploadModule } from '../story-upload/story-upload.module';
 
 @Module({
@@ -103,6 +104,7 @@ import { StoryUploadModule } from '../story-upload/story-upload.module';
     StoryVisualGenerationService,
     StoryPublicBetaPolicy,
     StoryPublicationIntakeService,
+    StoryPublicBetaAiActivationService,
     StoryContinuationExecutor,
     StoryContinuationContextAssembler,
     {

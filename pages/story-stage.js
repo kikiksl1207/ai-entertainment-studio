@@ -27,7 +27,9 @@
       open: "작품 보기",
       close: "닫기",
       synopsis: "작품 소개",
-      chapterList: "파트 목록",
+      storyStructure: "이야기 구성",
+      storyStructureParts: "총 {count}개 파트",
+      storyStructureDynamic: "선택에 따라 다음 장면과 제목이 달라집니다. 아직 만나지 않은 경로는 미리 공개되지 않습니다.",
       start: "스토리 시작",
       continue: "이어보기",
       starting: "시작하는 중입니다.",
@@ -87,7 +89,9 @@
       open: "View story",
       close: "Close",
       synopsis: "Synopsis",
-      chapterList: "Parts",
+      storyStructure: "Story structure",
+      storyStructureParts: "{count} parts in total",
+      storyStructureDynamic: "Your choices change the next scene and its title. Routes you have not reached remain hidden.",
       start: "Start story",
       continue: "Continue",
       starting: "Starting story.",
@@ -147,7 +151,9 @@
       open: "作品を見る",
       close: "閉じる",
       synopsis: "作品紹介",
-      chapterList: "パート一覧",
+      storyStructure: "物語の構成",
+      storyStructureParts: "全{count}パート",
+      storyStructureDynamic: "選択によって次のシーンとタイトルが変わります。まだ到達していないルートは事前に公開されません。",
       start: "ストーリー開始",
       continue: "続きから",
       starting: "ストーリーを開始しています。",
@@ -207,7 +213,9 @@
       open: "查看作品",
       close: "关闭",
       synopsis: "作品介绍",
-      chapterList: "章节列表",
+      storyStructure: "故事结构",
+      storyStructureParts: "共{count}个章节",
+      storyStructureDynamic: "你的选择会改变下一个场景及其标题。尚未到达的路线不会提前公开。",
       start: "开始故事",
       continue: "继续阅读",
       starting: "正在开始故事。",
@@ -267,7 +275,9 @@
       open: "查看作品",
       close: "關閉",
       synopsis: "作品介紹",
-      chapterList: "章節列表",
+      storyStructure: "故事結構",
+      storyStructureParts: "共{count}個章節",
+      storyStructureDynamic: "你的選擇會改變下一個場景及其標題。尚未到達的路線不會提前公開。",
       start: "開始故事",
       continue: "繼續閱讀",
       starting: "正在開始故事。",
@@ -945,8 +955,9 @@
             ${priceText(state.readerAccess?.access || pack.access) ? `<p>${escapeHtml(priceText(state.readerAccess?.access || pack.access))}</p>` : ""}
             ${packSummary(pack) ? `<h3>${escapeHtml(tr("synopsis"))}</h3><p class="story-synopsis">${escapeHtml(packSummary(pack))}</p>` : ""}
           </div></div>
-          <section class="story-chapters"><h3>${escapeHtml(tr("chapterList"))} (${pack.parts.length})</h3>
-            <ol>${pack.parts.map((part) => `<li><span>${escapeHtml(part.position)}</span><strong>${escapeHtml(textValue(part.title))}</strong><small>${escapeHtml(priceText(part.access))}</small></li>`).join("")}</ol>
+          <section class="story-structure"><h3>${escapeHtml(tr("storyStructure"))}</h3>
+            <strong>${escapeHtml(tr("storyStructureParts").replace("{count}", String(pack.parts.length)))}</strong>
+            <p>${escapeHtml(tr("storyStructureDynamic"))}</p>
           </section>` : ""}
       </div>
       <footer class="story-detail-actions" aria-busy="${state.detailPending || purchaseBusy}">
@@ -1301,6 +1312,7 @@
     if (!reading || (isEnding && state.choices.length) || (state.progress?.status === "active" && !state.choices.length && (scene?.ending || scene?.isEnding || scene?.endingType))) return blockScene(controlTr("sceneUnavailable"));
     const visual = readingVisual(reading);
     const { background, characters } = visual;
+    const sceneTitle = textValue(scene?.title);
     const sceneText = reading.beats[reading.index].text;
     const lastBeat = reading.index === reading.beats.length - 1;
     const navigationBlocked = state.busy || aiRequestOpen() || !["active", "completed"].includes(state.progress?.status);
@@ -1311,6 +1323,7 @@
     root.innerHTML = `
       <section class="story-player" data-has-background="false">
         <a class="story-back" href="/story-stage">← ${escapeHtml(tr("backToStories"))}</a>
+        ${sceneTitle ? `<h1 class="story-current-title">${escapeHtml(sceneTitle)}</h1>` : ""}
         ${!scene && isEnding ? `<div class="story-completed" tabindex="-1" data-story-scene-focus>
           <span class="story-ending-label">${escapeHtml(tr("ending"))}</span>
           <h2>${escapeHtml(tr("completed"))}</h2>

@@ -1,5 +1,5 @@
 import { ADMIN_PERMISSIONS_KEY } from '../auth/decorators/admin-permissions.decorator';
-import { PromoteStoryUploadDto } from './dto/story-publication-intake.dto';
+import { ActivatePublishedStoryAiDto, PromoteStoryUploadDto } from './dto/story-publication-intake.dto';
 import { StoryPublicationIntakeController } from './story-publication-intake.controller';
 
 describe('StoryPublicationIntakeController', () => {
@@ -52,6 +52,8 @@ describe('StoryPublicationIntakeController', () => {
         StoryPublicationIntakeController.prototype.promote,
       ),
     ).toEqual(['*']);
+    expect(Reflect.getMetadata(ADMIN_PERMISSIONS_KEY, StoryPublicationIntakeController.prototype.aiStatus)).toEqual(['*']);
+    expect(Reflect.getMetadata(ADMIN_PERMISSIONS_KEY, StoryPublicationIntakeController.prototype.activateAi)).toEqual(['*']);
   });
 
   it('passes the authenticated operator and explicit confirmations to the service', async () => {
@@ -60,6 +62,7 @@ describe('StoryPublicationIntakeController', () => {
     };
     const controller = new StoryPublicationIntakeController(
       publication as never,
+      {} as never,
       {} as never,
     );
     const body: PromoteStoryUploadDto = {
@@ -80,6 +83,7 @@ describe('StoryPublicationIntakeController', () => {
     const controller = new StoryPublicationIntakeController(
       {} as never,
       uploads as never,
+      {} as never,
     );
     const body = {
       title: '불타는 바다의 기록자',
@@ -107,6 +111,7 @@ describe('StoryPublicationIntakeController', () => {
     const controller = new StoryPublicationIntakeController(
       publication as never,
       {} as never,
+      {} as never,
     );
     const body: PromoteStoryUploadDto = {
       storyKey: 'norse',
@@ -133,6 +138,7 @@ describe('StoryPublicationIntakeController', () => {
     const controller = new StoryPublicationIntakeController(
       publication as never,
       {} as never,
+      {} as never,
     );
     await expect(
       controller.processApprovedJob({ id: 'owner' } as never, 'job-id'),
@@ -148,6 +154,7 @@ describe('StoryPublicationIntakeController', () => {
     };
     const controller = new StoryPublicationIntakeController(
       publication as never,
+      {} as never,
       {} as never,
     );
     const body: PromoteStoryUploadDto = {
@@ -183,5 +190,23 @@ describe('StoryPublicationIntakeController', () => {
       'owner',
       'job-id',
     );
+  });
+
+  it('requires the authenticated operator for explicit published-story AI activation', async () => {
+    const aiActivation = {
+      activate: jest.fn().mockResolvedValue({ storyKey: 'imjin', active: true }),
+      status: jest.fn().mockResolvedValue({ storyKey: 'imjin', active: false }),
+    };
+    const controller = new StoryPublicationIntakeController({} as never, {} as never, aiActivation as never);
+    const body: ActivatePublishedStoryAiDto = {
+      aiBranchGenerationConfirmed: true,
+      authorStyleReferenceConfirmed: true,
+      generatedResultReuseConfirmed: true,
+      imageTransformationConfirmed: true,
+    };
+    await expect(controller.aiStatus('imjin')).resolves.toEqual({ storyKey: 'imjin', active: false });
+    await expect(controller.activateAi({ id: 'operator' } as never, 'imjin', body))
+      .resolves.toEqual({ storyKey: 'imjin', active: true });
+    expect(aiActivation.activate).toHaveBeenCalledWith('operator', 'imjin', body);
   });
 });

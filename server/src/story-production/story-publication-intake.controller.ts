@@ -22,7 +22,8 @@ import {
   StoryUploadFile,
   StoryUploadFileFields,
 } from '../story-upload/story-upload.types';
-import { PromoteStoryUploadDto } from './dto/story-publication-intake.dto';
+import { ActivatePublishedStoryAiDto, PromoteStoryUploadDto } from './dto/story-publication-intake.dto';
+import { StoryPublicBetaAiActivationService } from './story-public-beta-ai-activation.service';
 import { StoryPublicationIntakeService } from './story-publication-intake.service';
 
 @Controller('/admin/api/v1/backstage/story-publication')
@@ -31,12 +32,29 @@ export class StoryPublicationIntakeController {
   constructor(
     private readonly publication: StoryPublicationIntakeService,
     private readonly uploads: StoryUploadService,
+    private readonly aiActivation: StoryPublicBetaAiActivationService,
   ) {}
 
   @Get('submissions')
   @RequireAdminPermissions('*')
   submissions() {
     return this.publication.submissions();
+  }
+
+  @Get('published/:storyKey/ai-status')
+  @RequireAdminPermissions('*')
+  aiStatus(@Param('storyKey') storyKey: string) {
+    return this.aiActivation.status(storyKey);
+  }
+
+  @Post('published/:storyKey/activate-ai')
+  @RequireAdminPermissions('*')
+  activateAi(
+    @CurrentUser() user: AuthUser,
+    @Param('storyKey') storyKey: string,
+    @Body() body: ActivatePublishedStoryAiDto,
+  ) {
+    return this.aiActivation.activate(user.id, storyKey, body);
   }
 
   @Post('submissions/publish-approved')

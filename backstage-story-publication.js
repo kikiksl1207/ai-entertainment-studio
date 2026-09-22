@@ -2,7 +2,8 @@
   "use strict";
 
   const api = window.LuminaBackstageApi;
-  const endpoint = "/admin/api/v1/backstage/story-publication/submissions";
+  const publicationEndpoint = "/admin/api/v1/backstage/story-publication";
+  const endpoint = `${publicationEndpoint}/submissions`;
   const knownStories = [
     {
       key: "imjin",
@@ -20,7 +21,7 @@
       ]
     }
   ];
-  const state = { items: [], publishedWorks: [], loading: false, loaded: false, promotingId: null, uploadingKey: null };
+  const state = { items: [], publishedWorks: [], aiStatuses: {}, loading: false, loaded: false, promotingId: null, uploadingKey: null, activatingKey: null };
 
   const list = document.getElementById("storyPublicationSubmissionList");
   const statusCards = document.getElementById("storyPublicationStatusCards");
@@ -121,12 +122,28 @@
     if (!statusCards) return;
     statusCards.innerHTML = knownStories.map((story) => {
       const current = storyState(story);
+      const published = current.label === "공개 완료";
+      const ai = state.aiStatuses[story.key];
+      const aiActive = ai?.active === true;
+      const busy = state.activatingKey === story.key;
       return `<article class="story-publication-status-item">
-        <div><span>대상 작품</span><h3>${escapeHtml(story.title)}</h3></div>
+        <div class="story-publication-status-title"><span>대상 작품</span><h3>${escapeHtml(story.title)}</h3></div>
         <div class="story-publication-status-result">
           <span class="status-badge ${current.className}">${escapeHtml(current.label)}</span>
           <small>${escapeHtml(current.detail)}</small>
         </div>
+        ${published ? `<section class="story-ai-activation" data-story-ai-card="${escapeHtml(story.key)}">
+          <div><strong>AI 분기 생성</strong><span class="status-badge ${aiActive ? "is-approved" : "is-review"}">${aiActive ? "활성" : "비활성"}</span></div>
+          ${aiActive ? `<small>한국어 공개 테스트 · 선택에 따른 새 장면과 제목 생성</small>` : `<fieldset class="story-ai-confirmations" ${busy ? "disabled" : ""}>
+            <legend>활성화 전 확인</legend>
+            <label><input type="checkbox" data-story-ai-confirm /> 원고 기반 AI 분기 생성을 승인했습니다.</label>
+            <label><input type="checkbox" data-story-ai-confirm /> 작가 문체 참고를 승인했습니다.</label>
+            <label><input type="checkbox" data-story-ai-confirm /> 검수된 동일 결과 재사용을 승인했습니다.</label>
+            <label><input type="checkbox" data-story-ai-confirm /> 장면 이미지 변환을 승인했습니다.</label>
+          </fieldset>
+          <button type="button" class="primary-action story-ai-activate-button" data-story-ai-activate="${escapeHtml(story.key)}" disabled>${busy ? "활성화 중..." : "AI 분기 활성화"}</button>`}
+          <p class="form-status" data-story-ai-status role="status" aria-live="polite"></p>
+        </section>` : ""}
       </article>`;
     }).join("");
   }
@@ -212,6 +229,14 @@
       if (!response || !Array.isArray(response.items)) throw new Error("접수 목록 응답 형식이 올바르지 않습니다.");
       state.items = response.items;
       state.publishedWorks = Array.isArray(response.publishedWorks) ? response.publishedWorks : [];
+      const aiStatuses = await Promise.all(knownStories.map(async (story) => {
+        try {
+          return [story.key, await api.fetch(`${publicationEndpoint}/published/${encodeURIComponent(story.key)}/ai-status`, { auth: true })];
+        } catch {
+          return [story.key, { active: false, status: "unavailable" }];
+        }
+      }));
+      state.aiStatuses = Object.fromEntries(aiStatuses);
       state.loaded = true;
       setStatus(`${state.items.length.toLocaleString("ko-KR")}건을 확인했습니다.`, "success");
     } catch (error) {
@@ -402,6 +427,50 @@
     }
   }
 
+  function updateAiActivationButton(card) {
+    const button = card?.querySelector("[data-story-ai-activate]");
+    if (!button) return;
+    const confirmations = [...card.querySelectorAll("[data-story-ai-confirm]")];
+    button.disabled = Boolean(state.activatingKey) || confirmations.length !== 4 || confirmations.some((input) => !input.checked);
+  }
+
+  async function activateAi(button) {
+    const storyKey = button.dataset.storyAiActivate;
+    const card = button.closest("[data-story-ai-card]");
+    const inlineStatus = card?.querySelector("[data-story-ai-status]");
+    const confirmations = [...(card?.querySelectorAll("[data-story-ai-confirm]") || [])];
+    if (!knownStories.some((story) => story.key === storyKey) || confirmations.length !== 4 || confirmations.some((input) => !input.checked) || state.activatingKey) return;
+    state.activatingKey = storyKey;
+    button.disabled = true;
+    button.textContent = "활성화 중...";
+    if (inlineStatus) inlineStatus.textContent = "문체 표본, 이용 승인, AI 생성 설정을 연결하고 있습니다.";
+    try {
+      await api.fetch(`${publicationEndpoint}/published/${encodeURIComponent(storyKey)}/activate-ai`, {
+        method: "POST",
+        auth: true,
+        body: {
+          aiBranchGenerationConfirmed: true,
+          authorStyleReferenceConfirmed: true,
+          generatedResultReuseConfirmed: true,
+          imageTransformationConfirmed: true
+        }
+      });
+      state.loaded = false;
+      await load({ force: true });
+      setStatus(`${knownStories.find((story) => story.key === storyKey).title} AI 분기를 활성화했습니다.`, "success");
+    } catch (error) {
+      if (inlineStatus) {
+        inlineStatus.textContent = error?.message || "AI 분기를 활성화하지 못했습니다.";
+        inlineStatus.className = "form-status is-error";
+      }
+      button.textContent = "AI 분기 활성화";
+      button.disabled = false;
+    } finally {
+      state.activatingKey = null;
+      updateAiActivationButton(card);
+    }
+  }
+
   list?.addEventListener("change", (event) => {
     if (event.target.matches("[data-story-confirmation]")) updatePromotionButton(event.target.closest("[data-submission-id]"));
   });
@@ -410,6 +479,13 @@
     if (button) promote(button);
   });
   refreshButton?.addEventListener("click", () => load({ force: true }));
+  statusCards?.addEventListener("change", (event) => {
+    if (event.target.matches("[data-story-ai-confirm]")) updateAiActivationButton(event.target.closest("[data-story-ai-card]"));
+  });
+  statusCards?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-story-ai-activate]");
+    if (button) activateAi(button);
+  });
   uploadForms.forEach((form) => {
     form.addEventListener("submit", (event) => {
       event.preventDefault();

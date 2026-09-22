@@ -20,3 +20,21 @@ export class PromoteStoryUploadDto {
   @Equals(true)
   publicReleaseConfirmed!: true;
 }
+
+export class ActivatePublishedStoryAiDto {
+  @Transform(multipartBoolean)
+  @Equals(true)
+  aiBranchGenerationConfirmed!: true;
+
+  @Transform(multipartBoolean)
+  @Equals(true)
+  authorStyleReferenceConfirmed!: true;
+
+  @Transform(multipartBoolean)
+  @Equals(true)
+  generatedResultReuseConfirmed!: true;
+
+  @Transform(multipartBoolean)
+  @Equals(true)
+  imageTransformationConfirmed!: true;
+}

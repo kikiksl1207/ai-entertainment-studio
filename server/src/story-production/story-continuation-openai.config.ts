@@ -24,7 +24,7 @@ export function readStoryContinuationOpenAiConfig(reader: StoryContinuationConfi
     model: text('STORY_CONTINUATION_OPENAI_MODEL'),
     rateCardId: text('STORY_CONTINUATION_RATE_CARD_ID'),
     rateCardVersion: text('STORY_CONTINUATION_RATE_CARD_VERSION'),
-    apiKey: text('STORY_CONTINUATION_OPENAI_API_KEY'),
+    apiKey: text('STORY_CONTINUATION_OPENAI_API_KEY') || text('OPENAI_API_KEY'),
     timeoutMs: configInteger(reader, 'STORY_CONTINUATION_REQUEST_TIMEOUT_MS', 25_000),
     maxInputTokens: configInteger(reader, 'STORY_CONTINUATION_MAX_INPUT_TOKENS', 32_768),
     maxOutputTokens: configInteger(reader, 'STORY_CONTINUATION_MAX_OUTPUT_TOKENS', 8_192),
