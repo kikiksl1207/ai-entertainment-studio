@@ -72,7 +72,7 @@ describe('OpenAiStoryContinuationProvider (fake transport only)', () => {
   it.each([
     { provider: 'other' }, { model: 'gpt-4.1' }, { apiKey: '' }, { rateCardId: '' }, { rateCardVersion: '' },
     { visualAssetPath: 'https://external.invalid/image.png' }, { visualAssetPath: '//external/image.png' },
-    { visualAssetPath: '/assets/../private.png' }, { timeoutMs: 30_000 }, { maxResponseBytes: NaN },
+    { visualAssetPath: '/assets/../private.png' }, { timeoutMs: 90_001 }, { maxResponseBytes: NaN },
   ])('fails closed for invalid config %#', async (options) => {
     const f = fixture(options);
     expect((await f.provider.readiness()).enabled).toBe(false);

@@ -5,10 +5,10 @@ import {
 } from './story-continuation-timing.policy';
 
 describe('independent continuation timing policy', () => {
-  it('preserves the short default provider/executor/lease/drain tuple', () => {
+  it('allows long-form story generation while keeping bounded execution and drain timing', () => {
     const policy = createStoryContinuationTimingPolicy();
-    expect(policy).toMatchObject({ version: 'continuation-timing-v1', providerDeadlineMs: 25_000,
-      executorDeadlineMs: 30_000, leaseMs: 60_000, drainMs: 35_000 });
+    expect(policy).toMatchObject({ version: 'continuation-timing-v1', providerDeadlineMs: 90_000,
+      executorDeadlineMs: 95_000, leaseMs: 125_000, drainMs: 35_000 });
     expect(Object.isFrozen(policy)).toBe(true);
     expect(policy).not.toHaveProperty('enabled');
   });
@@ -21,7 +21,7 @@ describe('independent continuation timing policy', () => {
 
   it('drains bounded outstanding DB work and persistence rather than the whole provider deadline', () => {
     expect(createStoryContinuationTimingPolicy({ preparationMs: 30_000, settlementMs: 25_000 }))
-      .toMatchObject({ leaseMs: 90_000, drainMs: 50_000 });
+      .toMatchObject({ leaseMs: 155_000, drainMs: 50_000 });
   });
 
   it.each([
@@ -29,7 +29,7 @@ describe('independent continuation timing policy', () => {
     { providerDeadlineMs: Infinity }, { executorDeadlineMs: 25_999 }, { executorDeadlineMs: 245_001 },
     { preparationMs: 30_001 }, { settlementMs: 0 }, { clockMarginMs: 0 },
     { abortGraceMs: 0 }, { failurePersistenceMs: -1 }, { drainMs: 34_999 },
-    { drainMs: 120_001 }, { leaseMs: 59_999 }, { leaseMs: 300_001 }, { leaseMs: 60_000.5 },
+    { drainMs: 120_001 }, { leaseMs: 124_999 }, { leaseMs: 300_001 }, { leaseMs: 125_000.5 },
     { providerDeadlineMs: 240_000, preparationMs: 30_000, settlementMs: 30_000 },
   ])('rejects incompatible durations instead of silently clamping', overrides => {
     expect(() => createStoryContinuationTimingPolicy(overrides)).toThrow('continuation_timing_policy_invalid');
@@ -56,8 +56,8 @@ describe('independent continuation timing policy', () => {
   it('requires the actual remaining lease to cover execution, settlement and clock margin', () => {
     const policy = createStoryContinuationTimingPolicy();
     const now = 1_000_000;
-    expect(storyContinuationDispatchFitsLease(policy, now + 45_000, now)).toBe(true);
-    expect(storyContinuationDispatchFitsLease(policy, now + 44_999, now)).toBe(false);
+    expect(storyContinuationDispatchFitsLease(policy, now + 110_000, now)).toBe(true);
+    expect(storyContinuationDispatchFitsLease(policy, now + 109_999, now)).toBe(false);
     expect(storyContinuationDispatchFitsLease(policy, now - 1, now)).toBe(false);
   });
 

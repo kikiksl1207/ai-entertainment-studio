@@ -956,7 +956,7 @@ export class StoryProductionService {
         throw new ConflictException('Generated story choice route is invalid');
       }
       return null;
-      });
+      }, { timeout: 15_000 });
     } catch (error) {
       if (
         idempotencyKey &&

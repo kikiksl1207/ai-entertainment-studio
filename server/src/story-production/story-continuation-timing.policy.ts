@@ -28,7 +28,7 @@ export class StoryContinuationTimingPolicyError extends Error {
 export function createStoryContinuationTimingPolicy(overrides: TimingOverrides = {}): StoryContinuationTimingPolicy {
   if (!record(overrides) || Object.keys(overrides).some(key => !TIMING_KEYS.includes(key)) ||
       Object.values(overrides).some(value => typeof value !== 'number' || !Number.isSafeInteger(value))) invalid();
-  const providerDeadlineMs = overrides.providerDeadlineMs ?? 25_000;
+  const providerDeadlineMs = overrides.providerDeadlineMs ?? 90_000;
   const executorDeadlineMs = overrides.executorDeadlineMs ?? providerDeadlineMs + 5_000;
   const preparationMs = overrides.preparationMs ?? 15_000;
   const settlementMs = overrides.settlementMs ?? 10_000;

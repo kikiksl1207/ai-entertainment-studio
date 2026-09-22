@@ -1,4 +1,7 @@
 import { storyContinuationModelEncoding } from './story-continuation-tokenizer';
+import { createStoryContinuationTimingPolicy } from './story-continuation-timing.policy';
+
+const CONTINUATION_TIMING = createStoryContinuationTimingPolicy();
 
 export type StoryContinuationConfigReader = { get<T = string>(key: string): T | undefined };
 
@@ -18,14 +21,19 @@ export type StoryContinuationOpenAiConfig = {
 
 export function readStoryContinuationOpenAiConfig(reader: StoryContinuationConfigReader): StoryContinuationOpenAiConfig {
   const text = (key: string) => String(reader.get(key) ?? '').trim();
+  const enabled = text('STORY_CONTINUATION_PROVIDER_ENABLED') === 'true';
   return {
-    enabled: text('STORY_CONTINUATION_PROVIDER_ENABLED') === 'true',
+    enabled,
     provider: text('STORY_CONTINUATION_PROVIDER'),
     model: text('STORY_CONTINUATION_OPENAI_MODEL'),
     rateCardId: text('STORY_CONTINUATION_RATE_CARD_ID'),
     rateCardVersion: text('STORY_CONTINUATION_RATE_CARD_VERSION'),
-    apiKey: text('STORY_CONTINUATION_OPENAI_API_KEY') || text('OPENAI_API_KEY'),
-    timeoutMs: configInteger(reader, 'STORY_CONTINUATION_REQUEST_TIMEOUT_MS', 25_000),
+    apiKey: enabled ? text('STORY_CONTINUATION_OPENAI_API_KEY') || text('OPENAI_API_KEY') : '',
+    timeoutMs: configInteger(
+      reader,
+      'STORY_CONTINUATION_REQUEST_TIMEOUT_MS',
+      CONTINUATION_TIMING.providerDeadlineMs,
+    ),
     maxInputTokens: configInteger(reader, 'STORY_CONTINUATION_MAX_INPUT_TOKENS', 32_768),
     maxOutputTokens: configInteger(reader, 'STORY_CONTINUATION_MAX_OUTPUT_TOKENS', 8_192),
     maxResponseBytes: configInteger(reader, 'STORY_CONTINUATION_MAX_RESPONSE_BYTES', 200_000),
@@ -45,7 +53,7 @@ export function storyContinuationConfigFailure(config: StoryContinuationOpenAiCo
   if (!/^\/assets\/[a-zA-Z0-9/_-]+\.(?:webp|png|jpg|jpeg)$/.test(config.visualAssetPath)) {
     return 'provider_visual_not_configured';
   }
-  if (!inRange(config.timeoutMs, 100, 29_000) ||
+  if (!inRange(config.timeoutMs, 100, CONTINUATION_TIMING.providerDeadlineMs) ||
       !inRange(config.maxInputTokens, 1, 128_000) ||
       !inRange(config.maxOutputTokens, 16, 32_768) ||
       !inRange(config.maxResponseBytes, 1_024, 1_000_000)) return 'provider_limits_invalid';

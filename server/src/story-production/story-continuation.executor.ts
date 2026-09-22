@@ -11,9 +11,11 @@ import {
 import { StoryContinuationContextAssembler } from './story-continuation-context.assembler';
 import { StoryContinuationContextError } from './story-continuation-context.assembler';
 import { validateStoryContinuationProviderResult } from './story-continuation-output.policy';
+import { createStoryContinuationTimingPolicy } from './story-continuation-timing.policy';
 
-const PROVIDER_TIMEOUT_MS = 30_000;
-const LEASE_MS = 60_000;
+const CONTINUATION_TIMING = createStoryContinuationTimingPolicy();
+const PROVIDER_TIMEOUT_MS = CONTINUATION_TIMING.executorDeadlineMs;
+const LEASE_MS = CONTINUATION_TIMING.leaseMs;
 
 @Injectable()
 export class StoryContinuationExecutor {
