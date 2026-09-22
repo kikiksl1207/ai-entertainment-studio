@@ -318,6 +318,60 @@
                   <button class="primary-action" type="submit">확인 후 바로 공개</button>
                 </div>
               </form>
+
+              <form class="table-card story-publication-upload-card" data-story-upload-form="monster">
+                <header>
+                  <div><span class="section-kicker">Approved Source</span><h3>내 이름을 먹지 않은 괴물</h3></div>
+                  <span class="status-badge is-review">MD 2개</span>
+                </header>
+                <p>최종 패키지의 독자 공개 원고와 장면 이미지 프롬프트만 선택합니다. 제작 메모와 QA 문서는 공개하지 않습니다.</p>
+                <input type="hidden" name="title" value="내 이름을 먹지 않은 괴물" />
+                <input type="hidden" name="originalLocale" value="ko" />
+                <input type="hidden" name="sourceClass" value="original" />
+                <input type="hidden" name="submissionType" value="final" />
+                <input type="hidden" name="storyKey" value="monster" />
+                <label class="story-upload-file-control">
+                  <span>독자 공개 원고 + 장면 이미지 프롬프트</span>
+                  <input type="file" name="manuscripts" accept=".md" multiple required />
+                </label>
+                <fieldset class="story-publication-confirmations story-upload-confirmations">
+                  <legend>바로 공개하기 전 확인</legend>
+                  <label><input type="checkbox" name="finalManuscriptConfirmed" value="true" required /> 최종 원고가 맞습니다.</label>
+                  <label><input type="checkbox" name="rightsConfirmed" value="true" required /> 공개 권리를 확인했습니다.</label>
+                  <label><input type="checkbox" name="publicReleaseConfirmed" value="true" required /> 즉시 공개에 동의합니다.</label>
+                </fieldset>
+                <div class="story-upload-action">
+                  <span class="form-status" data-story-upload-status role="status" aria-live="polite"></span>
+                  <button class="primary-action" type="submit">확인 후 바로 공개</button>
+                </div>
+              </form>
+
+              <form class="table-card story-publication-upload-card" data-story-upload-form="rebellion">
+                <header>
+                  <div><span class="section-kicker">Approved Source</span><h3>우리는 서로의 몸에 반역을 썼다</h3></div>
+                  <span class="status-badge is-review">MD 2개</span>
+                </header>
+                <p>최종 패키지의 독자 공개 원고와 장면 이미지 프롬프트만 선택합니다. 제작 메모와 QA 문서는 공개하지 않습니다.</p>
+                <input type="hidden" name="title" value="우리는 서로의 몸에 반역을 썼다" />
+                <input type="hidden" name="originalLocale" value="ko" />
+                <input type="hidden" name="sourceClass" value="original" />
+                <input type="hidden" name="submissionType" value="final" />
+                <input type="hidden" name="storyKey" value="rebellion" />
+                <label class="story-upload-file-control">
+                  <span>독자 공개 원고 + 장면 이미지 프롬프트</span>
+                  <input type="file" name="manuscripts" accept=".md" multiple required />
+                </label>
+                <fieldset class="story-publication-confirmations story-upload-confirmations">
+                  <legend>바로 공개하기 전 확인</legend>
+                  <label><input type="checkbox" name="finalManuscriptConfirmed" value="true" required /> 최종 원고가 맞습니다.</label>
+                  <label><input type="checkbox" name="rightsConfirmed" value="true" required /> 공개 권리를 확인했습니다.</label>
+                  <label><input type="checkbox" name="publicReleaseConfirmed" value="true" required /> 즉시 공개에 동의합니다.</label>
+                </fieldset>
+                <div class="story-upload-action">
+                  <span class="form-status" data-story-upload-status role="status" aria-live="polite"></span>
+                  <button class="primary-action" type="submit">확인 후 바로 공개</button>
+                </div>
+              </form>
             </div>
 
             <article class="table-card story-publication-list-card">

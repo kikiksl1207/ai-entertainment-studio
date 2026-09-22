@@ -9,7 +9,8 @@
       key: "imjin",
       title: "임진왜란",
       slug: "records-of-the-burning-sea-imjin-war",
-      checksums: ["34e2f00f1c375ca5a5af6733f74287224f3d63213a0981e4bc3655b6ed7db125"]
+      checksums: ["34e2f00f1c375ca5a5af6733f74287224f3d63213a0981e4bc3655b6ed7db125"],
+      aiActivationAvailable: true
     },
     {
       key: "norse",
@@ -18,7 +19,28 @@
       checksums: [
         "74462e693982cbb72733b3db465e435c008309dbcb76c603b908ed1369cb37f8",
         "f6482c710acbc7b63f98783f3ca7f06ebc37d22f5566deb51e719f438eae6bc5"
-      ]
+      ],
+      aiActivationAvailable: true
+    },
+    {
+      key: "monster",
+      title: "내 이름을 먹지 않은 괴물",
+      slug: "the-monster-that-did-not-eat-my-name",
+      checksums: [
+        "e5c3e0719995380e2544062a83dceb43c4811ff7c9029ca81b15ba4a3c1b4bff",
+        "ba2763caa77bb52bd56a216b1852b2be9241314019015624a65ab128df25e033"
+      ],
+      aiActivationAvailable: false
+    },
+    {
+      key: "rebellion",
+      title: "우리는 서로의 몸에 반역을 썼다",
+      slug: "we-wrote-rebellion-on-each-others-bodies",
+      checksums: [
+        "9c855d771b9e2d89ef8b36b7a445b0fa62bf854738bb2d78becb12284f16ecff",
+        "fb1ecc405c2471035fdfc85fec17f4e4d883334e2928d898eec988188ec1a5c3"
+      ],
+      aiActivationAvailable: false
     }
   ];
   const state = { items: [], publishedWorks: [], aiStatuses: {}, loading: false, loaded: false, promotingId: null, uploadingKey: null, activatingKey: null };
@@ -132,7 +154,7 @@
           <span class="status-badge ${current.className}">${escapeHtml(current.label)}</span>
           <small>${escapeHtml(current.detail)}</small>
         </div>
-        ${published ? `<section class="story-ai-activation" data-story-ai-card="${escapeHtml(story.key)}">
+        ${published && story.aiActivationAvailable ? `<section class="story-ai-activation" data-story-ai-card="${escapeHtml(story.key)}">
           <div><strong>AI 분기 생성</strong><span class="status-badge ${aiActive ? "is-approved" : "is-review"}">${aiActive ? "활성" : "비활성"}</span></div>
           ${aiActive ? `<small>한국어 공개 테스트 · 선택에 따른 새 장면과 제목 생성</small>` : `<fieldset class="story-ai-confirmations" ${busy ? "disabled" : ""}>
             <legend>활성화 전 확인</legend>
@@ -143,7 +165,7 @@
           </fieldset>
           <button type="button" class="primary-action story-ai-activate-button" data-story-ai-activate="${escapeHtml(story.key)}" disabled>${busy ? "활성화 중..." : "AI 분기 활성화"}</button>`}
           <p class="form-status" data-story-ai-status role="status" aria-live="polite"></p>
-        </section>` : ""}
+        </section>` : published ? `<section class="story-ai-activation"><div><strong>독자 공개 방식</strong><span class="status-badge is-approved">고정 메인 루트</span></div><small>작가 최종 원고 순서대로 공개되며 시스템의 다음 장 이동만 제공합니다.</small></section>` : ""}
       </article>`;
     }).join("");
   }
@@ -229,7 +251,7 @@
       if (!response || !Array.isArray(response.items)) throw new Error("접수 목록 응답 형식이 올바르지 않습니다.");
       state.items = response.items;
       state.publishedWorks = Array.isArray(response.publishedWorks) ? response.publishedWorks : [];
-      const aiStatuses = await Promise.all(knownStories.map(async (story) => {
+      const aiStatuses = await Promise.all(knownStories.filter((story) => story.aiActivationAvailable).map(async (story) => {
         try {
           return [story.key, await api.fetch(`${publicationEndpoint}/published/${encodeURIComponent(story.key)}/ai-status`, { auth: true })];
         } catch {
@@ -256,7 +278,7 @@
     const input = form.querySelector('input[type="file"]');
     const inlineStatus = form.querySelector("[data-story-upload-status]");
     const button = form.querySelector('button[type="submit"]');
-    const expectedCount = storyKey === "norse" ? 2 : 1;
+    const expectedCount = storyKey === "imjin" ? 1 : 2;
     const validFileCount = storyKey === "norse"
       ? input && (input.files.length === 1 || input.files.length === 2)
       : input && input.files.length === expectedCount;
@@ -264,7 +286,9 @@
       if (inlineStatus) {
         inlineStatus.textContent = storyKey === "norse"
           ? "원본 JSON 2개 또는 승인 압축 묶음 1개를 선택해 주세요."
-          : `${expectedCount}개 파일을 선택해 주세요.`;
+          : storyKey === "imjin"
+            ? "승인 최종 원고 MD 1개를 선택해 주세요."
+            : "독자 공개 원고와 장면 이미지 프롬프트 MD 2개를 함께 선택해 주세요.";
         inlineStatus.className = "form-status is-error";
       }
       return;

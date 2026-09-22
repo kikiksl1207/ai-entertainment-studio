@@ -5,8 +5,8 @@ const multipartBoolean = ({ value }: { value: unknown }) =>
   value === true || value === 'true';
 
 export class PromoteStoryUploadDto {
-  @IsIn(['imjin', 'norse'])
-  storyKey!: 'imjin' | 'norse';
+  @IsIn(['imjin', 'norse', 'monster', 'rebellion'])
+  storyKey!: 'imjin' | 'norse' | 'monster' | 'rebellion';
 
   @Transform(multipartBoolean)
   @Equals(true)

@@ -29,6 +29,12 @@ import {
   prepareImjinReleasePlan,
 } from './story-imjin-release-bridge.policy';
 import {
+  FIXED_ROUTE_STORIES,
+  FixedRouteStoryKey,
+  fixedRouteStoryKeyFromChecksums,
+  prepareFixedRoutePublicationSource,
+} from './story-fixed-route-markdown.policy';
+import {
   PreparedManuscript,
   prepareManuscript,
   storedManuscriptBody,
@@ -50,6 +56,8 @@ const PUBLICATION_PLAN_MAX_BYTES = 64 * 1024 * 1024;
 const PUBLICATION_PLAN_STORAGE_CONTRACT = 'story-publication-plan-br-base64-v1';
 const SOURCE_UPLOAD_MARKER = 'source_upload_chunks_v1';
 const PLAN_STORAGE_MARKER = 'plan_br_v1';
+const APPROVED_STORY_KEYS = ['imjin', 'norse', 'monster', 'rebellion'] as const;
+type ApprovedStoryKey = typeof APPROVED_STORY_KEYS[number];
 
 type PublicationPart = {
   partKey: string;
@@ -74,7 +82,7 @@ type PublicationPrompt = {
 };
 
 type PublicationPlan = {
-  storyKey: 'imjin' | 'norse';
+  storyKey: ApprovedStoryKey;
   slug: string;
   title: string;
   summary: string;
@@ -124,6 +132,8 @@ export class StoryPublicationIntakeService {
             in: [
               'records-of-the-burning-sea-imjin-war',
               'norse-myth-loki-crossroads',
+              FIXED_ROUTE_STORIES.monster.slug,
+              FIXED_ROUTE_STORIES.rebellion.slug,
             ],
           },
           status: 'published',
@@ -184,12 +194,7 @@ export class StoryPublicationIntakeService {
         message: 'The selected files do not match the approved manuscript',
       });
     }
-    const plan = input.storyKey === 'imjin'
-      ? this.imjinPlan(this.requiredBuffer(buffers, IMJIN_RELEASE_SOURCE.sha256))
-      : this.norsePlan(
-          this.requiredBuffer(buffers, NORSE_ANALYSIS_SHA256),
-          this.requiredBuffer(buffers, NORSE_SOURCE_MAP_SHA256),
-        );
+    const plan = this.approvedPlan(input.storyKey, buffers);
     const existing = await this.prisma.storyPublicationImportJob.findUnique({
       where: {
         actorUserId_storyKey_sourceBindingSha256: {
@@ -864,12 +869,7 @@ export class StoryPublicationIntakeService {
       }
       buffers.set(file.checksumSha256, buffer);
     }
-    const plan = input.storyKey === 'imjin'
-      ? this.imjinPlan(this.requiredBuffer(buffers, IMJIN_RELEASE_SOURCE.sha256))
-      : this.norsePlan(
-          this.requiredBuffer(buffers, NORSE_ANALYSIS_SHA256),
-          this.requiredBuffer(buffers, NORSE_SOURCE_MAP_SHA256),
-        );
+    const plan = this.approvedPlan(input.storyKey, buffers);
     return this.publish(actorUserId, submissionId, plan, input);
   }
 
@@ -1182,6 +1182,39 @@ export class StoryPublicationIntakeService {
     });
   }
 
+  private approvedPlan(storyKey: ApprovedStoryKey, buffers: Map<string, Buffer>): PublicationPlan {
+    if (storyKey === 'imjin') {
+      return this.imjinPlan(this.requiredBuffer(buffers, IMJIN_RELEASE_SOURCE.sha256));
+    }
+    if (storyKey === 'norse') {
+      return this.norsePlan(
+        this.requiredBuffer(buffers, NORSE_ANALYSIS_SHA256),
+        this.requiredBuffer(buffers, NORSE_SOURCE_MAP_SHA256),
+      );
+    }
+    return this.fixedRoutePlan(storyKey, buffers);
+  }
+
+  private fixedRoutePlan(storyKey: FixedRouteStoryKey, buffers: Map<string, Buffer>): PublicationPlan {
+    const config = FIXED_ROUTE_STORIES[storyKey];
+    const source = prepareFixedRoutePublicationSource(
+      config,
+      this.requiredBuffer(buffers, config.manuscriptSha256),
+      this.requiredBuffer(buffers, config.promptSha256),
+    );
+    return {
+      storyKey,
+      slug: config.slug,
+      title: config.title,
+      summary: config.summary,
+      coverPath: config.coverPath,
+      manuscript: source.manuscript,
+      sourceBindingSha256: source.sourceBindingSha256,
+      parts: source.parts,
+      prompts: source.prompts,
+    };
+  }
+
   private imjinPlan(buffer: Buffer): PublicationPlan {
     const source = prepareImjinReleasePlan(buffer);
     const manuscript = prepareManuscript(Buffer.from(JSON.stringify({
@@ -1331,7 +1364,7 @@ export class StoryPublicationIntakeService {
     }
     const manuscript = plan.manuscript;
     return (
-      ['imjin', 'norse'].includes(String(plan.storyKey)) &&
+      APPROVED_STORY_KEYS.includes(String(plan.storyKey) as ApprovedStoryKey) &&
       typeof plan.slug === 'string' &&
       manuscript !== null &&
       typeof manuscript === 'object' &&
@@ -1379,7 +1412,7 @@ export class StoryPublicationIntakeService {
       plan = value as unknown as PublicationPlanSnapshot;
     }
     if (
-      !['imjin', 'norse'].includes(plan.storyKey) ||
+      !APPROVED_STORY_KEYS.includes(plan.storyKey) ||
       !plan.slug ||
       !plan.manuscript?.contentHash ||
       !Array.isArray(plan.parts) ||
@@ -1490,7 +1523,7 @@ export class StoryPublicationIntakeService {
     ) {
       return 'norse' as const;
     }
-    return null;
+    return fixedRouteStoryKeyFromChecksums(checksums);
   }
 
   private requiredBuffer(buffers: Map<string, Buffer>, checksum: string) {
