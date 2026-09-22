@@ -10,6 +10,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import {
   RegisterStoryVisualPromptsDto,
   RegisterStoryVisualAiBranchPromptDto,
+  ReplaceStaleStoryVisualDto,
   RequestStoryVisualDto,
   SyncStoryVisualQueueDto,
 } from './dto/story-visual-generation.dto';
@@ -64,6 +65,15 @@ export class StoryVisualGenerationAdminController {
     @Body() body: RegisterStoryVisualPromptsDto,
   ) {
     return this.visuals.registerVerifiedPrompts(workId, body);
+  }
+
+  @Post(':workId/replace-stale')
+  @RequireAdminPermissions('*')
+  replaceStale(
+    @Param('workId') workId: string,
+    @Body() body: ReplaceStaleStoryVisualDto,
+  ) {
+    return this.visuals.replaceStale(workId, body);
   }
 
   @Get('queue')

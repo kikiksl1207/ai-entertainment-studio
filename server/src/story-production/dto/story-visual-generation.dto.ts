@@ -21,6 +21,20 @@ export class RequestStoryVisualDto {
   sourceSceneKey!: string;
 }
 
+export class ReplaceStaleStoryVisualDto {
+  @IsUUID()
+  releaseId!: string;
+
+  @IsString()
+  @Length(64, 64)
+  @Matches(/^[a-f0-9]{64}$/)
+  releaseChecksum!: string;
+
+  @IsString()
+  @Matches(SOURCE_SCENE_KEY)
+  sourceSceneKey!: string;
+}
+
 export class StoryVisualPromptItemDto {
   @IsString()
   @Matches(SOURCE_SCENE_KEY)

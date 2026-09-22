@@ -19,16 +19,28 @@ describe('StoryVisualGenerationService', () => {
       storyReaderProgress: { findFirst: jest.fn().mockResolvedValue({
         workId, currentSceneId: sceneId, currentGeneratedSceneId: null, activeReleaseId: releaseId,
       }) },
-      storyScene: { findFirst: jest.fn().mockResolvedValue({ id: sceneId, sceneKey: 'part-001-main', partId }) },
-      storyPart: { findFirst: jest.fn().mockResolvedValue({ id: partId }), findMany: jest.fn() },
-      storyWork: { findFirst: jest.fn().mockResolvedValue({ id: workId, activeReleaseId: releaseId }) },
-      storyRelease: { findFirst: jest.fn().mockResolvedValue({ id: releaseId, checksum }) },
+      storyScene: {
+        findFirst: jest.fn().mockResolvedValue({ id: sceneId, sceneKey: 'part-001-main', partId }),
+        findMany: jest.fn().mockResolvedValue([{ id: sceneId, title: { ko: '새벽 바다' } }]),
+      },
+      storyPart: {
+        findFirst: jest.fn().mockResolvedValue({ id: partId }),
+        findMany: jest.fn().mockResolvedValue([{ id: partId, title: { ko: '전란의 시작' } }]),
+      },
+      storyWork: { findFirst: jest.fn().mockResolvedValue({ id: workId, activeReleaseId: releaseId,
+        title: { ko: '불타는 바다의 기록자' }, summary: { ko: '임진왜란 역사 서사' } }) },
+      storyRelease: { findFirst: jest.fn().mockResolvedValue({ id: releaseId, checksum,
+        localizedDisplaySnapshot: { ko: { title: '불타는 바다의 기록자', summary: '임진왜란 역사 서사' } },
+        sceneAssetManifest: { state: 'prompt_backed' } }) },
       storyAiContinuation: { findFirst: jest.fn() },
-      storyBeat: { findFirst: jest.fn().mockResolvedValue({ id: 'beat-id' }), findMany: jest.fn() },
+      storyBeat: { findFirst: jest.fn().mockResolvedValue({ id: 'beat-id' }),
+        findMany: jest.fn().mockResolvedValue([{ content: { ko: '이순신은 늘 같은 검은 수염과 붉은 철릭 차림으로 갑판에 섰다.' } }]) },
       storyVisualPrompt: {
         findUnique: jest.fn().mockResolvedValue({ workId, releaseId, releaseChecksum: checksum,
           sourceSceneKey, promptSha256, promptText: 'A sufficiently detailed private scene image direction.' }),
-        findMany: jest.fn().mockResolvedValue([{ sourceSceneKey }]),
+        findMany: jest.fn(async (args: any) => args?.select?.promptText
+          ? [{ promptText: 'Joseon naval historical drama, restrained sea-blue and ember palette. Recurring officers keep identical faces and uniforms.' }]
+          : [{ sourceSceneKey }]),
         create: jest.fn(),
       },
       storyAiGeneratedScene: { findFirst: jest.fn() },
@@ -46,7 +58,12 @@ describe('StoryVisualGenerationService', () => {
               updatedAt: data.updatedAt };
             return { count: 1 };
           }
-          if (generation?.status === 'generating' && data.status === 'failed') {
+          if (generation?.status === 'ready' && data.status === 'generating') {
+            generation = { ...generation, ...data,
+              attemptCount: data.attemptCount ? generation.attemptCount + 1 : generation.attemptCount };
+            return { count: 1 };
+          }
+          if (generation?.status === 'generating' && ['failed', 'ready'].includes(data.status)) {
             generation = { ...generation, ...data };
             return { count: 1 };
           }
@@ -56,7 +73,9 @@ describe('StoryVisualGenerationService', () => {
       },
       asset: {
         create: jest.fn().mockResolvedValue({ id: assetId }),
+        findFirst: jest.fn().mockResolvedValue(null),
         findMany: jest.fn().mockResolvedValue([]),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
       $transaction: jest.fn(async (run: any) => run(prisma)),
     };
@@ -146,9 +165,154 @@ describe('StoryVisualGenerationService', () => {
       publicAssetPath: `/api/v1/story-visual-assets/${assetId}`, reused: true,
     });
     expect(provider).toHaveBeenCalledTimes(2);
+    const providerBody = JSON.parse(String((provider.mock.calls[0][1] as RequestInit).body));
+    expect(providerBody.prompt).toContain('[PRIVATE VISUAL BIBLE story-visual-bible-v1]');
+    expect(providerBody.prompt).toContain('[RECURRING CHARACTER APPEARANCE LOCK]');
+    expect(providerBody.prompt).toContain('Joseon naval historical drama');
+    expect(providerBody.prompt).toContain('이순신은 늘 같은 검은 수염과 붉은 철릭');
+    expect(providerBody.prompt).toContain('A sufficiently detailed private scene image direction.');
     expect(f.prisma.storyVisualGeneration.create).toHaveBeenCalledTimes(1);
     expect(f.prisma.asset.create).toHaveBeenCalledTimes(1);
+    const storedMetadata = f.prisma.asset.create.mock.calls[0][0].data.metadata;
+    expect(storedMetadata.storyVisual).toMatchObject({
+      visualBibleVersion: 'story-visual-bible-v1',
+      visualBibleFingerprint: expect.stringMatching(/^[a-f0-9]{20}$/),
+      effectivePromptSha256: expect.stringMatching(/^[a-f0-9]{64}$/),
+    });
+    expect(JSON.stringify(storedMetadata)).not.toContain('A sufficiently detailed private scene image direction.');
+    expect(JSON.stringify(storedMetadata)).not.toContain('Joseon naval historical drama');
     expect(f.generation()).toMatchObject({ status: 'ready', attemptCount: 1, assetId });
+  });
+
+  it('applies the same work bible to an AI branch scene without exposing its prose', async () => {
+    const f = fixture();
+    const generatedSceneId = '00000000-0000-4000-8000-000000000007';
+    const generatedSceneKey = 'ai-reader-route-0001';
+    const branchPrompt = 'Private generated branch prose and scene direction.';
+    f.prisma.storyReaderProgress.findFirst.mockResolvedValue({
+      workId, currentSceneId: null, currentGeneratedSceneId: generatedSceneId, activeReleaseId: releaseId,
+    });
+    f.prisma.storyAiGeneratedScene.findFirst.mockResolvedValue({ id: generatedSceneId });
+    f.prisma.storyVisualPrompt.findUnique.mockResolvedValue({
+      workId, releaseId, releaseChecksum: checksum, sourceSceneKey: generatedSceneKey,
+      promptSha256, promptText: branchPrompt, sourceKind: 'ai_branch',
+    });
+    const image = await sharp({
+      create: { width: 1536, height: 1024, channels: 3, background: '#203040' },
+    }).webp().toBuffer();
+    const provider = jest.spyOn(global, 'fetch')
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [{ b64_json: image.toString('base64') }] }) } as Response)
+      .mockResolvedValueOnce({ ok: true } as Response);
+
+    await expect(f.service.requestForProgress('user-id', progressId, generatedSceneKey)).resolves.toEqual({
+      status: 'ready', sourceSceneKey: generatedSceneKey,
+      publicAssetPath: `/api/v1/story-visual-assets/${assetId}`, reused: false,
+    });
+
+    const providerBody = JSON.parse(String((provider.mock.calls[0][1] as RequestInit).body));
+    expect(providerBody.prompt).toContain('Work title: 불타는 바다의 기록자');
+    expect(providerBody.prompt).toContain('Joseon naval historical drama');
+    expect(providerBody.prompt).toContain(branchPrompt);
+    const storedMetadata = f.prisma.asset.create.mock.calls[0][0].data.metadata;
+    expect(JSON.stringify(storedMetadata)).not.toContain(branchPrompt);
+  });
+
+  it('never replaces a legacy ready asset from the reader endpoint or automatic path', async () => {
+    const f = fixture();
+    f.setGeneration({ id: 'generation-id', workId, releaseId, releaseChecksum: checksum, sourceSceneKey,
+      promptSha256, status: 'ready', attemptCount: 1, updatedAt: new Date(), assetId });
+    const provider = jest.spyOn(global, 'fetch');
+
+    await expect(f.service.requestForProgress('user-id', progressId, sourceSceneKey)).resolves.toEqual({
+      status: 'ready', sourceSceneKey, publicAssetPath: `/api/v1/story-visual-assets/${assetId}`, reused: true,
+    });
+
+    expect(provider).not.toHaveBeenCalled();
+    expect(f.prisma.asset.findFirst).not.toHaveBeenCalled();
+    expect(f.generation()).toMatchObject({ status: 'ready', assetId, attemptCount: 1 });
+  });
+
+  it('replaces a stale ready asset once through the admin-only service path and reuses the effective identity', async () => {
+    const f = fixture();
+    const replacementAssetId = '00000000-0000-4000-8000-000000000009';
+    f.setGeneration({ id: 'generation-id', workId, releaseId, releaseChecksum: checksum, sourceSceneKey,
+      promptSha256, status: 'ready', attemptCount: 1, updatedAt: new Date(), assetId, lastErrorCode: null });
+    f.prisma.asset.findFirst.mockResolvedValue({ id: assetId, metadata: {
+      storyVisual: { workId, releaseId, sourceSceneKey, promptSha256 },
+    } });
+    f.prisma.asset.create.mockResolvedValue({ id: replacementAssetId });
+    const image = await sharp({
+      create: { width: 1536, height: 1024, channels: 3, background: '#304050' },
+    }).webp().toBuffer();
+    const provider = jest.spyOn(global, 'fetch')
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [{ b64_json: image.toString('base64') }] }) } as Response)
+      .mockResolvedValueOnce({ ok: true } as Response);
+    const input = { releaseId, releaseChecksum: checksum, sourceSceneKey };
+
+    await expect(f.service.replaceStale(workId, input)).resolves.toEqual({
+      status: 'ready', sourceSceneKey,
+      publicAssetPath: `/api/v1/story-visual-assets/${replacementAssetId}`, reused: false,
+    });
+
+    expect(provider).toHaveBeenCalledTimes(2);
+    expect(f.generation()).toMatchObject({ status: 'ready', assetId: replacementAssetId, attemptCount: 2 });
+    expect(f.prisma.asset.updateMany).toHaveBeenCalledWith({
+      where: { id: assetId, visibility: 'public' }, data: { visibility: 'private' },
+    });
+    const createdMetadata = f.prisma.asset.create.mock.calls[0][0].data.metadata;
+    expect(createdMetadata.storyVisual).toMatchObject({
+      replacesAssetId: assetId,
+      visualBibleVersion: 'story-visual-bible-v1',
+      effectivePromptSha256: expect.stringMatching(/^[a-f0-9]{64}$/),
+    });
+    const effectivePromptSha256 = createdMetadata.storyVisual.effectivePromptSha256;
+    expect(String(provider.mock.calls[1][0])).toContain(effectivePromptSha256);
+
+    f.prisma.asset.findFirst.mockResolvedValue({ id: replacementAssetId, metadata: createdMetadata });
+    await expect(f.service.replaceStale(workId, input)).resolves.toEqual({
+      status: 'ready', sourceSceneKey,
+      publicAssetPath: `/api/v1/story-visual-assets/${replacementAssetId}`, reused: true,
+    });
+    expect(provider).toHaveBeenCalledTimes(2);
+    expect(f.prisma.asset.create).toHaveBeenCalledTimes(1);
+    expect(f.generation()).toMatchObject({ attemptCount: 2 });
+  });
+
+  it('keeps the prior ready asset and blocks another paid attempt after replacement failure for the same identity', async () => {
+    const f = fixture();
+    f.setGeneration({ id: 'generation-id', workId, releaseId, releaseChecksum: checksum, sourceSceneKey,
+      promptSha256, status: 'ready', attemptCount: 1, updatedAt: new Date(), assetId, lastErrorCode: null });
+    f.prisma.asset.findFirst.mockResolvedValue({ id: assetId, metadata: {
+      storyVisual: { workId, releaseId, sourceSceneKey, promptSha256 },
+    } });
+    const provider = jest.spyOn(global, 'fetch').mockResolvedValue({ ok: false, status: 500 } as Response);
+    const input = { releaseId, releaseChecksum: checksum, sourceSceneKey };
+
+    await expect(f.service.replaceStale(workId, input)).resolves.toEqual({
+      status: 'failed', sourceSceneKey, retryable: false,
+    });
+    expect(f.generation()).toMatchObject({
+      status: 'ready', assetId, attemptCount: 2,
+      lastErrorCode: expect.stringMatching(/^STALE_REPLACEMENT_FAILED_[a-f0-9]{40}$/),
+    });
+
+    await expect(f.service.replaceStale(workId, input)).resolves.toEqual({
+      status: 'failed', sourceSceneKey, retryable: false,
+    });
+    expect(provider).toHaveBeenCalledTimes(1);
+    expect(f.prisma.asset.create).not.toHaveBeenCalled();
+    expect(f.generation()).toMatchObject({ status: 'ready', assetId, attemptCount: 2 });
+  });
+
+  it('rejects admin replacement unless the target already has a ready asset', async () => {
+    const f = fixture();
+    f.setGeneration({ id: 'generation-id', workId, releaseId, releaseChecksum: checksum, sourceSceneKey,
+      promptSha256, status: 'pending', attemptCount: 0, updatedAt: new Date(), assetId: null });
+    const provider = jest.spyOn(global, 'fetch');
+
+    await expect(f.service.replaceStale(workId, { releaseId, releaseChecksum: checksum, sourceSceneKey }))
+      .rejects.toMatchObject({ response: expect.objectContaining({ code: 'STORY_VISUAL_REPLACEMENT_NOT_READY' }) });
+    expect(provider).not.toHaveBeenCalled();
   });
 
   it('keeps a generated beta image in the database when object storage rejects the upload', async () => {
