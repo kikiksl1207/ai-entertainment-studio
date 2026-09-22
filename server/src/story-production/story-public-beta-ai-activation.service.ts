@@ -229,6 +229,7 @@ export class StoryPublicBetaAiActivationService {
         configPins: { contract: 'publication_style_snapshot_v1', sampleCount: STYLE_SAMPLE_COUNT },
         configHash: this.sha256({ contract: 'publication_style_snapshot_v1', sampleCount: STYLE_SAMPLE_COUNT }),
         phase: 'completed',
+        totalParagraphs: parts.length,
         totalParts: parts.length,
         plannedParagraphs: parts.length,
         completedParagraphs: parts.length,
