@@ -249,10 +249,16 @@
       inlineStatus.className = "form-status";
     }
     try {
+      const payload = new FormData();
+      [...input.files].forEach((file) => payload.append("manuscripts", file));
+      payload.append("storyKey", storyKey);
+      payload.append("finalManuscriptConfirmed", "true");
+      payload.append("rightsConfirmed", "true");
+      payload.append("publicReleaseConfirmed", "true");
       await api.fetch(`${endpoint}/publish-approved`, {
         method: "POST",
         auth: true,
-        body: new FormData(form)
+        body: payload
       });
       form.reset();
       if (inlineStatus) {
