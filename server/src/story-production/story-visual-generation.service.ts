@@ -417,16 +417,34 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
     let existing = await this.ensureGeneration(prompt);
     let effective: Awaited<ReturnType<StoryVisualGenerationService['effectiveVisualPrompt']>> | null = null;
     let replacedAssetId: string | null = null;
+    let replacementFailureCode: string | null = null;
     if (existing.status === 'ready' && existing.assetId) {
       if (!replaceStale) return this.readyResult(sourceSceneKey, existing.assetId, true);
       effective = await this.effectiveVisualPrompt(workId, releaseId, releaseChecksum, prompt.promptText);
       const identity = await this.readyAssetIdentity(existing.assetId);
+      const requestedIdentity = {
+        provider: 'openai',
+        model: this.model(),
+        quality: this.quality(),
+        size: this.size(),
+      };
       if (identity.effectivePromptSha256 === effective.sha256 &&
           identity.visualBibleFingerprint === effective.bible.fingerprint &&
-          identity.visualBibleVersion === effective.bible.version) {
+          identity.visualBibleVersion === effective.bible.version &&
+          identity.provider === requestedIdentity.provider &&
+          identity.model === requestedIdentity.model &&
+          identity.quality === requestedIdentity.quality &&
+          identity.size === requestedIdentity.size) {
         return this.readyResult(sourceSceneKey, existing.assetId, true);
       }
-      const failureCode = this.staleReplacementFailureCode(effective.sha256);
+      const replacementIdentitySha256 = this.sha256Hex(JSON.stringify({
+        effectivePromptSha256: effective.sha256,
+        visualBibleFingerprint: effective.bible.fingerprint,
+        visualBibleVersion: effective.bible.version,
+        ...requestedIdentity,
+      }));
+      const failureCode = this.staleReplacementFailureCode(replacementIdentitySha256);
+      replacementFailureCode = failureCode;
       if (existing.lastErrorCode === failureCode) {
         return { status: 'failed', sourceSceneKey, retryable: false } as const;
       }
@@ -554,10 +572,9 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
       return this.readyResult(sourceSceneKey, asset.id, false);
     } catch (error) {
       const code = signal?.aborted ? 'PROVIDER_OUTCOME_UNKNOWN' : this.safeGenerationError(error);
-      const failureCode = effective ? this.staleReplacementFailureCode(effective.sha256) : null;
       await this.prisma.storyVisualGeneration.updateMany({ where: { id: existing.id, status: 'generating' },
-        data: replacedAssetId && failureCode
-          ? { status: 'ready', assetId: replacedAssetId, lastErrorCode: failureCode,
+        data: replacedAssetId && replacementFailureCode
+          ? { status: 'ready', assetId: replacedAssetId, lastErrorCode: replacementFailureCode,
             startedAt: null, updatedAt: new Date() }
           : { status: 'failed', lastErrorCode: code, startedAt: null, updatedAt: new Date() } });
       this.logger.warn({ event: 'story_visual_generation_failed', workId, sourceSceneKey,
@@ -590,6 +607,10 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
         ? storyVisual.visualBibleFingerprint : null,
       visualBibleVersion: typeof storyVisual.visualBibleVersion === 'string'
         ? storyVisual.visualBibleVersion : null,
+      provider: typeof storyVisual.provider === 'string' ? storyVisual.provider : null,
+      model: typeof storyVisual.model === 'string' ? storyVisual.model : null,
+      quality: typeof storyVisual.quality === 'string' ? storyVisual.quality : null,
+      size: typeof storyVisual.size === 'string' ? storyVisual.size : null,
     };
   }
 

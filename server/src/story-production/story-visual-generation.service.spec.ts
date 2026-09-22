@@ -96,7 +96,8 @@ describe('StoryVisualGenerationService', () => {
     };
     const config = { get: jest.fn((key: string) => values[key]) };
     return { prisma, config, service: new StoryVisualGenerationService(prisma, config as never),
-      generation: () => generation, setGeneration: (value: any) => { generation = value; } };
+      generation: () => generation, setGeneration: (value: any) => { generation = value; },
+      setConfig: (key: string, value: string) => { values[key] = value; } };
   }
 
   afterEach(() => jest.restoreAllMocks());
@@ -276,6 +277,23 @@ describe('StoryVisualGenerationService', () => {
     expect(provider).toHaveBeenCalledTimes(2);
     expect(f.prisma.asset.create).toHaveBeenCalledTimes(1);
     expect(f.generation()).toMatchObject({ attemptCount: 2 });
+
+    const highQualityAssetId = '00000000-0000-4000-8000-000000000010';
+    f.setConfig('OPENAI_IMAGE_QUALITY', 'high');
+    f.prisma.asset.create.mockResolvedValue({ id: highQualityAssetId });
+    provider
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [{ b64_json: image.toString('base64') }] }) } as Response)
+      .mockResolvedValueOnce({ ok: true } as Response);
+
+    await expect(f.service.replaceStale(workId, input)).resolves.toEqual({
+      status: 'ready', sourceSceneKey,
+      publicAssetPath: `/api/v1/story-visual-assets/${highQualityAssetId}`, reused: false,
+    });
+    expect(provider).toHaveBeenCalledTimes(4);
+    expect(f.prisma.asset.create.mock.calls[1][0].data.metadata.storyVisual).toMatchObject({
+      replacesAssetId: replacementAssetId,
+      quality: 'high',
+    });
   });
 
   it('keeps the prior ready asset and blocks another paid attempt after replacement failure for the same identity', async () => {
