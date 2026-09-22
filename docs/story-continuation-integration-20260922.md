@@ -1,5 +1,28 @@
 # Story Continuation Integration Checkpoint
 
+## Beat Visual Integration
+
+Runtime `da495d7` adds reader candidate `674cce9` to the schema65 runtime below.
+Only the candidate's six frontend/test/document paths changed. Independent
+review accepted six browser groups: cached legacy versus invalid bindings,
+A-B-A late response and same-key reuse, actual corrupt image decoding and
+individual cast failure, choice/reset/locale/auth transitions, reading while
+images are pending, and six representative localized mobile/desktop layouts.
+Initial harness idle-state and reset synchronization errors are preserved;
+product source did not change for those corrections. Report:
+`E:/CodexMovedCache/qa-1881-1885-independent-report.md`.
+
+Actual Chrome pixels/decoding/cache were tested against synthetic auth/API/text
+and marked test bitmaps, not actual PG, production origin, or approved artwork.
+The author's15 layout captures plus functional and regression selections are
+described in `story-reader-beat-visual-1881-1885.md`; counts overlap. PM reran the
+six dependency-free visual source checks after integration, all passed. Existing
+16px/400/1.7 reading and no-forced-scroll behavior is retained. The absent
+fallback file is handled honestly, not replaced by invented story imagery.
+Actual Imjin/Norse scene artwork and production publication remain outstanding.
+OTT branch player #1900 is now assigned to Cloud in a separate E worktree;
+its source implementation is not part of this accepted visual candidate.
+
 ## Latest Combined Candidate
 
 Runtime `edebaee` adds lossless packing `770317c` (integrated as `efadff0`)
