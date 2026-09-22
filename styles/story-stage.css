@@ -397,6 +397,40 @@
   min-height: 40px;
 }
 
+.story-paired-delivery-panel {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  min-height: clamp(280px, 56dvh, 620px);
+  padding: 48px 24px;
+  align-content: center;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  text-align: center;
+}
+
+.story-paired-delivery-panel h1,
+.story-paired-delivery-panel p {
+  max-width: 620px;
+  margin: 0;
+}
+
+.story-paired-delivery-panel h1 {
+  font-size: 22px;
+  line-height: 1.35;
+}
+
+.story-paired-delivery-panel p {
+  color: rgba(244, 244, 241, 0.7);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.story-paired-delivery-panel .story-spinner {
+  width: 24px;
+  height: 24px;
+}
+
 .story-structure {
   display: grid;
   gap: 8px;
@@ -934,6 +968,7 @@ button.story-graph-choice {
   .story-choice-list { grid-template-columns: 1fr; }
   .story-ai-notice { grid-template-columns: auto minmax(0, 1fr); }
   .story-ai-notice .story-button { grid-column: 1 / -1; justify-self: stretch; width: 100%; }
+  .story-paired-delivery-panel { min-height: 52dvh; padding: 36px 18px; }
   .story-graph-flow { grid-template-columns: 1fr; }
   .story-reset-dialog { align-items: end; padding: 0; }
   .story-reset-dialog-panel { width: 100%; max-height: min(78dvh, 620px); padding-bottom: calc(22px + env(safe-area-inset-bottom, 0px)); border-right: 0; border-bottom: 0; border-left: 0; border-radius: 8px 8px 0 0; overflow: auto; }

@@ -2117,6 +2117,7 @@ model StoryVisualGeneration {
   releaseId       String    @map("release_id") @db.Uuid
   releaseChecksum String    @map("release_checksum") @db.VarChar(64)
   sourceSceneKey  String    @map("source_scene_key") @db.VarChar(160)
+  variantKey      String    @default("default") @map("variant_key") @db.VarChar(80)
   promptSha256    String    @map("prompt_sha256") @db.VarChar(64)
   status          String    @default("pending") @db.VarChar(24)
   provider        String?   @db.VarChar(32)
@@ -2132,7 +2133,7 @@ model StoryVisualGeneration {
   completedAt     DateTime? @map("completed_at") @db.Timestamptz(6)
   updatedAt       DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
 
-  @@unique([workId, releaseId, sourceSceneKey], map: "uq_story_visual_generations_release_scene")
+  @@unique([workId, releaseId, sourceSceneKey, variantKey], map: "uq_story_visual_generations_release_scene_variant")
   @@index([workId, releaseId, status, updatedAt], map: "idx_story_visual_generations_release_status")
   @@index([status, updatedAt], map: "idx_story_visual_generations_status")
   @@map("story_visual_generations")

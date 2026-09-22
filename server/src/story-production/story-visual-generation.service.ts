@@ -14,6 +14,7 @@ import { Prisma } from '@prisma/client';
 import { createHash, createHmac } from 'crypto';
 import * as sharp from 'sharp';
 import { PrismaService } from '../prisma/prisma.service';
+import { StoryUploadStorageService } from '../story-upload/story-upload-storage.service';
 import type {
   RegisterStoryVisualAiBranchPromptDto,
   RegisterStoryVisualPromptsDto,
@@ -29,6 +30,10 @@ import {
 } from './story-continuation-context.policy';
 import { StoryVisualGenerationQueue } from './story-visual-generation.queue';
 import { StoryVisualGenerationWorker } from './story-visual-generation.worker';
+import {
+  StoryArtistParticipantService,
+  type StoryParticipantVisualReference,
+} from './story-artist-participant.service';
 
 const SOURCE_SCENE_KEY = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,159}$/;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -46,6 +51,18 @@ type ReadyVisual = {
   publicAssetPath: string;
 };
 
+type StoryVisualVariant = {
+  key: string;
+  participantFingerprint: string | null;
+  references: StoryParticipantVisualReference[];
+};
+
+const DEFAULT_VISUAL_VARIANT: StoryVisualVariant = {
+  key: 'default',
+  participantFingerprint: null,
+  references: [],
+};
+
 @Injectable()
 export class StoryVisualGenerationService implements OnApplicationBootstrap, OnModuleDestroy, BeforeApplicationShutdown {
   private readonly logger = new Logger(StoryVisualGenerationService.name);
@@ -57,6 +74,8 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     @Optional() private readonly publicBeta?: StoryPublicBetaPolicy,
+    @Optional() private readonly storyParticipants?: StoryArtistParticipantService,
+    @Optional() private readonly storage?: StoryUploadStorageService,
   ) {
     this.queue = new StoryVisualGenerationQueue(prisma, config);
     this.worker = new StoryVisualGenerationWorker({ executeOne: signal => this.executeQueuedVisual(signal) }, config);
@@ -74,11 +93,16 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
     return this.worker.beforeApplicationShutdown();
   }
 
-  async readyVisuals(workId: string, releaseId: string, sourceSceneKeys: string[]) {
+  async readyVisuals(
+    workId: string,
+    releaseId: string,
+    sourceSceneKeys: string[],
+    variantKey = DEFAULT_VISUAL_VARIANT.key,
+  ) {
     const keys = [...new Set(sourceSceneKeys.filter(key => SOURCE_SCENE_KEY.test(key)))];
     if (!keys.length) return new Map<string, ReadyVisual>();
     const rows = await this.prisma.storyVisualGeneration.findMany({
-      where: { workId, releaseId, sourceSceneKey: { in: keys }, status: 'ready', assetId: { not: null } },
+      where: { workId, releaseId, sourceSceneKey: { in: keys }, variantKey, status: 'ready', assetId: { not: null } },
       select: { sourceSceneKey: true, assetId: true },
     });
     const assets = await this.prisma.asset.findMany({
@@ -95,6 +119,10 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
       sourceSceneKey: row.sourceSceneKey,
       publicAssetPath: this.publicAssetPath(row.assetId),
     }] as const] : []));
+  }
+
+  async variantKeyForProgress(progressId: string) {
+    return (await this.visualVariantForProgress(progressId)).key;
   }
 
   async publicVisualAsset(assetId: string) {
@@ -183,7 +211,8 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
     });
     if (!release) throw new NotFoundException('Active story release not found');
     this.publicBeta?.assertAllowed(progress.workId, release.id, release.checksum);
-    return this.generate(progress.workId, release.id, release.checksum, sourceSceneKey);
+    const variant = await this.visualVariantForProgress(progressId);
+    return this.generate(progress.workId, release.id, release.checksum, sourceSceneKey, undefined, false, variant);
   }
 
   async replaceStale(workId: string, input: ReplaceStaleStoryVisualDto) {
@@ -199,8 +228,8 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
     if (!work || !release) throw new NotFoundException('Active story release not found');
     this.publicBeta?.assertAllowed(workId, release.id, release.checksum);
     const existing = await this.prisma.storyVisualGeneration.findUnique({
-      where: { workId_releaseId_sourceSceneKey: {
-        workId, releaseId: release.id, sourceSceneKey: input.sourceSceneKey,
+      where: { workId_releaseId_sourceSceneKey_variantKey: {
+        workId, releaseId: release.id, sourceSceneKey: input.sourceSceneKey, variantKey: DEFAULT_VISUAL_VARIANT.key,
       } },
       select: { status: true, assetId: true },
     });
@@ -370,6 +399,7 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
       select: {
         workId: true,
         releaseId: true,
+        progressId: true,
         resultGeneratedSceneId: true,
         manuscriptVersionId: true,
         analysisJobId: true,
@@ -391,6 +421,7 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
     const excerpt = Array.from(prose).slice(0, 6_000).join('');
     const references = this.record(continuation.contextReferences);
     let visualProfile = '';
+    let participantProfile = '';
     try {
       const pin = parseContinuationGenerationProfilePin(
         references.generationProfilePin as Prisma.JsonValue | undefined,
@@ -431,6 +462,12 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
           sections,
         })).slice(0, 12_000).join('');
       }
+      const participant = this.storyParticipants
+        ? await this.storyParticipants.pinnedContext(this.prisma, continuation.progressId)
+        : null;
+      if (participant) {
+        participantProfile = Array.from(JSON.stringify(participant.approved)).slice(0, 12_000).join('');
+      }
     } catch {
       throw new ConflictException({
         code: 'STORY_VISUAL_PROFILE_CHANGED',
@@ -445,6 +482,12 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
         ? [
             'The following JSON is the exact creator-approved visual identity for this branch. Treat it as production constraints, not as text to render:',
             visualProfile,
+          ]
+        : []),
+      ...(participantProfile
+        ? [
+            'The following JSON is the exact selected participating artist identity. Preserve fixed identity while adapting presentation to this scene:',
+            participantProfile,
           ]
         : []),
       `Scene title: ${title}`,
@@ -490,12 +533,13 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
     sourceSceneKey: string,
     signal?: AbortSignal,
     replaceStale = false,
+    variant: StoryVisualVariant = DEFAULT_VISUAL_VARIANT,
   ) {
     const prompt = await this.prisma.storyVisualPrompt.findUnique({
       where: { workId_releaseId_sourceSceneKey: { workId, releaseId, sourceSceneKey } },
     });
     if (!prompt || prompt.releaseChecksum !== releaseChecksum) return { status: 'unavailable', reason: 'prompt_missing' } as const;
-    let existing = await this.ensureGeneration(prompt);
+    let existing = await this.ensureGeneration(prompt, variant.key);
     let effective: Awaited<ReturnType<StoryVisualGenerationService['effectiveVisualPrompt']>> | null = null;
     let replacedAssetId: string | null = null;
     let replacementFailureCode: string | null = null;
@@ -626,9 +670,16 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
 
     try {
       effective ??= await this.effectiveVisualPrompt(workId, releaseId, releaseChecksum, prompt.promptText);
-      const image = await this.generateImage(effective.prompt, signal);
+      const image = await this.generateImage(effective.prompt, variant.references, signal);
       const checksumSha256 = this.sha256Hex(image);
-      const storage = await this.uploadImage(workId, releaseId, sourceSceneKey, effective.sha256, image);
+      const storage = await this.uploadImage(
+        workId,
+        releaseId,
+        sourceSceneKey,
+        variant.key,
+        effective.sha256,
+        image,
+      );
       const asset = await this.prisma.$transaction(async tx => {
         const inlineImage = storage.inlineBase64 ? {
           inlineImage: { encoding: 'base64', data: storage.inlineBase64 },
@@ -643,7 +694,8 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
           checksum: checksumSha256,
           metadata: {
             lifecycle: { status: 'active' },
-            storyVisual: { workId, releaseId, releaseChecksum, sourceSceneKey, promptSha256: prompt.promptSha256,
+            storyVisual: { workId, releaseId, releaseChecksum, sourceSceneKey, variantKey: variant.key,
+              participantFingerprint: variant.participantFingerprint, promptSha256: prompt.promptSha256,
               visualBibleVersion: effective!.bible.version, visualBibleFingerprint: effective!.bible.fingerprint,
               effectivePromptSha256: effective!.sha256, ...(replacedAssetId ? { replacesAssetId: replacedAssetId } : {}),
               provider: 'openai', model: this.model(), quality: this.quality(), size: this.size(), ...inlineImage },
@@ -720,10 +772,10 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
   }
 
   private async ensureGeneration(prompt: { workId: string; releaseId: string; releaseChecksum: string;
-    sourceSceneKey: string; promptSha256: string }) {
+    sourceSceneKey: string; promptSha256: string }, variantKey: string) {
     const existing = await this.prisma.storyVisualGeneration.findUnique({
-      where: { workId_releaseId_sourceSceneKey: { workId: prompt.workId, releaseId: prompt.releaseId,
-        sourceSceneKey: prompt.sourceSceneKey } },
+      where: { workId_releaseId_sourceSceneKey_variantKey: { workId: prompt.workId, releaseId: prompt.releaseId,
+        sourceSceneKey: prompt.sourceSceneKey, variantKey } },
     });
     if (existing) {
       if (existing.promptSha256 !== prompt.promptSha256) {
@@ -737,13 +789,14 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
         releaseId: prompt.releaseId,
         releaseChecksum: prompt.releaseChecksum,
         sourceSceneKey: prompt.sourceSceneKey,
+        variantKey,
         promptSha256: prompt.promptSha256,
       } });
     } catch (error) {
       if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2002') throw error;
       return this.prisma.storyVisualGeneration.findUniqueOrThrow({
-        where: { workId_releaseId_sourceSceneKey: { workId: prompt.workId, releaseId: prompt.releaseId,
-          sourceSceneKey: prompt.sourceSceneKey } },
+        where: { workId_releaseId_sourceSceneKey_variantKey: { workId: prompt.workId, releaseId: prompt.releaseId,
+          sourceSceneKey: prompt.sourceSceneKey, variantKey } },
       });
     }
   }
@@ -814,15 +867,33 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
       totalCount >= this.numberFromEnv('STORY_IMAGE_GENERATION_MAX_TOTAL', 160);
   }
 
-  private async generateImage(prompt: string, signal?: AbortSignal) {
+  private async visualVariantForProgress(progressId: string): Promise<StoryVisualVariant> {
+    if (!this.storyParticipants) return DEFAULT_VISUAL_VARIANT;
+    const participant = await this.storyParticipants.visualReferences(progressId);
+    if (!participant) return DEFAULT_VISUAL_VARIANT;
+    return {
+      key: `artist:${participant.participantFingerprint}`,
+      participantFingerprint: participant.participantFingerprint,
+      references: participant.references,
+    };
+  }
+
+  private async generateImage(
+    prompt: string,
+    references: StoryParticipantVisualReference[],
+    signal?: AbortSignal,
+  ) {
     const timeout = AbortSignal.timeout(this.numberFromEnv('STORY_IMAGE_GENERATION_TIMEOUT_MS', 120_000));
-    const response = await fetch('https://api.openai.com/v1/images/generations', {
-      method: 'POST',
-      headers: { authorization: `Bearer ${this.requiredEnv('OPENAI_API_KEY')}`, 'content-type': 'application/json' },
-      body: JSON.stringify({ model: this.model(), prompt, n: 1, size: this.size(), quality: this.quality(),
-        output_format: 'webp', output_compression: 86, moderation: 'auto' }),
-      signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
-    });
+    const requestSignal = signal ? AbortSignal.any([signal, timeout]) : timeout;
+    const response = references.length
+      ? await this.generateImageFromReferences(prompt, references, requestSignal)
+      : await fetch('https://api.openai.com/v1/images/generations', {
+          method: 'POST',
+          headers: { authorization: `Bearer ${this.requiredEnv('OPENAI_API_KEY')}`, 'content-type': 'application/json' },
+          body: JSON.stringify({ model: this.model(), prompt, n: 1, size: this.size(), quality: this.quality(),
+            output_format: 'webp', output_compression: 86, moderation: 'auto' }),
+          signal: requestSignal,
+        });
     if (!response.ok) throw new Error(`OPENAI_${response.status}`);
     const payload = await response.json() as { data?: Array<{ b64_json?: unknown }> };
     const encoded = payload.data?.[0]?.b64_json;
@@ -831,6 +902,47 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
     if (image.length < 1024 || image.length > 16 * 1024 * 1024 || image.toString('ascii', 0, 4) !== 'RIFF' ||
         image.toString('ascii', 8, 12) !== 'WEBP') throw new Error('OPENAI_IMAGE_INVALID');
     return this.validateAndSanitizeImage(image);
+  }
+
+  private async generateImageFromReferences(
+    prompt: string,
+    references: StoryParticipantVisualReference[],
+    signal: AbortSignal,
+  ) {
+    if (!this.storage) throw new Error('STORY_VISUAL_REFERENCE_STORAGE_UNAVAILABLE');
+    const form = new FormData();
+    form.set('model', this.model());
+    form.set('prompt', [
+      prompt,
+      'The attached images are approved identity references for the participating artist character.',
+      'Preserve the same recognizable face, hair, body proportions, and signature traits. Adapt only costume, pose, lighting, and rendering medium to the story scene.',
+    ].join('\n'));
+    form.set('n', '1');
+    form.set('size', this.size());
+    form.set('quality', this.quality());
+    form.set('output_format', 'webp');
+    form.set('output_compression', '86');
+    form.set('input_fidelity', 'high');
+    for (const [index, reference] of references.slice(0, 8).entries()) {
+      const image = await this.storage.getObject({
+        storageProvider: reference.storageProvider,
+        storageKey: reference.storageKey,
+        expectedBytes: reference.fileSizeBytes,
+      });
+      if (this.sha256Hex(image) !== reference.checksum) {
+        throw new Error('STORY_VISUAL_REFERENCE_CHANGED');
+      }
+      const extension = reference.mimeType === 'image/jpeg' ? 'jpg'
+        : reference.mimeType === 'image/png' ? 'png' : 'webp';
+      form.append('image[]', new Blob([Uint8Array.from(image)], { type: reference.mimeType }),
+        `artist-reference-${index + 1}.${extension}`);
+    }
+    return fetch('https://api.openai.com/v1/images/edits', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${this.requiredEnv('OPENAI_API_KEY')}` },
+      body: form,
+      signal,
+    });
   }
 
   private async validateAndSanitizeImage(image: Buffer) {
@@ -849,13 +961,21 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
     }
   }
 
-  private async uploadImage(workId: string, releaseId: string, sourceSceneKey: string, promptSha256: string, image: Buffer) {
+  private async uploadImage(
+    workId: string,
+    releaseId: string,
+    sourceSceneKey: string,
+    variantKey: string,
+    promptSha256: string,
+    image: Buffer,
+  ) {
     const provider = this.requiredEnv('OBJECT_STORAGE_PROVIDER');
     if (!['s3', 'r2'].includes(provider)) throw new Error('OBJECT_STORAGE_UNAVAILABLE');
     const prefix = this.storageKeyPrefix();
     const safeModel = this.model().replace(/[^a-zA-Z0-9._-]/g, '-');
+    const variantSha256 = this.sha256Hex(variantKey).slice(0, 16);
     const key = [prefix, 'story-visuals', workId, releaseId, sourceSceneKey,
-      `${promptSha256}-${safeModel}-${this.quality()}-${this.size()}.webp`].filter(Boolean).join('/');
+      `${variantSha256}-${promptSha256}-${safeModel}-${this.quality()}-${this.size()}.webp`].filter(Boolean).join('/');
     const url = this.presignedPutUrl(provider, key, 'image/webp');
     const response = await fetch(url, { method: 'PUT', headers: { 'content-type': 'image/webp' },
       body: image as unknown as BodyInit });
@@ -926,6 +1046,8 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
     const message = error instanceof Error ? error.message : 'UNKNOWN';
     if (message.startsWith('OPENAI_')) return message.slice(0, 80);
     if (message.startsWith('OBJECT_STORAGE_')) return message.slice(0, 80);
+    if (message === 'STORY_VISUAL_REFERENCE_CHANGED') return message;
+    if (message === 'STORY_VISUAL_REFERENCE_STORAGE_UNAVAILABLE') return message;
     if (message === 'TimeoutError' || message.includes('timeout')) return 'GENERATION_TIMEOUT';
     return 'GENERATION_FAILED';
   }

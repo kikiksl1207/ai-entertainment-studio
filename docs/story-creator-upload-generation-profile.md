@@ -168,17 +168,18 @@ authorized administrator.
    likes or votes, or find any active registered artist by exact search. Pin
    the selected artist profile version, approved identity fingerprint and
    reference-asset checksums to that reader's immutable story progress.
-6. [Remaining] Send those approved reference images, not only their analyzed
-   text constraints, to the final image-generation provider.
-7. [Remaining] Gate reader progression on a paired prose-and-artwork ready
-   state, with retry and failure behavior that cannot expose only one half.
-8. [Remaining] Add cross-branch regression coverage for participating-artist
-   changes and paired generation retries.
+6. [Complete] Send the approved reference images and their verified checksums,
+   not only analyzed text constraints, to the image-edit provider. Keep visual
+   reuse isolated by the selected participant fingerprint.
+7. [Complete] Gate generated-scene delivery on a paired prose-and-artwork ready
+   state. While artwork is pending or failed, title, prose and choices remain
+   hidden and the reader sees only a bounded wait or retry state.
+8. [Complete] Cover participant-specific visual variants, reference-image
+   transport, paired delivery and existing visual retry/failure behavior with
+   server and source-contract regression tests.
 
-The current runtime analyzes artist references, lets the reader select an
-eligible registered artist, and locks that creator-approved identity into the
-story progress, continuation context and visual prompt. It does not yet pass
-the original approved reference images to final image generation or enforce
-paired-ready reader delivery. Those two capabilities remain required before
-the complete author-and-artist upload workflow can be described as
-production-ready.
+The runtime now analyzes artist references, lets the reader select an eligible
+registered artist, and locks that creator-approved identity into story
+progress, continuation context, visual prompts and participant-specific image
+reuse. Approved reference images are passed to the image-edit provider and an
+AI-generated scene is not revealed until its prose and artwork are both ready.

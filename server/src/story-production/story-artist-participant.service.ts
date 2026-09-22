@@ -60,6 +60,15 @@ export type StoryApprovedParticipant = {
   };
 };
 
+export type StoryParticipantVisualReference = {
+  assetId: string;
+  checksum: string;
+  storageProvider: 'local' | 'r2' | 's3';
+  storageKey: string;
+  mimeType: 'image/png' | 'image/jpeg' | 'image/webp';
+  fileSizeBytes: number;
+};
+
 @Injectable()
 export class StoryArtistParticipantService {
   constructor(
@@ -273,6 +282,62 @@ export class StoryArtistParticipantService {
         visualIdentityReady: Boolean(identityProfile),
         ...(identityProfile ? { identityProfile } : {}),
       } satisfies StoryApprovedParticipant,
+    };
+  }
+
+  async visualReferences(progressId: string) {
+    const context = await this.pinnedContext(this.prisma, progressId);
+    if (!context) return null;
+    if (!context.pin.identityProfileId || !context.pin.referenceAssetIds.length) {
+      return {
+        participantFingerprint: context.pin.participantFingerprint,
+        artistId: context.pin.artistId,
+        references: [] as StoryParticipantVisualReference[],
+      };
+    }
+    const rows = await this.prisma.artistAsset.findMany({
+      where: {
+        artistId: context.pin.artistId,
+        assetId: { in: context.pin.referenceAssetIds },
+        asset: { visibility: 'public', assetType: 'image' },
+      },
+      select: {
+        assetId: true,
+        asset: {
+          select: {
+            checksum: true,
+            storageProvider: true,
+            storageKey: true,
+            mimeType: true,
+            fileSizeBytes: true,
+          },
+        },
+      },
+    });
+    const byId = new Map(rows.map((row) => [row.assetId, row.asset]));
+    const references = context.pin.referenceAssetIds.map((assetId, index) => {
+      const asset = byId.get(assetId);
+      const expectedChecksum = context.pin.referenceChecksums[index];
+      const fileSizeBytes = Number(asset?.fileSizeBytes ?? -1);
+      if (!asset || asset.checksum !== expectedChecksum ||
+          !['local', 'r2', 's3'].includes(asset.storageProvider) ||
+          !['image/png', 'image/jpeg', 'image/webp'].includes(asset.mimeType) ||
+          !Number.isSafeInteger(fileSizeBytes) || fileSizeBytes < 1 || fileSizeBytes > 50 * 1024 * 1024) {
+        this.changed();
+      }
+      return {
+        assetId,
+        checksum: expectedChecksum,
+        storageProvider: asset.storageProvider as StoryParticipantVisualReference['storageProvider'],
+        storageKey: asset.storageKey,
+        mimeType: asset.mimeType as StoryParticipantVisualReference['mimeType'],
+        fileSizeBytes,
+      };
+    });
+    return {
+      participantFingerprint: context.pin.participantFingerprint,
+      artistId: context.pin.artistId,
+      references,
     };
   }
 

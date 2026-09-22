@@ -49,6 +49,10 @@
       sceneFailed: "장면을 불러오지 못했습니다.",
       sceneNoVisual: "장면 이미지를 표시할 수 없습니다.",
       sceneImageGenerating: "장면 이미지를 준비하고 있습니다.",
+      pairedPreparing: "다음 장면의 글과 그림을 함께 준비하고 있어요.",
+      pairedDetail: "둘 다 준비된 뒤 한 번에 보여드릴게요.",
+      pairedFailed: "장면 그림을 준비하지 못했습니다. 본문은 아직 공개하지 않았어요.",
+      pairedRetry: "그림 준비 다시 확인",
       choices: "선택",
       choosing: "다음 장면을 불러오는 중입니다.",
       choiceFailed: "선택을 반영하지 못했습니다. 다시 시도해 주세요.",
@@ -122,6 +126,10 @@
       sceneFailed: "The scene could not be loaded.",
       sceneNoVisual: "Scene image unavailable.",
       sceneImageGenerating: "Preparing the scene image.",
+      pairedPreparing: "Preparing the next scene's story and artwork together.",
+      pairedDetail: "The scene appears only after both are ready.",
+      pairedFailed: "The artwork could not be prepared. The story text remains hidden.",
+      pairedRetry: "Check artwork again",
       choices: "Choose",
       choosing: "Loading the next scene.",
       choiceFailed: "Your choice could not be applied. Please try again.",
@@ -195,6 +203,10 @@
       sceneFailed: "シーンを読み込めませんでした。",
       sceneNoVisual: "シーン画像を表示できません。",
       sceneImageGenerating: "シーン画像を準備しています。",
+      pairedPreparing: "次のシーンの文章と画像を一緒に準備しています。",
+      pairedDetail: "両方の準備が完了してから同時に表示します。",
+      pairedFailed: "シーン画像を準備できませんでした。本文はまだ公開されていません。",
+      pairedRetry: "画像の準備を再確認",
       choices: "選択",
       choosing: "次のシーンを読み込んでいます。",
       choiceFailed: "選択を反映できませんでした。もう一度お試しください。",
@@ -268,6 +280,10 @@
       sceneFailed: "无法加载场景。",
       sceneNoVisual: "场景图片不可用。",
       sceneImageGenerating: "正在准备场景图片。",
+      pairedPreparing: "正在同时准备下一个场景的故事与图片。",
+      pairedDetail: "两者都准备完成后会一起显示。",
+      pairedFailed: "场景图片准备失败，正文尚未公开。",
+      pairedRetry: "重新检查图片",
       choices: "选择",
       choosing: "正在加载下一个场景。",
       choiceFailed: "无法应用你的选择，请重试。",
@@ -341,6 +357,10 @@
       sceneFailed: "無法載入場景。",
       sceneNoVisual: "場景圖片無法顯示。",
       sceneImageGenerating: "正在準備場景圖片。",
+      pairedPreparing: "正在同時準備下一個場景的故事與圖片。",
+      pairedDetail: "兩者都準備完成後會一起顯示。",
+      pairedFailed: "場景圖片準備失敗，正文尚未公開。",
+      pairedRetry: "重新檢查圖片",
       choices: "選擇",
       choosing: "正在載入下一個場景。",
       choiceFailed: "無法套用你的選擇，請重試。",
@@ -554,6 +574,8 @@
     readingScroll: null,
     beatNotice: "",
     visualRequestKey: "",
+    pairedVisualSceneKey: "",
+    pairedVisualStatus: "idle",
     participantCandidates: [],
     participantSearchResults: [],
     participantQuery: "",
@@ -1424,9 +1446,73 @@
     if (current) current.outerHTML = renderAiNotice();
   }
 
+  function pairedDeliveryPending(scene) {
+    return scene?.deliveryState === "artwork_pending" || scene?.deliveryState === "artwork_unavailable";
+  }
+
+  function renderPairedDelivery(scene) {
+    const sceneKey = typeof scene?.sceneKey === "string" ? scene.sceneKey : "";
+    if (state.pairedVisualSceneKey !== sceneKey) {
+      state.pairedVisualSceneKey = sceneKey;
+      state.pairedVisualStatus = scene?.deliveryState === "artwork_unavailable" ? "failed" : "idle";
+    }
+    const failed = state.pairedVisualStatus === "failed" || scene?.deliveryState === "artwork_unavailable";
+    root.innerHTML = `
+      <section class="story-player story-paired-delivery" aria-busy="${failed ? "false" : "true"}">
+        <a class="story-back" href="/story-stage">← ${escapeHtml(tr("backToStories"))}</a>
+        <div class="story-paired-delivery-panel" role="status" aria-live="polite" tabindex="-1" data-story-scene-focus>
+          ${failed ? "" : '<span class="story-spinner" aria-hidden="true"></span>'}
+          <h1>${escapeHtml(failed ? tr("pairedFailed") : tr("pairedPreparing"))}</h1>
+          <p>${escapeHtml(tr("pairedDetail"))}</p>
+          ${failed ? `<button type="button" class="story-button story-button-primary" data-story-paired-retry>${escapeHtml(tr("pairedRetry"))}</button>` : ""}
+        </div>
+      </section>`;
+    if (!failed) ensurePairedSceneVisual(scene);
+  }
+
+  async function ensurePairedSceneVisual(scene, force = false) {
+    const sceneKey = typeof scene?.sceneKey === "string" ? scene.sceneKey : "";
+    const sessionId = safeGraphId(state.sessionId);
+    if (!sceneKey || !sessionId || !signedIn()) return;
+    const scopedKey = `paired:${sessionId}:${sceneKey}`;
+    if (!force && state.visualRequestKey === scopedKey) return;
+    state.visualRequestKey = scopedKey;
+    state.pairedVisualStatus = "loading";
+    try {
+      const result = await request(`/api/v1/me/story-progress/${encodeURIComponent(sessionId)}/scene-visual`, {
+        method: "POST",
+        auth: true,
+        body: { sourceSceneKey: sceneKey },
+      });
+      if (state.pairedVisualSceneKey !== sceneKey || state.sessionId !== sessionId) return;
+      if (result?.status === "ready") {
+        state.visualRequestKey = "";
+        state.pairedVisualStatus = "idle";
+        return loadScene({ restorePending: false });
+      }
+      if (result?.status === "processing") {
+        setTimeout(() => {
+          if (state.pairedVisualSceneKey !== sceneKey || state.sessionId !== sessionId) return;
+          state.visualRequestKey = "";
+          loadScene({ restorePending: false });
+        }, 1800);
+        return;
+      }
+      state.visualRequestKey = "";
+      state.pairedVisualStatus = "failed";
+      renderPairedDelivery(scene);
+    } catch {
+      if (state.pairedVisualSceneKey !== sceneKey || state.sessionId !== sessionId) return;
+      state.visualRequestKey = "";
+      state.pairedVisualStatus = "failed";
+      renderPairedDelivery(scene);
+    }
+  }
+
   function renderScene() {
     const scene = state.scene;
     if (!scene && state.progress?.status !== "completed") return renderState(tr("sceneFailed"), tr("loadErrorBody"), true);
+    if (pairedDeliveryPending(scene)) return renderPairedDelivery(scene);
     if (state.choices.length > 3) return blockScene(controlTr("sceneUnavailable"));
     const reading = readableBeats();
     const isEnding = state.progress?.status === "completed";
@@ -2358,6 +2444,11 @@
     const beatButton = event.target.closest("[data-story-beat]");
     if (beatButton) return turnBeat(beatButton.dataset.storyBeat === "previous" ? -1 : 1);
     if (event.target.closest("[data-story-ai-recover]")) return recoverAiOperation();
+    if (event.target.closest("[data-story-paired-retry]")) {
+      state.pairedVisualStatus = "idle";
+      state.visualRequestKey = "";
+      return ensurePairedSceneVisual(state.scene, true);
+    }
     const choiceButton = event.target.closest("[data-choice-id]");
     if (choiceButton) return submitChoice(choiceButton.dataset.choiceId);
     if (event.target.closest("[data-story-custom-choice]")) {

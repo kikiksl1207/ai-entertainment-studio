@@ -180,6 +180,77 @@ describe('StoryVisualGenerationService', () => {
     });
   });
 
+  it('separates participant visuals and sends approved reference images to the edit endpoint', async () => {
+    const f = fixture();
+    const participantFingerprint = 'c'.repeat(64);
+    const reference = await sharp({
+      create: { width: 96, height: 96, channels: 3, background: { r: 24, g: 48, b: 72 } },
+    }).webp().toBuffer();
+    const generated = await sharp({
+      create: { width: 1536, height: 1024, channels: 3, background: { r: 12, g: 18, b: 30 } },
+    }).webp().toBuffer();
+    const referenceChecksum = createHash('sha256').update(reference).digest('hex');
+    const participants = {
+      visualReferences: jest.fn().mockResolvedValue({
+        participantFingerprint,
+        artistId: 'artist-id',
+        references: [{
+          assetId: 'reference-id',
+          checksum: referenceChecksum,
+          storageProvider: 'r2',
+          storageKey: 'artists/reference.webp',
+          mimeType: 'image/webp',
+          fileSizeBytes: reference.length,
+        }],
+      }),
+    };
+    const storage = { getObject: jest.fn().mockResolvedValue(reference) };
+    const service = new StoryVisualGenerationService(
+      f.prisma,
+      f.config as never,
+      undefined,
+      participants as never,
+      storage as never,
+    );
+    const provider = jest.spyOn(global, 'fetch')
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: [{ b64_json: generated.toString('base64') }] }),
+      } as Response)
+      .mockResolvedValueOnce({ ok: true } as Response);
+
+    await expect(service.requestForProgress('user-id', progressId, sourceSceneKey))
+      .resolves.toMatchObject({ status: 'ready', sourceSceneKey });
+
+    expect(participants.visualReferences).toHaveBeenCalledWith(progressId);
+    expect(storage.getObject).toHaveBeenCalledWith({
+      storageProvider: 'r2',
+      storageKey: 'artists/reference.webp',
+      expectedBytes: reference.length,
+    });
+    expect(provider.mock.calls[0][0]).toBe('https://api.openai.com/v1/images/edits');
+    const form = provider.mock.calls[0][1]?.body as FormData;
+    expect(form).toBeInstanceOf(FormData);
+    expect(form.getAll('image[]')).toHaveLength(1);
+    expect(String(form.get('prompt'))).toContain('approved identity references');
+    const variantKey = `artist:${participantFingerprint}`;
+    const variantPathKey = createHash('sha256').update(variantKey).digest('hex').slice(0, 16);
+    expect(String(provider.mock.calls[1][0])).toContain(`/${variantPathKey}-`);
+    expect(f.prisma.storyVisualGeneration.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ variantKey }),
+    });
+    expect(f.prisma.asset.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        metadata: expect.objectContaining({
+          storyVisual: expect.objectContaining({
+            variantKey: `artist:${participantFingerprint}`,
+            participantFingerprint,
+          }),
+        }),
+      }),
+    });
+  });
+
   it('calls the provider once, persists the result, and reuses it on the next request', async () => {
     const f = fixture();
     const image = await sharp({

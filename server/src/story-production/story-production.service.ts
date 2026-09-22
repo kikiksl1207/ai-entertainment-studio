@@ -1403,6 +1403,9 @@ export class StoryProductionService {
     if (!scene || !part || !work) throw new NotFoundException('Generated story scene not found');
     let visualManifest = projectStoredStorySceneVisualManifest(scene.visualManifest, scene.sceneKey);
     if (!visualManifest) throw new NotFoundException('Generated story scene not found');
+    const visualVariantKey = this.visualGeneration
+      ? await this.visualGeneration.variantKeyForProgress(progress.id)
+      : 'default';
     const [beats, choices, releaseCapability, readyVisuals, promptKeys] = await Promise.all([
       this.prisma.storyAiGeneratedBeat.findMany({
         where: { sceneId: scene.id },
@@ -1418,7 +1421,7 @@ export class StoryProductionService {
         ? this.economics.capabilityByRelease(progress.activeReleaseId)
         : null,
       this.visualGeneration && progress.activeReleaseId
-        ? this.visualGeneration.readyVisuals(work.id, progress.activeReleaseId, [scene.sceneKey])
+        ? this.visualGeneration.readyVisuals(work.id, progress.activeReleaseId, [scene.sceneKey], visualVariantKey)
         : new Map<string, { sourceSceneKey: string; publicAssetPath: string }>(),
       this.visualGeneration && progress.activeReleaseId
         ? this.visualGeneration.promptKeys(work.id, progress.activeReleaseId, [scene.sceneKey])
@@ -1432,6 +1435,39 @@ export class StoryProductionService {
       throw new NotFoundException('Generated story scene not found');
     }
     assertSuggestedChoiceCount(choices.length);
+    const deliveryState = generatedVisual
+      ? 'ready'
+      : promptKeys.has(scene.sceneKey) ? 'artwork_pending' : 'artwork_unavailable';
+    if (deliveryState !== 'ready') {
+      return {
+        progressId: progress.id,
+        status: progress.status,
+        revision: progress.progressRevision,
+        storyVersion: progress.storyVersion,
+        currentAct: progress.currentAct,
+        currentBeatPosition: progress.currentBeatPosition,
+        part: {
+          id: part.id,
+          seasonKey: part.seasonKey,
+          actNumber: part.actNumber,
+          position: part.position,
+          title: projectLocalizedValue(part.title, locale, work.defaultLocale),
+        },
+        scene: {
+          id: scene.id,
+          sceneKey: scene.sceneKey,
+          title: null,
+          beats: [],
+          visualManifest,
+          visualGenerationAvailable: deliveryState === 'artwork_pending',
+          deliveryState,
+          endingType: null,
+        },
+        choices: [],
+        path: boundedPath(jsonArray(progress.pathSummary)),
+        releaseCapability: { ...firstReleaseChoiceCapability(), source: 'paired_delivery_pending' },
+      };
+    }
     return {
       progressId: progress.id,
       status: progress.status,
@@ -1458,6 +1494,7 @@ export class StoryProductionService {
         })),
         visualManifest,
         visualGenerationAvailable: promptKeys.has(scene.sceneKey) && !generatedVisual,
+        deliveryState,
         endingType: scene.endingType,
       },
       choices: progress.status === 'active'
@@ -1519,9 +1556,12 @@ export class StoryProductionService {
     ]);
     const visualKeys = [scene.sceneKey, ...beats.map(beat => beat.sourceSceneKey)
       .filter((key): key is string => Boolean(key))];
+    const visualVariantKey = this.visualGeneration
+      ? await this.visualGeneration.variantKeyForProgress(progress.id)
+      : 'default';
     const [readyVisuals, promptKeys] = this.visualGeneration && progress.activeReleaseId
       ? await Promise.all([
-          this.visualGeneration.readyVisuals(work.id, progress.activeReleaseId, visualKeys),
+          this.visualGeneration.readyVisuals(work.id, progress.activeReleaseId, visualKeys, visualVariantKey),
           this.visualGeneration.promptKeys(work.id, progress.activeReleaseId, visualKeys),
         ])
       : [new Map<string, { sourceSceneKey: string; publicAssetPath: string }>(), new Set<string>()];
