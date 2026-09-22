@@ -1,5 +1,78 @@
 # Creator Analysis Review #1855: Partial Source Candidate
 
+## Discovery Follow-Up: Bounded Local Validation
+
+Current branch `codex/cloud-1855-discovery-20260922` is based on exact PM
+`e563aa2592c0c96547d2af06233727c0d97697b7`, reusing the same E worktree.
+Clean tracked/untracked/ignored state, remote9a6 identity and zero matching
+borrower processes were checked before switching. No move/copy/dependency
+change. Accepted9a6 remains retained remotely; the validation below describes
+that earlier slice, NOT the discovery follow-up results recorded here.
+
+The delta uses the exact frozen3deab1c contract: owned manuscript and analysis
+metadata GETs, default12/max30 keyset pages, then the existing full-detail GET.
+PM reports the frozen discovery backend independently accepted and integrated
+as9e91db3. That backend proof is separate from this frontend route-fixture run;
+this follow-up UI is not yet independently accepted or claimed live.
+Native version/job selectors have independent cursor histories and do not
+modify draft text, part boundaries, source-language selector or confirmation.
+All discovery navigation is GET-only. A discovered version with no analysis
+does not expose a new-start or failed-retry action. Local pending request keys
+are retained unchanged while browsing.
+
+Selected owner/work/version/hash/source-locale/job bindings are checked before
+detail is attached. Semantic jobs must match the selected immutable source;
+legacy null source metadata remains structural, not invented semantic proof.
+Only UUID `error.details.analysisJobId` on the reserved409 is considered, and
+its full detail must pass the same binding checks before being retained.
+Stale account/version/locale replies cannot replace a newer selection.
+
+Actual owner change/logout clears draft, file input, part boundaries, expected
+count, receipt, owned catalog and private evidence; late file/catalog/paste
+responses are invalidated. Same-owner token refresh and UI-language changes
+preserve the draft. Draft invalidation is separate from discovery invalidation.
+No raw manuscript/citation/evidence browser persistence was added.
+
+Validation ran sequentially under the separately granted exclusive slot:
+
+- VM initial:12/12 PASS,0 skipped,0.679s. Six new discovery cases, two new
+  owner/draft cases, four affected explicit-start/unknown/paste/refresh cases.
+- Browser initial: one module-load failure before browser launch. An extra
+  closing parenthesis in the new capture harness prevented parsing. This was
+  not four executed product failures. The original log is retained unchanged.
+- Browser corrected:4/4 PASS,0 skipped,11.115s, after a one-character harness
+  fix. No product source changed during validation.
+- Visual initial:6/6 PASS,0 skipped,15.048s, only after functional PASS.
+  ko390/en400/ja390/zh-CN400/zh-Hant390/en1280 all preserved the68-character
+  draft and checked confirmation; source remained Korean; document width
+  equalled viewport; no raw translation keys; actual native selector
+  center-point hit checks passed. Browsing made zero POST requests.
+
+All logs and six PNG/JSON pairs are under
+`E:/CodexMovedCache/qa-1855-discovery-20260922`:
+`vm-initial.tap`, `browser-functional-initial.tap`,
+`browser-functional-harness-corrected.tap`, `browser-visual-initial.tap`, and
+`visual-initial/`. Representative inspected images are
+`ko-KR-390-discovery.png`, `en-US-400-discovery.png`, and
+`en-US-1280-discovery.png` in that image directory. Every JSON caption labels
+the private synthetic metadata fixture and excludes backend/provider/approval
+proof. The legacy fixed mobile navigation may cover the bottom edge of lower
+page content; tested selectors were centered and reachable. No global
+navigation redesign or acceptance is claimed.
+
+Used E TEMP/TMP `E:/CodexMovedCache/tmp/cloud-1855-discovery-20260922` and the
+same retained E Node/Playwright runtime documented below. No testserver, DB,
+provider, install, schema/client, main or dependency action. Every process
+exited; final OS inspection found zero matching task/Playwright Node/Chrome
+processes. The heavy slot was returned before documentation/commit/push.
+The old full24/15 matrix was not repeated or combined into these counts.
+
+Exactly the existing ten scoped paths are used; no backend, schema, packages,
+semantic decisions, final proof/confirmation, provider, publication or global
+navigation edits. Source whitespace check passes. Full semantic decisions,
+final confirmation/common-proof, publication and actual cross-device backend
+integration remain outside this bounded local validation.
+
 ## Status And Base
 
 BOUNDED LOCAL VALIDATION COMPLETE. VM and intercepted native-browser checks

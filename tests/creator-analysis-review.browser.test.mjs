@@ -17,7 +17,7 @@ let browser;
 before(async () => { browser = await chromium.launch({ executablePath: process.env.STORY_UI_BROWSER, headless: true }); });
 after(async () => { await browser?.close(); });
 
-async function fixture({ locale = 'en-US', width = 390, rows = [makeEvidence(0, { observation: longObservation })], hook } = {}) {
+async function fixture({ locale = 'en-US', width = 390, rows = [makeEvidence(0, { observation: longObservation })], hook, browse = false } = {}) {
   const context = await browser.newContext({ viewport: { width, height: width > 400 ? 900 : 844 }, serviceWorkers: 'block' });
   await context.addInitScript(({ origin, locale }) => {
     window.LUMINA_API_BASE = origin;
@@ -37,6 +37,12 @@ async function fixture({ locale = 'en-US', width = 390, rows = [makeEvidence(0, 
       const job = makeJob({ evidenceCount: rows.length });
       if (call.path === '/api/v1/me/creator-studio') return route.fulfill({ json: { access: { enabled: true }, artists: [], summary: {}, policy: {} } });
       if (call.path.endsWith('/creator-studio/stories')) return route.fulfill({ json: { items: [{ workId: ids.work, title: { value: 'Local private QA work' }, permissions: { createManuscript: true } }], nextCursor: null } });
+      if (call.path.endsWith('/manuscripts') && call.method === 'GET') return route.fulfill({ json: { workId: ids.work,
+        items: [{ id: ids.manuscript, workId: ids.work, version: 3, locale: 'ko', contentHash: 'a'.repeat(64) }], hasMore: false, nextCursor: null } });
+      if (call.path.endsWith(`/manuscripts/${ids.manuscript}/analyses`) && call.method === 'GET') {
+        const { evidenceCount, budget, ...metadata } = job;
+        return route.fulfill({ json: { manuscriptVersionId: ids.manuscript, items: [metadata], hasMore: false, nextCursor: null } });
+      }
       if (call.path.endsWith('/manuscripts/paste') && call.method === 'POST') {
         assert.ok(call.body.includes(manuscriptText));
         return route.fulfill({ json: { manuscript: { id: ids.manuscript, workId: ids.work, locale: 'ko', version: 3, contentHash: 'a'.repeat(64) },
@@ -80,9 +86,17 @@ async function fixture({ locale = 'en-US', width = 390, rows = [makeEvidence(0, 
   await page.locator('#writerManuscriptParts input[maxlength="240"]').fill('Local fixture part');
   await page.locator('#writerManuscriptReview').click();
   await page.locator('#writerManuscriptConfirm').check();
-  await page.locator('#writerManuscriptSubmit').click();
-  await page.locator('#writerAnalysisStart').waitFor({ state: 'visible' });
+  if (!browse) {
+    await page.locator('#writerManuscriptSubmit').click();
+    await page.locator('#writerAnalysisStart').waitFor({ state: 'visible' });
+  }
   return { page, calls, errors, unexpectedWrites, close: () => context.close(),
+    browse: async () => {
+      await page.locator('#writerDiscoveryVersions').selectOption(ids.manuscript);
+      await page.locator('#writerDiscoveryJobs option[value="' + ids.job + '"]').waitFor({ state: 'attached' });
+      await page.locator('#writerDiscoveryJobs').selectOption(ids.job);
+      await page.locator('.writer-analysis-item').first().waitFor();
+    },
     start: async () => { await page.locator('#writerAnalysisStart').click(); await page.locator('.writer-analysis-item').first().waitFor(); } };
 }
 
@@ -100,6 +114,92 @@ test('analysis browser functional: actual paste receipt then explicit one analys
     assert.deepEqual(f.errors, []);
   } finally { await f.close(); }
 });
+
+test('discovery browser functional: existing version and job preserve draft consent with zero POST', async () => {
+  const f = await fixture({ browse: true });
+  try {
+    await f.browse();
+    assert.equal(await f.page.locator('#writerManuscriptBody').inputValue(), manuscriptText);
+    assert.equal(await f.page.locator('#writerManuscriptParts input[maxlength="240"]').inputValue(), 'Local fixture part');
+    assert.equal(await f.page.locator('#writerManuscriptConfirm').isChecked(), true);
+    assert.equal(await f.page.locator('#writerAnalysisStart').isVisible(), false);
+    assert.equal(f.calls.filter(call => call.method !== 'GET').length, 0);
+    assert.deepEqual(f.errors, []);
+  } finally { await f.close(); }
+});
+
+test('discovery browser functional: reserved details fetch existing job without another enqueue', async () => {
+  const f = await fixture({ hook: call => call.method === 'POST' && call.path.endsWith('/analyses') ?
+    { status: 409, body: { success: false, error: { code: 'ANALYSIS_VERSION_ALREADY_RESERVED', details: { analysisJobId: ids.job } } } } : null });
+  try {
+    await f.start();
+    assert.equal(f.calls.filter(call => call.method === 'POST' && call.path.endsWith('/analyses')).length, 1);
+    assert.equal(f.calls.filter(call => call.path.endsWith('/analyses/' + ids.job)).length, 1);
+    assert.equal(await f.page.locator('#writerAnalysisStart').isVisible(), false);
+  } finally { await f.close(); }
+});
+
+test('discovery browser functional: logout clears private draft, file selection, catalog and evidence', async () => {
+  const f = await fixture({ browse: true });
+  try {
+    await f.browse();
+    await f.page.evaluate(() => {
+      localStorage.removeItem('lumina_auth'); localStorage.removeItem('lumina.session');
+      window.dispatchEvent(new StorageEvent('storage', { key: 'lumina_auth' }));
+    });
+    assert.equal(await f.page.locator('#writerManuscriptBody').inputValue(), '');
+    assert.equal(await f.page.locator('#writerManuscriptFile').inputValue(), '');
+    assert.equal(await f.page.locator('#writerManuscriptWork option').count(), 0);
+    assert.equal(await f.page.locator('#writerManuscriptConfirm').isChecked(), false);
+    assert.equal(await f.page.locator('#writerDiscovery').isVisible(), false);
+    assert.equal(await f.page.locator('#writerAnalysisEvidence').textContent(), '');
+    assert.equal(f.calls.filter(call => call.method !== 'GET').length, 0);
+  } finally { await f.close(); }
+});
+
+test('discovery browser functional: stale detail cannot repaint after version deselection', async () => {
+  const gate = deferred();
+  const f = await fixture({ browse: true, hook: async call => { if (call.path.endsWith('/analyses/' + ids.job)) { await gate.promise; return null; } } });
+  try {
+    await f.page.locator('#writerDiscoveryVersions').selectOption(ids.manuscript);
+    await f.page.locator('#writerDiscoveryJobs option[value="' + ids.job + '"]').waitFor({ state: 'attached' });
+    await f.page.locator('#writerDiscoveryJobs').selectOption(ids.job);
+    await f.page.locator('#writerDiscoveryVersions').selectOption('');
+    gate.resolve(); await f.page.locator('#writerAnalysis').waitFor({ state: 'hidden' });
+    assert.equal(await f.page.locator('#writerAnalysisEvidence').textContent(), '');
+    assert.equal(await f.page.locator('#writerManuscriptBody').inputValue(), manuscriptText);
+    assert.equal(await f.page.locator('#writerManuscriptConfirm').isChecked(), true);
+    assert.equal(f.calls.filter(call => call.method !== 'GET').length, 0);
+  } finally { gate.resolve(); await f.close(); }
+});
+
+for (const [locale, width] of [['ko-KR', 390], ['en-US', 400], ['ja-JP', 390], ['zh-CN', 400], ['zh-Hant', 390], ['en-US', 1280]]) {
+  test(`discovery browser visual: ${locale} ${width} native selection`, async () => {
+    assert.match(artifacts || '', /^E:[/\\]/i);
+    const f = await fixture({ locale, width, browse: true });
+    try {
+      await f.browse();
+      for (const selector of ['#writerDiscoveryVersions', '#writerDiscoveryJobs']) {
+        await f.page.locator(selector).evaluate(node => node.scrollIntoView({ block: 'center', behavior: 'instant' }));
+        assert.ok(await f.page.locator(selector).evaluate(node => {
+          const r = node.getBoundingClientRect(); const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+          return hit === node && r.width <= innerWidth && r.height >= 40;
+        }));
+      }
+      const metrics = await f.page.evaluate(() => ({ width: innerWidth, documentWidth: document.documentElement.scrollWidth,
+        draftPreserved: document.getElementById('writerManuscriptBody').value.length,
+        confirmation: document.getElementById('writerManuscriptConfirm').checked,
+        rawKeys: /writerAnalysis\./.test(document.getElementById('writerDiscovery').innerText),
+        selectedLocale: document.getElementById('writerAnalysisVersion').textContent }));
+      assert.equal(metrics.documentWidth, width); assert.equal(metrics.rawKeys, false); assert.equal(metrics.confirmation, true);
+      assert.equal(metrics.draftPreserved, manuscriptText.length); assert.equal(f.calls.filter(call => call.method !== 'GET').length, 0);
+      await mkdir(artifacts, { recursive: true });
+      await f.page.screenshot({ path: path.join(artifacts, `${locale}-${width}-discovery.png`) });
+      await writeFile(path.join(artifacts, `${locale}-${width}-discovery.json`), JSON.stringify({ locale, ...metrics,
+        caption: 'Local owned-discovery metadata fixtures only; no actual manuscript, provider, author approval or backend integration proof.' }, null, 2));
+    } finally { await f.close(); }
+  });
+}
 
 test('analysis browser functional: full cursor traversal and reread do not enqueue or approve again', async () => {
   const rows = Array.from({ length: 205 }, (_, index) => makeEvidence(index));

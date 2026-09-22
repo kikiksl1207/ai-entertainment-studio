@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createHarness, makeJob, makeEvidence, response, failure, deferred, element, click, evidenceItems,
-  ids, citation, quoteText, script } from './creator-analysis-review.test-support.mjs';
+  ids, citation, quoteText, script, sourceHash } from './creator-analysis-review.test-support.mjs';
 
 test('verified receipt requires explicit start and double activation sends one retained-key POST', async () => {
   const gate = deferred();
@@ -273,4 +273,116 @@ test('source wiring contains five-language copy, narrow readable layout and no e
   assert.ok(html.indexOf('/pages/creator-analysis-review.js') > html.indexOf('/app.js'));
   assert.match(css, /\.writer-analysis-item p[^}]*font-size: 16px; font-weight: 400/);
   assert.doesNotMatch(script, /innerHTML|localStorage|data\.analysisJobId|\/decisions|\/submit|\/transition|publicationApproved\s*=\s*true/);
+});
+
+const version = (number = 1, id = ids.manuscript) => ({ id, workId: ids.work, version: number, locale: 'ko', contentHash: sourceHash });
+function discoveryRoute(versions = [version()], jobs = [makeJob()]) {
+  return (call, route) => {
+    const url = new URL(call.path, 'https://fixture.invalid');
+    const manuscripts = url.pathname.endsWith('/manuscripts');
+    const analyses = url.pathname.includes('/manuscripts/') && url.pathname.endsWith('/analyses') && call.options.method !== 'POST';
+    if (!manuscripts && !analyses) return route(call.path, call.options);
+    assert.equal(url.searchParams.get('limit'), '12');
+    const rows = manuscripts ? versions : jobs;
+    const cursor = url.searchParams.get('cursor'), start = cursor ? rows.findIndex(row => row.id === cursor) + 1 : 0;
+    const items = rows.slice(start, start + 12), hasMore = start + items.length < rows.length;
+    return response({ ...(manuscripts ? { workId: ids.work } : { manuscriptVersionId: ids.manuscript }), items,
+      hasMore, nextCursor: hasMore ? items.at(-1).id : null });
+  };
+}
+async function discoverSelect(screen, kind, id) {
+  screen.elements['writerDiscovery' + kind].value = id;
+  await screen.elements['writerDiscovery' + kind].fire('change'); await screen.flush();
+}
+
+test('discovery: version and job selection use GET only and preserve the separate draft', async () => {
+  const screen = createHarness({ discovery: true, receipt: false, handler: discoveryRoute() });
+  screen.elements.writerManuscriptBody.value = 'Unsubmitted private draft';
+  await screen.flush();
+  await discoverSelect(screen, 'Versions', ids.manuscript);
+  await discoverSelect(screen, 'Jobs', ids.job);
+  assert.equal(screen.posts().length, 0);
+  assert.equal(screen.elements.writerManuscriptBody.value, 'Unsubmitted private draft');
+  assert.match(element(screen, 'State').textContent, /completed/);
+  assert.equal(element(screen, 'Start').hidden, true);
+  assert.ok(screen.calls.at(-1).path.endsWith('/analyses/' + ids.job), 'discovery metadata is not rendered as detail');
+});
+
+test('discovery: manuscript and analysis keysets expose all pages independently', async () => {
+  const versions = Array.from({ length: 13 }, (_, index) => version(13 - index, index ? makeEvidence(index).id : ids.manuscript));
+  const jobs = Array.from({ length: 13 }, (_, index) => makeJob({ id: index ? makeEvidence(index + 20).id : ids.job, analysisVersion: 13 - index }));
+  const screen = createHarness({ discovery: true, receipt: false, handler: discoveryRoute(versions, jobs) }); await screen.flush();
+  assert.equal(screen.elements.writerDiscoveryVersions.children.length, 13);
+  await screen.elements.writerDiscoveryVersionsNext.fire(); await screen.flush();
+  assert.equal(screen.elements.writerDiscoveryVersions.children.length, 2);
+  await screen.elements.writerDiscoveryVersionsPrevious.fire(); await screen.flush();
+  await discoverSelect(screen, 'Versions', ids.manuscript);
+  await screen.elements.writerDiscoveryJobsNext.fire(); await screen.flush();
+  assert.equal(screen.elements.writerDiscoveryJobs.children.length, 2);
+  assert.equal(screen.elements.writerDiscoveryJobsNext.disabled, true);
+  await screen.elements.writerDiscoveryJobsPrevious.fire(); await screen.flush();
+  assert.equal(screen.elements.writerDiscoveryJobs.children.length, 13);
+  assert.equal(screen.posts().length, 0);
+});
+
+test('discovery: details409 is GET-verified, malformed reference and wrong source cannot attach', async () => {
+  for (const [reference, detail, expectedGets] of [
+    [ids.job, makeJob(), 1], ['not-a-uuid', makeJob(), 0],
+    [ids.job, makeJob({ sourceContentHash: 'c'.repeat(64) }), 1]
+  ]) {
+    const screen = createHarness({ handler: call => call.options.method === 'POST' ? response({ success: false,
+      error: { code: 'ANALYSIS_VERSION_ALREADY_RESERVED', details: { analysisJobId: reference } } }, 409) :
+      response({ job: detail, evidence: [], hasMore: false, nextCursor: null, endCursor: null }) });
+    await click(screen, 'Start');
+    assert.equal(screen.posts().length, 1);
+    assert.equal(screen.calls.filter(call => call.options.method !== 'POST').length, expectedGets);
+    assert.equal(element(screen, 'Start').hidden, true);
+    if (detail.sourceContentHash !== sourceHash) assert.match(element(screen, 'State').textContent, /loadFailed/);
+    const saved = [...screen.storage.values()].map(value => JSON.parse(value));
+    if (expectedGets && detail.sourceContentHash === sourceHash) assert.ok(saved.some(value => value.analysisId === ids.job));
+    else assert.ok(saved.every(value => !value.analysisId));
+  }
+});
+
+test('discovery: late version detail and late account catalog cannot replace the current view', async () => {
+  const gate = deferred(); const second = version(2, ids.work);
+  const route = discoveryRoute([second, version()]);
+  const screen = createHarness({ discovery: true, receipt: false, handler: (call, fallback) => call.path.endsWith('/analyses/' + ids.job) ? gate.promise : route(call, fallback) });
+  await screen.flush(); await discoverSelect(screen, 'Versions', ids.manuscript);
+  screen.elements.writerDiscoveryJobs.value = ids.job;
+  screen.elements.writerDiscoveryJobs.fire('change');
+  await discoverSelect(screen, 'Versions', ids.work);
+  gate.resolve(response({ job: makeJob(), evidence: [makeEvidence()], hasMore: false, nextCursor: null, endCursor: makeEvidence().id }));
+  await screen.flush(); assert.equal(evidenceItems(screen).length, 0);
+  const catalogGate = deferred();
+  const account = createHarness({ discovery: true, receipt: false, handler: () => catalogGate.promise });
+  account.setIdentity({ ownerId: 'second', epoch: 2 }); account.tickIdentity();
+  catalogGate.resolve(response({ workId: ids.work, items: [version()], hasMore: false, nextCursor: null }));
+  await account.flush(); assert.equal(account.elements.writerDiscovery.hidden, true);
+  assert.equal(account.elements.writerDiscoveryVersions.children.length, 0);
+});
+
+test('discovery: browsing cannot replace an unresolved request key or retry a failed job', async () => {
+  const storage = new Map(); const first = createHarness({ storage, handler: () => { throw new Error('unknown'); } });
+  await click(first, 'Start'); const saved = storage.get(`lumina.writer.analysis:fixture-owner:${ids.manuscript}`);
+  const failed = makeJob({ status: 'failed', semanticCompleted: false, budget: { usageUnobserved: true } });
+  const screen = createHarness({ storage, discovery: true, receipt: false, job: failed, handler: discoveryRoute([version()], [failed]) });
+  await screen.flush(); await discoverSelect(screen, 'Versions', ids.manuscript);
+  assert.equal(storage.get(`lumina.writer.analysis:fixture-owner:${ids.manuscript}`), saved);
+  await discoverSelect(screen, 'Jobs', ids.job);
+  assert.equal(screen.posts().length, 0); assert.match(element(screen, 'State').textContent, /failedUnknown/);
+  assert.equal(JSON.parse(storage.get(`lumina.writer.analysis:fixture-owner:${ids.manuscript}`)).requestKey, JSON.parse(saved).requestKey);
+});
+
+test('discovery: selected receipt language is independent of draft language and legacy null remains structural', async () => {
+  const legacy = makeJob({ kind: 'structural_legacy', sourceLocale: null, sourceContentHash: null, semanticCompleted: false });
+  const screen = createHarness({ discovery: true, receipt: false, job: legacy, handler: discoveryRoute([version()], [legacy]) });
+  screen.setContext({ sourceLocale: 'ja' });
+  await screen.flush(); await discoverSelect(screen, 'Versions', ids.manuscript);
+  await discoverSelect(screen, 'Jobs', ids.job);
+  assert.match(element(screen, 'State').textContent, /structural/);
+  assert.equal(screen.window.LuminaCreatorManuscript.context().sourceLocale, 'ja');
+  screen.setLocale('zh-Hant'); await screen.flush();
+  assert.match(element(screen, 'State').textContent, /^zh-Hant:writerAnalysis.structural/);
+  assert.equal(screen.posts().length, 0);
 });

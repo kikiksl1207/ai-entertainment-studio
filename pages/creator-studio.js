@@ -27,6 +27,7 @@
   let writerReceipt = null;
   let studioAuthMarker = null;
   let studioAuthEpoch = 0;
+  let writerOwnerId = readAuth()?.user?.id || readAuth()?.user?.email || null;
 
   const storyIntakeFileRules = {
     manuscripts: { maxCount: 10, maxBytes: 50 * 1024 * 1024, extensions: new Set([".md", ".txt", ".docx", ".pdf", ".json"]) },
@@ -219,6 +220,7 @@
 
   window.LuminaCreatorManuscript = {
     receipt: () => writerReceipt,
+    checkOwner: checkWriterOwner,
     context: () => ({ workId: document.getElementById("writerManuscriptWork")?.value || "",
       sourceLocale: document.getElementById("writerManuscriptLocale")?.value || "ko" })
   };
@@ -1068,7 +1070,7 @@
   function invalidateWriterReview(clearReceipt = true) {
     if (clearReceipt) {
       writerReceipt = null;
-      window.LuminaCreatorAnalysis?.invalidate?.();
+      window.LuminaCreatorAnalysis?.draftChanged?.();
     }
     writerBoundariesReviewed = false;
     writerReview = null;
@@ -1344,6 +1346,21 @@
     if (file) file.value = "";
     if (body) body.value = "";
     writerBodyEdited();
+  }
+
+  function checkWriterOwner() {
+    const user = readAuth()?.user;
+    const next = user?.id || user?.email || null;
+    if (next === writerOwnerId) return;
+    writerOwnerId = next;
+    ++writerCatalogRequest;
+    clearWriterManuscript();
+    const expected = document.getElementById("writerManuscriptExpected");
+    if (expected) expected.value = "";
+    const work = document.getElementById("writerManuscriptWork");
+    if (work) { work.replaceChildren(); work.value = ""; work.disabled = true; }
+    window.LuminaCreatorAnalysis?.invalidate?.();
+    writerState("authRequired", "danger");
   }
 
   // ── #1831 — 라이브 원고 접수 (검토용 multipart intake) ────────────────
@@ -1822,6 +1839,9 @@
   document.getElementById("writerManuscriptConfirm")?.addEventListener("change", syncWriterSubmit);
   document.getElementById("writerManuscriptSubmit")?.addEventListener("click", submitWriterManuscript);
   document.getElementById("writerManuscriptClear")?.addEventListener("click", clearWriterManuscript);
+  window.addEventListener("storage", event => { if (["lumina_auth", "lumina.session", null].includes(event.key)) checkWriterOwner(); });
+  window.addEventListener("lumina:auth-expired", checkWriterOwner);
+  window.addEventListener("focus", checkWriterOwner);
   window.addEventListener("lumina:localechange", () => {
     renderWriterParts();
     if (!document.getElementById("writerManuscriptWork")?.disabled) writerSourceChanged();

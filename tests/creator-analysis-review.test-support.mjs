@@ -47,9 +47,12 @@ class Element {
   async fire(type = 'click') { if (!this.disabled) for (const handler of this.listeners[type] || []) await handler({ target: this }); }
 }
 
-export function createHarness({ job = makeJob(), rows = [makeEvidence()], storage = new Map(), receipt = true, handler } = {}) {
+export function createHarness({ job = makeJob(), rows = [makeEvidence()], storage = new Map(), receipt = true, handler, discovery = false } = {}) {
   const elements = Object.fromEntries(['writerAnalysis', ...['Version', 'State', 'Progress', 'Counts', 'Start', 'Check', 'Boundary', 'Evidence', 'Pages', 'Previous', 'Next', 'PageCount'].map(name => 'writerAnalysis' + name), 'writerManuscriptBody'].map(id => [id, new Element()]));
   Object.values(elements).forEach(element => { element.root = true; });
+  if (discovery) for (const id of ['writerDiscovery', ...['State', 'Refresh', 'Versions', 'Jobs', 'VersionsPrevious', 'VersionsNext', 'JobsPrevious', 'JobsNext'].map(name => 'writerDiscovery' + name)]) {
+    elements[id] = new Element(); elements[id].root = true;
+  }
   let identity = { ownerId: 'fixture-owner', epoch: 1 };
   let selected = { workId: ids.work, sourceLocale: 'ko' };
   let currentJob = job;
@@ -94,7 +97,7 @@ export function createHarness({ job = makeJob(), rows = [makeEvidence()], storag
     receive: () => window.LuminaCreatorAnalysis.receive(receiptValue())
   };
   vm.runInNewContext(script, { window, document, sessionStorage: { getItem: key => storage.get(key) || null, setItem: (key, value) => storage.set(key, value) },
-    crypto: { randomUUID }, URLSearchParams, AbortController,
+    crypto: { randomUUID }, URLSearchParams, AbortController, Option: function(text, value) { const el = new Element('option'); el.textContent = text; el.value = value; return el; },
     setTimeout: (fn, ms) => { timers.set(++timerId, { fn, ms }); return timerId; }, clearTimeout: id => timers.delete(id),
     setInterval: fn => { intervals.set(++timerId, fn); return timerId; } }, { filename: 'creator-analysis-review.js' });
   return screen;

@@ -307,6 +307,17 @@
               <button class="primary-action" type="button" id="writerManuscriptSubmit" disabled data-i18n="writerManuscript.submit">원고 비공개 제출</button>
             </div>
           </article>
+          <section id="writerDiscovery" class="writer-analysis" hidden aria-labelledby="writerDiscoveryTitle">
+            <h2 id="writerDiscoveryTitle" data-i18n="writerAnalysis.savedManuscripts">접수된 원고</h2>
+            <p id="writerDiscoveryState" role="status"></p>
+            <button id="writerDiscoveryRefresh" class="secondary-action" type="button" data-i18n="writerAnalysis.check">상태 다시 확인</button>
+            <div class="writer-discovery-fields">
+              <label><span data-i18n="writerAnalysis.manuscriptVersion">원고 버전</span><select id="writerDiscoveryVersions"></select></label>
+              <nav class="writer-analysis-pages"><button id="writerDiscoveryVersionsPrevious" class="secondary-action" type="button">&larr;</button><span data-i18n="writerAnalysis.manuscriptVersion">원고 버전</span><button id="writerDiscoveryVersionsNext" class="secondary-action" type="button">&rarr;</button></nav>
+              <label><span data-i18n="writerAnalysis.existingAnalysis">기존 분석</span><select id="writerDiscoveryJobs"></select></label>
+              <nav class="writer-analysis-pages"><button id="writerDiscoveryJobsPrevious" class="secondary-action" type="button">&larr;</button><span data-i18n="writerAnalysis.existingAnalysis">기존 분석</span><button id="writerDiscoveryJobsNext" class="secondary-action" type="button">&rarr;</button></nav>
+            </div>
+          </section>
           <section id="writerAnalysis" class="writer-analysis" hidden aria-labelledby="writerAnalysisTitle">
             <h2 id="writerAnalysisTitle" data-i18n="writerAnalysis.title">원고 분석</h2>
             <p id="writerAnalysisVersion" class="writer-analysis-meta"></p>

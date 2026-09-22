@@ -60,8 +60,9 @@ function page(fetch) {
   };
   const storage = new Map([['lumina_auth', JSON.stringify({ accessToken: 'test-token', user: { id: 'test-user' } })]]);
   const localStorage = { getItem: key => storage.get(key) || null, setItem: (key, value) => storage.set(key, value), removeItem: key => storage.delete(key) };
+  const listeners = {};
   const context = { document, window: { LUMINA_API_BASE: 'https://example.invalid',
-    luminaI18n: { t: key => key }, addEventListener() {} }, localStorage,
+    luminaI18n: { t: key => key }, addEventListener: (type, fn) => (listeners[type] ||= []).push(fn) }, localStorage,
     sessionStorage: { getItem: () => null }, location: { hash: '' }, fetch,
     TextEncoder, Blob, FormData, URLSearchParams, AbortController, DOMException, Option: Element,
     setTimeout, clearTimeout, console };
@@ -71,7 +72,8 @@ function page(fetch) {
     '  globalThis.writerTest = { writerBodyEdited, addWriterPart, reviewWriterParts, submitWriterManuscript, syncWriterSubmit };' +
     script.slice(verifyCall + '  verify();'.length);
   vm.runInNewContext(injected, context, { filename: 'creator-studio.js' });
-  return { elements, writer: context.writerTest, window: context.window, storage };
+  return { elements, writer: context.writerTest, window: context.window, storage,
+    emit: (type, event = {}) => (listeners[type] || []).forEach(fn => fn(event)) };
 }
 
 function prepareTwoParts(screen, body = '첫째😀\r\n둘째\r\n') {
@@ -254,4 +256,33 @@ test('five-locale copy and narrow mobile layout remain wired', () => {
   const mobile = css.slice(css.lastIndexOf('@media (max-width: 680px)'));
   assert.ok(mobile.includes('.page-creator-studio .composer-tools button,'));
   assert.ok(mobile.includes('flex: 1 1 100%;'));
+});
+
+test('actual owner change and logout clear draft, file, boundaries, confirmation and owned catalog', () => {
+  for (const next of [{ accessToken: 'new-token', user: { id: 'other-owner' } }, null]) {
+    const screen = page(async () => { throw new Error('unexpected request'); });
+    prepareTwoParts(screen);
+    screen.elements.writerManuscriptFile.value = 'local-private.txt';
+    screen.elements.writerManuscriptConfirm.checked = true;
+    if (next) screen.storage.set('lumina_auth', JSON.stringify(next)); else screen.storage.delete('lumina_auth');
+    screen.emit('storage', { key: 'lumina_auth' });
+    for (const key of ['Body', 'File', 'Expected', 'Work']) assert.equal(screen.elements['writerManuscript' + key].value, '');
+    assert.equal(screen.elements.writerManuscriptParts.children.length, 0);
+    assert.equal(screen.elements.writerManuscriptConfirm.checked, false);
+    assert.equal(screen.elements.writerManuscriptSubmit.disabled, true);
+    assert.equal(screen.window.LuminaCreatorManuscript.receipt(), null);
+  }
+});
+
+test('same-owner token refresh and UI locale change preserve draft, part boundaries and confirmation', () => {
+  const screen = page(async () => { throw new Error('unexpected request'); });
+  const body = prepareTwoParts(screen);
+  screen.elements.writerManuscriptConfirm.checked = true;
+  screen.storage.set('lumina_auth', JSON.stringify({ accessToken: 'renewed-token', user: { id: 'test-user' } }));
+  screen.emit('storage', { key: 'lumina_auth' });
+  screen.emit('lumina:localechange');
+  assert.equal(screen.elements.writerManuscriptBody.value, body);
+  assert.equal(screen.elements.writerManuscriptParts.children.length, 2);
+  assert.equal(screen.elements.writerManuscriptConfirm.checked, true);
+  assert.equal(screen.elements.writerManuscriptExpected.value, '2');
 });

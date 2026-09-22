@@ -913,6 +913,9 @@ label { gap: 8px; }
 .writer-analysis button { min-height: 44px; max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
 .writer-analysis button:disabled { cursor: default; opacity: .55; }
 .writer-analysis .is-danger { color: var(--danger, #ff9aa6); }
+.writer-discovery-fields { display: grid; gap: 12px; min-width: 0; margin-top: 12px; }
+.writer-discovery-fields select { width: 100%; min-width: 0; min-height: 44px; font-size: 16px; }
+.writer-discovery-fields .writer-analysis-pages { margin-top: 0; }
 .story-intake-panel { display: grid; gap: 16px; }
 .story-intake-notice { margin: 0; }
 .story-intake-file-field input[type="file"] { padding: 9px 10px; }
