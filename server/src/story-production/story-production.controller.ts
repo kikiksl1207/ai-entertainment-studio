@@ -2,8 +2,10 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   Headers,
   Param,
+  ParseUUIDPipe,
   Post,
   Query,
   Req,
@@ -35,6 +37,7 @@ import {
 import { StoryProgressControlService } from './story-progress-control.service';
 import { StoryProductionService } from './story-production.service';
 import { StoryAnalysisPageDto } from './dto/story-semantic-analysis.dto';
+import { StoryAnalysisDiscoveryQueryDto } from './dto/story-analysis-discovery.dto';
 
 type OptionalAuthRequest = { user?: AuthUser };
 
@@ -230,6 +233,28 @@ export class StoryProductionController {
     @Param('workId') workId: string,
   ) {
     return this.progressControls.publicState(user.id, workId);
+  }
+
+  @Get('me/creator-studio/stories/:workId/manuscripts')
+  @UseGuards(JwtAuthGuard)
+  @Header('Cache-Control', 'private, no-store')
+  manuscripts(
+    @CurrentUser() user: AuthUser,
+    @Param('workId', ParseUUIDPipe) workId: string,
+    @Query() query: StoryAnalysisDiscoveryQueryDto,
+  ) {
+    return this.stories.manuscriptVersions(user.id, workId, query);
+  }
+
+  @Get('me/creator-studio/manuscripts/:manuscriptId/analyses')
+  @UseGuards(JwtAuthGuard)
+  @Header('Cache-Control', 'private, no-store')
+  analysisJobs(
+    @CurrentUser() user: AuthUser,
+    @Param('manuscriptId', ParseUUIDPipe) manuscriptId: string,
+    @Query() query: StoryAnalysisDiscoveryQueryDto,
+  ) {
+    return this.stories.analysisJobs(user.id, manuscriptId, query);
   }
 
   @Post('me/creator-studio/stories/:workId/manuscripts')
