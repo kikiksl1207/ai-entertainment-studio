@@ -17,7 +17,14 @@ export const locales = ['ko', 'en', 'ja', 'zh-Hans', 'zh-Hant'];
 export const ownerAuth = { accessToken: 'local-owner-token', refreshToken: 'local-owner-refresh', user: { id: 'local-owner' } };
 const root = '/api/v1/me/ott-media';
 export const ok = data => ({ status: 200, ok: true, json: async () => structuredClone(data) });
-export const failure = (status, code = 'OTT_NOT_READY') => ({ status, ok: false, json: async () => ({ code, message: 'PRIVATE_DIAGNOSTIC_DO_NOT_DISPLAY' }) });
+// Match the committed HttpExceptionFilter wire envelope, not the service's thrown body.
+export const failure = (status, code = ({ 400: 'OTT_INVALID', 401: 'UNAUTHORIZED', 403: 'FORBIDDEN',
+  404: 'OTT_NOT_FOUND', 409: 'OTT_NOT_READY', 410: 'OTT_EXPIRED', 503: 'OTT_STORAGE_UNAVAILABLE' })[status] || 'INTERNAL_SERVER_ERROR') => ({
+  status, ok: false, json: async () => ({ success: false, error: {
+    code, statusCode: status, message: 'PRIVATE_DIAGNOSTIC_DO_NOT_DISPLAY',
+    path: '/private-fixture-only', requestId: 'private-fixture-request'
+  } })
+});
 export const flush = async () => { for (let i = 0; i < 12; i++) await new Promise(resolve => setImmediate(resolve)); };
 export function deferred() { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; }
 
