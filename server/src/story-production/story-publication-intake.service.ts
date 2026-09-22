@@ -6,7 +6,12 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { createHash, randomUUID } from 'crypto';
-import { brotliDecompressSync, gunzipSync } from 'zlib';
+import {
+  brotliCompressSync,
+  brotliDecompressSync,
+  constants as zlibConstants,
+  gunzipSync,
+} from 'zlib';
 import { PrismaService } from '../prisma/prisma.service';
 import { StoryUploadStorageService } from '../story-upload/story-upload-storage.service';
 import {
@@ -41,6 +46,8 @@ const NORSE_APPROVED_PART_COUNT = 216;
 const APPROVED_SOURCE_CHUNK_MAX_BYTES = 768 * 1024;
 const APPROVED_SOURCE_MAX_CHUNKS = 64;
 const APPROVED_SOURCE_COMPRESSED_MAX_BYTES = 8 * 1024 * 1024;
+const PUBLICATION_PLAN_MAX_BYTES = 64 * 1024 * 1024;
+const PUBLICATION_PLAN_STORAGE_CONTRACT = 'story-publication-plan-br-base64-v1';
 
 type PublicationPart = {
   partKey: string;
@@ -219,15 +226,19 @@ export class StoryPublicationIntakeService {
     } as const;
     const existing = await this.prisma.storyPublicationImportJob.findUnique({
       where: identity,
+      select: {
+        id: true,
+        status: true,
+        batchCursor: true,
+        workId: true,
+        releaseId: true,
+      },
     });
     if (existing) {
-      if (existing.status === 'published' || this.hasStoredPlan(existing.planSnapshot)) {
+      if (existing.status === 'published' || existing.workId) {
         return this.importJobReceipt(existing, NORSE_APPROVED_PART_COUNT);
       }
-      const uploadedChunks = await this.prisma.storyPublicationSourceChunk.count({
-        where: { jobId: existing.id },
-      });
-      return this.sourceUploadReceipt(existing.id, uploadedChunks);
+      await this.prisma.storyPublicationImportJob.delete({ where: { id: existing.id } });
     }
     const created = await this.prisma.storyPublicationImportJob.create({
       data: {
@@ -1267,7 +1278,7 @@ export class StoryPublicationIntakeService {
   }
 
   private storedPlan(plan: PublicationPlan): Prisma.InputJsonValue {
-    return {
+    const stored = {
       storyKey: plan.storyKey,
       slug: plan.slug,
       title: plan.title,
@@ -1281,12 +1292,31 @@ export class StoryPublicationIntakeService {
       sourceBindingSha256: plan.sourceBindingSha256,
       parts: plan.parts,
       prompts: plan.prompts,
-    } as unknown as Prisma.InputJsonValue;
+    };
+    const serialized = Buffer.from(JSON.stringify(stored), 'utf8');
+    const compressed = brotliCompressSync(serialized, {
+      params: {
+        [zlibConstants.BROTLI_PARAM_QUALITY]: 6,
+        [zlibConstants.BROTLI_PARAM_MODE]: zlibConstants.BROTLI_MODE_TEXT,
+        [zlibConstants.BROTLI_PARAM_SIZE_HINT]: serialized.length,
+      },
+    });
+    return {
+      storageContract: PUBLICATION_PLAN_STORAGE_CONTRACT,
+      data: compressed.toString('base64'),
+    } as Prisma.InputJsonValue;
   }
 
   private hasStoredPlan(value: Prisma.JsonValue | null) {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
     const plan = value as Record<string, unknown>;
+    if (
+      plan.storageContract === PUBLICATION_PLAN_STORAGE_CONTRACT &&
+      typeof plan.data === 'string' &&
+      plan.data.length > 0
+    ) {
+      return true;
+    }
     const manuscript = plan.manuscript;
     return (
       ['imjin', 'norse'].includes(String(plan.storyKey)) &&
@@ -1318,7 +1348,24 @@ export class StoryPublicationIntakeService {
     if (!value || typeof value !== 'object' || Array.isArray(value)) {
       throw new ConflictException('Story publication plan is missing');
     }
-    const plan = value as unknown as PublicationPlanSnapshot;
+    const stored = value as Record<string, unknown>;
+    let plan: PublicationPlanSnapshot;
+    if (
+      stored.storageContract === PUBLICATION_PLAN_STORAGE_CONTRACT &&
+      typeof stored.data === 'string'
+    ) {
+      try {
+        const serialized = brotliDecompressSync(
+          Buffer.from(stored.data, 'base64'),
+          { maxOutputLength: PUBLICATION_PLAN_MAX_BYTES },
+        );
+        plan = JSON.parse(serialized.toString('utf8')) as PublicationPlanSnapshot;
+      } catch {
+        throw new ConflictException('Story publication plan compression is invalid');
+      }
+    } else {
+      plan = value as unknown as PublicationPlanSnapshot;
+    }
     if (
       !['imjin', 'norse'].includes(plan.storyKey) ||
       !plan.slug ||

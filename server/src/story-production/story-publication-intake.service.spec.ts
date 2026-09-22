@@ -27,6 +27,49 @@ describe('StoryPublicationIntakeService queue projection', () => {
     ]);
   });
 
+  it('round-trips publication plans through compressed database storage', () => {
+    const service = new StoryPublicationIntakeService({} as never, {} as never);
+    const plan = {
+      storyKey: 'norse',
+      slug: 'norse-test',
+      title: '북유럽 신화',
+      summary: '검증용 요약',
+      coverPath: '/cover.webp',
+      manuscript: {
+        locale: 'ko',
+        contentHash: 'a'.repeat(64),
+        legacyHash: 'c'.repeat(64),
+        parts: [{ partKey: 'part-1', title: '첫 장', paragraphs: ['승인 원고 본문'] }],
+        source: {
+          kind: 'utf8_paste',
+          rawText: '승인 원고 본문',
+          sha256: 'a'.repeat(64),
+          byteLength: 22,
+        },
+        paragraphCount: 1,
+      },
+      sourceBindingSha256: 'b'.repeat(64),
+      parts: [{
+        partKey: 'part-1',
+        title: '첫 장',
+        actNumber: 1,
+        position: 1,
+        beats: [{ text: '첫 장면', sourceSceneKey: 'scene-1' }],
+        choices: [],
+      }],
+      prompts: [],
+    };
+
+    const stored = (service as any).storedPlan(plan);
+    expect(stored.storageContract).toBe('story-publication-plan-br-base64-v1');
+    expect(JSON.stringify(stored)).not.toContain('승인 원고 본문');
+    expect((service as any).readStoredPlan(stored)).toMatchObject({
+      storyKey: 'norse',
+      slug: 'norse-test',
+      parts: [{ partKey: 'part-1' }],
+    });
+  });
+
   it('detects only the exact approved source hashes and omits private storage keys', async () => {
     const prisma = {
       storyUploadSubmission: {
