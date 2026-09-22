@@ -307,7 +307,7 @@ export class StoryPublicationIntakeService {
         throw new ConflictException('Story publication job bindings are missing');
       }
       if (job.status === 'structuring') {
-        const end = Math.min(job.batchCursor + 4, plan.parts.length);
+        const end = Math.min(job.batchCursor + 12, plan.parts.length);
         const batch = plan.parts.slice(job.batchCursor, end);
         stage = `structure_parts_${job.batchCursor}_${end}`;
         await tx.storyPart.createMany({
@@ -356,7 +356,7 @@ export class StoryPublicationIntakeService {
       }
 
       if (job.status === 'materializing') {
-        const end = Math.min(job.batchCursor + 2, plan.parts.length);
+        const end = Math.min(job.batchCursor + 6, plan.parts.length);
         const batch = plan.parts.slice(job.batchCursor, end);
         stage = `materialize_bindings_${job.batchCursor}_${end}`;
         const storedParts = await tx.storyPart.findMany({
