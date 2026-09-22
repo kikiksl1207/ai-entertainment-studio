@@ -16,7 +16,9 @@ describe('StoryVisualGenerationService', () => {
   function fixture(enabled = true) {
     let generation: any = null;
     const prisma: any = {
-      storyReaderProgress: { findFirst: jest.fn().mockResolvedValue({ workId, currentSceneId: sceneId, activeReleaseId: releaseId }) },
+      storyReaderProgress: { findFirst: jest.fn().mockResolvedValue({
+        workId, currentSceneId: sceneId, currentGeneratedSceneId: null, activeReleaseId: releaseId,
+      }) },
       storyScene: { findFirst: jest.fn().mockResolvedValue({ id: sceneId, sceneKey: 'part-001-main', partId }) },
       storyPart: { findFirst: jest.fn().mockResolvedValue({ id: partId }), findMany: jest.fn() },
       storyWork: { findFirst: jest.fn().mockResolvedValue({ id: workId, activeReleaseId: releaseId }) },
@@ -96,6 +98,34 @@ describe('StoryVisualGenerationService', () => {
     await expect(f.service.requestForProgress('user-id', progressId, sourceSceneKey))
       .resolves.toEqual({ status: 'unavailable', reason: 'generation_disabled' });
     expect(provider).not.toHaveBeenCalled();
+  });
+
+  it('authorizes the exact generated scene owned by the active reader progress', async () => {
+    const f = fixture(false);
+    const generatedSceneId = '00000000-0000-4000-8000-000000000007';
+    const generatedSceneKey = 'ai-reader-route-0001';
+    f.prisma.storyReaderProgress.findFirst.mockResolvedValue({
+      workId,
+      currentSceneId: null,
+      currentGeneratedSceneId: generatedSceneId,
+      activeReleaseId: releaseId,
+    });
+    f.prisma.storyAiGeneratedScene.findFirst.mockResolvedValue({ id: generatedSceneId });
+
+    await expect(f.service.requestForProgress('user-id', progressId, generatedSceneKey))
+      .resolves.toEqual({ status: 'unavailable', reason: 'generation_disabled' });
+    expect(f.prisma.storyAiGeneratedScene.findFirst).toHaveBeenCalledWith({
+      where: {
+        id: generatedSceneId,
+        progressId,
+        userId: 'user-id',
+        workId,
+        releaseId,
+        sceneKey: generatedSceneKey,
+        status: 'ready',
+      },
+      select: { id: true },
+    });
   });
 
   it('calls the provider once, persists the result, and reuses it on the next request', async () => {

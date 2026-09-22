@@ -128,28 +128,47 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
     if (!SOURCE_SCENE_KEY.test(sourceSceneKey)) throw new BadRequestException('Invalid story visual key');
     const progress = await this.prisma.storyReaderProgress.findFirst({
       where: { id: progressId, userId, status: 'active' },
-      select: { workId: true, currentSceneId: true, activeReleaseId: true },
+      select: { workId: true, currentSceneId: true, currentGeneratedSceneId: true, activeReleaseId: true },
     });
-    if (!progress?.currentSceneId || !progress.activeReleaseId) throw new NotFoundException('Active story progress not found');
-    const scene = await this.prisma.storyScene.findFirst({
-      where: { id: progress.currentSceneId, status: 'published', fixtureSource: false },
-      select: { id: true, sceneKey: true, partId: true },
-    });
-    const part = scene ? await this.prisma.storyPart.findFirst({
-      where: { id: scene.partId, workId: progress.workId, status: 'published', fixtureSource: false },
-      select: { id: true },
-    }) : null;
-    const work = part ? await this.prisma.storyWork.findFirst({
+    if (!progress?.activeReleaseId || (!progress.currentSceneId && !progress.currentGeneratedSceneId)) {
+      throw new NotFoundException('Active story progress not found');
+    }
+    const work = await this.prisma.storyWork.findFirst({
       where: { id: progress.workId, status: 'published', fixtureSource: false, activeReleaseId: progress.activeReleaseId },
       select: { id: true, activeReleaseId: true },
-    }) : null;
-    if (!scene || !part || !work) throw new NotFoundException('Published story scene not found');
-    const isCanonicalScene = scene.sceneKey === sourceSceneKey;
-    const authoredBeat = isCanonicalScene ? null : await this.prisma.storyBeat.findFirst({
-      where: { sceneId: scene.id, sourceSceneKey },
-      select: { id: true },
     });
-    if (!isCanonicalScene && !authoredBeat) throw new NotFoundException('Story visual is outside current scene');
+    if (!work) throw new NotFoundException('Published story scene not found');
+    if (progress.currentGeneratedSceneId) {
+      const generatedScene = await this.prisma.storyAiGeneratedScene.findFirst({
+        where: {
+          id: progress.currentGeneratedSceneId,
+          progressId,
+          userId,
+          workId: progress.workId,
+          releaseId: progress.activeReleaseId,
+          sceneKey: sourceSceneKey,
+          status: 'ready',
+        },
+        select: { id: true },
+      });
+      if (!generatedScene) throw new NotFoundException('Story visual is outside current scene');
+    } else {
+      const scene = await this.prisma.storyScene.findFirst({
+        where: { id: progress.currentSceneId!, status: 'published', fixtureSource: false },
+        select: { id: true, sceneKey: true, partId: true },
+      });
+      const part = scene ? await this.prisma.storyPart.findFirst({
+        where: { id: scene.partId, workId: progress.workId, status: 'published', fixtureSource: false },
+        select: { id: true },
+      }) : null;
+      if (!scene || !part) throw new NotFoundException('Published story scene not found');
+      const isCanonicalScene = scene.sceneKey === sourceSceneKey;
+      const authoredBeat = isCanonicalScene ? null : await this.prisma.storyBeat.findFirst({
+        where: { sceneId: scene.id, sourceSceneKey },
+        select: { id: true },
+      });
+      if (!isCanonicalScene && !authoredBeat) throw new NotFoundException('Story visual is outside current scene');
+    }
     const release = await this.prisma.storyRelease.findFirst({
       where: { id: progress.activeReleaseId, workId: progress.workId, status: 'active' },
       select: { id: true, checksum: true },
