@@ -13,6 +13,12 @@ describe('StoryPublicationIntakeController', () => {
     expect(
       Reflect.getMetadata(
         ADMIN_PERMISSIONS_KEY,
+        StoryPublicationIntakeController.prototype.intake,
+      ),
+    ).toEqual(['*']);
+    expect(
+      Reflect.getMetadata(
+        ADMIN_PERMISSIONS_KEY,
         StoryPublicationIntakeController.prototype.promote,
       ),
     ).toEqual(['*']);
@@ -22,7 +28,10 @@ describe('StoryPublicationIntakeController', () => {
     const publication = {
       promote: jest.fn().mockResolvedValue({ work: { id: 'work' } }),
     };
-    const controller = new StoryPublicationIntakeController(publication as never);
+    const controller = new StoryPublicationIntakeController(
+      publication as never,
+      {} as never,
+    );
     const body: PromoteStoryUploadDto = {
       storyKey: 'imjin',
       finalManuscriptConfirmed: true,
@@ -32,5 +41,32 @@ describe('StoryPublicationIntakeController', () => {
     await expect(controller.promote({ id: 'owner' } as never, 'submission', body))
       .resolves.toEqual({ work: { id: 'work' } });
     expect(publication.promote).toHaveBeenCalledWith('owner', 'submission', body);
+  });
+
+  it('records an operator upload under the authenticated operator', async () => {
+    const uploads = {
+      intake: jest.fn().mockResolvedValue({ submissionId: 'submission' }),
+    };
+    const controller = new StoryPublicationIntakeController(
+      {} as never,
+      uploads as never,
+    );
+    const body = {
+      title: '불타는 바다의 기록자',
+      originalLocale: 'ko',
+      sourceClass: 'public_domain',
+      submissionType: 'final',
+    } as never;
+    const files = { manuscripts: [{ size: 12 }] } as never;
+
+    await expect(
+      controller.intake({ id: 'owner' } as never, undefined, body, files),
+    ).resolves.toEqual({ submissionId: 'submission' });
+    expect(uploads.intake).toHaveBeenCalledWith(
+      'owner',
+      body,
+      files,
+      undefined,
+    );
   });
 });

@@ -18,7 +18,7 @@
       ]
     }
   ];
-  const state = { items: [], loading: false, loaded: false, promotingId: null };
+  const state = { items: [], loading: false, loaded: false, promotingId: null, uploadingKey: null };
 
   const list = document.getElementById("storyPublicationSubmissionList");
   const statusCards = document.getElementById("storyPublicationStatusCards");
@@ -28,6 +28,7 @@
   const sectionLink = document.querySelector('.sidebar-nav a[href="#story-publication"]');
   const dashboard = document.getElementById("backstageDashboardView");
   const dashboardMain = document.querySelector(".dashboard-main");
+  const uploadForms = [...document.querySelectorAll("[data-story-upload-form]")];
 
   function escapeHtml(value) {
     return String(value ?? "")
@@ -217,6 +218,56 @@
     }
   }
 
+  async function upload(form) {
+    if (!api || state.uploadingKey) return;
+    const storyKey = form.dataset.storyUploadForm;
+    const story = knownStories.find((candidate) => candidate.key === storyKey);
+    const input = form.querySelector('input[type="file"]');
+    const inlineStatus = form.querySelector("[data-story-upload-status]");
+    const button = form.querySelector('button[type="submit"]');
+    const expectedCount = storyKey === "norse" ? 2 : 1;
+    if (!story || !input || input.files.length !== expectedCount) {
+      if (inlineStatus) {
+        inlineStatus.textContent = `${expectedCount}개 파일을 선택해 주세요.`;
+        inlineStatus.className = "form-status is-error";
+      }
+      return;
+    }
+
+    state.uploadingKey = storyKey;
+    button.disabled = true;
+    button.textContent = "등록 중...";
+    button.setAttribute("aria-busy", "true");
+    if (inlineStatus) {
+      inlineStatus.textContent = "파일 체크섬을 확인하고 안전하게 접수하고 있습니다.";
+      inlineStatus.className = "form-status";
+    }
+    try {
+      await api.fetch(endpoint, {
+        method: "POST",
+        auth: true,
+        body: new FormData(form)
+      });
+      form.reset();
+      if (inlineStatus) {
+        inlineStatus.textContent = `${story.title} 최종본을 접수했습니다.`;
+        inlineStatus.className = "form-status is-success";
+      }
+      state.loaded = false;
+      await load({ force: true });
+    } catch (error) {
+      if (inlineStatus) {
+        inlineStatus.textContent = error?.message || "최종본 접수에 실패했습니다.";
+        inlineStatus.className = "form-status is-error";
+      }
+    } finally {
+      state.uploadingKey = null;
+      button.disabled = false;
+      button.textContent = "접수 등록";
+      button.removeAttribute("aria-busy");
+    }
+  }
+
   function updatePromotionButton(card) {
     const button = card?.querySelector("[data-story-promote]");
     if (!button) return;
@@ -276,6 +327,12 @@
     if (button) promote(button);
   });
   refreshButton?.addEventListener("click", () => load({ force: true }));
+  uploadForms.forEach((form) => {
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      upload(form);
+    });
+  });
   sectionLink?.addEventListener("click", () => {
     window.setTimeout(() => {
       if (dashboardMain?.dataset.activeSection === "story-publication") load();

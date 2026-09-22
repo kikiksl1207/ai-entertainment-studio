@@ -447,13 +447,19 @@ async function backstageFetch(path, options = {}) {
     auth = await refreshBackstageAuthOnce();
   }
   const headers = { ...(options.headers || {}) };
-  if (options.body) headers["Content-Type"] = "application/json";
+  const hasBody = options.body !== undefined && options.body !== null;
+  const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
+  if (hasBody && !isFormData) headers["Content-Type"] = "application/json";
   if (options.auth && auth?.accessToken) headers.Authorization = `Bearer ${auth.accessToken}`;
+
+  const requestBody = hasBody
+    ? (isFormData ? options.body : JSON.stringify(options.body))
+    : undefined;
 
   let response = await fetch(BACKSTAGE_API_BASE + path, {
     method: options.method || "GET",
     headers,
-    body: options.body ? JSON.stringify(options.body) : undefined
+    body: requestBody
   });
   if (options.auth && response.status === 401 && !options._retried) {
     const refreshed = await refreshBackstageAuthOnce();
@@ -464,7 +470,7 @@ async function backstageFetch(path, options = {}) {
           ...headers,
           Authorization: `Bearer ${refreshed.accessToken}`
         },
-        body: options.body ? JSON.stringify(options.body) : undefined
+        body: requestBody
       });
     }
   }

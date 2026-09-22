@@ -6,6 +6,6 @@ import { StoryUploadStorageService } from './story-upload-storage.service';
 @Module({
   controllers: [StoryUploadController],
   providers: [StoryUploadService, StoryUploadStorageService],
-  exports: [StoryUploadStorageService],
+  exports: [StoryUploadService, StoryUploadStorageService],
 })
 export class StoryUploadModule {}

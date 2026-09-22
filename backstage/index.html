@@ -264,6 +264,48 @@
 
             <div class="story-publication-status-grid" id="storyPublicationStatusCards" aria-label="작품별 공개 상태"></div>
 
+            <div class="story-publication-upload-grid" aria-label="승인 원고 운영 업로드">
+              <form class="table-card story-publication-upload-card" data-story-upload-form="imjin">
+                <header>
+                  <div><span class="section-kicker">Approved Source</span><h3>임진왜란 최종본</h3></div>
+                  <span class="status-badge is-review">MD 1개</span>
+                </header>
+                <p>검수가 끝난 실제 최종 원고 파일만 선택합니다. 파일 내용 대신 SHA-256으로 원고를 식별합니다.</p>
+                <input type="hidden" name="title" value="불타는 바다의 기록자" />
+                <input type="hidden" name="originalLocale" value="ko" />
+                <input type="hidden" name="sourceClass" value="public_domain" />
+                <input type="hidden" name="submissionType" value="final" />
+                <label class="story-upload-file-control">
+                  <span>최종 원고</span>
+                  <input type="file" name="manuscripts" accept=".md" required />
+                </label>
+                <div class="story-upload-action">
+                  <span class="form-status" data-story-upload-status role="status" aria-live="polite"></span>
+                  <button class="primary-action" type="submit">접수 등록</button>
+                </div>
+              </form>
+
+              <form class="table-card story-publication-upload-card" data-story-upload-form="norse">
+                <header>
+                  <div><span class="section-kicker">Approved Source</span><h3>북유럽신화 최종본</h3></div>
+                  <span class="status-badge is-review">JSON 2개</span>
+                </header>
+                <p>분석 원고와 작가 원문 맵 두 파일을 함께 선택해야 정확한 최종본으로 식별됩니다.</p>
+                <input type="hidden" name="title" value="북유럽 신화: 로키의 선택" />
+                <input type="hidden" name="originalLocale" value="ko" />
+                <input type="hidden" name="sourceClass" value="public_domain" />
+                <input type="hidden" name="submissionType" value="final" />
+                <label class="story-upload-file-control">
+                  <span>분석 원고 + 작가 원문 맵</span>
+                  <input type="file" name="manuscripts" accept=".json" multiple required />
+                </label>
+                <div class="story-upload-action">
+                  <span class="form-status" data-story-upload-status role="status" aria-live="polite"></span>
+                  <button class="primary-action" type="submit">접수 등록</button>
+                </div>
+              </form>
+            </div>
+
             <article class="table-card story-publication-list-card">
               <header>
                 <div>
