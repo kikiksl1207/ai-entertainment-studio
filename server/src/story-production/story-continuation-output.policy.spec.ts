@@ -32,4 +32,17 @@ describe('continuation output ending defense', () => {
     expect(() => validateStoryContinuationProviderResult({ ...valid, ending } as StoryContinuationProviderResult, input))
       .toThrow(BadRequestException);
   });
+
+  it('accepts a bounded long Korean beat and still rejects an oversized one', () => {
+    const koreanInput = { ...input, locale: 'ko' };
+    const withBeat = (content: string) => ({
+      ...valid,
+      title: { ko: '갈라진 물길' },
+      beats: [{ beatType: 'paragraph', content: { ko: content } }],
+    }) as StoryContinuationProviderResult;
+    expect(validateStoryContinuationProviderResult(withBeat('가'.repeat(9_000)), koreanInput).beats[0].content)
+      .toEqual({ ko: '가'.repeat(9_000) });
+    expect(() => validateStoryContinuationProviderResult(withBeat('가'.repeat(11_000)), koreanInput))
+      .toThrow('Generated localized text exceeds its byte limit');
+  });
 });

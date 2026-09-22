@@ -77,6 +77,7 @@ function prepareRequest(request: StoryContinuationProviderRequest, config: Story
       'Do not force convergence to a canonical route. Rejoin only when explicitly established by approved context.',
       'Create a fresh scene title that reflects the selected choice and its consequences; reuse the source title only when it is genuinely still the same scene.',
       'Match the source scene narrative density and aim for 80% to 120% of its narrative length unless a natural ending requires less.',
+      'Split long prose across multiple paragraph or dialogue beats; keep every individual beat below 8,000 Unicode characters.',
       `Write every title, beat and choice label exclusively in locale ${request.locale}; no translation or locale fallback.`,
       'Return JSON matching the schema. Produce 1 to 40 nonempty beats.',
       'Return either 1 to 3 distinct nextChoices and ending=null, or nextChoices=[] and an ending.',

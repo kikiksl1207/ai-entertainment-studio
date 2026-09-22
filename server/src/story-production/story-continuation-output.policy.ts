@@ -3,7 +3,10 @@ import { projectStoredStorySceneVisualManifest } from '../story-stage/story-scen
 import type { StoryContinuationProviderResult } from './story-continuation.provider';
 
 const MAX_OUTPUT_BYTES = 100_000;
-const MAX_TEXT_BYTES = 16_000;
+// Canonical Korean scenes allow up to 7,500 UTF-16 units per beat. Keep the
+// generated bound aligned with the approved input projection while retaining
+// the stricter whole-output cap below.
+const MAX_TEXT_BYTES = 32_000;
 
 export function validateStoryContinuationProviderResult(
   value: StoryContinuationProviderResult,
