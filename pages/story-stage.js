@@ -1597,8 +1597,26 @@
     const restoreFocus = document.activeElement?.matches("[data-story-scene-focus]");
     const customChoice = customChoiceCapability(scene);
     const fixedChoices = state.choices;
+    const showChoices = fixedChoices.length && !isEnding && lastBeat;
+    const choicePanel = showChoices ? `
+      <div class="story-choice-panel">
+        <h2>${escapeHtml(tr("choices"))}</h2>
+        <div class="story-choice-list">
+          ${fixedChoices.map((choice, index) => {
+            const label = textValue(choice.label) || textValue(choice.choiceBody) || textValue(choice.body) || String(index + 1);
+            return `<button type="button" data-choice-id="${escapeHtml(choice.id || choice.choiceId || "")}" ${state.progress?.status === "active" && Number.isInteger(state.progress?.revision) && !aiRequestOpen() ? "" : "disabled"} aria-label="${escapeHtml(label)}"><span aria-hidden="true">${index + 1}</span>${escapeHtml(label)}</button>`;
+          }).join("")}
+          ${customChoice ? `<button type="button" data-story-custom-choice>${escapeHtml(controlTr("other"))}</button>` : ""}
+        </div>
+        ${customChoice && state.customChoiceOpen ? `
+          <form class="story-custom-choice" data-story-custom-form>
+            <label for="storyCustomChoice">${escapeHtml(controlTr("customPrompt"))}</label>
+            <textarea id="storyCustomChoice" name="customChoice" maxlength="${customChoice.maxChars}" placeholder="${escapeHtml(controlTr("customPlaceholder"))}" required></textarea>
+            <div><span data-story-custom-count>0 / ${customChoice.maxChars}</span><button type="submit" class="story-button story-button-primary">${escapeHtml(controlTr("submitCustom"))}</button></div>
+          </form>` : ""}
+      </div>` : "";
     root.innerHTML = `
-      <section class="story-player" data-has-background="false">
+      <section class="story-player" data-has-background="false" data-has-choices="${showChoices ? "true" : "false"}">
         <a class="story-back" href="/story-stage">← ${escapeHtml(tr("backToStories"))}</a>
         ${sceneTitle ? `<h1 class="story-current-title">${escapeHtml(sceneTitle)}</h1>` : ""}
         ${!scene && isEnding ? `<div class="story-completed" tabindex="-1" data-story-scene-focus>
@@ -1616,35 +1634,21 @@
               </div>
             </div>
           </div>
-          ${reading.beats.length > 1 ? `<div class="story-reader-progress">
-            <output data-story-beat-counter aria-live="polite">${reading.index + 1} / ${reading.beats.length}</output>
-          </div>` : ""}
-          <article class="story-player-copy" tabindex="0" aria-label="${escapeHtml(readerTr("text"))}" data-story-scene-focus data-reading-key="${escapeHtml(reading.key)}">
-            ${isEnding ? `<span class="story-ending-label">${escapeHtml(tr("ending"))}</span>` : ""}
-            <p>${escapeHtml(sceneText)}</p>
-          </article>
+          <div class="story-reader-pane">
+            ${reading.beats.length > 1 ? `<div class="story-reader-progress">
+              <output data-story-beat-counter aria-live="polite">${reading.index + 1} / ${reading.beats.length}</output>
+            </div>` : ""}
+            <article class="story-player-copy" tabindex="0" aria-label="${escapeHtml(readerTr("text"))}" data-story-scene-focus data-reading-key="${escapeHtml(reading.key)}">
+              ${isEnding ? `<span class="story-ending-label">${escapeHtml(tr("ending"))}</span>` : ""}
+              <p>${escapeHtml(sceneText)}</p>
+            </article>
+            ${choicePanel}
+          </div>
           ${reading.beats.length > 1 ? `<nav class="story-beat-navigation" aria-label="${escapeHtml(readerTr("page").replace("{current}", reading.index + 1).replace("{total}", reading.beats.length))}">
             <button type="button" data-story-beat="previous" aria-label="${escapeHtml(readerTr("previous"))}" title="${escapeHtml(readerTr("previous"))}" ${navigationBlocked || reading.index === 0 ? "disabled" : ""}><span aria-hidden="true">&#8592;</span></button>
             <button type="button" data-story-beat="next" aria-label="${escapeHtml(readerTr("next"))}" title="${escapeHtml(readerTr("next"))}" ${navigationBlocked || lastBeat ? "disabled" : ""}><span aria-hidden="true">&#8594;</span></button>
           </nav>` : ""}
         </div>`}
-        ${fixedChoices.length && !isEnding && lastBeat ? `
-          <div class="story-choice-panel">
-            <h2>${escapeHtml(tr("choices"))}</h2>
-            <div class="story-choice-list">
-              ${fixedChoices.map((choice, index) => {
-                const label = textValue(choice.label) || textValue(choice.choiceBody) || textValue(choice.body) || String(index + 1);
-                return `<button type="button" data-choice-id="${escapeHtml(choice.id || choice.choiceId || "")}" ${state.progress?.status === "active" && Number.isInteger(state.progress?.revision) && !aiRequestOpen() ? "" : "disabled"} aria-label="${escapeHtml(label)}"><span aria-hidden="true">${index + 1}</span>${escapeHtml(label)}</button>`;
-              }).join("")}
-              ${customChoice ? `<button type="button" data-story-custom-choice>${escapeHtml(controlTr("other"))}</button>` : ""}
-            </div>
-            ${customChoice && state.customChoiceOpen ? `
-              <form class="story-custom-choice" data-story-custom-form>
-                <label for="storyCustomChoice">${escapeHtml(controlTr("customPrompt"))}</label>
-                <textarea id="storyCustomChoice" name="customChoice" maxlength="${customChoice.maxChars}" placeholder="${escapeHtml(controlTr("customPlaceholder"))}" required></textarea>
-                <div><span data-story-custom-count>0 / ${customChoice.maxChars}</span><button type="submit" class="story-button story-button-primary">${escapeHtml(controlTr("submitCustom"))}</button></div>
-              </form>` : ""}
-          </div>` : ""}
         ${renderAiNotice()}
         <p class="story-action-status" data-story-action-status aria-live="polite">${escapeHtml(state.beatNotice || (state.progress?.status !== "active" && !isEnding && !aiRequestOpen() ? controlTr("sceneUnavailable") : ""))}</p>
         ${renderResetControls(state.progress)}

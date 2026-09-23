@@ -262,12 +262,13 @@ export function registerReaderTests({ fixture, projection, sessionId, workId, ar
           const narrativeStyle = getComputedStyle(region.querySelector('p'));
           const stageBounds = stage.getBoundingClientRect(); const regionBounds = region.getBoundingClientRect();
           return { stageHeight: stageBounds.height, stageRatio: stageBounds.width / stageBounds.height, regionScrolls: region.scrollHeight > region.clientHeight, horizontal: document.documentElement.scrollWidth <= innerWidth,
-            separated: regionBounds.top > stageBounds.bottom, navRendered: nav.getBoundingClientRect().width >= 44,
+            stacked: regionBounds.top > stageBounds.bottom, sideBySide: regionBounds.left > stageBounds.right, navRendered: nav.getBoundingClientRect().width >= 44,
             documentHeight: document.documentElement.scrollHeight, narrative: { fontSize: parseFloat(narrativeStyle.fontSize), fontWeight: narrativeStyle.fontWeight, lineHeight: parseFloat(narrativeStyle.lineHeight) } };
         });
         assert.ok(geometry.stageHeight > 190 && geometry.stageHeight <= 610);
-        assert.ok(geometry.stageRatio > 1.76 && geometry.stageRatio < 1.79, JSON.stringify(geometry));
-        assert.equal(geometry.regionScrolls, true); assert.equal(geometry.horizontal, true); assert.equal(geometry.separated, true); assert.equal(geometry.navRendered, true);
+        if (width <= 820) assert.ok(geometry.stageRatio > 1.76 && geometry.stageRatio < 1.79 && geometry.stacked, JSON.stringify(geometry));
+        else assert.equal(geometry.sideBySide, true, JSON.stringify(geometry));
+        assert.equal(geometry.regionScrolls, true); assert.equal(geometry.horizontal, true); assert.equal(geometry.navRendered, true);
         assert.ok(geometry.documentHeight < 2400, 'Long beat must not stretch the whole document');
         assert.ok(geometry.narrative.fontSize >= 16);
         assert.ok(['400', '500'].includes(geometry.narrative.fontWeight));

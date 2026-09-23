@@ -273,12 +273,13 @@ export function registerReaderVisualTests({ fixture, projection, sessionId, work
           const font = getComputedStyle(region.querySelector('p')); const nav = document.querySelector('.story-beat-navigation');
           const stageBounds = stage.getBoundingClientRect(); const regionBounds = region.getBoundingClientRect();
           return { stageHeight: stageBounds.height, stageRatio: stageBounds.width / stageBounds.height, regionHeight: region.clientHeight, fullTextReachable: Math.abs(region.scrollHeight - region.clientHeight - region.scrollTop) < 2,
-            horizontalOverflow: document.documentElement.scrollWidth > innerWidth, separated: regionBounds.top > stageBounds.bottom, navRendered: nav.getBoundingClientRect().width >= 44,
+            horizontalOverflow: document.documentElement.scrollWidth > innerWidth, stacked: regionBounds.top > stageBounds.bottom, sideBySide: regionBounds.left > stageBounds.right, navRendered: nav.getBoundingClientRect().width >= 44,
             fontSize: parseFloat(font.fontSize), fontWeight: font.fontWeight, lineHeight: parseFloat(font.lineHeight), documentHeight: document.documentElement.scrollHeight };
         });
-        assert.equal(metrics.horizontalOverflow, false); assert.equal(metrics.separated, true); assert.equal(metrics.navRendered, true); assert.equal(metrics.fullTextReachable, true);
+        assert.equal(metrics.horizontalOverflow, false); assert.equal(metrics.navRendered, true); assert.equal(metrics.fullTextReachable, true);
         assert.ok(metrics.stageHeight > 190 && metrics.stageHeight <= 610 && metrics.documentHeight < 2400);
-        assert.ok(metrics.stageRatio > 1.76 && metrics.stageRatio < 1.79, JSON.stringify(metrics));
+        if (width <= 820) assert.ok(metrics.stageRatio > 1.76 && metrics.stageRatio < 1.79 && metrics.stacked, JSON.stringify(metrics));
+        else assert.equal(metrics.sideBySide, true, JSON.stringify(metrics));
         assert.equal(metrics.fontSize, width <= 680 ? 16 : 17); assert.equal(metrics.fontWeight, '400');
         assert.ok(metrics.lineHeight / metrics.fontSize >= 1.74);
         const pixels = await imagePixels(f);

@@ -33,6 +33,7 @@ export function loadStoryServerContract(repo) {
   }
   const productionPolicy = policy('server/src/story-production/story-production.policy.ts');
   const progressPolicy = policy('server/src/story-production/story-progress-control.policy.ts');
+  const hashtagPolicy = policy('server/src/story-production/story-hashtag.policy.ts');
   const walletPolicy = policy('server/src/common/wallet-mutation-safety.ts');
   const routeStore = policy('server/src/story-production/story-route-identity.store.ts');
   function methods(relative, names) {
@@ -50,7 +51,7 @@ export function loadStoryServerContract(repo) {
     const code = ts.transpileModule(`const container = {${printed.join(',\n')}};`, {
       compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None },
     }).outputText;
-    const environment = { ...nest, ...productionPolicy, ...progressPolicy, ...walletPolicy,
+    const environment = { ...nest, ...productionPolicy, ...progressPolicy, ...hashtagPolicy, ...walletPolicy,
       createStoryRouteRoot: routeStore.createStoryRouteRoot, CURRENCY: 'LUMINA',
       jsonArray: (x) => Array.isArray(x) ? x : [],
       jsonStringArray: (x) => Array.isArray(x) ? x.filter((y) => typeof y === 'string') : [],
