@@ -1272,6 +1272,30 @@ export class StoryProductionService {
     return this.semanticAnalysis.manuscripts(userId, workId, query);
   }
 
+  async branchPreparationStatus(userId: string, manuscriptId: string) {
+    const manuscript = await this.prisma.storyManuscriptVersion.findFirst({
+      where: { id: manuscriptId, ownerUserId: userId },
+      select: { id: true, workId: true, version: true, locale: true },
+    });
+    if (!manuscript) throw new NotFoundException('Manuscript version not found');
+    const jobs = await this.prisma.storyBranchPreparationJob.findMany({
+      where: { manuscriptVersionId: manuscript.id, workId: manuscript.workId, ownerUserId: userId },
+      orderBy: { partIndex: 'asc' },
+      select: { partIndex: true, expectedPartCount: true, partKey: true, status: true },
+      take: 1000,
+    });
+    const complete = jobs.length > 0 && jobs.length === jobs[0].expectedPartCount &&
+      jobs.every((job, index) => job.partIndex === index && job.expectedPartCount === jobs.length);
+    return {
+      manuscriptVersionId: manuscript.id,
+      version: manuscript.version,
+      locale: manuscript.locale,
+      status: jobs.length === 0 ? 'not_prepared' : !complete ? 'incomplete'
+        : jobs.every(job => job.status === 'awaiting_author_consent') ? 'awaiting_author_consent' : 'in_progress',
+      parts: jobs.map(job => ({ partIndex: job.partIndex, partKey: job.partKey, status: job.status })),
+    };
+  }
+
   analysisJobs(userId: string, manuscriptId: string, query: StoryAnalysisDiscoveryQueryDto) {
     if (!this.semanticAnalysis) throw new ServiceUnavailableException('Semantic analysis service unavailable');
     return this.semanticAnalysis.analyses(userId, manuscriptId, query);

@@ -13,8 +13,10 @@ const input = (locale = 'ko') => prepareManuscript(Buffer.from(JSON.stringify({ 
 
 function database() {
   let owner: string | null = userId;
+  let branchFailure = false;
   let revision = 0;
   const rows: any[] = [];
+  const branchRows: any[] = [];
   const query = jest.fn(async (_sql?: unknown) => owner === userId ? [{ id: workId }] : []);
   const ownerRead = jest.fn(async ({ where }: any) => where.id === workId && where.ownerUserId === owner ? { id: workId } : null);
   const prisma = {
@@ -24,6 +26,7 @@ function database() {
     $transaction: jest.fn(async (action: any) => {
       const seen = revision;
       const staged = rows.map(row => ({ ...row }));
+      const stagedBranches = branchRows.map(row => ({ ...row }));
       const tx = { $queryRaw: query, storyWork: { findFirst: ownerRead }, storyManuscriptVersion: {
         findUnique: jest.fn(async ({ where }: any) => staged.find(r => r.workId === where.workId_contentHash.workId && r.contentHash === where.workId_contentHash.contentHash) ?? null),
         findFirst: jest.fn(async () => [...staged].sort((a, b) => b.version - a.version)[0] ?? null),
@@ -31,14 +34,22 @@ function database() {
           const row = { ...data, id: `version-${staged.length + 1}`, createdAt: new Date('2026-09-14T00:00:00Z') };
           staged.push(row); return row;
         }),
+      }, storyBranchPreparationJob: {
+        createMany: jest.fn(async ({ data }: any) => {
+          if (branchFailure) throw new Error('PRIVATE-SYNTHETIC-BODY');
+          stagedBranches.push(...data); return { count: data.length };
+        }),
       } };
       const result = await action(tx);
       if (seen !== revision) throw { code: 'P2034' };
       rows.splice(0, rows.length, ...staged); revision++;
+      branchRows.splice(0, branchRows.length, ...stagedBranches);
       return result;
     }),
   };
-  return { prisma, rows, query, ownerRead, transfer: () => { owner = 'other'; revision++; }, missing: () => { owner = null; } };
+  return { prisma, rows, branchRows, query, ownerRead,
+    failBranches: () => { branchFailure = true; },
+    transfer: () => { owner = 'other'; revision++; }, missing: () => { owner = null; } };
 }
 
 function validatedJson(value: unknown): Promise<CreateManuscriptVersionDto> {
@@ -161,6 +172,10 @@ describe('atomic complete manuscript version store', () => {
     const snapshot = JSON.stringify(db.rows[1]);
     const replay = await storeManuscriptVersion(db.prisma as never, userId, workId, parsed);
     expect(db.rows).toHaveLength(2);
+    expect(db.branchRows).toHaveLength(4);
+    expect(db.branchRows.filter(row => row.manuscriptVersionId === first.manuscript.id)).toHaveLength(2);
+    expect(db.branchRows.every(row => row.status === 'awaiting_author_consent')).toBe(true);
+    expect(db.branchRows.every(row => /^[0-9a-f]{64}$/.test(row.sourceHash))).toBe(true);
     expect(db.rows[1].structuredBody.intake.source.rawText).toBe(raw);
     expect(JSON.stringify(db.rows[1])).toBe(snapshot);
     expect(replay.manuscript.id).toBe(first.manuscript.id);
@@ -205,6 +220,9 @@ describe('atomic complete manuscript version store', () => {
     const parsed = input();
     const receipt = await storeManuscriptVersion(db.prisma as never, userId, workId, parsed);
     expect(db.rows).toHaveLength(1);
+    expect(db.branchRows).toHaveLength(1);
+    expect(db.branchRows[0]).toMatchObject({ workId, ownerUserId: userId, manuscriptVersionId: receipt.manuscript.id,
+      partIndex: 0, expectedPartCount: 1, partKey: 'p1', locale: 'ko', promptVersion: 'story-branch-choice-v1', status: 'awaiting_author_consent' });
     expect(db.rows[0].structuredBody.parts).toEqual(body.parts);
     expect(Buffer.from(db.rows[0].structuredBody.intake.source.rawText)).toEqual(Buffer.from(JSON.stringify(body)));
     expect(JSON.stringify(receipt)).not.toMatch(/PRIVATE-SYNTHETIC|rawText|storageKey|ownerUserId|structuredBody/);
@@ -223,6 +241,7 @@ describe('atomic complete manuscript version store', () => {
       prepareManuscript(Buffer.from(JSON.stringify({ parts: body.parts, locale: 'ko' }, null, 2))));
     expect(replay.manuscript).toEqual(first.manuscript);
     expect(replay.idempotentReplay).toBe(true);
+    expect(db.branchRows).toHaveLength(1);
     expect(replay.rawSource).toBe('existing_version_unchanged');
     expect(JSON.stringify(db.rows[0])).toBe(source);
   });
@@ -250,8 +269,12 @@ describe('atomic complete manuscript version store', () => {
     const same = await Promise.all([1, 2].map(() => storeManuscriptVersion(db.prisma as never, userId, workId, input())));
     expect(same[0].manuscript.id).toBe(same[1].manuscript.id);
     expect(db.rows).toHaveLength(1);
+    expect(db.branchRows).toHaveLength(1);
     await Promise.all(['en', 'ja'].map(locale => storeManuscriptVersion(db.prisma as never, userId, workId, input(locale))));
     expect(db.rows.map(row => row.version)).toEqual([1, 2, 3]);
+    expect(db.branchRows).toHaveLength(3);
+    expect(new Set(db.branchRows.map(row => row.manuscriptVersionId)).size).toBe(3);
+    expect(new Set(db.branchRows.map(row => row.locale))).toEqual(new Set(['ko', 'en', 'ja']));
   });
 
   it('rejects missing/other owners and rechecks ownership within the transaction', async () => {
@@ -283,8 +306,17 @@ describe('atomic complete manuscript version store', () => {
     await expect(storeManuscriptVersion(db.prisma as never, userId, workId, input())).rejects.toMatchObject({ status: 503 });
     expect(db.prisma.$transaction).toHaveBeenCalledTimes(3);
     expect(db.rows).toHaveLength(0);
+    expect(db.branchRows).toHaveLength(0);
     db.prisma.$transaction.mockRejectedValue(new Error('PRIVATE-SYNTHETIC-BODY'));
     try { await storeManuscriptVersion(db.prisma as never, userId, workId, input()); fail(); }
     catch (error) { expect(JSON.stringify((error as HttpException).getResponse())).not.toContain('PRIVATE-SYNTHETIC'); }
+  });
+
+  it('rolls back the manuscript when its part preparation records cannot be written', async () => {
+    const db = database();
+    db.failBranches();
+    await expect(storeManuscriptVersion(db.prisma as never, userId, workId, input())).rejects.toMatchObject({ status: 503 });
+    expect(db.rows).toHaveLength(0);
+    expect(db.branchRows).toHaveLength(0);
   });
 });

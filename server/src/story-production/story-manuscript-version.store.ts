@@ -1,11 +1,13 @@
 import { ConflictException, HttpException, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { createHash } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { PreparedManuscript, storedManuscriptBody } from './story-manuscript-file.policy';
 
 const receiptSelect = {
   id: true, workId: true, ownerUserId: true, version: true, locale: true, contentHash: true, createdAt: true,
 } as const;
+export const STORY_BRANCH_PREPARATION_PROMPT_VERSION = 'story-branch-choice-v1';
 
 export async function requireManuscriptOwner(
   prisma: Pick<Prisma.TransactionClient, 'storyWork'>, userId: string, workId: string,
@@ -52,6 +54,17 @@ export async function storeManuscriptVersion(
             structuredBody: structuredBody as unknown as Prisma.InputJsonValue },
           select: receiptSelect,
         });
+        if (!existing) {
+          await tx.storyBranchPreparationJob.createMany({
+            data: input.parts.map((part, partIndex) => ({
+              workId, ownerUserId: userId, manuscriptVersionId: row.id, partIndex,
+              expectedPartCount: input.parts.length,
+              partKey: part.partKey, sourceHash: createHash('sha256').update(JSON.stringify(part)).digest('hex'),
+              locale: input.locale, promptVersion: STORY_BRANCH_PREPARATION_PROMPT_VERSION,
+              status: 'awaiting_author_consent',
+            })),
+          });
+        }
         return {
           manuscript: { id: row.id, workId: row.workId, version: row.version, locale: row.locale,
             contentHash: row.contentHash, createdAt: row.createdAt },

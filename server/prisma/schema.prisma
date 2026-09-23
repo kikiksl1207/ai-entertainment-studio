@@ -2786,6 +2786,26 @@ model StoryManuscriptVersion {
   @@map("story_manuscript_versions")
 }
 
+model StoryBranchPreparationJob {
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workId              String   @map("work_id") @db.Uuid
+  ownerUserId         String   @map("owner_user_id") @db.Uuid
+  manuscriptVersionId String   @map("manuscript_version_id") @db.Uuid
+  partIndex           Int      @map("part_index")
+  expectedPartCount   Int      @map("expected_part_count")
+  partKey             String   @map("part_key")
+  sourceHash          String   @map("source_hash")
+  locale              String
+  promptVersion       String   @map("prompt_version")
+  status              String   @default("awaiting_author_consent")
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([manuscriptVersionId, partIndex, promptVersion], map: "uq_story_branch_preparation_part")
+  @@index([status, createdAt], map: "idx_story_branch_preparation_status")
+  @@index([ownerUserId, workId, manuscriptVersionId], map: "idx_story_branch_preparation_owner")
+  @@map("story_branch_preparation_jobs")
+}
+
 model StoryAnalysisJob {
   id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   workId              String    @map("work_id") @db.Uuid

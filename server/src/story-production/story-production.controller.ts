@@ -310,6 +310,16 @@ export class StoryProductionController {
     return this.stories.analysisJobs(user.id, manuscriptId, query);
   }
 
+  @Get('me/creator-studio/manuscripts/:manuscriptId/branch-preparations')
+  @UseGuards(JwtAuthGuard)
+  @Header('Cache-Control', 'private, no-store')
+  branchPreparations(
+    @CurrentUser() user: AuthUser,
+    @Param('manuscriptId', ParseUUIDPipe) manuscriptId: string,
+  ) {
+    return this.stories.branchPreparationStatus(user.id, manuscriptId);
+  }
+
   @Post('me/creator-studio/stories/:workId/manuscripts')
   @UseGuards(JwtAuthGuard)
   createManuscript(
