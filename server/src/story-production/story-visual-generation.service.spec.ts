@@ -424,6 +424,7 @@ describe('StoryVisualGenerationService', () => {
       replacesAssetId: assetId,
       visualBibleVersion: 'story-visual-bible-v4',
       effectivePromptSha256: expect.stringMatching(/^[a-f0-9]{64}$/),
+      requestContractVersion: 'openai-image-request-v2',
     });
     const effectivePromptSha256 = createdMetadata.storyVisual.effectivePromptSha256;
     expect(String(provider.mock.calls[1][0])).toContain(effectivePromptSha256);

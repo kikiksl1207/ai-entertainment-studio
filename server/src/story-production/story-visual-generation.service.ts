@@ -41,6 +41,7 @@ import {
 const SOURCE_SCENE_KEY = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,159}$/;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_GENERATION_ATTEMPTS = 1;
+const IMAGE_REQUEST_CONTRACT_VERSION = 'openai-image-request-v2';
 const IMAGE_MODELS = new Set(['gpt-image-2', 'gpt-image-1.5', 'gpt-image-1-mini']);
 const IMAGE_QUALITIES = new Set(['low', 'medium', 'high']);
 const IMAGE_SIZES = new Map([
@@ -750,7 +751,8 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
               effectivePromptSha256: effective!.sha256,
               ...(effective!.workReference ? { workVisualReferenceChecksum: effective!.workReference.checksum } : {}),
               ...(replacedAssetId ? { replacesAssetId: replacedAssetId } : {}),
-              provider: 'openai', model: this.model(), quality: this.quality(), size: this.size(), ...inlineImage },
+              provider: 'openai', model: this.model(), quality: this.quality(), size: this.size(),
+              requestContractVersion: IMAGE_REQUEST_CONTRACT_VERSION, ...inlineImage },
           },
         } });
         if (replacedAssetId) {
@@ -805,6 +807,7 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
       model: this.model(),
       quality: this.quality(),
       size: this.size(),
+      requestContractVersion: IMAGE_REQUEST_CONTRACT_VERSION,
     };
   }
 
@@ -819,7 +822,8 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
       identity.provider === requested.provider &&
       identity.model === requested.model &&
       identity.quality === requested.quality &&
-      identity.size === requested.size;
+      identity.size === requested.size &&
+      identity.requestContractVersion === requested.requestContractVersion;
   }
 
   private async readyAssetIdentity(assetId: string) {
@@ -839,6 +843,8 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
       model: typeof storyVisual.model === 'string' ? storyVisual.model : null,
       quality: typeof storyVisual.quality === 'string' ? storyVisual.quality : null,
       size: typeof storyVisual.size === 'string' ? storyVisual.size : null,
+      requestContractVersion: typeof storyVisual.requestContractVersion === 'string'
+        ? storyVisual.requestContractVersion : null,
     };
   }
 
