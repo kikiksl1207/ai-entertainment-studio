@@ -27,6 +27,34 @@ test('explicit manifest entry pins locale, resumes revision and never requests t
   assert.doesNotMatch(page.video.src, /token|\?/);
 });
 
+test('end-screen mode reveals choices only near the clip end and routes all three distinct clips', async () => {
+  for (const target of ['B', 'C', 'D']) {
+    const page = browser({ search: `?manifestId=${ids.manifest}&endScreen=1` });
+    await flush();
+    assert.equal(page.elements.graphBranches.hidden, true);
+    assert.equal(page.elements.previewPlayer.getAttribute('data-end-screen'), 'true');
+    page.choices().find(button => button.textContent.endsWith(target)).fire('click');
+    assert.equal(page.commands().length, 0, 'hidden choices cannot advance');
+    await page.play();
+    page.video.currentTime = .54;
+    page.video.fire('timeupdate');
+    assert.equal(page.elements.graphBranches.hidden, true);
+    page.video.currentTime = .56;
+    page.video.fire('timeupdate');
+    assert.equal(page.elements.graphBranches.hidden, false);
+    page.video.currentTime = .71;
+    page.video.fire('timeupdate');
+    await flush();
+    assert.equal(page.video.paused, true);
+    page.choices().find(button => button.textContent.endsWith(target)).fire('click');
+    await flush();
+    assert.equal(page.server.states.get('en').node, target);
+    assert.equal(page.elements.graphBranches.hidden, true);
+    await page.play();
+    assert.ok(page.video.src.includes(ids[target]));
+  }
+});
+
 test('preview entry honors its pinned locale, then explicitly selects a separate locale pin', async () => {
   const server = graphServer();
   const page = browser({ server, locale: 'en', search: `?previewId=${server.pinId('ja')}` });

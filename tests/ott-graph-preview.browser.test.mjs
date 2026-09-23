@@ -24,7 +24,7 @@ before(async () => {
 });
 after(async () => { await browser?.close(); });
 
-async function fixture({ width = 1280, locale = 'en', server = graphServer(), intercept } = {}) {
+async function fixture({ width = 1280, locale = 'en', server = graphServer(), intercept, endScreen = false } = {}) {
   const context = await browser.newContext({ viewport: { width, height: width < 500 ? 844 : 960 } });
   const page = await context.newPage();
   const calls = [];
@@ -76,7 +76,7 @@ async function fixture({ width = 1280, locale = 'en', server = graphServer(), in
     if (!asset) return route.fulfill({ status: 404, body: '' });
     await route.fulfill({ contentType: asset[1], body: await readFile(path.join(repo, asset[0])) });
   });
-  await page.goto(`${origin}/ott-private-preview?manifestId=${ids.manifest}`);
+  await page.goto(`${origin}/ott-private-preview?manifestId=${ids.manifest}${endScreen ? '&endScreen=1' : ''}`);
   await page.locator('#previewPlayer').waitFor({ state: 'visible' });
   await page.waitForFunction(() => !document.getElementById('previewStart').disabled);
   return { page, context, calls, media, errors, server,
@@ -87,6 +87,39 @@ async function fixture({ width = 1280, locale = 'en', server = graphServer(), in
       await page.waitForFunction(() => { const video = document.querySelector('video'); return video.readyState >= 2 && video.videoWidth > 0; });
     }
   };
+}
+
+for (const width of [390, 1280]) {
+  test(`browser end-screen ${width}: visible over final frame, keyboard navigable, no horizontal clipping`, async () => {
+    const f = await fixture({ width, endScreen: true });
+    try {
+      assert.equal(await f.page.locator('#graphBranches').isHidden(), true);
+      await f.play();
+      await f.page.locator('#graphBranches').waitFor({ state: 'visible' });
+      await f.page.waitForFunction(() => document.querySelector('video').paused && document.querySelector('video').currentTime >= .7);
+      const metrics = await f.page.evaluate(() => {
+        const video = document.querySelector('video').getBoundingClientRect();
+        const overlay = document.getElementById('graphBranches').getBoundingClientRect();
+        return { pageWidth: document.documentElement.scrollWidth, viewport: innerWidth,
+          video: { top: video.top, bottom: video.bottom }, overlay: { top: overlay.top, bottom: overlay.bottom },
+          choiceCount: document.querySelectorAll('#graphChoices button').length };
+      });
+      assert.equal(metrics.choiceCount, 3);
+      assert.ok(metrics.pageWidth <= width);
+      assert.ok(metrics.overlay.top >= metrics.video.top && metrics.overlay.bottom <= metrics.video.bottom + 1);
+      if (artifacts) {
+        await mkdir(artifacts, { recursive: true });
+        await f.page.screenshot({ path: path.join(artifacts, `end-screen-${width}.png`), fullPage: true });
+      }
+      await f.page.locator('#graphChoices button').first().focus();
+      await f.page.keyboard.press('ArrowRight');
+      assert.equal(await f.page.evaluate(() => document.activeElement === document.querySelectorAll('#graphChoices button')[1]), true);
+      await f.page.keyboard.press('Enter');
+      await f.page.waitForFunction(() => document.getElementById('graphBranches').hidden);
+      assert.equal(f.server.states.get('en').node, 'C');
+      assert.deepEqual(f.errors, []);
+    } finally { await f.close(); }
+  });
 }
 
 test('browser functional: real native decode uses cookie range and source clip bounds', async () => {

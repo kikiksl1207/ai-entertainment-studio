@@ -64,4 +64,44 @@ describe('StoryPublicBetaAiActivationService', () => {
       data: expect.objectContaining({ label: { ko: '작가가 정한 결말을 선택한다' } }),
     }));
   });
+
+  it('does not create a legal activation when fixed-route choices cannot be prepared', async () => {
+    const order: string[] = [];
+    const tx = {
+      storyWork: { findUnique: jest.fn().mockResolvedValue({ id: 'work', status: 'published', activeReleaseId: 'release', ownerUserId: 'owner' }) },
+      storyRelease: { findFirst: jest.fn().mockResolvedValue({ id: 'release', checksum: 'checksum' }) },
+      storyManuscriptVersion: { findFirst: jest.fn().mockResolvedValue({ id: 'manuscript' }) },
+      storyPart: { findMany: jest.fn().mockResolvedValue([{ id: 'part', position: 1, title: { ko: '시작' } }]) },
+      storyReaderProgress: { updateMany: jest.fn() },
+      storyAiAllowanceBucket: { updateMany: jest.fn() },
+      auditEvent: { create: jest.fn() },
+    };
+    const prisma = { $transaction: jest.fn(async (callback: (value: typeof tx) => Promise<unknown>) => callback(tx)) };
+    const legalActivation = { createActivation: jest.fn(() => { order.push('legal'); return Promise.resolve({ id: 'activation' }); }) };
+    const scoped = new StoryPublicBetaAiActivationService(prisma as never, legalActivation as never);
+    jest.spyOn(scoped as any, 'ensureRateCard').mockResolvedValue({ id: 'rate', version: 'rate-v1' });
+    jest.spyOn(scoped as any, 'ensureStyleSnapshot').mockResolvedValue({ id: 'analysis' });
+    jest.spyOn(scoped as any, 'ensureConsent').mockResolvedValue({ id: 'consent', revision: 1 });
+    jest.spyOn(scoped as any, 'ensureRights').mockResolvedValue({ id: 'rights' });
+    jest.spyOn(scoped as any, 'ensureCapability').mockResolvedValue({ revision: 1, includedAiRouteCount: 3 });
+    const choices = jest.spyOn(scoped as any, 'ensureFixedRouteSuggestedChoices').mockImplementation(async () => {
+      order.push('choices');
+      throw new Error('choice preparation failed');
+    });
+    const confirmations = {
+      aiBranchGenerationConfirmed: true,
+      authorStyleReferenceConfirmed: true,
+      generatedResultReuseConfirmed: true,
+      imageTransformationConfirmed: true,
+    } as const;
+    await expect(scoped.activate('operator', 'monster', confirmations)).rejects.toThrow('choice preparation failed');
+    expect(order).toEqual(['choices']);
+    expect(legalActivation.createActivation).not.toHaveBeenCalled();
+    expect(prisma.$transaction).toHaveBeenCalledTimes(2);
+
+    choices.mockImplementation(async () => { order.push('choices'); return 2; });
+    jest.spyOn(scoped as any, 'latestValidActivation').mockResolvedValue(null);
+    await expect(scoped.activate('operator', 'monster', confirmations)).resolves.toMatchObject({ active: true });
+    expect(order).toEqual(['choices', 'choices', 'legal']);
+  });
 });

@@ -3,6 +3,7 @@
 
   const params = new URLSearchParams(location.search);
   if (!params.has("manifestId") && !params.has("previewId")) return;
+  const endScreen = params.get("endScreen") === "1";
 
   const apiBase = (window.LUMINA_API_BASE || "https://api.lumina-stage.com").replace(/\/$/, "");
   const root = "/api/v1/me/ott-media";
@@ -18,6 +19,7 @@
   };
   const el = Object.fromEntries(["previewLocale", "localeLabel", "studioLink", "privateLabel", "previewTitle", "previewState", "previewPlayer", "previewDuration", "previewSubtitles", "previewStart", "previewRetry", "graphBranches", "graphBranchTitle", "graphChoices", "graphEnding", "graphSaveState"].map(id => [id, document.getElementById(id)]));
   let video = document.getElementById("privateVideo");
+  if (endScreen) el.previewPlayer.setAttribute("data-end-screen", "true");
   let locale = storedLocale();
   let epoch = 0;
   let mediaEpoch = 0;
@@ -215,6 +217,15 @@
     } catch (_) {}
   }
   function duration(ms) { const seconds = Math.floor(ms / 1000); return Math.floor(seconds / 60) + ":" + String(seconds % 60).padStart(2, "0"); }
+  function syncBranches(focus = false) {
+    if (!progress) { el.graphBranches.hidden = true; return; }
+    const clip = progress.node.clip;
+    const revealAt = clip.endMs - Math.min(8000, Math.round((clip.endMs - clip.startMs) * .25));
+    const visible = progress.node.choices.length > 0 && (!endScreen || playhead >= revealAt);
+    const wasHidden = el.graphBranches.hidden;
+    el.graphBranches.hidden = !visible;
+    if (visible && wasHidden && focus && endScreen) el.graphChoices.querySelectorAll("button")[0]?.focus?.();
+  }
   function controls() {
     const busy = opening || sending || sessionBusy;
     el.previewStart.disabled = busy || unknown || blocked || !progress;
@@ -231,7 +242,6 @@
     const node = progress.node;
     el.previewPlayer.hidden = false;
     el.previewDuration.textContent = t("duration", { value: duration(node.clip.endMs - node.clip.startMs) });
-    el.graphBranches.hidden = !node.choices.length;
     el.graphChoices.replaceChildren(...node.choices.map(choice => {
       const button = document.createElement("button");
       button.type = "button";
@@ -243,6 +253,7 @@
       });
       return button;
     }));
+    syncBranches();
     el.graphEnding.hidden = progress.status !== "completed";
     el.graphEnding.textContent = progress.status === "completed" ? t("ending", { value: node.ending.label }) : "";
     controls();
@@ -367,7 +378,7 @@
     return sendCommand(options);
   }
   function choose(key) {
-    if (opening || sending || sessionBusy || unknown || blocked || !progress.node.choices.some(choice => choice.key === key)) return;
+    if (opening || sending || sessionBusy || unknown || blocked || (endScreen && el.graphBranches.hidden) || !progress.node.choices.some(choice => choice.key === key)) return;
     clearTimeout(saveTimer);
     queuedPosition = null;
     pauseInternal();
@@ -495,6 +506,7 @@
     const boundary = () => {
       if (!current() || !mediaReady || restoring || unknown || blocked) return;
       playhead = clampPosition(element.currentTime * 1000);
+      syncBranches(true);
       const clip = progress.node.clip;
       if (element.currentTime * 1000 < clip.startMs) { seek(clip.startMs); return; }
       if (element.currentTime * 1000 >= clip.endMs) {
@@ -600,6 +612,14 @@
   }
 
   el.previewStart.addEventListener("click", begin);
+  el.graphChoices.addEventListener("keydown", event => {
+    if (!endScreen || !["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return;
+    const choices = [...el.graphChoices.querySelectorAll("button")].filter(button => !button.disabled);
+    const index = choices.indexOf(document.activeElement);
+    if (index < 0 || choices.length < 2) return;
+    event.preventDefault();
+    choices[(index + (event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : -1) + choices.length) % choices.length].focus();
+  });
   el.previewRetry.addEventListener("click", retry);
   el.previewLocale.addEventListener("change", () => {
     if (!locales.includes(el.previewLocale.value)) return;

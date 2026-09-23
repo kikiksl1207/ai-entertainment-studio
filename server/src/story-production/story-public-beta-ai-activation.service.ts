@@ -117,6 +117,30 @@ export class StoryPublicBetaAiActivationService {
       return { work, release, manuscript, analysis, consent, rights, rateCard, capability };
     });
 
+    if (storyKey === 'monster' || storyKey === 'rebellion') {
+      await this.prisma.$transaction(async (tx) => {
+        const parts = await tx.storyPart.findMany({
+          where: { workId: prepared.work.id, status: 'published', fixtureSource: false },
+          orderBy: [{ position: 'asc' }, { id: 'asc' }],
+          select: { id: true, position: true, title: true },
+        });
+        const addedChoiceCount = await this.ensureFixedRouteSuggestedChoices(tx, storyKey, parts);
+        await tx.auditEvent.create({ data: {
+          actorUserId,
+          actorType: 'admin',
+          action: 'story_public_beta.fixed_route_choices.materialized',
+          targetType: 'story_work',
+          targetId: prepared.work.id,
+          metadata: {
+            storyKey,
+            releaseId: prepared.release.id,
+            choicePolicy: 'writer_original_plus_two_generated_v1',
+            addedChoiceCount,
+          },
+        } });
+      });
+    }
+
     const existing = await this.latestValidActivation(
       this.prisma,
       prepared.work.id,
@@ -153,29 +177,6 @@ export class StoryPublicBetaAiActivationService {
       expiresAt: expiresAt.toISOString(),
       legalActivationConfirmed: true,
     });
-    if (storyKey === 'monster' || storyKey === 'rebellion') {
-      await this.prisma.$transaction(async (tx) => {
-        const parts = await tx.storyPart.findMany({
-          where: { workId: prepared.work.id, status: 'published', fixtureSource: false },
-          orderBy: [{ position: 'asc' }, { id: 'asc' }],
-          select: { id: true, position: true, title: true },
-        });
-        const addedChoiceCount = await this.ensureFixedRouteSuggestedChoices(tx, storyKey, parts);
-        await tx.auditEvent.create({ data: {
-          actorUserId,
-          actorType: 'admin',
-          action: 'story_public_beta.fixed_route_choices.materialized',
-          targetType: 'story_work',
-          targetId: prepared.work.id,
-          metadata: {
-            storyKey,
-            releaseId: prepared.release.id,
-            choicePolicy: 'writer_original_plus_two_generated_v1',
-            addedChoiceCount,
-          },
-        } });
-      });
-    }
     return {
       storyKey,
       status: 'active',
