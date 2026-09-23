@@ -285,6 +285,7 @@ describe('StoryVisualGenerationService', () => {
     const form = provider.mock.calls[0][1]?.body as FormData;
     expect(form.getAll('image[]')).toHaveLength(1);
     expect(form.get('model')).toBe('gpt-image-2');
+    expect(form.has('n')).toBe(false);
     expect(form.has('input_fidelity')).toBe(false);
     expect(String(form.get('prompt'))).toContain('approved published story cover');
     expect(String(form.get('prompt'))).toContain('Match the published cover identity');
@@ -424,7 +425,7 @@ describe('StoryVisualGenerationService', () => {
       replacesAssetId: assetId,
       visualBibleVersion: 'story-visual-bible-v4',
       effectivePromptSha256: expect.stringMatching(/^[a-f0-9]{64}$/),
-      requestContractVersion: 'openai-image-request-v2',
+      requestContractVersion: 'openai-image-request-v3',
     });
     const effectivePromptSha256 = createdMetadata.storyVisual.effectivePromptSha256;
     expect(String(provider.mock.calls[1][0])).toContain(effectivePromptSha256);
@@ -617,6 +618,33 @@ describe('StoryVisualGenerationService', () => {
     expect(provider).toHaveBeenCalledTimes(1);
     expect(f.prisma.asset.create).not.toHaveBeenCalled();
     expect(f.generation()).toMatchObject({ status: 'failed', attemptCount: 1, lastErrorCode: 'OPENAI_IMAGE_INVALID' });
+  });
+
+  it('records only sanitized provider error fields for diagnosis', async () => {
+    const f = fixture();
+    const provider = jest.spyOn(global, 'fetch').mockResolvedValueOnce({
+      ok: false,
+      status: 400,
+      json: async () => ({
+        error: {
+          message: 'secret provider message that must not be persisted',
+          param: 'n',
+          code: 'unknown_parameter',
+          type: 'invalid_request_error',
+        },
+      }),
+    } as Response);
+
+    await expect(f.service.requestForProgress('user-id', progressId, sourceSceneKey)).resolves.toEqual({
+      status: 'failed', sourceSceneKey, retryable: false,
+    });
+
+    expect(provider).toHaveBeenCalledTimes(1);
+    expect(f.generation()).toMatchObject({
+      status: 'failed',
+      lastErrorCode: 'OPENAI_400_PARAM_n_CODE_unknown_parameter_TYPE_invalid_request_error',
+    });
+    expect(JSON.stringify(f.generation())).not.toContain('secret provider message');
   });
 
   it('never retries an ambiguous provider attempt automatically', async () => {

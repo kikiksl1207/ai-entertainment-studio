@@ -41,7 +41,7 @@ import {
 const SOURCE_SCENE_KEY = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,159}$/;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_GENERATION_ATTEMPTS = 1;
-const IMAGE_REQUEST_CONTRACT_VERSION = 'openai-image-request-v2';
+const IMAGE_REQUEST_CONTRACT_VERSION = 'openai-image-request-v3';
 const IMAGE_MODELS = new Set(['gpt-image-2', 'gpt-image-1.5', 'gpt-image-1-mini']);
 const IMAGE_QUALITIES = new Set(['low', 'medium', 'high']);
 const IMAGE_SIZES = new Map([
@@ -986,7 +986,7 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
             output_format: 'webp', output_compression: 86, moderation: 'auto' }),
           signal: requestSignal,
         });
-    if (!response.ok) throw new Error(`OPENAI_${response.status}`);
+    if (!response.ok) throw new Error(await this.openAiErrorCode(response));
     const payload = await response.json() as { data?: Array<{ b64_json?: unknown }> };
     const encoded = payload.data?.[0]?.b64_json;
     if (typeof encoded !== 'string' || encoded.length > 24 * 1024 * 1024) throw new Error('OPENAI_IMAGE_INVALID');
@@ -1018,7 +1018,6 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
         'Preserve the same recognizable face, hair, body proportions, and signature traits. Adapt only costume, pose, lighting, and rendering medium to the story scene.',
       ] : []),
     ].join('\n'));
-    form.set('n', '1');
     form.set('size', this.size());
     form.set('quality', this.quality());
     form.set('output_format', 'webp');
@@ -1197,6 +1196,27 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
     if (message === 'STORY_VISUAL_REFERENCE_STORAGE_UNAVAILABLE') return message;
     if (message === 'TimeoutError' || message.includes('timeout')) return 'GENERATION_TIMEOUT';
     return 'GENERATION_FAILED';
+  }
+
+  private async openAiErrorCode(response: Response) {
+    const parts = [`OPENAI_${response.status}`];
+    try {
+      const payload = await response.json() as {
+        error?: { param?: unknown; code?: unknown; type?: unknown };
+      };
+      const safePart = (value: unknown) => typeof value === 'string'
+        ? value.replace(/[^A-Za-z0-9_.-]+/g, '_').slice(0, 28)
+        : '';
+      const param = safePart(payload.error?.param);
+      const code = safePart(payload.error?.code);
+      const type = safePart(payload.error?.type);
+      if (param) parts.push(`PARAM_${param}`);
+      if (code) parts.push(`CODE_${code}`);
+      if (type) parts.push(`TYPE_${type}`);
+    } catch {
+      // The status code is enough when the provider does not return JSON.
+    }
+    return parts.join('_').slice(0, 80);
   }
 
   private presignedPutUrl(storageProvider: string, storageKey: string, mimeType: string) {
