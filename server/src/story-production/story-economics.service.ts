@@ -2258,6 +2258,7 @@ export class StoryEconomicsService {
           targetId: continuation.id,
           metadata: {
             status: finalStatus,
+            failureCode: finalStatus === 'completed' ? null : body.failureCode ?? null,
             progressApplied: finalStatus === 'completed',
             allowanceConsumed: finalStatus === 'completed',
             rateCardVersion: rateCard.version,

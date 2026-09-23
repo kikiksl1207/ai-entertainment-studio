@@ -4462,7 +4462,9 @@ async function loadAuditPage(append = true) {
       item.actorUser?.email || item.actorUserId?.slice?.(0, 8) || "system",
       item.action || "-",
       item.targetType || "-",
-      item.reason || item.metadata?.reason || item.targetId?.slice?.(0, 8) || "-"
+      item.action === "story_ai_continuation.settle"
+        ? [item.metadata?.status, item.metadata?.failureCode].filter(Boolean).join(" · ") || "상태 확인 필요"
+        : item.reason || item.metadata?.reason || item.targetId?.slice?.(0, 8) || "-"
     ]);
     state.rows = append ? state.rows.concat(rows) : rows;
     state.cursor = page.nextCursor;
