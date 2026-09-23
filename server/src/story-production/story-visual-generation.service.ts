@@ -253,6 +253,56 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
     return this.generate(workId, release.id, release.checksum, input.sourceSceneKey, undefined, true);
   }
 
+  async replacementStatus(workId: string) {
+    if (!UUID_PATTERN.test(workId)) throw new BadRequestException('workId must be a UUID');
+    const work = await this.prisma.storyWork.findFirst({
+      where: { id: workId, status: 'published', fixtureSource: false, activeReleaseId: { not: null } },
+      select: { id: true, activeReleaseId: true },
+    });
+    const release = work?.activeReleaseId ? await this.prisma.storyRelease.findFirst({
+      where: { id: work.activeReleaseId, workId, status: 'active' },
+      select: { id: true, checksum: true },
+    }) : null;
+    if (!work || !release) throw new NotFoundException('Active story release not found');
+    this.publicBeta?.assertAllowed(workId, release.id, release.checksum);
+
+    const ready = await this.prisma.storyVisualGeneration.findMany({
+      where: {
+        workId,
+        releaseId: release.id,
+        variantKey: DEFAULT_VISUAL_VARIANT.key,
+        status: 'ready',
+        assetId: { not: null },
+      },
+      orderBy: [{ updatedAt: 'desc' }, { sourceSceneKey: 'asc' }],
+      take: 80,
+      select: { sourceSceneKey: true, assetId: true, updatedAt: true },
+    });
+    const stale: Array<{ sourceSceneKey: string; updatedAt: Date }> = [];
+    for (const row of ready) {
+      if (!row.assetId) continue;
+      const prompt = await this.prisma.storyVisualPrompt.findUnique({
+        where: { workId_releaseId_sourceSceneKey: {
+          workId, releaseId: release.id, sourceSceneKey: row.sourceSceneKey,
+        } },
+      });
+      if (!prompt || prompt.releaseChecksum !== release.checksum) continue;
+      const effective = await this.effectiveVisualPrompt(workId, release.id, release.checksum, prompt.promptText);
+      const identity = await this.readyAssetIdentity(row.assetId);
+      if (!this.visualIdentityCurrent(identity, effective)) {
+        stale.push({ sourceSceneKey: row.sourceSceneKey, updatedAt: row.updatedAt });
+      }
+    }
+    return {
+      workId,
+      releaseId: release.id,
+      releaseChecksum: release.checksum,
+      readyCount: ready.length,
+      staleCount: stale.length,
+      items: stale,
+    };
+  }
+
   async generateSample(workId: string, input: ReplaceStaleStoryVisualDto) {
     if (!UUID_PATTERN.test(workId)) throw new BadRequestException('workId must be a UUID');
     const work = await this.prisma.storyWork.findFirst({
@@ -559,19 +609,8 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
       if (!replaceStale) return this.readyResult(sourceSceneKey, existing.assetId, true);
       effective = await this.effectiveVisualPrompt(workId, releaseId, releaseChecksum, prompt.promptText);
       const identity = await this.readyAssetIdentity(existing.assetId);
-      const requestedIdentity = {
-        provider: 'openai',
-        model: this.model(),
-        quality: this.quality(),
-        size: this.size(),
-      };
-      if (identity.effectivePromptSha256 === effective.sha256 &&
-          identity.visualBibleFingerprint === effective.bible.fingerprint &&
-          identity.visualBibleVersion === effective.bible.version &&
-          identity.provider === requestedIdentity.provider &&
-          identity.model === requestedIdentity.model &&
-          identity.quality === requestedIdentity.quality &&
-          identity.size === requestedIdentity.size) {
+      const requestedIdentity = this.requestedVisualIdentity();
+      if (this.visualIdentityCurrent(identity, effective)) {
         return this.readyResult(sourceSceneKey, existing.assetId, true);
       }
       const replacementIdentitySha256 = this.sha256Hex(JSON.stringify({
@@ -758,6 +797,29 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
     const prompt = composeStoryVisualPrompt(bible, scenePrompt);
     return { bible, prompt, workReference,
       sha256: this.sha256Hex(JSON.stringify([prompt, workReference?.checksum ?? null])) };
+  }
+
+  private requestedVisualIdentity() {
+    return {
+      provider: 'openai',
+      model: this.model(),
+      quality: this.quality(),
+      size: this.size(),
+    };
+  }
+
+  private visualIdentityCurrent(
+    identity: Awaited<ReturnType<StoryVisualGenerationService['readyAssetIdentity']>>,
+    effective: Awaited<ReturnType<StoryVisualGenerationService['effectiveVisualPrompt']>>,
+  ) {
+    const requested = this.requestedVisualIdentity();
+    return identity.effectivePromptSha256 === effective.sha256 &&
+      identity.visualBibleFingerprint === effective.bible.fingerprint &&
+      identity.visualBibleVersion === effective.bible.version &&
+      identity.provider === requested.provider &&
+      identity.model === requested.model &&
+      identity.quality === requested.quality &&
+      identity.size === requested.size;
   }
 
   private async readyAssetIdentity(assetId: string) {

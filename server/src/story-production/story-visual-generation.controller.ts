@@ -76,6 +76,12 @@ export class StoryVisualGenerationAdminController {
     return this.visuals.replaceStale(workId, body);
   }
 
+  @Get(':workId/replacement-status')
+  @RequireAdminPermissions('*')
+  replacementStatus(@Param('workId') workId: string) {
+    return this.visuals.replacementStatus(workId);
+  }
+
   @Post(':workId/generate-sample')
   @RequireAdminPermissions('*')
   generateSample(

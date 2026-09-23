@@ -45,4 +45,14 @@ describe('StoryVisualGenerationController security boundary', () => {
     await controller.generateSample('work-id', body);
     expect(visuals.generateSample).toHaveBeenCalledWith('work-id', body);
   });
+
+  it('protects the replacement status inventory with full admin permission', async () => {
+    const visuals = { replacementStatus: jest.fn().mockResolvedValue({ staleCount: 1 }) };
+    const controller = new StoryVisualGenerationAdminController(visuals as never);
+    const method = StoryVisualGenerationAdminController.prototype.replacementStatus;
+
+    expect(Reflect.getMetadata(ADMIN_PERMISSIONS_KEY, method)).toEqual(['*']);
+    await controller.replacementStatus('work-id');
+    expect(visuals.replacementStatus).toHaveBeenCalledWith('work-id');
+  });
 });

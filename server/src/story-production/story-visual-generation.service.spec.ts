@@ -453,6 +453,31 @@ describe('StoryVisualGenerationService', () => {
     });
   });
 
+  it('lists only ready visuals that no longer match the current work identity', async () => {
+    const f = fixture();
+    const updatedAt = new Date('2026-09-23T00:00:00.000Z');
+    f.prisma.storyVisualGeneration.findMany.mockResolvedValue([
+      { sourceSceneKey, assetId, updatedAt },
+    ]);
+    f.prisma.asset.findFirst.mockResolvedValue({ id: assetId, metadata: {
+      storyVisual: { workId, releaseId, sourceSceneKey, promptSha256,
+        visualBibleVersion: 'story-visual-bible-v3' },
+    } });
+
+    await expect(f.service.replacementStatus(workId)).resolves.toEqual({
+      workId,
+      releaseId,
+      releaseChecksum: checksum,
+      readyCount: 1,
+      staleCount: 1,
+      items: [{ sourceSceneKey, updatedAt }],
+    });
+    expect(f.prisma.storyVisualGeneration.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ variantKey: 'default', status: 'ready', assetId: { not: null } }),
+      take: 80,
+    }));
+  });
+
   it('keeps the prior ready asset and blocks another paid attempt after replacement failure for the same identity', async () => {
     const f = fixture();
     f.setGeneration({ id: 'generation-id', workId, releaseId, releaseChecksum: checksum, sourceSceneKey,

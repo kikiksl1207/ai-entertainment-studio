@@ -30,7 +30,8 @@
         "e5c3e0719995380e2544062a83dceb43c4811ff7c9029ca81b15ba4a3c1b4bff",
         "ba2763caa77bb52bd56a216b1852b2be9241314019015624a65ab128df25e033"
       ],
-      aiActivationAvailable: false
+      aiActivationAvailable: false,
+      visualIdentityManaged: true
     },
     {
       key: "rebellion",
@@ -40,10 +41,11 @@
         "9c855d771b9e2d89ef8b36b7a445b0fa62bf854738bb2d78becb12284f16ecff",
         "fb1ecc405c2471035fdfc85fec17f4e4d883334e2928d898eec988188ec1a5c3"
       ],
-      aiActivationAvailable: false
+      aiActivationAvailable: false,
+      visualIdentityManaged: true
     }
   ];
-  const state = { items: [], publishedWorks: [], aiStatuses: {}, loading: false, loaded: false, promotingId: null, uploadingKey: null, activatingKey: null };
+  const state = { items: [], publishedWorks: [], aiStatuses: {}, visualStatuses: {}, loading: false, loaded: false, promotingId: null, uploadingKey: null, activatingKey: null, replacingKey: null };
 
   const list = document.getElementById("storyPublicationSubmissionList");
   const statusCards = document.getElementById("storyPublicationStatusCards");
@@ -140,6 +142,28 @@
     return { label: "접수 없음", className: "is-pending", detail: "일치하는 운영 업로드 없음" };
   }
 
+  function fixedVisualControls(story, visual) {
+    const busy = state.replacingKey === story.key;
+    const unavailable = visual?.status === "unavailable";
+    const readyCount = Number(visual?.readyCount || 0);
+    const staleCount = Number(visual?.staleCount || 0);
+    const label = unavailable ? "확인 필요" : staleCount > 0 ? `${staleCount.toLocaleString("ko-KR")}장 교체 필요` : readyCount > 0 ? "표지 기준 일치" : "생성된 장면 없음";
+    const className = unavailable || staleCount > 0 ? "is-review" : "is-approved";
+    const description = unavailable
+      ? "기존 그림 상태를 불러오지 못했습니다."
+      : staleCount > 0
+        ? "최근 읽은 장면부터 표지와 같은 화풍·인물 기준으로 교체합니다."
+        : readyCount > 0
+          ? "현재 생성된 장면 그림이 최신 작품 기준과 일치합니다."
+          : "독자가 장면에 도달하면 작품 기준에 맞춰 그림을 생성합니다.";
+    return `<section class="story-ai-activation story-visual-consistency" data-story-visual-card="${escapeHtml(story.key)}">
+      <div><strong>장면 그림 일관성</strong><span class="status-badge ${className}">${escapeHtml(label)}</span></div>
+      <small>${escapeHtml(description)}</small>
+      ${staleCount > 0 ? `<button type="button" class="primary-action story-visual-replace-button" data-story-visual-replace="${escapeHtml(story.key)}" ${busy ? "disabled" : ""}>${busy ? "교체 중..." : "새 기준으로 1장 교체"}</button>` : ""}
+      <p class="form-status" data-story-visual-status role="status" aria-live="polite"></p>
+    </section>`;
+  }
+
   function renderStoryStatus() {
     if (!statusCards) return;
     statusCards.innerHTML = knownStories.map((story) => {
@@ -148,6 +172,7 @@
       const ai = state.aiStatuses[story.key];
       const aiActive = ai?.active === true;
       const busy = state.activatingKey === story.key;
+      const visual = state.visualStatuses[story.key];
       return `<article class="story-publication-status-item">
         <div class="story-publication-status-title"><span>대상 작품</span><h3>${escapeHtml(story.title)}</h3></div>
         <div class="story-publication-status-result">
@@ -165,7 +190,7 @@
           </fieldset>
           <button type="button" class="primary-action story-ai-activate-button" data-story-ai-activate="${escapeHtml(story.key)}" disabled>${busy ? "활성화 중..." : "AI 분기 활성화"}</button>`}
           <p class="form-status" data-story-ai-status role="status" aria-live="polite"></p>
-        </section>` : published ? `<section class="story-ai-activation"><div><strong>독자 공개 방식</strong><span class="status-badge is-approved">고정 메인 루트</span></div><small>작가 최종 원고 순서대로 공개되며 시스템의 다음 장 이동만 제공합니다.</small></section>` : ""}
+        </section>` : published ? `<div class="story-fixed-release-controls"><section class="story-ai-activation"><div><strong>독자 공개 방식</strong><span class="status-badge is-approved">고정 메인 루트</span></div><small>작가 최종 원고 순서대로 공개되며 시스템의 다음 장 이동만 제공합니다.</small></section>${story.visualIdentityManaged ? fixedVisualControls(story, visual) : ""}</div>` : ""}
       </article>`;
     }).join("");
   }
@@ -251,14 +276,23 @@
       if (!response || !Array.isArray(response.items)) throw new Error("접수 목록 응답 형식이 올바르지 않습니다.");
       state.items = response.items;
       state.publishedWorks = Array.isArray(response.publishedWorks) ? response.publishedWorks : [];
-      const aiStatuses = await Promise.all(knownStories.filter((story) => story.aiActivationAvailable).map(async (story) => {
+      const [aiStatuses, visualStatuses] = await Promise.all([Promise.all(knownStories.filter((story) => story.aiActivationAvailable).map(async (story) => {
         try {
           return [story.key, await api.fetch(`${publicationEndpoint}/published/${encodeURIComponent(story.key)}/ai-status`, { auth: true })];
         } catch {
           return [story.key, { active: false, status: "unavailable" }];
         }
-      }));
+      })), Promise.all(knownStories.filter((story) => story.visualIdentityManaged).map(async (story) => {
+        const work = state.publishedWorks.find((candidate) => candidate?.slug === story.slug && candidate?.status === "published");
+        if (!work?.id) return [story.key, { status: "unavailable", readyCount: 0, staleCount: 0, items: [] }];
+        try {
+          return [story.key, await api.fetch(`/admin/api/v1/story-visuals/${encodeURIComponent(work.id)}/replacement-status`, { auth: true })];
+        } catch {
+          return [story.key, { status: "unavailable", readyCount: 0, staleCount: 0, items: [] }];
+        }
+      }))]);
       state.aiStatuses = Object.fromEntries(aiStatuses);
+      state.visualStatuses = Object.fromEntries(visualStatuses);
       state.loaded = true;
       setStatus(`${state.items.length.toLocaleString("ko-KR")}건을 확인했습니다.`, "success");
     } catch (error) {
@@ -495,6 +529,46 @@
     }
   }
 
+  async function replaceStoryVisual(button) {
+    const storyKey = button.dataset.storyVisualReplace;
+    const story = knownStories.find((candidate) => candidate.key === storyKey && candidate.visualIdentityManaged);
+    const visual = state.visualStatuses[storyKey];
+    const item = Array.isArray(visual?.items) ? visual.items[0] : null;
+    const work = state.publishedWorks.find((candidate) => candidate?.slug === story?.slug && candidate?.status === "published");
+    const card = button.closest("[data-story-visual-card]");
+    const inlineStatus = card?.querySelector("[data-story-visual-status]");
+    if (!story || !work?.id || !item?.sourceSceneKey || !visual?.releaseId || !visual?.releaseChecksum || state.replacingKey) return;
+    state.replacingKey = storyKey;
+    button.disabled = true;
+    button.textContent = "교체 중...";
+    if (inlineStatus) inlineStatus.textContent = "표지와 같은 화풍·인물 기준으로 장면 그림을 다시 만들고 있습니다.";
+    try {
+      const result = await api.fetch(`/admin/api/v1/story-visuals/${encodeURIComponent(work.id)}/replace-stale`, {
+        method: "POST",
+        auth: true,
+        body: {
+          releaseId: visual.releaseId,
+          releaseChecksum: visual.releaseChecksum,
+          sourceSceneKey: item.sourceSceneKey
+        }
+      });
+      if (result?.status !== "ready") throw new Error("장면 그림 교체가 완료되지 않았습니다.");
+      state.loaded = false;
+      await load({ force: true });
+      setStatus(`${story.title} 장면 그림 1장을 새 기준으로 교체했습니다.`, "success");
+    } catch (error) {
+      if (inlineStatus) {
+        inlineStatus.textContent = error?.message || "장면 그림을 교체하지 못했습니다.";
+        inlineStatus.className = "form-status is-error";
+      }
+      button.disabled = false;
+      button.textContent = "새 기준으로 1장 교체";
+    } finally {
+      state.replacingKey = null;
+      render();
+    }
+  }
+
   list?.addEventListener("change", (event) => {
     if (event.target.matches("[data-story-confirmation]")) updatePromotionButton(event.target.closest("[data-submission-id]"));
   });
@@ -507,8 +581,10 @@
     if (event.target.matches("[data-story-ai-confirm]")) updateAiActivationButton(event.target.closest("[data-story-ai-card]"));
   });
   statusCards?.addEventListener("click", (event) => {
-    const button = event.target.closest("[data-story-ai-activate]");
-    if (button) activateAi(button);
+    const aiButton = event.target.closest("[data-story-ai-activate]");
+    if (aiButton) return activateAi(aiButton);
+    const visualButton = event.target.closest("[data-story-visual-replace]");
+    if (visualButton) replaceStoryVisual(visualButton);
   });
   uploadForms.forEach((form) => {
     form.addEventListener("submit", (event) => {
