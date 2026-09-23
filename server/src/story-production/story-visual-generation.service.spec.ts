@@ -38,6 +38,7 @@ describe('StoryVisualGenerationService', () => {
         localizedDisplaySnapshot: { ko: { title: '불타는 바다의 기록자', summary: '임진왜란 역사 서사' } },
         sceneAssetManifest: { state: 'prompt_backed' } }) },
       storyAiContinuation: { findFirst: jest.fn() },
+      storyAiGeneratedBeat: { findMany: jest.fn() },
       storyWorkGenerationProfile: { findFirst: jest.fn() },
       storyBeat: { findFirst: jest.fn().mockResolvedValue({ id: 'beat-id' }),
         findMany: jest.fn().mockResolvedValue([{ content: { ko: '이순신은 늘 같은 검은 수염과 붉은 철릭 차림으로 갑판에 섰다.' } }]) },
@@ -177,6 +178,36 @@ describe('StoryVisualGenerationService', () => {
         status: 'ready',
       },
       select: { id: true },
+    });
+  });
+
+  it('recovers a missing prompt from an already stored generated scene without regenerating prose', async () => {
+    const f = fixture(false);
+    const generatedSceneId = '00000000-0000-4000-8000-000000000007';
+    const continuationId = '00000000-0000-4000-8000-000000000008';
+    const generatedSceneKey = 'ai-reader-route-0001';
+    f.prisma.storyReaderProgress.findFirst.mockResolvedValue({
+      workId, currentSceneId: null, currentGeneratedSceneId: generatedSceneId, activeReleaseId: releaseId,
+    });
+    f.prisma.storyAiGeneratedScene.findFirst
+      .mockResolvedValueOnce({ id: generatedSceneId })
+      .mockResolvedValueOnce({ id: generatedSceneId, continuationId, title: { ko: '다른 길' } });
+    f.prisma.storyAiGeneratedBeat.findMany.mockResolvedValue([
+      { beatType: 'paragraph', content: { ko: '새 이야기가 시작됐다.' } },
+    ]);
+    f.prisma.storyVisualPrompt.findUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ workId, releaseId, releaseChecksum: checksum,
+        sourceSceneKey: generatedSceneKey, promptSha256,
+        promptText: 'A sufficiently detailed private scene image direction.' });
+    const register = jest.spyOn(f.service, 'registerGeneratedContinuationPrompt')
+      .mockResolvedValue({ created: true } as never);
+
+    await expect(f.service.requestForProgress('user-id', progressId, generatedSceneKey))
+      .resolves.toEqual({ status: 'unavailable', reason: 'generation_disabled' });
+    expect(register).toHaveBeenCalledWith(continuationId, {
+      title: { ko: '다른 길' },
+      beats: [{ beatType: 'paragraph', content: { ko: '새 이야기가 시작됐다.' } }],
     });
   });
 

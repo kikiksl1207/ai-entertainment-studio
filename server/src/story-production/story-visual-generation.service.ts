@@ -192,6 +192,7 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
       select: { id: true, activeReleaseId: true },
     });
     if (!work) throw new NotFoundException('Published story scene not found');
+    let generatedSceneId: string | null = null;
     if (progress.currentGeneratedSceneId) {
       const generatedScene = await this.prisma.storyAiGeneratedScene.findFirst({
         where: {
@@ -206,6 +207,7 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
         select: { id: true },
       });
       if (!generatedScene) throw new NotFoundException('Story visual is outside current scene');
+      generatedSceneId = generatedScene.id;
     } else {
       const scene = await this.prisma.storyScene.findFirst({
         where: { id: progress.currentSceneId!, status: 'published', fixtureSource: false },
@@ -229,8 +231,42 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
     });
     if (!release) throw new NotFoundException('Active story release not found');
     this.publicBeta?.assertAllowed(progress.workId, release.id, release.checksum);
+    if (generatedSceneId) {
+      const prompt = await this.prisma.storyVisualPrompt.findUnique({
+        where: { workId_releaseId_sourceSceneKey: {
+          workId: progress.workId, releaseId: release.id, sourceSceneKey,
+        } },
+        select: { id: true },
+      });
+      if (!prompt) {
+        try {
+          await this.recoverGeneratedContinuationPrompt(generatedSceneId);
+        } catch (error) {
+          this.logger.warn({ event: 'story_visual_prompt_recovery_failed',
+            workId: progress.workId, sourceSceneKey,
+            code: error instanceof ConflictException ? 'PROFILE_OR_RELEASE_CHANGED' : 'PROMPT_RECOVERY_FAILED' });
+          return { status: 'unavailable', reason: 'prompt_recovery_failed' } as const;
+        }
+      }
+    }
     const variant = await this.visualVariantForProgress(progressId);
     return this.generate(progress.workId, release.id, release.checksum, sourceSceneKey, undefined, false, variant);
+  }
+
+  private async recoverGeneratedContinuationPrompt(generatedSceneId: string) {
+    const scene = await this.prisma.storyAiGeneratedScene.findFirst({
+      where: { id: generatedSceneId, status: 'ready' },
+      select: { id: true, continuationId: true, title: true },
+    });
+    if (!scene) throw new NotFoundException('Generated story scene not found');
+    const beats = await this.prisma.storyAiGeneratedBeat.findMany({
+      where: { sceneId: scene.id }, orderBy: [{ position: 'asc' }, { id: 'asc' }],
+      select: { beatType: true, content: true },
+    });
+    return this.registerGeneratedContinuationPrompt(scene.continuationId, {
+      title: scene.title as Record<string, string>,
+      beats: beats as Array<{ beatType: 'paragraph' | 'dialogue' | 'scene_break'; content: Record<string, string> }>,
+    });
   }
 
   async replaceStale(workId: string, input: ReplaceStaleStoryVisualDto) {
@@ -459,7 +495,7 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
 
   async registerGeneratedContinuationPrompt(
     continuationId: string,
-    result: StoryContinuationProviderResult,
+    result: Pick<StoryContinuationProviderResult, 'title' | 'beats'> & Partial<StoryContinuationProviderResult>,
   ) {
     if (!UUID_PATTERN.test(continuationId)) throw new BadRequestException('continuationId must be a UUID');
     const continuation = await this.prisma.storyAiContinuation.findFirst({
