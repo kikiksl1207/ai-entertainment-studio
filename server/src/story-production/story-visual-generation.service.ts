@@ -41,7 +41,7 @@ import {
 const SOURCE_SCENE_KEY = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,159}$/;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_GENERATION_ATTEMPTS = 1;
-const IMAGE_REQUEST_CONTRACT_VERSION = 'openai-image-request-v3';
+const IMAGE_REQUEST_CONTRACT_VERSION = 'openai-image-request-v4';
 const IMAGE_MODELS = new Set(['gpt-image-2', 'gpt-image-1.5', 'gpt-image-1-mini']);
 const IMAGE_QUALITIES = new Set(['low', 'medium', 'high']);
 const IMAGE_SIZES = new Map([
@@ -1022,8 +1022,6 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
     form.set('quality', this.quality());
     form.set('output_format', 'webp');
     form.set('output_compression', '86');
-    // GPT Image 2 always uses high-fidelity image inputs and rejects this option.
-    if (model !== 'gpt-image-2') form.set('input_fidelity', 'high');
     if (workReference) {
       form.append('image[]', new Blob([Uint8Array.from(workReference.image)], { type: workReference.mimeType }),
         workReference.filename);
