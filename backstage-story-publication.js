@@ -131,7 +131,14 @@
 
   function storyState(story) {
     if (state.publishedWorks.some((work) => work?.slug === story.slug && work?.status === "published")) {
-      return { label: "공개 완료", className: "is-approved", detail: "독자 화면에 공개 중" };
+      const ai = state.aiStatuses[story.key];
+      if (story.aiActivationAvailable && (!ai || ai.status === "unavailable")) {
+        return { published: true, label: "원고 공개 / AI 분기 확인 필요", className: "is-review", detail: "원고는 독자 화면에 공개 중" };
+      }
+      if (story.aiActivationAvailable && ai.active !== true) {
+        return { published: true, label: "원고 공개 / AI 분기 미활성", className: "is-review", detail: "원고는 독자 화면에 공개 중" };
+      }
+      return { published: true, label: "공개 완료", className: "is-approved", detail: "독자 화면에 공개 중" };
     }
     const candidates = state.items
       .filter((item) => identify(item).story?.key === story.key)
@@ -168,9 +175,10 @@
     if (!statusCards) return;
     statusCards.innerHTML = knownStories.map((story) => {
       const current = storyState(story);
-      const published = current.label === "공개 완료";
+      const published = current.published === true;
       const ai = state.aiStatuses[story.key];
       const aiActive = ai?.active === true;
+      const aiUnavailable = !ai || ai.status === "unavailable";
       const busy = state.activatingKey === story.key;
       const visual = state.visualStatuses[story.key];
       return `<article class="story-publication-status-item">
@@ -180,7 +188,7 @@
           <small>${escapeHtml(current.detail)}</small>
         </div>
         ${published && story.aiActivationAvailable ? `<section class="story-ai-activation" data-story-ai-card="${escapeHtml(story.key)}">
-          <div><strong>AI 분기 생성</strong><span class="status-badge ${aiActive ? "is-approved" : "is-review"}">${aiActive ? "활성" : "비활성"}</span></div>
+          <div><strong>AI 분기 생성</strong><span class="status-badge ${aiActive ? "is-approved" : "is-review"}">${aiActive ? "활성" : aiUnavailable ? "확인 필요" : "비활성"}</span></div>
           ${aiActive ? `<small>한국어 공개 테스트 · 선택에 따른 새 장면과 제목 생성</small>` : `<fieldset class="story-ai-confirmations" ${busy ? "disabled" : ""}>
             <legend>활성화 전 확인</legend>
             <label><input type="checkbox" data-story-ai-confirm /> 원고 기반 AI 분기 생성을 승인했습니다.</label>
