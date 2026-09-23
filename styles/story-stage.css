@@ -638,6 +638,10 @@
   white-space: pre-wrap;
 }
 
+.story-player-copy p + p {
+  margin-top: 1.6em;
+}
+
 .story-reader-progress {
   position: absolute;
   z-index: 3;

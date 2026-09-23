@@ -10,7 +10,7 @@ const helpers = source.slice(source.indexOf('function readerScope('), source.ind
 function reader(positions, position = 0, status = 'active') {
   const scene = { id: 'scene', beats: positions.map((position) => ({ position, content: { value: `full.text.${position}\n\nSecond paragraph.` } })) };
   const state = { sessionId: 'progress', workId: 'work', scene, progress: { scene, currentBeatPosition: position, status, storyVersion: 1 } };
-  const api = runInNewContext(`${helpers}; ({ readableBeats, readerScope })`, { state, readerIdentity: () => 'owner', textValue: (value) => value?.en || '' });
+  const api = runInNewContext(`${helpers}; ({ groupReaderBeats, readableBeats, readerScope })`, { state, readerIdentity: () => 'owner', textValue: (value) => value?.en || '' });
   return { state, ...api };
 }
 
@@ -23,6 +23,27 @@ test('reader source: canonical/generated persisted positions and full text are n
   assert.equal(reader([0, 1, 2], 1).readableBeats().index, 1);
   assert.equal(reader([1, 2], 9).readableBeats(), null);
   assert.equal(reader([1, 1]).readableBeats(), null);
+});
+
+test('reader source: six short beats become three scrollable scenes without losing text or positions', () => {
+  const runtime = reader([6, 1, 4, 2, 5, 3], 3);
+  const grouped = runtime.readableBeats();
+  assert.equal(grouped.beats.length, 3);
+  assert.deepEqual(Array.from(grouped.beats[0].positions), [1, 2]);
+  assert.deepEqual(Array.from(grouped.beats[1].positions), [3, 4]);
+  assert.deepEqual(Array.from(grouped.beats[2].positions), [5, 6]);
+  assert.equal(grouped.index, 1);
+  assert.equal(grouped.beats[1].position, 4);
+  assert.equal(grouped.beats[1].text, 'full.text.3\n\nSecond paragraph.\n\nfull.text.4\n\nSecond paragraph.');
+  const visualGroups = runtime.groupReaderBeats([
+    { position: 1, text: 'one', visualContext: { id: 'pending', generationAvailable: true } },
+    { position: 2, text: 'two', visualContext: { id: 'ready', assetReadiness: 'ready' } },
+    { position: 3, text: 'three', visualContext: { id: 'third' } },
+    { position: 4, text: 'four', visualContext: { id: 'fourth' } },
+  ]);
+  assert.equal(visualGroups.length, 2);
+  assert.equal(visualGroups[0].visualContext.id, 'ready');
+  assert.equal(visualGroups[1].visualContext.id, 'third');
 });
 
 test('reader source: completed reading cursor stays local and work/release/scene scoped', () => {
@@ -67,6 +88,6 @@ test('reader source: five locales have safe names/status copy, including missing
   assert.equal(result.fiveLocaleReader, true);
   assert.equal(result.safeReaderValues, true);
   assert.equal(result.rawKeyFallbackBlocked, true);
-  assert.equal(verifyStoryStageSource(source.replace('Previous page', 'story.reader.previous')).safeReaderValues, false);
+  assert.equal(verifyStoryStageSource(source.replace('Previous scene', 'story.reader.previous')).safeReaderValues, false);
   assert.equal(verifyStoryStageSource(source.replace('READER_COPY.en[key] || ""', 'READER_COPY.en[key] || key')).rawKeyFallbackBlocked, false);
 });

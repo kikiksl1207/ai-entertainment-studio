@@ -624,11 +624,11 @@
   };
 
   const READER_COPY = {
-    ko: { previous: "이전 페이지", next: "다음 페이지", page: "{current} / {total} 페이지", text: "이야기 본문", saving: "읽는 위치를 저장하고 있습니다.", unconfirmed: "읽는 위치를 확인하지 못해 최신 진행 상황을 다시 불러왔습니다." },
-    en: { previous: "Previous page", next: "Next page", page: "Page {current} of {total}", text: "Story text", saving: "Saving reading position.", unconfirmed: "The reading position could not be confirmed. The latest progress has been reloaded." },
-    ja: { previous: "前のページ", next: "次のページ", page: "{total}ページ中{current}ページ", text: "物語の本文", saving: "読んでいる位置を保存しています。", unconfirmed: "読んでいる位置を確認できなかったため、最新の進行状況を再読み込みしました。" },
-    "zh-Hans": { previous: "上一页", next: "下一页", page: "第 {current} 页，共 {total} 页", text: "故事正文", saving: "正在保存阅读位置。", unconfirmed: "无法确认阅读位置，已重新加载最新进度。" },
-    "zh-Hant": { previous: "上一頁", next: "下一頁", page: "第 {current} 頁，共 {total} 頁", text: "故事正文", saving: "正在儲存閱讀位置。", unconfirmed: "無法確認閱讀位置，已重新載入最新進度。" },
+    ko: { previous: "이전 장면", next: "다음 장면", page: "{current} / {total} 장면", text: "이야기 본문", saving: "읽는 위치를 저장하고 있습니다.", unconfirmed: "읽는 위치를 확인하지 못해 최신 진행 상황을 다시 불러왔습니다." },
+    en: { previous: "Previous scene", next: "Next scene", page: "Scene {current} of {total}", text: "Story text", saving: "Saving reading position.", unconfirmed: "The reading position could not be confirmed. The latest progress has been reloaded." },
+    ja: { previous: "前のシーン", next: "次のシーン", page: "{total}シーン中{current}シーン", text: "物語の本文", saving: "読んでいる位置を保存しています。", unconfirmed: "読んでいる位置を確認できなかったため、最新の進行状況を再読み込みしました。" },
+    "zh-Hans": { previous: "上一场景", next: "下一场景", page: "第 {current} 个场景，共 {total} 个", text: "故事正文", saving: "正在保存阅读位置。", unconfirmed: "无法确认阅读位置，已重新加载最新进度。" },
+    "zh-Hant": { previous: "上一場景", next: "下一場景", page: "第 {current} 個場景，共 {total} 個", text: "故事正文", saving: "正在儲存閱讀位置。", unconfirmed: "無法確認閱讀位置，已重新載入最新進度。" },
   };
 
   function readerTr(key) {
@@ -1330,19 +1330,40 @@
     return textValue(value);
   }
 
+  function groupReaderBeats(beats) {
+    if (beats.length <= 3) return beats.map((beat) => ({ ...beat, positions: [beat.position], segments: [String(beat.text || "")] }));
+    const sceneCount = Math.min(3, Math.ceil(beats.length / 2));
+    return Array.from({ length: sceneCount }, (_, index) => {
+      const start = Math.ceil(index * beats.length / sceneCount);
+      const end = Math.ceil((index + 1) * beats.length / sceneCount);
+      const members = beats.slice(start, end);
+      const visualBeat = members.find((beat) => beat.visualContext?.assetReadiness === "ready") ||
+        members.find((beat) => beat.visualContext?.generationAvailable === true) ||
+        members.find((beat) => beat.visualContext != null) || members[0];
+      return {
+        position: members.at(-1).position,
+        positions: members.map((beat) => beat.position),
+        segments: members.map((beat) => String(beat.text || "")),
+        text: members.map((beat) => String(beat.text || "")).join("\n\n"),
+        visualContext: visualBeat.visualContext,
+      };
+    });
+  }
+
   function readableBeats() {
     const source = state.scene?.beats;
     if (source != null && !Array.isArray(source)) return null;
-    const beats = source?.length ? source.map((beat) => ({ position: beat?.position, visualContext: beat?.visualContext,
+    const rawBeats = source?.length ? source.map((beat) => ({ position: beat?.position, visualContext: beat?.visualContext,
       text: beatContent(beat?.content) || beatContent(beat?.text) || beatContent(beat?.body) }))
       : [{ position: 0, text: beatContent(state.scene?.sceneText) || beatContent(state.scene?.body) || beatContent(state.scene?.content) }];
-    if (beats.some((beat) => !Number.isSafeInteger(beat.position) || beat.position < 0) ||
-        new Set(beats.map((beat) => beat.position)).size !== beats.length) return null;
-    beats.sort((left, right) => left.position - right.position);
+    if (rawBeats.some((beat) => !Number.isSafeInteger(beat.position) || beat.position < 0) ||
+        new Set(rawBeats.map((beat) => beat.position)).size !== rawBeats.length) return null;
+    rawBeats.sort((left, right) => left.position - right.position);
+    const beats = groupReaderBeats(rawBeats);
     const scope = readerScope();
     const position = state.progress?.status === "completed" && state.completedBeat?.scope === scope
       ? state.completedBeat.position : state.progress?.currentBeatPosition ?? 0;
-    let index = beats.findIndex((beat) => beat.position === position);
+    let index = beats.findIndex((beat) => beat.positions.includes(position));
     // Canonical releases can start at 1 while new progress still stores the sentinel 0.
     if (index < 0 && position === 0) index = 0;
     if (index < 0) return null;
@@ -1593,7 +1614,6 @@
     const visualPending = Boolean(readingVisualKey(reading));
     const showVisualStage = Boolean(background || visualPending);
     const sceneTitle = textValue(scene?.title);
-    const sceneText = reading.beats[reading.index].text;
     const lastBeat = reading.index === reading.beats.length - 1;
     const navigationBlocked = state.busy || aiRequestOpen() || !["active", "completed"].includes(state.progress?.status);
     rememberReadingScroll();
@@ -1643,7 +1663,7 @@
             </div>` : ""}
             <article class="story-player-copy" tabindex="0" aria-label="${escapeHtml(readerTr("text"))}" data-story-scene-focus data-reading-key="${escapeHtml(reading.key)}">
               ${isEnding ? `<span class="story-ending-label">${escapeHtml(tr("ending"))}</span>` : ""}
-              <p>${escapeHtml(sceneText)}</p>
+              ${reading.beats[reading.index].segments.map((segment) => `<p>${escapeHtml(segment)}</p>`).join("")}
             </article>
             ${choicePanel}
           </div>

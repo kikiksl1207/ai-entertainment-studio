@@ -20,7 +20,8 @@ export function registerReaderTests({ fixture, projection, sessionId, workId, ar
     value.currentBeatPosition = options.position ?? 0;
     value.scene.id = options.generated ? 'generated-reader-scene' : 'canonical-reader-scene';
     value.scene.beats = (options.positions || [1, 2, 3]).map((position, i) => ({ position,
-      content: options.long ? `${i + 1}\n\n${(paragraphs[options.locale || 'ko'] + '\n\n').repeat(48)}END ${i + 1}` : ['FIRST.text', 'MIDDLE text\nSecond paragraph.', 'LAST text'][i] }));
+      content: options.long ? `${i + 1}\n\n${(paragraphs[options.locale || 'ko'] + '\n\n').repeat(48)}END ${i + 1}` :
+        ['FIRST.text', 'MIDDLE text\nSecond paragraph.', 'LAST text', 'FOURTH text', 'FIFTH text', 'SIXTH text'][i] }));
     if (options.endingMarker) value.scene.endingType = 'author_main';
     if (options.visual) value.scene.visualManifest = { background: { publicAssetPath: '/local-reader-asset.png' }, characters: [{ publicAssetPath: '/local-reader-asset.png', placement: 'right' }] };
     return value;
@@ -83,6 +84,21 @@ export function registerReaderTests({ fixture, projection, sessionId, workId, ar
       } finally { await f.close(); }
     });
   }
+
+  test('reader: six short pages render as three longer scenes and save only scene boundaries', async () => {
+    const f = await reader({ positions: [1, 2, 3, 4, 5, 6] });
+    try {
+      await f.ready();
+      assert.equal(await f.page.locator('[data-story-beat-counter]').textContent(), '1 / 3');
+      assert.deepEqual(await f.page.locator('.story-player-copy p').allTextContents(), ['FIRST.text', 'MIDDLE text\nSecond paragraph.']);
+      await turn(f, 'next', '2 / 3');
+      assert.deepEqual(await f.page.locator('.story-player-copy p').allTextContents(), ['LAST text', 'FOURTH text']);
+      await turn(f, 'next', '3 / 3');
+      assert.deepEqual(await f.page.locator('.story-player-copy p').allTextContents(), ['FIFTH text', 'SIXTH text']);
+      assert.equal(await f.page.locator('[data-choice-id]:enabled').count(), 3);
+      assert.deepEqual(beatPosts(f).map((request) => request.body.position), [4, 6]);
+    } finally { await f.close(); }
+  });
 
   test('reader: active ending marker does not complete progress or hide final three choices', async () => {
     const f = await reader({ endingMarker: true });
