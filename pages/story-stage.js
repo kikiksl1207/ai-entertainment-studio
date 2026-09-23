@@ -1438,6 +1438,11 @@
     setBusy(false);
   }
 
+  function focusBeatStart() {
+    root.querySelector("[data-story-scene-focus]")?.focus({ preventScroll: true });
+    root.querySelector(".story-current-title, .story-reader-shell")?.scrollIntoView({ block: "start", behavior: "instant" });
+  }
+
   async function turnBeat(direction) {
     const reading = readableBeats();
     if (!reading || ![-1, 1].includes(direction) || state.busy || aiRequestOpen() || state.resetPreview ||
@@ -1447,7 +1452,7 @@
     if (state.progress.status === "completed") {
       state.completedBeat = { scope: reading.scope, position: target.position };
       renderScene();
-      root.querySelector("[data-story-scene-focus]")?.focus({ preventScroll: true });
+      focusBeatStart();
       return;
     }
     const epoch = state.epoch;
@@ -1492,7 +1497,7 @@
         await finishOperation(operation);
         if (operation === state.operation && identity === readerIdentity() && sessionId === state.sessionId && locale === state.locale && state.scene) {
           renderScene();
-          root.querySelector("[data-story-scene-focus]")?.focus({ preventScroll: true });
+          focusBeatStart();
         }
       }
     }

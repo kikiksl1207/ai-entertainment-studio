@@ -135,6 +135,26 @@ export function registerCatalogTests({ getBrowser, repo, artifacts, base, api })
 
   registerPurchaseTests({ fixture, owner, detail, progress, access, workId, otherId, progressId, artifacts, locales, gate, delay });
 
+  for (const width of [820, 900, 1024, 1100]) {
+    test(`catalog: ${width}px desktop header and cards fit without clipping`, async () => {
+      const f = await fixture({ locale: 'ko', width });
+      try {
+        await f.page.locator('.story-pack-card').first().waitFor();
+        const layout = await f.page.evaluate(() => {
+          const links = [...document.querySelectorAll('.main-nav a')].map((link) => link.getBoundingClientRect());
+          const cards = [...document.querySelectorAll('.story-pack-card')].map((card) => card.getBoundingClientRect());
+          const columns = getComputedStyle(document.querySelector('.story-catalog')).gridTemplateColumns.split(' ').length;
+          return { documentWidth: document.documentElement.scrollWidth, viewportWidth: innerWidth, columns,
+            linksFit: links.every((r) => r.left >= 0 && r.right <= innerWidth && r.height < 50),
+            cardsFit: cards.every((r) => r.left >= 0 && r.right <= innerWidth && r.width >= 200) };
+        });
+        assert.equal(layout.documentWidth <= layout.viewportWidth, true, JSON.stringify(layout));
+        assert.equal(layout.linksFit && layout.cardsFit, true, JSON.stringify(layout));
+        assert.equal(layout.columns, width <= 820 ? 2 : 3);
+      } finally { await f.close(); }
+    });
+  }
+
   for (const scenario of [
     { name: 'anonymous free', auth: false }, { name: 'anonymous paid', auth: false, free: false },
     { name: 'free start' }, { name: 'free continue', resume: true }, { name: 'owned paid', free: false, owned: true, resume: true },

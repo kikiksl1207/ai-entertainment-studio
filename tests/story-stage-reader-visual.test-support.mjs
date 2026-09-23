@@ -237,15 +237,16 @@ export function registerReaderVisualTests({ fixture, projection, sessionId, work
     });
   }
 
-  test('beat visual: delayed background settlement preserves exact text, focus and partial reading scroll', async () => {
+  test('beat visual: delayed background settlement preserves exact text, focus and page scroll', async () => {
     const g = gate(); const value = current({ long: true });
     value.scene.beats[0].visualContext.manifest.background.publicAssetPath += '?hold=1';
     const f = await reader({ current: value, pendingAssets: true, assetHook: async (r) => { if (r.query.hold) { await g.promise; return { status: 404, body: '' }; } } });
     try {
       await f.ready();
-      await f.page.locator('[data-story-scene-focus]').evaluate((el) => { el.focus(); el.scrollTop = 145; });
+      await f.page.locator('[data-story-scene-focus]').evaluate((el) => { el.focus(); window.scrollTo(0, el.getBoundingClientRect().top + scrollY + 145); });
+      const scrollBefore = await f.page.evaluate(() => scrollY);
       g.release(); await missing(f);
-      assert.equal(await f.page.locator('[data-story-scene-focus]').evaluate((el) => el.scrollTop), 145);
+      assert.ok(Math.abs(await f.page.evaluate(() => scrollY) - scrollBefore) <= 2);
       assert.equal(await f.page.locator('[data-story-scene-focus]').evaluate((el) => el === document.activeElement), true);
       assert.equal(await f.page.locator('.story-player-copy p').textContent(), value.scene.beats[0].content);
       assert.equal(await f.page.locator('.story-player-characters img').count(), 1);
@@ -264,25 +265,24 @@ export function registerReaderVisualTests({ fixture, projection, sessionId, work
         await f.ready(); await missing(f);
         assert.equal(await f.page.locator('.story-player-copy p').textContent(), value.scene.beats[0].content);
         const region = f.page.locator('[data-story-scene-focus]');
-        await region.evaluate((el) => { el.scrollTop = el.scrollHeight; });
-        assert.equal(await region.evaluate((el) => Math.abs(el.scrollHeight - el.clientHeight - el.scrollTop) < 2), true);
+        await region.evaluate((el) => el.scrollIntoView({ block: 'end', behavior: 'instant' }));
         await turn(f, 'next', '2 / 3'); await loaded(f, backgroundB);
         assert.equal(await region.locator('p').textContent(), value.scene.beats[1].content);
         await turn(f, 'next', '3 / 3'); await loaded(f, backgroundB);
         assert.equal(await region.locator('p').textContent(), value.scene.beats[2].content);
         assert.equal(await f.page.locator('[data-choice-id]:enabled').count(), 3);
         assert.equal(await region.evaluate((el) => el.scrollTop), 0);
-        await region.evaluate((el) => { el.scrollTop = el.scrollHeight; });
+        await region.evaluate((el) => el.scrollIntoView({ block: 'end', behavior: 'instant' }));
         const metrics = await f.page.evaluate(() => {
           const region = document.querySelector('[data-story-scene-focus]'); const stage = document.querySelector('.story-player-stage');
           const font = getComputedStyle(region.querySelector('p')); const nav = document.querySelector('.story-beat-navigation');
           const stageBounds = stage.getBoundingClientRect(); const regionBounds = region.getBoundingClientRect();
-          return { stageHeight: stageBounds.height, stageRatio: stageBounds.width / stageBounds.height, regionHeight: region.clientHeight, fullTextReachable: Math.abs(region.scrollHeight - region.clientHeight - region.scrollTop) < 2,
+          return { stageHeight: stageBounds.height, stageRatio: stageBounds.width / stageBounds.height, regionHeight: region.clientHeight, fullTextReachable: region.scrollHeight <= region.clientHeight + 2 && regionBounds.bottom <= innerHeight + 2,
             horizontalOverflow: document.documentElement.scrollWidth > innerWidth, stacked: regionBounds.top > stageBounds.bottom, sideBySide: regionBounds.left > stageBounds.right, navRendered: nav.getBoundingClientRect().width >= 44,
             fontSize: parseFloat(font.fontSize), fontWeight: font.fontWeight, lineHeight: parseFloat(font.lineHeight), documentHeight: document.documentElement.scrollHeight };
         });
         assert.equal(metrics.horizontalOverflow, false); assert.equal(metrics.navRendered, true); assert.equal(metrics.fullTextReachable, true);
-        assert.ok(metrics.stageHeight > 190 && metrics.stageHeight <= 610 && metrics.documentHeight < 2400);
+        assert.ok(metrics.stageHeight > 190 && metrics.stageHeight <= 610 && metrics.documentHeight > 2400);
         if (width <= 820) assert.ok(metrics.stageRatio > 1.76 && metrics.stageRatio < 1.79 && metrics.stacked, JSON.stringify(metrics));
         else {
           assert.equal(metrics.sideBySide, true, JSON.stringify(metrics));

@@ -221,16 +221,17 @@ export function registerReaderTests({ fixture, projection, sessionId, workId, ar
     });
   }
 
-  test('reader: reset dialog/status rerenders preserve reading scroll; page turns reset scroll and focus', async () => {
+  test('reader: reset dialog preserves page scroll; page turns return to the start and focus', async () => {
     const f = await reader({ long: true });
     try {
       await f.ready();
-      await f.page.locator('[data-story-scene-focus]').evaluate((el) => { el.scrollTop = 180; });
+      await f.page.locator('[data-story-scene-focus]').evaluate((el) => window.scrollTo(0, el.getBoundingClientRect().top + scrollY + 180));
       await f.page.locator('[data-story-reset-preview="full"]').click();
+      const before = await f.page.evaluate(() => scrollY);
       await f.page.locator('[data-story-reset-cancel]').click();
-      assert.equal(await f.page.locator('[data-story-scene-focus]').evaluate((el) => el.scrollTop), 180);
+      assert.ok(Math.abs(await f.page.evaluate(() => scrollY) - before) <= 2);
       await turn(f, 'next', '2 / 3');
-      assert.equal(await f.page.locator('[data-story-scene-focus]').evaluate((el) => el.scrollTop), 0);
+      assert.ok(Math.abs(await f.page.locator('.story-reader-shell').evaluate((el) => el.getBoundingClientRect().top) - 92) <= 6);
       assert.equal(await f.page.locator('[data-story-scene-focus]').evaluate((el) => el === document.activeElement), true);
       await f.page.locator('[data-story-reset-preview="full"]').click();
       await f.page.locator('[data-story-reset-confirm]').click();
@@ -275,8 +276,33 @@ export function registerReaderTests({ fixture, projection, sessionId, workId, ar
     });
   }
 
+  for (const width of [820, 900, 1024, 1100]) {
+    test(`reader visual: ${width}px navigation stays inside the viewport`, async () => {
+      const f = await reader({ locale: 'ko', width, current: current({ locale: 'ko', long: true, visual: true }) });
+      try {
+        await f.ready();
+        const layout = await f.page.evaluate(() => {
+          const buttons = [...document.querySelectorAll('[data-story-beat]')].map((button) => button.getBoundingClientRect());
+          const links = [...document.querySelectorAll('.main-nav a')].map((link) => link.getBoundingClientRect());
+          const copy = document.querySelector('.story-player-copy');
+          return { documentWidth: document.documentElement.scrollWidth, viewportWidth: innerWidth,
+            buttonsFit: buttons.every((r) => r.left >= 0 && r.right <= innerWidth && r.width >= 44),
+            linksFit: links.every((r) => r.left >= 0 && r.right <= innerWidth && r.height < 50),
+            pageScrolls: document.documentElement.scrollHeight > innerHeight,
+            copyScrolls: copy.scrollHeight > copy.clientHeight + 2 };
+        });
+        assert.equal(layout.documentWidth <= layout.viewportWidth, true, JSON.stringify(layout));
+        assert.equal(layout.buttonsFit && layout.linksFit, true, JSON.stringify(layout));
+        assert.equal(layout.pageScrolls && !layout.copyScrolls, true, JSON.stringify(layout));
+        await f.page.locator('[data-story-beat="next"]').click();
+        await f.page.waitForFunction(() => document.querySelector('[data-story-beat-counter]')?.textContent === '2 / 3');
+        assert.ok(Math.abs(await f.page.locator('.story-reader-shell').evaluate((el) => el.getBoundingClientRect().top) - 92) <= 6);
+      } finally { await f.close(); }
+    });
+  }
+
   for (const locale of locales) for (const width of [390, 400, 1280]) {
-    test(`reader visual: ${locale} ${width} all long text accessible in bounded stage`, async () => {
+    test(`reader visual: ${locale} ${width} long text uses the page scroll`, async () => {
       const value = current({ locale, long: true, visual: true });
       const f = await reader({ locale, width, current: value });
       try {
@@ -288,7 +314,7 @@ export function registerReaderTests({ fixture, projection, sessionId, workId, ar
           const stage = document.querySelector('.story-player-stage'); const region = document.querySelector('[data-story-scene-focus]'); const nav = document.querySelector('.story-beat-navigation');
           const narrativeStyle = getComputedStyle(region.querySelector('p'));
           const stageBounds = stage.getBoundingClientRect(); const regionBounds = region.getBoundingClientRect();
-          return { stageHeight: stageBounds.height, stageRatio: stageBounds.width / stageBounds.height, regionScrolls: region.scrollHeight > region.clientHeight, horizontal: document.documentElement.scrollWidth <= innerWidth,
+          return { stageHeight: stageBounds.height, stageRatio: stageBounds.width / stageBounds.height, regionScrolls: region.scrollHeight > region.clientHeight + 2, horizontal: document.documentElement.scrollWidth <= innerWidth,
             stacked: regionBounds.top > stageBounds.bottom, sideBySide: regionBounds.left > stageBounds.right, navRendered: nav.getBoundingClientRect().width >= 44,
             topDelta: Math.abs(stageBounds.top - regionBounds.top), bottomDelta: Math.abs(stageBounds.bottom - regionBounds.bottom),
             documentHeight: document.documentElement.scrollHeight, narrative: { fontSize: parseFloat(narrativeStyle.fontSize), fontWeight: narrativeStyle.fontWeight, lineHeight: parseFloat(narrativeStyle.lineHeight) } };
@@ -297,11 +323,11 @@ export function registerReaderTests({ fixture, projection, sessionId, workId, ar
         if (width <= 820) assert.ok(geometry.stageRatio > 1.76 && geometry.stageRatio < 1.79 && geometry.stacked, JSON.stringify(geometry));
         else {
           assert.equal(geometry.sideBySide, true, JSON.stringify(geometry));
-          assert.ok(geometry.topDelta <= 1 && geometry.bottomDelta <= 1, JSON.stringify(geometry));
+          assert.ok(geometry.topDelta <= 1, JSON.stringify(geometry));
           assert.ok(geometry.stageRatio > 1.68 && geometry.stageRatio < 1.82, JSON.stringify(geometry));
         }
-        assert.equal(geometry.regionScrolls, true); assert.equal(geometry.horizontal, true); assert.equal(geometry.navRendered, true);
-        assert.ok(geometry.documentHeight < 2400, 'Long beat must not stretch the whole document');
+        assert.equal(geometry.regionScrolls, false); assert.equal(geometry.horizontal, true); assert.equal(geometry.navRendered, true);
+        assert.ok(geometry.documentHeight > 2400, 'Long beat must remain in the page scroll');
         assert.ok(geometry.narrative.fontSize >= 16);
         assert.ok(['400', '500'].includes(geometry.narrative.fontWeight));
         assert.ok(geometry.narrative.lineHeight / geometry.narrative.fontSize >= 1.74);
@@ -311,8 +337,8 @@ export function registerReaderTests({ fixture, projection, sessionId, workId, ar
           await next.focus();
           assert.equal(await next.evaluate((el) => document.activeElement === el), true);
         } else assert.equal(await next.evaluate((el) => getComputedStyle(el).opacity), '1');
-        await region.evaluate((el) => { el.scrollTop = el.scrollHeight; });
-        assert.equal(await region.evaluate((el) => Math.abs(el.scrollHeight - el.clientHeight - el.scrollTop) <= 2), true);
+        await region.evaluate((el) => el.scrollIntoView({ block: 'end', behavior: 'instant' }));
+        assert.equal(await region.evaluate((el) => el.getBoundingClientRect().bottom <= innerHeight + 2), true);
         await f.page.waitForFunction(() => {
           const images = [...document.querySelectorAll('.story-player-background, .story-player-characters img')];
           return images.length === 2 && images.every((image) => image.complete && image.naturalWidth > 0);
@@ -328,7 +354,7 @@ export function registerReaderTests({ fixture, projection, sessionId, workId, ar
         await turn(f, 'next', '3 / 3');
         assert.equal(await region.locator('p').textContent(), value.scene.beats[2].content);
         assert.equal(await f.page.locator('[data-choice-id]').count(), 3);
-        await region.evaluate((el) => { el.scrollTop = el.scrollHeight; });
+        await region.evaluate((el) => el.scrollIntoView({ block: 'end', behavior: 'instant' }));
         await f.page.locator('[data-choice-id]').first().waitFor();
         assert.equal(await f.page.locator('[data-choice-id]:enabled').count(), 3);
         assert.equal(await f.page.locator('textarea').count(), 0);

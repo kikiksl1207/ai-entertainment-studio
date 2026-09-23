@@ -25,7 +25,7 @@ test('reader source: canonical/generated persisted positions and full text are n
   assert.equal(reader([1, 1]).readableBeats(), null);
 });
 
-test('reader source: six short beats become three scrollable scenes without losing text or positions', () => {
+test('reader source: six short beats become three full-page scenes without losing text or positions', () => {
   const runtime = reader([6, 1, 4, 2, 5, 3], 3);
   const grouped = runtime.readableBeats();
   assert.equal(grouped.beats.length, 3);
@@ -70,7 +70,9 @@ test('reader source: progress status controls endings and choices wait for the l
   assert.match(source, /rememberReadingScroll\(\);\s*renderLoading\(tr\("sceneLoading"\)\)/);
   assert.match(source, /state.readingScroll\?\.key === reading.key \? state.readingScroll.top : 0/);
   assert.match(css, /\.story-player-stage \{[^}]*aspect-ratio: 16 \/ 9;/);
-  assert.match(css, /overflow-y: auto/);
+  assert.match(css, /\.story-player-copy \{[^}]*overflow: visible;/);
+  assert.match(css, /\.story-beat-navigation \{[^}]*margin-bottom: -44px;/);
+  assert.match(source, /function focusBeatStart\(\)[\s\S]*scrollIntoView\(\{ block: "start", behavior: "instant" \}\)/);
   assert.match(css, /white-space: pre-wrap/);
   assert.match(css, /\.story-player-copy p \{[^}]*font-size: 17px;[^}]*font-weight: 400;[^}]*line-height: 1.82;/);
   assert.match(source, /story-reader-shell[\s\S]*story-player-stage[\s\S]*story-player-copy/);
