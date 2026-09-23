@@ -31,6 +31,12 @@
       storyStructureParts: "총 {count}개 파트",
       storyStructureDynamic: "선택에 따라 다음 장면과 제목이 달라집니다. 아직 만나지 않은 경로는 미리 공개되지 않습니다.",
       storyStructureFixed: "작가가 완성한 원고 순서대로 이어지는 작품입니다. 다음 장으로 이동하며 이야기를 감상할 수 있습니다.",
+      searchLabel: "스토리 검색",
+      searchPlaceholder: "제목, 소개, 해시태그 검색",
+      searchButton: "검색",
+      hashtagFilter: "해시태그",
+      allTags: "전체 태그",
+      noResultsTitle: "조건에 맞는 스토리가 없습니다",
       participantTitle: "함께할 아티스트",
       participantHelp: "좋아요·투표한 아티스트에서 고르거나 이름으로 검색할 수 있어요. 선택하지 않고 시작해도 됩니다.",
       participantSearch: "아티스트 검색",
@@ -109,6 +115,12 @@
       storyStructureParts: "{count} parts in total",
       storyStructureDynamic: "Your choices change the next scene and its title. Routes you have not reached remain hidden.",
       storyStructureFixed: "This story follows the author's completed manuscript in order. Continue chapter by chapter to read it.",
+      searchLabel: "Search stories",
+      searchPlaceholder: "Search titles, descriptions, or hashtags",
+      searchButton: "Search",
+      hashtagFilter: "Hashtags",
+      allTags: "All tags",
+      noResultsTitle: "No stories match these filters",
       participantTitle: "Participating artist",
       participantHelp: "Choose an artist you liked or voted for, or search by name. You can also start without one.",
       participantSearch: "Search artists",
@@ -187,6 +199,12 @@
       storyStructureParts: "全{count}パート",
       storyStructureDynamic: "選択によって次のシーンとタイトルが変わります。まだ到達していないルートは事前に公開されません。",
       storyStructureFixed: "作家が完成させた原稿の順番どおりに進む作品です。次の章へ進みながら物語を楽しめます。",
+      searchLabel: "ストーリー検索",
+      searchPlaceholder: "タイトル・紹介・ハッシュタグを検索",
+      searchButton: "検索",
+      hashtagFilter: "ハッシュタグ",
+      allTags: "すべてのタグ",
+      noResultsTitle: "条件に一致するストーリーがありません",
       participantTitle: "参加アーティスト",
       participantHelp: "いいね・投票したアーティストから選ぶか、名前で検索できます。選ばずに始めることもできます。",
       participantSearch: "アーティスト検索",
@@ -265,6 +283,12 @@
       storyStructureParts: "共{count}个章节",
       storyStructureDynamic: "你的选择会改变下一个场景及其标题。尚未到达的路线不会提前公开。",
       storyStructureFixed: "本作品将按作者完成的原稿顺序展开。你可以逐章继续阅读。",
+      searchLabel: "搜索故事",
+      searchPlaceholder: "搜索标题、简介或话题标签",
+      searchButton: "搜索",
+      hashtagFilter: "话题标签",
+      allTags: "全部标签",
+      noResultsTitle: "没有符合条件的故事",
       participantTitle: "参与艺人",
       participantHelp: "可从点赞或投票过的艺人中选择，也可按姓名搜索。也可以不选择直接开始。",
       participantSearch: "搜索艺人",
@@ -343,6 +367,12 @@
       storyStructureParts: "共{count}個章節",
       storyStructureDynamic: "你的選擇會改變下一個場景及其標題。尚未到達的路線不會提前公開。",
       storyStructureFixed: "本作品將按作者完成的原稿順序展開。你可以逐章繼續閱讀。",
+      searchLabel: "搜尋故事",
+      searchPlaceholder: "搜尋標題、簡介或主題標籤",
+      searchButton: "搜尋",
+      hashtagFilter: "主題標籤",
+      allTags: "全部標籤",
+      noResultsTitle: "沒有符合條件的故事",
       participantTitle: "參與藝人",
       participantHelp: "可從按讚或投票過的藝人中選擇，也可按姓名搜尋。也可以不選擇直接開始。",
       participantSearch: "搜尋藝人",
@@ -553,6 +583,10 @@
     catalogStatus: "loading",
     catalogLocale: "",
     filter: "all",
+    searchDraft: "",
+    searchQuery: "",
+    activeHashtag: "",
+    availableHashtags: [],
     nextCursor: null,
     pageLoading: false,
     pageError: false,
@@ -761,6 +795,13 @@
     return typeof pack?.slug === "string" ? pack.slug : "";
   }
 
+  function packHashtags(pack) {
+    if (!Array.isArray(pack?.hashtags)) return [];
+    return pack.hashtags.filter((hashtag) =>
+      typeof hashtag?.key === "string" && /^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/.test(hashtag.key) &&
+      typeof hashtag?.label === "string" && hashtag.label.trim()).slice(0, 20);
+  }
+
   function safeSessionId(value) {
     return typeof value === "string" && value.length > 0 && value.length <= 160 ? value : "";
   }
@@ -939,10 +980,28 @@
       return;
     }
     const visible = state.packs.filter((pack) => state.filter === "all" || (state.filter === "free" ? pack.access?.pricing?.free === true : pack.access?.pricing?.free === false));
+    const hashtagButtons = state.availableHashtags.map((hashtag) => `
+      <button type="button" class="story-hashtag-filter${state.activeHashtag === hashtag.key ? " is-active" : ""}"
+        data-story-tag-key="${escapeHtml(hashtag.key)}" aria-pressed="${state.activeHashtag === hashtag.key}">
+        #${escapeHtml(hashtag.label)} <span>${hashtag.count}</span>
+      </button>`).join("");
     catalog.innerHTML = `
+      <section class="story-discovery" aria-label="${escapeHtml(tr("searchLabel"))}">
+        <form class="story-search" data-story-search-form role="search">
+          <label class="story-sr-only" for="storyCatalogSearch">${escapeHtml(tr("searchLabel"))}</label>
+          <input id="storyCatalogSearch" name="storySearch" type="search" maxlength="80"
+            value="${escapeHtml(state.searchDraft)}" placeholder="${escapeHtml(tr("searchPlaceholder"))}" />
+          <button type="submit" class="story-button story-button-secondary">${escapeHtml(tr("searchButton"))}</button>
+        </form>
+        ${hashtagButtons ? `<div class="story-hashtag-filters" aria-label="${escapeHtml(tr("hashtagFilter"))}">
+          <button type="button" class="story-hashtag-filter${state.activeHashtag ? "" : " is-active"}"
+            data-story-tag-key="" aria-pressed="${!state.activeHashtag}">${escapeHtml(tr("allTags"))}</button>
+          ${hashtagButtons}
+        </div>` : ""}
+      </section>
       <div class="story-catalog-tools"><label>${escapeHtml(accessTr("filterLabel"))}
         <select data-story-filter>${["all", "free", "paid"].map((value) => `<option value="${value}" ${value === state.filter ? "selected" : ""}>${escapeHtml(value === "all" ? accessTr("all") : tr(value))}</option>`).join("")}</select>
-      </label><output>${visible.length} / ${state.packs.length}</output></div>
+      </label><output>${visible.length}</output></div>
       <section class="story-catalog" aria-label="${escapeHtml(tr("title"))}">
         ${visible.map((pack) => {
           const title = packTitle(pack);
@@ -960,10 +1019,13 @@
                   ${packSummary(pack) ? `<p>${escapeHtml(packSummary(pack))}</p>` : ""}
                 </span>
               </button>
+              ${packHashtags(pack).length ? `<div class="story-pack-tags" aria-label="${escapeHtml(tr("hashtagFilter"))}">
+                ${packHashtags(pack).map((hashtag) => `<button type="button" data-story-tag-key="${escapeHtml(hashtag.key)}">#${escapeHtml(hashtag.label)}</button>`).join("")}
+              </div>` : ""}
             </article>`;
         }).join("")}
       </section>
-      ${!visible.length ? `<section class="story-state"><h2>${escapeHtml(state.packs.length ? "0" : tr("emptyTitle"))}</h2>${!state.packs.length ? `<p>${escapeHtml(tr("emptyBody"))}</p>` : ""}</section>` : ""}
+      ${!visible.length ? `<section class="story-state"><h2>${escapeHtml(state.searchQuery || state.activeHashtag || state.packs.length ? tr("noResultsTitle") : tr("emptyTitle"))}</h2>${!state.searchQuery && !state.activeHashtag && !state.packs.length ? `<p>${escapeHtml(tr("emptyBody"))}</p>` : ""}</section>` : ""}
       ${state.pageError ? `<p role="status">${escapeHtml(tr("loadErrorBody"))}</p>` : ""}
       ${state.nextCursor ? `<button class="story-button story-button-secondary story-load-more" data-story-more ${state.pageLoading ? "disabled" : ""}>${escapeHtml(state.pageLoading ? tr("loading") : state.pageError ? tr("retry") : accessTr("loadMore"))}</button>` : ""}`;
   }
@@ -1094,6 +1156,9 @@
           ${cover ? `<div class="story-detail-cover has-image"><img src="${escapeHtml(cover)}" alt="" /></div>` : ""}
           <div class="story-detail-copy">
             ${priceText(state.readerAccess?.access || pack.access) ? `<p>${escapeHtml(priceText(state.readerAccess?.access || pack.access))}</p>` : ""}
+            ${packHashtags(pack).length ? `<div class="story-detail-tags" aria-label="${escapeHtml(tr("hashtagFilter"))}">
+              ${packHashtags(pack).map((hashtag) => `<button type="button" data-story-tag-key="${escapeHtml(hashtag.key)}">#${escapeHtml(hashtag.label)}</button>`).join("")}
+            </div>` : ""}
             ${packSummary(pack) ? `<h3>${escapeHtml(tr("synopsis"))}</h3><p class="story-synopsis">${escapeHtml(packSummary(pack))}</p>` : ""}
           </div></div>
           <section class="story-structure"><h3>${escapeHtml(tr("storyStructure"))}</h3>
@@ -1899,12 +1964,19 @@
     try {
       const params = new URLSearchParams({ locale, limit: "12" });
       if (cursor) params.set("cursor", cursor);
+      if (state.searchQuery) params.set("q", state.searchQuery);
+      if (state.activeHashtag) params.set("tag", state.activeHashtag);
       const payload = await request(`/api/v1/stories?${params}`);
       if (epoch !== state.catalogEpoch || state.sessionId || state.graphWorkId) return;
       if (!Array.isArray(payload?.items) || !(payload.nextCursor === null || safeGraphId(payload.nextCursor)) || payload.nextCursor === cursor && cursor) throw new Error("Invalid catalog");
       const packs = payload.items.filter((pack) => safeGraphId(pack?.id) && packSlug(pack) && packTitle(pack));
       if (packs.length !== payload.items.length) throw new Error("Invalid catalog items");
+      const hashtags = Array.isArray(payload?.filters?.hashtags) ? payload.filters.hashtags.filter((hashtag) =>
+        typeof hashtag?.key === "string" && /^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/.test(hashtag.key) &&
+        typeof hashtag?.label === "string" && hashtag.label.trim() &&
+        Number.isInteger(hashtag.count) && hashtag.count > 0).slice(0, 40) : [];
       state.packs = [...new Map([...(more ? state.packs : []), ...packs].map((pack) => [pack.id, pack])).values()];
+      state.availableHashtags = hashtags;
       state.nextCursor = payload.nextCursor;
       state.catalogLocale = locale;
       state.catalogStatus = "ready";
@@ -2403,6 +2475,21 @@
     if (state.detailSlug && !event.target.closest(".story-detail-modal")) return;
     if (state.busy || event.target.closest("button:disabled")) return;
     if (state.resetPreview && !event.target.closest(".story-reset-dialog")) return;
+    const hashtagButton = event.target.closest("[data-story-tag-key]");
+    if (hashtagButton) {
+      const key = hashtagButton.dataset.storyTagKey || "";
+      if (key && !/^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/.test(key)) return;
+      if (state.detailSlug) {
+        dismissPack();
+        const url = new URL(location.href);
+        url.searchParams.delete("slug");
+        url.searchParams.delete("pack");
+        history.replaceState(null, "", url);
+      }
+      state.activeHashtag = key;
+      state.nextCursor = null;
+      return loadCatalog();
+    }
     const packButton = event.target.closest("[data-pack-slug]");
     if (packButton) return openPack(packButton.dataset.packSlug, packButton);
     if (event.target.closest("[data-story-purchase]")) {
@@ -2471,12 +2558,23 @@
   });
 
   root.addEventListener("input", (event) => {
+    if (event.target.matches("[data-story-search-form] input[type='search']")) {
+      state.searchDraft = event.target.value.slice(0, 80);
+      return;
+    }
     if (event.target.matches("[data-story-artist-search]")) {
       state.participantQuery = event.target.value.slice(0, 80);
     }
   });
 
   root.addEventListener("submit", (event) => {
+    if (event.target.matches("[data-story-search-form]")) {
+      event.preventDefault();
+      state.searchDraft = String(event.target.elements.storySearch?.value || "").slice(0, 80);
+      state.searchQuery = state.searchDraft.normalize("NFKC").trim();
+      state.nextCursor = null;
+      return loadCatalog();
+    }
     if (!event.target.matches("[data-story-artist-search-form]")) return;
     event.preventDefault();
     searchParticipantArtists();

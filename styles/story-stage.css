@@ -56,7 +56,9 @@
 .story-detail-header { display: flex; align-items: start; gap: 12px; padding: 16px; border-bottom: 1px solid #35363b; }
 .story-detail-header h2 { flex: 1; min-width: 0; max-height: 5.2em; overflow: auto; overflow-wrap: anywhere; margin: 0; font-size: 20px; line-height: 1.3; }
 .story-detail-close { flex: 0 0 44px; width: 44px; height: 44px; border: 0; background: transparent; color: inherit; font: inherit; font-size: 28px; cursor: pointer; }
-.story-detail-close:focus-visible, .story-detail-body:focus-visible, .story-catalog-tools select:focus-visible { outline: 2px solid #d4ff5f; outline-offset: -3px; }
+.story-detail-close:focus-visible, .story-detail-body:focus-visible, .story-catalog-tools select:focus-visible,
+.story-search input:focus-visible, .story-hashtag-filter:focus-visible, .story-pack-tags button:focus-visible,
+.story-detail-tags button:focus-visible { outline: 2px solid #d4ff5f; outline-offset: 2px; }
 .story-detail-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 20px 20px; overflow-wrap: anywhere; }
 .story-detail-modal .story-detail-main { grid-template-columns: minmax(0, 180px) minmax(0, 1fr); gap: 20px; border-top: 0; }
 .story-detail-modal .story-detail-main:not(:has(.story-detail-cover)) { grid-template-columns: minmax(0, 1fr); }
@@ -90,6 +92,15 @@
 .story-participant-copy small { color: rgba(244, 244, 241, 0.62); font-size: 11px; }
 .story-participant-selected { color: #d4ff5f; font-size: 11px; font-weight: 800; }
 .story-participant-empty { grid-column: 1 / -1; margin: 0; padding: 12px 0; color: rgba(244, 244, 241, 0.62); font-size: 13px; }
+.story-discovery { display: grid; gap: 12px; margin-bottom: 16px; }
+.story-search { display: grid; grid-template-columns: minmax(0, 520px) auto; gap: 8px; justify-content: start; }
+.story-search input { min-width: 0; min-height: 44px; padding: 10px 12px; border: 1px solid #505258; border-radius: 6px; background: #14151a; color: inherit; font: inherit; }
+.story-search input::placeholder { color: rgba(244, 244, 241, 0.48); }
+.story-search .story-button { min-height: 44px; margin: 0; }
+.story-hashtag-filters { display: flex; gap: 8px; padding: 2px 0 4px; overflow-x: auto; scrollbar-width: thin; }
+.story-hashtag-filter, .story-pack-tags button, .story-detail-tags button { flex: 0 0 auto; min-height: 32px; border: 1px solid #3c3e45; border-radius: 6px; padding: 5px 9px; background: #14151a; color: rgba(244, 244, 241, 0.76); font: inherit; font-size: 12px; cursor: pointer; white-space: nowrap; }
+.story-hashtag-filter span { margin-left: 4px; color: rgba(244, 244, 241, 0.46); font-variant-numeric: tabular-nums; }
+.story-hashtag-filter.is-active { border-color: #d4ff5f; background: rgba(212, 255, 95, 0.1); color: #efffc2; }
 .story-catalog-tools { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
 .story-catalog-tools label { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .story-catalog-tools select { max-width: 100%; min-height: 44px; border: 1px solid #505258; border-radius: 4px; padding: 8px; background: #14151a; color: inherit; font: inherit; }
@@ -232,6 +243,27 @@
 .story-pack-copy small {
   color: rgba(244, 244, 241, 0.48);
   font-size: 12px;
+}
+
+.story-pack-tags, .story-detail-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.story-pack-tags {
+  padding: 0 14px 14px;
+}
+
+.story-pack-tags button, .story-detail-tags button {
+  min-height: 28px;
+  border-color: rgba(212, 255, 95, 0.2);
+  background: rgba(212, 255, 95, 0.07);
+  color: #dffb8f;
+}
+
+.story-detail-tags {
+  margin: 10px 0 16px;
 }
 
 .story-pack-status {
@@ -937,6 +969,8 @@ button.story-graph-choice {
   }
 
   .story-stage-heading h1 { font-size: 24px; }
+  .story-search { grid-template-columns: minmax(0, 1fr) auto; }
+  .story-hashtag-filters { margin-right: -12px; padding-right: 12px; }
   .story-catalog { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .story-detail-main { grid-template-columns: 1fr; gap: 16px; }
   .story-detail-cover { min-height: 220px; aspect-ratio: 16 / 9; }

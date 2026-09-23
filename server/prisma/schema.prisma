@@ -1792,6 +1792,9 @@ model StoryWork {
   supportedLocales    Json      @default("[]") @map("supported_locales")
   title               Json
   summary             Json
+  hashtagKeys         String[]  @default([]) @map("hashtag_keys")
+  hashtagLabels       Json      @default("{}") @map("hashtag_labels")
+  searchText          String    @default("") @map("search_text") @db.Text
   coverManifest       Json      @default("{}") @map("cover_manifest")
   priceLumina         Decimal   @default(0) @map("price_lumina") @db.Decimal(18, 2)
   fixtureSource       Boolean   @default(false) @map("fixture_source")
@@ -1804,6 +1807,7 @@ model StoryWork {
   updatedAt           DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
 
   @@index([status, publishedAt, id], map: "idx_story_works_public_catalog")
+  @@index([hashtagKeys], type: Gin, map: "idx_story_works_hashtag_keys")
   @@unique([id, ownerUserId], map: "uq_story_works_authored_owner")
   @@index([ownerUserId, updatedAt], map: "idx_story_works_owner_updated")
   @@map("story_works")

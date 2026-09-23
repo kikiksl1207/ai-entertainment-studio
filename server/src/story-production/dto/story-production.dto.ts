@@ -31,6 +31,17 @@ export class StoryCatalogQueryDto {
   @Min(1)
   @Max(30)
   limit = 12;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  q?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  @Matches(/^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/)
+  tag?: string;
 }
 
 export class StoryLocaleQueryDto {

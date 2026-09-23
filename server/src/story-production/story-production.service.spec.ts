@@ -339,6 +339,42 @@ describe('StoryProductionService', () => {
     });
   });
 
+  it('filters the public catalog by search text and hashtag while returning localized hashtag facets', async () => {
+    const query = Object.assign(new StoryCatalogQueryDto(), {
+      locale: 'en',
+      q: '#Romance',
+      tag: 'romance',
+    });
+    prisma.storyWork.findMany.mockResolvedValue([{
+      id: '00000000-0000-0000-0000-000000000001',
+      slug: 'romance-story',
+      defaultLocale: 'ko',
+      title: { ko: '로맨스 작품' },
+      summary: { ko: '소개' },
+      hashtagKeys: ['romance'],
+      hashtagLabels: { romance: { ko: '로맨스', en: 'Romance' } },
+      coverManifest: { url: '/public/story/romance.webp' },
+      priceLumina: new Decimal(0),
+      fixtureSource: false,
+      publishedAt: new Date(),
+      activeReleaseId: '00000000-0000-0000-0000-000000000011',
+    }]);
+    prisma.storyRelease.findMany.mockResolvedValue([{
+      id: '00000000-0000-0000-0000-000000000011',
+    }]);
+
+    const result = await service.catalog(undefined, query);
+
+    expect(prisma.storyWork.findMany.mock.calls[0][0].where).toEqual(expect.objectContaining({
+      searchText: { contains: 'romance', mode: 'insensitive' },
+      hashtagKeys: { has: 'romance' },
+    }));
+    expect(result.items[0].hashtags).toEqual([
+      expect.objectContaining({ key: 'romance', label: 'Romance' }),
+    ]);
+    expect(result.filters.hashtags).toEqual([{ key: 'romance', label: 'Romance', count: 1 }]);
+  });
+
   it('projects an AI-generated route in the catalog as resumable progress', async () => {
     const workId = '00000000-0000-0000-0000-000000000001';
     prisma.storyWork.findMany.mockResolvedValue([{

@@ -54,6 +54,10 @@ import { appendStoryRoute, createStoryRouteRoot } from './story-route-identity.s
 import { StoryVisualGenerationService } from './story-visual-generation.service';
 import { StoryPublicBetaPolicy } from './story-public-beta.policy';
 import { StoryArtistParticipantService } from './story-artist-participant.service';
+import {
+  normalizeStoryHashtagKey,
+  projectStoryHashtags,
+} from './story-hashtag.policy';
 
 const STORY_ENTITLEMENT_TYPES = [
   'story_work',
@@ -116,12 +120,20 @@ export class StoryProductionService {
   }
 
   async catalog(userId: string | undefined, query: StoryCatalogQueryDto) {
-    const rows = await this.prisma.storyWork.findMany({
+    const searchQuery = query.q?.normalize('NFKC').trim().replace(/^#/, '').toLocaleLowerCase().slice(0, 80) || '';
+    const hashtagKey = normalizeStoryHashtagKey(query.tag);
+    const publicWhere: Prisma.StoryWorkWhereInput = {
+      status: 'published',
+      fixtureSource: false,
+      activeReleaseId: { not: null },
+      publishedAt: { lte: new Date() },
+    };
+    const [rows, hashtagRows] = await Promise.all([
+      this.prisma.storyWork.findMany({
       where: {
-        status: 'published',
-        fixtureSource: false,
-        activeReleaseId: { not: null },
-        publishedAt: { lte: new Date() },
+        ...publicWhere,
+        ...(searchQuery ? { searchText: { contains: searchQuery, mode: 'insensitive' as const } } : {}),
+        ...(hashtagKey ? { hashtagKeys: { has: hashtagKey } } : {}),
       },
       select: {
         id: true,
@@ -129,6 +141,8 @@ export class StoryProductionService {
         defaultLocale: true,
         title: true,
         summary: true,
+        hashtagKeys: true,
+        hashtagLabels: true,
         coverManifest: true,
         priceLumina: true,
         releaseRevision: true,
@@ -140,16 +154,39 @@ export class StoryProductionService {
       cursor: query.cursor ? { id: query.cursor } : undefined,
       skip: query.cursor ? 1 : 0,
       take: query.limit + 1,
-    });
+      }),
+      this.prisma.storyWork.findMany({
+        where: publicWhere,
+        select: {
+          id: true,
+          slug: true,
+          fixtureSource: true,
+          coverManifest: true,
+          activeReleaseId: true,
+          hashtagKeys: true,
+          hashtagLabels: true,
+        },
+      }),
+    ]);
     const activeReleases = await this.prisma.storyRelease.findMany({
       where: {
-        id: { in: rows.map((row) => row.activeReleaseId).filter((id): id is string => Boolean(id)) },
+        id: {
+          in: [...new Set([...rows, ...hashtagRows]
+            .map((row) => row.activeReleaseId)
+            .filter((id): id is string => Boolean(id)))],
+        },
         status: 'active',
       },
       select: { id: true, workId: true, checksum: true },
     });
     const activeReleasesById = new Map(activeReleases.map((release) => [release.id, release]));
-    const safeRows = rows.filter((row) =>
+    const isSafeRow = (row: {
+      id: string;
+      slug: string;
+      fixtureSource: boolean;
+      coverManifest: Prisma.JsonValue;
+      activeReleaseId: string | null;
+    }) =>
       isPublicStorySourceSafe({
         fixtureSource: row.fixtureSource,
         slug: row.slug,
@@ -157,8 +194,19 @@ export class StoryProductionService {
       }) && Boolean(row.activeReleaseId && activeReleasesById.has(row.activeReleaseId)) &&
         (!row.activeReleaseId || !this.publicBeta || this.publicBeta.allows(
           row.id, row.activeReleaseId, activeReleasesById.get(row.activeReleaseId)!.checksum,
-        )),
-    );
+        ));
+    const safeRows = rows.filter(isSafeRow);
+    const hashtagCounts = new Map<string, { key: string; label: string; count: number }>();
+    hashtagRows.filter(isSafeRow).forEach((row) => {
+      projectStoryHashtags(row.hashtagKeys, row.hashtagLabels, query.locale, 'ko').forEach((hashtag) => {
+        const existing = hashtagCounts.get(hashtag.key);
+        hashtagCounts.set(hashtag.key, {
+          key: hashtag.key,
+          label: hashtag.label,
+          count: (existing?.count ?? 0) + 1,
+        });
+      });
+    });
     const page = safeRows.slice(0, query.limit);
     const entitledIds = await this.entitledReferenceIds(
       userId,
@@ -200,6 +248,12 @@ export class StoryProductionService {
           slug: row.slug,
           title,
           summary,
+          hashtags: projectStoryHashtags(
+            row.hashtagKeys,
+            row.hashtagLabels,
+            query.locale,
+            row.defaultLocale,
+          ),
           cover: row.coverManifest,
           publishedAt: row.publishedAt,
           access: this.accessProjection(
@@ -215,6 +269,10 @@ export class StoryProductionService {
         };
       }),
       nextCursor: safeRows.length > query.limit ? page.at(-1)?.id ?? null : null,
+      filters: {
+        hashtags: [...hashtagCounts.values()].sort((left, right) =>
+          right.count - left.count || left.label.localeCompare(right.label, query.locale)),
+      },
     };
   }
 
@@ -280,6 +338,12 @@ export class StoryProductionService {
       slug: work.slug,
       title: projectLocalizedValue(work.title, query.locale, work.defaultLocale),
       summary: projectLocalizedValue(work.summary, query.locale, work.defaultLocale),
+      hashtags: projectStoryHashtags(
+        work.hashtagKeys,
+        work.hashtagLabels,
+        query.locale,
+        work.defaultLocale,
+      ),
       cover: work.coverManifest,
       parts: parts.map((part) => {
         const entitlementGranted = workEntitlementGranted || entitledIds.has(part.id);

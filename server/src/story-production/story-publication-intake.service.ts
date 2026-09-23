@@ -40,6 +40,10 @@ import {
   storedManuscriptBody,
 } from './story-manuscript-file.policy';
 import { releaseChecksum } from './story-lifecycle.policy';
+import {
+  buildStorySearchText,
+  labelsForStoryHashtags,
+} from './story-hashtag.policy';
 
 const NORSE_ANALYSIS_SHA256 =
   '74462e693982cbb72733b3db465e435c008309dbcb76c603b908ed1369cb37f8';
@@ -58,6 +62,12 @@ const SOURCE_UPLOAD_MARKER = 'source_upload_chunks_v1';
 const PLAN_STORAGE_MARKER = 'plan_br_v1';
 const APPROVED_STORY_KEYS = ['imjin', 'norse', 'monster', 'rebellion'] as const;
 type ApprovedStoryKey = typeof APPROVED_STORY_KEYS[number];
+const STORY_HASHTAG_KEYS: Record<ApprovedStoryKey, readonly string[]> = {
+  imjin: ['history', 'imjin-war', 'yi-sun-sin', 'war', 'choice-fiction'],
+  norse: ['norse-mythology', 'mythology', 'fantasy', 'loki', 'choice-fiction'],
+  monster: ['romance', 'mystery', 'fantasy', 'modern-korea', 'complete'],
+  rebellion: ['romance', 'political-fantasy', 'mystery', 'court-intrigue', 'complete'],
+};
 
 type PublicationPart = {
   partKey: string;
@@ -86,6 +96,7 @@ type PublicationPlan = {
   slug: string;
   title: string;
   summary: string;
+  hashtagKeys?: string[];
   coverPath: string;
   manuscript: PreparedManuscript;
   sourceBindingSha256: string;
@@ -482,6 +493,10 @@ export class StoryPublicationIntakeService {
         const releaseId = randomUUID();
         const releaseSnapshot = this.releaseSnapshot(plan, manuscriptVersionId);
         const checksum = releaseChecksum(releaseSnapshot);
+        const hashtagKeys = plan.hashtagKeys?.length
+          ? plan.hashtagKeys
+          : [...STORY_HASHTAG_KEYS[plan.storyKey]];
+        const hashtagLabels = labelsForStoryHashtags(hashtagKeys);
         await tx.storyWork.create({
           data: {
             id: workId,
@@ -492,6 +507,9 @@ export class StoryPublicationIntakeService {
             supportedLocales: ['ko', 'en', 'ja', 'zh-Hans', 'zh-Hant'],
             title: { ko: plan.title },
             summary: { ko: plan.summary },
+            hashtagKeys,
+            hashtagLabels,
+            searchText: buildStorySearchText(plan.title, plan.summary, hashtagLabels),
             coverManifest: {
               publicAssetPath: plan.coverPath,
               altKey: `story.cover.${plan.storyKey}`,
@@ -904,6 +922,10 @@ export class StoryPublicationIntakeService {
       },
     };
     const checksum = releaseChecksum(releaseSnapshot);
+    const hashtagKeys = plan.hashtagKeys?.length
+      ? plan.hashtagKeys
+      : [...STORY_HASHTAG_KEYS[plan.storyKey]];
+    const hashtagLabels = labelsForStoryHashtags(hashtagKeys);
     return this.prisma.$transaction(async (tx) => {
       if (submissionId) {
         const locked = await tx.$queryRaw<Array<{
@@ -949,6 +971,9 @@ export class StoryPublicationIntakeService {
           supportedLocales: ['ko', 'en', 'ja', 'zh-Hans', 'zh-Hant'],
           title: { ko: plan.title },
           summary: { ko: plan.summary },
+          hashtagKeys,
+          hashtagLabels,
+          searchText: buildStorySearchText(plan.title, plan.summary, hashtagLabels),
           coverManifest: {
             publicAssetPath: plan.coverPath,
             altKey: `story.cover.${plan.storyKey}`,
@@ -1207,6 +1232,7 @@ export class StoryPublicationIntakeService {
       slug: config.slug,
       title: config.title,
       summary: config.summary,
+      hashtagKeys: [...STORY_HASHTAG_KEYS[storyKey]],
       coverPath: config.coverPath,
       manuscript: source.manuscript,
       sourceBindingSha256: source.sourceBindingSha256,
@@ -1243,6 +1269,7 @@ export class StoryPublicationIntakeService {
       slug: 'records-of-the-burning-sea-imjin-war',
       title: '불타는 바다의 기록자',
       summary: '이순신 장군 곁에서 임진왜란의 선택과 결과를 기록하는 75파트 역사 서사.',
+      hashtagKeys: [...STORY_HASHTAG_KEYS.imjin],
       coverPath: '/assets/story/imjin-war-cover.webp',
       manuscript,
       sourceBindingSha256: source.source.sha256,
@@ -1293,6 +1320,7 @@ export class StoryPublicationIntakeService {
       slug: 'norse-myth-loki-crossroads',
       title: '북유럽 신화: 로키의 선택',
       summary: '신들의 운명과 라그나로크의 갈림길을 따라가는 216파트 북유럽 신화 서사.',
+      hashtagKeys: [...STORY_HASHTAG_KEYS.norse],
       coverPath: '/assets/story/norse-myth-cover.webp',
       manuscript,
       sourceBindingSha256: source.sourceMapSha256,
@@ -1328,6 +1356,7 @@ export class StoryPublicationIntakeService {
       slug: plan.slug,
       title: plan.title,
       summary: plan.summary,
+      hashtagKeys: plan.hashtagKeys,
       coverPath: plan.coverPath,
       manuscript: {
         locale: plan.manuscript.locale,
