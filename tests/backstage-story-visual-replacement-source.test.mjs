@@ -5,11 +5,12 @@ import { readFile } from 'node:fs/promises';
 const source = await readFile(new URL('../backstage-story-publication.js', import.meta.url), 'utf8');
 const css = await readFile(new URL('../backstage-story-publication.css', import.meta.url), 'utf8');
 
-test('backstage exposes an explicit one-image-at-a-time visual replacement flow', () => {
+test('backstage replaces stale visuals sequentially and reports completion', () => {
   assert.match(source, /visualIdentityManaged: true/g);
   assert.match(source, /\/admin\/api\/v1\/story-visuals\/\$\{encodeURIComponent\(work\.id\)\}\/replacement-status/);
   assert.match(source, /\/admin\/api\/v1\/story-visuals\/\$\{encodeURIComponent\(work\.id\)\}\/replace-stale/);
-  assert.match(source, /새 기준으로 1장 교체/);
+  assert.match(source, /for \(const item of items\)/);
+  assert.match(source, /장면 그림 \$\{completed\}장을 새 기준으로 모두 교체/);
   assert.match(source, /표지와 같은 화풍·인물 기준/);
   assert.doesNotMatch(source, /Promise\.all\([^)]*replace-stale/);
 });
