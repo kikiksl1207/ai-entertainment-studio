@@ -14,6 +14,34 @@ function reader(positions, position = 0, status = 'active') {
   return { state, ...api };
 }
 
+test('reader source: a signed request recovers an expired access token through shared auth', async () => {
+  const requestSource = source.slice(source.indexOf('async function request('), source.indexOf('function renderLoading('));
+  const calls = [];
+  const sharedResult = { currentBeatPosition: 2 };
+  const request = runInNewContext(`${requestSource}; request`, {
+    API_ORIGIN: 'https://api.example.test',
+    window: {
+      getAuth: () => ({ accessToken: 'expired' }),
+      apiFetch: async (path, options) => {
+        calls.push({ path, options });
+        return sharedResult;
+      },
+    },
+    fetch: async () => ({ status: 401, ok: false }),
+  });
+  const signal = new AbortController().signal;
+  const result = await request('/api/v1/me/story-progress/progress/beat', {
+    method: 'POST', auth: true, signal, body: { position: 2 },
+  });
+  assert.equal(result, sharedResult);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].path, '/api/v1/me/story-progress/progress/beat');
+  assert.equal(calls[0].options.method, 'POST');
+  assert.equal(calls[0].options.body.position, 2);
+  assert.equal(calls[0].options.signal, undefined);
+  assert.equal(calls[0].options.throwOnError, true);
+});
+
 test('reader source: canonical/generated persisted positions and full text are not array-indexed or truncated', () => {
   const canonical = reader([3, 1, 2]);
   assert.equal(canonical.readableBeats().beats[0].text, 'full.text.1\n\nSecond paragraph.');

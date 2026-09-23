@@ -747,6 +747,9 @@
         body: options.body ? JSON.stringify(options.body) : undefined,
         signal: options.signal,
       });
+      if (response.status === 401 && options.auth && typeof window.apiFetch === "function") {
+        return window.apiFetch(path, { ...options, signal: undefined, throwOnError: true });
+      }
       if (!response.ok) {
         const error = new Error(`HTTP ${response.status}`);
         error.status = response.status;
