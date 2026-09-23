@@ -552,7 +552,15 @@
           sourceSceneKey: item.sourceSceneKey
         }
       });
-      if (result?.status !== "ready") throw new Error("장면 그림 교체가 완료되지 않았습니다.");
+      if (result?.status !== "ready") {
+        const reasons = {
+          generation_disabled: "장면 이미지 생성 설정이 꺼져 있습니다.",
+          beta_generation_limit_reached: "현재 테스트 이미지 생성 한도에 도달했습니다.",
+          provider_configuration_missing: "이미지 생성 연결 설정을 확인해 주세요."
+        };
+        throw new Error(reasons[result?.reason] || "장면 그림 교체가 완료되지 않았습니다.");
+      }
+      state.replacingKey = null;
       state.loaded = false;
       await load({ force: true });
       setStatus(`${story.title} 장면 그림 1장을 새 기준으로 교체했습니다.`, "success");
@@ -565,7 +573,6 @@
       button.textContent = "새 기준으로 1장 교체";
     } finally {
       state.replacingKey = null;
-      render();
     }
   }
 
