@@ -188,6 +188,14 @@ export class StoryLifecycleService {
           _count: { _all: true },
         });
         for (const count of choiceCounts) assertSuggestedChoiceCount(count._count._all);
+        if (authoredPromotion) {
+          const sceneIds = new Set(scenes.map((scene) => scene.id));
+          const countsByScene = new Map(choiceCounts.map((count) => [count.sceneId, count._count._all]));
+          if (scenes.length !== authoredPromotion.sceneIds.length ||
+              authoredPromotion.sceneIds.some((id) => !sceneIds.has(id) || countsByScene.get(id) !== 3)) {
+            throw new ConflictException('Authored publication requires exactly three choices per scene');
+          }
+        }
         if (this.economics) {
           await this.economics.assertReleasePublishableTx(tx, work, release);
         }

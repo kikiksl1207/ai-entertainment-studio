@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 import { BadRequestException, ConflictException } from '@nestjs/common';
+import * as authoredImport from './story-authored-import.service';
 import { StoryLifecycleService } from './story-lifecycle.service';
 
 describe('StoryLifecycleService', () => {
@@ -15,6 +16,54 @@ describe('StoryLifecycleService', () => {
   const service = new StoryLifecycleService(prisma as never);
 
   beforeEach(() => jest.clearAllMocks());
+  afterEach(() => jest.restoreAllMocks());
+
+  function publicationFixture(authored = true) {
+    jest.spyOn(authoredImport, 'assertAuthoredImportPublicationTx').mockResolvedValue(
+      authored ? { partIds: ['part-1'], sceneIds: ['scene-1', 'scene-2'] } : undefined,
+    );
+    const tx = {
+      $queryRaw: jest.fn().mockResolvedValue([{ id: 'work-id' }]),
+      storyWork: {
+        findUnique: jest.fn().mockResolvedValue({ id: 'work-id', status: 'release_ready', releaseRevision: 1,
+          activeReleaseId: null }),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+      storyRelease: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'release-id', version: 1, manuscriptVersionId: 'manuscript-id',
+          validationSummary: { ready: true } }),
+        update: jest.fn(),
+      },
+      storyAnalysisJob: { findFirst: jest.fn().mockResolvedValue(null) },
+      storyPart: {
+        findMany: jest.fn().mockResolvedValue([{ id: 'part-1' }]),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+      storyScene: {
+        findMany: jest.fn().mockResolvedValue([{ id: 'scene-1' }, { id: 'scene-2' }]),
+        updateMany: jest.fn().mockResolvedValue({ count: 2 }),
+      },
+      storyChoice: { groupBy: jest.fn().mockResolvedValue([
+        { sceneId: 'scene-1', _count: { _all: 3 } },
+        { sceneId: 'scene-2', _count: { _all: 3 } },
+      ]) },
+      storyPublicationTransition: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue({ id: 'transition-id', fromStatus: 'release_ready',
+          toStatus: 'published', beforeRevision: 1, afterRevision: 2, createdAt: new Date() }),
+      },
+      auditEvent: { create: jest.fn() },
+    };
+    const publicationPrisma = {
+      storyPublicationTransition: tx.storyPublicationTransition,
+      $transaction: jest.fn(async (run: (transaction: typeof tx) => Promise<unknown>) => run(tx)),
+    };
+    return { tx, lifecycle: new StoryLifecycleService(publicationPrisma as never) };
+  }
+
+  const publish = (lifecycle: StoryLifecycleService) => lifecycle.transitionPublication(
+    'admin-id', 'work-id', { toStatus: 'published', releaseId: 'release-id', expectedRevision: 1 }, 'publish-key-123',
+  );
 
   it('returns an existing immutable release for the same snapshot checksum', async () => {
     prisma.storyWork.findFirst.mockResolvedValue({ id: 'work-id', ownerUserId: 'user-id' });
@@ -99,5 +148,48 @@ describe('StoryLifecycleService', () => {
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(prisma.storyQualityEvent.upsert).not.toHaveBeenCalled();
+  });
+
+  it('blocks authored publication when an intended scene is missing', async () => {
+    const { tx, lifecycle } = publicationFixture();
+    tx.storyScene.findMany.mockResolvedValue([{ id: 'scene-1' }]);
+    tx.storyChoice.groupBy.mockResolvedValue([{ sceneId: 'scene-1', _count: { _all: 3 } }]);
+
+    await expect(publish(lifecycle)).rejects.toBeInstanceOf(ConflictException);
+    expect(tx.storyPart.updateMany).not.toHaveBeenCalled();
+    expect(tx.storyRelease.update).not.toHaveBeenCalled();
+  });
+
+  it.each([0, 1, 2])('blocks authored publication with %s choices in an intended scene', async (count) => {
+    const { tx, lifecycle } = publicationFixture();
+    tx.storyChoice.groupBy.mockResolvedValue([
+      { sceneId: 'scene-1', _count: { _all: 3 } },
+      ...(count ? [{ sceneId: 'scene-2', _count: { _all: count } }] : []),
+    ]);
+
+    await expect(publish(lifecycle)).rejects.toBeInstanceOf(ConflictException);
+    expect(tx.storyPart.updateMany).not.toHaveBeenCalled();
+    expect(tx.storyRelease.update).not.toHaveBeenCalled();
+  });
+
+  it('publishes authored scenes when each has exactly three persisted choices', async () => {
+    const { tx, lifecycle } = publicationFixture();
+
+    await expect(publish(lifecycle)).resolves.toMatchObject({ toStatus: 'published', idempotentReplay: false });
+    expect(tx.storyChoice.groupBy).toHaveBeenCalledWith({ by: ['sceneId'],
+      where: { sceneId: { in: ['scene-1', 'scene-2'] } }, _count: { _all: true } });
+    expect(tx.storyPart.updateMany).toHaveBeenCalledTimes(1);
+    expect(tx.storyScene.updateMany).toHaveBeenCalledTimes(1);
+    expect(tx.storyRelease.update).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps legacy publication permissive for scenes with fewer than three choices', async () => {
+    const { tx, lifecycle } = publicationFixture(false);
+    tx.storyChoice.groupBy.mockResolvedValue([{ sceneId: 'scene-1', _count: { _all: 1 } }]);
+
+    await expect(publish(lifecycle)).resolves.toMatchObject({ toStatus: 'published' });
+    expect(tx.storyPart.updateMany).not.toHaveBeenCalled();
+    expect(tx.storyScene.updateMany).not.toHaveBeenCalled();
+    expect(tx.storyRelease.update).toHaveBeenCalledTimes(1);
   });
 });
