@@ -274,8 +274,7 @@
         취미: "동네 카페 기록, 필름 사진, 빈티지 숍 산책",
         좋아하는선물: "무향 핸드크림, 필름롤, 데님 키링, 작은 화병"
       },
-      shorts: [{ title: "시티 무드 스냅", metric: "비공개 라인" }],
-      galleryMode: "hidden"
+      shorts: [{ title: "시티 무드 스냅", metric: "공개 중" }]
     },
     {
       name: "이지원", publicName: "이지원", slug: "lee-jiwon",
@@ -306,8 +305,7 @@
         취미: "야간 드라이브, 액션 영화 분석, 러닝",
         좋아하는선물: "메탈 키링, 블랙 캡, 무선 이어폰 케이스, 시네마 티켓"
       },
-      shorts: [{ title: "액션 무드 컷", metric: "비공개 라인" }],
-      galleryMode: "hidden"
+      shorts: [{ title: "액션 무드 컷", metric: "공개 중" }]
     },
     {
       name: "하윤아", publicName: "하윤아", slug: "ha-yuna",
@@ -369,8 +367,7 @@
         취미: "보컬 커버 녹음, 바닷가 산책, 폴라로이드 모으기",
         좋아하는선물: "파란 리본, 투명 파우치, 조개 모양 액세서리, 청량한 향 바디미스트"
       },
-      shorts: [{ title: "청량 직캠 컷", metric: "비공개 라인" }],
-      galleryMode: "hidden"
+      shorts: [{ title: "청량 직캠 컷", metric: "공개 중" }]
     },
     {
       name: "오유나", publicName: "오유나", slug: "oh-yuna",
@@ -401,8 +398,7 @@
         취미: "수영, 페스티벌 플레이리스트 만들기, 선글라스 수집",
         좋아하는선물: "아쿠아 향수, 선글라스, 방수 파우치, 핫핑크 타월"
       },
-      shorts: [{ title: "페스티벌 티저", metric: "비공개 라인" }],
-      galleryMode: "hidden"
+      shorts: [{ title: "페스티벌 티저", metric: "공개 중" }]
     },
     {
       name: "권태준", publicName: "권태준", slug: "kwon-taejun",
@@ -774,7 +770,11 @@
     "cha-mawang",
     "seo-ika",
     "baek-toga",
-    "kwon-bandong"
+    "kwon-bandong",
+    "kang-sia",
+    "lee-jiwon",
+    "baek-ria",
+    "oh-yuna"
   ];
 
   // #277 — slug 마다 gallery 매수와 파일 확장자가 달라질 수 있게 lookup. 기본은 oh-hyerin 까지의

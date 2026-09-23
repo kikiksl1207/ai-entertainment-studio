@@ -23,8 +23,6 @@ const fullGallerySlugs = [
   'seo-ika',
   'baek-toga',
   'kwon-bandong',
-];
-const coverOnlySlugs = [
   'kang-sia',
   'lee-jiwon',
   'baek-ria',
@@ -36,7 +34,7 @@ function localAssetPath(relativePath) {
 }
 
 test('all handoff characters have local cover and thumbnail assets', () => {
-  for (const slug of [...fullGallerySlugs, ...coverOnlySlugs]) {
+  for (const slug of fullGallerySlugs) {
     const character = bySlug.get(slug);
     assert.ok(character, `${slug}: character record is missing`);
     assert.equal(character.status, 'public', `${slug}: must be publicly visible`);
@@ -57,13 +55,12 @@ test('completed character sets expose exactly fourteen ordered gallery images', 
   }
 });
 
-test('cover-only characters do not receive placeholder gallery images', () => {
-  for (const slug of coverOnlySlugs) {
-    const character = bySlug.get(slug);
-    assert.equal(character.galleryMode, 'hidden', `${slug}: gallery mode`);
-    assert.equal(character.gallery.length, 0, `${slug}: gallery must remain empty`);
-    const files = readdirSync(`${root}/assets/characters/${slug}`).sort();
-    assert.deepEqual(files, ['cover.png', 'thumb.png'], `${slug}: unexpected gallery files`);
+test('all final handoff folders contain only the two representatives and fourteen ordered gallery assets', () => {
+  for (const slug of fullGallerySlugs) {
+    const files = readdirSync(`${root}/assets/characters/${slug}`).filter((file) => file.endsWith('.png')).sort();
+    assert.equal(files.length, 16, `${slug}: unexpected PNG count`);
+    assert.equal(files[0], 'cover.png', `${slug}: cover filename`);
+    assert.equal(files.at(-1), 'thumb.png', `${slug}: thumbnail filename`);
   }
 });
 
