@@ -105,7 +105,8 @@
 .story-search input { min-width: 0; min-height: 44px; padding: 10px 12px; border: 1px solid #505258; border-radius: 6px; background: #14151a; color: inherit; font: inherit; }
 .story-search input::placeholder { color: rgba(244, 244, 241, 0.48); }
 .story-search .story-button { min-height: 44px; margin: 0; }
-.story-hashtag-filters { display: flex; gap: 8px; padding: 2px 0 4px; overflow-x: auto; scrollbar-width: thin; }
+.story-hashtag-filters { display: flex; gap: 8px; padding: 2px 0 4px; overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none; }
+.story-hashtag-filters::-webkit-scrollbar { display: none; }
 .story-hashtag-filter, .story-pack-tags button, .story-detail-tags button { flex: 0 0 auto; min-height: 32px; border: 1px solid #3c3e45; border-radius: 6px; padding: 5px 9px; background: #14151a; color: rgba(244, 244, 241, 0.76); font: inherit; font-size: 12px; cursor: pointer; white-space: nowrap; }
 .story-hashtag-filter span { margin-left: 4px; color: rgba(244, 244, 241, 0.46); font-variant-numeric: tabular-nums; }
 .story-hashtag-filter.is-active { border-color: #d4ff5f; background: rgba(212, 255, 95, 0.1); color: #efffc2; }
