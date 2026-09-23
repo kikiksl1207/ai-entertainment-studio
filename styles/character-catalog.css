@@ -96,6 +96,13 @@
   object-position: center top;
 }
 
+.catalog-image-cha-mawang,
+.catalog-image-seo-ika,
+.catalog-image-baek-toga,
+.catalog-image-kwon-bandong {
+  object-position: center 18%;
+}
+
 .catalog-overlay {
   position: absolute;
   inset: auto 18px 18px 18px;

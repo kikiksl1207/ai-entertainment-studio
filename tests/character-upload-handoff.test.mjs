@@ -19,11 +19,12 @@ const fullGallerySlugs = [
   'lim-jaeguk',
   'seo-hamin',
   'ryu-taeo',
-];
-const coverOnlySlugs = [
+  'cha-mawang',
   'seo-ika',
   'baek-toga',
   'kwon-bandong',
+];
+const coverOnlySlugs = [
   'kang-sia',
   'lee-jiwon',
   'baek-ria',
@@ -99,4 +100,6 @@ test('public catalog uses thumbnails and detail pages use main cover images', ()
   assert.match(detailPage, /candidate: "신규"/);
   assert.match(detailStyles, /detail-hero-image-nam-ian/);
   assert.match(detailStyles, /detail-hero-image-ryu-taeo/);
+  assert.match(detailStyles, /detail-hero-image-cha-mawang/);
+  assert.match(detailStyles, /detail-hero-image-kwon-bandong/);
 });

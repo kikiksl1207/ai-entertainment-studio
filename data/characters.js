@@ -618,6 +618,31 @@
       shorts: [{ title: "현장 관찰 노트", metric: "공개 준비 중" }]
     },
     {
+      name: "차마왕", publicName: "차마왕", slug: "cha-mawang",
+      gender: "male",
+      type: "프로듀서", tier: "candidate", status: "public",
+      role: "크리에이터 IP 투자·콘텐츠 제작사 CEO",
+      artistDescription: "가능성을 발견하면 끝까지 투자하고, 협상에서는 숫자와 책임을 함께 봅니다. 사람을 남기는 제작을 하겠습니다.",
+      summary: "모든 협상에서는 이기지만, 사랑하는 사람의 한마디에는 계획부터 다시 짜는 남자.",
+      fandom: "지성·리더십 몰입형", business: "크리에이터 IP 투자, 라이브 콘텐츠 제작, 비즈니스 토크",
+      tags: ["CEO", "IP투자", "콘텐츠제작"],
+      colorAccent: "#7f3d48",
+      images: { cover: "./assets/characters/cha-mawang/cover.png", thumb: "./assets/characters/cha-mawang/thumb.png" },
+      intro: "차마왕은 크리에이터 IP 투자와 라이브 콘텐츠 제작을 이끄는 창업자이자 CEO다. 빠른 판단과 날카로운 협상력을 지녔지만, 선택한 사람과 프로젝트에는 끝까지 책임지는 제작자다.",
+      concept: "좋은 IP는 숫자로 가능성을 확인하고 사람에 대한 책임으로 완성합니다. 논쟁을 피하지 않고, 가장 설득력 있는 결론을 실제 콘텐츠로 보여드리겠습니다.",
+      profile: {
+        나이: "36세",
+        신체: "182cm / 79kg",
+        포지션: "크리에이터 IP 투자사·라이브 콘텐츠 제작사 창업자 / CEO",
+        캐릭터타입: "결단형 콘텐츠 투자 리더",
+        팬포인트: "다정함, 결단력, 논쟁을 즐기는 지성, 장난기와 책임감",
+        비주얼: "긴 육각형 얼굴 · 중간 길이 흑갈색 웨이브 · 작은 머리와 긴 다리 · 차콜·옥스블러드 CEO 스타일",
+        대표컬러: "Charcoal / Oxblood / Forest Teal",
+        MBTI: "ENTP"
+      },
+      shorts: [{ title: "크리에이터 IP 투자 테이블", metric: "공개 준비 중" }]
+    },
+    {
       name: "서이카", publicName: "서이카", slug: "seo-ika",
       gender: "female",
       type: "크리에이터", tier: "candidate", status: "public",
@@ -640,8 +665,7 @@
         대표컬러: "Dark Teal / Cherry Red / Ivory / Warm Gray",
         MBTI: "INFJ"
       },
-      shorts: [{ title: "협동 생존 라이브", metric: "공개 준비 중" }],
-      galleryMode: "hidden"
+      shorts: [{ title: "협동 생존 라이브", metric: "공개 준비 중" }]
     },
     {
       name: "백토가", publicName: "백토가", slug: "baek-toga",
@@ -666,8 +690,7 @@
         대표컬러: "Black / Charcoal / Steel / Cool Gray",
         MBTI: "ESTP"
       },
-      shorts: [{ title: "정확한 한 동작", metric: "공개 준비 중" }],
-      galleryMode: "hidden"
+      shorts: [{ title: "정확한 한 동작", metric: "공개 준비 중" }]
     },
     {
       name: "권반동", publicName: "권반동", slug: "kwon-bandong",
@@ -691,8 +714,7 @@
         비주얼: "넓고 긴 사각 얼굴 · 각진 검정 안경 · 희끗한 짧은 머리 · 거대한 실전형 체격",
         대표컬러: "Charcoal / Olive / Black / Safety Orange"
       },
-      shorts: [{ title: "원정 안전 계획", metric: "공개 준비 중" }],
-      galleryMode: "hidden"
+      shorts: [{ title: "원정 안전 계획", metric: "공개 준비 중" }]
     },
     {
       name: "서유안", publicName: "서유안", slug: "seo-yuan",
@@ -748,7 +770,11 @@
     "jung-doyun",
     "lim-jaeguk",
     "seo-hamin",
-    "ryu-taeo"
+    "ryu-taeo",
+    "cha-mawang",
+    "seo-ika",
+    "baek-toga",
+    "kwon-bandong"
   ];
 
   // #277 — slug 마다 gallery 매수와 파일 확장자가 달라질 수 있게 lookup. 기본은 oh-hyerin 까지의

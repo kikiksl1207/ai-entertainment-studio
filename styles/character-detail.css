@@ -196,6 +196,13 @@
   object-position: 82% center;
 }
 
+.detail-hero-image-cha-mawang,
+.detail-hero-image-seo-ika,
+.detail-hero-image-baek-toga,
+.detail-hero-image-kwon-bandong {
+  object-position: center 18%;
+}
+
 .detail-copy {
   display: flex;
   flex-direction: column;
