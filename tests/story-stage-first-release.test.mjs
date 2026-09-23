@@ -575,14 +575,24 @@ for (const locale of locales) {
           document.querySelector('[data-choice-id]').append('LongUnbrokenChoiceText'.repeat(12));
         });
         const geometry = await f.page.evaluate(() => {
-          const stage = document.querySelector('.story-player-stage').getBoundingClientRect();
           const region = document.querySelector('.story-player-copy');
+          const shell = document.querySelector('.story-reader-shell');
+          const choicePanel = document.querySelector('.story-choice-panel');
           region.scrollTop = region.scrollHeight;
-          return { width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth, stageBottom: stage.bottom,
-            regionTop: region.getBoundingClientRect().top, endReachable: Math.abs(region.scrollHeight - region.clientHeight - region.scrollTop) <= 2 };
+          const regionBounds = region.getBoundingClientRect();
+          const shellBounds = shell.getBoundingClientRect();
+          return { width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth,
+            hasVisualStage: Boolean(document.querySelector('.story-player-stage')),
+            textOnly: shell.classList.contains('story-reader-shell-text-only'),
+            centered: Math.abs((regionBounds.left + regionBounds.right) / 2 - (shellBounds.left + shellBounds.right) / 2) <= 1,
+            regionWidth: regionBounds.width, choiceTop: choicePanel?.getBoundingClientRect().top,
+            regionBottom: regionBounds.bottom, endReachable: Math.abs(region.scrollHeight - region.clientHeight - region.scrollTop) <= 2 };
         });
         assert.ok(geometry.scroll <= geometry.width, JSON.stringify(geometry));
-        assert.ok(geometry.regionTop > geometry.stageBottom, JSON.stringify(geometry));
+        assert.equal(geometry.hasVisualStage, false);
+        assert.equal(geometry.textOnly, true);
+        assert.ok(geometry.centered && geometry.regionWidth <= 761, JSON.stringify(geometry));
+        assert.ok(geometry.choiceTop >= geometry.regionBottom, JSON.stringify(geometry));
         assert.equal(geometry.endReachable, true);
         if (process.env.STORY_UI_READER_CAPTURES !== '0') await f.page.screenshot({ path: path.join(artifacts, `${locale}-${width}-choices.png`), fullPage: true });
         await f.page.locator('[data-story-reset-preview="act"]').click();

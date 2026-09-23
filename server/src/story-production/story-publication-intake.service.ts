@@ -30,6 +30,7 @@ import {
 } from './story-imjin-release-bridge.policy';
 import {
   FIXED_ROUTE_STORIES,
+  FixedRouteVisualBible,
   FixedRouteStoryKey,
   fixedRouteStoryKeyFromChecksums,
   prepareFixedRoutePublicationSource,
@@ -102,6 +103,7 @@ type PublicationPlan = {
   sourceBindingSha256: string;
   parts: PublicationPart[];
   prompts: PublicationPrompt[];
+  visualBible?: FixedRouteVisualBible;
 };
 
 type PublicationPlanSnapshot = Omit<PublicationPlan, 'manuscript'> & {
@@ -916,6 +918,7 @@ export class StoryPublicationIntakeService {
       sceneAssetManifest: {
         state: 'prompt_backed',
         promptCount: plan.prompts.length,
+        ...(plan.visualBible ? { visualBible: plan.visualBible } : {}),
       },
       localizedDisplaySnapshot: {
         ko: { title: plan.title, summary: plan.summary },
@@ -1238,6 +1241,7 @@ export class StoryPublicationIntakeService {
       sourceBindingSha256: source.sourceBindingSha256,
       parts: source.parts,
       prompts: source.prompts,
+      visualBible: config.visualBible,
     };
   }
 
@@ -1366,6 +1370,7 @@ export class StoryPublicationIntakeService {
       sourceBindingSha256: plan.sourceBindingSha256,
       parts: plan.parts,
       prompts: plan.prompts,
+      visualBible: plan.visualBible,
     };
     const serialized = Buffer.from(JSON.stringify(stored), 'utf8');
     const compressed = brotliCompressSync(serialized, {
@@ -1471,6 +1476,7 @@ export class StoryPublicationIntakeService {
       sceneAssetManifest: {
         state: 'prompt_backed',
         promptCount: plan.prompts.length,
+        ...(plan.visualBible ? { visualBible: plan.visualBible } : {}),
       },
       localizedDisplaySnapshot: {
         ko: { title: plan.title, summary: plan.summary },

@@ -53,6 +53,10 @@ test('reader source: progress status controls endings and choices wait for the l
   assert.match(css, /white-space: pre-wrap/);
   assert.match(css, /\.story-player-copy p \{[^}]*font-size: 17px;[^}]*font-weight: 400;[^}]*line-height: 1.82;/);
   assert.match(source, /story-reader-shell[\s\S]*story-player-stage[\s\S]*story-player-copy/);
+  assert.match(source, /story-reader-shell-text-only/);
+  assert.match(css, /\.story-reader-shell-text-only \{[^}]*grid-template-columns: minmax\(0, 760px\);[^}]*justify-content: center;/);
+  assert.match(css, /\.story-reader-progress \{[^}]*position: absolute;[^}]*top: 14px;[^}]*right: 22px;/);
+  assert.match(css, /\.story-player-copy \{[^}]*grid-row: 1;/);
   assert.match(css, /\.story-reader-shell:hover \.story-beat-navigation button,[\s\S]*\.story-reader-shell:focus-within \.story-beat-navigation button/);
   assert.match(css, /@media \(max-width: 680px\)[\s\S]*\.story-beat-navigation button \{[\s\S]*opacity: 1;/);
   assert.match(source, /\["ArrowLeft", "ArrowRight"\][\s\S]*button\.click\(\)/);

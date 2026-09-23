@@ -54,7 +54,7 @@
       startFailed: "지금은 스토리를 시작할 수 없습니다. 잠시 후 다시 시도해 주세요.",
       sceneLoading: "장면을 불러오는 중입니다.",
       sceneFailed: "장면을 불러오지 못했습니다.",
-      sceneNoVisual: "장면 이미지를 표시할 수 없습니다.",
+      sceneNoVisual: "이 장면은 본문 중심으로 이어집니다.",
       sceneImageGenerating: "장면 이미지를 준비하고 있습니다.",
       pairedPreparing: "다음 장면의 글과 그림을 함께 준비하고 있어요.",
       pairedDetail: "둘 다 준비된 뒤 한 번에 보여드릴게요.",
@@ -138,7 +138,7 @@
       startFailed: "This story cannot be started right now. Please try again shortly.",
       sceneLoading: "Loading scene.",
       sceneFailed: "The scene could not be loaded.",
-      sceneNoVisual: "Scene image unavailable.",
+      sceneNoVisual: "This scene continues as text.",
       sceneImageGenerating: "Preparing the scene image.",
       pairedPreparing: "Preparing the next scene's story and artwork together.",
       pairedDetail: "The scene appears only after both are ready.",
@@ -222,7 +222,7 @@
       startFailed: "現在このストーリーを開始できません。しばらくしてからお試しください。",
       sceneLoading: "シーンを読み込んでいます。",
       sceneFailed: "シーンを読み込めませんでした。",
-      sceneNoVisual: "シーン画像を表示できません。",
+      sceneNoVisual: "このシーンは本文を中心に続きます。",
       sceneImageGenerating: "シーン画像を準備しています。",
       pairedPreparing: "次のシーンの文章と画像を一緒に準備しています。",
       pairedDetail: "両方の準備が完了してから同時に表示します。",
@@ -306,7 +306,7 @@
       startFailed: "暂时无法开始此故事，请稍后重试。",
       sceneLoading: "正在加载场景。",
       sceneFailed: "无法加载场景。",
-      sceneNoVisual: "场景图片不可用。",
+      sceneNoVisual: "本场景将以正文继续。",
       sceneImageGenerating: "正在准备场景图片。",
       pairedPreparing: "正在同时准备下一个场景的故事与图片。",
       pairedDetail: "两者都准备完成后会一起显示。",
@@ -390,7 +390,7 @@
       startFailed: "暫時無法開始此故事，請稍後重試。",
       sceneLoading: "正在載入場景。",
       sceneFailed: "無法載入場景。",
-      sceneNoVisual: "場景圖片無法顯示。",
+      sceneNoVisual: "本場景將以正文繼續。",
       sceneImageGenerating: "正在準備場景圖片。",
       pairedPreparing: "正在同時準備下一個場景的故事與圖片。",
       pairedDetail: "兩者都準備完成後會一起顯示。",
@@ -1077,7 +1077,8 @@
 
   function detailRetryVisible(operation) {
     if (["loading", "access-loading"].includes(state.detailStatus)) return false;
-    return !(state.purchaseConfirming && !operation && state.detailStatus === "ready" && !state.purchaseNotice);
+    if (operation || ["error", "access-error"].includes(state.detailStatus)) return true;
+    return Boolean(state.purchaseNotice && state.purchaseNotice !== "success");
   }
 
   function participantCandidate(value) {
@@ -1167,7 +1168,7 @@
           </section>
           ${renderParticipantPicker(action)}` : ""}
       </div>
-      <footer class="story-detail-actions" aria-busy="${state.detailPending || purchaseBusy}">
+      <footer class="story-detail-actions" aria-busy="${state.detailPending || purchaseBusy}" data-story-detail-state="${escapeHtml(state.detailStatus)}">
         <p id="storyPurchaseStatus" data-story-detail-status role="status">${escapeHtml(state.detailStatus === "loading" || state.detailStatus === "access-loading" ? tr("loading") : state.detailStatus === "error" ? accessTr("detailUnavailable") : state.detailStatus === "access-error" ? state.detailError : action === "sign_in" ? tr("loginRequired") : purchaseStatus || (action === "unavailable" ? controlTr("sceneUnavailable") : ""))}</p>
         ${action === "purchase" && quote && (state.purchaseConfirming || operation) ? `<p class="story-purchase-price" data-story-purchase-price>${escapeHtml(quote.priceLumina)} LUMINA</p>` : ""}
         <div>${action === "start" || action === "continue" ? `<button class="story-button story-button-primary" data-story-start ${state.detailPending || purchaseBusy ? "disabled" : ""}>${escapeHtml(state.detailPending ? tr("starting") : tr(action))}</button>` : action === "purchase" ? `<button class="story-button story-button-primary" ${operation ? "data-story-purchase-retry" : state.purchaseConfirming ? "data-story-purchase-confirm" : "data-story-purchase"} ${purchaseDisabled ? "disabled" : ""} aria-describedby="storyPurchaseStatus">${escapeHtml(operation ? purchaseTr("retry") : state.purchaseConfirming ? purchaseTr("confirm").replace("{price}", quote?.priceLumina || "") : accessTr("purchase"))}</button>${state.purchaseConfirming && !operation ? `<button class="story-button story-button-secondary" data-story-purchase-cancel>${escapeHtml(purchaseTr("cancel"))}</button>` : ""}` : ""}
@@ -1589,6 +1590,8 @@
     if (!reading || (isEnding && state.choices.length) || (state.progress?.status === "active" && !state.choices.length && (scene?.ending || scene?.isEnding || scene?.endingType))) return blockScene(controlTr("sceneUnavailable"));
     const visual = readingVisual(reading);
     const { background, characters } = visual;
+    const visualPending = Boolean(readingVisualKey(reading));
+    const showVisualStage = Boolean(background || visualPending);
     const sceneTitle = textValue(scene?.title);
     const sceneText = reading.beats[reading.index].text;
     const lastBeat = reading.index === reading.beats.length - 1;
@@ -1622,10 +1625,10 @@
         ${!scene && isEnding ? `<div class="story-completed" tabindex="-1" data-story-scene-focus>
           <span class="story-ending-label">${escapeHtml(tr("ending"))}</span>
           <h2>${escapeHtml(tr("completed"))}</h2>
-        </div>` : `<div class="story-reader-shell">
-          <div class="story-player-stage" data-visual-status="${background ? "loading" : "missing"}">
+        </div>` : `<div class="story-reader-shell${showVisualStage ? "" : " story-reader-shell-text-only"}" data-has-visual="${showVisualStage}">
+          ${showVisualStage ? `<div class="story-player-stage" data-visual-status="${background ? "loading" : "missing"}">
             <div class="story-player-visual-layers">
-              <div class="story-player-no-visual" ${background && visual.ready ? "hidden" : ""}>${escapeHtml(tr("sceneNoVisual"))}</div>
+              <div class="story-player-no-visual" ${background && visual.ready ? "hidden" : ""}>${escapeHtml(visualPending ? tr("sceneImageGenerating") : tr("sceneNoVisual"))}</div>
               <div class="story-player-background-layer" aria-hidden="true">
                 ${background ? `<img class="story-player-background" src="${escapeHtml(background)}" alt="" hidden />` : ""}
               </div>
@@ -1633,7 +1636,7 @@
                 ${characters.map((character, index) => `<img src="${escapeHtml(characterUrl(character))}" alt="" data-side="${escapeHtml(sceneCharacterSide(character, index))}" hidden />`).join("")}
               </div>
             </div>
-          </div>
+          </div>` : ""}
           <div class="story-reader-pane">
             ${reading.beats.length > 1 ? `<div class="story-reader-progress">
               <output data-story-beat-counter aria-live="polite">${reading.index + 1} / ${reading.beats.length}</output>

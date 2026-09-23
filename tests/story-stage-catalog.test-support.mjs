@@ -124,7 +124,10 @@ export function registerCatalogTests({ getBrowser, repo, artifacts, base, api })
     return { page, requests, setHook: (next) => { hook = next; },
       async open() {
         if (!options.deep) await page.locator('[data-pack-slug="private-local-story"]').click();
-        await page.locator('[data-story-detail-retry]').waitFor();
+        await page.waitForFunction(() => {
+          const state = document.querySelector('.story-detail-actions')?.dataset.storyDetailState;
+          return Boolean(state && !['loading', 'access-loading'].includes(state));
+        });
       },
       async close() { await context.close(); assert.deepEqual(failures, []); },
     };
@@ -525,10 +528,10 @@ export function registerCatalogTests({ getBrowser, repo, artifacts, base, api })
         const dialog = f.page.locator('dialog');
         assert.equal(await f.page.locator('[data-story-close]').evaluate((el) => el === document.activeElement), true);
         await f.page.keyboard.press('Shift+Tab');
-        assert.equal(await f.page.locator('[data-story-detail-retry]').evaluate((el) => el === document.activeElement), true);
+        assert.equal(await f.page.locator('[data-story-start]').evaluate((el) => el === document.activeElement), true);
         await f.page.keyboard.press('Tab');
         assert.equal(await f.page.locator('[data-story-close]').evaluate((el) => el === document.activeElement), true);
-        for (const selector of ['[data-story-start]', '[data-story-detail-retry]', '[data-story-close]']) {
+        for (const selector of ['[data-story-start]', '[data-story-close]']) {
           const hit = await f.page.locator(selector).evaluate((el) => {
             const r = el.getBoundingClientRect();
             return r.width >= 44 && r.height >= 44 && r.bottom <= innerHeight && r.left >= 0 && r.right <= innerWidth && el.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2));

@@ -73,4 +73,26 @@ describe('story visual bible', () => {
     expect(result).toContain('closing consequence');
     expect(Array.from(result.split('[SCENE-SPECIFIC DIRECTION]')[1]).length).toBeLessThan(3_700);
   });
+
+  it('retains a cover-matched fixed-route bible supplied by the release', () => {
+    const bible = buildStoryVisualBible({
+      workTitle: { ko: '우리는 서로의 몸에 반역을 썼다' },
+      workSummary: { ko: '기록관과 황태자의 정치 미스터리' },
+      sceneAssetManifest: {
+        visualBible: {
+          artStyle: 'Match the published cover identity with cinematic dark-fantasy realism.',
+          palette: 'Ink black, deep forest green, cold silver, and red sealing wax.',
+          characters: [
+            { name: '연서린', appearance: 'adult East Asian woman, long black hair, forest-green archival coat' },
+            { name: '레반 아르켈', appearance: 'adult East Asian man, swept black hair, black imperial coat' },
+          ],
+        },
+      },
+      canonicalPrompts: ['rainy archive scene'],
+    });
+
+    expect(bible.privatePrompt).toContain('published cover identity');
+    expect(bible.privatePrompt).toContain('연서린: adult East Asian woman');
+    expect(bible.privatePrompt).toContain('레반 아르켈: adult East Asian man');
+  });
 });

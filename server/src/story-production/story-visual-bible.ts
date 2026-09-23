@@ -1,6 +1,6 @@
 import { createHash } from 'crypto';
 
-const VISUAL_BIBLE_VERSION = 'story-visual-bible-v3';
+const VISUAL_BIBLE_VERSION = 'story-visual-bible-v4';
 const MAX_BIBLE_CHARACTERS = 7_000;
 const MAX_EVIDENCE_ITEMS = 10;
 const MAX_EVIDENCE_CHARACTERS = 420;

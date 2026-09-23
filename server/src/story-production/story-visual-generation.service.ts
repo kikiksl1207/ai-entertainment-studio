@@ -12,6 +12,8 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import { createHash, createHmac } from 'crypto';
+import { readFile } from 'fs/promises';
+import { resolve } from 'path';
 import * as sharp from 'sharp';
 import { PrismaService } from '../prisma/prisma.service';
 import { StoryUploadStorageService } from '../story-upload/story-upload-storage.service';
@@ -23,6 +25,7 @@ import type {
 import { StoryPublicBetaPolicy } from './story-public-beta.policy';
 import type { StoryContinuationProviderResult } from './story-continuation.provider';
 import { buildStoryVisualBible, composeStoryVisualPrompt, type StoryVisualBible } from './story-visual-bible';
+import { FIXED_ROUTE_STORIES } from './story-fixed-route-markdown.policy';
 import {
   continuationGenerationProfileSnapshot,
   parseContinuationGenerationProfilePin,
@@ -57,6 +60,13 @@ type StoryVisualVariant = {
   references: StoryParticipantVisualReference[];
 };
 
+type StoryWorkVisualReference = {
+  image: Buffer;
+  checksum: string;
+  mimeType: 'image/jpeg' | 'image/png' | 'image/webp';
+  filename: string;
+};
+
 const DEFAULT_VISUAL_VARIANT: StoryVisualVariant = {
   key: 'default',
   participantFingerprint: null,
@@ -69,6 +79,7 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
   private readonly queue: StoryVisualGenerationQueue;
   private readonly worker: StoryVisualGenerationWorker;
   private readonly visualBibleCache = new Map<string, StoryVisualBible>();
+  private readonly workVisualReferenceCache = new Map<string, StoryWorkVisualReference | null>();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -670,7 +681,7 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
 
     try {
       effective ??= await this.effectiveVisualPrompt(workId, releaseId, releaseChecksum, prompt.promptText);
-      const image = await this.generateImage(effective.prompt, variant.references, signal);
+      const image = await this.generateImage(effective.prompt, variant.references, signal, effective.workReference);
       const checksumSha256 = this.sha256Hex(image);
       const storage = await this.uploadImage(
         workId,
@@ -697,7 +708,9 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
             storyVisual: { workId, releaseId, releaseChecksum, sourceSceneKey, variantKey: variant.key,
               participantFingerprint: variant.participantFingerprint, promptSha256: prompt.promptSha256,
               visualBibleVersion: effective!.bible.version, visualBibleFingerprint: effective!.bible.fingerprint,
-              effectivePromptSha256: effective!.sha256, ...(replacedAssetId ? { replacesAssetId: replacedAssetId } : {}),
+              effectivePromptSha256: effective!.sha256,
+              ...(effective!.workReference ? { workVisualReferenceChecksum: effective!.workReference.checksum } : {}),
+              ...(replacedAssetId ? { replacesAssetId: replacedAssetId } : {}),
               provider: 'openai', model: this.model(), quality: this.quality(), size: this.size(), ...inlineImage },
           },
         } });
@@ -738,9 +751,13 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
     releaseChecksum: string,
     scenePrompt: string,
   ) {
-    const bible = await this.visualBible(workId, releaseId, releaseChecksum);
+    const [bible, workReference] = await Promise.all([
+      this.visualBible(workId, releaseId, releaseChecksum),
+      this.fixedStoryCoverReference(workId),
+    ]);
     const prompt = composeStoryVisualPrompt(bible, scenePrompt);
-    return { bible, prompt, sha256: this.sha256Hex(prompt) };
+    return { bible, prompt, workReference,
+      sha256: this.sha256Hex(JSON.stringify([prompt, workReference?.checksum ?? null])) };
   }
 
   private async readyAssetIdentity(assetId: string) {
@@ -808,7 +825,7 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
     const [work, release, canonicalPrompts] = await Promise.all([
       this.prisma.storyWork.findFirst({
         where: { id: workId, fixtureSource: false },
-        select: { title: true, summary: true },
+        select: { slug: true, title: true, summary: true },
       }),
       this.prisma.storyRelease.findFirst({
         where: { id: releaseId, workId, checksum: releaseChecksum },
@@ -840,11 +857,17 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
       take: 8,
       select: { content: true },
     }) : [];
+    const releaseManifest = this.record(release.sceneAssetManifest);
+    const releaseVisualBible = this.record(releaseManifest.visualBible);
+    const fixedVisualBible = Object.values(FIXED_ROUTE_STORIES)
+      .find(config => config.slug === work.slug)?.visualBible;
     const bible = buildStoryVisualBible({
       workTitle: work.title,
       workSummary: work.summary,
       localizedDisplaySnapshot: release.localizedDisplaySnapshot,
-      sceneAssetManifest: release.sceneAssetManifest,
+      sceneAssetManifest: Object.keys(releaseVisualBible).length || !fixedVisualBible
+        ? release.sceneAssetManifest
+        : { ...releaseManifest, visualBible: fixedVisualBible },
       canonicalPrompts: canonicalPrompts.map(item => item.promptText),
       canonicalStoryExcerpts: [
         ...parts.map(part => part.title),
@@ -882,11 +905,12 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
     prompt: string,
     references: StoryParticipantVisualReference[],
     signal?: AbortSignal,
+    workReference?: StoryWorkVisualReference | null,
   ) {
     const timeout = AbortSignal.timeout(this.numberFromEnv('STORY_IMAGE_GENERATION_TIMEOUT_MS', 120_000));
     const requestSignal = signal ? AbortSignal.any([signal, timeout]) : timeout;
-    const response = references.length
-      ? await this.generateImageFromReferences(prompt, references, requestSignal)
+    const response = references.length || workReference
+      ? await this.generateImageFromReferences(prompt, references, requestSignal, workReference)
       : await fetch('https://api.openai.com/v1/images/generations', {
           method: 'POST',
           headers: { authorization: `Bearer ${this.requiredEnv('OPENAI_API_KEY')}`, 'content-type': 'application/json' },
@@ -908,14 +932,22 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
     prompt: string,
     references: StoryParticipantVisualReference[],
     signal: AbortSignal,
+    workReference?: StoryWorkVisualReference | null,
   ) {
-    if (!this.storage) throw new Error('STORY_VISUAL_REFERENCE_STORAGE_UNAVAILABLE');
+    const storage = this.storage;
+    if (references.length && !storage) throw new Error('STORY_VISUAL_REFERENCE_STORAGE_UNAVAILABLE');
     const form = new FormData();
     form.set('model', this.model());
     form.set('prompt', [
       prompt,
-      'The attached images are approved identity references for the participating artist character.',
-      'Preserve the same recognizable face, hair, body proportions, and signature traits. Adapt only costume, pose, lighting, and rendering medium to the story scene.',
+      ...(workReference ? [
+        'The first attached image is the approved published story cover and the master reference for this work.',
+        'Preserve its rendering medium, palette, recurring-character identity, age, face, hair, costume anchors, and overall world design. Do not copy its poster composition or any text.',
+      ] : []),
+      ...(references.length ? [
+        'The remaining attached images are approved identity references for the participating artist character.',
+        'Preserve the same recognizable face, hair, body proportions, and signature traits. Adapt only costume, pose, lighting, and rendering medium to the story scene.',
+      ] : []),
     ].join('\n'));
     form.set('n', '1');
     form.set('size', this.size());
@@ -923,8 +955,12 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
     form.set('output_format', 'webp');
     form.set('output_compression', '86');
     form.set('input_fidelity', 'high');
-    for (const [index, reference] of references.slice(0, 8).entries()) {
-      const image = await this.storage.getObject({
+    if (workReference) {
+      form.append('image[]', new Blob([Uint8Array.from(workReference.image)], { type: workReference.mimeType }),
+        workReference.filename);
+    }
+    for (const [index, reference] of references.slice(0, workReference ? 7 : 8).entries()) {
+      const image = await storage!.getObject({
         storageProvider: reference.storageProvider,
         storageKey: reference.storageKey,
         expectedBytes: reference.fileSizeBytes,
@@ -943,6 +979,47 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
       body: form,
       signal,
     });
+  }
+
+  private async fixedStoryCoverReference(workId: string): Promise<StoryWorkVisualReference | null> {
+    if (this.workVisualReferenceCache.has(workId)) return this.workVisualReferenceCache.get(workId)!;
+    const work = await this.prisma.storyWork.findFirst({
+      where: { id: workId, fixtureSource: false },
+      select: { slug: true },
+    });
+    const fixed = Object.values(FIXED_ROUTE_STORIES).find(config => config.slug === work?.slug);
+    if (!fixed) {
+      this.workVisualReferenceCache.set(workId, null);
+      return null;
+    }
+    const pathSegments = fixed.coverPath.split('/').filter(Boolean);
+    const candidates = [resolve(process.cwd(), ...pathSegments), resolve(process.cwd(), '..', ...pathSegments)];
+    let image: Buffer | null = null;
+    for (const candidate of candidates) {
+      try {
+        image = await readFile(candidate);
+        break;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+      }
+    }
+    if (!image || image.length < 1_024 || image.length > 16 * 1024 * 1024) {
+      throw new Error('STORY_VISUAL_COVER_REFERENCE_MISSING');
+    }
+    const metadata = await sharp(image, { animated: false, failOn: 'error', limitInputPixels: 24_000_000 }).metadata();
+    const mimeType = metadata.format === 'png' ? 'image/png'
+      : metadata.format === 'jpeg' ? 'image/jpeg'
+        : metadata.format === 'webp' ? 'image/webp' : null;
+    if (!mimeType || !metadata.width || !metadata.height || metadata.width < 512 || metadata.height < 288 ||
+        (metadata.pages ?? 1) !== 1) throw new Error('STORY_VISUAL_COVER_REFERENCE_INVALID');
+    const reference: StoryWorkVisualReference = {
+      image,
+      checksum: this.sha256Hex(image),
+      mimeType,
+      filename: fixed.coverPath.split('/').at(-1) || `${fixed.storyKey}-cover.png`,
+    };
+    this.workVisualReferenceCache.set(workId, reference);
+    return reference;
   }
 
   private async validateAndSanitizeImage(image: Buffer) {

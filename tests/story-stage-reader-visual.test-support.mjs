@@ -54,6 +54,11 @@ export function registerReaderVisualTests({ fixture, projection, sessionId, work
     assert.equal(await f.page.locator('.story-player-no-visual').isVisible(), true);
     assert.equal(await f.page.locator('.story-player').getAttribute('data-has-background'), 'false');
   }
+  async function textOnly(f) {
+    await f.page.waitForFunction(() => document.querySelector('.story-reader-shell-text-only') && !document.querySelector('.story-player-stage'));
+    assert.equal(await f.page.locator('.story-player-no-visual, .story-player-background').count(), 0);
+    assert.equal(await f.page.locator('.story-reader-shell').getAttribute('data-has-visual'), 'false');
+  }
   async function imagePixels(f) {
     const samples = await f.page.locator('.story-player-stage img').evaluateAll((images) => images.map((image) => {
       const canvas = document.createElement('canvas'); canvas.width = canvas.height = 16;
@@ -179,7 +184,7 @@ export function registerReaderVisualTests({ fixture, projection, sessionId, work
       if (invalid === 'unapproved state') visual.assetReadiness = 'missing';
       const f = await reader({ current: value });
       try {
-        await f.ready(); await missing(f);
+        await f.ready(); await textOnly(f);
         assert.equal(await f.page.locator('.story-player-stage img').count(), 0);
         assert.equal(f.assetRequests.length, 0);
         assert.equal(await f.page.locator('.story-player-copy p').textContent(), value.scene.beats[0].content);
@@ -279,7 +284,10 @@ export function registerReaderVisualTests({ fixture, projection, sessionId, work
         assert.equal(metrics.horizontalOverflow, false); assert.equal(metrics.navRendered, true); assert.equal(metrics.fullTextReachable, true);
         assert.ok(metrics.stageHeight > 190 && metrics.stageHeight <= 610 && metrics.documentHeight < 2400);
         if (width <= 820) assert.ok(metrics.stageRatio > 1.76 && metrics.stageRatio < 1.79 && metrics.stacked, JSON.stringify(metrics));
-        else assert.equal(metrics.sideBySide, true, JSON.stringify(metrics));
+        else {
+          assert.equal(metrics.sideBySide, true, JSON.stringify(metrics));
+          assert.ok(metrics.stageRatio > 1.68 && metrics.stageRatio < 1.82, JSON.stringify(metrics));
+        }
         assert.equal(metrics.fontSize, width <= 680 ? 16 : 17); assert.equal(metrics.fontWeight, '400');
         assert.ok(metrics.lineHeight / metrics.fontSize >= 1.74);
         const pixels = await imagePixels(f);

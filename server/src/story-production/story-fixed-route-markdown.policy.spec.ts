@@ -1,5 +1,6 @@
 import { createHash } from 'crypto';
 import {
+  FIXED_ROUTE_STORIES,
   FixedRouteStoryConfig,
   prepareFixedRoutePublicationSource,
 } from './story-fixed-route-markdown.policy';
@@ -67,6 +68,14 @@ function fixture() {
 }
 
 describe('approved fixed-route Markdown publication source', () => {
+  it('pins cover-matched visual identity for both public fixed-route stories', () => {
+    for (const story of Object.values(FIXED_ROUTE_STORIES)) {
+      expect(story.visualBible?.artStyle).toContain('published cover identity');
+      expect(story.visualBible?.characters.length).toBeGreaterThanOrEqual(2);
+      expect(story.visualBible?.palette).toBeTruthy();
+    }
+  });
+
   it('preserves the complete manuscript and materializes ordered scenes with linear navigation', () => {
     const f = fixture();
     const result = prepareFixedRoutePublicationSource(f.config, f.manuscript, f.prompts);

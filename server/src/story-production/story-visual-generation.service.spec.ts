@@ -180,8 +180,15 @@ describe('StoryVisualGenerationService', () => {
     });
   });
 
-  it('separates participant visuals and sends approved reference images to the edit endpoint', async () => {
+  it('separates participant visuals and sends the cover plus approved artist references', async () => {
     const f = fixture();
+    f.prisma.storyWork.findFirst.mockResolvedValue({
+      id: workId,
+      activeReleaseId: releaseId,
+      slug: 'the-monster-that-did-not-eat-my-name',
+      title: { ko: '내 이름을 먹지 않은 괴물' },
+      summary: { ko: '기억과 이름을 되찾는 이야기' },
+    });
     const participantFingerprint = 'c'.repeat(64);
     const reference = await sharp({
       create: { width: 96, height: 96, channels: 3, background: { r: 24, g: 48, b: 72 } },
@@ -231,7 +238,8 @@ describe('StoryVisualGenerationService', () => {
     expect(provider.mock.calls[0][0]).toBe('https://api.openai.com/v1/images/edits');
     const form = provider.mock.calls[0][1]?.body as FormData;
     expect(form).toBeInstanceOf(FormData);
-    expect(form.getAll('image[]')).toHaveLength(1);
+    expect(form.getAll('image[]')).toHaveLength(2);
+    expect(String(form.get('prompt'))).toContain('approved published story cover');
     expect(String(form.get('prompt'))).toContain('approved identity references');
     const variantKey = `artist:${participantFingerprint}`;
     const variantPathKey = createHash('sha256').update(variantKey).digest('hex').slice(0, 16);
@@ -245,6 +253,45 @@ describe('StoryVisualGenerationService', () => {
           storyVisual: expect.objectContaining({
             variantKey: `artist:${participantFingerprint}`,
             participantFingerprint,
+          }),
+        }),
+      }),
+    });
+  });
+
+  it('uses the published fixed-route cover as the master visual reference', async () => {
+    const f = fixture();
+    f.prisma.storyWork.findFirst.mockResolvedValue({
+      id: workId,
+      activeReleaseId: releaseId,
+      slug: 'the-monster-that-did-not-eat-my-name',
+      title: { ko: '내 이름을 먹지 않은 괴물' },
+      summary: { ko: '기억과 이름을 되찾는 이야기' },
+    });
+    const generated = await sharp({
+      create: { width: 1536, height: 1024, channels: 3, background: '#17232f' },
+    }).webp().toBuffer();
+    const provider = jest.spyOn(global, 'fetch')
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: [{ b64_json: generated.toString('base64') }] }),
+      } as Response)
+      .mockResolvedValueOnce({ ok: true } as Response);
+
+    await expect(f.service.requestForProgress('user-id', progressId, sourceSceneKey))
+      .resolves.toMatchObject({ status: 'ready', sourceSceneKey });
+
+    expect(provider.mock.calls[0][0]).toBe('https://api.openai.com/v1/images/edits');
+    const form = provider.mock.calls[0][1]?.body as FormData;
+    expect(form.getAll('image[]')).toHaveLength(1);
+    expect(String(form.get('prompt'))).toContain('approved published story cover');
+    expect(String(form.get('prompt'))).toContain('Match the published cover identity');
+    expect((form.get('image[]') as File).type).toBe('image/png');
+    expect(f.prisma.asset.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        metadata: expect.objectContaining({
+          storyVisual: expect.objectContaining({
+            workVisualReferenceChecksum: expect.stringMatching(/^[a-f0-9]{64}$/),
           }),
         }),
       }),
@@ -270,7 +317,7 @@ describe('StoryVisualGenerationService', () => {
     });
     expect(provider).toHaveBeenCalledTimes(2);
     const providerBody = JSON.parse(String((provider.mock.calls[0][1] as RequestInit).body));
-    expect(providerBody.prompt).toContain('[PRIVATE VISUAL BIBLE story-visual-bible-v3]');
+    expect(providerBody.prompt).toContain('[PRIVATE VISUAL BIBLE story-visual-bible-v4]');
     expect(providerBody.prompt).toContain('[RECURRING CHARACTER APPEARANCE LOCK]');
     expect(providerBody.prompt).toContain('Joseon naval historical drama');
     expect(providerBody.prompt).toContain('이순신은 늘 같은 검은 수염과 붉은 철릭');
@@ -279,7 +326,7 @@ describe('StoryVisualGenerationService', () => {
     expect(f.prisma.asset.create).toHaveBeenCalledTimes(1);
     const storedMetadata = f.prisma.asset.create.mock.calls[0][0].data.metadata;
     expect(storedMetadata.storyVisual).toMatchObject({
-      visualBibleVersion: 'story-visual-bible-v3',
+      visualBibleVersion: 'story-visual-bible-v4',
       visualBibleFingerprint: expect.stringMatching(/^[a-f0-9]{20}$/),
       effectivePromptSha256: expect.stringMatching(/^[a-f0-9]{64}$/),
     });
@@ -373,7 +420,7 @@ describe('StoryVisualGenerationService', () => {
     const createdMetadata = f.prisma.asset.create.mock.calls[0][0].data.metadata;
     expect(createdMetadata.storyVisual).toMatchObject({
       replacesAssetId: assetId,
-      visualBibleVersion: 'story-visual-bible-v3',
+      visualBibleVersion: 'story-visual-bible-v4',
       effectivePromptSha256: expect.stringMatching(/^[a-f0-9]{64}$/),
     });
     const effectivePromptSha256 = createdMetadata.storyVisual.effectivePromptSha256;

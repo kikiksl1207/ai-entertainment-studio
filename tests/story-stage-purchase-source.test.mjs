@@ -14,7 +14,7 @@ const confirmation = (c) => {
   return { confirmedPriceLumina: q.priceLumina, expectedReleaseId: q.releaseId, expectedReleaseRevision: q.releaseRevision };
 };
 
-test('purchase source: clean consent omits retry; unknown/errors and legacy ready detail retain it', () => {
+test('purchase source: normal ready detail omits retry; only unknown operations and errors retain it', () => {
   const start = source.indexOf('function detailRetryVisible(');
   const end = source.indexOf('\n  function participantCandidate(', start);
   assert.ok(start > 0 && end > start);
@@ -26,7 +26,8 @@ test('purchase source: clean consent omits retry; unknown/errors and legacy read
   for (const purchaseNotice of ['unknown', 'failed', 'balance', 'storage', 'stale']) assert.equal(evaluate({ purchaseNotice }), true);
   for (const detailStatus of ['error', 'access-error']) assert.equal(evaluate({ detailStatus }), true);
   for (const detailStatus of ['loading', 'access-loading']) assert.equal(evaluate({ detailStatus }), false);
-  assert.equal(evaluate({ purchaseConfirming: false }), true);
+  assert.equal(evaluate({ purchaseConfirming: false }), false);
+  assert.equal(evaluate({ purchaseConfirming: false, purchaseNotice: 'success' }), false);
   assert.match(source, /detailRetryVisible\(operation\) \? `<button[^`]*data-story-detail-retry/);
 });
 

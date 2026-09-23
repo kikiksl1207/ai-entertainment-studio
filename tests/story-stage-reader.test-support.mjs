@@ -50,8 +50,19 @@ export function registerReaderTests({ fixture, projection, sessionId, workId, ar
       const f = await reader(options);
       try {
         await f.ready();
-        assert.equal(await f.page.locator('.story-player-no-visual').isVisible(), true);
-        assert.equal(await f.page.locator('.story-player-background').count(), 0);
+        assert.equal(await f.page.locator('.story-reader-shell-text-only').count(), 1);
+        assert.equal(await f.page.locator('.story-player-stage, .story-player-background').count(), 0);
+        const textOnlyLayout = await f.page.evaluate(() => {
+          const shell = document.querySelector('.story-reader-shell');
+          const pane = document.querySelector('.story-reader-pane');
+          const bounds = pane.getBoundingClientRect();
+          const shellBounds = shell.getBoundingClientRect();
+          return {
+            width: bounds.width,
+            centered: Math.abs((bounds.left + bounds.right) / 2 - (shellBounds.left + shellBounds.right) / 2) <= 1,
+          };
+        });
+        assert.ok(textOnlyLayout.width <= 761 && textOnlyLayout.centered, JSON.stringify(textOnlyLayout));
         assert.equal(await f.page.locator('[data-choice-id]').count(), 0);
         assert.equal(await f.page.locator('.story-player-copy p').textContent(), options.position ? 'MIDDLE text\nSecond paragraph.' : 'FIRST.text');
         await f.page.evaluate(() => { const button = document.createElement('button'); button.dataset.choiceId = 'choice-0'; document.querySelector('#storyStageRoot').append(button); button.click(); button.remove(); });
@@ -263,11 +274,16 @@ export function registerReaderTests({ fixture, projection, sessionId, workId, ar
           const stageBounds = stage.getBoundingClientRect(); const regionBounds = region.getBoundingClientRect();
           return { stageHeight: stageBounds.height, stageRatio: stageBounds.width / stageBounds.height, regionScrolls: region.scrollHeight > region.clientHeight, horizontal: document.documentElement.scrollWidth <= innerWidth,
             stacked: regionBounds.top > stageBounds.bottom, sideBySide: regionBounds.left > stageBounds.right, navRendered: nav.getBoundingClientRect().width >= 44,
+            topDelta: Math.abs(stageBounds.top - regionBounds.top), bottomDelta: Math.abs(stageBounds.bottom - regionBounds.bottom),
             documentHeight: document.documentElement.scrollHeight, narrative: { fontSize: parseFloat(narrativeStyle.fontSize), fontWeight: narrativeStyle.fontWeight, lineHeight: parseFloat(narrativeStyle.lineHeight) } };
         });
         assert.ok(geometry.stageHeight > 190 && geometry.stageHeight <= 610);
         if (width <= 820) assert.ok(geometry.stageRatio > 1.76 && geometry.stageRatio < 1.79 && geometry.stacked, JSON.stringify(geometry));
-        else assert.equal(geometry.sideBySide, true, JSON.stringify(geometry));
+        else {
+          assert.equal(geometry.sideBySide, true, JSON.stringify(geometry));
+          assert.ok(geometry.topDelta <= 1 && geometry.bottomDelta <= 1, JSON.stringify(geometry));
+          assert.ok(geometry.stageRatio > 1.68 && geometry.stageRatio < 1.82, JSON.stringify(geometry));
+        }
         assert.equal(geometry.regionScrolls, true); assert.equal(geometry.horizontal, true); assert.equal(geometry.navRendered, true);
         assert.ok(geometry.documentHeight < 2400, 'Long beat must not stretch the whole document');
         assert.ok(geometry.narrative.fontSize >= 16);
