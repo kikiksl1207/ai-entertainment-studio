@@ -10,7 +10,7 @@ const { chromium } = createRequire(import.meta.url)('playwright');
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const artifacts = process.env.OTT_PUBLIC_BROWSER_ARTIFACTS || 'E:\\CodexMovedCache\\qa-public-ott-20260922';
-const mime = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp' };
+const mime = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp', '.mp4': 'video/mp4' };
 
 function staticServer() {
   return createServer(async (request, response) => {
@@ -89,12 +89,39 @@ test('public discovery works at desktop and mobile widths and captures verified 
       await page.screenshot({ path: join(artifacts, `home-${width}.png`), fullPage: false });
 
       await page.goto(`${base}/ott`, { waitUntil: 'networkidle' });
-      await page.getByText('지금 공개된 OTT 작품이 없습니다.').waitFor();
-      assert.equal(await page.locator('video, audio, [data-private-preview]').count(), 0);
+      await page.locator('#ottDemoVideo').waitFor();
+      assert.equal(await page.locator('#ottCatalog').isVisible(), false);
+      assert.equal(await page.locator('video').count(), 1);
+      assert.equal(await page.locator('audio, [data-private-preview]').count(), 0);
+      assert.equal(await page.locator('[data-ott-branch]').count(), 2);
+      assert.equal(await page.locator('#ottChoiceOverlay').isVisible(), false);
+      assert.equal(await page.locator('video').evaluate((video) => video.videoWidth === 720 && video.videoHeight === 1280), true);
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
       await page.screenshot({ path: join(artifacts, `ott-${width}.png`), fullPage: false });
       await page.close();
     }
+
+    const page = await browser.newPage({ viewport: { width: 400, height: 844 } });
+    await page.goto(`${base}/ott`, { waitUntil: 'domcontentloaded' });
+    const video = page.locator('#ottDemoVideo');
+    await video.evaluate((element) => element.play());
+    await page.locator('#ottChoiceOverlay').waitFor({ state: 'visible', timeout: 20000 });
+    assert.equal(await page.locator('[data-ott-branch]:visible').count(), 2);
+    assert.equal(await page.evaluate(() => {
+      const second = document.querySelector('[data-ott-branch="escape"]').getBoundingClientRect();
+      const tabbar = document.querySelector('.mobile-tabbar').getBoundingClientRect();
+      return second.bottom <= tabbar.top;
+    }), true);
+    await page.screenshot({ path: join(artifacts, 'ott-choice-400.png'), fullPage: false });
+    await page.locator('[data-ott-branch="embrace"]').click();
+    assert.match(await video.evaluate((element) => element.currentSrc), /02-embrace-infection\.mp4$/);
+    await page.locator('#ottChoiceOverlay').waitFor({ state: 'visible', timeout: 20000 });
+    await page.locator('[data-ott-branch="escape"]').click();
+    assert.match(await video.evaluate((element) => element.currentSrc), /03-close-door-escape\.mp4$/);
+    await page.locator('#ottChoiceOverlay').waitFor({ state: 'visible', timeout: 20000 });
+    await page.locator('#ottRestart').click();
+    assert.match(await video.evaluate((element) => element.currentSrc), /01-choice-point\.mp4$/);
+    await page.close();
   } finally {
     await browser?.close();
     server.closeAllConnections?.();

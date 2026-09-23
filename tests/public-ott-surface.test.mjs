@@ -48,7 +48,7 @@ test('public API projection is gated and omits private identifiers', () => {
   assert.match(service, /media\.includes\('ott_streaming'\)/);
   assert.match(service, /status: 'confirmed'/);
   assert.match(service, /upload\.revocation/);
-  assert.doesNotMatch(contract.match(/export type OttPublicCatalogItem[\s\S]*?};\n/)[0], /workId|manifestId|fileId|url|token|graph/);
+  assert.doesNotMatch(contract.match(/export type OttPublicCatalogItem[\s\S]*?};\r?\n/)[0], /workId|manifestId|fileId|url|token|graph/);
   assert.match(controller, /@Controller\('ott'\)/);
   assert.doesNotMatch(controller, /UseGuards|me\/ott-media/);
 });

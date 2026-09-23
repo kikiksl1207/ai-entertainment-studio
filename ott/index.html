@@ -6,7 +6,7 @@
     <title>OTT | Lumina Stage</title>
     <link rel="canonical" href="https://www.lumina-stage.com/ott" />
     <link rel="stylesheet" href="/styles.css" />
-    <link rel="stylesheet" href="/styles/ott.css?v=public-ott-20260922" />
+    <link rel="stylesheet" href="/styles/ott.css?v=ott-demo-20260924" />
     <meta name="description" content="공개와 감상 권한이 확인된 Lumina Stage OTT 작품을 찾아보세요." />
     <meta name="robots" content="index, follow" />
     <meta property="og:type" content="website" />
@@ -38,18 +38,49 @@
     </header>
 
     <main class="ott-main">
-      <section class="ott-hero" aria-labelledby="ottTitle">
-        <div class="shell ott-hero-inner">
-          <div>
-            <p class="ott-kicker">LUMINA OTT</p>
-            <h1 id="ottTitle">OTT</h1>
-            <p id="ottDescription">공개와 감상 권한이 확인된 작품만 소개합니다.</p>
+      <section class="ott-intro shell" aria-labelledby="ottTitle">
+        <p class="ott-kicker">LUMINA OTT</p>
+        <h1 id="ottTitle">OTT</h1>
+        <p id="ottDescription">선택에 따라 달라지는 영상을 만나보세요.</p>
+      </section>
+
+      <section class="ott-demo" aria-labelledby="ottDemoTitle">
+        <div class="shell ott-demo-inner">
+          <div class="ott-demo-heading">
+            <div>
+              <p class="ott-kicker" id="ottDemoKicker">인터랙티브 영상 시연</p>
+              <h2 id="ottDemoTitle">엄마의 선택</h2>
+              <p id="ottDemoSynopsis">비 내리는 밤, 도망치던 엄마 앞에 아이가 쓰러진다.</p>
+            </div>
+            <span class="ott-demo-meta" id="ottDemoMeta">한국어 음성 · 두 갈래 결말</span>
           </div>
-          <div class="ott-hero-mark" aria-hidden="true"><span>PLAY</span></div>
+          <div class="ott-player-stage">
+            <div class="ott-video-wrap">
+              <video id="ottDemoVideo" controls playsinline preload="metadata"
+                poster="/assets/ott/mothers-choice/poster.jpg"
+                aria-label="엄마의 선택 시연 영상">
+                <source src="/assets/ott/mothers-choice/01-choice-point.mp4" type="video/mp4" />
+              </video>
+              <div class="ott-choice-overlay" id="ottChoiceOverlay" hidden>
+                <div class="ott-choice-content">
+                  <p id="ottChoicePrompt">아이가 쓰러졌다. 엄마는 어떻게 할까?</p>
+                  <div class="ott-choice-list">
+                    <button type="button" data-ott-branch="embrace"><span>1</span><span id="ottChoiceEmbrace">돌아가 아이를 안는다</span></button>
+                    <button type="button" data-ott-branch="escape"><span>2</span><span id="ottChoiceEscape">문을 닫고 떠난다</span></button>
+                  </div>
+                  <button class="ott-restart" id="ottRestart" type="button" hidden>처음부터 다시 보기</button>
+                </div>
+              </div>
+              <div class="ott-video-error" id="ottVideoError" role="alert" hidden>
+                <p id="ottVideoErrorText">영상을 불러오지 못했어요.</p>
+                <button type="button" id="ottVideoRetry">다시 시도</button>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
-      <section class="shell ott-catalog" aria-labelledby="ottCatalogTitle">
+      <section class="shell ott-catalog" id="ottCatalog" aria-labelledby="ottCatalogTitle" hidden>
         <header class="ott-section-heading">
           <div>
             <p class="ott-kicker" id="ottCatalogKicker">CATALOG</p>
@@ -79,7 +110,7 @@
 
     <script src="/data/characters.js"></script>
     <script src="/app.js"></script>
-    <script src="/pages/ott.js?v=public-ott-20260922"></script>
+    <script src="/pages/ott.js?v=ott-demo-20260924"></script>
 
     <nav class="mobile-tabbar" aria-label="모바일 하단 메뉴">
       <a href="/" class="mobile-tab" data-tab-key="index"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.5L12 4l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg><span data-i18n="tab.home">홈</span></a>

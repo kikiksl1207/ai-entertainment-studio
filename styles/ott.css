@@ -1,14 +1,30 @@
-.ott-page { background: #080b10; color: #f7f8fb; }
+.ott-page { background: #0b0e12; color: #f7f8fb; }
 .ott-main { min-height: 70vh; }
-.ott-hero { overflow: hidden; border-bottom: 1px solid rgba(255,255,255,.12); background: #10151d; }
-.ott-hero-inner { min-height: 360px; display: grid; grid-template-columns: minmax(0,1fr) minmax(220px,420px); align-items: center; gap: 48px; padding-top: 72px; padding-bottom: 64px; }
-.ott-kicker { margin: 0 0 12px; color: #75d5c5; font-size: 12px; font-weight: 800; letter-spacing: 0; }
-.ott-hero h1 { margin: 0; font-size: clamp(56px,8vw,112px); line-height: .9; letter-spacing: 0; }
-.ott-hero p:not(.ott-kicker) { max-width: 560px; margin: 24px 0 0; color: #c5ccd7; font-size: 18px; line-height: 1.7; }
-.ott-hero-mark { justify-self: end; width: min(34vw,360px); aspect-ratio: 1; display: grid; place-items: center; border: 1px solid rgba(117,213,197,.45); background: #17202a; transform: rotate(3deg); }
-.ott-hero-mark::before { content: ""; width: 0; height: 0; border-top: 52px solid transparent; border-bottom: 52px solid transparent; border-left: 82px solid #e95b93; margin-left: 16px; }
-.ott-hero-mark span { position: absolute; margin-top: 190px; color: #fff; font-size: 11px; font-weight: 800; }
-.ott-catalog { padding-top: 64px; padding-bottom: 100px; }
+.ott-kicker { margin: 0 0 10px; color: #6ed6c2; font-size: 12px; font-weight: 800; letter-spacing: 0; }
+.ott-intro { padding-top: 34px; padding-bottom: 30px; }
+.ott-intro h1 { margin: 0; font-size: 36px; line-height: 1.15; letter-spacing: 0; }
+.ott-intro > p:last-child { margin: 9px 0 0; color: #c5ccd7; font-size: 15px; line-height: 1.6; }
+.ott-demo { background: #11161c; border-block: 1px solid rgba(255,255,255,.12); }
+.ott-demo-inner { padding-top: 26px; padding-bottom: 32px; }
+.ott-demo-heading { display: flex; justify-content: space-between; align-items: end; gap: 24px; margin-bottom: 20px; }
+.ott-demo-heading h2 { margin: 0; font-size: 27px; line-height: 1.3; }
+.ott-demo-heading p:last-child { margin: 8px 0 0; color: #c9d1db; font-size: 15px; line-height: 1.55; }
+.ott-demo-meta { flex: none; color: #9da8b5; font-size: 13px; }
+.ott-player-stage { display: flex; justify-content: center; align-items: center; max-width: 760px; min-height: 550px; margin-inline: auto; background: #050607; }
+.ott-video-wrap { position: relative; width: auto; max-width: 100%; height: min(72vh, 720px); aspect-ratio: 9 / 16; background: #000; }
+.ott-video-wrap video { display: block; width: 100%; height: 100%; object-fit: contain; }
+.ott-choice-overlay[hidden], .ott-video-error[hidden] { display: none; }
+.ott-choice-overlay, .ott-video-error { position: absolute; inset: 0; display: flex; align-items: flex-end; justify-content: center; padding: 20px; background: rgba(2, 5, 8, .62); }
+.ott-choice-content { width: 100%; margin-bottom: 12px; }
+.ott-choice-content > p { margin: 0 0 14px; color: #fff; font-size: 18px; font-weight: 700; line-height: 1.45; text-shadow: 0 1px 8px #000; }
+.ott-choice-list { display: grid; gap: 9px; }
+.ott-choice-list button { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 55px; padding: 10px 14px; border: 1px solid rgba(255,255,255,.65); border-radius: 5px; background: rgba(13, 19, 24, .94); color: #fff; font: inherit; font-size: 15px; font-weight: 700; text-align: left; cursor: pointer; }
+.ott-choice-list button:hover, .ott-choice-list button:focus-visible { border-color: #6ed6c2; background: #19312e; }
+.ott-choice-list button span:first-child { display: grid; flex: none; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: #6ed6c2; color: #0b1515; font-size: 12px; }
+.ott-restart { margin-top: 12px; padding: 8px 0; border: 0; background: transparent; color: #fff; font: inherit; text-decoration: underline; cursor: pointer; }
+.ott-video-error { flex-direction: column; align-items: center; justify-content: center; gap: 12px; text-align: center; }
+.ott-video-error button { border: 1px solid #6ed6c2; border-radius: 4px; padding: 10px 14px; background: #19312e; color: #fff; font: inherit; cursor: pointer; }
+.ott-catalog { padding-top: 48px; padding-bottom: 100px; }
 .ott-section-heading { display: flex; justify-content: space-between; align-items: end; gap: 28px; margin-bottom: 28px; }
 .ott-section-heading h2 { margin: 0; font-size: 34px; letter-spacing: 0; }
 .ott-section-heading > p { max-width: 520px; margin: 0; color: #9ca7b6; line-height: 1.6; }
@@ -26,20 +42,18 @@
 .ott-detail-button { margin-top: 18px; border: 1px solid #75d5c5; border-radius: 4px; padding: 9px 13px; background: transparent; color: #f7f8fb; font: inherit; font-weight: 700; cursor: pointer; }
 .ott-boundary { margin-top: 14px; color: #c5ccd7 !important; font-size: 13px; }
 @media (max-width: 768px) {
-  .ott-hero-inner { min-height: 300px; grid-template-columns: 1fr 110px; gap: 18px; padding-top: 44px; padding-bottom: 42px; }
-  .ott-hero h1 { font-size: 54px; }
-  .ott-hero p:not(.ott-kicker) { margin-top: 16px; font-size: 15px; }
-  .ott-hero-mark { width: 108px; }
-  .ott-hero-mark::before { border-top-width: 22px; border-bottom-width: 22px; border-left-width: 34px; margin-left: 7px; }
-  .ott-hero-mark span { margin-top: 67px; font-size: 9px; }
+  .ott-intro { padding-top: 24px; padding-bottom: 22px; }
+  .ott-intro h1 { font-size: 30px; }
+  .ott-demo-inner { padding-top: 22px; padding-bottom: 24px; }
+  .ott-demo-heading { display: block; }
+  .ott-demo-heading h2 { font-size: 23px; }
+  .ott-demo-meta { display: block; margin-top: 8px; }
+  .ott-player-stage { min-height: 0; }
+  .ott-video-wrap { height: min(70vh, 690px); }
   .ott-catalog { padding-top: 42px; padding-bottom: 72px; }
   .ott-section-heading { display: block; }
   .ott-section-heading h2 { font-size: 27px; }
   .ott-section-heading > p { margin-top: 12px; font-size: 14px; }
   .ott-grid { grid-template-columns: 1fr; }
 }
-@media (max-width: 410px) {
-  .ott-hero-inner { grid-template-columns: minmax(0,1fr) 88px; }
-  .ott-hero h1 { font-size: 48px; }
-  .ott-hero-mark { width: 86px; }
-}
+@media (max-width: 410px) { .ott-choice-overlay { padding: 12px; } }

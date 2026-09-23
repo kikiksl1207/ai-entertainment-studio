@@ -10,6 +10,21 @@
   };
 
   const root = document.getElementById("ottCatalogRoot");
+  const catalog = document.getElementById("ottCatalog");
+  const demoCopy = {
+    ko: { description: "선택에 따라 달라지는 영상을 만나보세요.", kicker: "인터랙티브 영상 시연", title: "엄마의 선택", synopsis: "비 내리는 밤, 도망치던 엄마 앞에 아이가 쓰러진다.", meta: "한국어 음성 · 두 갈래 결말", prompt: "아이가 쓰러졌다. 엄마는 어떻게 할까?", again: "다른 결말을 선택해 보세요.", embrace: "돌아가 아이를 안는다", escape: "문을 닫고 떠난다", restart: "처음부터 다시 보기", error: "영상을 불러오지 못했어요.", retry: "다시 시도" },
+    en: { description: "Watch a story change with your choice.", kicker: "Interactive video preview", title: "A Mother's Choice", synopsis: "On a rainy night, a fleeing mother sees her child fall.", meta: "Korean audio · two endings", prompt: "The child has fallen. What will her mother do?", again: "Choose another ending.", embrace: "Go back and hold her child", escape: "Close the door and leave", restart: "Watch from the beginning", error: "The video could not be loaded.", retry: "Try again" },
+    ja: { description: "選択によって変わる映像をお楽しみください。", kicker: "インタラクティブ映像プレビュー", title: "母の選択", synopsis: "雨の夜、逃げる母の前で子どもが倒れる。", meta: "韓国語音声・二つの結末", prompt: "子どもが倒れた。母はどうする？", again: "別の結末を選んでください。", embrace: "戻って子どもを抱きしめる", escape: "扉を閉めて去る", restart: "最初から見る", error: "映像を読み込めませんでした。", retry: "再試行" },
+    "zh-Hans": { description: "观看因选择而改变的故事。", kicker: "互动视频预览", title: "母亲的选择", synopsis: "雨夜里，逃跑的母亲看到孩子倒下。", meta: "韩语音频 · 两种结局", prompt: "孩子倒下了。母亲会怎么做？", again: "选择另一种结局。", embrace: "回去拥抱孩子", escape: "关上门离开", restart: "从头观看", error: "视频加载失败。", retry: "重试" },
+    "zh-Hant": { description: "觀看因選擇而改變的故事。", kicker: "互動影片預覽", title: "母親的選擇", synopsis: "雨夜裡，逃跑的母親看見孩子倒下。", meta: "韓語音訊 · 兩種結局", prompt: "孩子倒下了。母親會怎麼做？", again: "選擇另一種結局。", embrace: "回去擁抱孩子", escape: "關上門離開", restart: "從頭觀看", error: "影片載入失敗。", retry: "重試" },
+  };
+  const demoVideo = document.getElementById("ottDemoVideo");
+  const choiceOverlay = document.getElementById("ottChoiceOverlay");
+  const videoError = document.getElementById("ottVideoError");
+  const restart = document.getElementById("ottRestart");
+  const clipRoot = "/assets/ott/mothers-choice/";
+  const clips = { common: "01-choice-point.mp4", embrace: "02-embrace-infection.mp4", escape: "03-close-door-escape.mp4" };
+  let currentClip = "common";
   const locale = () => {
     const value = String(window.LuminaI18n?.getLocale?.() || localStorage.getItem("lumina_locale") || navigator.language || "ko");
     if (value.startsWith("ja")) return "ja";
@@ -24,17 +39,68 @@
 
   function applyCopy() {
     document.documentElement.lang = locale();
-    document.getElementById("ottDescription").textContent = tr("description");
+    const demo = demoCopy[locale()] || demoCopy.ko;
+    document.getElementById("ottDescription").textContent = demo.description;
+    document.getElementById("ottDemoKicker").textContent = demo.kicker;
+    document.getElementById("ottDemoTitle").textContent = demo.title;
+    document.getElementById("ottDemoSynopsis").textContent = demo.synopsis;
+    document.getElementById("ottDemoMeta").textContent = demo.meta;
+    document.getElementById("ottChoicePrompt").textContent = currentClip === "common" ? demo.prompt : demo.again;
+    document.getElementById("ottChoiceEmbrace").textContent = demo.embrace;
+    document.getElementById("ottChoiceEscape").textContent = demo.escape;
+    document.getElementById("ottRestart").textContent = demo.restart;
+    document.getElementById("ottVideoErrorText").textContent = demo.error;
+    document.getElementById("ottVideoRetry").textContent = demo.retry;
+    demoVideo.setAttribute("aria-label", demo.title);
     document.getElementById("ottCatalogTitle").textContent = tr("catalog");
     document.getElementById("ottCatalogNote").textContent = tr("note");
   }
+
+  function playClip(key) {
+    if (!Object.prototype.hasOwnProperty.call(clips, key)) return;
+    currentClip = key;
+    choiceOverlay.hidden = true;
+    videoError.hidden = true;
+    demoVideo.controls = true;
+    demoVideo.src = clipRoot + clips[key];
+    demoVideo.load();
+    demoVideo.play().catch(() => { /* Native controls remain available if autoplay is blocked. */ });
+  }
+
+  demoVideo.addEventListener("ended", () => {
+    const demo = demoCopy[locale()] || demoCopy.ko;
+    document.getElementById("ottChoicePrompt").textContent = currentClip === "common" ? demo.prompt : demo.again;
+    restart.hidden = currentClip === "common";
+    videoError.hidden = true;
+    demoVideo.controls = false;
+    choiceOverlay.hidden = false;
+    choiceOverlay.scrollIntoView({ block: "center", behavior: "auto" });
+    choiceOverlay.querySelector("[data-ott-branch]").focus({ preventScroll: true });
+  });
+  demoVideo.addEventListener("error", () => {
+    choiceOverlay.hidden = true;
+    videoError.hidden = false;
+  });
+  choiceOverlay.querySelectorAll("[data-ott-branch]").forEach((button) => {
+    button.addEventListener("click", () => playClip(button.dataset.ottBranch));
+  });
+  restart.addEventListener("click", () => playClip("common"));
+  document.getElementById("ottVideoRetry").addEventListener("click", () => {
+    videoError.hidden = true;
+    demoVideo.load();
+    demoVideo.play().catch(() => { /* The viewer can use the native play control. */ });
+  });
 
   function status(title, body = "") {
     root.innerHTML = `<div class="ott-status"><div><strong>${escapeHtml(title)}</strong>${body ? `<p>${escapeHtml(body)}</p>` : ""}</div></div>`;
   }
 
   function render(items) {
-    if (!items.length) return status(tr("emptyTitle"), tr("emptyBody"));
+    catalog.hidden = !items.length;
+    if (!items.length) {
+      root.replaceChildren();
+      return;
+    }
     root.innerHTML = `<div class="ott-grid">${items.map((item) => `<article class="ott-card">
       <div class="ott-card-art" aria-hidden="true">LUMINA OTT</div>
       <div class="ott-card-body"><h3>${escapeHtml(text(item.title))}</h3><p>${escapeHtml(text(item.synopsis))}</p>
@@ -55,7 +121,7 @@
       const payload = await response.json();
       render(Array.isArray(payload?.items) ? payload.items : []);
     } catch {
-      status(tr("errorTitle"), tr("errorBody"));
+      catalog.hidden = true;
     }
   }
 
