@@ -284,6 +284,8 @@ describe('StoryVisualGenerationService', () => {
     expect(provider.mock.calls[0][0]).toBe('https://api.openai.com/v1/images/edits');
     const form = provider.mock.calls[0][1]?.body as FormData;
     expect(form.getAll('image[]')).toHaveLength(1);
+    expect(form.get('model')).toBe('gpt-image-2');
+    expect(form.has('input_fidelity')).toBe(false);
     expect(String(form.get('prompt'))).toContain('approved published story cover');
     expect(String(form.get('prompt'))).toContain('Match the published cover identity');
     expect((form.get('image[]') as File).type).toBe('image/png');

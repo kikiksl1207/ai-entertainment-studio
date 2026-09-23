@@ -999,7 +999,8 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
     const storage = this.storage;
     if (references.length && !storage) throw new Error('STORY_VISUAL_REFERENCE_STORAGE_UNAVAILABLE');
     const form = new FormData();
-    form.set('model', this.model());
+    const model = this.model();
+    form.set('model', model);
     form.set('prompt', [
       prompt,
       ...(workReference ? [
@@ -1016,7 +1017,8 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
     form.set('quality', this.quality());
     form.set('output_format', 'webp');
     form.set('output_compression', '86');
-    form.set('input_fidelity', 'high');
+    // GPT Image 2 always uses high-fidelity image inputs and rejects this option.
+    if (model !== 'gpt-image-2') form.set('input_fidelity', 'high');
     if (workReference) {
       form.append('image[]', new Blob([Uint8Array.from(workReference.image)], { type: workReference.mimeType }),
         workReference.filename);
