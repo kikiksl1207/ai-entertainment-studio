@@ -4,6 +4,13 @@
   const root = document.getElementById("storyStageRoot");
   if (!root) return;
 
+  const header = document.querySelector(".site-header");
+  if (header) {
+    const syncReaderHeaderHeight = () => document.body.style.setProperty("--story-reader-header-height", `${Math.ceil(header.getBoundingClientRect().height)}px`);
+    syncReaderHeaderHeight();
+    new ResizeObserver(syncReaderHeaderHeight).observe(header);
+  }
+
   const API_ORIGIN = "https://api.lumina-stage.com";
   const COPY = {
     ko: {
@@ -1410,6 +1417,8 @@
         if (loaded && element.naturalWidth > 0) {
           element.hidden = false;
           if (background) {
+            stage.closest(".story-reader-shell").dataset.visualLayout =
+              element.naturalHeight > element.naturalWidth ? "portrait" : "landscape";
             stage.dataset.visualStatus = visual.ready ? "ready" : "fallback";
             stage.closest(".story-player").dataset.hasBackground = "true";
             fallback.hidden = visual.ready;
@@ -1650,7 +1659,7 @@
         ${!scene && isEnding ? `<div class="story-completed" tabindex="-1" data-story-scene-focus>
           <span class="story-ending-label">${escapeHtml(tr("ending"))}</span>
           <h2>${escapeHtml(tr("completed"))}</h2>
-        </div>` : `<div class="story-reader-shell${showVisualStage ? "" : " story-reader-shell-text-only"}" data-has-visual="${showVisualStage}">
+        </div>` : `<div class="story-reader-shell${showVisualStage ? "" : " story-reader-shell-text-only"}" data-has-visual="${showVisualStage}" data-visual-layout="landscape">
           ${showVisualStage ? `<div class="story-player-stage" data-visual-status="${background ? "loading" : "missing"}">
             <div class="story-player-visual-layers">
               <div class="story-player-no-visual" ${background && visual.ready ? "hidden" : ""}>${escapeHtml(visualPending ? tr("sceneImageGenerating") : tr("sceneNoVisual"))}</div>

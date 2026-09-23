@@ -99,7 +99,7 @@ describe('StoryVisualGenerationService', () => {
       OPENAI_API_KEY: 'test-key',
       OPENAI_IMAGE_MODEL: 'gpt-image-2',
       OPENAI_IMAGE_QUALITY: 'medium',
-      OPENAI_IMAGE_SIZE: '1536x1024',
+      OPENAI_STORY_SCENE_IMAGE_SIZE: '1536x1024',
       OBJECT_STORAGE_PROVIDER: 'r2',
       OBJECT_STORAGE_ENDPOINT: 'https://storage.example.test',
       OBJECT_STORAGE_BUCKET: 'bucket',
@@ -661,6 +661,7 @@ describe('StoryVisualGenerationService', () => {
 
   it('stops before the provider when the paid-attempt budget is exhausted', async () => {
     const f = fixture();
+    f.setConfig('STORY_IMAGE_GENERATION_EMERGENCY_MAX_PER_WORK', '80');
     f.prisma.storyVisualGeneration.count.mockResolvedValue(80);
     const provider = jest.spyOn(global, 'fetch');
 
@@ -668,6 +669,23 @@ describe('StoryVisualGenerationService', () => {
       status: 'unavailable', reason: 'beta_generation_limit_reached',
     });
     expect(provider).not.toHaveBeenCalled();
+  });
+
+  it('defaults to portrait scenes without a fixed work or catalog attempt cap', async () => {
+    const f = fixture();
+    f.setConfig('OPENAI_STORY_SCENE_IMAGE_SIZE', '');
+    f.prisma.storyVisualGeneration.count.mockResolvedValue(10_000);
+    expect((f.service as any).size()).toBe('1024x1536');
+    await expect((f.service as any).overBudget(workId, releaseId, false)).resolves.toBe(false);
+    expect(f.prisma.storyVisualGeneration.count).not.toHaveBeenCalled();
+  });
+
+  it('uses the approved Norse cover as a visual identity reference', async () => {
+    const f = fixture();
+    f.prisma.storyWork.findFirst.mockResolvedValue({ slug: 'norse-myth-loki-crossroads' });
+    const reference = await (f.service as any).approvedStoryCoverReference(workId);
+    expect(reference).toMatchObject({ mimeType: 'image/webp', filename: 'norse-myth-cover.webp' });
+    expect(reference.image.length).toBeGreaterThan(1_024);
   });
 
   it('registers an immutable prompt connection for a generated AI branch without calling the image provider', async () => {

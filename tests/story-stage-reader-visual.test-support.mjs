@@ -283,11 +283,7 @@ export function registerReaderVisualTests({ fixture, projection, sessionId, work
         });
         assert.equal(metrics.horizontalOverflow, false); assert.equal(metrics.navRendered, true); assert.equal(metrics.fullTextReachable, true);
         assert.ok(metrics.stageHeight > 190 && metrics.stageHeight <= 610 && metrics.documentHeight > 2400);
-        if (width <= 820) assert.ok(metrics.stageRatio > 1.76 && metrics.stageRatio < 1.79 && metrics.stacked, JSON.stringify(metrics));
-        else {
-          assert.equal(metrics.sideBySide, true, JSON.stringify(metrics));
-          assert.ok(metrics.stageRatio > 1.68 && metrics.stageRatio < 1.82, JSON.stringify(metrics));
-        }
+        assert.ok(metrics.stageRatio > 1.76 && metrics.stageRatio < 1.79 && metrics.stacked, JSON.stringify(metrics));
         assert.equal(metrics.fontSize, width <= 680 ? 16 : 17); assert.equal(metrics.fontWeight, '400');
         assert.ok(metrics.lineHeight / metrics.fontSize >= 1.74);
         const pixels = await imagePixels(f);

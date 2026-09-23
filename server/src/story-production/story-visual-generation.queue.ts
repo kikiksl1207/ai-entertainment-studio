@@ -42,10 +42,10 @@ export class StoryVisualGenerationQueue {
       where: { workId: { in: works.map(work => work.id) } },
       select: { workId: true, releaseId: true, sourceSceneKey: true, status: true, attemptCount: true },
     }) : [];
-    const globalReserved = await this.prisma.storyVisualGeneration.count({
+    const globalReserved = limits.total === null ? 0 : await this.prisma.storyVisualGeneration.count({
       where: { OR: [{ attemptCount: { gte: 1 } }, { status: { in: ['pending', 'generating'] } }] },
     });
-    let totalRemaining = Math.max(0, limits.total - globalReserved);
+    let totalRemaining = limits.total === null ? Infinity : Math.max(0, limits.total - globalReserved);
     const candidates: StoryVisualQueueCandidate[] = [];
 
     for (const work of works) {
@@ -54,7 +54,7 @@ export class StoryVisualGenerationQueue {
       const existingKeys = new Set(currentRows.map(row => row.sourceSceneKey));
       const workReserved = currentRows.filter(row => row.attemptCount >= 1 ||
         ['pending', 'generating'].includes(row.status)).length;
-      let workRemaining = Math.max(0, limits.perWork - workReserved);
+      let workRemaining = limits.perWork === null ? Infinity : Math.max(0, limits.perWork - workReserved);
       if (!workRemaining) continue;
       const ranked = await this.rankedPrompts(work);
       for (const candidate of ranked) {
@@ -85,11 +85,11 @@ export class StoryVisualGenerationQueue {
       queuedCount: candidates.length,
       limits,
       priorities: this.priorityCounts(candidates),
-      limitReached: totalRemaining === 0 || works.some(work => {
+      limitReached: totalRemaining === 0 || (limits.perWork !== null && works.some(work => {
         const count = existingRows.filter(row => row.workId === work.id && row.releaseId === work.activeReleaseId &&
           (row.attemptCount >= 1 || ['pending', 'generating'].includes(row.status))).length;
-        return count >= limits.perWork;
-      }),
+        return count >= limits.perWork!;
+      })),
     };
   }
 
@@ -170,9 +170,17 @@ export class StoryVisualGenerationQueue {
 
   limits() {
     return {
-      perWork: this.integer('STORY_IMAGE_GENERATION_MAX_PER_WORK', 80, 1, 10_000),
-      total: this.integer('STORY_IMAGE_GENERATION_MAX_TOTAL', 160, 1, 20_000),
+      perWork: this.optionalLimit('STORY_IMAGE_GENERATION_EMERGENCY_MAX_PER_WORK'),
+      total: this.optionalLimit('STORY_IMAGE_GENERATION_EMERGENCY_MAX_TOTAL'),
     };
+  }
+
+  private optionalLimit(key: string): number | null {
+    const raw = this.config.get<string>(key);
+    if (!raw) return null;
+    const value = Number(raw);
+    if (!Number.isSafeInteger(value) || value < 1) throw new BadRequestException(`${key} is invalid`);
+    return value;
   }
 
   private async eligibleWorks(workId?: string): Promise<QueueWork[]> {

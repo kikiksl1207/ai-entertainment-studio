@@ -34,14 +34,14 @@ Example allowlist shape:
 
 ## Image controls
 
-- Default: `gpt-image-2`, `medium`, `1536x1024`, WebP.
-- Default cap: 80 paid attempts per work and 160 paid attempts in total.
-- Failed or ambiguous attempts count toward the cap.
+- Default: `gpt-image-2`, `medium`, `1024x1536` portrait scenes, WebP. The separate published cover keeps its own aspect ratio.
+- There is no default paid-attempt cap per work or across the catalog. First visits to distinct scenes are an investment; the same ready, release-bound image is reused by later readers.
+- Operators can set `STORY_IMAGE_GENERATION_EMERGENCY_MAX_PER_WORK` or `STORY_IMAGE_GENERATION_EMERGENCY_MAX_TOTAL` to pause new attempts during an incident. Failed or ambiguous attempts count toward an enabled emergency limit; retries still require explicit handling.
 - The server decodes the result, requires exact dimensions and one non-animated WebP frame, removes metadata, and stores the sanitized image.
 - Ready images are immutable release-bound overlays. They do not modify canonical story manifests.
 - Repeated readers reuse the stored asset and do not call the image provider again.
 
-OpenAI image output cost changes over time. Check the official model documentation before raising either cap:
+OpenAI image output cost changes over time. Review actual spend and reuse before enabling or adjusting emergency limits:
 
 - https://developers.openai.com/api/docs/models/gpt-image-2
 - https://developers.openai.com/api/reference/cli/resources/images/methods/generate

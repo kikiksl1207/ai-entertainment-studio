@@ -149,6 +149,7 @@ async function fixture(options = {}) {
         '/styles/story-stage.css': ['styles/story-stage.css', 'text/css'],
         '/pages/story-stage.js': ['pages/story-stage.js', 'application/javascript'],
         '/local-reader-asset.png': ['assets/brand/lumina-stage-logo.png', 'image/png'],
+        '/local-reader-portrait.webp': ['assets/story/norse-myth-cover-portrait.webp', 'image/webp'],
         '/local-reader-background-a.png': ['assets/brand/lumina-stage-banner.png', 'image/png'],
         '/local-reader-background-b.png': ['assets/brand/lumina-stage-logo.png', 'image/png'],
         '/local-reader-character.png': ['assets/brand/lumina-stage-logo.png', 'image/png'],

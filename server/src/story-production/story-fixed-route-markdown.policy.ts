@@ -44,7 +44,7 @@ export const FIXED_ROUTE_STORIES: Record<FixedRouteStoryKey, FixedRouteStoryConf
     extraPartCount: 4,
     visualBible: {
       era: 'Present-day coastal Korea and the isolated fictional island Haemyeongdo. Preserve Korean faces, fishing-port infrastructure, concrete seawalls, lighthouses, analog cassette equipment, rain gear, and contemporary Korean interiors.',
-      artStyle: 'Match the published cover identity: premium cinematic Korean mystery-fantasy realism, semi-realistic adult faces, natural anatomy and skin texture, detailed wet environments, restrained acting, and film-like 16:9 framing. Keep the same realistic medium and character identity in every scene.',
+      artStyle: 'Match the published cover identity: premium cinematic Korean mystery-fantasy realism, semi-realistic adult faces, natural anatomy and skin texture, detailed wet environments, restrained acting, and film-like portrait 2:3 framing. Keep the same realistic medium and character identity in every scene.',
       palette: 'Storm blue, wet charcoal, sea gray, cold white lighthouse light, and small warm amber harbor lights. The red cassette is a restrained recurring accent. Faces and actions must remain readable without flattening the scene into black.',
       characters: [
         { name: '윤해원', appearance: '28-year-old Korean woman with an oval face, dark brown eyes, long straight black hair, realistic adult proportions, and a practical dark rain jacket; the red cassette is her recurring prop.' },
@@ -69,7 +69,7 @@ export const FIXED_ROUTE_STORIES: Record<FixedRouteStoryKey, FixedRouteStoryConf
     extraPartCount: 4,
     visualBible: {
       era: 'An original imperial political-fantasy world combining East Asian tiled administrative buildings and archival culture with restrained European stone, brick, glass, steam rail, and mechanical document technology. Never introduce modern objects.',
-      artStyle: 'Match the published cover identity: premium cinematic dark-fantasy realism, semi-realistic adult East Asian faces, natural anatomy, intricate embroidered historical-fantasy costumes, detailed monumental environments, restrained expressions, and film-like 16:9 framing. Keep one rendering medium throughout the work.',
+      artStyle: 'Match the published cover identity: premium cinematic dark-fantasy realism, semi-realistic adult East Asian faces, natural anatomy, intricate embroidered historical-fantasy costumes, detailed monumental environments, restrained expressions, and film-like portrait 2:3 framing. Keep one rendering medium throughout the work.',
       palette: 'Ink black, deep forest green, cold silver, aged paper ivory, red sealing wax, and restrained ember crimson. Snow, rain, and archival interiors may alter lighting but not the master costume and skin colors.',
       characters: [
         { name: '연서린', appearance: 'Adult East Asian woman with a pale oval face, dark brown eyes, long black hair loosely braided and pinned, and a deep forest-green archival coat with fine bronze embroidery; a faint red half-moon script mark sits at the left collarbone when visible.' },

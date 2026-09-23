@@ -45,6 +45,13 @@ export function registerReaderTests({ fixture, projection, sessionId, workId, ar
     await f.page.locator(`[data-story-beat="${direction}"]`).click();
     await f.page.waitForFunction((counter) => document.querySelector('[data-story-beat-counter]')?.textContent === counter && document.querySelector('#storyStageRoot')?.getAttribute('aria-busy') !== 'true', counter);
   }
+  async function assertReaderStartsBelowHeader(f) {
+    const bounds = await f.page.evaluate(() => ({
+      top: document.querySelector('.story-current-title, .story-reader-shell').getBoundingClientRect().top,
+      headerBottom: document.querySelector('.site-header').getBoundingClientRect().bottom,
+    }));
+    assert.ok(bounds.top >= bounds.headerBottom + 8 && bounds.top <= bounds.headerBottom + 20, JSON.stringify(bounds));
+  }
 
   for (const options of [{ name: 'canonical sentinel', positions: [1, 2, 3] }, { name: 'canonical resumed', positions: [1, 2, 3], position: 2 }, { name: 'generated zero-based', positions: [0, 1, 2], generated: true }]) {
     test(`reader: ${options.name} exact positions/revisions, all text and choices reachable`, async () => {
@@ -231,7 +238,7 @@ export function registerReaderTests({ fixture, projection, sessionId, workId, ar
       await f.page.locator('[data-story-reset-cancel]').click();
       assert.ok(Math.abs(await f.page.evaluate(() => scrollY) - before) <= 2);
       await turn(f, 'next', '2 / 3');
-      assert.ok(Math.abs(await f.page.locator('.story-reader-shell').evaluate((el) => el.getBoundingClientRect().top) - 92) <= 6);
+      await assertReaderStartsBelowHeader(f);
       assert.equal(await f.page.locator('[data-story-scene-focus]').evaluate((el) => el === document.activeElement), true);
       await f.page.locator('[data-story-reset-preview="full"]').click();
       await f.page.locator('[data-story-reset-confirm]').click();
@@ -296,9 +303,43 @@ export function registerReaderTests({ fixture, projection, sessionId, workId, ar
         assert.equal(layout.pageScrolls && !layout.copyScrolls, true, JSON.stringify(layout));
         await f.page.locator('[data-story-beat="next"]').click();
         await f.page.waitForFunction(() => document.querySelector('[data-story-beat-counter]')?.textContent === '2 / 3');
-        assert.ok(Math.abs(await f.page.locator('.story-reader-shell').evaluate((el) => el.getBoundingClientRect().top) - 92) <= 6);
+        await assertReaderStartsBelowHeader(f);
       } finally { await f.close(); }
     });
+  }
+
+  for (const { locale, width } of [{ locale: 'ko', width: 390 }, { locale: 'en', width: 900 }, { locale: 'ja', width: 1280 }]) {
+    for (const titled of [false, true]) {
+      test(`reader header clearance: ${locale} ${width} ${titled ? 'titled' : 'untitled'} scene`, async () => {
+        const value = current({ locale, long: true, visual: true });
+        if (titled) value.scene.title = 'Norse mythology';
+        const f = await reader({ locale, width, current: value });
+        try {
+          await f.ready();
+          await turn(f, 'next', '2 / 3');
+          const clearance = await f.page.evaluate(() => {
+            const header = document.querySelector('.site-header').getBoundingClientRect();
+            const anchor = document.querySelector('.story-current-title, .story-reader-shell').getBoundingClientRect();
+            const copy = document.querySelector('.story-player-copy');
+            return { headerBottom: header.bottom, anchorTop: anchor.top,
+              horizontalOverflow: document.documentElement.scrollWidth > innerWidth,
+              copyScrolls: copy.scrollHeight > copy.clientHeight + 2 };
+          });
+          assert.ok(clearance.anchorTop >= clearance.headerBottom + 8 && clearance.anchorTop <= clearance.headerBottom + 20, JSON.stringify(clearance));
+          assert.equal(clearance.horizontalOverflow || clearance.copyScrolls, false, JSON.stringify(clearance));
+          if (width > 820) {
+            const stage = await f.page.evaluate(() => {
+              const copy = document.querySelector('.story-player-copy');
+              window.scrollTo(0, copy.getBoundingClientRect().top + scrollY + 500);
+              return { top: document.querySelector('.story-player-stage').getBoundingClientRect().top,
+                headerBottom: document.querySelector('.site-header').getBoundingClientRect().bottom };
+            });
+            assert.ok(stage.top >= stage.headerBottom + 8, JSON.stringify(stage));
+          }
+          await f.page.screenshot({ path: path.join(artifacts, `${locale}-${width}-${titled ? 'title' : 'no-title'}-header-clearance.png`) });
+        } finally { await f.close(); }
+      });
+    }
   }
 
   for (const locale of locales) for (const width of [390, 400, 1280]) {
@@ -320,12 +361,7 @@ export function registerReaderTests({ fixture, projection, sessionId, workId, ar
             documentHeight: document.documentElement.scrollHeight, narrative: { fontSize: parseFloat(narrativeStyle.fontSize), fontWeight: narrativeStyle.fontWeight, lineHeight: parseFloat(narrativeStyle.lineHeight) } };
         });
         assert.ok(geometry.stageHeight > 190 && geometry.stageHeight <= 610);
-        if (width <= 820) assert.ok(geometry.stageRatio > 1.76 && geometry.stageRatio < 1.79 && geometry.stacked, JSON.stringify(geometry));
-        else {
-          assert.equal(geometry.sideBySide, true, JSON.stringify(geometry));
-          assert.ok(geometry.topDelta <= 1, JSON.stringify(geometry));
-          assert.ok(geometry.stageRatio > 1.68 && geometry.stageRatio < 1.82, JSON.stringify(geometry));
-        }
+        assert.ok(geometry.stageRatio > 1.76 && geometry.stageRatio < 1.79 && geometry.stacked, JSON.stringify(geometry));
         assert.equal(geometry.regionScrolls, false); assert.equal(geometry.horizontal, true); assert.equal(geometry.navRendered, true);
         assert.ok(geometry.documentHeight > 2400, 'Long beat must remain in the page scroll');
         assert.ok(geometry.narrative.fontSize >= 16);
@@ -378,4 +414,24 @@ export function registerReaderTests({ fixture, projection, sessionId, workId, ar
       } finally { await f.close(); }
     });
   }
+
+  test('reader visual: portrait art keeps an uncropped side-by-side composition on desktop', async () => {
+    const value = current({ locale: 'ko', long: true, visual: true });
+    value.scene.visualManifest.background.publicAssetPath = '/local-reader-portrait.webp';
+    const f = await reader({ locale: 'ko', width: 1280, current: value });
+    try {
+      await f.ready();
+      await f.page.waitForFunction(() => document.querySelector('.story-reader-shell')?.dataset.visualLayout === 'portrait');
+      const layout = await f.page.evaluate(() => {
+        const image = document.querySelector('.story-player-background');
+        const stage = document.querySelector('.story-player-stage').getBoundingClientRect();
+        const copy = document.querySelector('.story-player-copy').getBoundingClientRect();
+        return { imageRatio: image.naturalWidth / image.naturalHeight, stageRatio: stage.width / stage.height,
+          sideBySide: copy.left >= stage.right, horizontalOverflow: document.documentElement.scrollWidth > innerWidth };
+      });
+      assert.ok(layout.imageRatio > 0.65 && layout.imageRatio < 0.68, JSON.stringify(layout));
+      assert.ok(layout.stageRatio > 0.65 && layout.stageRatio < 0.68, JSON.stringify(layout));
+      assert.equal(layout.sideBySide && !layout.horizontalOverflow, true, JSON.stringify(layout));
+    } finally { await f.close(); }
+  });
 }

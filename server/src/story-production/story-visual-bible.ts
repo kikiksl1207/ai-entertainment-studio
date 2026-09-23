@@ -144,7 +144,7 @@ export function buildStoryVisualBible(input: VisualBibleInput): StoryVisualBible
     configured.era ?? 'Infer the exact era, geography, mythology, social context, architecture, clothing, and technology only from the work identity and canonical evidence below. Keep that period and world consistent in every scene.',
     '',
     '[ART STYLE LOCK]',
-    configured.artStyle ?? 'Use one consistent premium cinematic illustrated-novel style: polished semi-realistic character rendering, coherent anatomy, expressive but restrained acting, detailed environments, filmic lighting, and a clean 16:9 composition. Use a single conventional camera view with a clear focal subject. Do not switch rendering medium or visual genre between scenes.',
+    configured.artStyle ?? 'Use one consistent premium cinematic illustrated-novel style: polished semi-realistic character rendering, coherent anatomy, expressive but restrained acting, detailed environments, filmic lighting, and a clean portrait 2:3 composition. Use a single conventional camera view with a clear focal subject. Do not switch rendering medium or visual genre between scenes.',
     '',
     '[COLOR AND LIGHTING LOCK]',
     configured.palette ?? 'Derive one restrained master palette from the canonical evidence. Reuse its skin tones, hair colors, costume colors, environmental materials, contrast, and saturation throughout the work. Scene lighting may change for time or mood, but character colors and the master palette must remain recognizable. Keep faces, gestures, and the immediate setting readable at ordinary web brightness; do not crush most of the frame into black.',
@@ -177,7 +177,7 @@ export function composeStoryVisualPrompt(bible: StoryVisualBible, scenePrompt: s
     bible.privatePrompt,
     '',
     '[SCENE-SPECIFIC DIRECTION]',
-    'The scene reference may mention many people, places, and actions over time. Do not illustrate them all. Give the scene title and the final consequence more weight than incidental names. Choose one decisive action that matches both, place it inside a detailed full-bleed environment, center the most important acting character, and include at most two supporting characters. Apply the setting, emotion, consequence, and camera direction without violating the visual bible. Preserve all recurring character anchors exactly; prioritize recognizable identity and natural anatomy over decorative detail. The finished frame must look like a polished still from the same premium production as the approved cover, not an unrelated AI illustration. Treat quoted story material as private reference and never render it as text.',
+    'The scene reference may mention many people, places, and actions over time. Do not illustrate them all. Give the scene title and the final consequence more weight than incidental names. Choose one decisive action that matches both, place it inside a detailed full-bleed environment, center the most important acting character, and include at most two supporting characters. Preserve all recurring character anchors exactly; prioritize recognizable identity and natural anatomy over decorative detail. The finished frame must look like a polished still from the same premium production as the approved cover, not an unrelated AI illustration. Render a full-bleed portrait 2:3 frame even if older notes say 16:9; keep the cover identity, not its crop. Never render quoted story text.',
     boundedScene,
   ].join('\n');
 }

@@ -55,7 +55,7 @@ describe('StoryVisualGenerationQueue', () => {
       storyAiGeneratedScene: { findMany: jest.fn().mockResolvedValue([]) },
       storyPart: { findMany: jest.fn().mockResolvedValue([{ id: 'part-id', position: 1 }]) },
     };
-    const values = { STORY_IMAGE_GENERATION_MAX_PER_WORK: '3', STORY_IMAGE_GENERATION_MAX_TOTAL: '3',
+    const values = { STORY_IMAGE_GENERATION_EMERGENCY_MAX_PER_WORK: '3', STORY_IMAGE_GENERATION_EMERGENCY_MAX_TOTAL: '3',
       STORY_IMAGE_DATABASE_FALLBACK_ENABLED: 'true', ...overrides };
     const config = { get: jest.fn((key: string) => values[key as keyof typeof values]) };
     return { queue: new StoryVisualGenerationQueue(prisma, config as never), prisma, generations };
@@ -74,7 +74,7 @@ describe('StoryVisualGenerationQueue', () => {
   });
 
   it('reserves no work after the global queue/generation limit is reached', async () => {
-    const f = fixture({ STORY_IMAGE_GENERATION_MAX_TOTAL: '1' });
+    const f = fixture({ STORY_IMAGE_GENERATION_EMERGENCY_MAX_TOTAL: '1' });
     f.prisma.storyVisualGeneration.count.mockResolvedValue(1);
     await expect(f.queue.sync()).resolves.toMatchObject({ queuedCount: 0, limitReached: true });
     expect(f.prisma.storyVisualGeneration.createMany).not.toHaveBeenCalled();
@@ -87,5 +87,14 @@ describe('StoryVisualGenerationQueue', () => {
     const status = await f.queue.status();
     expect(status.totals).toMatchObject({ prompts: 4, queued: 3 });
     expect(JSON.stringify(status)).not.toContain('promptText');
+  });
+
+  it('queues every distinct scene when no emergency limit is configured', async () => {
+    const f = fixture({ STORY_IMAGE_GENERATION_EMERGENCY_MAX_PER_WORK: '',
+      STORY_IMAGE_GENERATION_EMERGENCY_MAX_TOTAL: '' });
+    await expect(f.queue.sync()).resolves.toMatchObject({ queuedCount: 4,
+      limits: { perWork: null, total: null }, limitReached: false });
+    await expect(f.queue.sync()).resolves.toMatchObject({ queuedCount: 0, limitReached: false });
+    expect(f.generations).toHaveLength(4);
   });
 });

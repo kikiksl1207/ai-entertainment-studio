@@ -74,6 +74,12 @@ const DEFAULT_VISUAL_VARIANT: StoryVisualVariant = {
   references: [],
 };
 
+const APPROVED_STORY_COVERS = new Map<string, string>([
+  ['records-of-the-burning-sea-imjin-war', '/assets/story/imjin-war-cover.webp'],
+  ['norse-myth-loki-crossroads', '/assets/story/norse-myth-cover.webp'],
+  ...Object.values(FIXED_ROUTE_STORIES).map((story): [string, string] => [story.slug, story.coverPath]),
+]);
+
 @Injectable()
 export class StoryVisualGenerationService implements OnApplicationBootstrap, OnModuleDestroy, BeforeApplicationShutdown {
   private readonly logger = new Logger(StoryVisualGenerationService.name);
@@ -537,7 +543,7 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
       });
     }
     const promptText = [
-      'Create one cinematic 16:9 illustration for this interactive story scene.',
+      'Create one cinematic portrait 2:3 illustration for this interactive story scene.',
       'Preserve the characters, setting, period details, mood, and consequences stated in the scene.',
       'Do not render captions, letters, logos, watermarks, interface elements, or modern objects not present in the scene.',
       ...(visualProfile
@@ -801,7 +807,7 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
   ) {
     const [bible, workReference] = await Promise.all([
       this.visualBible(workId, releaseId, releaseChecksum),
-      this.fixedStoryCoverReference(workId),
+      this.approvedStoryCoverReference(workId),
     ]);
     const prompt = composeStoryVisualPrompt(bible, scenePrompt);
     const quality = workReference ? this.fixedStoryQuality() : this.quality();
@@ -958,12 +964,22 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
 
   private async overBudget(workId: string, releaseId: string, alreadyGenerating: boolean) {
     if (alreadyGenerating) return false;
+    const perWork = this.emergencyLimit('STORY_IMAGE_GENERATION_EMERGENCY_MAX_PER_WORK');
+    const total = this.emergencyLimit('STORY_IMAGE_GENERATION_EMERGENCY_MAX_TOTAL');
+    if (perWork === null && total === null) return false;
     const [workCount, totalCount] = await Promise.all([
       this.prisma.storyVisualGeneration.count({ where: { workId, releaseId, attemptCount: { gte: 1 } } }),
       this.prisma.storyVisualGeneration.count({ where: { attemptCount: { gte: 1 } } }),
     ]);
-    return workCount >= this.numberFromEnv('STORY_IMAGE_GENERATION_MAX_PER_WORK', 80) ||
-      totalCount >= this.numberFromEnv('STORY_IMAGE_GENERATION_MAX_TOTAL', 160);
+    return (perWork !== null && workCount >= perWork) || (total !== null && totalCount >= total);
+  }
+
+  private emergencyLimit(key: string): number | null {
+    const raw = this.config.get<string>(key);
+    if (!raw) return null;
+    const value = Number(raw);
+    if (!Number.isSafeInteger(value) || value < 1) throw new BadRequestException(`${key} must be positive`);
+    return value;
   }
 
   private async visualVariantForProgress(progressId: string): Promise<StoryVisualVariant> {
@@ -1058,18 +1074,18 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
     });
   }
 
-  private async fixedStoryCoverReference(workId: string): Promise<StoryWorkVisualReference | null> {
+  private async approvedStoryCoverReference(workId: string): Promise<StoryWorkVisualReference | null> {
     if (this.workVisualReferenceCache.has(workId)) return this.workVisualReferenceCache.get(workId)!;
     const work = await this.prisma.storyWork.findFirst({
       where: { id: workId, fixtureSource: false },
       select: { slug: true },
     });
-    const fixed = Object.values(FIXED_ROUTE_STORIES).find(config => config.slug === work?.slug);
-    if (!fixed) {
+    const coverPath = APPROVED_STORY_COVERS.get(work?.slug ?? '');
+    if (!coverPath) {
       this.workVisualReferenceCache.set(workId, null);
       return null;
     }
-    const pathSegments = fixed.coverPath.split('/').filter(Boolean);
+    const pathSegments = coverPath.split('/').filter(Boolean);
     const candidates = [resolve(process.cwd(), ...pathSegments), resolve(process.cwd(), '..', ...pathSegments)];
     let image: Buffer | null = null;
     for (const candidate of candidates) {
@@ -1093,7 +1109,7 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
       image,
       checksum: this.sha256Hex(image),
       mimeType,
-      filename: fixed.coverPath.split('/').at(-1) || `${fixed.storyKey}-cover.png`,
+      filename: coverPath.split('/').at(-1) || `${work?.slug}-cover.png`,
     };
     this.workVisualReferenceCache.set(workId, reference);
     return reference;
@@ -1200,8 +1216,8 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
   }
 
   private size() {
-    const value = this.config.get<string>('OPENAI_IMAGE_SIZE') || '1536x1024';
-    if (!IMAGE_SIZES.has(value)) throw new BadRequestException('OPENAI_IMAGE_SIZE is not allowed');
+    const value = this.config.get<string>('OPENAI_STORY_SCENE_IMAGE_SIZE') || '1024x1536';
+    if (!IMAGE_SIZES.has(value)) throw new BadRequestException('OPENAI_STORY_SCENE_IMAGE_SIZE is not allowed');
     return value;
   }
 
