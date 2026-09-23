@@ -30,6 +30,7 @@
       storyStructure: "이야기 구성",
       storyStructureParts: "총 {count}개 파트",
       storyStructureDynamic: "선택에 따라 다음 장면과 제목이 달라집니다. 아직 만나지 않은 경로는 미리 공개되지 않습니다.",
+      storyStructureFixed: "작가가 완성한 원고 순서대로 이어지는 작품입니다. 다음 장으로 이동하며 이야기를 감상할 수 있습니다.",
       participantTitle: "함께할 아티스트",
       participantHelp: "좋아요·투표한 아티스트에서 고르거나 이름으로 검색할 수 있어요. 선택하지 않고 시작해도 됩니다.",
       participantSearch: "아티스트 검색",
@@ -107,6 +108,7 @@
       storyStructure: "Story structure",
       storyStructureParts: "{count} parts in total",
       storyStructureDynamic: "Your choices change the next scene and its title. Routes you have not reached remain hidden.",
+      storyStructureFixed: "This story follows the author's completed manuscript in order. Continue chapter by chapter to read it.",
       participantTitle: "Participating artist",
       participantHelp: "Choose an artist you liked or voted for, or search by name. You can also start without one.",
       participantSearch: "Search artists",
@@ -184,6 +186,7 @@
       storyStructure: "物語の構成",
       storyStructureParts: "全{count}パート",
       storyStructureDynamic: "選択によって次のシーンとタイトルが変わります。まだ到達していないルートは事前に公開されません。",
+      storyStructureFixed: "作家が完成させた原稿の順番どおりに進む作品です。次の章へ進みながら物語を楽しめます。",
       participantTitle: "参加アーティスト",
       participantHelp: "いいね・投票したアーティストから選ぶか、名前で検索できます。選ばずに始めることもできます。",
       participantSearch: "アーティスト検索",
@@ -261,6 +264,7 @@
       storyStructure: "故事结构",
       storyStructureParts: "共{count}个章节",
       storyStructureDynamic: "你的选择会改变下一个场景及其标题。尚未到达的路线不会提前公开。",
+      storyStructureFixed: "本作品将按作者完成的原稿顺序展开。你可以逐章继续阅读。",
       participantTitle: "参与艺人",
       participantHelp: "可从点赞或投票过的艺人中选择，也可按姓名搜索。也可以不选择直接开始。",
       participantSearch: "搜索艺人",
@@ -338,6 +342,7 @@
       storyStructure: "故事結構",
       storyStructureParts: "共{count}個章節",
       storyStructureDynamic: "你的選擇會改變下一個場景及其標題。尚未到達的路線不會提前公開。",
+      storyStructureFixed: "本作品將按作者完成的原稿順序展開。你可以逐章繼續閱讀。",
       participantTitle: "參與藝人",
       participantHelp: "可從按讚或投票過的藝人中選擇，也可按姓名搜尋。也可以不選擇直接開始。",
       participantSearch: "搜尋藝人",
@@ -1093,7 +1098,7 @@
           </div></div>
           <section class="story-structure"><h3>${escapeHtml(tr("storyStructure"))}</h3>
             <strong>${escapeHtml(tr("storyStructureParts").replace("{count}", String(pack.parts.length)))}</strong>
-            <p>${escapeHtml(tr("storyStructureDynamic"))}</p>
+            <p>${escapeHtml(tr(pack.releaseCapability?.aiGenerationEnabled === false ? "storyStructureFixed" : "storyStructureDynamic"))}</p>
           </section>
           ${renderParticipantPicker(action)}` : ""}
       </div>
