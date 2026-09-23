@@ -30,7 +30,7 @@
         "e5c3e0719995380e2544062a83dceb43c4811ff7c9029ca81b15ba4a3c1b4bff",
         "ba2763caa77bb52bd56a216b1852b2be9241314019015624a65ab128df25e033"
       ],
-      aiActivationAvailable: false,
+      aiActivationAvailable: true,
       visualIdentityManaged: true
     },
     {
@@ -41,7 +41,7 @@
         "9c855d771b9e2d89ef8b36b7a445b0fa62bf854738bb2d78becb12284f16ecff",
         "fb1ecc405c2471035fdfc85fec17f4e4d883334e2928d898eec988188ec1a5c3"
       ],
-      aiActivationAvailable: false,
+      aiActivationAvailable: true,
       visualIdentityManaged: true
     }
   ];
@@ -152,14 +152,14 @@
     const description = unavailable
       ? "기존 그림 상태를 불러오지 못했습니다."
       : staleCount > 0
-        ? "최근 읽은 장면부터 표지와 같은 화풍·인물 기준으로 교체합니다."
+        ? "표지와 같은 화풍·인물 기준으로 남은 옛 그림을 순서대로 모두 교체합니다."
         : readyCount > 0
           ? "현재 생성된 장면 그림이 최신 작품 기준과 일치합니다."
           : "독자가 장면에 도달하면 작품 기준에 맞춰 그림을 생성합니다.";
     return `<section class="story-ai-activation story-visual-consistency" data-story-visual-card="${escapeHtml(story.key)}">
       <div><strong>장면 그림 일관성</strong><span class="status-badge ${className}">${escapeHtml(label)}</span></div>
       <small>${escapeHtml(description)}</small>
-      ${staleCount > 0 ? `<button type="button" class="primary-action story-visual-replace-button" data-story-visual-replace="${escapeHtml(story.key)}" ${busy ? "disabled" : ""}>${busy ? "교체 중..." : "새 기준으로 1장 교체"}</button>` : ""}
+      ${staleCount > 0 ? `<button type="button" class="primary-action story-visual-replace-button" data-story-visual-replace="${escapeHtml(story.key)}" ${busy ? "disabled" : ""}>${busy ? "교체 중..." : `남은 ${staleCount.toLocaleString("ko-KR")}장 전체 교체`}</button>` : ""}
       <p class="form-status" data-story-visual-status role="status" aria-live="polite"></p>
     </section>`;
   }
@@ -190,7 +190,7 @@
           </fieldset>
           <button type="button" class="primary-action story-ai-activate-button" data-story-ai-activate="${escapeHtml(story.key)}" disabled>${busy ? "활성화 중..." : "AI 분기 활성화"}</button>`}
           <p class="form-status" data-story-ai-status role="status" aria-live="polite"></p>
-        </section>` : published ? `<div class="story-fixed-release-controls"><section class="story-ai-activation"><div><strong>독자 공개 방식</strong><span class="status-badge is-approved">고정 메인 루트</span></div><small>작가 최종 원고 순서대로 공개되며 시스템의 다음 장 이동만 제공합니다.</small></section>${story.visualIdentityManaged ? fixedVisualControls(story, visual) : ""}</div>` : ""}
+        </section>${story.visualIdentityManaged ? fixedVisualControls(story, visual) : ""}` : published ? `<div class="story-fixed-release-controls"><section class="story-ai-activation"><div><strong>독자 공개 방식</strong><span class="status-badge is-approved">고정 메인 루트</span></div><small>작가 최종 원고 순서대로 공개되며 시스템의 다음 장 이동만 제공합니다.</small></section>${story.visualIdentityManaged ? fixedVisualControls(story, visual) : ""}</div>` : ""}
       </article>`;
     }).join("");
   }
@@ -533,44 +533,50 @@
     const storyKey = button.dataset.storyVisualReplace;
     const story = knownStories.find((candidate) => candidate.key === storyKey && candidate.visualIdentityManaged);
     const visual = state.visualStatuses[storyKey];
-    const item = Array.isArray(visual?.items) ? visual.items[0] : null;
+    const items = Array.isArray(visual?.items) ? visual.items : [];
     const work = state.publishedWorks.find((candidate) => candidate?.slug === story?.slug && candidate?.status === "published");
     const card = button.closest("[data-story-visual-card]");
     const inlineStatus = card?.querySelector("[data-story-visual-status]");
-    if (!story || !work?.id || !item?.sourceSceneKey || !visual?.releaseId || !visual?.releaseChecksum || state.replacingKey) return;
+    if (!story || !work?.id || !items.length || !visual?.releaseId || !visual?.releaseChecksum || state.replacingKey) return;
     state.replacingKey = storyKey;
     button.disabled = true;
-    button.textContent = "교체 중...";
-    if (inlineStatus) inlineStatus.textContent = "표지와 같은 화풍·인물 기준으로 장면 그림을 다시 만들고 있습니다.";
+    button.textContent = `0 / ${items.length} 교체 중`;
+    if (inlineStatus) inlineStatus.textContent = "표지와 같은 화풍·인물 기준으로 남은 장면 그림을 모두 다시 만들고 있습니다.";
+    let completed = 0;
     try {
-      const result = await api.fetch(`/admin/api/v1/story-visuals/${encodeURIComponent(work.id)}/replace-stale`, {
-        method: "POST",
-        auth: true,
-        body: {
-          releaseId: visual.releaseId,
-          releaseChecksum: visual.releaseChecksum,
-          sourceSceneKey: item.sourceSceneKey
+      for (const item of items) {
+        const result = await api.fetch(`/admin/api/v1/story-visuals/${encodeURIComponent(work.id)}/replace-stale`, {
+          method: "POST",
+          auth: true,
+          body: {
+            releaseId: visual.releaseId,
+            releaseChecksum: visual.releaseChecksum,
+            sourceSceneKey: item.sourceSceneKey
+          }
+        });
+        if (result?.status !== "ready") {
+          const reasons = {
+            generation_disabled: "장면 이미지 생성 설정이 꺼져 있습니다.",
+            beta_generation_limit_reached: "현재 테스트 이미지 생성 한도에 도달했습니다.",
+            provider_configuration_missing: "이미지 생성 연결 설정을 확인해 주세요."
+          };
+          throw new Error(reasons[result?.reason] || "장면 그림 교체가 완료되지 않았습니다.");
         }
-      });
-      if (result?.status !== "ready") {
-        const reasons = {
-          generation_disabled: "장면 이미지 생성 설정이 꺼져 있습니다.",
-          beta_generation_limit_reached: "현재 테스트 이미지 생성 한도에 도달했습니다.",
-          provider_configuration_missing: "이미지 생성 연결 설정을 확인해 주세요."
-        };
-        throw new Error(reasons[result?.reason] || "장면 그림 교체가 완료되지 않았습니다.");
+        completed += 1;
+        button.textContent = `${completed} / ${items.length} 교체 중`;
+        if (inlineStatus) inlineStatus.textContent = `${completed}장 완료 · ${items.length - completed}장 남음`;
       }
       state.replacingKey = null;
       state.loaded = false;
       await load({ force: true });
-      setStatus(`${story.title} 장면 그림 1장을 새 기준으로 교체했습니다.`, "success");
+      setStatus(`${story.title} 장면 그림 ${completed}장을 새 기준으로 모두 교체했습니다.`, "success");
     } catch (error) {
       if (inlineStatus) {
-        inlineStatus.textContent = error?.message || "장면 그림을 교체하지 못했습니다.";
+        inlineStatus.textContent = `${completed}장 교체 후 중단 · ${error?.message || "장면 그림을 교체하지 못했습니다."}`;
         inlineStatus.className = "form-status is-error";
       }
       button.disabled = false;
-      button.textContent = "새 기준으로 1장 교체";
+      button.textContent = `남은 ${Math.max(0, items.length - completed).toLocaleString("ko-KR")}장 다시 교체`;
     } finally {
       state.replacingKey = null;
     }

@@ -285,6 +285,7 @@ describe('StoryVisualGenerationService', () => {
     const form = provider.mock.calls[0][1]?.body as FormData;
     expect(form.getAll('image[]')).toHaveLength(1);
     expect(form.get('model')).toBe('gpt-image-2');
+    expect(form.get('quality')).toBe('high');
     expect(form.has('n')).toBe(false);
     expect(form.has('input_fidelity')).toBe(false);
     expect(String(form.get('prompt'))).toContain('approved published story cover');
@@ -320,7 +321,7 @@ describe('StoryVisualGenerationService', () => {
     });
     expect(provider).toHaveBeenCalledTimes(2);
     const providerBody = JSON.parse(String((provider.mock.calls[0][1] as RequestInit).body));
-    expect(providerBody.prompt).toContain('[PRIVATE VISUAL BIBLE story-visual-bible-v4]');
+    expect(providerBody.prompt).toContain('[PRIVATE VISUAL BIBLE story-visual-bible-v5]');
     expect(providerBody.prompt).toContain('[RECURRING CHARACTER APPEARANCE LOCK]');
     expect(providerBody.prompt).toContain('Joseon naval historical drama');
     expect(providerBody.prompt).toContain('이순신은 늘 같은 검은 수염과 붉은 철릭');
@@ -329,7 +330,7 @@ describe('StoryVisualGenerationService', () => {
     expect(f.prisma.asset.create).toHaveBeenCalledTimes(1);
     const storedMetadata = f.prisma.asset.create.mock.calls[0][0].data.metadata;
     expect(storedMetadata.storyVisual).toMatchObject({
-      visualBibleVersion: 'story-visual-bible-v4',
+      visualBibleVersion: 'story-visual-bible-v5',
       visualBibleFingerprint: expect.stringMatching(/^[a-f0-9]{20}$/),
       effectivePromptSha256: expect.stringMatching(/^[a-f0-9]{64}$/),
     });
@@ -423,9 +424,9 @@ describe('StoryVisualGenerationService', () => {
     const createdMetadata = f.prisma.asset.create.mock.calls[0][0].data.metadata;
     expect(createdMetadata.storyVisual).toMatchObject({
       replacesAssetId: assetId,
-      visualBibleVersion: 'story-visual-bible-v4',
+      visualBibleVersion: 'story-visual-bible-v5',
       effectivePromptSha256: expect.stringMatching(/^[a-f0-9]{64}$/),
-      requestContractVersion: 'openai-image-request-v4',
+      requestContractVersion: 'openai-image-request-v5',
     });
     const effectivePromptSha256 = createdMetadata.storyVisual.effectivePromptSha256;
     expect(String(provider.mock.calls[1][0])).toContain(effectivePromptSha256);

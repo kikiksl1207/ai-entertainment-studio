@@ -41,7 +41,7 @@ import {
 const SOURCE_SCENE_KEY = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,159}$/;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_GENERATION_ATTEMPTS = 1;
-const IMAGE_REQUEST_CONTRACT_VERSION = 'openai-image-request-v4';
+const IMAGE_REQUEST_CONTRACT_VERSION = 'openai-image-request-v5';
 const IMAGE_MODELS = new Set(['gpt-image-2', 'gpt-image-1.5', 'gpt-image-1-mini']);
 const IMAGE_QUALITIES = new Set(['low', 'medium', 'high']);
 const IMAGE_SIZES = new Map([
@@ -610,7 +610,7 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
       if (!replaceStale) return this.readyResult(sourceSceneKey, existing.assetId, true);
       effective = await this.effectiveVisualPrompt(workId, releaseId, releaseChecksum, prompt.promptText);
       const identity = await this.readyAssetIdentity(existing.assetId);
-      const requestedIdentity = this.requestedVisualIdentity();
+      const requestedIdentity = this.requestedVisualIdentity(effective.quality);
       if (this.visualIdentityCurrent(identity, effective)) {
         return this.readyResult(sourceSceneKey, existing.assetId, true);
       }
@@ -656,7 +656,7 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
         data: {
           provider: 'openai',
           model: this.model(),
-          quality: this.quality(),
+          quality: effective.quality,
           size: this.size(),
           lastErrorCode: claimCode,
           startedAt: new Date(),
@@ -691,6 +691,7 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
       return { status: 'failed', sourceSceneKey, retryable: false } as const;
     }
     const storageRecovery = this.isStorageRecovery(existing);
+    effective ??= await this.effectiveVisualPrompt(workId, releaseId, releaseChecksum, prompt.promptText);
     const claimed = replacedAssetId ? { count: 1 } : await this.prisma.storyVisualGeneration.updateMany({
       where: {
         id: existing.id,
@@ -705,7 +706,7 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
         status: 'generating',
         provider: 'openai',
         model: this.model(),
-        quality: this.quality(),
+        quality: effective.quality,
         size: this.size(),
         ...(storageRecovery ? {} : { attemptCount: { increment: 1 } }),
         lastErrorCode: null,
@@ -720,8 +721,13 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
     }
 
     try {
-      effective ??= await this.effectiveVisualPrompt(workId, releaseId, releaseChecksum, prompt.promptText);
-      const image = await this.generateImage(effective.prompt, variant.references, signal, effective.workReference);
+      const image = await this.generateImage(
+        effective.prompt,
+        variant.references,
+        effective.quality,
+        signal,
+        effective.workReference,
+      );
       const checksumSha256 = this.sha256Hex(image);
       const storage = await this.uploadImage(
         workId,
@@ -729,6 +735,7 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
         sourceSceneKey,
         variant.key,
         effective.sha256,
+        effective.quality,
         image,
       );
       const asset = await this.prisma.$transaction(async tx => {
@@ -751,7 +758,7 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
               effectivePromptSha256: effective!.sha256,
               ...(effective!.workReference ? { workVisualReferenceChecksum: effective!.workReference.checksum } : {}),
               ...(replacedAssetId ? { replacesAssetId: replacedAssetId } : {}),
-              provider: 'openai', model: this.model(), quality: this.quality(), size: this.size(),
+              provider: 'openai', model: this.model(), quality: effective!.quality, size: this.size(),
               requestContractVersion: IMAGE_REQUEST_CONTRACT_VERSION, ...inlineImage },
           },
         } });
@@ -768,7 +775,7 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
         return created;
       });
       this.logger.log({ event: 'story_visual_generated', workId, sourceSceneKey,
-        promptSha256: prompt.promptSha256, model: this.model(), quality: this.quality(), bytes: image.length });
+        promptSha256: prompt.promptSha256, model: this.model(), quality: effective.quality, bytes: image.length });
       return this.readyResult(sourceSceneKey, asset.id, false);
     } catch (error) {
       const code = signal?.aborted ? 'PROVIDER_OUTCOME_UNKNOWN' : this.safeGenerationError(error);
@@ -797,15 +804,16 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
       this.fixedStoryCoverReference(workId),
     ]);
     const prompt = composeStoryVisualPrompt(bible, scenePrompt);
-    return { bible, prompt, workReference,
+    const quality = workReference ? this.fixedStoryQuality() : this.quality();
+    return { bible, prompt, workReference, quality,
       sha256: this.sha256Hex(JSON.stringify([prompt, workReference?.checksum ?? null])) };
   }
 
-  private requestedVisualIdentity() {
+  private requestedVisualIdentity(quality: string) {
     return {
       provider: 'openai',
       model: this.model(),
-      quality: this.quality(),
+      quality,
       size: this.size(),
       requestContractVersion: IMAGE_REQUEST_CONTRACT_VERSION,
     };
@@ -815,7 +823,7 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
     identity: Awaited<ReturnType<StoryVisualGenerationService['readyAssetIdentity']>>,
     effective: Awaited<ReturnType<StoryVisualGenerationService['effectiveVisualPrompt']>>,
   ) {
-    const requested = this.requestedVisualIdentity();
+    const requested = this.requestedVisualIdentity(effective.quality);
     return identity.effectivePromptSha256 === effective.sha256 &&
       identity.visualBibleFingerprint === effective.bible.fingerprint &&
       identity.visualBibleVersion === effective.bible.version &&
@@ -972,17 +980,18 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
   private async generateImage(
     prompt: string,
     references: StoryParticipantVisualReference[],
+    quality: string,
     signal?: AbortSignal,
     workReference?: StoryWorkVisualReference | null,
   ) {
     const timeout = AbortSignal.timeout(this.numberFromEnv('STORY_IMAGE_GENERATION_TIMEOUT_MS', 120_000));
     const requestSignal = signal ? AbortSignal.any([signal, timeout]) : timeout;
     const response = references.length || workReference
-      ? await this.generateImageFromReferences(prompt, references, requestSignal, workReference)
+      ? await this.generateImageFromReferences(prompt, references, quality, requestSignal, workReference)
       : await fetch('https://api.openai.com/v1/images/generations', {
           method: 'POST',
           headers: { authorization: `Bearer ${this.requiredEnv('OPENAI_API_KEY')}`, 'content-type': 'application/json' },
-          body: JSON.stringify({ model: this.model(), prompt, n: 1, size: this.size(), quality: this.quality(),
+          body: JSON.stringify({ model: this.model(), prompt, n: 1, size: this.size(), quality,
             output_format: 'webp', output_compression: 86, moderation: 'auto' }),
           signal: requestSignal,
         });
@@ -999,6 +1008,7 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
   private async generateImageFromReferences(
     prompt: string,
     references: StoryParticipantVisualReference[],
+    quality: string,
     signal: AbortSignal,
     workReference?: StoryWorkVisualReference | null,
   ) {
@@ -1019,7 +1029,7 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
       ] : []),
     ].join('\n'));
     form.set('size', this.size());
-    form.set('quality', this.quality());
+    form.set('quality', quality);
     form.set('output_format', 'webp');
     form.set('output_compression', '86');
     if (workReference) {
@@ -1111,6 +1121,7 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
     sourceSceneKey: string,
     variantKey: string,
     promptSha256: string,
+    quality: string,
     image: Buffer,
   ) {
     const provider = this.requiredEnv('OBJECT_STORAGE_PROVIDER');
@@ -1119,7 +1130,7 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
     const safeModel = this.model().replace(/[^a-zA-Z0-9._-]/g, '-');
     const variantSha256 = this.sha256Hex(variantKey).slice(0, 16);
     const key = [prefix, 'story-visuals', workId, releaseId, sourceSceneKey,
-      `${variantSha256}-${promptSha256}-${safeModel}-${this.quality()}-${this.size()}.webp`].filter(Boolean).join('/');
+      `${variantSha256}-${promptSha256}-${safeModel}-${quality}-${this.size()}.webp`].filter(Boolean).join('/');
     const url = this.presignedPutUrl(provider, key, 'image/webp');
     const response = await fetch(url, { method: 'PUT', headers: { 'content-type': 'image/webp' },
       body: image as unknown as BodyInit });
@@ -1177,6 +1188,14 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
   private quality() {
     const value = this.config.get<string>('OPENAI_IMAGE_QUALITY') || 'medium';
     if (!IMAGE_QUALITIES.has(value)) throw new BadRequestException('OPENAI_IMAGE_QUALITY is not allowed');
+    return value;
+  }
+
+  private fixedStoryQuality() {
+    const value = this.config.get<string>('OPENAI_FIXED_STORY_IMAGE_QUALITY') || 'high';
+    if (!IMAGE_QUALITIES.has(value)) {
+      throw new BadRequestException('OPENAI_FIXED_STORY_IMAGE_QUALITY is not allowed');
+    }
     return value;
   }
 

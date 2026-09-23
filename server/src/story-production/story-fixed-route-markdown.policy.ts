@@ -49,8 +49,11 @@ export const FIXED_ROUTE_STORIES: Record<FixedRouteStoryKey, FixedRouteStoryConf
       characters: [
         { name: '윤해원', appearance: '28-year-old Korean woman with an oval face, dark brown eyes, long straight black hair, realistic adult proportions, and a practical dark rain jacket; the red cassette is her recurring prop.' },
         { name: '누리', appearance: 'Lean young adult Korean-presenting man with pale skin, a narrow face, dark eyes, tousled short black hair, realistic adult proportions, and simple dark clothing.' },
+        { name: '윤해주', appearance: 'Korean woman seven years older than Yun Hae-won, left-handed, with a mature resemblance to Hae-won. She disappeared at age nineteen; preserve the same face, age impression, and understated island clothing whenever she appears.' },
+        { name: '백문옥', appearance: 'Older Korean island innkeeper with a weathered but composed face, practical layered work clothes, and the grounded bearing of someone accustomed to a fishing village.' },
+        { name: '정세라', appearance: 'Adult Korean woman and sound-archive colleague with neatly tied dark hair, a gray archive T-shirt or practical field clothes, blue jeans, and pale cotton handling gloves when working with recordings.' },
       ],
-      prohibited: ['anime, webtoon, chibi, glossy 3D render, fashion-poster posing, non-Korean facial redesigns'],
+      prohibited: ['anime, webtoon, chibi, glossy 3D render, fashion-poster posing, non-Korean facial redesigns, generic beauty-filter faces, plastic or waxy skin'],
     },
   },
   rebellion: {
@@ -71,8 +74,12 @@ export const FIXED_ROUTE_STORIES: Record<FixedRouteStoryKey, FixedRouteStoryConf
       characters: [
         { name: '연서린', appearance: 'Adult East Asian woman with a pale oval face, dark brown eyes, long black hair loosely braided and pinned, and a deep forest-green archival coat with fine bronze embroidery; a faint red half-moon script mark sits at the left collarbone when visible.' },
         { name: '레반 아르켈', appearance: 'Tall adult East Asian man with an angular pale face, dark eyes, swept black hair, and a black imperial high-collar coat with silver embroidery and a black fur mantle; a faint vertical red script mark lies over the sternum when visible.' },
+        { name: '도하', appearance: 'Adult East Asian woman with practical dark hair tucked into a scarf, alert calculating eyes, plain layered street clothes, and a bread bag or copied petitions when the scene calls for them.' },
+        { name: '미레아 아르켈', appearance: 'Adult East Asian imperial princess serving as a field medic, with composed features, sleeves rolled for work, historically grounded medical clothing, and needle-and-thread equipment rather than ceremonial posing.' },
+        { name: '소운', appearance: 'Seventeen-year-old East Asian boy who looks younger, with a slight build, a worn wet cap, plain provincial clothes, and cautious posture; do not age him into an adult.' },
+        { name: '오르단 베르크', appearance: 'Older East Asian chancellor with a severe angular face, controlled posture, a heavy gray fur mantle, and restrained high-ranking imperial dress.' },
       ],
-      prohibited: ['anime, webtoon, chibi, glossy 3D render, modern fashion, generic medieval-European redesigns, character face or costume changes between scenes'],
+      prohibited: ['anime, webtoon, chibi, glossy 3D render, modern fashion, generic medieval-European redesigns, character face or costume changes between scenes, generic beauty-filter faces, plastic or waxy skin'],
     },
   },
 };
@@ -99,7 +106,7 @@ export type FixedRoutePublicationSource = {
       choiceKey: string;
       label: string;
       position: number;
-      routeKind: 'writer_original';
+      routeKind: 'writer_original' | 'generation_required';
       targetPartKey: string | null;
       targetEndingKey: 'author_main' | null;
     }>;
@@ -159,14 +166,7 @@ export function prepareFixedRoutePublicationSource(
       actNumber: Math.floor(index / 10) + 1,
       position: index + 1,
       beats,
-      choices: [{
-        choiceKey: index === headings.length - 1 ? 'finish' : 'next',
-        label: index === headings.length - 1 ? '이 이야기를 마친다' : '다음 장으로',
-        position: 1,
-        routeKind: 'writer_original' as const,
-        targetPartKey: next ? partKey(next) : null,
-        targetEndingKey: next ? null : 'author_main' as const,
-      }],
+      choices: fixedRouteSuggestedChoices(config.storyKey, heading.title, index + 1, next ? partKey(next) : null),
     };
   });
   const prompts = parts.flatMap((part) => {
@@ -189,6 +189,68 @@ export function prepareFixedRoutePublicationSource(
     parts,
     prompts,
   };
+}
+
+export function fixedRouteSuggestedChoices(
+  storyKey: FixedRouteStoryKey,
+  partTitle: string,
+  partPosition: number,
+  nextPartKey: string | null,
+) {
+  const final = nextPartKey === null;
+  const alternatives = storyKey === 'monster'
+    ? monsterAlternativeChoices(partTitle, partPosition, final)
+    : rebellionAlternativeChoices(partTitle, partPosition, final);
+  return [
+    {
+      choiceKey: final ? 'finish' : 'next',
+      label: final ? '작가가 정한 결말을 선택한다' : '원작의 흐름대로 다음 장으로 간다',
+      position: 1,
+      routeKind: 'writer_original' as const,
+      targetPartKey: nextPartKey,
+      targetEndingKey: final ? 'author_main' as const : null,
+    },
+    ...alternatives.map((label, index) => ({
+      choiceKey: index === 0 ? 'branch-b' : 'branch-c',
+      label,
+      position: index + 2,
+      routeKind: 'generation_required' as const,
+      targetPartKey: null,
+      targetEndingKey: null,
+    })),
+  ];
+}
+
+function monsterAlternativeChoices(partTitle: string, partPosition: number, final: boolean) {
+  if (final) return [
+    '지워진 이름을 되찾기 위해 마지막 대가를 감수한다',
+    '이름 대신 곁의 사람을 선택하고 새로운 결말로 향한다',
+  ];
+  const choices = [
+    [`‘${partTitle}’에서 드러난 단서를 의심하고 숨겨진 기록을 추적한다`, '단서보다 곁의 사람을 먼저 지키며 다른 길을 택한다'],
+    ['사라진 이름의 흔적을 따라 금지된 장소로 들어간다', '추적을 멈추고 사건의 피해자를 안전한 곳으로 옮긴다'],
+    ['누리의 설명을 거부하고 해원만의 방식으로 확인한다', '누리와 정보를 나누고 함께 새로운 계획을 세운다'],
+    ['관계자에게 진실을 공개하고 정면으로 답을 요구한다', '진실을 숨긴 채 상대의 다음 행동을 기다린다'],
+    ['붉은 카세트의 목소리를 다시 재생해 위험을 감수한다', '카세트를 봉인하고 현재의 관계를 지키는 선택을 한다'],
+    ['섬의 규칙을 깨고 지워진 사람의 기억을 되살린다', '섬을 떠나 바깥에서 기억을 되찾을 방법을 찾는다'],
+  ];
+  return choices[(partPosition - 1) % choices.length];
+}
+
+function rebellionAlternativeChoices(partTitle: string, partPosition: number, final: boolean) {
+  if (final) return [
+    '건국 헌장을 공개하고 왕권과 정면으로 맞서는 결말을 택한다',
+    '기록을 봉인하고 서로를 지키는 새로운 질서를 만든다',
+  ];
+  const choices = [
+    [`‘${partTitle}’의 기록을 공개하고 권력에 정면으로 맞선다`, '증거를 숨긴 채 반대 세력과 먼저 협상한다'],
+    ['결문의 지시를 거부하고 직접 진실을 검증한다', '결문을 이용해 상대의 의도를 시험한다'],
+    ['레반과 공식적으로 공조해 황실 기록을 연다', '레반을 배제하고 서린의 사람들만으로 움직인다'],
+    ['청원인의 증언을 즉시 공개한다', '증언을 보호하기 위해 거짓 정보를 흘린다'],
+    ['왕실 규칙을 깨고 지방 세력과 손을 잡는다', '수도에 남아 권력 내부를 갈라놓는다'],
+    ['반역의 증거를 모두에게 배포한다', '결정적 증거 하나만 남기고 나머지를 없앤다'],
+  ];
+  return choices[(partPosition - 1) % choices.length];
 }
 
 function distributePrompts<T extends { sourceSceneKey: string }>(beats: T[], prompts: string[]) {

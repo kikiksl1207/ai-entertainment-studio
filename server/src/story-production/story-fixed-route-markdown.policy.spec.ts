@@ -76,7 +76,7 @@ describe('approved fixed-route Markdown publication source', () => {
     }
   });
 
-  it('preserves the complete manuscript and materializes ordered scenes with linear navigation', () => {
+  it('preserves the complete manuscript and materializes one authored route plus two generated branches', () => {
     const f = fixture();
     const result = prepareFixedRoutePublicationSource(f.config, f.manuscript, f.prompts);
 
@@ -86,14 +86,19 @@ describe('approved fixed-route Markdown publication source', () => {
       '첫 장면 본문.',
       '두 번째 장면 본문.',
     ]);
+    expect(result.parts[0].choices).toHaveLength(3);
     expect(result.parts[0].choices[0]).toMatchObject({
-      label: '다음 장으로',
+      label: '원작의 흐름대로 다음 장으로 간다',
       routeKind: 'writer_original',
       targetPartKey: 'part-02',
       targetEndingKey: null,
     });
+    expect(result.parts[0].choices.slice(1)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ choiceKey: 'branch-b', routeKind: 'generation_required', targetPartKey: null }),
+      expect.objectContaining({ choiceKey: 'branch-c', routeKind: 'generation_required', targetPartKey: null }),
+    ]));
     expect(result.parts.at(-1)?.choices[0]).toMatchObject({
-      label: '이 이야기를 마친다',
+      label: '작가가 정한 결말을 선택한다',
       targetPartKey: null,
       targetEndingKey: 'author_main',
     });

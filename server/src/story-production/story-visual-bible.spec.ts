@@ -27,6 +27,7 @@ describe('story visual bible', () => {
     expect(first.privatePrompt).toContain('floating or disembodied heads');
     expect(first.privatePrompt).toContain('fill the entire image edge to edge');
     expect(first.privatePrompt).toContain('isolated character cutouts');
+    expect(first.privatePrompt).toContain('plastic or waxy skin');
     expect(first.privatePrompt).toContain('Adjutant Han wears the same indigo official robe');
     expect(first.privatePrompt).toContain('이순신은 검은 수염과 붉은 철릭');
     expect(Array.from(first.privatePrompt).length).toBeLessThanOrEqual(7_000);

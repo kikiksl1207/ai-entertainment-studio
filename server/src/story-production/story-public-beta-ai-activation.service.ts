@@ -6,10 +6,16 @@ import { INTERNAL_GENERATION_COST_TREATMENT } from '../story-settlement/content-
 import { STORY_AI_QUALITY_RUBRIC } from './dto/story-ai-activation.dto';
 import type { ActivatePublishedStoryAiDto } from './dto/story-publication-intake.dto';
 import { StoryAiActivationService } from './story-ai-activation.service';
+import {
+  fixedRouteSuggestedChoices,
+  type FixedRouteStoryKey,
+} from './story-fixed-route-markdown.policy';
 
 const STORY_KEYS = {
   imjin: 'records-of-the-burning-sea-imjin-war',
   norse: 'norse-myth-loki-crossroads',
+  monster: 'the-monster-that-did-not-eat-my-name',
+  rebellion: 'we-wrote-rebellion-on-each-others-bodies',
 } as const;
 const STORY_LOCALES = ['ko', 'en', 'ja', 'zh-Hans', 'zh-Hant'];
 const RATE_CARD_ID = 'ed9b8bf1-df49-4f2d-9f62-6aeb9c5ed4f6';
@@ -147,6 +153,29 @@ export class StoryPublicBetaAiActivationService {
       expiresAt: expiresAt.toISOString(),
       legalActivationConfirmed: true,
     });
+    if (storyKey === 'monster' || storyKey === 'rebellion') {
+      await this.prisma.$transaction(async (tx) => {
+        const parts = await tx.storyPart.findMany({
+          where: { workId: prepared.work.id, status: 'published', fixtureSource: false },
+          orderBy: [{ position: 'asc' }, { id: 'asc' }],
+          select: { id: true, position: true, title: true },
+        });
+        const addedChoiceCount = await this.ensureFixedRouteSuggestedChoices(tx, storyKey, parts);
+        await tx.auditEvent.create({ data: {
+          actorUserId,
+          actorType: 'admin',
+          action: 'story_public_beta.fixed_route_choices.materialized',
+          targetType: 'story_work',
+          targetId: prepared.work.id,
+          metadata: {
+            storyKey,
+            releaseId: prepared.release.id,
+            choicePolicy: 'writer_original_plus_two_generated_v1',
+            addedChoiceCount,
+          },
+        } });
+      });
+    }
     return {
       storyKey,
       status: 'active',
@@ -165,8 +194,74 @@ export class StoryPublicBetaAiActivationService {
   }
 
   private storyKey(value: string): StoryKey {
-    if (value !== 'imjin' && value !== 'norse') throw new BadRequestException('Unsupported story key');
-    return value;
+    if (!Object.prototype.hasOwnProperty.call(STORY_KEYS, value)) {
+      throw new BadRequestException('Unsupported story key');
+    }
+    return value as StoryKey;
+  }
+
+  private async ensureFixedRouteSuggestedChoices(
+    tx: Tx,
+    storyKey: FixedRouteStoryKey,
+    parts: Array<{ id: string; position: number; title: Prisma.JsonValue }>,
+  ) {
+    const scenes = await tx.storyScene.findMany({
+      where: { partId: { in: parts.map((part) => part.id) }, status: 'published', fixtureSource: false },
+      orderBy: [{ position: 'asc' }, { id: 'asc' }],
+      select: { id: true, partId: true },
+    });
+    const sceneByPart = new Map(scenes.map((scene) => [scene.partId, scene.id]));
+    if (sceneByPart.size !== parts.length) {
+      throw new ConflictException('Published fixed-route story scene binding is incomplete');
+    }
+    let addedChoiceCount = 0;
+    for (const [index, part] of parts.entries()) {
+      const sceneId = sceneByPart.get(part.id)!;
+      const title = this.localized(part.title, LOCALE) || `파트 ${part.position}`;
+      const template = fixedRouteSuggestedChoices(
+        storyKey,
+        title,
+        part.position,
+        parts[index + 1] ? `part-${parts[index + 1].position}` : null,
+      );
+      const canonical = await tx.storyChoice.findFirst({
+        where: { sceneId, routeKind: 'writer_original' },
+        orderBy: [{ position: 'asc' }, { id: 'asc' }],
+      });
+      if (!canonical) throw new ConflictException('Published fixed-route story canonical choice is missing');
+      await tx.storyChoice.update({
+        where: { id: canonical.id },
+        data: { label: { ko: template[0].label }, position: 1 },
+      });
+      for (const choice of template.slice(1)) {
+        const prior = await tx.storyChoice.findUnique({
+          where: { sceneId_choiceKey: { sceneId, choiceKey: choice.choiceKey } },
+        });
+        await tx.storyChoice.upsert({
+          where: { sceneId_choiceKey: { sceneId, choiceKey: choice.choiceKey } },
+          create: {
+            sceneId,
+            choiceKey: choice.choiceKey,
+            position: choice.position,
+            label: { ko: choice.label },
+            routeKind: 'generation_required',
+            targetSceneId: null,
+            targetEndingKey: null,
+            declaredRejoinSceneId: null,
+          },
+          update: {
+            position: choice.position,
+            label: { ko: choice.label },
+            routeKind: 'generation_required',
+            targetSceneId: null,
+            targetEndingKey: null,
+            declaredRejoinSceneId: null,
+          },
+        });
+        if (!prior) addedChoiceCount += 1;
+      }
+    }
+    return addedChoiceCount;
   }
 
   private async ensureRateCard(tx: Tx, actorUserId: string, effectiveAt: Date) {
