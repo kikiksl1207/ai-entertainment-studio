@@ -47,13 +47,17 @@ export class StoryPublicBetaAiActivationService {
       return { storyKey, status: 'unavailable', active: false };
     }
     const activation = await this.latestValidActivation(this.prisma, work.id, work.activeReleaseId);
+    const choicesReady = activation && (storyKey === 'monster' || storyKey === 'rebellion')
+      ? await this.fixedRouteChoicesReady(this.prisma, work.id)
+      : Boolean(activation);
+    const readyActivation = choicesReady ? activation : null;
     return {
       storyKey,
-      status: activation ? 'active' : 'inactive',
-      active: Boolean(activation),
-      locale: activation?.locale ?? LOCALE,
-      region: activation?.region ?? REGION,
-      expiresAt: activation?.expiresAt ?? null,
+      status: readyActivation ? 'active' : 'inactive',
+      active: Boolean(readyActivation),
+      locale: readyActivation?.locale ?? LOCALE,
+      region: readyActivation?.region ?? REGION,
+      expiresAt: readyActivation?.expiresAt ?? null,
     };
   }
 
@@ -117,6 +121,33 @@ export class StoryPublicBetaAiActivationService {
       return { work, release, manuscript, analysis, consent, rights, rateCard, capability };
     });
 
+    if (storyKey === 'monster' || storyKey === 'rebellion') {
+      await this.prisma.$transaction(async (tx) => {
+        const parts = await tx.storyPart.findMany({
+          where: { workId: prepared.work.id, status: 'published', fixtureSource: false },
+          orderBy: [{ position: 'asc' }, { id: 'asc' }],
+          select: { id: true, position: true, title: true },
+        });
+        const addedChoiceCount = await this.ensureFixedRouteSuggestedChoices(tx, storyKey, parts);
+        if (!(await this.fixedRouteChoicesReady(tx, prepared.work.id))) {
+          throw new ConflictException('Published fixed-route story requires three choices per part');
+        }
+        await tx.auditEvent.create({ data: {
+          actorUserId,
+          actorType: 'admin',
+          action: 'story_public_beta.fixed_route_choices.materialized',
+          targetType: 'story_work',
+          targetId: prepared.work.id,
+          metadata: {
+            storyKey,
+            releaseId: prepared.release.id,
+            choicePolicy: 'writer_original_plus_two_generated_v1',
+            addedChoiceCount,
+          },
+        } });
+      });
+    }
+
     const existing = await this.latestValidActivation(
       this.prisma,
       prepared.work.id,
@@ -153,29 +184,6 @@ export class StoryPublicBetaAiActivationService {
       expiresAt: expiresAt.toISOString(),
       legalActivationConfirmed: true,
     });
-    if (storyKey === 'monster' || storyKey === 'rebellion') {
-      await this.prisma.$transaction(async (tx) => {
-        const parts = await tx.storyPart.findMany({
-          where: { workId: prepared.work.id, status: 'published', fixtureSource: false },
-          orderBy: [{ position: 'asc' }, { id: 'asc' }],
-          select: { id: true, position: true, title: true },
-        });
-        const addedChoiceCount = await this.ensureFixedRouteSuggestedChoices(tx, storyKey, parts);
-        await tx.auditEvent.create({ data: {
-          actorUserId,
-          actorType: 'admin',
-          action: 'story_public_beta.fixed_route_choices.materialized',
-          targetType: 'story_work',
-          targetId: prepared.work.id,
-          metadata: {
-            storyKey,
-            releaseId: prepared.release.id,
-            choicePolicy: 'writer_original_plus_two_generated_v1',
-            addedChoiceCount,
-          },
-        } });
-      });
-    }
     return {
       storyKey,
       status: 'active',
@@ -262,6 +270,25 @@ export class StoryPublicBetaAiActivationService {
       }
     }
     return addedChoiceCount;
+  }
+
+  private async fixedRouteChoicesReady(client: PrismaService | Tx, workId: string) {
+    const parts = await client.storyPart.findMany({
+      where: { workId, status: 'published', fixtureSource: false },
+      select: { id: true },
+    });
+    if (!parts.length) return false;
+    const scenes = await client.storyScene.findMany({
+      where: { partId: { in: parts.map((part) => part.id) }, status: 'published', fixtureSource: false },
+      select: { id: true, partId: true },
+    });
+    if (scenes.length !== parts.length || new Set(scenes.map((scene) => scene.partId)).size !== parts.length) return false;
+    const counts = await client.storyChoice.groupBy({
+      by: ['sceneId'],
+      where: { sceneId: { in: scenes.map((scene) => scene.id) } },
+      _count: { _all: true },
+    });
+    return counts.length === scenes.length && counts.every((count) => count._count._all === 3);
   }
 
   private async ensureRateCard(tx: Tx, actorUserId: string, effectiveAt: Date) {
