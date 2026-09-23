@@ -113,7 +113,8 @@ test('visual source: image settlement cannot rerender text, advance progress, or
   assert.match(css, /\.story-player-stage img\[hidden\],\s*\.story-player-no-visual\[hidden\] \{ display: none; \}/);
   assert.match(css, /\.story-player-visual-layers,\s*\.story-player-background-layer,\s*\.story-player-background/);
   assert.match(css, /font-size: 17px;\s*font-weight: 400;\s*line-height: 1.82;/);
-  assert.match(css, /\.story-hashtag-filters \{[^}]*overflow-x: auto;[^}]*scrollbar-width: none;[^}]*-ms-overflow-style: none;/);
-  assert.match(css, /\.story-hashtag-filters::\-webkit-scrollbar \{ display: none; \}/);
+  assert.match(css, /\.story-hashtag-filters \{[^}]*flex-wrap: wrap;[^}]*overflow: visible;/);
+  assert.match(css, /\.story-hashtag-filters::\-webkit-scrollbar \{ width: 0; height: 0; \}/);
+  assert.match(css, /@media \(max-width: 680px\)[\s\S]*\.story-hashtag-filters \{[^}]*flex-wrap: nowrap;[^}]*overflow-x: auto;[^}]*scrollbar-width: none;/);
   assert.doesNotMatch(source, /readBeatKeys/);
 });
