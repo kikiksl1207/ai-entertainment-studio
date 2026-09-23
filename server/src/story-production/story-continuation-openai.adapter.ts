@@ -103,6 +103,7 @@ export class OpenAiStoryContinuationProvider extends StoryContinuationProvider {
     try { value = record(JSON.parse(texts[0])); } catch { fail('provider_malformed_output'); }
     exactKeys(value!, ['title', 'beats', 'nextChoices', 'ending']);
     if (!Array.isArray(value!.beats) || !Array.isArray(value!.nextChoices)) fail('provider_malformed_output');
+    if (value!.nextChoices.length > 0 && value!.nextChoices.length !== 3) fail('provider_output_route_invalid');
     for (const beat of value!.beats as unknown[]) exactKeys(record(beat), ['beatType', 'content']);
     for (const choice of value!.nextChoices as unknown[]) exactKeys(record(choice), ['choiceKey', 'label']);
     if (value!.ending !== null) {

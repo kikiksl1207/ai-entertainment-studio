@@ -27,7 +27,11 @@ function request(): StoryContinuationProviderRequest {
 function output() {
   return {
     title: { en: 'The Left Path' }, beats: [{ beatType: 'paragraph', content: { en: 'The path leads to a gate.' } }],
-    nextChoices: [{ choiceKey: 'open-gate', label: { en: 'Open the gate' } }], ending: null as { endingKey: string } | null,
+    nextChoices: [
+      { choiceKey: 'open-gate', label: { en: 'Open the gate' } },
+      { choiceKey: 'ask-guard', label: { en: 'Question the guard' } },
+      { choiceKey: 'turn-back', label: { en: 'Turn back' } },
+    ], ending: null as { endingKey: string } | null,
   };
 }
 
@@ -103,6 +107,7 @@ describe('OpenAiStoryContinuationProvider (fake transport only)', () => {
     expect(init.redirect).toBe('error');
     expect(body).toMatchObject({ model: config.model, store: false, stream: false, background: false, truncation: 'disabled', max_output_tokens: 500,
       text: { format: { type: 'json_schema', strict: true, schema: { additionalProperties: false, properties: { nextChoices: { maxItems: 3 } } } } } });
+    expect(body.instructions).toContain('exactly 3 distinct nextChoices');
     expect(body).not.toHaveProperty('tools');
     expect(body.text.format.schema.properties).not.toHaveProperty('visualManifest');
     expect(f.transport).toHaveBeenCalledTimes(1);
@@ -216,6 +221,8 @@ describe('OpenAiStoryContinuationProvider (fake transport only)', () => {
   it.each([
     { title: { ko: 'wrong locale' } }, { title: { en: 'right', ko: 'extra' } },
     { nextChoices: Array.from({ length: 4 }, (_, i) => ({ choiceKey: `c${i}`, label: { en: `Choice ${i}` } })) },
+    { nextChoices: output().nextChoices.slice(0, 1) },
+    { nextChoices: output().nextChoices.slice(0, 2) },
     { nextChoices: [], ending: null },
     { nextChoices: [], ending: { endingKey: '' } },
     { visualManifest: { background: { publicAssetPath: 'https://invented.invalid/image.png' } } },

@@ -88,7 +88,7 @@ function prepareRequest(request: StoryContinuationProviderRequest, config: Story
       'Split long prose across multiple paragraph or dialogue beats; keep every individual beat below 8,000 Unicode characters.',
       `Write every title, beat and choice label exclusively in locale ${request.locale}; no translation or locale fallback.`,
       'Return JSON matching the schema. Produce 1 to 40 nonempty beats.',
-      'Return either 1 to 3 distinct nextChoices and ending=null, or nextChoices=[] and an ending.',
+      'Return exactly 3 distinct nextChoices and ending=null, or nextChoices=[] and an ending.',
       'Choice keys must match ^[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$; ending keys must start ai-.',
       'Do not invent canonical routes, claim publication authority, reveal secrets, or reproduce an entire manuscript.',
       'No tools, image generation, external requests, asset paths, usage claims or implementation metadata.',
