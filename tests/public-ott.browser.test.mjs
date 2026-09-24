@@ -23,8 +23,21 @@ function staticServer() {
       let path = normalize(join(root, pathname.replace(/^\/+/, '')));
       if (!path.startsWith(normalize(root))) throw new Error('outside root');
       if ((await stat(path)).isDirectory()) path = join(path, 'index.html');
+      if (extname(path) === '.mp4') {
+        const data = await readFile(path);
+        const headers = { 'content-type': 'video/mp4', 'accept-ranges': 'bytes' };
+        const range = /^bytes=(\d+)-(\d*)$/.exec(request.headers.range || '');
+        if (range) {
+          const start = Number(range[1]);
+          const end = range[2] ? Math.min(Number(range[2]), data.length - 1) : data.length - 1;
+          response.writeHead(206, { ...headers, 'content-range': `bytes ${start}-${end}/${data.length}`, 'content-length': end - start + 1 });
+          return response.end(request.method === 'HEAD' ? undefined : data.subarray(start, end + 1));
+        }
+        response.writeHead(200, { ...headers, 'content-length': data.length });
+        return response.end(request.method === 'HEAD' ? undefined : data);
+      }
       response.writeHead(200, { 'content-type': mime[extname(path)] || 'application/octet-stream' });
-      response.end(await readFile(path));
+      response.end(request.method === 'HEAD' ? undefined : await readFile(path));
     } catch {
       response.writeHead(404).end('not found');
     }
@@ -93,9 +106,9 @@ test('public discovery works at desktop and mobile widths and captures verified 
       assert.equal(await page.locator('#ottCatalog').isVisible(), false);
       assert.equal(await page.locator('video').count(), 1);
       assert.equal(await page.locator('audio, [data-private-preview]').count(), 0);
-      assert.equal(await page.locator('[data-ott-branch]').count(), 2);
+      assert.equal(await page.locator('[data-ott-branch]').count(), 3);
       assert.equal(await page.locator('#ottChoiceOverlay').isVisible(), false);
-      assert.equal(await page.locator('video').evaluate((video) => video.videoWidth === 720 && video.videoHeight === 1280), true);
+      assert.equal(await page.locator('video').evaluate((video) => video.videoWidth === 1280 && video.videoHeight === 720), true);
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
       await page.screenshot({ path: join(artifacts, `ott-${width}.png`), fullPage: false });
       await page.close();
@@ -104,25 +117,38 @@ test('public discovery works at desktop and mobile widths and captures verified 
     const page = await browser.newPage({ viewport: { width: 400, height: 844 } });
     await page.goto(`${base}/ott`, { waitUntil: 'domcontentloaded' });
     const video = page.locator('#ottDemoVideo');
+    await page.waitForFunction(() => document.getElementById('ottDemoVideo').duration > 0);
     await video.evaluate((element) => element.play());
+    await video.evaluate((element) => {
+      element.currentTime = element.duration - 2.5;
+      element.dispatchEvent(new Event('timeupdate'));
+    });
     await page.locator('#ottChoiceOverlay').waitFor({ state: 'visible', timeout: 20000 });
     assert.equal(await video.evaluate((element) => element.ended), false);
-    assert.equal(await page.locator('[data-ott-branch]:visible').count(), 2);
+    assert.equal(await page.locator('[data-ott-branch]:visible').count(), 3);
+    assert.equal(await page.locator('[data-ott-branch="ignore"]').isDisabled(), true);
+    assert.equal(await page.locator('[data-ott-branch="hesitate"]').isDisabled(), true);
     assert.equal(await page.evaluate(() => {
-      const second = document.querySelector('[data-ott-branch="escape"]').getBoundingClientRect();
+      const second = document.querySelector('[data-ott-branch="hesitate"]').getBoundingClientRect();
       const tabbar = document.querySelector('.mobile-tabbar').getBoundingClientRect();
       return second.bottom <= tabbar.top;
     }), true);
     await page.screenshot({ path: join(artifacts, 'ott-choice-400.png'), fullPage: false });
     await page.locator('[data-ott-branch="embrace"]').click();
-    assert.match(await video.evaluate((element) => element.currentSrc), /02-embrace-infection\.mp4$/);
+    assert.match(await video.evaluate((element) => element.currentSrc), /02-branch-embrace-original\.mp4$/);
     await page.locator('#ottChoiceOverlay').waitFor({ state: 'visible', timeout: 20000 });
-    await page.locator('[data-ott-branch="escape"]').click();
-    assert.match(await video.evaluate((element) => element.currentSrc), /03-close-door-escape-61d49072\.mp4$/);
-    await page.waitForFunction(() => Math.abs(document.getElementById('ottDemoVideo').duration - 14.666667) < .05);
-    await page.locator('#ottChoiceOverlay').waitFor({ state: 'visible', timeout: 20000 });
+    assert.equal(await page.locator('[data-ott-branch="ignore"]').isDisabled(), true);
     await page.locator('#ottRestart').click();
-    assert.match(await video.evaluate((element) => element.currentSrc), /01-choice-point\.mp4$/);
+    await page.waitForFunction(() => document.getElementById('ottDemoVideo').currentSrc.endsWith('/01-common-to-choice.mp4'));
+
+    await page.route('**/03-branch-ignore.mp4', (route) => route.fulfill({ status: 200, contentType: 'video/mp4', body: '' }));
+    await page.reload({ waitUntil: 'networkidle' });
+    assert.equal(await page.locator('[data-ott-branch="ignore"]').isEnabled(), true);
+    assert.equal(await page.locator('[data-ott-branch="hesitate"]').isDisabled(), true);
+    await page.route('**/04-branch-hesitate.mp4', (route) => route.fulfill({ status: 200, contentType: 'video/mp4', body: '' }));
+    await page.reload({ waitUntil: 'networkidle' });
+    assert.equal(await page.locator('[data-ott-branch="ignore"]').isEnabled(), true);
+    assert.equal(await page.locator('[data-ott-branch="hesitate"]').isEnabled(), true);
     await page.close();
   } finally {
     await browser?.close();

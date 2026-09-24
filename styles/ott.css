@@ -10,16 +10,17 @@
 .ott-demo-heading h2 { margin: 0; font-size: 27px; line-height: 1.3; }
 .ott-demo-heading p:last-child { margin: 8px 0 0; color: #c9d1db; font-size: 15px; line-height: 1.55; }
 .ott-demo-meta { flex: none; color: #9da8b5; font-size: 13px; }
-.ott-player-stage { display: flex; justify-content: center; align-items: center; max-width: 760px; min-height: 550px; margin-inline: auto; background: #050607; }
-.ott-video-wrap { position: relative; width: auto; max-width: 100%; height: min(72vh, 720px); aspect-ratio: 9 / 16; background: #000; }
+.ott-player-stage { display: flex; justify-content: center; align-items: center; max-width: 960px; margin-inline: auto; background: #050607; }
+.ott-video-wrap { position: relative; width: 100%; aspect-ratio: 16 / 9; background: #000; }
 .ott-video-wrap video { display: block; width: 100%; height: 100%; object-fit: contain; }
 .ott-choice-overlay[hidden], .ott-video-error[hidden] { display: none; }
 .ott-choice-overlay, .ott-video-error { position: absolute; inset: 0; display: flex; align-items: flex-end; justify-content: center; padding: 20px; background: rgba(2, 5, 8, .62); }
-.ott-choice-content { width: 100%; margin-bottom: 12px; }
+.ott-choice-content { width: min(100%, 560px); margin-bottom: 12px; }
 .ott-choice-content > p { margin: 0 0 14px; color: #fff; font-size: 18px; font-weight: 700; line-height: 1.45; text-shadow: 0 1px 8px #000; }
 .ott-choice-list { display: grid; gap: 9px; }
 .ott-choice-list button { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 55px; padding: 10px 14px; border: 1px solid rgba(255,255,255,.65); border-radius: 5px; background: rgba(13, 19, 24, .94); color: #fff; font: inherit; font-size: 15px; font-weight: 700; text-align: left; cursor: pointer; }
-.ott-choice-list button:hover, .ott-choice-list button:focus-visible { border-color: #6ed6c2; background: #19312e; }
+.ott-choice-list button:hover:not(:disabled), .ott-choice-list button:focus-visible { border-color: #6ed6c2; background: #19312e; }
+.ott-choice-list button:disabled { opacity: .55; cursor: not-allowed; }
 .ott-choice-list button span:first-child { display: grid; flex: none; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: #6ed6c2; color: #0b1515; font-size: 12px; }
 .ott-restart { margin-top: 12px; padding: 8px 0; border: 0; background: transparent; color: #fff; font: inherit; text-decoration: underline; cursor: pointer; }
 .ott-video-error { flex-direction: column; align-items: center; justify-content: center; gap: 12px; text-align: center; }
@@ -49,11 +50,19 @@
   .ott-demo-heading h2 { font-size: 23px; }
   .ott-demo-meta { display: block; margin-top: 8px; }
   .ott-player-stage { min-height: 0; }
-  .ott-video-wrap { height: min(70vh, 690px); }
+  .ott-video-wrap { min-height: 230px; }
   .ott-catalog { padding-top: 42px; padding-bottom: 72px; }
   .ott-section-heading { display: block; }
   .ott-section-heading h2 { font-size: 27px; }
   .ott-section-heading > p { margin-top: 12px; font-size: 14px; }
   .ott-grid { grid-template-columns: 1fr; }
 }
-@media (max-width: 410px) { .ott-choice-overlay { padding: 12px; } }
+@media (max-width: 410px) {
+  .ott-choice-overlay { padding: 8px; }
+  .ott-choice-content { margin-bottom: 0; }
+  .ott-choice-content > p { margin-bottom: 6px; font-size: 13px; }
+  .ott-choice-list { gap: 5px; }
+  .ott-choice-list button { min-height: 38px; padding: 5px 8px; gap: 8px; font-size: 12px; }
+  .ott-choice-list button span:first-child { width: 20px; height: 20px; }
+  .ott-restart { margin-top: 4px; padding: 2px 0; font-size: 12px; }
+}
