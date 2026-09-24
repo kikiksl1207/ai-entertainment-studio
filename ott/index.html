@@ -6,7 +6,7 @@
     <title>OTT | Lumina Stage</title>
     <link rel="canonical" href="https://www.lumina-stage.com/ott" />
     <link rel="stylesheet" href="/styles.css" />
-    <link rel="stylesheet" href="/styles/ott.css?v=ott-demo-20260924-landscape" />
+    <link rel="stylesheet" href="/styles/ott.css?v=ott-poster-20260924" />
     <meta name="description" content="공개와 감상 권한이 확인된 Lumina Stage OTT 작품을 찾아보세요." />
     <meta name="robots" content="index, follow" />
     <meta property="og:type" content="website" />
@@ -44,8 +44,24 @@
         <p id="ottDescription">선택에 따라 달라지는 영상을 만나보세요.</p>
       </section>
 
-      <section class="ott-demo" aria-labelledby="ottDemoTitle">
+      <section class="ott-browse shell" id="ottBrowse" aria-labelledby="ottBrowseTitle">
+        <h2 id="ottBrowseTitle">영상 작품</h2>
+        <div class="ott-poster-grid">
+          <button class="ott-poster-card" id="ottOpenDemo" type="button" aria-controls="ottDemo">
+            <span class="ott-poster-media"><img src="/assets/ott/mothers-choice/poster-common.jpg" alt="" /></span>
+            <span class="ott-poster-copy">
+              <strong id="ottPosterTitle">엄마의 선택</strong>
+              <span id="ottPosterSynopsis">도망치던 엄마 앞에 아이가 쓰러진다.</span>
+              <span class="ott-poster-meta" id="ottPosterMeta">한국어 음성 · 선택형 시연</span>
+              <span class="ott-poster-action" id="ottPosterWatch">시청하기</span>
+            </span>
+          </button>
+        </div>
+      </section>
+
+      <section class="ott-demo" id="ottDemo" aria-labelledby="ottDemoTitle" hidden>
         <div class="shell ott-demo-inner">
+          <button class="ott-back-to-list" id="ottBackToList" type="button">작품 목록</button>
           <div class="ott-demo-heading">
             <div>
               <p class="ott-kicker" id="ottDemoKicker">인터랙티브 영상 시연</p>
@@ -56,11 +72,27 @@
           </div>
           <div class="ott-player-stage">
             <div class="ott-video-wrap">
-              <video id="ottDemoVideo" controls playsinline preload="metadata"
+              <video id="ottDemoVideo" playsinline webkit-playsinline preload="none"
                 poster="/assets/ott/mothers-choice/poster-common.jpg"
                 aria-label="엄마의 선택 시연 영상">
                 <source src="/assets/ott/mothers-choice/01-common-to-choice.mp4" type="video/mp4" />
               </video>
+              <div class="ott-player-controls" id="ottPlayerControls">
+                <button type="button" id="ottTogglePlayback" aria-label="재생" title="재생">
+                  <svg class="ott-icon-play" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="6 3 20 12 6 21 6 3" /></svg>
+                  <svg class="ott-icon-pause" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="4" width="4" height="16" rx="1" /><rect x="15" y="4" width="4" height="16" rx="1" /></svg>
+                </button>
+                <input id="ottSeek" type="range" min="0" max="100" step="0.1" value="0" disabled aria-label="재생 위치" />
+                <span class="ott-time" id="ottTime">0:00 / 0:00</span>
+                <button type="button" id="ottToggleMute" aria-label="음소거" title="음소거">
+                  <svg class="ott-icon-volume" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" /><path d="M15.54 8.46a5 5 0 0 1 0 7.07" /><path d="M19.07 4.93a10 10 0 0 1 0 14.14" /></svg>
+                  <svg class="ott-icon-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" /><path d="m22 9-6 6M16 9l6 6" /></svg>
+                </button>
+                <button type="button" id="ottToggleFullscreen" aria-label="전체화면" title="전체화면">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3" /></svg>
+                </button>
+              </div>
+              <button class="ott-fullscreen-exit" id="ottFullscreenExit" type="button" hidden>전체화면 종료</button>
               <div class="ott-choice-overlay" id="ottChoiceOverlay" hidden>
                 <div class="ott-choice-content">
                   <p id="ottChoicePrompt">아이가 쓰러졌다. 엄마는 어떻게 할까?</p>
@@ -111,7 +143,7 @@
 
     <script src="/data/characters.js"></script>
     <script src="/app.js"></script>
-    <script src="/pages/ott.js?v=ott-demo-20260924-branch3"></script>
+    <script src="/pages/ott.js?v=ott-fullscreen-20260924"></script>
 
     <nav class="mobile-tabbar" aria-label="모바일 하단 메뉴">
       <a href="/" class="mobile-tab" data-tab-key="index"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.5L12 4l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg><span data-i18n="tab.home">홈</span></a>

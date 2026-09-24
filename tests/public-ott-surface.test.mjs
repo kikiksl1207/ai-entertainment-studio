@@ -11,6 +11,10 @@ test('public OTT surface is separate and never links owner-private playback', ()
   assert.match(script, /\/api\/v1\/ott/);
   assert.doesNotMatch(`${html}\n${script}`, /me\/ott-media|ott-private-preview|playback-session|private-files|storageKey|fileId/);
   assert.match(script, /viewing|감상 이용은 제공되지 않습니다/);
+  assert.match(html, /<video id="ottDemoVideo" playsinline webkit-playsinline/);
+  assert.doesNotMatch(html, /<video id="ottDemoVideo" controls/);
+  assert.match(script, /playerWrap\.requestFullscreen/);
+  assert.match(script, /is-pseudo-fullscreen/);
 });
 
 test('home and primary mobile surfaces expose the canonical six-item discovery order', () => {

@@ -4,8 +4,26 @@
 .ott-intro { padding-top: 34px; padding-bottom: 30px; }
 .ott-intro h1 { margin: 0; font-size: 36px; line-height: 1.15; letter-spacing: 0; }
 .ott-intro > p:last-child { margin: 9px 0 0; color: #c5ccd7; font-size: 15px; line-height: 1.6; }
+.ott-browse { padding-top: 12px; padding-bottom: 80px; }
+.ott-browse[hidden], .ott-demo[hidden] { display: none; }
+.ott-browse h2 { margin: 0 0 22px; font-size: 24px; line-height: 1.3; }
+.ott-poster-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 210px)); gap: 22px; }
+.ott-poster-card { display: block; width: 100%; min-width: 0; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.ott-poster-media { display: block; aspect-ratio: 2 / 3; overflow: hidden; border: 1px solid rgba(255,255,255,.18); border-radius: 6px; background: #14232b; }
+.ott-poster-media img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: 66% center; transition: transform .2s ease; }
+.ott-poster-card:hover .ott-poster-media, .ott-poster-card:focus-visible .ott-poster-media { border-color: #6ed6c2; }
+.ott-poster-card:hover img { transform: scale(1.03); }
+.ott-poster-card:focus-visible { outline: 2px solid #6ed6c2; outline-offset: 5px; border-radius: 4px; }
+.ott-poster-copy { display: flex; flex-direction: column; gap: 7px; padding-top: 12px; }
+.ott-poster-copy strong { font-size: 17px; line-height: 1.35; }
+.ott-poster-copy > span { color: #b9c4cf; font-size: 13px; line-height: 1.45; }
+.ott-poster-copy .ott-poster-meta { color: #95a4b1; font-size: 12px; }
+.ott-poster-copy .ott-poster-action { margin-top: 3px; color: #6ed6c2; font-weight: 700; }
 .ott-demo { background: #11161c; border-block: 1px solid rgba(255,255,255,.12); }
+.ott-demo { scroll-margin-top: 80px; }
 .ott-demo-inner { padding-top: 26px; padding-bottom: 32px; }
+.ott-back-to-list { margin-bottom: 18px; padding: 0; border: 0; background: transparent; color: #6ed6c2; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.ott-back-to-list:hover, .ott-back-to-list:focus-visible { text-decoration: underline; }
 .ott-demo-heading { display: flex; justify-content: space-between; align-items: end; gap: 24px; margin-bottom: 20px; }
 .ott-demo-heading h2 { margin: 0; font-size: 27px; line-height: 1.3; }
 .ott-demo-heading p:last-child { margin: 8px 0 0; color: #c9d1db; font-size: 15px; line-height: 1.55; }
@@ -13,8 +31,24 @@
 .ott-player-stage { display: flex; justify-content: center; align-items: center; max-width: 960px; margin-inline: auto; background: #050607; }
 .ott-video-wrap { position: relative; width: 100%; aspect-ratio: 16 / 9; background: #000; }
 .ott-video-wrap video { display: block; width: 100%; height: 100%; object-fit: contain; }
+.ott-player-controls[hidden], .ott-fullscreen-exit[hidden] { display: none; }
+.ott-player-controls { position: absolute; z-index: 2; inset: auto 0 0; display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 8px 12px; background: rgba(0,0,0,.78); }
+.ott-player-controls button { display: grid; flex: none; place-items: center; width: 34px; height: 34px; padding: 6px; border: 0; border-radius: 4px; background: transparent; color: #fff; cursor: pointer; }
+.ott-player-controls button:hover, .ott-player-controls button:focus-visible { background: rgba(255,255,255,.18); }
+.ott-player-controls svg { width: 20px; height: 20px; }
+.ott-player-controls .ott-icon-pause, .ott-player-controls .ott-icon-muted { display: none; }
+#ottTogglePlayback[data-playing="true"] .ott-icon-play, #ottToggleMute[data-muted="true"] .ott-icon-volume { display: none; }
+#ottTogglePlayback[data-playing="true"] .ott-icon-pause, #ottToggleMute[data-muted="true"] .ott-icon-muted { display: block; }
+.ott-player-controls input[type="range"] { flex: 1; min-width: 0; height: 24px; accent-color: #6ed6c2; cursor: pointer; }
+.ott-player-controls input[type="range"]:disabled { cursor: default; }
+.ott-time { flex: none; min-width: 78px; color: #fff; font-size: 12px; font-variant-numeric: tabular-nums; text-align: center; }
+.ott-fullscreen-exit { position: absolute; z-index: 5; top: 16px; right: 16px; padding: 8px 10px; border: 1px solid rgba(255,255,255,.7); border-radius: 4px; background: rgba(0,0,0,.8); color: #fff; font: inherit; font-size: 13px; cursor: pointer; }
+.ott-video-wrap:fullscreen, .ott-video-wrap.is-pseudo-fullscreen { width: 100vw; height: 100dvh; max-width: none; min-height: 0; aspect-ratio: auto; background: #000; }
+.ott-video-wrap.is-pseudo-fullscreen { position: fixed; z-index: 9999; inset: 0; }
+.ott-page.ott-fullscreen-active { overflow: hidden; }
+.ott-video-wrap:fullscreen .ott-choice-overlay, .ott-video-wrap.is-pseudo-fullscreen .ott-choice-overlay { align-items: center; }
 .ott-choice-overlay[hidden], .ott-video-error[hidden] { display: none; }
-.ott-choice-overlay, .ott-video-error { position: absolute; inset: 0; display: flex; align-items: flex-end; justify-content: center; padding: 20px; background: rgba(2, 5, 8, .62); }
+.ott-choice-overlay, .ott-video-error { position: absolute; z-index: 3; inset: 0; display: flex; align-items: flex-end; justify-content: center; padding: 20px; background: rgba(2, 5, 8, .62); }
 .ott-choice-content { width: min(100%, 560px); margin-bottom: 12px; }
 .ott-choice-content > p { margin: 0 0 14px; color: #fff; font-size: 18px; font-weight: 700; line-height: 1.45; text-shadow: 0 1px 8px #000; }
 .ott-choice-list { display: grid; gap: 9px; }
@@ -45,6 +79,9 @@
 @media (max-width: 768px) {
   .ott-intro { padding-top: 24px; padding-bottom: 22px; }
   .ott-intro h1 { font-size: 30px; }
+  .ott-browse { padding-top: 4px; padding-bottom: 64px; }
+  .ott-browse h2 { font-size: 21px; }
+  .ott-poster-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 16px; }
   .ott-demo-inner { padding-top: 22px; padding-bottom: 24px; }
   .ott-demo-heading { display: block; }
   .ott-demo-heading h2 { font-size: 23px; }
@@ -58,6 +95,9 @@
   .ott-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 410px) {
+  .ott-player-controls { gap: 4px; padding: 6px; }
+  .ott-player-controls button { width: 30px; height: 30px; padding: 5px; }
+  .ott-time { min-width: 70px; font-size: 11px; }
   .ott-choice-overlay { padding: 8px; }
   .ott-choice-content { margin-bottom: 0; }
   .ott-choice-content > p { margin-bottom: 6px; font-size: 13px; }
