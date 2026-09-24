@@ -106,6 +106,7 @@ test('public discovery works at desktop and mobile widths and captures verified 
     const video = page.locator('#ottDemoVideo');
     await video.evaluate((element) => element.play());
     await page.locator('#ottChoiceOverlay').waitFor({ state: 'visible', timeout: 20000 });
+    assert.equal(await video.evaluate((element) => element.ended), false);
     assert.equal(await page.locator('[data-ott-branch]:visible').count(), 2);
     assert.equal(await page.evaluate(() => {
       const second = document.querySelector('[data-ott-branch="escape"]').getBoundingClientRect();
@@ -117,7 +118,8 @@ test('public discovery works at desktop and mobile widths and captures verified 
     assert.match(await video.evaluate((element) => element.currentSrc), /02-embrace-infection\.mp4$/);
     await page.locator('#ottChoiceOverlay').waitFor({ state: 'visible', timeout: 20000 });
     await page.locator('[data-ott-branch="escape"]').click();
-    assert.match(await video.evaluate((element) => element.currentSrc), /03-close-door-escape\.mp4$/);
+    assert.match(await video.evaluate((element) => element.currentSrc), /03-close-door-escape-61d49072\.mp4$/);
+    await page.waitForFunction(() => Math.abs(document.getElementById('ottDemoVideo').duration - 14.666667) < .05);
     await page.locator('#ottChoiceOverlay').waitFor({ state: 'visible', timeout: 20000 });
     await page.locator('#ottRestart').click();
     assert.match(await video.evaluate((element) => element.currentSrc), /01-choice-point\.mp4$/);

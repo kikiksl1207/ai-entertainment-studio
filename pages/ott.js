@@ -23,7 +23,7 @@
   const videoError = document.getElementById("ottVideoError");
   const restart = document.getElementById("ottRestart");
   const clipRoot = "/assets/ott/mothers-choice/";
-  const clips = { common: "01-choice-point.mp4", embrace: "02-embrace-infection.mp4", escape: "03-close-door-escape.mp4" };
+  const clips = { common: "01-choice-point.mp4", embrace: "02-embrace-infection.mp4", escape: "03-close-door-escape-61d49072.mp4" };
   let currentClip = "common";
   const locale = () => {
     const value = String(window.LuminaI18n?.getLocale?.() || localStorage.getItem("lumina_locale") || navigator.language || "ko");
@@ -67,7 +67,8 @@
     demoVideo.play().catch(() => { /* Native controls remain available if autoplay is blocked. */ });
   }
 
-  demoVideo.addEventListener("ended", () => {
+  function showChoices() {
+    if (!choiceOverlay.hidden) return;
     const demo = demoCopy[locale()] || demoCopy.ko;
     document.getElementById("ottChoicePrompt").textContent = currentClip === "common" ? demo.prompt : demo.again;
     restart.hidden = currentClip === "common";
@@ -76,7 +77,11 @@
     choiceOverlay.hidden = false;
     choiceOverlay.scrollIntoView({ block: "center", behavior: "auto" });
     choiceOverlay.querySelector("[data-ott-branch]").focus({ preventScroll: true });
+  }
+  demoVideo.addEventListener("timeupdate", () => {
+    if (currentClip === "common" && Number.isFinite(demoVideo.duration) && demoVideo.duration - demoVideo.currentTime <= 2) showChoices();
   });
+  demoVideo.addEventListener("ended", showChoices);
   demoVideo.addEventListener("error", () => {
     choiceOverlay.hidden = true;
     videoError.hidden = false;
