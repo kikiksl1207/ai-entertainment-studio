@@ -56,6 +56,7 @@ const NORSE_SOURCE_MAP_SHA256 =
   'f6482c710acbc7b63f98783f3ca7f06ebc37d22f5566deb51e719f438eae6bc5';
 const DISABLED_RATE_CARD_VERSION = 'story-public-beta-disabled-ai-2026-09-22';
 const NORSE_BUNDLE_MAGIC = Buffer.from('LUMINA_NORSE_BUNDLE_V1\0', 'ascii');
+const INHERITOR_BUNDLE_MAGIC = Buffer.from('LUMINA_INHERITOR_BUNDLE_V1\0', 'ascii');
 const NORSE_BUNDLE_MAX_BYTES = 40 * 1024 * 1024;
 const NORSE_APPROVED_PART_COUNT = 216;
 const APPROVED_SOURCE_CHUNK_MAX_BYTES = 768 * 1024;
@@ -67,6 +68,14 @@ const SOURCE_UPLOAD_MARKER = 'source_upload_chunks_v1';
 const PLAN_STORAGE_MARKER = 'plan_br_v1';
 const APPROVED_STORY_KEYS = ['imjin', 'norse', 'monster', 'rebellion', 'inheritor'] as const;
 const COMPANY_AUTHOR_DISPLAY_NAME = '루미나';
+const IMPORT_JOB_RECEIPT_SELECT = {
+  id: true,
+  status: true,
+  batchCursor: true,
+  workId: true,
+  releaseId: true,
+  errorCode: true,
+} as const;
 type ApprovedStoryKey = typeof APPROVED_STORY_KEYS[number];
 const STORY_HASHTAG_KEYS: Record<ApprovedStoryKey, readonly string[]> = {
   imjin: ['history', 'imjin-war', 'yi-sun-sin', 'war', 'choice-fiction'],
@@ -225,18 +234,75 @@ export class StoryPublicationIntakeService {
           sourceBindingSha256: plan.sourceBindingSha256,
         },
       },
+      select: IMPORT_JOB_RECEIPT_SELECT,
     });
-    if (existing) return this.importJobReceipt(existing, plan.parts.length);
+    if (existing && (existing.status !== 'queued' || existing.workId)) {
+      return this.importJobReceipt(existing, plan.parts.length);
+    }
+    const planSnapshot = this.storedPlan(plan);
+    const sourceChunks = plan.storyKey === 'inheritor'
+      ? this.inheritorSourceChunks(buffers)
+      : [];
+    if (existing) {
+      if (existing.status === 'queued' && !existing.workId && plan.storyKey === 'inheritor') {
+        const [updated] = await this.prisma.$transaction([
+          this.prisma.storyPublicationImportJob.update({
+            where: { id: existing.id },
+            data: { planSnapshot },
+            select: IMPORT_JOB_RECEIPT_SELECT,
+          }),
+          this.prisma.storyPublicationSourceChunk.createMany({
+            data: sourceChunks.map((chunk) => ({ jobId: existing.id, ...chunk })),
+            skipDuplicates: true,
+          }),
+        ]);
+        return this.importJobReceipt(updated, plan.parts.length);
+      }
+      return this.importJobReceipt(existing, plan.parts.length);
+    }
     const created = await this.prisma.storyPublicationImportJob.create({
       data: {
         actorUserId,
         storyKey: plan.storyKey,
         sourceBindingSha256: plan.sourceBindingSha256,
         status: 'queued',
-        planSnapshot: this.storedPlan(plan),
+        planSnapshot,
+        ...(sourceChunks.length ? { sourceChunks: { createMany: { data: sourceChunks } } } : {}),
       },
+      select: IMPORT_JOB_RECEIPT_SELECT,
     });
     return this.importJobReceipt(created, plan.parts.length);
+  }
+
+  private inheritorSourceChunks(buffers: Map<string, Buffer>) {
+    const sources = [
+      this.requiredBuffer(buffers, INHERITOR_STORY.manuscriptSha256),
+      this.requiredBuffer(buffers, INHERITOR_STORY.promptSha256),
+    ];
+    const entries = sources.flatMap((source) => {
+      const length = Buffer.allocUnsafe(4);
+      length.writeUInt32BE(source.length);
+      return [length, source];
+    });
+    const compressed = brotliCompressSync(Buffer.concat([INHERITOR_BUNDLE_MAGIC, ...entries]), {
+      params: { [zlibConstants.BROTLI_PARAM_QUALITY]: 4 },
+    });
+    if (compressed.length > APPROVED_SOURCE_COMPRESSED_MAX_BYTES) {
+      throw new ConflictException('Approved source bundle is too large');
+    }
+    const totalChunks = Math.ceil(compressed.length / APPROVED_SOURCE_CHUNK_MAX_BYTES);
+    return Array.from({ length: totalChunks }, (_, position) => {
+      const payload = Uint8Array.from(compressed.subarray(
+        position * APPROVED_SOURCE_CHUNK_MAX_BYTES,
+        (position + 1) * APPROVED_SOURCE_CHUNK_MAX_BYTES,
+      ));
+      return {
+        position,
+        totalChunks,
+        payload,
+        checksumSha256: this.sha256(Buffer.from(payload)),
+      };
+    });
   }
 
   async startApprovedUpload(
@@ -495,6 +561,7 @@ export class StoryPublicationIntakeService {
               releaseId: existingWork.activeReleaseId,
               planSnapshot: Prisma.DbNull,
             },
+            select: IMPORT_JOB_RECEIPT_SELECT,
           });
           return this.importJobReceipt(completed, plan.parts.length, existingWork);
         }
@@ -579,6 +646,7 @@ export class StoryPublicationIntakeService {
             workId,
             releaseId,
           },
+          select: IMPORT_JOB_RECEIPT_SELECT,
         });
         return this.importJobReceipt(prepared, plan.parts.length);
       }
@@ -631,6 +699,7 @@ export class StoryPublicationIntakeService {
             status: end === plan.parts.length ? 'materializing' : 'structuring',
             batchCursor: end === plan.parts.length ? 0 : end,
           },
+          select: IMPORT_JOB_RECEIPT_SELECT,
         });
         return this.importJobReceipt(next, plan.parts.length);
       }
@@ -713,6 +782,7 @@ export class StoryPublicationIntakeService {
             status: end === plan.parts.length ? 'finalizing' : 'materializing',
             batchCursor: end,
           },
+          select: IMPORT_JOB_RECEIPT_SELECT,
         });
         return this.importJobReceipt(next, plan.parts.length);
       }
@@ -831,6 +901,7 @@ export class StoryPublicationIntakeService {
           planSnapshot: Prisma.DbNull,
           errorCode: null,
         },
+        select: IMPORT_JOB_RECEIPT_SELECT,
       });
       return this.importJobReceipt(completed, plan.parts.length, work);
       }, {
@@ -1417,7 +1488,15 @@ export class StoryPublicationIntakeService {
       manuscript: {
         locale: plan.manuscript.locale,
         contentHash: plan.manuscript.contentHash,
-        structuredBody: storedManuscriptBody(plan.manuscript),
+        structuredBody: plan.storyKey === 'inheritor'
+          ? {
+              format: 'approved-source-plan-reference-v1',
+              sourceSha256: {
+                manuscript: INHERITOR_STORY.manuscriptSha256,
+                imageDirections: INHERITOR_STORY.promptSha256,
+              },
+            }
+          : storedManuscriptBody(plan.manuscript),
       },
       sourceBindingSha256: plan.sourceBindingSha256,
       parts: plan.parts,
@@ -1542,7 +1621,7 @@ export class StoryPublicationIntakeService {
     plan: PublicationPlanSnapshot,
     publicationJobId: string,
   ): Prisma.InputJsonValue {
-    if (plan.storyKey !== 'norse') {
+    if (plan.storyKey !== 'norse' && plan.storyKey !== 'inheritor') {
       return plan.manuscript.structuredBody as Prisma.InputJsonValue;
     }
     return {
@@ -1553,12 +1632,13 @@ export class StoryPublicationIntakeService {
       archive: {
         storage: 'story_publication_source_chunks',
         publicationJobId,
-        bundleContract: 'norse-approved-bundle-v1',
+        bundleContract: plan.storyKey === 'norse'
+          ? 'norse-approved-bundle-v1'
+          : 'inheritor-approved-bundle-v1',
         compression: 'brotli',
-        sourceSha256: {
-          analysis: NORSE_ANALYSIS_SHA256,
-          authoredSourceMap: NORSE_SOURCE_MAP_SHA256,
-        },
+        sourceSha256: plan.storyKey === 'norse'
+          ? { analysis: NORSE_ANALYSIS_SHA256, authoredSourceMap: NORSE_SOURCE_MAP_SHA256 }
+          : { manuscript: INHERITOR_STORY.manuscriptSha256, imageDirections: INHERITOR_STORY.promptSha256 },
       },
       materialized: {
         partCount: plan.parts.length,

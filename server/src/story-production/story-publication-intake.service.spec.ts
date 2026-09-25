@@ -1,5 +1,14 @@
 import { StoryPublicationIntakeService } from './story-publication-intake.service';
-import { brotliCompressSync, gzipSync } from 'zlib';
+import { brotliCompressSync, brotliDecompressSync, gzipSync } from 'zlib';
+import { existsSync, readFileSync } from 'fs';
+import { join } from 'path';
+import { createHash } from 'crypto';
+import { INHERITOR_STORY } from './story-inheritor-publication.policy';
+
+const inheritorSourceDir = process.env.INHERITOR_TEST_SOURCE_DIR;
+const inheritorSourceTest = inheritorSourceDir &&
+  existsSync(join(inheritorSourceDir, '01_전체_원고_통합본.md')) &&
+  existsSync(join(inheritorSourceDir, '02_배경_이미지_지시_통합본.md')) ? it : it.skip;
 
 describe('StoryPublicationIntakeService queue projection', () => {
   it('blocks adult-rated publication until verified age access is implemented', () => {
@@ -92,6 +101,45 @@ describe('StoryPublicationIntakeService queue projection', () => {
       materialized: { partCount: 1 },
     });
     expect(JSON.stringify(archived)).not.toContain('승인 원고 본문');
+  });
+
+  inheritorSourceTest('stores a compact plan and archives both approved source files exactly', () => {
+    const service = new StoryPublicationIntakeService({} as never, {} as never);
+    const manuscript = readFileSync(join(inheritorSourceDir!, '01_전체_원고_통합본.md'));
+    const directions = readFileSync(join(inheritorSourceDir!, '02_배경_이미지_지시_통합본.md'));
+    const buffers = new Map([
+      [INHERITOR_STORY.manuscriptSha256, manuscript],
+      [INHERITOR_STORY.promptSha256, directions],
+    ]);
+    const plan = (service as any).inheritorPlan(buffers);
+    const stored = (service as any).storedPlan(plan);
+    const restored = (service as any).readStoredPlan(stored);
+    expect(restored.parts).toHaveLength(265);
+    expect(restored.manuscript.structuredBody).toMatchObject({
+      format: 'approved-source-plan-reference-v1',
+    });
+    expect(JSON.stringify(restored.manuscript.structuredBody)).not.toContain('스물일곱 번째 남자');
+    const archived = (service as any).archivedManuscriptBody(restored, 'job-id');
+    expect(archived.archive.bundleContract).toBe('inheritor-approved-bundle-v1');
+    expect(archived.archive.publicationJobId).toBe('job-id');
+
+    const chunks = (service as any).inheritorSourceChunks(buffers);
+    expect(chunks.length).toBeGreaterThan(0);
+    expect(chunks.every((chunk: { totalChunks: number }) => chunk.totalChunks === chunks.length)).toBe(true);
+    const bundle = brotliDecompressSync(Buffer.concat(chunks.map((chunk: { payload: Uint8Array }) => Buffer.from(chunk.payload))));
+    const magic = Buffer.from('LUMINA_INHERITOR_BUNDLE_V1\0', 'ascii');
+    expect(bundle.subarray(0, magic.length)).toEqual(magic);
+    let cursor = magic.length;
+    for (const original of [manuscript, directions]) {
+      const length = bundle.readUInt32BE(cursor);
+      cursor += 4;
+      expect(length).toBe(original.length);
+      const restoredHash = createHash('sha256').update(bundle.subarray(cursor, cursor + length)).digest('hex');
+      const originalHash = createHash('sha256').update(original).digest('hex');
+      expect(restoredHash).toBe(originalHash);
+      cursor += length;
+    }
+    expect(cursor).toBe(bundle.length);
   });
 
   it('detects only the exact approved source hashes and omits private storage keys', async () => {
