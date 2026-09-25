@@ -146,7 +146,8 @@ test('public discovery works at desktop and mobile widths and captures verified 
     await page.locator('#ottChoiceOverlay').waitFor({ state: 'visible', timeout: 20000 });
     assert.equal(await video.evaluate((element) => element.ended), false);
     assert.equal(await page.locator('[data-ott-branch]:visible').count(), 3);
-    assert.equal(await page.locator('[data-ott-branch="ignore"]').isDisabled(), true);
+    await page.waitForFunction(() => !document.querySelector('[data-ott-branch="ignore"]').disabled);
+    assert.equal(await page.locator('[data-ott-branch="ignore"]').isEnabled(), true);
     assert.equal(await page.locator('[data-ott-branch="hesitate"]').isDisabled(), true);
     assert.equal(await page.locator('#ottFullscreenExit').isVisible(), true);
     assert.equal(await page.evaluate(() => {
@@ -154,18 +155,25 @@ test('public discovery works at desktop and mobile widths and captures verified 
       return choice.top >= 0 && choice.bottom <= innerHeight;
     }), true);
     await page.screenshot({ path: join(artifacts, 'ott-choice-fullscreen-400.png'), fullPage: false });
-    await page.locator('[data-ott-branch="embrace"]').click();
-    assert.match(await video.evaluate((element) => element.currentSrc), /02-branch-embrace-original\.mp4$/);
+    await page.locator('[data-ott-branch="ignore"]').click();
+    await page.waitForFunction(() => {
+      const element = document.getElementById('ottDemoVideo');
+      return element.currentSrc.endsWith('/03-branch-ignore.mp4') && Math.abs(element.duration - 25.208333) < .1;
+    });
+    await video.evaluate((element) => { element.currentTime = element.duration - .4; });
     await page.locator('#ottChoiceOverlay').waitFor({ state: 'visible', timeout: 20000 });
-    assert.equal(await page.locator('[data-ott-branch="ignore"]').isDisabled(), true);
+    await page.locator('[data-ott-branch="embrace"]').click();
+    await page.waitForFunction(() => document.getElementById('ottDemoVideo').currentSrc.endsWith('/02-branch-embrace-original.mp4'));
+    await page.locator('#ottChoiceOverlay').waitFor({ state: 'visible', timeout: 20000 });
+    assert.equal(await page.locator('[data-ott-branch="ignore"]').isEnabled(), true);
     await page.locator('#ottFullscreenExit').click();
     assert.equal(await page.evaluate(() => document.fullscreenElement === null && !document.querySelector('.ott-video-wrap').classList.contains('is-pseudo-fullscreen')), true);
     await page.locator('#ottRestart').click();
     await page.waitForFunction(() => document.getElementById('ottDemoVideo').currentSrc.endsWith('/01-common-to-choice.mp4'));
 
-    await page.route('**/03-branch-ignore.mp4', (route) => route.fulfill({ status: 200, contentType: 'video/mp4', body: '' }));
     await page.reload({ waitUntil: 'networkidle' });
     await page.locator('#ottOpenDemo').click();
+    await page.waitForFunction(() => !document.querySelector('[data-ott-branch="ignore"]').disabled);
     assert.equal(await page.locator('[data-ott-branch="ignore"]').isEnabled(), true);
     assert.equal(await page.locator('[data-ott-branch="hesitate"]').isDisabled(), true);
     await page.route('**/04-branch-hesitate.mp4', (route) => route.fulfill({ status: 200, contentType: 'video/mp4', body: '' }));
