@@ -639,13 +639,13 @@
                 <input name="contractId" type="hidden" />
                 <input name="sourceVersionId" type="hidden" />
                 <div class="content-rights-admin-fields">
-                  <label><span data-rights-label="workType">작품 유형</span><select name="workType" required><option value="story">Story</option><option value="ott">OTT</option></select></label>
+                  <label><span data-rights-label="workType">작품 유형</span><select name="workType" required><option value="story">Story</option><option value="ott">선택극장</option></select></label>
                   <label><span data-rights-label="workId">작품 ID</span><input name="workId" type="text" required autocomplete="off" /></label>
                   <label><span data-rights-label="contentVersionId">콘텐츠 버전 ID</span><input name="contentVersionId" type="text" required autocomplete="off" /></label>
                   <label><span data-rights-label="exclusivity">독점 범위</span><select name="exclusivity" required><option value="exclusive">Exclusive</option><option value="nonexclusive">Non-exclusive</option></select></label>
                   <fieldset class="content-rights-media"><legend data-rights-label="media">허용 미디어</legend>
                     <label><input name="media" type="checkbox" value="story_publication" /> Story</label>
-                    <label><input name="media" type="checkbox" value="ott_streaming" /> OTT</label>
+                    <label><input name="media" type="checkbox" value="ott_streaming" /> 선택극장</label>
                     <label><input name="media" type="checkbox" value="download" /> Download</label>
                     <label><input name="media" type="checkbox" value="audio" /> Audio</label>
                     <label><input name="media" type="checkbox" value="translation" /> Translation</label>
@@ -655,7 +655,7 @@
                   <label><span data-rights-label="startsAt">시작 시각</span><input name="startsAt" type="datetime-local" required /></label>
                   <label><span data-rights-label="endsAt">종료 시각 (선택)</span><input name="endsAt" type="datetime-local" /></label>
                   <label><span data-rights-label="effectiveFrom">설정 적용 기준 시각</span><input name="effectiveFrom" type="datetime-local" required /></label>
-                  <label><span data-rights-label="creatorRole">권리자 역할</span><select name="creatorRole"><option value="author">Author</option><option value="rights_holder">OTT rights holder</option></select></label>
+                  <label><span data-rights-label="creatorRole">권리자 역할</span><select name="creatorRole"><option value="author">Author</option><option value="rights_holder">선택극장 권리자</option></select></label>
                   <label><span data-rights-label="creatorUserId">권리자 사용자 ID</span><input name="creatorUserId" type="text" required autocomplete="off" /></label>
                   <label><span data-rights-label="creatorBps">권리자 비율 (bps)</span><input name="authorRightsHolderShareBps" type="number" min="0" max="5000" step="1" required /></label>
                   <label><span data-rights-label="agencyIdentifier">영업/에이전시 식별자 (선택)</span><input name="agencyIdentifier" type="text" autocomplete="off" /></label>

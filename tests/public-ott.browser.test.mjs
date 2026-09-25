@@ -70,7 +70,7 @@ test('public discovery works at desktop and mobile widths and captures verified 
       await page.locator('.hero-product-links a[href="/ott"]').waitFor();
       await page.locator('.hero-product-links a[href="/lumina-pick"]').waitFor();
       const tileLabels = await page.locator('.hero-product-links strong').allTextContents();
-      assert.deepEqual(tileLabels, ['스토리', '영상 작품', '루미나 픽']);
+      assert.deepEqual(tileLabels, ['스토리', '선택극장', '루미나 픽']);
       const tileStyle = await page.locator('.hero-product-links a').first().evaluate((element) => {
         const style = getComputedStyle(element);
         const secondary = getComputedStyle(element.querySelector('span'));
@@ -86,11 +86,11 @@ test('public discovery works at desktop and mobile widths and captures verified 
       }
       if (width === 390) {
         const expectedLabels = {
-          'ko-KR': ['홈', '아티스트', '스토리', 'OTT', '피드', '루미나 픽'],
-          'en-US': ['Home', 'Artists', 'Story', 'OTT', 'Feed', 'Lumina Pick'],
-          'ja-JP': ['ホーム', 'アーティスト', '物語', 'OTT', 'フィード', 'ルミナピック'],
-          'zh-CN': ['首页', '艺人', '故事', 'OTT', '动态', 'Lumina Pick'],
-          'zh-Hant': ['首頁', '藝人', '故事', 'OTT', '動態', 'Lumina Pick'],
+          'ko-KR': ['홈', '아티스트', '스토리', '선택극장', '피드', '루미나 픽'],
+          'en-US': ['Home', 'Artists', 'Story', 'Theater', 'Feed', 'Lumina Pick'],
+          'ja-JP': ['ホーム', 'アーティスト', '物語', '選択劇場', 'フィード', 'ルミナピック'],
+          'zh-CN': ['首页', '艺人', '故事', '选择剧场', '动态', 'Lumina Pick'],
+          'zh-Hant': ['首頁', '藝人', '故事', '選擇劇場', '動態', 'Lumina Pick'],
         };
         for (const [locale, expected] of Object.entries(expectedLabels)) {
           await page.evaluate((nextLocale) => window.luminaI18n.setLocale(nextLocale), locale);
@@ -103,6 +103,23 @@ test('public discovery works at desktop and mobile widths and captures verified 
 
       await page.goto(`${base}/ott`, { waitUntil: 'networkidle' });
       await page.locator('#ottOpenDemo').waitFor();
+      assert.equal(await page.locator('#ottTitle').innerText(), '루미나 선택극장');
+      if (width === 390) {
+        const titles = {
+          'ko-KR': '루미나 선택극장',
+          'en-US': 'Lumina Choice Theater',
+          'ja-JP': 'ルミナ選択劇場',
+          'zh-CN': 'Lumina 选择剧场',
+          'zh-Hant': 'Lumina 選擇劇場',
+        };
+        for (const [locale, title] of Object.entries(titles)) {
+          await page.evaluate((nextLocale) => window.luminaI18n.setLocale(nextLocale), locale);
+          assert.equal(await page.locator('#ottTitle').innerText(), title);
+          assert.equal(await page.title(), `${title} | Lumina Stage`);
+          assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
+        }
+        await page.evaluate(() => window.luminaI18n.setLocale('ko-KR'));
+      }
       assert.equal(await page.locator('#ottCatalog').isVisible(), false);
       assert.equal(await page.locator('video').count(), 1);
       assert.equal(await page.locator('audio, [data-private-preview]').count(), 0);

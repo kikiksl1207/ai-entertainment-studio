@@ -30,7 +30,7 @@ test('home and primary mobile surfaces expose the canonical six-item discovery o
   assert.match(home, /href="\/ott"/);
   assert.match(home, /href="\/lumina-pick"/);
   assert.match(home, /home\.discovery\.story\.label">스토리</);
-  assert.match(home, /home\.discovery\.ott\.label">영상 작품</);
+  assert.match(home, /home\.discovery\.ott\.label">선택극장</);
   assert.match(home, /home\.discovery\.pick\.label">루미나 픽</);
   assert.doesNotMatch(home, /<strong>(?:Story|OTT|Pick)<\/strong>/);
   for (const key of ['home', 'artists', 'story', 'ott', 'feed', 'pick']) {
