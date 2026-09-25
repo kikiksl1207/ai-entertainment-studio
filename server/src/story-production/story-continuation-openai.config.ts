@@ -35,7 +35,7 @@ export function readStoryContinuationOpenAiConfig(reader: StoryContinuationConfi
       CONTINUATION_TIMING.providerDeadlineMs,
     ),
     maxInputTokens: configInteger(reader, 'STORY_CONTINUATION_MAX_INPUT_TOKENS', 32_768),
-    maxOutputTokens: configInteger(reader, 'STORY_CONTINUATION_MAX_OUTPUT_TOKENS', 8_192),
+    maxOutputTokens: configInteger(reader, 'STORY_CONTINUATION_MAX_OUTPUT_TOKENS', 32_768),
     maxResponseBytes: configInteger(reader, 'STORY_CONTINUATION_MAX_RESPONSE_BYTES', 200_000),
     visualAssetPath: text('STORY_CONTINUATION_VISUAL_ASSET_PATH'),
   };

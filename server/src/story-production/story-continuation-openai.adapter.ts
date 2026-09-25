@@ -198,6 +198,7 @@ function safeOutputValidationCode(message: string) {
     'Generated localized text is invalid': 'provider_output_locale_shape_invalid',
     'Generated localized text must contain only the requested locale': 'provider_output_locale_invalid',
     'Generated localized text exceeds its byte limit': 'provider_output_text_limit',
+    'Generated continuation contains a stray bracket paragraph': 'provider_output_punctuation_artifact',
     'Generated continuation output exceeds the byte limit': 'provider_output_total_limit',
   };
   return codes[message] ?? 'provider_output_invalid';

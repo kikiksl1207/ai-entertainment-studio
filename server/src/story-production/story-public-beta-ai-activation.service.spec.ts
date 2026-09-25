@@ -17,6 +17,31 @@ describe('StoryPublicBetaAiActivationService', () => {
     });
   });
 
+  it('upgrades the release output ceiling for full authored-part continuations', async () => {
+    const tx = {
+      storyReleaseCapability: {
+        findUnique: jest.fn().mockResolvedValueOnce(null).mockResolvedValueOnce({
+          id: 'capability', rateCardId: 'rate', fixedChoiceCount: 3,
+          customChoiceEnabled: false, includedAiRouteCount: 275,
+          aiInputTokenLimit: 32_768, aiOutputTokenLimit: 8_192,
+          fullResetLimit: 1, actResetLimit: 3,
+          warningBudgetKrw: 100, hardBudgetKrw: 300, status: 'active',
+        }),
+        create: jest.fn().mockImplementation(async ({ data }) => data),
+        update: jest.fn().mockImplementation(async ({ data }) => data),
+      },
+    };
+    await (service as any).ensureCapability(tx, 'operator', 'work', 'release', 'rate', 265);
+    expect(tx.storyReleaseCapability.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ aiInputTokenLimit: 32_768, aiOutputTokenLimit: 32_768 }),
+    }));
+    await (service as any).ensureCapability(tx, 'operator', 'work', 'release', 'rate', 265);
+    expect(tx.storyReleaseCapability.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'capability' },
+      data: expect.objectContaining({ aiOutputTokenLimit: 32_768, revision: { increment: 1 } }),
+    }));
+  });
+
   it('fails before database access when any explicit confirmation is missing', async () => {
     await expect(service.activate('operator', 'imjin', {
       aiBranchGenerationConfirmed: true,

@@ -39,6 +39,16 @@ export function proposeStoryContinuationLength(reference: { locale: string; beat
   return Object.freeze({ approval: 'proposed' as const, bounds });
 }
 
+export function sourceStoryContinuationLengthBounds(
+  locale: string,
+  beats: ReadonlyArray<{ beatType: string; content: string }>,
+): StoryContinuationLengthBounds {
+  return proposeStoryContinuationLength({
+    locale,
+    beats: beats.map((beat) => ({ beatType: beat.beatType, content: { [locale]: beat.content } })),
+  }).bounds;
+}
+
 export function assertStoryContinuationLengthBounds(value: unknown): asserts value is StoryContinuationLengthBounds {
   if (!record(value) || Object.keys(value).length !== BOUNDS_KEYS.length ||
       BOUNDS_KEYS.some(key => !Object.prototype.hasOwnProperty.call(value, key)) ||

@@ -563,7 +563,7 @@ export class StoryPublicBetaAiActivationService {
       actResetLimit: 3,
       includedAiRouteCount: Math.min(1000, partCount + 10),
       aiInputTokenLimit: 32768,
-      aiOutputTokenLimit: 8192,
+      aiOutputTokenLimit: 32768,
       warningBudgetKrw: 100,
       hardBudgetKrw: 300,
       status: 'active',

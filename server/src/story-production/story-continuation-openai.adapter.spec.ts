@@ -57,6 +57,7 @@ describe('OpenAiStoryContinuationProvider (fake transport only)', () => {
   it('defaults OFF without looking up or using a general chat key', async () => {
     const reader = { get: jest.fn().mockReturnValue(undefined) };
     const c = readStoryContinuationOpenAiConfig(reader);
+    expect(c.maxOutputTokens).toBe(32_768);
     const f = fixture(c);
     await expect(f.provider.readiness()).resolves.toEqual({ enabled: false, reason: 'provider_disabled' });
     await expect(f.provider.generate(request(), new AbortController().signal)).rejects.toMatchObject({ code: 'provider_disabled', retryable: false });
@@ -108,6 +109,10 @@ describe('OpenAiStoryContinuationProvider (fake transport only)', () => {
     expect(body).toMatchObject({ model: config.model, store: false, stream: false, background: false, truncation: 'disabled', max_output_tokens: 500,
       text: { format: { type: 'json_schema', strict: true, schema: { additionalProperties: false, properties: { nextChoices: { maxItems: 3 } } } } } });
     expect(body.instructions).toContain('exactly 3 distinct nextChoices');
+    expect(body.instructions).toContain('mandatory bounds');
+    expect(JSON.parse(body.input[0].content[0].text).narrativeLength).toMatchObject({
+      sourceUnits: 16, minimumUnits: 13, targetUnits: 16, maximumUnits: 19,
+    });
     expect(body).not.toHaveProperty('tools');
     expect(body.text.format.schema.properties).not.toHaveProperty('visualManifest');
     expect(f.transport).toHaveBeenCalledTimes(1);
@@ -178,16 +183,17 @@ describe('OpenAiStoryContinuationProvider (fake transport only)', () => {
     expect(() => buildStoryContinuationOpenAiRequest({ ...req, inputTokenLimit: total }, config)).not.toThrow();
   });
 
-  it('fits a synthetic 10k-character Korean scene with instructions/schema into an 8k-token cap without truncation', () => {
+  it('fits a synthetic 10k-character Korean scene and its length contract into the release input cap', () => {
     const req = request();
     req.locale = 'ko';
+    req.inputTokenLimit = 32_768;
     const sentence = '\uc131\ubb38 \uc55e\uc5d0 \uc120 \uadf8\ub294 \uc57d\uc18d\uc744 \ub5a0\uc62c\ub838\ub2e4. \ub3d9\ub8cc\uc758 \uc120\ud0dd\uc744 \uc874\uc911\ud558\uba70 \ub2e4\ub978 \uae38\uc744 \ud0dd\ud588\ub2e4. ';
     const text = sentence.repeat(300).slice(0, 10_000);
     req.approvedContext!.sourceScene.beats = Array.from({ length: 10 }, (_, i) => ({ beatType: 'paragraph', content: text.slice(i * 1_000, (i + 1) * 1_000) }));
     const original = JSON.stringify(req.approvedContext);
     const result = preflightStoryContinuationOpenAiRequest(req, config);
-    expect(result).toMatchObject({ supported: true, reason: 'provider_preflight_ready', budgetMethod: 'js_tiktoken_o200k_base_v1', inputTokenLimit: 8_192 });
-    expect(result.inputTokenUpperBound).toBeLessThanOrEqual(8_192);
+    expect(result).toMatchObject({ supported: true, reason: 'provider_preflight_ready', budgetMethod: 'js_tiktoken_o200k_base_v1', inputTokenLimit: 32_768 });
+    expect(result.inputTokenUpperBound).toBeLessThanOrEqual(32_768);
     expect(JSON.stringify(req.approvedContext)).toBe(original);
     expect(buildStoryContinuationOpenAiRequest({ ...req, inputTokenLimit: 32_768 }, config).instructions)
       .toContain('Preserve the supplied approved author/style memories');
@@ -235,6 +241,16 @@ describe('OpenAiStoryContinuationProvider (fake transport only)', () => {
       code: expect.stringMatching(/^provider_(?:output_|malformed_output$)/), retryable: false,
     });
     expect(f.transport).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns a safe punctuation-artifact code for a standalone closing bracket', async () => {
+    const f = fixture();
+    f.transport.mockResolvedValue(new Response(JSON.stringify(envelope({
+      ...output(), beats: [{ beatType: 'paragraph', content: { en: 'She waited.\n]\nThen left.' } }],
+    }))));
+    await expect(f.provider.generate(request(), new AbortController().signal)).rejects.toMatchObject({
+      code: 'provider_output_punctuation_artifact', retryable: false,
+    });
   });
 
   it('accepts an ending only with no choices', async () => {

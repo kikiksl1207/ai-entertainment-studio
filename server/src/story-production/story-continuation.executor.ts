@@ -11,6 +11,11 @@ import {
 import { StoryContinuationContextAssembler } from './story-continuation-context.assembler';
 import { StoryContinuationContextError } from './story-continuation-context.assembler';
 import { validateStoryContinuationProviderResult } from './story-continuation-output.policy';
+import {
+  sourceStoryContinuationLengthBounds,
+  StoryContinuationLengthPolicyError,
+  validateStoryContinuationNarrativeLength,
+} from './story-continuation-length.policy';
 import { createStoryContinuationTimingPolicy } from './story-continuation-timing.policy';
 import { StoryVisualGenerationService } from './story-visual-generation.service';
 
@@ -62,6 +67,10 @@ export class StoryContinuationExecutor {
         return { status: 'failed' as const, continuationId: claim.continuationId };
       }
       const approvedContext = await this.contextAssembler.assemble(claim);
+      const lengthBounds = sourceStoryContinuationLengthBounds(
+        claim.request.locale,
+        approvedContext.sourceScene.beats,
+      );
       throwIfCancelled(signal);
       const request = { ...claim.request, approvedContext };
       const preflight = await this.provider.preflight?.(request);
@@ -88,6 +97,10 @@ export class StoryContinuationExecutor {
         inputTokenLimit: claim.request.inputTokenLimit,
         outputTokenLimit: claim.request.outputTokenLimit,
       });
+      validateStoryContinuationNarrativeLength({
+        locale: claim.request.locale,
+        beats: result.beats,
+      }, lengthBounds);
       const moderation = this.moderation.preview({
         surface: 'story_ai_continuation',
         body: [
@@ -169,6 +182,9 @@ function throwIfCancelled(signal?: AbortSignal) {
 
 function normalizeProviderError(error: unknown) {
   if (error instanceof StoryContinuationContextError) {
+    return new StoryContinuationProviderError(error.code, false);
+  }
+  if (error instanceof StoryContinuationLengthPolicyError) {
     return new StoryContinuationProviderError(error.code, false);
   }
   if (error instanceof StoryContinuationProviderError) {

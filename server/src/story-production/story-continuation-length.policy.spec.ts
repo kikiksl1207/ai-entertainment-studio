@@ -1,6 +1,7 @@
 import {
   assertStoryContinuationLengthBounds,
   proposeStoryContinuationLength,
+  sourceStoryContinuationLengthBounds,
   validateStoryContinuationNarrativeLength,
 } from './story-continuation-length.policy';
 
@@ -12,6 +13,16 @@ function beats(units: number, locale = 'ko') {
 const reference = (units = 10_000, locale = 'ko') => ({ locale, beats: beats(units, locale) });
 
 describe('independent proposed author-length policy', () => {
+  it('derives the live Part_002 parity floor from the approved source scene', () => {
+    const bounds = sourceStoryContinuationLengthBounds('ko', [
+      { beatType: 'paragraph', content: '\uac00'.repeat(7_158) },
+    ]);
+    expect(bounds).toMatchObject({ referenceUnits: 7_158, minUnits: 5_727, targetUnits: 7_158 });
+    expect(() => validateStoryContinuationNarrativeLength({ locale: 'ko', beats: beats(3_180) }, bounds))
+      .toThrow('continuation_output_underlength');
+    expect(validateStoryContinuationNarrativeLength({ locale: 'ko', beats: beats(5_727) }, bounds).units)
+      .toBe(5_727);
+  });
   it.each([10_000, 20_000])('scales an authored %i-unit reference without a global fixed target', units => {
     const source = reference(units);
     const unchanged = JSON.stringify(source);

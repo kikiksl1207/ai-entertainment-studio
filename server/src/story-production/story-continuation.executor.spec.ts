@@ -72,7 +72,7 @@ function fixture() {
     failClaimedContinuation: jest.fn(),
   };
   const approvedContext = {
-    sourceScene: { title: '장면', beats: [{ beatType: 'paragraph', content: '본문' }] },
+    sourceScene: { title: '장면', beats: [{ beatType: 'paragraph', content: '검증용 본문' }] },
     selectedChoice: { label: '다른 길' },
     path: [{
       sourceTitle: '이전 장면', choiceLabel: '이전 선택', targetTitle: '장면',
@@ -228,6 +228,39 @@ describe('StoryContinuationExecutor', () => {
       }),
     );
     expect(f.queue.releaseForRetry).not.toHaveBeenCalled();
+  });
+
+  it('does not publish a 3,180-unit branch for the 7,158-unit authored Part_002 source', async () => {
+    const f = fixture();
+    f.approvedContext.sourceScene.beats = [{ beatType: 'paragraph', content: '가'.repeat(7_158) }];
+    jest.mocked(f.provider.generate).mockResolvedValue({
+      ...result,
+      beats: [{ beatType: 'paragraph', content: { ko: '나'.repeat(3_180) } }],
+    });
+    await expect(f.executor.executeOne('worker')).resolves.toMatchObject({ status: 'failed' });
+    expect(f.economics.settleClaimedContinuation).not.toHaveBeenCalled();
+    expect(f.economics.failClaimedContinuation).toHaveBeenCalledWith(
+      claim, 'continuation_output_underlength', 'failed',
+    );
+  });
+
+  it('settles a branch meeting the Part_002 floor without modifying its prose', async () => {
+    const f = fixture();
+    f.approvedContext.sourceScene.beats = [{ beatType: 'paragraph', content: '가'.repeat(7_158) }];
+    jest.mocked(f.provider.generate).mockResolvedValue({
+      ...result,
+      beats: [
+        { beatType: 'paragraph', content: { ko: '나'.repeat(3_000) } },
+        { beatType: 'paragraph', content: { ko: '나'.repeat(2_727) } },
+      ],
+    });
+    await expect(f.executor.executeOne('worker')).resolves.toMatchObject({ status: 'completed' });
+    expect(f.economics.settleClaimedContinuation).toHaveBeenCalledWith(
+      claim, expect.objectContaining({ beats: [
+        { beatType: 'paragraph', content: { ko: '나'.repeat(3_000) } },
+        { beatType: 'paragraph', content: { ko: '나'.repeat(2_727) } },
+      ] }),
+    );
   });
 
   it('uses server moderation and rejects provider output before settlement', async () => {

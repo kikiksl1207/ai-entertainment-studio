@@ -54,4 +54,15 @@ describe('continuation output ending defense', () => {
     expect(() => validateStoryContinuationProviderResult(withBeat('가'.repeat(11_000)), koreanInput))
       .toThrow('Generated localized text exceeds its byte limit');
   });
+
+  it('rejects a standalone closing bracket but keeps ordinary quoted bracket text', () => {
+    const withText = (text: string) => ({
+      ...valid,
+      beats: [{ beatType: 'paragraph', content: { en: text } }],
+    }) as StoryContinuationProviderResult;
+    expect(() => validateStoryContinuationProviderResult(withText('She waited.\n\n]\n\nThen left.'), input))
+      .toThrow('Generated continuation contains a stray bracket paragraph');
+    expect(validateStoryContinuationProviderResult(withText('The note read [stay].'), input).beats[0].content.en)
+      .toBe('The note read [stay].');
+  });
 });

@@ -26,9 +26,13 @@ export function validateStoryContinuationProviderResult(
     if (!beat || !['paragraph', 'dialogue', 'scene_break'].includes(beat.beatType)) {
       invalid('Generated continuation beat type is invalid');
     }
+    const content = localizedOnly(beat.content, input.locale, MAX_TEXT_BYTES);
+    if (content[input.locale].split(/\r?\n/u).some((line) => line.trim() === ']')) {
+      invalid('Generated continuation contains a stray bracket paragraph');
+    }
     return {
       beatType: beat.beatType,
-      content: localizedOnly(beat.content, input.locale, MAX_TEXT_BYTES),
+      content,
     };
   });
   const hasChoices = Array.isArray(value.nextChoices) && value.nextChoices.length > 0;
