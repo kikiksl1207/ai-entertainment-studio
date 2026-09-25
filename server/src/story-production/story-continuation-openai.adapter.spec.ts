@@ -219,7 +219,7 @@ describe('OpenAiStoryContinuationProvider (fake transport only)', () => {
   it('pins provider-enforceable bounds for prose and route keys', () => {
     const schema = buildStoryContinuationOpenAiRequest(request(), config).text.format.schema;
     const serialized = JSON.stringify(schema);
-    expect(serialized).toContain('"maxLength":10000');
+    expect(serialized).toContain('"maxLength":2500');
     expect(serialized).toContain('^[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$');
     expect(serialized).toContain('^ai-[a-zA-Z0-9][a-zA-Z0-9_-]{0,116}$');
   });

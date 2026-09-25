@@ -3,10 +3,7 @@ import { projectStoredStorySceneVisualManifest } from '../story-stage/story-scen
 import type { StoryContinuationProviderResult } from './story-continuation.provider';
 
 const MAX_OUTPUT_BYTES = 100_000;
-// Canonical Korean scenes allow up to 7,500 UTF-16 units per beat. Keep the
-// generated bound aligned with the approved input projection while retaining
-// the stricter whole-output cap below.
-const MAX_TEXT_BYTES = 32_000;
+const MAX_BEAT_BYTES = 14_000;
 
 export function validateStoryContinuationProviderResult(
   value: StoryContinuationProviderResult,
@@ -22,19 +19,19 @@ export function validateStoryContinuationProviderResult(
   if (!Array.isArray(value.beats) || value.beats.length < 1 || value.beats.length > 40) {
     invalid('Generated continuation requires 1 to 40 beats');
   }
-  const beats = value.beats.map((beat) => {
+  const beats = value.beats.flatMap((beat) => {
     if (!beat || !['paragraph', 'dialogue', 'scene_break'].includes(beat.beatType)) {
       invalid('Generated continuation beat type is invalid');
     }
-    const content = localizedOnly(beat.content, input.locale, MAX_TEXT_BYTES);
-    if (content[input.locale].split(/\r?\n/u).some((line) => line.trim() === ']')) {
-      invalid('Generated continuation contains a stray bracket paragraph');
-    }
-    return {
-      beatType: beat.beatType,
-      content,
-    };
+    const content = localizedOnly(beat.content, input.locale, MAX_OUTPUT_BYTES);
+    return splitNarrativeBeat(content[input.locale]).map((text) => {
+      if (text.split(/\r?\n/u).some((line) => line.trim() === ']')) {
+        invalid('Generated continuation contains a stray bracket paragraph');
+      }
+      return { beatType: beat.beatType, content: { [input.locale]: text } };
+    });
   });
+  if (beats.length > 40) invalid('Generated continuation requires 1 to 40 beats');
   const hasChoices = Array.isArray(value.nextChoices) && value.nextChoices.length > 0;
   const hasEnding = Boolean(value.ending);
   if ((!hasChoices && !hasEnding) || (hasChoices && value.nextChoices!.length > 3)) {
@@ -81,6 +78,30 @@ export function validateStoryContinuationProviderResult(
     invalid('Generated continuation output exceeds the byte limit');
   }
   return sanitized;
+}
+
+function splitNarrativeBeat(text: string): string[] {
+  if (Buffer.byteLength(text, 'utf8') <= MAX_BEAT_BYTES) return [text];
+  const points = Array.from(text);
+  const parts: string[] = [];
+  let start = 0;
+  while (start < points.length) {
+    let end = start;
+    let bytes = 0;
+    let boundary = start;
+    while (end < points.length) {
+      const nextBytes = Buffer.byteLength(points[end], 'utf8');
+      if (bytes + nextBytes > MAX_BEAT_BYTES) break;
+      bytes += nextBytes;
+      if (/\s|[.!?。！？]/u.test(points[end])) boundary = end + 1;
+      end++;
+    }
+    const split = boundary >= start + Math.floor((end - start) / 2) ? boundary : end;
+    const part = points.slice(start, split).join('').trim();
+    if (part) parts.push(part);
+    start = split;
+  }
+  return parts;
 }
 
 export function sanitizeContinuationVisualManifest(

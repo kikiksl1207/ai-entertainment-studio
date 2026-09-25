@@ -15,7 +15,7 @@ export function storyContinuationOutputSchema(locale: string) {
       type: 'array', minItems: 1, maxItems: 40,
       items: object({
         beatType: { type: 'string', enum: ['paragraph', 'dialogue', 'scene_break'] },
-        content: localized(10_000),
+        content: localized(2_500),
       }),
     },
     nextChoices: {

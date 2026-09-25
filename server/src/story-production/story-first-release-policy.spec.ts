@@ -505,13 +505,24 @@ describe('First public release suggested choices', () => {
       ]) },
       storyAiGeneratedChoice: { findMany: jest.fn().mockResolvedValue([generatedChoice]) },
     });
-    await expect(f.production.currentProgress('reader', 'progress', 'en')).resolves.toMatchObject({
+    const visualGeneration = {
+      variantKeyForProgress: jest.fn().mockResolvedValue('default'),
+      readyVisuals: jest.fn().mockResolvedValue(new Map([
+        ['ai-prior', { sourceSceneKey: 'ai-prior', publicAssetPath: '/api/v1/story-visual-assets/ready' }],
+      ])),
+      promptKeys: jest.fn().mockResolvedValue(new Set(['ai-prior'])),
+    };
+    const production = new StoryProductionService(
+      f.prisma as never, f.economics, f.continuationProvider as never,
+      f.legalActivation as never, undefined, visualGeneration as never,
+    );
+    await expect(production.currentProgress('reader', 'progress', 'en')).resolves.toMatchObject({
       scene: { id: 'generated-scene', beats: [{ content: { value: 'Reader-only beat', locale: 'en' } }] },
       choices: [{ id: 'generated-choice', routeKind: 'generation_required' }],
     });
     const receipt = { continuationId: 'next-continuation', status: 'queued' };
     const enqueue = jest.spyOn(f.economics, 'requestRecommendedChoiceTx').mockResolvedValue(receipt as never);
-    await expect(f.production.selectChoice(
+    await expect(production.selectChoice(
       'reader', 'progress', generatedChoice.id, 3, 'en', 'generated-choice-key',
     )).resolves.toEqual(receipt);
     expect(enqueue).toHaveBeenCalledWith(f.prisma, expect.objectContaining({
