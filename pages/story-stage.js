@@ -39,6 +39,8 @@
       storyStructureParts: "총 {count}개 파트",
       storyStructureDynamic: "선택에 따라 다음 장면과 제목이 달라집니다. 아직 만나지 않은 경로는 미리 공개되지 않습니다.",
       storyStructureFixed: "작가가 완성한 원고 순서대로 이어지는 작품입니다. 다음 장으로 이동하며 이야기를 감상할 수 있습니다.",
+      adultsOnly: "19+",
+      adultNotice: "성인 대상 작품입니다. 전용 링크로 공개 테스트 중입니다.",
       searchLabel: "스토리 검색",
       searchPlaceholder: "제목, 작가, 소개, 해시태그 검색",
       searchButton: "검색",
@@ -126,6 +128,8 @@
       storyStructureParts: "{count} parts in total",
       storyStructureDynamic: "Your choices change the next scene and its title. Routes you have not reached remain hidden.",
       storyStructureFixed: "This story follows the author's completed manuscript in order. Continue chapter by chapter to read it.",
+      adultsOnly: "19+",
+      adultNotice: "For adults. This work is in a link-only public test.",
       searchLabel: "Search stories",
       searchPlaceholder: "Search titles, authors, descriptions, or hashtags",
       searchButton: "Search",
@@ -213,6 +217,8 @@
       storyStructureParts: "全{count}パート",
       storyStructureDynamic: "選択によって次のシーンとタイトルが変わります。まだ到達していないルートは事前に公開されません。",
       storyStructureFixed: "作家が完成させた原稿の順番どおりに進む作品です。次の章へ進みながら物語を楽しめます。",
+      adultsOnly: "19+",
+      adultNotice: "成人向け作品です。専用リンクでテスト公開しています。",
       searchLabel: "ストーリー検索",
       searchPlaceholder: "タイトル・作者・紹介・ハッシュタグを検索",
       searchButton: "検索",
@@ -300,6 +306,8 @@
       storyStructureParts: "共{count}个章节",
       storyStructureDynamic: "你的选择会改变下一个场景及其标题。尚未到达的路线不会提前公开。",
       storyStructureFixed: "本作品将按作者完成的原稿顺序展开。你可以逐章继续阅读。",
+      adultsOnly: "19+",
+      adultNotice: "仅限成年人。本作品通过专用链接进行公开测试。",
       searchLabel: "搜索故事",
       searchPlaceholder: "搜索标题、作者、简介或话题标签",
       searchButton: "搜索",
@@ -387,6 +395,8 @@
       storyStructureParts: "共{count}個章節",
       storyStructureDynamic: "你的選擇會改變下一個場景及其標題。尚未到達的路線不會提前公開。",
       storyStructureFixed: "本作品將按作者完成的原稿順序展開。你可以逐章繼續閱讀。",
+      adultsOnly: "19+",
+      adultNotice: "僅限成年人。本作品透過專用連結進行公開測試。",
       searchLabel: "搜尋故事",
       searchPlaceholder: "搜尋標題、作者、簡介或主題標籤",
       searchButton: "搜尋",
@@ -1039,7 +1049,7 @@
               <button type="button" class="story-pack-open" data-pack-slug="${escapeHtml(slug)}" aria-label="${escapeHtml(`${tr("open")}: ${title}`)}">
                 <span class="story-pack-cover${cover ? " has-image" : ""}">${cover ? `<img src="${escapeHtml(cover)}" alt="" loading="lazy" />` : ""}</span>
                 <span class="story-pack-copy">
-                  <span class="story-pack-status">${pricing ? `<em>${escapeHtml(pricing)}</em>` : ""}</span>
+                  <span class="story-pack-status">${pricing ? `<em>${escapeHtml(pricing)}</em>` : ""}${pack.cover?.contentRating === "adults_only" ? `<em class="story-age-rating">${escapeHtml(tr("adultsOnly"))}</em>` : ""}</span>
                   <strong>${escapeHtml(title)}</strong>
                   ${pack.author?.displayName ? `<span class="story-pack-author">${escapeHtml(tr("authorLabel"))} · ${escapeHtml(pack.author.displayName)}</span>` : ""}
                   ${packSummary(pack) ? `<p>${escapeHtml(packSummary(pack))}</p>` : ""}
@@ -1187,6 +1197,7 @@
           ${cover ? `<div class="story-detail-cover has-image"><img src="${escapeHtml(cover)}" alt="" /></div>` : ""}
           <div class="story-detail-copy">
             ${priceText(state.readerAccess?.access || pack.access) ? `<p>${escapeHtml(priceText(state.readerAccess?.access || pack.access))}</p>` : ""}
+            ${pack.cover?.contentRating === "adults_only" ? `<p class="story-adult-notice"><strong>${escapeHtml(tr("adultsOnly"))}</strong> ${escapeHtml(tr("adultNotice"))}</p>` : ""}
             ${pack.author?.displayName ? `<p class="story-detail-author">${escapeHtml(tr("authorLabel"))} · ${escapeHtml(pack.author.displayName)}</p>` : ""}
             ${packHashtags(pack).length ? `<div class="story-detail-tags" aria-label="${escapeHtml(tr("hashtagFilter"))}">
               ${packHashtags(pack).map((hashtag) => `<button type="button" data-story-tag-key="${escapeHtml(hashtag.key)}">#${escapeHtml(hashtag.label)}</button>`).join("")}

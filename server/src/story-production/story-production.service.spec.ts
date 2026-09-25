@@ -339,6 +339,35 @@ describe('StoryProductionService', () => {
     });
   });
 
+  it('keeps an unlisted link-test story out of catalog and hashtag counts', async () => {
+    const workId = '00000000-0000-0000-0000-000000000021';
+    const releaseId = '00000000-0000-0000-0000-000000000031';
+    prisma.storyWork.findMany.mockResolvedValue([{
+      id: workId,
+      slug: 'unlisted-test-story',
+      defaultLocale: 'ko',
+      title: { ko: 'Unlisted' },
+      summary: { ko: 'Summary' },
+      hashtagKeys: ['thriller'],
+      hashtagLabels: { thriller: { ko: '스릴러' } },
+      coverManifest: {
+        publicAssetPath: '/assets/story/unlisted.webp',
+        catalogVisibility: 'unlisted',
+        contentRating: 'adults_only',
+      },
+      priceLumina: new Decimal(0),
+      fixtureSource: false,
+      publishedAt: new Date(),
+      activeReleaseId: releaseId,
+    }]);
+    prisma.storyRelease.findMany.mockResolvedValue([{ id: releaseId, workId, checksum: 'a'.repeat(64) }]);
+
+    const result = await service.catalog(undefined, new StoryCatalogQueryDto());
+
+    expect(result.items).toEqual([]);
+    expect(result.filters.hashtags).toEqual([]);
+  });
+
   it('filters the public catalog by search text and hashtag while returning localized hashtag facets', async () => {
     const query = Object.assign(new StoryCatalogQueryDto(), {
       locale: 'en',

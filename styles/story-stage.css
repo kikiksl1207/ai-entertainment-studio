@@ -79,6 +79,8 @@
 .story-detail-actions .story-purchase-price { margin-top: 8px; font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .story-detail-actions > div { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .story-detail-actions .story-button { min-width: 0; max-width: 100%; min-height: 44px; white-space: normal; overflow-wrap: anywhere; }
+.story-detail-copy .story-adult-notice { padding: 10px 12px; border-left: 3px solid #ffacd4; background: rgba(255, 172, 212, 0.08); color: #f4f4f1; }
+.story-adult-notice strong { color: #ffacd4; }
 .story-participant-picker { display: grid; gap: 12px; padding: 18px 0 4px; border-top: 1px solid rgba(255, 255, 255, 0.08); }
 .story-participant-heading { display: flex; align-items: start; justify-content: space-between; gap: 16px; }
 .story-participant-heading h3, .story-participant-heading p { margin: 0; }
@@ -315,6 +317,7 @@
   background: rgba(255, 126, 185, 0.13);
   color: #ffacd4;
 }
+.story-pack-status .story-age-rating { background: #73334d; color: #fff; }
 
 .story-pack-detail,
 .story-player {

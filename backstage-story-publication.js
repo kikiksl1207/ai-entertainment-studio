@@ -43,9 +43,26 @@
       ],
       aiActivationAvailable: true,
       visualIdentityManaged: true
+    },
+    {
+      key: "inheritor",
+      title: "살인자는 죽은 자의 능력을 계승한다",
+      slug: "the-killer-inherits-the-dead",
+      checksums: [
+        "3f8243a8e5f973c9aa21aa06b5b7aa94ea9717b1bd53629f71f6805b74d1dfaf",
+        "c948fd717e358eb4dd4a6822df95ba206455d108f2781ecb3f85fc6fc0474326"
+      ],
+      aiActivationAvailable: false
     }
   ];
   const state = { items: [], publishedWorks: [], aiStatuses: {}, visualStatuses: {}, loading: false, loaded: false, promotingId: null, uploadingKey: null, activatingKey: null, replacingKey: null };
+
+  function matchesPublishedStory(work, story) {
+    if (!work || !story || work.status !== "published") return false;
+    return story.key === "inheritor"
+      ? work.slug?.startsWith(`${story.slug}-`)
+      : work.slug === story.slug;
+  }
 
   const list = document.getElementById("storyPublicationSubmissionList");
   const statusCards = document.getElementById("storyPublicationStatusCards");
@@ -130,7 +147,7 @@
   }
 
   function storyState(story) {
-    if (state.publishedWorks.some((work) => work?.slug === story.slug && work?.status === "published")) {
+    if (state.publishedWorks.some((work) => matchesPublishedStory(work, story))) {
       const ai = state.aiStatuses[story.key];
       if (story.aiActivationAvailable && (!ai || ai.status === "unavailable")) {
         return { published: true, label: "원고 공개 / AI 분기 확인 필요", className: "is-review", detail: "원고는 독자 화면에 공개 중" };
@@ -291,7 +308,7 @@
           return [story.key, { active: false, status: "unavailable" }];
         }
       })), Promise.all(knownStories.filter((story) => story.visualIdentityManaged).map(async (story) => {
-        const work = state.publishedWorks.find((candidate) => candidate?.slug === story.slug && candidate?.status === "published");
+        const work = state.publishedWorks.find((candidate) => matchesPublishedStory(candidate, story));
         if (!work?.id) return [story.key, { status: "unavailable", readyCount: 0, staleCount: 0, items: [] }];
         try {
           return [story.key, await api.fetch(`/admin/api/v1/story-visuals/${encodeURIComponent(work.id)}/replacement-status`, { auth: true })];
@@ -426,6 +443,14 @@
       if (inlineStatus) {
         inlineStatus.textContent = `${story.title} 최종본을 공개했습니다.`;
         inlineStatus.className = "form-status is-success";
+        if (storyKey === "inheritor" && result.work?.slug) {
+          const link = document.createElement("a");
+          link.href = `/story-stage?slug=${encodeURIComponent(result.work.slug)}`;
+          link.textContent = "전용 링크 열기";
+          link.target = "_blank";
+          link.rel = "noopener noreferrer";
+          inlineStatus.append(" ", link);
+        }
       }
       state.loaded = false;
       await load({ force: true });
@@ -437,7 +462,7 @@
     } finally {
       state.uploadingKey = null;
       button.disabled = false;
-      button.textContent = "확인 후 바로 공개";
+      button.textContent = storyKey === "inheritor" ? "링크 테스트 공개" : "확인 후 바로 공개";
       button.removeAttribute("aria-busy");
     }
   }
@@ -542,7 +567,7 @@
     const story = knownStories.find((candidate) => candidate.key === storyKey && candidate.visualIdentityManaged);
     const visual = state.visualStatuses[storyKey];
     const items = Array.isArray(visual?.items) ? visual.items : [];
-    const work = state.publishedWorks.find((candidate) => candidate?.slug === story?.slug && candidate?.status === "published");
+    const work = state.publishedWorks.find((candidate) => matchesPublishedStory(candidate, story));
     const card = button.closest("[data-story-visual-card]");
     const inlineStatus = card?.querySelector("[data-story-visual-status]");
     if (!story || !work?.id || !items.length || !visual?.releaseId || !visual?.releaseChecksum || state.replacingKey) return;

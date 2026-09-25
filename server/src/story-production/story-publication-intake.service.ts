@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { createHash, randomUUID } from 'crypto';
+import { createHash, randomBytes, randomUUID } from 'crypto';
 import {
   brotliCompressSync,
   brotliDecompressSync,
@@ -36,6 +36,10 @@ import {
   prepareFixedRoutePublicationSource,
 } from './story-fixed-route-markdown.policy';
 import {
+  INHERITOR_STORY,
+  prepareInheritorPublicationSource,
+} from './story-inheritor-publication.policy';
+import {
   PreparedManuscript,
   prepareManuscript,
   storedManuscriptBody,
@@ -61,7 +65,7 @@ const PUBLICATION_PLAN_MAX_BYTES = 64 * 1024 * 1024;
 const PUBLICATION_PLAN_STORAGE_CONTRACT = 'story-publication-plan-br-base64-v1';
 const SOURCE_UPLOAD_MARKER = 'source_upload_chunks_v1';
 const PLAN_STORAGE_MARKER = 'plan_br_v1';
-const APPROVED_STORY_KEYS = ['imjin', 'norse', 'monster', 'rebellion'] as const;
+const APPROVED_STORY_KEYS = ['imjin', 'norse', 'monster', 'rebellion', 'inheritor'] as const;
 const COMPANY_AUTHOR_DISPLAY_NAME = '루미나';
 type ApprovedStoryKey = typeof APPROVED_STORY_KEYS[number];
 const STORY_HASHTAG_KEYS: Record<ApprovedStoryKey, readonly string[]> = {
@@ -69,6 +73,7 @@ const STORY_HASHTAG_KEYS: Record<ApprovedStoryKey, readonly string[]> = {
   norse: ['norse-mythology', 'mythology', 'fantasy', 'loki', 'choice-fiction'],
   monster: ['romance', 'mystery', 'fantasy', 'modern-korea', 'complete'],
   rebellion: ['romance', 'political-fantasy', 'mystery', 'court-intrigue', 'complete'],
+  inheritor: ['fantasy', 'modern-korea', 'mystery', 'thriller', 'complete'],
 };
 
 type PublicationPart = {
@@ -105,6 +110,8 @@ type PublicationPlan = {
   parts: PublicationPart[];
   prompts: PublicationPrompt[];
   visualBible?: FixedRouteVisualBible;
+  contentRating?: 'adults_only';
+  catalogVisibility?: 'unlisted';
 };
 
 type PublicationPlanSnapshot = Omit<PublicationPlan, 'manuscript'> & {
@@ -142,14 +149,14 @@ export class StoryPublicationIntakeService {
       }),
       this.prisma.storyWork.findMany({
         where: {
-          slug: {
+          OR: [{ slug: {
             in: [
               'records-of-the-burning-sea-imjin-war',
               'norse-myth-loki-crossroads',
               FIXED_ROUTE_STORIES.monster.slug,
               FIXED_ROUTE_STORIES.rebellion.slug,
             ],
-          },
+          } }, { slug: { startsWith: `${INHERITOR_STORY.slug}-` } }],
           status: 'published',
         },
         select: { id: true, slug: true, activeReleaseId: true, status: true },
@@ -209,6 +216,7 @@ export class StoryPublicationIntakeService {
       });
     }
     const plan = this.approvedPlan(input.storyKey, buffers);
+    this.assertPublicRatingReady(plan);
     const existing = await this.prisma.storyPublicationImportJob.findUnique({
       where: {
         actorUserId_storyKey_sourceBindingSha256: {
@@ -469,6 +477,7 @@ export class StoryPublicationIntakeService {
         throw new ConflictException(job.errorCode || 'Story publication job failed');
       }
       const plan = this.readStoredPlan(job.planSnapshot);
+      this.assertPublicRatingReady(plan);
 
       if (job.status === 'queued') {
         stage = 'prepare_release';
@@ -517,6 +526,8 @@ export class StoryPublicationIntakeService {
             coverManifest: {
               publicAssetPath: plan.coverPath,
               altKey: `story.cover.${plan.storyKey}`,
+              ...(plan.contentRating ? { contentRating: plan.contentRating } : {}),
+              ...(plan.catalogVisibility ? { catalogVisibility: plan.catalogVisibility } : {}),
             },
             priceLumina: 0,
             fixtureSource: false,
@@ -608,7 +619,7 @@ export class StoryPublicationIntakeService {
             position: 1,
             status: 'published',
             title: { ko: part.title },
-            visualManifest: missingAuthoredSceneVisual(`${part.partKey}-main`),
+            visualManifest: this.authoredVisual(plan, `${part.partKey}-main`, part.position),
             endingType: null,
             fixtureSource: false,
           })),
@@ -653,7 +664,7 @@ export class StoryPublicationIntakeService {
               beatType: 'narration',
               content: { ko: beat.text },
               sourceSceneKey: beat.sourceSceneKey,
-              visualManifest: missingAuthoredSceneVisual(beat.sourceSceneKey),
+              visualManifest: this.authoredVisual(plan, beat.sourceSceneKey, part.position),
             };
           });
         });
@@ -892,7 +903,19 @@ export class StoryPublicationIntakeService {
       buffers.set(file.checksumSha256, buffer);
     }
     const plan = this.approvedPlan(input.storyKey, buffers);
+    this.assertPublicRatingReady(plan);
     return this.publish(actorUserId, submissionId, plan, input);
+  }
+
+  private assertPublicRatingReady(
+    plan: Pick<PublicationPlan, 'contentRating' | 'catalogVisibility'>,
+  ) {
+    if (plan.contentRating === 'adults_only' && plan.catalogVisibility !== 'unlisted') {
+      throw new ConflictException({
+        code: 'STORY_ADULT_VERIFICATION_REQUIRED',
+        message: 'Adult identity verification must be enforced before a listed release can be published',
+      });
+    }
   }
 
   private async publish(
@@ -983,6 +1006,8 @@ export class StoryPublicationIntakeService {
           coverManifest: {
             publicAssetPath: plan.coverPath,
             altKey: `story.cover.${plan.storyKey}`,
+            ...(plan.contentRating ? { contentRating: plan.contentRating } : {}),
+            ...(plan.catalogVisibility ? { catalogVisibility: plan.catalogVisibility } : {}),
           },
           priceLumina: 0,
           fixtureSource: false,
@@ -1046,7 +1071,7 @@ export class StoryPublicationIntakeService {
         position: 1,
         status: 'published',
         title: { ko: part.title },
-        visualManifest: missingAuthoredSceneVisual(`${part.partKey}-main`),
+        visualManifest: this.authoredVisual(plan, `${part.partKey}-main`, part.position),
         endingType: null,
         fixtureSource: false,
       }));
@@ -1063,7 +1088,7 @@ export class StoryPublicationIntakeService {
           beatType: 'narration',
           content: { ko: beat.text },
           sourceSceneKey: beat.sourceSceneKey,
-          visualManifest: missingAuthoredSceneVisual(beat.sourceSceneKey),
+          visualManifest: this.authoredVisual(plan, beat.sourceSceneKey, part.position),
         })),
       );
       for (let index = 0; index < beatRows.length; index += 256) {
@@ -1223,7 +1248,31 @@ export class StoryPublicationIntakeService {
         this.requiredBuffer(buffers, NORSE_SOURCE_MAP_SHA256),
       );
     }
+    if (storyKey === 'inheritor') {
+      return this.inheritorPlan(buffers);
+    }
     return this.fixedRoutePlan(storyKey, buffers);
+  }
+
+  private inheritorPlan(buffers: Map<string, Buffer>): PublicationPlan {
+    const source = prepareInheritorPublicationSource(
+      this.requiredBuffer(buffers, INHERITOR_STORY.manuscriptSha256),
+      this.requiredBuffer(buffers, INHERITOR_STORY.promptSha256),
+    );
+    return {
+      storyKey: 'inheritor',
+      slug: `${INHERITOR_STORY.slug}-${randomBytes(12).toString('hex')}`,
+      title: INHERITOR_STORY.title,
+      summary: INHERITOR_STORY.summary,
+      hashtagKeys: [...STORY_HASHTAG_KEYS.inheritor],
+      coverPath: INHERITOR_STORY.coverPath,
+      manuscript: source.manuscript,
+      sourceBindingSha256: source.sourceBindingSha256,
+      parts: source.parts,
+      prompts: source.prompts,
+      contentRating: 'adults_only',
+      catalogVisibility: 'unlisted',
+    };
   }
 
   private fixedRoutePlan(storyKey: FixedRouteStoryKey, buffers: Map<string, Buffer>): PublicationPlan {
@@ -1374,6 +1423,8 @@ export class StoryPublicationIntakeService {
       parts: plan.parts,
       prompts: plan.prompts,
       visualBible: plan.visualBible,
+      contentRating: plan.contentRating,
+      catalogVisibility: plan.catalogVisibility,
     };
     const serialized = Buffer.from(JSON.stringify(stored), 'utf8');
     const compressed = brotliCompressSync(serialized, {
@@ -1552,6 +1603,23 @@ export class StoryPublicationIntakeService {
     return value;
   }
 
+  private authoredVisual(
+    plan: PublicationPlan | PublicationPlanSnapshot,
+    sourceSceneKey: string,
+    position: number,
+  ) {
+    const manifest = missingAuthoredSceneVisual(sourceSceneKey);
+    if (plan.storyKey !== 'inheritor' || position !== 1) return manifest;
+    return {
+      ...manifest,
+      background: {
+        ...manifest.background,
+        state: 'ready',
+        publicAssetPath: plan.coverPath,
+      },
+    };
+  }
+
   private detectStoryKey(files: Array<{ checksumSha256: string }>) {
     const checksums = new Set(files.map((file) => file.checksumSha256));
     if (checksums.has(IMJIN_RELEASE_SOURCE.sha256)) return 'imjin' as const;
@@ -1561,6 +1629,8 @@ export class StoryPublicationIntakeService {
     ) {
       return 'norse' as const;
     }
+    if (checksums.has(INHERITOR_STORY.manuscriptSha256) &&
+        checksums.has(INHERITOR_STORY.promptSha256)) return 'inheritor' as const;
     return fixedRouteStoryKeyFromChecksums(checksums);
   }
 

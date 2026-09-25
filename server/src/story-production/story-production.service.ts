@@ -188,6 +188,9 @@ export class StoryProductionService {
       coverManifest: Prisma.JsonValue;
       activeReleaseId: string | null;
     }) =>
+      !(row.coverManifest && typeof row.coverManifest === 'object' &&
+        !Array.isArray(row.coverManifest) &&
+        (row.coverManifest as Record<string, unknown>).catalogVisibility === 'unlisted') &&
       isPublicStorySourceSafe({
         fixtureSource: row.fixtureSource,
         slug: row.slug,

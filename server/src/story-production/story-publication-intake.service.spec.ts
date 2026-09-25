@@ -2,6 +2,16 @@ import { StoryPublicationIntakeService } from './story-publication-intake.servic
 import { brotliCompressSync, gzipSync } from 'zlib';
 
 describe('StoryPublicationIntakeService queue projection', () => {
+  it('blocks adult-rated publication until verified age access is implemented', () => {
+    const service = new StoryPublicationIntakeService({} as never, {} as never);
+    expect(() => (service as any).assertPublicRatingReady({ contentRating: 'adults_only' }))
+      .toThrow('Adult identity verification must be enforced');
+    expect(() => (service as any).assertPublicRatingReady({
+      contentRating: 'adults_only', catalogVisibility: 'unlisted',
+    })).not.toThrow();
+    expect(() => (service as any).assertPublicRatingReady({})).not.toThrow();
+  });
+
   it.each([
     ['gzip', gzipSync],
     ['brotli', brotliCompressSync],

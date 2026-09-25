@@ -372,6 +372,29 @@
                   <button class="primary-action" type="submit">확인 후 바로 공개</button>
                 </div>
               </form>
+
+              <form class="table-card story-publication-upload-card" data-story-upload-form="inheritor">
+                <header>
+                  <div><span class="section-kicker">Approved Source</span><h3>살인자는 죽은 자의 능력을 계승한다</h3></div>
+                  <span class="status-badge is-review">19+ · 링크 테스트</span>
+                </header>
+                <p>265파트 최종 통합 원고와 배경 이미지 지시 통합본만 선택합니다. 설정·QA 문서는 공개하지 않습니다.</p>
+                <label class="story-upload-file-control">
+                  <span>최종 통합 원고 + 배경 이미지 지시</span>
+                  <input type="file" name="manuscripts" accept=".md" multiple required />
+                </label>
+                <p>일반 스토리 목록과 검색에는 나오지 않고 전용 링크로만 테스트합니다. 링크를 받은 성인에게만 전달해 주세요.</p>
+                <fieldset class="story-publication-confirmations story-upload-confirmations">
+                  <legend>링크 테스트 공개 확인</legend>
+                  <label><input type="checkbox" name="finalManuscriptConfirmed" value="true" required /> 최종 원고가 맞습니다.</label>
+                  <label><input type="checkbox" name="rightsConfirmed" value="true" required /> 공개 권리를 확인했습니다.</label>
+                  <label><input type="checkbox" name="publicReleaseConfirmed" value="true" required /> 19+ 표시를 유지하고 전용 링크 테스트로 공개합니다.</label>
+                </fieldset>
+                <div class="story-upload-action">
+                  <span class="form-status" data-story-upload-status role="status" aria-live="polite"></span>
+                  <button class="primary-action" type="submit">링크 테스트 공개</button>
+                </div>
+              </form>
             </div>
 
             <article class="table-card story-publication-list-card">
