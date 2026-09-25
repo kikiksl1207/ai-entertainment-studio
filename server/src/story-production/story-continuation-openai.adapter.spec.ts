@@ -15,7 +15,7 @@ function request(): StoryContinuationProviderRequest {
   return {
     operationId: 'operation-1', locale: 'en', contextFingerprint: 'fingerprint',
     provider: config.provider, model: config.model, rateCardId: config.rateCardId, rateCardVersion: config.rateCardVersion,
-    promptVersion: 'story-continuation-v4', outputSchemaVersion: 'story-continuation-output-v1',
+    promptVersion: 'story-continuation-v5', outputSchemaVersion: 'story-continuation-output-v1',
     inputTokenLimit: 8_192, outputTokenLimit: 500,
     approvedContext: {
       sourceScene: { title: 'Crossroads', beats: [{ beatType: 'paragraph', content: 'Two paths diverge.' }] },
@@ -125,10 +125,10 @@ describe('OpenAiStoryContinuationProvider (fake transport only)', () => {
     const body = buildStoryContinuationOpenAiRequest(req, { ...config, maxOutputTokens: 32_768 });
     const beats = JSON.parse(JSON.stringify(body)).text.format.schema.properties.beats;
     expect(beats.minItems).toBeGreaterThanOrEqual(10);
-    expect(beats.maxItems).toBe(beats.minItems);
+    expect(beats.maxItems).toBe(beats.minItems + 3);
     expect(beats.items.properties.beatType.enum).toEqual(['paragraph', 'dialogue']);
     expect(beats.items.properties.content.properties.en.minLength).toBeGreaterThanOrEqual(500);
-    expect(beats.items.properties.content.properties.en.maxLength).toBeLessThanOrEqual(700);
+    expect(beats.items.properties.content.properties.en.maxLength).toBeLessThanOrEqual(1_100);
   });
 
   it('projects only approved context and does not send request ids, pins, raw manuscript or secret extra fields', async () => {

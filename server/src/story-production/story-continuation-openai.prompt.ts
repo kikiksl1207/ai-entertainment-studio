@@ -97,6 +97,7 @@ function prepareRequest(request: StoryContinuationProviderRequest, config: Story
       'Create a fresh scene title that reflects the selected choice and its consequences; reuse the source title only when it is genuinely still the same scene.',
       'Write a complete scene, not a synopsis. The narrativeLength minimumUnits and maximumUnits are mandatory bounds for non-whitespace narrative code points, including an ending. Develop new events and dialogue naturally; never pad or repeat prose to meet the minimum.',
       'For long scenes, fill every required beat near the middle of its schema length range. Each beat can contain several natural paragraphs or dialogue exchanges. Advance events in each beat; do not pad or repeat. Keep the combined narrative strictly within narrativeLength minimumUnits and maximumUnits.',
+      'Never cut a word or sentence between beats. End every beat at a complete sentence boundary. The final beat must end with a complete, punctuated sentence that leads naturally to the three next choices or resolves the ending.',
       `Write every title, beat and choice label exclusively in locale ${request.locale}; no translation or locale fallback.`,
       'Return JSON matching the schema. Produce 1 to 40 nonempty beats.',
       'Return exactly 3 distinct nextChoices and ending=null, or nextChoices=[] and an ending.',

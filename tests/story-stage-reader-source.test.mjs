@@ -74,6 +74,21 @@ test('reader source: six short beats become three full-page scenes without losin
   assert.equal(visualGroups[1].visualContext.id, 'third');
 });
 
+test('reader source: generated prose turns on sentence boundaries and hides a short unfinished tail', () => {
+  const runtime = reader(Array.from({ length: 10 }, (_, index) => index), 0);
+  runtime.state.progress.currentGeneratedSceneId = 'generated-scene';
+  runtime.state.scene.beats = Array.from({ length: 10 }, (_, index) => ({
+    position: index,
+    content: { value: index === 3 ? '그는 재빨' : index === 4 ? '리 제지했다.' :
+      index === 9 ? '“누가 왔죠?” 그는' : `장면 ${index}이 끝났다.` },
+  }));
+  const grouped = runtime.readableBeats();
+  assert.equal(grouped.beats.length, 3);
+  assert.ok(grouped.beats.some((page) => page.text.includes('재빨리 제지했다.')));
+  assert.equal(grouped.beats.at(-1).text.endsWith('“누가 왔죠?”'), true);
+  assert.ok(grouped.beats.every((page) => /[.!?。！？…][”"'’」』)]*$/.test(page.text)));
+});
+
 test('reader source: completed reading cursor stays local and work/release/scene scoped', () => {
   const local = reader([1, 2, 3], 0, 'completed');
   local.state.completedBeat = { scope: local.readerScope(), position: 3 };

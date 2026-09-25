@@ -49,7 +49,7 @@ describePostgres('durable provider dispatch fence: real PostgreSQL workers', () 
         sourcePartId: randomUUID(), sourceSceneId: randomUUID(), sourceProgressRevision: 1,
         manuscriptVersionId: randomUUID(), analysisJobId: randomUUID(), analysisVersion: 1,
         rightsContractId: randomUUID(), rightsContractVersionId: randomUUID(), releaseChecksum: 'qa',
-        locale: 'ko', contextFingerprint: 'qa', promptVersion: 'story-continuation-v4',
+        locale: 'ko', contextFingerprint: 'qa', promptVersion: 'story-continuation-v5',
         outputSchemaVersion: 'story-continuation-output-v1', estimatedCostKrw: 1, hardBudgetKrw: 100,
         inputTokenLimit: 8192, outputTokenLimit: 500,
       } });

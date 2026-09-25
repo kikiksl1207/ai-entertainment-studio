@@ -4,6 +4,36 @@ import type { StoryContinuationProviderResult } from './story-continuation.provi
 
 const MAX_OUTPUT_BYTES = 100_000;
 const MAX_BEAT_BYTES = 14_000;
+const SENTENCE_END = /[.!?。！？…]+[”"'’)]*$/u;
+const SENTENCE_BOUNDARY = /[.!?。！？…]+[”"'’)]*\s*/gu;
+
+export function normalizeLongStoryContinuationProse(value: StoryContinuationProviderResult, locale: string) {
+  if (value.beats.length < 10) return value;
+  const beats: StoryContinuationProviderResult['beats'] = [];
+  for (const beat of value.beats) {
+    const text = beat.content[locale];
+    const previous = beats.at(-1);
+    if (previous && previous.beatType !== 'scene_break' && beat.beatType !== 'scene_break' &&
+        !SENTENCE_END.test(previous.content[locale]) &&
+        Buffer.byteLength(previous.content[locale] + text, 'utf8') <= MAX_BEAT_BYTES) {
+      previous.content[locale] += text;
+    } else {
+      beats.push({ beatType: beat.beatType, content: { [locale]: text } });
+    }
+  }
+  const last = beats.at(-1);
+  if (!last || last.beatType === 'scene_break') invalid('Generated continuation final sentence is incomplete');
+  const text = last!.content[locale].trimEnd();
+  if (!SENTENCE_END.test(text)) {
+    let completeEnd = 0;
+    for (const match of text.matchAll(SENTENCE_BOUNDARY)) completeEnd = (match.index ?? 0) + match[0].length;
+    if (!completeEnd || Array.from(text.slice(completeEnd)).length > 120) {
+      invalid('Generated continuation final sentence is incomplete');
+    }
+    last!.content[locale] = text.slice(0, completeEnd).trimEnd();
+  }
+  return { ...value, beats };
+}
 
 export function validateStoryContinuationProviderResult(
   value: StoryContinuationProviderResult,

@@ -1377,21 +1377,46 @@
     return textValue(value);
   }
 
-  function groupReaderBeats(beats) {
-    if (beats.length <= 3) return beats.map((beat) => ({ ...beat, positions: [beat.position], segments: [String(beat.text || "")] }));
+  function readerSentenceEnds(text) {
+    return /[.!?。！？…]+[”"'’」』)]*$/u.test(String(text || "").trimEnd());
+  }
+
+  function finishGeneratedReaderTail(text) {
+    const value = String(text || "").trimEnd();
+    if (readerSentenceEnds(value)) return value;
+    let completeEnd = 0;
+    for (const match of value.matchAll(/[.!?。！？…]+[”"'’」』)]*\s*/gu)) completeEnd = match.index + match[0].length;
+    return completeEnd && Array.from(value.slice(completeEnd)).length <= 120
+      ? value.slice(0, completeEnd).trimEnd() : value;
+  }
+
+  function groupReaderBeats(beats, generated = false) {
+    if (beats.length <= 3 && !generated) return beats.map((beat) => ({ ...beat, positions: [beat.position], segments: [String(beat.text || "")] }));
     const sceneCount = Math.min(3, Math.ceil(beats.length / 2));
+    let start = 0;
     return Array.from({ length: sceneCount }, (_, index) => {
-      const start = Math.ceil(index * beats.length / sceneCount);
-      const end = Math.ceil((index + 1) * beats.length / sceneCount);
+      let end = index === sceneCount - 1 ? beats.length : Math.ceil((index + 1) * beats.length / sceneCount);
+      if (generated) {
+        const latest = beats.length - (sceneCount - index - 1);
+        while (end < latest && !readerSentenceEnds(beats[end - 1].text)) end++;
+      }
       const members = beats.slice(start, end);
+      start = end;
       const visualBeat = members.find((beat) => beat.visualContext?.assetReadiness === "ready") ||
         members.find((beat) => beat.visualContext?.generationAvailable === true) ||
         members.find((beat) => beat.visualContext != null) || members[0];
+      const segments = [];
+      for (const member of members) {
+        const text = String(member.text || "");
+        if (generated && segments.length && !readerSentenceEnds(segments.at(-1))) segments[segments.length - 1] += text;
+        else segments.push(text);
+      }
+      if (generated && index === sceneCount - 1) segments[segments.length - 1] = finishGeneratedReaderTail(segments.at(-1));
       return {
         position: members.at(-1).position,
         positions: members.map((beat) => beat.position),
-        segments: members.map((beat) => String(beat.text || "")),
-        text: members.map((beat) => String(beat.text || "")).join("\n\n"),
+        segments,
+        text: segments.join("\n\n"),
         visualContext: visualBeat.visualContext,
       };
     });
@@ -1406,7 +1431,7 @@
     if (rawBeats.some((beat) => !Number.isSafeInteger(beat.position) || beat.position < 0) ||
         new Set(rawBeats.map((beat) => beat.position)).size !== rawBeats.length) return null;
     rawBeats.sort((left, right) => left.position - right.position);
-    const beats = groupReaderBeats(rawBeats);
+    const beats = groupReaderBeats(rawBeats, Boolean(state.progress?.currentGeneratedSceneId));
     const scope = readerScope();
     const position = state.progress?.status === "completed" && state.completedBeat?.scope === scope
       ? state.completedBeat.position : state.progress?.currentBeatPosition ?? 0;

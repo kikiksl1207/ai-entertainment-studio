@@ -443,7 +443,7 @@ export class StoryEconomicsService {
       ...(generationProfilePin ? { generationProfile: generationProfilePin } : {}),
       ...(participantSnapshot ? { participantArtist: participantSnapshot.pin } : {}),
       rateCard: { id: rateCard.id, version: rateCard.version },
-      promptVersion: 'story-continuation-v4',
+      promptVersion: 'story-continuation-v5',
       outputSchemaVersion: 'story-continuation-output-v1',
     };
     const contextFingerprint = createHash('sha256')

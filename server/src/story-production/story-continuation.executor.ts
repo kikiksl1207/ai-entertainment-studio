@@ -10,7 +10,7 @@ import {
 } from './story-continuation.repository';
 import { StoryContinuationContextAssembler } from './story-continuation-context.assembler';
 import { StoryContinuationContextError } from './story-continuation-context.assembler';
-import { validateStoryContinuationProviderResult } from './story-continuation-output.policy';
+import { normalizeLongStoryContinuationProse, validateStoryContinuationProviderResult } from './story-continuation-output.policy';
 import {
   assertStoryContinuationLengthBounds,
   sourceStoryContinuationLengthBounds,
@@ -95,12 +95,19 @@ export class StoryContinuationExecutor {
         signal,
       );
       if (signal?.aborted) throw new StoryContinuationProviderError('provider_outcome_unknown', false);
-      const result = validateStoryContinuationProviderResult(providerResult, {
+      const sanitized = validateStoryContinuationProviderResult(providerResult, {
         locale: claim.request.locale,
         sceneKey: `ai-${claim.continuationId}`,
         inputTokenLimit: claim.request.inputTokenLimit,
         outputTokenLimit: claim.request.outputTokenLimit,
       });
+      const result = validateStoryContinuationProviderResult(
+        normalizeLongStoryContinuationProse(sanitized, claim.request.locale), {
+          locale: claim.request.locale,
+          sceneKey: `ai-${claim.continuationId}`,
+          inputTokenLimit: claim.request.inputTokenLimit,
+          outputTokenLimit: claim.request.outputTokenLimit,
+        });
       validateStoryContinuationNarrativeLength({
         locale: claim.request.locale,
         beats: result.beats,

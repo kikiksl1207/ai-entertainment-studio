@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { validateStoryContinuationProviderResult } from './story-continuation-output.policy';
+import { normalizeLongStoryContinuationProse, validateStoryContinuationProviderResult } from './story-continuation-output.policy';
 import type { StoryContinuationProviderResult } from './story-continuation.provider';
 
 const valid = {
@@ -66,5 +66,26 @@ describe('continuation output ending defense', () => {
       .toThrow('Generated continuation contains a stray bracket paragraph');
     expect(validateStoryContinuationProviderResult(withText('The note read [stay].'), input).beats[0].content.en)
       .toBe('The note read [stay].');
+  });
+
+  it('joins split words and removes only a short unfinished tail from long AI prose', () => {
+    const beats = Array.from({ length: 10 }, (_, index) => ({
+      beatType: 'paragraph' as const,
+      content: { ko: index === 4 ? '그는 재빨' : index === 5 ? '리 제지했다.' :
+        index === 9 ? '“누가 왔죠?” 그는' : `장면 ${index}이 끝났다.` },
+    }));
+    const normalized = normalizeLongStoryContinuationProse({ ...valid, beats }, 'ko');
+    expect(normalized.beats.map((beat) => beat.content.ko)).toContain('그는 재빨리 제지했다.');
+    expect(normalized.beats.at(-1)?.content.ko).toBe('“누가 왔죠?”');
+    expect(beats[4].content.ko).toBe('그는 재빨');
+  });
+
+  it('rejects a long unfinished final fragment instead of publishing it', () => {
+    const beats = Array.from({ length: 10 }, (_, index) => ({
+      beatType: 'paragraph' as const,
+      content: { ko: index === 9 ? `그는 확인했다. ${'끝나지 않은 서술'.repeat(20)}` : '완전한 문장이다.' },
+    }));
+    expect(() => normalizeLongStoryContinuationProse({ ...valid, beats }, 'ko'))
+      .toThrow('Generated continuation final sentence is incomplete');
   });
 });
