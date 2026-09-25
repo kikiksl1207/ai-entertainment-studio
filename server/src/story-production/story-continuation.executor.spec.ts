@@ -28,7 +28,7 @@ const claim: StoryContinuationClaim = {
     operationId: 'continuation-id',
     locale: 'ko',
     contextFingerprint: 'fingerprint',
-    promptVersion: 'story-continuation-v3',
+    promptVersion: 'story-continuation-v4',
     outputSchemaVersion: 'story-continuation-output-v1',
     inputTokenLimit: 1000,
     outputTokenLimit: 500,

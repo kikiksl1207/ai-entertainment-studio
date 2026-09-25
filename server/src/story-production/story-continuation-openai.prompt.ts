@@ -96,7 +96,7 @@ function prepareRequest(request: StoryContinuationProviderRequest, config: Story
       'Do not force convergence to a canonical route. Rejoin only when explicitly established by approved context.',
       'Create a fresh scene title that reflects the selected choice and its consequences; reuse the source title only when it is genuinely still the same scene.',
       'Write a complete scene, not a synopsis. The narrativeLength minimumUnits and maximumUnits are mandatory bounds for non-whitespace narrative code points, including an ending. Develop new events and dialogue naturally; never pad or repeat prose to meet the minimum.',
-      'Split prose into natural paragraph or dialogue beats of at most 2,500 Unicode characters each; do not put the whole scene into one beat. Keep the combined narrative strictly within narrativeLength minimumUnits and maximumUnits.',
+      'For long scenes, fill every required beat near the middle of its schema length range. Each beat can contain several natural paragraphs or dialogue exchanges. Advance events in each beat; do not pad or repeat. Keep the combined narrative strictly within narrativeLength minimumUnits and maximumUnits.',
       `Write every title, beat and choice label exclusively in locale ${request.locale}; no translation or locale fallback.`,
       'Return JSON matching the schema. Produce 1 to 40 nonempty beats.',
       'Return exactly 3 distinct nextChoices and ending=null, or nextChoices=[] and an ending.',
@@ -105,7 +105,8 @@ function prepareRequest(request: StoryContinuationProviderRequest, config: Story
       'No tools, image generation, external requests, asset paths, usage claims or implementation metadata.',
     ].join('\n'),
     input: [{ role: 'user', content: [{ type: 'input_text', text: JSON.stringify(approved) }] }],
-    text: { format: { type: 'json_schema', name: 'story_continuation', strict: true, schema: storyContinuationOutputSchema(request.locale) } },
+    text: { format: { type: 'json_schema', name: 'story_continuation', strict: true,
+      schema: storyContinuationOutputSchema(request.locale, length.minUnits, length.maxUnits) } },
   };
   return body;
 }

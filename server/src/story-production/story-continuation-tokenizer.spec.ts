@@ -48,7 +48,7 @@ describe('offline pinned story tokenizer', () => {
       visualAssetPath: '/assets/story/placeholder.webp' };
     const request = { provider: 'openai', model, rateCardId: 'qa-card', rateCardVersion: 'qa-v1',
       operationId: 'qa-operation', locale: 'ko', contextFingerprint: 'qa',
-      promptVersion: 'story-continuation-v3', outputSchemaVersion: 'story-continuation-output-v1',
+      promptVersion: 'story-continuation-v4', outputSchemaVersion: 'story-continuation-output-v1',
       inputTokenLimit: 32768, outputTokenLimit: 500, approvedContext };
     expect(approvedContext.sourceScene.beats.reduce((sum, beat) => sum + beat.content.length, 0)).toBe(10_000);
     expect(approvedContext.sourceScene.beats.length).toBeLessThanOrEqual(40);
@@ -85,7 +85,7 @@ describe('offline pinned story tokenizer', () => {
     approvedContext.sourceScene.beats = [{ beatType: 'narration', content: '한글 원문 그대로 유지. '.repeat(600).slice(0, 7500) }];
     const request = { provider: 'openai', model, rateCardId: 'qa-card', rateCardVersion: 'qa-v1',
       operationId: 'qa-operation', locale: 'ko', contextFingerprint: 'qa',
-      promptVersion: 'story-continuation-v3', outputSchemaVersion: 'story-continuation-output-v1',
+      promptVersion: 'story-continuation-v4', outputSchemaVersion: 'story-continuation-output-v1',
       inputTokenLimit: 32768, outputTokenLimit: 500, approvedContext };
     expect(Buffer.byteLength(approvedContext.sourceScene.beats[0].content)).toBeGreaterThan(16000);
     expect(JSON.parse(buildStoryContinuationOpenAiRequest(request, config).input[0].content[0].text))
