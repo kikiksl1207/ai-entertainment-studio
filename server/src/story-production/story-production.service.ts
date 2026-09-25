@@ -1526,6 +1526,7 @@ export class StoryProductionService {
         scene: {
           id: scene.id,
           sceneKey: scene.sceneKey,
+          isGenerated: true,
           title: null,
           beats: [],
           visualManifest,
@@ -1555,6 +1556,7 @@ export class StoryProductionService {
       scene: {
         id: scene.id,
         sceneKey: scene.sceneKey,
+        isGenerated: true,
         title: projectLocalizedValue(scene.title, locale, work.defaultLocale),
         beats: beats.map((beat) => ({
           id: beat.id,

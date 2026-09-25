@@ -1431,7 +1431,8 @@
     if (rawBeats.some((beat) => !Number.isSafeInteger(beat.position) || beat.position < 0) ||
         new Set(rawBeats.map((beat) => beat.position)).size !== rawBeats.length) return null;
     rawBeats.sort((left, right) => left.position - right.position);
-    const beats = groupReaderBeats(rawBeats, Boolean(state.progress?.currentGeneratedSceneId));
+    const generated = state.scene?.isGenerated === true || state.scene?.deliveryState === "ready";
+    const beats = groupReaderBeats(rawBeats, generated);
     const scope = readerScope();
     const position = state.progress?.status === "completed" && state.completedBeat?.scope === scope
       ? state.completedBeat.position : state.progress?.currentBeatPosition ?? 0;

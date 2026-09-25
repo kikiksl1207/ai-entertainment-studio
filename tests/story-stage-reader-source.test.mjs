@@ -76,7 +76,7 @@ test('reader source: six short beats become three full-page scenes without losin
 
 test('reader source: generated prose turns on sentence boundaries and hides a short unfinished tail', () => {
   const runtime = reader(Array.from({ length: 10 }, (_, index) => index), 0);
-  runtime.state.progress.currentGeneratedSceneId = 'generated-scene';
+  runtime.state.scene.deliveryState = 'ready';
   runtime.state.scene.beats = Array.from({ length: 10 }, (_, index) => ({
     position: index,
     content: { value: index === 3 ? '그는 재빨' : index === 4 ? '리 제지했다.' :
