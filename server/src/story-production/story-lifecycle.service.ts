@@ -31,14 +31,16 @@ import { assertAuthoredImportPublicationTx } from './story-authored-import.servi
 import { AuthorReviewProposalDto, SubmitWriterReviewDto } from './dto/story-author-final-review.dto';
 import { StoryAuthorFinalReviewService } from './story-author-final-review.service';
 import { authorReviewConflict } from './story-author-final-review.policy';
+import { StoryStudioChoicePreparationService } from './story-studio-choice-preparation.service';
 
 @Injectable()
 export class StoryLifecycleService {
+  private readonly studioChoices: StoryStudioChoicePreparationService;
   constructor(
     private readonly prisma: PrismaService,
     @Optional() private readonly economics?: StoryEconomicsService,
     @Optional() private readonly authorReview?: StoryAuthorFinalReviewService,
-  ) {}
+  ) { this.studioChoices = new StoryStudioChoicePreparationService(prisma); }
 
   async lifecycle(userId: string, workId: string) {
     const work = await this.assertOwner(userId, workId);
@@ -146,6 +148,7 @@ export class StoryLifecycleService {
         ? await tx.storyRelease.findFirst({ where: { id: body.releaseId, workId } })
         : null;
       let authoredPromotion: { partIds: string[]; sceneIds: string[] } | undefined;
+      let studioPromotion: { partIds: string[]; sceneIds: string[] } | undefined;
       if (body.toStatus === 'published') {
         if (!release) throw new BadRequestException('Validated release is required');
         authoredPromotion = await assertAuthoredImportPublicationTx(tx, workId, release.id);
@@ -173,13 +176,18 @@ export class StoryLifecycleService {
             throw new ConflictException('Unresolved critical continuity issue blocks publication');
           }
         }
+        if (!authoredPromotion) {
+          studioPromotion = await this.studioChoices.assertPublishableTx(tx, work.id, work.ownerUserId,
+            release.manuscriptVersionId, release.id);
+        }
+        const promotion = authoredPromotion ?? studioPromotion;
         const parts = await tx.storyPart.findMany({
-          where: { workId, status: authoredPromotion ? 'draft' : 'published', fixtureSource: false,
-            ...(authoredPromotion ? { id: { in: authoredPromotion.partIds } } : {}) },
+          where: { workId, status: promotion ? 'draft' : 'published', fixtureSource: false,
+            ...(promotion ? { id: { in: promotion.partIds } } : {}) },
           select: { id: true },
         });
         const scenes = await tx.storyScene.findMany({
-          where: { partId: { in: parts.map((part) => part.id) }, status: authoredPromotion ? 'draft' : 'published', fixtureSource: false },
+          where: { partId: { in: parts.map((part) => part.id) }, status: promotion ? 'draft' : 'published', fixtureSource: false },
           select: { id: true },
         });
         const choiceCounts = await tx.storyChoice.groupBy({
@@ -196,19 +204,28 @@ export class StoryLifecycleService {
             throw new ConflictException('Authored publication requires exactly three choices per scene');
           }
         }
+        if (promotion) {
+          const partIds = new Set(parts.map(part => part.id));
+          const sceneIds = new Set(scenes.map(scene => scene.id));
+          if (parts.length !== promotion.partIds.length || scenes.length !== promotion.sceneIds.length ||
+              promotion.partIds.some(id => !partIds.has(id)) || promotion.sceneIds.some(id => !sceneIds.has(id))) {
+            authorReviewConflict(authoredPromotion ? 'AUTHORED_DRAFT_PROMOTION_CHANGED' : 'STUDIO_DRAFT_PROMOTION_CHANGED');
+          }
+        }
         if (this.economics) {
           await this.economics.assertReleasePublishableTx(tx, work, release);
         }
       }
       const afterRevision = work.releaseRevision + 1;
       if (body.toStatus === 'published' && release) {
-        if (authoredPromotion) {
-          const promotedParts = await tx.storyPart.updateMany({ where: { id: { in: authoredPromotion.partIds },
+        const promotion = authoredPromotion ?? studioPromotion;
+        if (promotion) {
+          const promotedParts = await tx.storyPart.updateMany({ where: { id: { in: promotion.partIds },
             workId, status: 'draft', fixtureSource: false }, data: { status: 'published', publishedAt: new Date() } });
-          const promotedScenes = await tx.storyScene.updateMany({ where: { id: { in: authoredPromotion.sceneIds },
+          const promotedScenes = await tx.storyScene.updateMany({ where: { id: { in: promotion.sceneIds },
             status: 'draft', fixtureSource: false }, data: { status: 'published' } });
-          if (promotedParts.count !== authoredPromotion.partIds.length || promotedScenes.count !== authoredPromotion.sceneIds.length) {
-            authorReviewConflict('AUTHORED_DRAFT_PROMOTION_CHANGED');
+          if (promotedParts.count !== promotion.partIds.length || promotedScenes.count !== promotion.sceneIds.length) {
+            authorReviewConflict(authoredPromotion ? 'AUTHORED_DRAFT_PROMOTION_CHANGED' : 'STUDIO_DRAFT_PROMOTION_CHANGED');
           }
         }
         if (work.activeReleaseId && work.activeReleaseId !== release.id) {

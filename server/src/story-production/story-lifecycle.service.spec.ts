@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { BadRequestException, ConflictException } from '@nestjs/common';
 import * as authoredImport from './story-authored-import.service';
 import { StoryLifecycleService } from './story-lifecycle.service';
+import { StoryStudioChoicePreparationService } from './story-studio-choice-preparation.service';
 
 describe('StoryLifecycleService', () => {
   const prisma = {
@@ -35,6 +36,8 @@ describe('StoryLifecycleService', () => {
         update: jest.fn(),
       },
       storyAnalysisJob: { findFirst: jest.fn().mockResolvedValue(null) },
+      storyWriterReview: { findFirst: jest.fn().mockResolvedValue(null) },
+      storyManuscriptVersion: { findUnique: jest.fn().mockResolvedValue(null) },
       storyPart: {
         findMany: jest.fn().mockResolvedValue([{ id: 'part-1' }]),
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
@@ -181,6 +184,18 @@ describe('StoryLifecycleService', () => {
     expect(tx.storyPart.updateMany).toHaveBeenCalledTimes(1);
     expect(tx.storyScene.updateMany).toHaveBeenCalledTimes(1);
     expect(tx.storyRelease.update).toHaveBeenCalledTimes(1);
+  });
+
+  it('atomically promotes reviewed Studio drafts after their three choices are checked', async () => {
+    jest.spyOn(StoryStudioChoicePreparationService.prototype, 'assertPublishableTx')
+      .mockResolvedValue({ partIds: ['part-1'], sceneIds: ['scene-1', 'scene-2'] });
+    const { tx, lifecycle } = publicationFixture(false);
+    await expect(publish(lifecycle)).resolves.toMatchObject({ toStatus: 'published' });
+    expect(tx.storyPart.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ status: 'draft', id: { in: ['part-1'] } }),
+    }));
+    expect(tx.storyPart.updateMany).toHaveBeenCalledTimes(1);
+    expect(tx.storyScene.updateMany).toHaveBeenCalledTimes(1);
   });
 
   it('keeps legacy publication permissive for scenes with fewer than three choices', async () => {
