@@ -50,7 +50,11 @@ test('published monster and rebellion manuscripts do not appear AI-ready while b
     assert.match(card, /data-story-ai-activate="(?:monster|rebellion)" disabled/);
     assert.doesNotMatch(card, /<span class="status-badge is-approved">공개 완료<\/span>/);
   }
-  assert.match(view.card('임진왜란'), /<span class="status-badge is-approved">공개 완료<\/span>/);
+  const activeCard = view.card('임진왜란');
+  assert.match(activeCard, /<span class="status-badge is-approved">원고 공개 \/ AI 생성 활성<\/span>/);
+  assert.match(activeCard, /분기 장면은 독자 선택 후 생성/);
+  assert.match(activeCard, /분기 장면이 미리 생성된 상태는 아닙니다/);
+  assert.doesNotMatch(activeCard, /<span class="status-badge is-approved">공개 완료<\/span>/);
 });
 
 test('unavailable AI status is shown as unknown, not inactive', () => {
@@ -63,6 +67,16 @@ test('unavailable AI status is shown as unknown, not inactive', () => {
   assert.match(card, /data-story-ai-activate="rebellion" disabled/);
 });
 
+test('contradictory AI status is not presented as active or branch-ready', () => {
+  const view = publicationView();
+  view.state.aiStatuses.rebellion = { status: 'inactive', active: true };
+  view.renderStoryStatus();
+  const card = view.card('우리는 서로의 몸에 반역을 썼다');
+  assert.match(card, /원고 공개 \/ AI 분기 미활성/);
+  assert.match(card, /AI 분기 생성<\/strong><span class="status-badge is-review">비활성<\/span>/);
+  assert.doesNotMatch(card, /분기 장면이 미리 생성된 상태는 아닙니다/);
+});
+
 test('a published non-AI work retains its publication status and fixed-route controls', () => {
   const view = publicationView();
   view.knownStories.find((story) => story.key === 'norse').aiActivationAvailable = false;
@@ -72,4 +86,23 @@ test('a published non-AI work retains its publication status and fixed-route con
   assert.match(card, /<span class="status-badge is-approved">공개 완료<\/span>/);
   assert.match(card, /고정 메인 루트/);
   assert.doesNotMatch(card, /data-story-ai-card|data-story-ai-activate/);
+});
+
+test('inheritor shows choice preparation progress and blocks activation until ready', () => {
+  const view = publicationView();
+  view.state.publishedWorks.push({ slug: 'the-killer-inherits-the-dead-abc', status: 'published' });
+  view.state.aiStatuses.inheritor = { status: 'inactive', active: false };
+  view.state.choiceStatuses.inheritor = { status: 'preparing_choices', preparedParts: 12, totalParts: 265 };
+  view.renderStoryStatus();
+  const pending = view.card('살인자는 죽은 자의 능력을 계승한다');
+  assert.match(pending, /12 \/ 265파트에 선택지 3개 준비/);
+  assert.match(pending, /data-story-prepare-choices/);
+  assert.match(pending, /선택지 3개 준비가 끝나면 활성화/);
+
+  view.state.choiceStatuses.inheritor = { status: 'ready', preparedParts: 265, totalParts: 265 };
+  view.renderStoryStatus();
+  const ready = view.card('살인자는 죽은 자의 능력을 계승한다');
+  assert.match(ready, /준비 완료/);
+  assert.doesNotMatch(ready, /data-story-prepare-choices/);
+  assert.match(ready, /data-story-ai-activate="inheritor"/);
 });

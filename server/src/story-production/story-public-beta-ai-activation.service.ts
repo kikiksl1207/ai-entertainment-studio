@@ -6,6 +6,7 @@ import { INTERNAL_GENERATION_COST_TREATMENT } from '../story-settlement/content-
 import { STORY_AI_QUALITY_RUBRIC } from './dto/story-ai-activation.dto';
 import type { ActivatePublishedStoryAiDto } from './dto/story-publication-intake.dto';
 import { StoryAiActivationService } from './story-ai-activation.service';
+import { INHERITOR_STORY } from './story-inheritor-publication.policy';
 import {
   fixedRouteSuggestedChoices,
   type FixedRouteStoryKey,
@@ -16,6 +17,7 @@ const STORY_KEYS = {
   norse: 'norse-myth-loki-crossroads',
   monster: 'the-monster-that-did-not-eat-my-name',
   rebellion: 'we-wrote-rebellion-on-each-others-bodies',
+  inheritor: INHERITOR_STORY.slug,
 } as const;
 const STORY_LOCALES = ['ko', 'en', 'ja', 'zh-Hans', 'zh-Hant'];
 const RATE_CARD_ID = 'ed9b8bf1-df49-4f2d-9f62-6aeb9c5ed4f6';
@@ -39,15 +41,12 @@ export class StoryPublicBetaAiActivationService {
 
   async status(storyKeyValue: string) {
     const storyKey = this.storyKey(storyKeyValue);
-    const work = await this.prisma.storyWork.findUnique({
-      where: { slug: STORY_KEYS[storyKey] },
-      select: { id: true, activeReleaseId: true, status: true },
-    });
+    const work = await this.findWork(this.prisma, storyKey);
     if (!work?.activeReleaseId || work.status !== 'published') {
       return { storyKey, status: 'unavailable', active: false };
     }
     const activation = await this.latestValidActivation(this.prisma, work.id, work.activeReleaseId);
-    const choicesReady = activation && (storyKey === 'monster' || storyKey === 'rebellion')
+    const choicesReady = activation && (storyKey === 'monster' || storyKey === 'rebellion' || storyKey === 'inheritor')
       ? await this.fixedRouteChoicesReady(this.prisma, work.id)
       : Boolean(activation);
     const readyActivation = choicesReady ? activation : null;
@@ -63,7 +62,12 @@ export class StoryPublicBetaAiActivationService {
 
   async activate(actorUserId: string, storyKeyValue: string, body: ActivatePublishedStoryAiDto) {
     const storyKey = this.storyKey(storyKeyValue);
-    if (!body || Object.values(body).some((value) => value !== true)) {
+    if (!body || !(
+      body.aiBranchGenerationConfirmed === true &&
+      body.authorStyleReferenceConfirmed === true &&
+      body.generatedResultReuseConfirmed === true &&
+      body.imageTransformationConfirmed === true
+    )) {
       throw new BadRequestException('All AI publication confirmations are required');
     }
     const now = new Date();
@@ -72,7 +76,7 @@ export class StoryPublicBetaAiActivationService {
     expiresAt.setUTCFullYear(expiresAt.getUTCFullYear() + 1);
 
     const prepared = await this.prisma.$transaction(async (tx) => {
-      const work = await tx.storyWork.findUnique({ where: { slug: STORY_KEYS[storyKey] } });
+      const work = await this.findWork(tx, storyKey);
       if (!work || work.status !== 'published' || work.fixtureSource || !work.activeReleaseId) {
         throw new NotFoundException('Published story work not found');
       }
@@ -90,6 +94,9 @@ export class StoryPublicBetaAiActivationService {
         select: { id: true, position: true, title: true },
       });
       if (!parts.length) throw new ConflictException('Published story has no parts');
+      if (storyKey === 'inheritor' && !(await this.fixedRouteChoicesReady(tx, work.id))) {
+        throw new ConflictException('Published story requires three choices per part before AI activation');
+      }
 
       const rateCard = await this.ensureRateCard(tx, actorUserId, startsAt);
       const analysis = await this.ensureStyleSnapshot(tx, actorUserId, work, manuscript, parts, rateCard.id);
@@ -206,6 +213,22 @@ export class StoryPublicBetaAiActivationService {
       throw new BadRequestException('Unsupported story key');
     }
     return value as StoryKey;
+  }
+
+  private async findWork(client: PrismaService | Tx, storyKey: StoryKey) {
+    if (storyKey !== 'inheritor') {
+      return client.storyWork.findUnique({ where: { slug: STORY_KEYS[storyKey] } });
+    }
+    const works = await client.storyWork.findMany({
+      where: {
+        slug: { startsWith: `${INHERITOR_STORY.slug}-` },
+        status: 'published',
+        fixtureSource: false,
+      },
+      take: 2,
+    });
+    if (works.length > 1) throw new ConflictException('Multiple published inheritor works match');
+    return works[0] ?? null;
   }
 
   private async ensureFixedRouteSuggestedChoices(

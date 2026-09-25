@@ -47,6 +47,18 @@ export class StoryPublicationIntakeController {
     return this.aiActivation.status(storyKey);
   }
 
+  @Get('published/inheritor/choice-status')
+  @RequireAdminPermissions('*')
+  inheritorChoiceStatus() {
+    return this.publication.publishedInheritorChoiceStatus();
+  }
+
+  @Post('published/inheritor/prepare-choices')
+  @RequireAdminPermissions('*')
+  prepareInheritorChoices(@CurrentUser() user: AuthUser) {
+    return this.publication.preparePublishedInheritorChoices(user.id);
+  }
+
   @Post('published/:storyKey/activate-ai')
   @RequireAdminPermissions('*')
   activateAi(

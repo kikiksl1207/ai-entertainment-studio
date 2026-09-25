@@ -43,7 +43,7 @@
       submitFailed: "제출하지 못했습니다. 잠시 후 다시 시도해 주세요.",
       serviceUnavailable: "현재 최종 원고를 제출할 수 없습니다. 잠시 후 다시 시도해 주세요.",
       submitted: "최종 원고가 접수되었습니다.",
-      submittedBody: "검수 상태는 작가 스튜디오에서 확인할 수 있습니다.",
+      submittedBody: "검수 상태는 작가 스튜디오에서 확인할 수 있습니다. 원고 제출만으로 작품이 공개되거나 AI 분기가 준비되지는 않습니다.",
       uploadAnother: "다른 작품 제출",
     },
     en: {
@@ -81,7 +81,7 @@
       submitFailed: "Submission failed. Please try again shortly.",
       serviceUnavailable: "The final manuscript cannot be submitted right now. Please try again shortly.",
       submitted: "The final manuscript was submitted.",
-      submittedBody: "Check its review status in Writer Studio.",
+      submittedBody: "Check its review status in Writer Studio. Submission does not publish the story or prepare AI branches.",
       uploadAnother: "Submit another work",
     },
     ja: {
@@ -119,7 +119,7 @@
       submitFailed: "提出できませんでした。しばらくしてからお試しください。",
       serviceUnavailable: "現在、最終原稿を提出できません。しばらくしてからお試しください。",
       submitted: "最終原稿を受け付けました。",
-      submittedBody: "検収状況は作家スタジオで確認できます。",
+      submittedBody: "審査状況は作家スタジオで確認できます。提出だけでは作品は公開されず、AI分岐も準備されません。",
       uploadAnother: "別の作品を提出",
     },
     "zh-Hans": {
@@ -157,7 +157,7 @@
       submitFailed: "提交失败，请稍后重试。",
       serviceUnavailable: "暂时无法提交最终原稿，请稍后重试。",
       submitted: "最终原稿已提交。",
-      submittedBody: "可在作家工作室查看审核状态。",
+      submittedBody: "可在作家工作室查看审核状态。提交稿件不会自动发布作品，也不代表 AI 分支已准备就绪。",
       uploadAnother: "提交其他作品",
     },
     "zh-Hant": {
@@ -195,7 +195,7 @@
       submitFailed: "提交失敗，請稍後重試。",
       serviceUnavailable: "暫時無法提交最終原稿，請稍後再試。",
       submitted: "最終原稿已提交。",
-      submittedBody: "可在作家工作室查看審核狀態。",
+      submittedBody: "可在作家工作室查看審核狀態。提交稿件不會自動發佈作品，也不代表 AI 分支已準備就緒。",
       uploadAnother: "提交其他作品",
     },
   };
