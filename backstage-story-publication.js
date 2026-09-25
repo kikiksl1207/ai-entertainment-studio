@@ -206,6 +206,7 @@
       const choiceControls = story.key === "inheritor" && published ? `<section class="story-ai-activation" data-story-choice-card>
         <div><strong>파트별 선택지</strong><span class="status-badge ${choicesReady ? "is-approved" : "is-review"}">${choicesReady ? "준비 완료" : "준비 필요"}</span></div>
         <small>${choiceStatus?.totalParts ? `${Number(choiceStatus.preparedParts || 0).toLocaleString("ko-KR")} / ${Number(choiceStatus.totalParts).toLocaleString("ko-KR")}파트에 선택지 3개 준비` : "선택지 상태를 확인하고 있습니다."}</small>
+        ${choiceStatus?.slug ? `<a class="story-preview-link" href="/story-stage?slug=${encodeURIComponent(choiceStatus.slug)}" target="_blank" rel="noopener noreferrer">독자 화면 확인</a>` : ""}
         ${!choicesReady ? `<button type="button" class="primary-action" data-story-prepare-choices ${state.preparingChoices ? "disabled" : ""}>${state.preparingChoices ? "준비 중..." : "남은 선택지 준비"}</button>` : ""}
         <p class="form-status" data-story-choice-status role="status" aria-live="polite"></p>
       </section>` : "";

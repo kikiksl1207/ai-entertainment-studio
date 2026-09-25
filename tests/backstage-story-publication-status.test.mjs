@@ -99,10 +99,14 @@ test('inheritor shows choice preparation progress and blocks activation until re
   assert.match(pending, /data-story-prepare-choices/);
   assert.match(pending, /선택지 3개 준비가 끝나면 활성화/);
 
-  view.state.choiceStatuses.inheritor = { status: 'ready', preparedParts: 265, totalParts: 265 };
+  view.state.choiceStatuses.inheritor = {
+    status: 'ready', preparedParts: 265, totalParts: 265,
+    slug: 'the-killer-inherits-the-dead-abc'
+  };
   view.renderStoryStatus();
   const ready = view.card('살인자는 죽은 자의 능력을 계승한다');
   assert.match(ready, /준비 완료/);
   assert.doesNotMatch(ready, /data-story-prepare-choices/);
   assert.match(ready, /data-story-ai-activate="inheritor"/);
+  assert.match(ready, /href="\/story-stage\?slug=the-killer-inherits-the-dead-abc"/);
 });

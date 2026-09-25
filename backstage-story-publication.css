@@ -129,6 +129,26 @@
   font-size: 13px;
 }
 
+.story-preview-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  padding: 8px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  color: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.story-preview-link:hover,
+.story-preview-link:focus-visible {
+  border-color: var(--violet);
+  outline: 2px solid transparent;
+}
+
 .story-ai-confirmations {
   display: grid;
   gap: 7px;
