@@ -204,7 +204,8 @@ export class StoryStudioChoicePreparationService {
     const source = parts[part.position - 1] as Record<string, unknown> | undefined;
     const paragraphs = source && Array.isArray(source.paragraphs) ? source.paragraphs : [];
     const sourceText = paragraphs.filter((item): item is { kind: string; text: string } =>
-      Boolean(item && typeof item === 'object' && ['paragraph', 'dialogue'].includes(item.kind) && typeof item.text === 'string'))
+      Boolean(item && typeof item === 'object' &&
+        ['title', 'scene_break', 'paragraph', 'dialogue'].includes(item.kind) && typeof item.text === 'string'))
       .map(item => item.text).join('');
     const beats = await db.storyBeat.findMany({ where: { sceneId }, orderBy: { position: 'asc' } });
     const sceneText = beats.map(beat => localized(beat.content, 'ko') ?? '').join('');

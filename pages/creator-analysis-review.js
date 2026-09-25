@@ -538,6 +538,9 @@
   window.addEventListener("pagehide", invalidate);
   window.addEventListener("focus", () => current());
   setInterval(() => { if (scope) current(); }, 1000);
-  window.LuminaCreatorAnalysis = { receive, invalidate, contextChanged };
+  window.LuminaCreatorAnalysis = { receive, invalidate, contextChanged,
+    completed: () => phase === "completed" && job?.status === "completed" && receipt && current()
+      ? { manuscriptVersionId: receipt.id, workId: scope.workId, analysisJobId: job.id,
+        identity: scope.identity } : null };
   if (manuscript.receipt()) receive(manuscript.receipt()); else contextChanged();
 })();

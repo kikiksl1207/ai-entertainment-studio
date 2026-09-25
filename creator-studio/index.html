@@ -344,6 +344,12 @@
               <p id="writerGenerationReviewState" class="writer-analysis-meta" role="status" aria-live="polite"></p>
             </div>
           </section>
+          <section id="writerFinalEntry" class="writer-final-entry" hidden aria-labelledby="writerFinalEntryTitle">
+            <h2 id="writerFinalEntryTitle">원고 최종 검토</h2>
+            <p>원래 이야기의 다음 경로를 확인하고 AI 분기 권리를 승인하면 선택지 3개를 비공개로 준비합니다.</p>
+            <button id="writerFinalOpen" class="primary-action" type="button">최종 검토 열기</button>
+            <p id="writerFinalEntryState" role="status" aria-live="polite"></p>
+          </section>
         </section>
 
         <section class="studio-section" id="story-intake">
@@ -755,10 +761,29 @@
       </div>
     </div>
     <div class="studio-toast" id="studioToast" role="status" aria-live="polite"></div>
+    <div class="studio-modal is-hidden" id="writerFinalModal" role="dialog" aria-modal="true" aria-labelledby="writerFinalTitle">
+      <div class="modal-card writer-final-modal-card">
+        <header>
+          <div><span class="eyebrow">작가 확인</span><h2 id="writerFinalTitle">원고와 원작 경로 최종 검토</h2></div>
+          <button id="writerFinalClose" class="secondary-action" type="button">닫기</button>
+        </header>
+        <p>각 파트 끝의 원작 진행 방향을 확인하고 1번 선택지의 문구를 입력해 주세요. 2·3번은 AI가 별도로 만들며 실패하면 공개되지 않습니다.</p>
+        <p id="writerFinalState" role="status" aria-live="polite"></p>
+        <div id="writerFinalIssues" class="writer-final-issues"></div>
+        <div id="writerFinalParts" class="writer-final-parts"></div>
+        <label class="writer-final-confirm"><input id="writerFinalReviewed" type="checkbox" /> 원고, 분석 결과, 원작 경로와 모든 파트의 선택 문구를 검토했습니다.</label>
+        <label class="writer-final-confirm"><input id="writerFinalRights" type="checkbox" /> 이 원고의 권리를 보유하고 있으며 서비스 이용을 승인합니다.</label>
+        <label class="writer-final-confirm"><input id="writerFinalAi" type="checkbox" /> 원고 문체를 참고한 AI 분기 생성과 검수된 결과의 재사용을 승인합니다.</label>
+        <label class="writer-final-confirm" id="writerFinalWarningsLabel"><input id="writerFinalWarnings" type="checkbox" /> 위 분석 경고를 확인했습니다.</label>
+        <div class="modal-actions"><button id="writerFinalCancel" class="secondary-action" type="button">나중에</button>
+          <button id="writerFinalPrepare" class="primary-action" type="button">확인하고 선택지 준비</button></div>
+      </div>
+    </div>
     <script src="/pages/creator-studio.js"></script>
     <script src="/data/characters.js"></script>
     <script src="/app.js"></script>
     <script src="/pages/creator-analysis-review.js"></script>
+    <script src="/pages/creator-story-finalize.js"></script>
     <script src="/pages/content-rights-contract-ui.js"></script>
     <script src="/pages/creator-content-rights.js"></script>
   </body>

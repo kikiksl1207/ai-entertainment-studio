@@ -67,6 +67,8 @@ import { StoryGenerationProfileService } from './story-generation-profile.servic
 import { StoryArtistParticipantService } from './story-artist-participant.service';
 import { StoryStudioChoicePreparationController } from './story-studio-choice-preparation.controller';
 import { StoryStudioChoicePreparationService } from './story-studio-choice-preparation.service';
+import { StoryStudioLinearController } from './story-studio-linear.controller';
+import { StoryStudioLinearService } from './story-studio-linear.service';
 
 @Module({
   imports: [ModerationModule, StoryUploadModule],
@@ -74,6 +76,7 @@ import { StoryStudioChoicePreparationService } from './story-studio-choice-prepa
     StoryAiActivationAdminController,
     StoryManuscriptFileController,
     StoryStudioChoicePreparationController,
+    StoryStudioLinearController,
     StoryAuthoredImportController,
     StoryProductionController,
     StoryProgressAdminController,
@@ -101,6 +104,7 @@ import { StoryStudioChoicePreparationService } from './story-studio-choice-prepa
     StoryAuthoredImportService,
     StoryAuthorFinalReviewService,
     StoryStudioChoicePreparationService,
+    StoryStudioLinearService,
     StoryAuthoredImportMultipartInterceptor,
     StoryProductionService,
     StoryProgressControlService,
