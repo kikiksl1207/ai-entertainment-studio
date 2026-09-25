@@ -1210,6 +1210,9 @@ button.story-graph-choice {
   .story-detail-cover { min-height: 220px; aspect-ratio: 16 / 9; }
   .story-player { gap: 14px; }
   .story-current-title { font-size: 20px; }
+  .story-reader-shell[data-visual-layout="portrait"] .story-player-stage {
+    width: min(100%, 280px);
+  }
   .story-player-copy {
     width: 100%;
     padding: 20px 18px;

@@ -129,6 +129,12 @@
   font-size: 13px;
 }
 
+.story-visual-review-list { display: grid; gap: 8px; max-height: 320px; overflow: auto; }
+.story-visual-review-row { display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; align-items: center; gap: 8px; min-width: 0; }
+.story-visual-review-row img { width: 56px; height: 72px; object-fit: cover; border-radius: 4px; }
+.story-visual-review-row code { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+.story-visual-review-button { min-height: 38px; padding: 5px 8px; border: 1px solid var(--line-strong); border-radius: 4px; background: transparent; color: inherit; cursor: pointer; }
+
 .story-preview-link {
   display: inline-flex;
   align-items: center;

@@ -20,3 +20,10 @@ test('visual replacement controls stay inside the publication card on desktop an
   assert.match(css, /\.story-visual-replace-button \{[^}]*width: 100%;[^}]*min-height: 38px;/);
   assert.match(css, /\.story-ai-activation,\s*\.story-fixed-release-controls \{ grid-column: 1 \/ -1; \}/);
 });
+
+test('backstage can review and replace one stale image for the fifth work', () => {
+  assert.match(source, /key: "inheritor"[\s\S]*?visualIdentityManaged: true/);
+  assert.match(source, /story-visual-assets\/\$\{escapeHtml\(assetId\)\}/);
+  assert.match(source, /data-story-visual-scene=/);
+  assert.match(source, /staleItems\.filter\(\(item\) => item\.sourceSceneKey === selectedKey\)/);
+});

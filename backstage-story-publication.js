@@ -52,7 +52,8 @@
         "3f8243a8e5f973c9aa21aa06b5b7aa94ea9717b1bd53629f71f6805b74d1dfaf",
         "c948fd717e358eb4dd4a6822df95ba206455d108f2781ecb3f85fc6fc0474326"
       ],
-      aiActivationAvailable: true
+      aiActivationAvailable: true,
+      visualIdentityManaged: true
     }
   ];
   const state = { items: [], publishedWorks: [], aiStatuses: {}, visualStatuses: {}, choiceStatuses: {}, loading: false, loaded: false, promotingId: null, uploadingKey: null, activatingKey: null, replacingKey: null, preparingChoices: false };
@@ -183,9 +184,19 @@
         : readyCount > 0
           ? "현재 생성된 장면 그림이 최신 작품 기준과 일치합니다."
           : "독자가 장면에 도달하면 작품 기준에 맞춰 그림을 생성합니다.";
+    const staleItems = Array.isArray(visual?.items) ? visual.items : [];
+    const assetBase = String(window.LUMINA_API_BASE || "https://api.lumina-stage.com").replace(/\/$/, "");
     return `<section class="story-ai-activation story-visual-consistency" data-story-visual-card="${escapeHtml(story.key)}">
       <div><strong>장면 그림 일관성</strong><span class="status-badge ${className}">${escapeHtml(label)}</span></div>
       <small>${escapeHtml(description)}</small>
+      ${staleItems.length ? `<div class="story-visual-review-list">${staleItems.map((item) => {
+        const assetId = /^[a-f0-9-]{36}$/i.test(item.assetId || "") ? item.assetId : "";
+        return `<div class="story-visual-review-row">
+          ${assetId ? `<img loading="lazy" src="${escapeHtml(assetBase)}/api/v1/story-visual-assets/${escapeHtml(assetId)}" alt="교체 전 장면 그림" />` : ""}
+          <code>${escapeHtml(item.sourceSceneKey || "")}</code>
+          <button type="button" class="story-visual-review-button" data-story-visual-replace="${escapeHtml(story.key)}" data-story-visual-scene="${escapeHtml(item.sourceSceneKey || "")}" ${busy ? "disabled" : ""}>이 그림 교체</button>
+        </div>`;
+      }).join("")}</div>` : ""}
       ${staleCount > 0 ? `<button type="button" class="primary-action story-visual-replace-button" data-story-visual-replace="${escapeHtml(story.key)}" ${busy ? "disabled" : ""}>${busy ? "교체 중..." : `남은 ${staleCount.toLocaleString("ko-KR")}장 전체 교체`}</button>` : ""}
       <p class="form-status" data-story-visual-status role="status" aria-live="polite"></p>
     </section>`;
@@ -633,7 +644,9 @@
     const storyKey = button.dataset.storyVisualReplace;
     const story = knownStories.find((candidate) => candidate.key === storyKey && candidate.visualIdentityManaged);
     const visual = state.visualStatuses[storyKey];
-    const items = Array.isArray(visual?.items) ? visual.items : [];
+    const staleItems = Array.isArray(visual?.items) ? visual.items : [];
+    const selectedKey = button.dataset.storyVisualScene;
+    const items = selectedKey ? staleItems.filter((item) => item.sourceSceneKey === selectedKey) : staleItems;
     const work = state.publishedWorks.find((candidate) => matchesPublishedStory(candidate, story));
     const card = button.closest("[data-story-visual-card]");
     const inlineStatus = card?.querySelector("[data-story-visual-status]");
@@ -641,7 +654,7 @@
     state.replacingKey = storyKey;
     button.disabled = true;
     button.textContent = `0 / ${items.length} 교체 중`;
-    if (inlineStatus) inlineStatus.textContent = "표지와 같은 화풍·인물 기준으로 남은 장면 그림을 모두 다시 만들고 있습니다.";
+    if (inlineStatus) inlineStatus.textContent = selectedKey ? "선택한 장면 그림을 새 기준으로 만들고 있습니다." : "표지와 같은 화풍·인물 기준으로 남은 장면 그림을 모두 다시 만들고 있습니다.";
     let completed = 0;
     try {
       for (const item of items) {

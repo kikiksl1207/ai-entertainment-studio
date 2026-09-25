@@ -70,6 +70,8 @@ describe('story visual bible', () => {
     expect(result.indexOf('[PRIVATE VISUAL BIBLE')).toBeLessThan(result.indexOf('[SCENE-SPECIFIC DIRECTION]'));
     expect(result).toContain('Canonical style direction');
     expect(result).toContain('Do not illustrate them all.');
+    expect(result).toContain('one continuous physical location and moment');
+    expect(result).toContain('Never a character-sheet layout, poster montage, isolated cutouts');
     expect(result).toContain('[...middle of scene omitted for visual direction...]');
     expect(result).toContain('closing consequence');
     expect(Array.from(result.split('[SCENE-SPECIFIC DIRECTION]')[1]).length).toBeLessThan(3_700);

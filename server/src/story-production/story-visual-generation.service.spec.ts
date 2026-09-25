@@ -574,7 +574,7 @@ describe('StoryVisualGenerationService', () => {
       releaseChecksum: checksum,
       readyCount: 1,
       staleCount: 1,
-      items: [{ sourceSceneKey, updatedAt }],
+      items: [{ sourceSceneKey, assetId, updatedAt }],
     });
     expect(f.prisma.storyVisualGeneration.findMany).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({ variantKey: 'default', status: 'ready', assetId: { not: null } }),

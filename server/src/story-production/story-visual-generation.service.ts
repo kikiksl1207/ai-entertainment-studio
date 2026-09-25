@@ -344,7 +344,7 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
       take: 80,
       select: { sourceSceneKey: true, assetId: true, updatedAt: true },
     });
-    const stale: Array<{ sourceSceneKey: string; updatedAt: Date }> = [];
+    const stale: Array<{ sourceSceneKey: string; assetId: string; updatedAt: Date }> = [];
     for (const row of ready) {
       if (!row.assetId) continue;
       const prompt = await this.prisma.storyVisualPrompt.findUnique({
@@ -356,7 +356,7 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
       const effective = await this.effectiveVisualPrompt(workId, release.id, release.checksum, prompt.promptText);
       const identity = await this.readyAssetIdentity(row.assetId);
       if (!this.visualIdentityCurrent(identity, effective)) {
-        stale.push({ sourceSceneKey: row.sourceSceneKey, updatedAt: row.updatedAt });
+        stale.push({ sourceSceneKey: row.sourceSceneKey, assetId: row.assetId, updatedAt: row.updatedAt });
       }
     }
     return {
