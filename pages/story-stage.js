@@ -1664,7 +1664,7 @@
     const visual = readingVisual(reading);
     const { background, characters } = visual;
     const visualPending = Boolean(readingVisualKey(reading));
-    const showVisualStage = Boolean(background || visualPending);
+    const showVisualStage = Boolean(background);
     const sceneTitle = textValue(scene?.title);
     const lastBeat = reading.index === reading.beats.length - 1;
     const navigationBlocked = state.busy || aiRequestOpen() || !["active", "completed"].includes(state.progress?.status);

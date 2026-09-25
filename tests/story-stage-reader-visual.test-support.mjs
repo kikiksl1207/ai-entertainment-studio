@@ -165,6 +165,20 @@ export function registerReaderVisualTests({ fixture, projection, sessionId, work
     } finally { await f.close(); }
   });
 
+  test('beat visual: pending art without an asset keeps the manuscript first', async () => {
+    const value = current(); const visual = value.scene.beats[0].visualContext;
+    visual.generationAvailable = true;
+    visual.assetReadiness = 'missing';
+    visual.manifest.background = { state: 'fallback', publicAssetPath: '' };
+    visual.manifest.characters = [];
+    const f = await reader({ current: value });
+    try {
+      await f.ready(); await textOnly(f);
+      assert.equal(f.requests.filter((request) => request.method === 'POST' && request.path.endsWith('/scene-visual')).length, 1);
+      assert.equal(await f.page.locator('.story-player-copy p').textContent(), value.scene.beats[0].content);
+    } finally { await f.close(); }
+  });
+
   test('beat visual: a loaded fallback bitmap is not promoted to ready story artwork', async () => {
     const value = current(); const visual = value.scene.beats[0].visualContext;
     visual.assetReadiness = 'missing'; visual.manifest.background.state = 'fallback'; visual.manifest.characters = [];
