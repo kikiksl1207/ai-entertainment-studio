@@ -52,6 +52,15 @@ function requiredText(value: unknown, maxChars: number): value is string {
   );
 }
 
+function requiredSourceText(value: unknown, maxChars: number): value is string {
+  return (
+    typeof value === 'string' &&
+    value.trim().length > 0 &&
+    value.length <= maxChars &&
+    !/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F\p{Cf}]/u.test(value)
+  );
+}
+
 function normalizedLabel(value: string): string {
   return value.normalize('NFKC').toLowerCase().replace(/[\p{P}\p{S}\s]/gu, '');
 }
@@ -150,9 +159,9 @@ export class StoryChoicePreparationProvider {
           !/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(part.partKey) ||
           keys.has(part.partKey) ||
           !requiredText(part.title, 160) ||
-          !requiredText(part.endingExcerpt, 1_200) ||
+          !requiredSourceText(part.endingExcerpt, 1_200) ||
           !requiredText(part.originalChoiceLabel, MAX_LABEL_CHARS) ||
-          (part.context !== undefined && !requiredText(part.context, 500))) {
+          (part.context !== undefined && !requiredSourceText(part.context, 500))) {
         throw new StoryChoicePreparationError('invalid_input');
       }
       keys.add(part.partKey);

@@ -1060,7 +1060,7 @@ export class StoryPublicationIntakeService {
       if (error instanceof StoryChoicePreparationError) {
         throw new ServiceUnavailableException({
           code: 'STORY_CHOICE_PREPARATION_RETRYABLE',
-          reason: error.code,
+          details: { reason: error.code },
           message: 'AI choice preparation did not complete; retry to continue from the saved batch',
         });
       }

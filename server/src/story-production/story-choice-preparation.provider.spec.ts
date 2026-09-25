@@ -56,6 +56,17 @@ function providerWith(response: Response) {
 }
 
 describe('StoryChoicePreparationProvider', () => {
+  it('accepts authored paragraphs with line breaks as source context', async () => {
+    const { provider, transport } = providerWith(apiResponse(validChoices));
+    const paragraphInput = {
+      ...input,
+      parts: input.parts.map((part, index) => index === 0
+        ? { ...part, endingExcerpt: '첫 문장.\n\n마지막 문장.', context: '인물 A.\n인물 B.' }
+        : part),
+    };
+    await expect(provider.generate(paragraphInput)).resolves.toHaveLength(2);
+    expect(transport).toHaveBeenCalledTimes(1);
+  });
   it('requests a strict per-part schema and returns two labels in input order', async () => {
     const { provider, transport } = providerWith(apiResponse(validChoices));
 
