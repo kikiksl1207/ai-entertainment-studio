@@ -351,6 +351,7 @@ describe('StoryProductionService', () => {
       defaultLocale: 'ko',
       title: { ko: '로맨스 작품' },
       summary: { ko: '소개' },
+      authorDisplayName: '루미나',
       hashtagKeys: ['romance'],
       hashtagLabels: { romance: { ko: '로맨스', en: 'Romance' } },
       coverManifest: { url: '/public/story/romance.webp' },
@@ -372,6 +373,7 @@ describe('StoryProductionService', () => {
     expect(result.items[0].hashtags).toEqual([
       expect.objectContaining({ key: 'romance', label: 'Romance' }),
     ]);
+    expect(result.items[0].author).toEqual({ displayName: '루미나' });
     expect(result.filters.hashtags).toEqual([{ key: 'romance', label: 'Romance', count: 1 }]);
   });
 

@@ -62,6 +62,7 @@ const PUBLICATION_PLAN_STORAGE_CONTRACT = 'story-publication-plan-br-base64-v1';
 const SOURCE_UPLOAD_MARKER = 'source_upload_chunks_v1';
 const PLAN_STORAGE_MARKER = 'plan_br_v1';
 const APPROVED_STORY_KEYS = ['imjin', 'norse', 'monster', 'rebellion'] as const;
+const COMPANY_AUTHOR_DISPLAY_NAME = '루미나';
 type ApprovedStoryKey = typeof APPROVED_STORY_KEYS[number];
 const STORY_HASHTAG_KEYS: Record<ApprovedStoryKey, readonly string[]> = {
   imjin: ['history', 'imjin-war', 'yi-sun-sin', 'war', 'choice-fiction'],
@@ -509,9 +510,10 @@ export class StoryPublicationIntakeService {
             supportedLocales: ['ko', 'en', 'ja', 'zh-Hans', 'zh-Hant'],
             title: { ko: plan.title },
             summary: { ko: plan.summary },
+            authorDisplayName: COMPANY_AUTHOR_DISPLAY_NAME,
             hashtagKeys,
             hashtagLabels,
-            searchText: buildStorySearchText(plan.title, plan.summary, hashtagLabels),
+            searchText: buildStorySearchText(plan.title, plan.summary, hashtagLabels, COMPANY_AUTHOR_DISPLAY_NAME),
             coverManifest: {
               publicAssetPath: plan.coverPath,
               altKey: `story.cover.${plan.storyKey}`,
@@ -974,9 +976,10 @@ export class StoryPublicationIntakeService {
           supportedLocales: ['ko', 'en', 'ja', 'zh-Hans', 'zh-Hant'],
           title: { ko: plan.title },
           summary: { ko: plan.summary },
+          authorDisplayName: COMPANY_AUTHOR_DISPLAY_NAME,
           hashtagKeys,
           hashtagLabels,
-          searchText: buildStorySearchText(plan.title, plan.summary, hashtagLabels),
+          searchText: buildStorySearchText(plan.title, plan.summary, hashtagLabels, COMPANY_AUTHOR_DISPLAY_NAME),
           coverManifest: {
             publicAssetPath: plan.coverPath,
             altKey: `story.cover.${plan.storyKey}`,

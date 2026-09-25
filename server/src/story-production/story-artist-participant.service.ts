@@ -180,13 +180,20 @@ export class StoryArtistParticipantService {
     ]);
     const source: ParticipantSource = liked && voted ? 'liked_and_voted' : liked ? 'liked' : voted ? 'voted' : 'search';
     const identity = await this.validIdentitySnapshot(tx, artist.id, artist.storyIdentityProfiles[0]);
+    if (!identity) {
+      throw new ConflictException({
+        code: 'STORY_PARTICIPANT_IDENTITY_NOT_READY',
+        messageKey: 'story.participant.error.identityNotReady',
+        retryable: false,
+      });
+    }
     const fingerprintInput = {
       artistId: artist.id,
       slug: artist.slug,
       displayName: artist.displayName,
-      identity: identity?.pin ?? null,
-      referenceAssetIds: identity?.referenceAssetIds ?? [],
-      referenceChecksums: identity?.referenceChecksums ?? [],
+      identity: identity.pin,
+      referenceAssetIds: identity.referenceAssetIds,
+      referenceChecksums: identity.referenceChecksums,
     };
     return tx.storyProgressArtistParticipant.create({
       data: {
@@ -195,13 +202,13 @@ export class StoryArtistParticipantService {
         workId: input.workId,
         artistId: artist.id,
         selectionSource: source,
-        identityProfileId: identity?.pin.id,
-        identityProfileVersion: identity?.pin.profileVersion,
-        identityReviewRevision: identity?.pin.reviewRevision,
-        identitySourceFingerprint: identity?.pin.sourceFingerprint,
-        identityApprovedFingerprint: identity?.pin.approvedFingerprint,
-        referenceAssetIds: identity?.referenceAssetIds ?? [],
-        referenceChecksums: identity?.referenceChecksums ?? [],
+        identityProfileId: identity.pin.id,
+        identityProfileVersion: identity.pin.profileVersion,
+        identityReviewRevision: identity.pin.reviewRevision,
+        identitySourceFingerprint: identity.pin.sourceFingerprint,
+        identityApprovedFingerprint: identity.pin.approvedFingerprint,
+        referenceAssetIds: identity.referenceAssetIds,
+        referenceChecksums: identity.referenceChecksums,
         participantFingerprint: this.hash(fingerprintInput),
       },
     });

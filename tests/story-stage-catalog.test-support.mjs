@@ -30,7 +30,8 @@ export function registerCatalogTests({ getBrowser, repo, artifacts, base, api })
   function detail(locale = 'en', options = {}) {
     const localized = (value) => ({ value, locale, fallback: false });
     return { id: workId, slug: 'private-local-story', title: localized(`QA ${locale} ${sentences[locale]}`),
-      summary: localized(sentences[locale].repeat(options.long ? 120 : 3)), cover: { url: '/private-qa-cover.png' },
+      summary: localized(sentences[locale].repeat(options.long ? 120 : 3)), author: { displayName: '루미나' },
+      cover: { url: '/private-qa-cover.png' },
       access: access({ ...options, auth: false }), releaseCapability: { ...cap }, replay: null, endingRecords: [],
       parts: [{ id: partId, position: 1, seasonKey: 'season-1', title: localized(sentences[locale]), access: access({ ...options, auth: false }) }] };
   }
@@ -191,6 +192,134 @@ export function registerCatalogTests({ getBrowser, repo, artifacts, base, api })
       } finally { await f.close(); }
     });
   }
+
+  test('catalog: credited author appears in list and detail, and author search reaches the API', async () => {
+    const f = await fixture({ locale: 'ko', width: 390 });
+    try {
+      await f.page.locator('.story-pack-author').first().waitFor();
+      assert.match(await f.page.locator('.story-pack-author').first().innerText(), /작가 · 루미나/);
+      await f.page.locator('#storyCatalogSearch').fill('루미나');
+      await f.page.locator('[data-story-search-form] button').click();
+      await f.page.waitForFunction(() => document.querySelectorAll('.story-pack-card').length === 2);
+      assert.ok(f.requests.some((request) => request.path === '/api/v1/stories' && request.query.q === '루미나'));
+      await f.page.screenshot({ path: path.join(artifacts, 'story-author-mobile-catalog.png') });
+      await f.open();
+      assert.match(await f.page.locator('.story-detail-author').innerText(), /작가 · 루미나/);
+      const width = await f.page.evaluate(() => ({ viewport: innerWidth, document: document.documentElement.scrollWidth }));
+      assert.ok(width.document <= width.viewport, JSON.stringify(width));
+      await f.page.screenshot({ path: path.join(artifacts, 'story-author-mobile-detail.png') });
+    } finally { await f.close(); }
+  });
+
+  test('catalog: artist choice, clearing, search and start binding work on mobile', async () => {
+    const likedId = '11111111-1111-4111-8111-111111111112';
+    const searchedId = '11111111-1111-4111-8111-111111111113';
+    const pendingId = '11111111-1111-4111-8111-111111111114';
+    const candidate = (artistId, displayName, source) => ({
+      artistId, displayName, source, slug: displayName.toLowerCase(), thumbnail: null, visualIdentityReady: true,
+    });
+    const f = await fixture({ locale: 'ko', width: 390, hook: (r) => {
+      if (!r.path.endsWith('/artist-candidates')) return null;
+      return { body: {
+        engaged: [candidate(likedId, '좋아요 아티스트', 'liked'),
+          { ...candidate(pendingId, '준비 중 아티스트', 'voted'), visualIdentityReady: false }],
+        searchResults: r.query.q ? [candidate(searchedId, '서이카', 'search')] : [],
+        selectedArtistId: null, selectionLocked: false,
+      } };
+    } });
+    try {
+      await f.open();
+      assert.equal(await f.page.locator(`[data-story-artist-id="${pendingId}"]`).isDisabled(), true);
+      assert.match(await f.page.locator(`[data-story-artist-id="${pendingId}"]`).innerText(), /캐릭터 이미지 기준 준비 중/);
+      const liked = f.page.locator(`[data-story-artist-id="${likedId}"]`);
+      await liked.click();
+      assert.equal(await liked.getAttribute('aria-pressed'), 'true');
+      assert.equal(await f.page.evaluate(() => document.activeElement?.dataset.storyArtistId), likedId);
+      await f.page.locator('[data-story-artist-clear]').click();
+      assert.equal(await f.page.locator('[data-story-artist-search]').evaluate((input) => input === document.activeElement), true);
+      const search = f.page.locator('[data-story-artist-search]');
+      await search.fill('서이카');
+      await search.press('Enter');
+      const searched = f.page.locator(`[data-story-artist-id="${searchedId}"]`);
+      await searched.waitFor();
+      assert.equal(await search.inputValue(), '서이카');
+      assert.equal(f.requests.some((r) => r.path.endsWith('/artist-candidates') && r.query.q === '서이카'), true);
+      await searched.click();
+      assert.equal(await searched.getAttribute('aria-pressed'), 'true');
+      assert.equal(await f.page.evaluate(() => document.activeElement?.dataset.storyArtistId), searchedId);
+      assert.equal(await f.page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+      await f.page.screenshot({ path: path.join(artifacts, 'story-participant-mobile.png') });
+      await f.page.setViewportSize({ width: 1280, height: 800 });
+      assert.equal(await f.page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+      await f.page.screenshot({ path: path.join(artifacts, 'story-participant-desktop.png') });
+      await f.page.locator('[data-story-start]').click();
+      await f.page.waitForURL(`**sessionId=${progressId}&workId=${workId}`);
+      const post = f.requests.find((r) => r.method === 'POST' && r.path.endsWith('/progress'));
+      assert.deepEqual(post.body, { mode: 'continue', locale: 'ko', participantArtistId: searchedId });
+    } finally { await f.close(); }
+  });
+
+  test('catalog: a resumed artist is fixed and cannot be changed', async () => {
+    const artistId = '11111111-1111-4111-8111-111111111112';
+    const participantArtist = { artistId, slug: 'liked-artist', displayName: '좋아요 아티스트', thumbnail: null, visualIdentityReady: true };
+    const f = await fixture({ locale: 'ko', resume: true, hook: (r) => {
+      if (r.path.endsWith('/progress-state')) return { body: { ...progress({ resume: true }), participantArtist } };
+      if (r.path.endsWith('/artist-candidates')) return { body: {
+        engaged: [participantArtist], searchResults: [], selectedArtistId: artistId, selectionLocked: true,
+      } };
+      return null;
+    } });
+    try {
+      await f.open();
+      assert.equal(await f.page.locator('[data-story-artist-search]').count(), 0);
+      assert.equal(await f.page.locator(`[data-story-artist-id="${artistId}"]`).isDisabled(), true);
+      assert.equal(await f.page.locator('[data-story-artist-clear]').count(), 0);
+      await f.page.locator('[data-story-start]').click();
+      await f.page.waitForURL(`**sessionId=${progressId}&workId=${workId}`);
+      const post = f.requests.find((r) => r.method === 'POST' && r.path.endsWith('/progress'));
+      assert.deepEqual(post.body, { mode: 'continue', locale: 'ko', participantArtistId: artistId });
+    } finally { await f.close(); }
+  });
+
+  test('catalog: artist search failure is visible without hiding engaged artists', async () => {
+    const artistId = '11111111-1111-4111-8111-111111111112';
+    const f = await fixture({ locale: 'ko', hook: (r) => {
+      if (!r.path.endsWith('/artist-candidates')) return null;
+      if (r.query.q) return error(500);
+      return { body: { engaged: [{ artistId, slug: 'liked-artist', displayName: '좋아요 아티스트', thumbnail: null,
+        source: 'liked', visualIdentityReady: true }], searchResults: [], selectedArtistId: null, selectionLocked: false } };
+    } });
+    try {
+      await f.open();
+      const search = f.page.locator('[data-story-artist-search]');
+      await search.fill('없는 이름');
+      await search.press('Enter');
+      await f.page.getByRole('alert').getByText('검색 결과를 불러오지 못했어요. 다시 검색해 주세요.').waitFor();
+      assert.equal(await f.page.locator(`[data-story-artist-id="${artistId}"]`).isVisible(), true);
+      assert.equal(await search.evaluate((input) => input === document.activeElement), true);
+    } finally { await f.close(); }
+  });
+
+  test('catalog: artist identity race shows a clear start error', async () => {
+    const artistId = '11111111-1111-4111-8111-111111111112';
+    const f = await fixture({ locale: 'ko', hook: (r) => {
+      if (r.path.endsWith('/artist-candidates')) return { body: {
+        engaged: [{ artistId, slug: 'liked-artist', displayName: '좋아요 아티스트', thumbnail: null,
+          source: 'liked', visualIdentityReady: true }], searchResults: [], selectedArtistId: null, selectionLocked: false,
+      } };
+      if (r.method === 'POST' && r.path.endsWith('/progress')) return { status: 409, body: {
+        error: { code: 'STORY_PARTICIPANT_IDENTITY_NOT_READY' },
+      } };
+      return null;
+    } });
+    try {
+      await f.open();
+      await f.page.locator(`[data-story-artist-id="${artistId}"]`).click();
+      await f.page.locator('[data-story-start]').click();
+      await f.page.locator('[data-story-detail-status]').filter({ hasText: '선택한 아티스트의 이미지 기준이 아직 준비되지 않았어요. 다른 아티스트를 선택해 주세요.' }).waitFor();
+      assert.equal(new URL(f.page.url()).searchParams.has('sessionId'), false);
+    } finally { await f.close(); }
+  });
 
   for (const phase of ['detail', 'access', 'progress-state']) {
     for (const status of [401, 403, 404, 500]) {

@@ -1792,6 +1792,7 @@ model StoryWork {
   supportedLocales    Json      @default("[]") @map("supported_locales")
   title               Json
   summary             Json
+  authorDisplayName   String?   @map("author_display_name") @db.VarChar(80)
   hashtagKeys         String[]  @default([]) @map("hashtag_keys")
   hashtagLabels       Json      @default("{}") @map("hashtag_labels")
   searchText          String    @default("") @map("search_text") @db.Text

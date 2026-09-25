@@ -141,6 +141,7 @@ export class StoryProductionService {
         defaultLocale: true,
         title: true,
         summary: true,
+        authorDisplayName: true,
         hashtagKeys: true,
         hashtagLabels: true,
         coverManifest: true,
@@ -248,6 +249,7 @@ export class StoryProductionService {
           slug: row.slug,
           title,
           summary,
+          author: row.authorDisplayName ? { displayName: row.authorDisplayName } : null,
           hashtags: projectStoryHashtags(
             row.hashtagKeys,
             row.hashtagLabels,
@@ -338,6 +340,7 @@ export class StoryProductionService {
       slug: work.slug,
       title: projectLocalizedValue(work.title, query.locale, work.defaultLocale),
       summary: projectLocalizedValue(work.summary, query.locale, work.defaultLocale),
+      author: work.authorDisplayName ? { displayName: work.authorDisplayName } : null,
       hashtags: projectStoryHashtags(
         work.hashtagKeys,
         work.hashtagLabels,
