@@ -1,6 +1,7 @@
 import {
   assertStoryContinuationLengthBounds,
   proposeStoryContinuationLength,
+  storyContinuationOutputTokenLimit,
   sourceStoryContinuationLengthBounds,
   validateStoryContinuationNarrativeLength,
 } from './story-continuation-length.policy';
@@ -22,6 +23,14 @@ describe('independent proposed author-length policy', () => {
       .toThrow('continuation_output_underlength');
     expect(validateStoryContinuationNarrativeLength({ locale: 'ko', beats: beats(5_727) }, bounds).units)
       .toBe(5_727);
+  });
+  it('scales the output cap to scene length while respecting the approved ceiling', () => {
+    const short = proposeStoryContinuationLength(reference(2_710)).bounds;
+    const long = proposeStoryContinuationLength(reference(7_158)).bounds;
+    expect(storyContinuationOutputTokenLimit(short, 32_768)).toBe(6_926);
+    expect(storyContinuationOutputTokenLimit(long, 32_768)).toBe(14_932);
+    expect(storyContinuationOutputTokenLimit(long, 8_192)).toBe(8_192);
+    expect(() => storyContinuationOutputTokenLimit(short, 0)).toThrow('author_length_output_limit_invalid');
   });
   it.each([10_000, 20_000])('scales an authored %i-unit reference without a global fixed target', units => {
     const source = reference(units);

@@ -49,6 +49,7 @@ import {
 } from './story-continuation.provider';
 import type { StoryContinuationClaim } from './story-continuation.repository';
 import type { StoryContinuationApprovedContext } from './story-continuation-context.assembler';
+import { sourceStoryContinuationLengthBounds, storyContinuationOutputTokenLimit } from './story-continuation-length.policy';
 import { StoryContinuationLegalActivationGate } from './story-continuation-legal-activation.gate';
 import {
   assembleContinuationSemanticPath,
@@ -395,6 +396,19 @@ export class StoryEconomicsService {
         retryable: false,
       });
     }
+    let outputTokenLimit: number;
+    try {
+      outputTokenLimit = storyContinuationOutputTokenLimit(
+        sourceStoryContinuationLengthBounds(locale, approvedContext.sourceScene.beats),
+        capability.aiOutputTokenLimit,
+      );
+    } catch {
+      throw new ForbiddenException({
+        code: 'STORY_AI_CONTEXT_BUDGET_EXCEEDED',
+        messageKey: 'story.progress.aiGeneration.contextBudgetExceeded',
+        retryable: false,
+      });
+    }
     const pathHash = continuationPathHash(semanticPath);
     const route = await storyRouteSnapshot(tx, input.progress);
     const sharingRouteHash = await storyRouteSharingHash(tx, input.progress);
@@ -622,7 +636,7 @@ export class StoryEconomicsService {
       promptVersion: context.promptVersion,
       outputSchemaVersion: context.outputSchemaVersion,
       inputTokenLimit: capability.aiInputTokenLimit,
-      outputTokenLimit: capability.aiOutputTokenLimit,
+      outputTokenLimit,
       provider: rateCard.provider,
       model: rateCard.model,
       rateCardId: rateCard.id,
@@ -657,7 +671,7 @@ export class StoryEconomicsService {
     }
     const estimatedCostKrw = calculateStoryUsageCost(this.rateNumbers(rateCard), {
       inputTokens: estimatedInputTokens!,
-      outputTokens: capability.aiOutputTokenLimit,
+      outputTokens: outputTokenLimit,
     });
     if (storyBudgetDecision(
       estimatedCostKrw,
@@ -757,7 +771,7 @@ export class StoryEconomicsService {
         estimatedCostKrw,
         hardBudgetKrw: capability.hardBudgetKrw,
         inputTokenLimit: capability.aiInputTokenLimit,
-        outputTokenLimit: capability.aiOutputTokenLimit,
+        outputTokenLimit,
         maxAttempts: 3,
       },
     });
@@ -774,7 +788,7 @@ export class StoryEconomicsService {
         model: rateCard.model,
         rateCardVersion: rateCard.version,
         inputTokens: estimatedInputTokens!,
-        outputTokens: capability.aiOutputTokenLimit,
+        outputTokens: outputTokenLimit,
         estimatedCostKrw,
         allowanceDelta: 0,
         progressApplied: false,
