@@ -219,14 +219,15 @@
         ${choiceControls}
         ${published && story.aiActivationAvailable ? `<section class="story-ai-activation" data-story-ai-card="${escapeHtml(story.key)}">
           <div><strong>AI 분기 생성</strong><span class="status-badge ${aiActive ? "is-approved" : "is-review"}">${aiActive ? "활성" : aiUnavailable ? "확인 필요" : "비활성"}</span></div>
-          ${aiActive ? `<small>독자가 선택하면 새 장면을 생성합니다. 분기 장면이 미리 생성된 상태는 아닙니다.</small>` : `<fieldset class="story-ai-confirmations" ${busy ? "disabled" : ""}>
-            <legend>활성화 전 확인</legend>
+          ${aiActive ? `<small>독자가 선택하면 새 장면을 생성합니다. 분기 장면이 미리 생성된 상태는 아닙니다.</small>` : ""}
+          <fieldset class="story-ai-confirmations" ${busy ? "disabled" : ""}>
+            <legend>${aiActive ? "설정 갱신 확인" : "활성화 전 확인"}</legend>
             <label><input type="checkbox" data-story-ai-confirm /> 원고 기반 AI 분기 생성을 승인했습니다.</label>
             <label><input type="checkbox" data-story-ai-confirm /> 작가 문체 참고를 승인했습니다.</label>
             <label><input type="checkbox" data-story-ai-confirm /> 검수된 동일 결과 재사용을 승인했습니다.</label>
             <label><input type="checkbox" data-story-ai-confirm /> 장면 이미지 변환을 승인했습니다.</label>
           </fieldset>
-          <button type="button" class="primary-action story-ai-activate-button" data-story-ai-activate="${escapeHtml(story.key)}" disabled>${busy ? "활성화 중..." : "AI 분기 활성화"}</button>${!choicesReady ? "<small>선택지 3개 준비가 끝나면 활성화할 수 있습니다.</small>" : ""}`}
+          <button type="button" class="primary-action story-ai-activate-button" data-story-ai-activate="${escapeHtml(story.key)}" disabled>${busy ? "설정 중..." : aiActive ? "AI 설정 갱신" : "AI 분기 활성화"}</button>${!choicesReady ? "<small>선택지 3개 준비가 끝나면 활성화할 수 있습니다.</small>" : ""}
           <p class="form-status" data-story-ai-status role="status" aria-live="polite"></p>
         </section>${story.visualIdentityManaged ? fixedVisualControls(story, visual) : ""}` : published ? `<div class="story-fixed-release-controls"><section class="story-ai-activation"><div><strong>독자 공개 방식</strong><span class="status-badge is-approved">고정 메인 루트</span></div><small>작가 최종 원고 순서대로 공개되며 시스템의 다음 장 이동만 제공합니다.</small></section>${story.visualIdentityManaged ? fixedVisualControls(story, visual) : ""}</div>` : ""}
       </article>`;
@@ -592,6 +593,7 @@
 
   async function activateAi(button) {
     const storyKey = button.dataset.storyAiActivate;
+    const wasActive = state.aiStatuses[storyKey]?.active === true;
     const card = button.closest("[data-story-ai-card]");
     const inlineStatus = card?.querySelector("[data-story-ai-status]");
     const confirmations = [...(card?.querySelectorAll("[data-story-ai-confirm]") || [])];
@@ -613,13 +615,13 @@
       });
       state.loaded = false;
       await load({ force: true });
-      setStatus(`${knownStories.find((story) => story.key === storyKey).title} AI 분기를 활성화했습니다.`, "success");
+      setStatus(`${knownStories.find((story) => story.key === storyKey).title} AI ${wasActive ? "설정을 갱신" : "분기를 활성화"}했습니다.`, "success");
     } catch (error) {
       if (inlineStatus) {
         inlineStatus.textContent = error?.message || "AI 분기를 활성화하지 못했습니다.";
         inlineStatus.className = "form-status is-error";
       }
-      button.textContent = "AI 분기 활성화";
+      button.textContent = wasActive ? "AI 설정 갱신" : "AI 분기 활성화";
       button.disabled = false;
     } finally {
       state.activatingKey = null;

@@ -54,6 +54,8 @@ test('published monster and rebellion manuscripts do not appear AI-ready while b
   assert.match(activeCard, /<span class="status-badge is-approved">원고 공개 \/ AI 생성 활성<\/span>/);
   assert.match(activeCard, /분기 장면은 독자 선택 후 생성/);
   assert.match(activeCard, /분기 장면이 미리 생성된 상태는 아닙니다/);
+  assert.equal(activeCard.match(/data-story-ai-confirm/g)?.length, 4);
+  assert.match(activeCard, /data-story-ai-activate="imjin" disabled>AI 설정 갱신/);
   assert.doesNotMatch(activeCard, /<span class="status-badge is-approved">공개 완료<\/span>/);
 });
 
