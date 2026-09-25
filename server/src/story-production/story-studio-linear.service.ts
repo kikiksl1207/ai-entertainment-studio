@@ -53,6 +53,26 @@ export function linearPartPlan(prepared: PreparedManuscript, routes: Array<{ par
   });
 }
 
+export function splitStudioLinearBeats(text: string): string[] {
+  const chunks: string[] = [];
+  const limit = 2_400;
+  for (let offset = 0; offset < text.length;) {
+    let end = Math.min(offset + limit, text.length);
+    if (end < text.length) {
+      const floor = offset + Math.floor(limit / 2);
+      for (let cursor = end; cursor >= floor; cursor--) {
+        if (/\s/u.test(text[cursor - 1])) { end = cursor; break; }
+      }
+      if (/[\uD800-\uDBFF]/u.test(text[end - 1])) end--;
+    }
+    if (end <= offset) reject('STUDIO_LINEAR_PART_TOO_LONG');
+    chunks.push(text.slice(offset, end));
+    if (chunks.length > 1_000) reject('STUDIO_LINEAR_PART_TOO_LONG');
+    offset = end;
+  }
+  return chunks;
+}
+
 type Db = PrismaService | Prisma.TransactionClient;
 
 @Injectable()
@@ -131,13 +151,10 @@ export class StoryStudioLinearService {
       await tx.storyScene.createMany({ data: sceneRows });
       const beats = plan.flatMap((part, index) => {
         const rows = [] as Array<{ sceneId: string; position: number; beatType: string; content: { ko: string } }>;
-        for (let offset = 0; offset < part.text.length;) {
-          let end = Math.min(offset + 8000, part.text.length);
-          if (end < part.text.length && /[\uD800-\uDBFF]/u.test(part.text[end - 1])) end--;
-          rows.push({ sceneId: sceneRows[index].id, position: rows.length + 1,
-            beatType: 'narration', content: { ko: part.text.slice(offset, end) } });
-          offset = end;
-        }
+        for (const text of splitStudioLinearBeats(part.text)) rows.push({
+          sceneId: sceneRows[index].id, position: rows.length + 1,
+          beatType: 'narration', content: { ko: text },
+        });
         return rows;
       });
       for (let index = 0; index < beats.length; index += 256) {

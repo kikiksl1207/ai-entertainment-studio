@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import { prepareManuscript, preparePastedManuscript, storedManuscriptBody } from './story-manuscript-file.policy';
-import { linearPartPlan, StoryStudioLinearService } from './story-studio-linear.service';
+import { linearPartPlan, splitStudioLinearBeats, StoryStudioLinearService } from './story-studio-linear.service';
 
 function fixture() {
   const ids = { owner: randomUUID(), work: randomUUID(), manuscript: randomUUID(), analysis: randomUUID(),
@@ -60,6 +60,14 @@ function fixture() {
 }
 
 describe('generic Studio linear manuscript materialization', () => {
+  it('preserves long original prose while ending pages at natural whitespace', () => {
+    const text = '권이현은 복도로 나갔다. 다음 기록을 확인했다.\n\n'.repeat(240);
+    const beats = splitStudioLinearBeats(text);
+    expect(beats.length).toBeGreaterThanOrEqual(3);
+    expect(beats.join('')).toBe(text);
+    expect(beats.slice(0, -1).every(beat => /\s$/u.test(beat))).toBe(true);
+    expect(beats.every(beat => beat.length <= 2_400)).toBe(true);
+  });
   it('keeps every pasted source character and binds choice 1 to the next original part or authored ending', async () => {
     const f = fixture();
     const result = await f.service.materialize(f.ids.owner, f.ids.work, f.body);
