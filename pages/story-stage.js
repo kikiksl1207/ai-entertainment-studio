@@ -647,6 +647,8 @@
     visualRequestKey: "",
     pairedVisualSceneKey: "",
     pairedVisualStatus: "idle",
+    pairedVisualStartedAt: 0,
+    pairedVisualTransportFailures: 0,
     participantCandidates: [],
     participantSearchResults: [],
     participantQuery: "",
@@ -1598,9 +1600,12 @@
     const sceneKey = typeof scene?.sceneKey === "string" ? scene.sceneKey : "";
     if (state.pairedVisualSceneKey !== sceneKey) {
       state.pairedVisualSceneKey = sceneKey;
-      state.pairedVisualStatus = scene?.deliveryState === "artwork_unavailable" ? "failed" : "idle";
+      state.pairedVisualStatus = "idle";
+      state.pairedVisualStartedAt = Date.now();
+      state.pairedVisualTransportFailures = 0;
     }
-    const failed = state.pairedVisualStatus === "failed" || scene?.deliveryState === "artwork_unavailable";
+    const failed = state.pairedVisualStatus === "failed" ||
+      Date.now() - state.pairedVisualStartedAt > 180000;
     root.innerHTML = `
       <section class="story-player story-paired-delivery" aria-busy="${failed ? "false" : "true"}">
         <a class="story-back" href="/story-stage">← ${escapeHtml(tr("backToStories"))}</a>
@@ -1614,12 +1619,12 @@
     if (!failed) ensurePairedSceneVisual(scene);
   }
 
-  async function ensurePairedSceneVisual(scene, force = false) {
+  async function ensurePairedSceneVisual(scene) {
     const sceneKey = typeof scene?.sceneKey === "string" ? scene.sceneKey : "";
     const sessionId = safeGraphId(state.sessionId);
     if (!sceneKey || !sessionId || !signedIn()) return;
     const scopedKey = `paired:${sessionId}:${sceneKey}`;
-    if (!force && state.visualRequestKey === scopedKey) return;
+    if (state.visualRequestKey === scopedKey) return;
     state.visualRequestKey = scopedKey;
     state.pairedVisualStatus = "loading";
     try {
@@ -1632,6 +1637,7 @@
       if (result?.status === "ready") {
         state.visualRequestKey = "";
         state.pairedVisualStatus = "idle";
+        state.pairedVisualTransportFailures = 0;
         return loadScene({ restorePending: false });
       }
       if (result?.status === "processing") {
@@ -1648,8 +1654,17 @@
     } catch {
       if (state.pairedVisualSceneKey !== sceneKey || state.sessionId !== sessionId) return;
       state.visualRequestKey = "";
-      state.pairedVisualStatus = "failed";
-      renderPairedDelivery(scene);
+      state.pairedVisualTransportFailures += 1;
+      if (state.pairedVisualTransportFailures >= 2) {
+        state.pairedVisualStatus = "failed";
+        renderPairedDelivery(scene);
+      } else {
+        setTimeout(() => {
+          if (state.pairedVisualSceneKey === sceneKey && state.sessionId === sessionId) {
+            loadScene({ restorePending: false });
+          }
+        }, 1800);
+      }
     }
   }
 
@@ -2619,8 +2634,10 @@
     if (event.target.closest("[data-story-ai-recover]")) return recoverAiOperation();
     if (event.target.closest("[data-story-paired-retry]")) {
       state.pairedVisualStatus = "idle";
+      state.pairedVisualStartedAt = Date.now();
+      state.pairedVisualTransportFailures = 0;
       state.visualRequestKey = "";
-      return ensurePairedSceneVisual(state.scene, true);
+      return renderPairedDelivery(state.scene);
     }
     const choiceButton = event.target.closest("[data-choice-id]");
     if (choiceButton) return submitChoice(choiceButton.dataset.choiceId);
