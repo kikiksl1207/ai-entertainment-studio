@@ -34,12 +34,13 @@ describe('offline pinned story tokenizer', () => {
 
   it('reuses the server OpenAI key when no continuation-specific key is configured', () => {
     const config = readStoryContinuationOpenAiConfig({
-      get: (key: string) => key === 'OPENAI_API_KEY' ? 'shared-server-key' : undefined,
+      get: <T = string>(key: string) => key === 'OPENAI_API_KEY' ? 'shared-server-key' as T
+        : key === 'STORY_CONTINUATION_PROVIDER_ENABLED' ? 'true' as T : undefined,
     });
     expect(config.apiKey).toBe('shared-server-key');
   });
 
-  it('preserves a varied 10k Korean scene, author style, material choice and semantic path under 8192 tokens', () => {
+  it('preserves a varied 10k Korean scene, author style, material choice and semantic path under 32768 tokens', () => {
     const model = 'gpt-4.1-2025-04-14';
     const approvedContext = koreanContinuationContext();
     const config = { ...readStoryContinuationOpenAiConfig({ get: () => undefined }), enabled: true,
@@ -47,16 +48,22 @@ describe('offline pinned story tokenizer', () => {
       visualAssetPath: '/assets/story/placeholder.webp' };
     const request = { provider: 'openai', model, rateCardId: 'qa-card', rateCardVersion: 'qa-v1',
       operationId: 'qa-operation', locale: 'ko', contextFingerprint: 'qa',
-      promptVersion: 'story-continuation-v1', outputSchemaVersion: 'story-continuation-output-v1',
-      inputTokenLimit: 8192, outputTokenLimit: 500, approvedContext };
+      promptVersion: 'story-continuation-v2', outputSchemaVersion: 'story-continuation-output-v1',
+      inputTokenLimit: 32768, outputTokenLimit: 500, approvedContext };
     expect(approvedContext.sourceScene.beats.reduce((sum, beat) => sum + beat.content.length, 0)).toBe(10_000);
     expect(approvedContext.sourceScene.beats.length).toBeLessThanOrEqual(40);
     const before = JSON.stringify(approvedContext);
     const preflight = preflightStoryContinuationOpenAiRequest(request, config);
     expect(preflight).toMatchObject({ supported: true, reason: 'provider_preflight_ready' });
-    expect(preflight.inputTokenUpperBound).toBeLessThanOrEqual(8192);
+    expect(preflight.inputTokenUpperBound).toBeLessThanOrEqual(32768);
     const body = buildStoryContinuationOpenAiRequest(request, config);
-    expect(JSON.parse(body.input[0].content[0].text)).toEqual(approvedContext);
+    expect(JSON.parse(body.input[0].content[0].text)).toMatchObject(approvedContext);
+    expect(JSON.parse(body.input[0].content[0].text).narrativeLength).toMatchObject({
+      measurement: 'narrative-nonwhite-codepoints-v1',
+      minimumUnits: expect.any(Number),
+      targetUnits: expect.any(Number),
+      maximumUnits: expect.any(Number),
+    });
     expect(JSON.stringify(approvedContext)).toBe(before);
     const alternate = buildStoryContinuationOpenAiRequest({ ...request, approvedContext: {
       ...approvedContext, selectedChoice: { label: '\ub9c8\uc744\uc744 \ub5a0\ub098 \ub3c4\ud604\uc5d0\uac8c \ub2e4\ub9ac\ub97c \ub9e1\uae34\ub2e4' },
@@ -64,7 +71,7 @@ describe('offline pinned story tokenizer', () => {
     expect(alternate.input[0].content[0].text).not.toBe(body.input[0].content[0].text);
     expect(body.instructions).toContain('Do not force convergence');
     expect(body.instructions).toContain('fresh scene title');
-    expect(body.instructions).toContain('80% to 120%');
+    expect(body.instructions).toContain('mandatory bounds');
     expect(preflightStoryContinuationOpenAiRequest({ ...request, inputTokenLimit: 1000 }, config))
       .toMatchObject({ supported: false, reason: 'provider_input_bound_exceeded' });
   });
@@ -78,11 +85,11 @@ describe('offline pinned story tokenizer', () => {
     approvedContext.sourceScene.beats = [{ beatType: 'narration', content: '한글 원문 그대로 유지. '.repeat(600).slice(0, 7500) }];
     const request = { provider: 'openai', model, rateCardId: 'qa-card', rateCardVersion: 'qa-v1',
       operationId: 'qa-operation', locale: 'ko', contextFingerprint: 'qa',
-      promptVersion: 'story-continuation-v1', outputSchemaVersion: 'story-continuation-output-v1',
+      promptVersion: 'story-continuation-v2', outputSchemaVersion: 'story-continuation-output-v1',
       inputTokenLimit: 32768, outputTokenLimit: 500, approvedContext };
     expect(Buffer.byteLength(approvedContext.sourceScene.beats[0].content)).toBeGreaterThan(16000);
     expect(JSON.parse(buildStoryContinuationOpenAiRequest(request, config).input[0].content[0].text))
-      .toEqual(approvedContext);
+      .toMatchObject(approvedContext);
     expect(preflightStoryContinuationOpenAiRequest({ ...request, inputTokenLimit: 1000 }, config).supported).toBe(false);
     approvedContext.sourceScene.beats[0].content = '한'.repeat(10667);
     expect(preflightStoryContinuationOpenAiRequest(request, config))
