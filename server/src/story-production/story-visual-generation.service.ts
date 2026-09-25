@@ -175,7 +175,30 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
       where: { workId, releaseId, sourceSceneKey: { in: keys } },
       select: { sourceSceneKey: true },
     });
-    return new Set(rows.map(row => row.sourceSceneKey));
+    const present = new Set(rows.map(row => row.sourceSceneKey));
+    for (const sourceSceneKey of keys) {
+      if (present.has(sourceSceneKey) || !sourceSceneKey.startsWith('ai-') ||
+          !UUID_PATTERN.test(sourceSceneKey.slice(3))) continue;
+      try {
+        const scene = await this.prisma.storyAiGeneratedScene.findFirst({
+          where: { workId, releaseId, sceneKey: sourceSceneKey, status: 'ready' },
+          select: { id: true },
+        });
+        if (!scene) continue;
+        await this.recoverGeneratedContinuationPrompt(scene.id);
+        const prompt = await this.prisma.storyVisualPrompt.findUnique({
+          where: { workId_releaseId_sourceSceneKey: { workId, releaseId, sourceSceneKey } },
+          select: { id: true },
+        });
+        if (prompt) present.add(sourceSceneKey);
+        else this.logger.warn({ event: 'story_visual_prompt_recovery_failed', workId, sourceSceneKey,
+          code: 'PROMPT_STILL_MISSING' });
+      } catch (error) {
+        this.logger.warn({ event: 'story_visual_prompt_recovery_failed', workId, sourceSceneKey,
+          code: this.promptRegistrationErrorCode(error) });
+      }
+    }
+    return present;
   }
 
   async requestForProgress(userId: string, progressId: string, sourceSceneKey: string) {
@@ -572,7 +595,11 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
       if (participant) {
         participantProfile = Array.from(JSON.stringify(participant.approved)).slice(0, 12_000).join('');
       }
-    } catch {
+    } catch (error) {
+      this.logger.warn({ event: 'story_visual_profile_resolution_failed', continuationId,
+        code: error instanceof Error && error.message === 'profile_missing' ? 'PROFILE_MISSING'
+          : error instanceof Error && error.message === 'profile_changed' ? 'PROFILE_CHANGED'
+            : 'PROFILE_LOOKUP_FAILED' });
       throw new ConflictException({
         code: 'STORY_VISUAL_PROFILE_CHANGED',
         message: 'The creator-approved visual profile changed before prompt registration',
@@ -597,11 +624,33 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
       `Scene title: ${title}`,
       `Scene text: ${excerpt}`,
     ].join('\n');
-    return this.registerAiBranchPrompt(
-      continuation.workId,
-      continuation.resultGeneratedSceneId,
-      { releaseId: continuation.releaseId, releaseChecksum: release.checksum, promptText },
-    );
+    try {
+      return await this.registerAiBranchPrompt(
+        continuation.workId,
+        continuation.resultGeneratedSceneId,
+        { releaseId: continuation.releaseId, releaseChecksum: release.checksum, promptText },
+      );
+    } catch (error) {
+      this.logger.warn({ event: 'story_visual_prompt_registration_failed', continuationId,
+        code: this.promptRegistrationErrorCode(error) });
+      throw error;
+    }
+  }
+
+  private promptRegistrationErrorCode(error: unknown) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      return /^P\d{4}$/.test(error.code) ? `PRISMA_${error.code}` : 'PRISMA_ERROR';
+    }
+    if (error instanceof ConflictException) {
+      const response = error.getResponse();
+      if (typeof response === 'object' && response !== null && 'code' in response &&
+          typeof response.code === 'string' && /^STORY_VISUAL_[A-Z_]+$/.test(response.code)) {
+        return response.code;
+      }
+      return 'PROMPT_CONFLICT';
+    }
+    if (error instanceof NotFoundException) return 'SOURCE_NOT_FOUND';
+    return 'PROMPT_REGISTRATION_FAILED';
   }
 
   async syncQueue(workId?: string) {

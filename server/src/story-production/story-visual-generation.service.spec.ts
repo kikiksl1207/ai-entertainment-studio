@@ -136,6 +136,74 @@ describe('StoryVisualGenerationService', () => {
     expect(provider).not.toHaveBeenCalled();
   });
 
+  it('recovers a generated scene prompt on the first scene read after continuation settlement', async () => {
+    const f = fixture();
+    const generatedSceneKey = 'ai-00000000-0000-4000-8000-000000000008';
+    const generatedSceneId = '00000000-0000-4000-8000-000000000007';
+    f.prisma.storyVisualPrompt.findMany.mockResolvedValue([]);
+    f.prisma.storyVisualPrompt.findUnique.mockResolvedValue({ id: 'prompt-id' });
+    f.prisma.storyAiGeneratedScene.findFirst.mockResolvedValue({ id: generatedSceneId });
+    const recover = jest.spyOn(f.service, 'registerGeneratedContinuationPrompt')
+      .mockResolvedValue({ created: true } as never);
+    f.prisma.storyAiGeneratedScene.findFirst.mockResolvedValueOnce({ id: generatedSceneId });
+    f.prisma.storyAiGeneratedBeat.findMany.mockResolvedValue([
+      { beatType: 'paragraph', content: { ko: '새 장면이 시작됐다.' } },
+    ]);
+    f.prisma.storyAiGeneratedScene.findFirst.mockResolvedValueOnce({
+      id: generatedSceneId, continuationId: generatedSceneKey.slice(3), title: { ko: '갈림길' },
+    });
+
+    await expect(f.service.promptKeys(workId, releaseId, [generatedSceneKey]))
+      .resolves.toEqual(new Set([generatedSceneKey]));
+    expect(recover).toHaveBeenCalledWith(generatedSceneKey.slice(3), {
+      title: { ko: '갈림길' },
+      beats: [{ beatType: 'paragraph', content: { ko: '새 장면이 시작됐다.' } }],
+    });
+    expect(f.prisma.storyVisualPrompt.findUnique).toHaveBeenCalledWith({
+      where: { workId_releaseId_sourceSceneKey: { workId, releaseId, sourceSceneKey: generatedSceneKey } },
+      select: { id: true },
+    });
+  });
+
+  it('does not claim a generated prompt is ready when its recovery fails', async () => {
+    const f = fixture();
+    const generatedSceneKey = 'ai-00000000-0000-4000-8000-000000000008';
+    const warn = jest.spyOn(Reflect.get(f.service, 'logger'), 'warn').mockImplementation();
+    f.prisma.storyVisualPrompt.findMany.mockResolvedValue([]);
+    f.prisma.storyAiGeneratedScene.findFirst.mockResolvedValue({ id: sceneId });
+    jest.spyOn(f.service, 'registerGeneratedContinuationPrompt').mockRejectedValue(new Error('private detail'));
+    f.prisma.storyAiGeneratedScene.findFirst.mockResolvedValueOnce({ id: sceneId });
+    f.prisma.storyAiGeneratedScene.findFirst.mockResolvedValueOnce({
+      id: sceneId, continuationId: generatedSceneKey.slice(3), title: { ko: '갈림길' },
+    });
+    f.prisma.storyAiGeneratedBeat.findMany.mockResolvedValue([]);
+
+    await expect(f.service.promptKeys(workId, releaseId, [generatedSceneKey]))
+      .resolves.toEqual(new Set());
+    expect(f.prisma.storyVisualPrompt.findUnique).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith({
+      event: 'story_visual_prompt_recovery_failed', workId,
+      sourceSceneKey: generatedSceneKey, code: 'PROMPT_REGISTRATION_FAILED',
+    });
+    expect(JSON.stringify(warn.mock.calls)).not.toContain('private detail');
+  });
+
+  it('keeps a transient recovery lookup error from breaking the scene read', async () => {
+    const f = fixture();
+    const generatedSceneKey = 'ai-00000000-0000-4000-8000-000000000008';
+    const warn = jest.spyOn(Reflect.get(f.service, 'logger'), 'warn').mockImplementation();
+    f.prisma.storyVisualPrompt.findMany.mockResolvedValue([]);
+    f.prisma.storyAiGeneratedScene.findFirst.mockRejectedValue(new Error('private database detail'));
+
+    await expect(f.service.promptKeys(workId, releaseId, [generatedSceneKey]))
+      .resolves.toEqual(new Set());
+    expect(warn).toHaveBeenCalledWith({
+      event: 'story_visual_prompt_recovery_failed', workId,
+      sourceSceneKey: generatedSceneKey, code: 'PROMPT_REGISTRATION_FAILED',
+    });
+    expect(JSON.stringify(warn.mock.calls)).not.toContain('private database detail');
+  });
+
   it('generates an exact admin sample without requiring reader progress', async () => {
     const f = fixture(false);
     const provider = jest.spyOn(global, 'fetch');
