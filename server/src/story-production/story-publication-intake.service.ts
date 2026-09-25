@@ -1049,7 +1049,7 @@ export class StoryPublicationIntakeService {
     return new StoryChoicePreparationProvider({
       apiKey,
       model: get('STORY_CONTINUATION_OPENAI_MODEL') || 'gpt-5.4-mini-2026-03-17',
-      timeoutMs: 12_000,
+      timeoutMs: 45_000,
     });
   }
 

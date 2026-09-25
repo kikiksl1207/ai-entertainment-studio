@@ -2,7 +2,7 @@ const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses';
 const MAX_PARTS = 8;
 const MAX_RESPONSE_BYTES = 64 * 1024;
 const MAX_LABEL_CHARS = 120;
-const DEFAULT_TIMEOUT_MS = 12_000;
+const DEFAULT_TIMEOUT_MS = 45_000;
 
 export type AuthoredPartChoiceInput = {
   partKey: string;

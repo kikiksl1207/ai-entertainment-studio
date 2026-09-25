@@ -578,7 +578,8 @@
       setStatus("모든 파트의 선택지 3개가 준비됐습니다.", "success");
     } catch (error) {
       if (inlineStatus) {
-        inlineStatus.textContent = error?.message || "선택지 준비에 실패했습니다. 다시 시도하면 이어서 진행합니다.";
+        const reason = error?.body?.reason || error?.body?.message?.reason;
+        inlineStatus.textContent = `${error?.message || "선택지 준비에 실패했습니다. 다시 시도하면 이어서 진행합니다."}${reason ? ` (${reason})` : ""}`;
         inlineStatus.className = "form-status is-error";
       }
       button.disabled = false;
