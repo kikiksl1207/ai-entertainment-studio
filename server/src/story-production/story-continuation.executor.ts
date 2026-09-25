@@ -12,6 +12,7 @@ import { StoryContinuationContextAssembler } from './story-continuation-context.
 import { StoryContinuationContextError } from './story-continuation-context.assembler';
 import { validateStoryContinuationProviderResult } from './story-continuation-output.policy';
 import {
+  assertStoryContinuationLengthBounds,
   sourceStoryContinuationLengthBounds,
   StoryContinuationLengthPolicyError,
   validateStoryContinuationNarrativeLength,
@@ -67,10 +68,13 @@ export class StoryContinuationExecutor {
         return { status: 'failed' as const, continuationId: claim.continuationId };
       }
       const approvedContext = await this.contextAssembler.assemble(claim);
-      const lengthBounds = sourceStoryContinuationLengthBounds(
-        claim.request.locale,
-        approvedContext.sourceScene.beats,
+      const lengthBounds = approvedContext.narrativeLength ?? sourceStoryContinuationLengthBounds(
+        claim.request.locale, approvedContext.sourceScene.beats,
       );
+      assertStoryContinuationLengthBounds(lengthBounds);
+      if (lengthBounds.locale !== claim.request.locale) {
+        throw new StoryContinuationLengthPolicyError('author_length_locale_mismatch');
+      }
       throwIfCancelled(signal);
       const request = { ...claim.request, approvedContext };
       const preflight = await this.provider.preflight?.(request);

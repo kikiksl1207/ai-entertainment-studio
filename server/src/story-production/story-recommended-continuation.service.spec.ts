@@ -190,7 +190,7 @@ describe('recommended choice enqueue transaction', () => {
       recommendedChoiceId: 'choice-b', sourcePartId: 'part-id', sourceSceneId: 'scene-id',
       manuscriptVersionId: 'manuscript-id', analysisJobId: 'analysis-id', analysisVersion: 7,
       rightsContractId: 'rights-contract-id', rightsContractVersionId: 'rights-version-id',
-      styleConsentRevision: 3, promptVersion: 'story-continuation-v2',
+      styleConsentRevision: 3, promptVersion: 'story-continuation-v3',
       outputSchemaVersion: 'story-continuation-output-v1',
     });
     expect(data.contextFingerprint).toMatch(/^[a-f0-9]{64}$/);

@@ -1,4 +1,5 @@
 import {
+  authorPartStoryContinuationLengthBounds,
   assertStoryContinuationLengthBounds,
   proposeStoryContinuationLength,
   storyContinuationOutputTokenLimit,
@@ -31,6 +32,11 @@ describe('independent proposed author-length policy', () => {
     expect(storyContinuationOutputTokenLimit(long, 32_768)).toBe(14_932);
     expect(storyContinuationOutputTokenLimit(long, 8_192)).toBe(8_192);
     expect(() => storyContinuationOutputTokenLimit(short, 0)).toThrow('author_length_output_limit_invalid');
+  });
+  it('uses the whole authored part as the stable length reference across later branches', () => {
+    const bounds = authorPartStoryContinuationLengthBounds('ko', ['가'.repeat(3_000), '나'.repeat(4_000)]);
+    expect(bounds).toMatchObject({ referenceUnits: 7_000, minUnits: 5_600, maxUnits: 8_400 });
+    expect(() => authorPartStoryContinuationLengthBounds('ko', [])).toThrow('author_length_beats_invalid');
   });
   it.each([10_000, 20_000])('scales an authored %i-unit reference without a global fixed target', units => {
     const source = reference(units);

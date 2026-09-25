@@ -15,7 +15,7 @@ function request(): StoryContinuationProviderRequest {
   return {
     operationId: 'operation-1', locale: 'en', contextFingerprint: 'fingerprint',
     provider: config.provider, model: config.model, rateCardId: config.rateCardId, rateCardVersion: config.rateCardVersion,
-    promptVersion: 'story-continuation-v2', outputSchemaVersion: 'story-continuation-output-v1',
+    promptVersion: 'story-continuation-v3', outputSchemaVersion: 'story-continuation-output-v1',
     inputTokenLimit: 8_192, outputTokenLimit: 500,
     approvedContext: {
       sourceScene: { title: 'Crossroads', beats: [{ beatType: 'paragraph', content: 'Two paths diverge.' }] },

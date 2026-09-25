@@ -26,17 +26,41 @@ const NON_NARRATIVE_CODE_POINT = /[\p{White_Space}\p{Cc}\p{Cf}]/u;
 // nor confirms author approval; the caller must bind the proposal to reviewed source.
 export function proposeStoryContinuationLength(reference: { locale: string; beats: unknown }) {
   const measured = measureNarrative(reference, 'reference');
-  if (!measured.units) fail('author_length_reference_empty');
-  const bounds: StoryContinuationLengthBounds = Object.freeze({
+  return Object.freeze({ approval: 'proposed' as const, bounds: boundsFromUnits(reference.locale, measured.units) });
+}
+
+export function authorPartStoryContinuationLengthBounds(locale: string, texts: readonly string[]): StoryContinuationLengthBounds {
+  if (!supportedLocale(locale)) fail('author_length_locale_unsupported');
+  if (!texts.length || texts.length > 1_000) fail('author_length_beats_invalid');
+  let units = 0;
+  let bytes = 0;
+  for (const text of texts) {
+    if (typeof text !== 'string') fail('author_length_text_invalid');
+    const textBytes = Buffer.byteLength(text, 'utf8');
+    if (textBytes > 32_000) fail('author_length_text_invalid');
+    bytes += textBytes;
+    if (bytes > 256_000) fail('author_length_byte_limit');
+    for (const point of text) {
+      const code = point.codePointAt(0)!;
+      if (code >= 0xd800 && code <= 0xdfff) fail('author_length_unicode_invalid');
+      if (!NON_NARRATIVE_CODE_POINT.test(point)) units++;
+    }
+  }
+  return boundsFromUnits(locale, units);
+}
+
+function boundsFromUnits(locale: string, units: number): StoryContinuationLengthBounds {
+  if (!supportedLocale(locale)) fail('author_length_locale_unsupported');
+  if (!integer(units, 1, 256_000)) fail('author_length_reference_empty');
+  return Object.freeze({
     profileVersion: AUTHOR_LENGTH_PROFILE_VERSION,
     measurement: NARRATIVE_LENGTH_MEASUREMENT,
-    locale: reference.locale as StoryLocale,
-    referenceUnits: measured.units,
-    minUnits: Math.ceil(measured.units * 4 / 5),
-    targetUnits: measured.units,
-    maxUnits: Math.floor(measured.units * 6 / 5),
+    locale,
+    referenceUnits: units,
+    minUnits: Math.ceil(units * 4 / 5),
+    targetUnits: units,
+    maxUnits: Math.floor(units * 6 / 5),
   });
-  return Object.freeze({ approval: 'proposed' as const, bounds });
 }
 
 export function sourceStoryContinuationLengthBounds(

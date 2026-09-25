@@ -50,6 +50,7 @@ import {
 import type { StoryContinuationClaim } from './story-continuation.repository';
 import type { StoryContinuationApprovedContext } from './story-continuation-context.assembler';
 import { sourceStoryContinuationLengthBounds, storyContinuationOutputTokenLimit } from './story-continuation-length.policy';
+import { authoredPartContinuationLengthBounds } from './story-continuation-author-length.store';
 import { StoryContinuationLegalActivationGate } from './story-continuation-legal-activation.gate';
 import {
   assembleContinuationSemanticPath,
@@ -397,9 +398,14 @@ export class StoryEconomicsService {
       });
     }
     let outputTokenLimit: number;
+    let narrativeLength: ReturnType<typeof sourceStoryContinuationLengthBounds>;
     try {
+      narrativeLength = input.sourceKind === 'generated'
+        ? await authoredPartContinuationLengthBounds(tx, input.part.id, locale)
+        : sourceStoryContinuationLengthBounds(locale, approvedContext.sourceScene.beats);
+      approvedContext.narrativeLength = narrativeLength;
       outputTokenLimit = storyContinuationOutputTokenLimit(
-        sourceStoryContinuationLengthBounds(locale, approvedContext.sourceScene.beats),
+        narrativeLength,
         capability.aiOutputTokenLimit,
       );
     } catch {
@@ -430,13 +436,14 @@ export class StoryEconomicsService {
         ? { id: analysis.id, version: analysis.analysisVersion }
         : null,
       locale,
+      narrativeLength,
       capabilityRevision: capability.revision,
       styleConsent: { id: consent.id, revision: consent.revision },
       rights: { contractId: rightsContract!.id, versionId: rights.id, revision: rights.revision },
       ...(generationProfilePin ? { generationProfile: generationProfilePin } : {}),
       ...(participantSnapshot ? { participantArtist: participantSnapshot.pin } : {}),
       rateCard: { id: rateCard.id, version: rateCard.version },
-      promptVersion: 'story-continuation-v2',
+      promptVersion: 'story-continuation-v3',
       outputSchemaVersion: 'story-continuation-output-v1',
     };
     const contextFingerprint = createHash('sha256')
@@ -762,6 +769,7 @@ export class StoryEconomicsService {
           sourceHash,
           pathHash,
           executionFingerprint,
+          narrativeLength,
           ...(generationProfilePin ? { generationProfilePin } : {}),
           ...(participantSnapshot ? { participantPin: participantSnapshot.pin } : {}),
           sharedClaimToken: sharedResult?.claimToken ?? null,

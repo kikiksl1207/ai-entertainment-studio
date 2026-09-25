@@ -1,4 +1,4 @@
-export const STORY_CONTINUATION_PROMPT_VERSION = 'story-continuation-v2';
+export const STORY_CONTINUATION_PROMPT_VERSION = 'story-continuation-v3';
 export const STORY_CONTINUATION_SCHEMA_VERSION = 'story-continuation-output-v1';
 
 function object(properties: Record<string, unknown>) {

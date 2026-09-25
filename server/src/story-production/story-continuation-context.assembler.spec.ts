@@ -12,6 +12,7 @@ import {
   normalizeCreatorGenerationProfile,
 } from '../generation-profile/creator-generation-profile.policy';
 import { StoryContinuationClaim } from './story-continuation.repository';
+import { sourceStoryContinuationLengthBounds } from './story-continuation-length.policy';
 
 const claim: StoryContinuationClaim = {
   continuationId: 'continuation-id', leaseToken: 'lease-token',
@@ -99,6 +100,10 @@ describe('StoryContinuationContextAssembler', () => {
       selectedChoice: { label: '다른 길' },
       path: f.semanticPath,
       memories: [{ memoryType: 'event', content: '{"summary":"승인된 최소 기억"}' }],
+      narrativeLength: sourceStoryContinuationLengthBounds('ko', [
+        { beatType: 'paragraph', content: '현재 장면 본문' },
+        { beatType: 'dialogue', content: '이어쓰기 직전 대사' },
+      ]),
     });
     expect(f.prisma.storyReaderProgress.findFirst).toHaveBeenCalledWith({ where: {
       id: 'progress-id', userId: 'reader-id', workId: 'work-id',

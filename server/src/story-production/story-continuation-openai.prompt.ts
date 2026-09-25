@@ -3,7 +3,7 @@ import { StoryContinuationProviderError, type StoryContinuationProviderRequest, 
 import { inRange, storyContinuationConfigFailure, type StoryContinuationOpenAiConfig } from './story-continuation-openai.config';
 import { STORY_CONTINUATION_PROMPT_VERSION, STORY_CONTINUATION_SCHEMA_VERSION, storyContinuationOutputSchema } from './story-continuation-openai.schema';
 import { STORY_CONTINUATION_TOKEN_BUDGET_METHOD, storyContinuationInputTokenBudget } from './story-continuation-tokenizer';
-import { sourceStoryContinuationLengthBounds } from './story-continuation-length.policy';
+import { assertStoryContinuationLengthBounds, sourceStoryContinuationLengthBounds } from './story-continuation-length.policy';
 
 export function buildStoryContinuationOpenAiRequest(request: StoryContinuationProviderRequest, config: StoryContinuationOpenAiConfig) {
   const body = prepareRequest(request, config);
@@ -41,7 +41,9 @@ function prepareRequest(request: StoryContinuationProviderRequest, config: Story
       !Array.isArray(context.sourceScene.beats) || !inRange(context.sourceScene.beats.length, 1, 40) ||
       !Array.isArray(context.path) || context.path.length > 12 ||
       !Array.isArray(context.memories) || context.memories.length > 64) fail('provider_context_invalid');
-  const length = sourceStoryContinuationLengthBounds(request.locale, context.sourceScene.beats);
+  const length = context.narrativeLength ?? sourceStoryContinuationLengthBounds(request.locale, context.sourceScene.beats);
+  assertStoryContinuationLengthBounds(length);
+  if (length.locale !== request.locale) fail('provider_context_invalid');
   // Project only the assembler's approved fields; never serialize request/ORM objects wholesale.
   const approved = {
     sourceScene: {

@@ -18,6 +18,8 @@ import {
   type StoryContinuationSemanticPathStep,
 } from './story-continuation-context.policy';
 import { StoryArtistParticipantService, type StoryApprovedParticipant } from './story-artist-participant.service';
+import { authoredPartContinuationLengthBounds } from './story-continuation-author-length.store';
+import { sourceStoryContinuationLengthBounds, type StoryContinuationLengthBounds } from './story-continuation-length.policy';
 
 export class StoryContinuationContextError extends ConflictException {
   constructor(readonly code: string) {
@@ -33,6 +35,7 @@ export type StoryContinuationApprovedContext = {
   selectedChoice: { label: string };
   path: StoryContinuationSemanticPathStep[];
   memories: Array<{ memoryType: string; content: string }>;
+  narrativeLength?: StoryContinuationLengthBounds;
   generationProfile?: ReturnType<typeof continuationGenerationProfileSnapshot>['approved'];
   participantArtist?: StoryApprovedParticipant;
 };
@@ -218,6 +221,20 @@ export class StoryContinuationContextAssembler {
       beats: sourceBeats,
       choiceLabel: choice.label,
     });
+    let narrativeLength: StoryContinuationLengthBounds;
+    try {
+      narrativeLength = sourceKind === 'generated'
+        ? await authoredPartContinuationLengthBounds(this.prisma, continuation.sourcePartId, continuation.locale)
+        : sourceStoryContinuationLengthBounds(continuation.locale, sourceBeats.map((beat) => ({
+            beatType: beat.beatType,
+            content: localizedContinuationText(beat.content, continuation.locale),
+          })));
+    } catch {
+      throw new StoryContinuationContextError('pinned_context_changed');
+    }
+    if (references.narrativeLength && stableContinuationJson(references.narrativeLength) !== stableContinuationJson(narrativeLength)) {
+      throw new StoryContinuationContextError('pinned_context_changed');
+    }
     let semanticPath: StoryContinuationSemanticPathStep[];
     try {
       semanticPath = await assembleContinuationSemanticPath(this.prisma, {
@@ -266,6 +283,7 @@ export class StoryContinuationContextAssembler {
           memoryType: memory.memoryType,
           content: approvedContinuationMemoryText(memory.content, continuation.locale),
         })),
+        narrativeLength,
         ...(approvedGenerationProfile
           ? { generationProfile: approvedGenerationProfile }
           : {}),
