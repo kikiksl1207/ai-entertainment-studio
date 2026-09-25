@@ -54,7 +54,8 @@ export function validateStoryContinuationProviderResult(
       invalid('Generated continuation beat type is invalid');
     }
     const content = localizedOnly(beat.content, input.locale, MAX_OUTPUT_BYTES);
-    return splitNarrativeBeat(content[input.locale]).map((text) => {
+    const prose = content[input.locale].replace(/\\r\\n|\\n|\\r/gu, '\n');
+    return splitNarrativeBeat(prose).map((text) => {
       if (text.split(/\r?\n/u).some((line) => line.trim() === ']')) {
         invalid('Generated continuation contains a stray bracket paragraph');
       }

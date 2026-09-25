@@ -1381,6 +1381,10 @@
     return /[.!?。！？…]+[”"'’」』)]*$/u.test(String(text || "").trimEnd());
   }
 
+  function normalizeGeneratedReaderText(text) {
+    return String(text || "").replace(/\\r\\n|\\n|\\r/gu, "\n");
+  }
+
   function finishGeneratedReaderTail(text) {
     const value = String(text || "").trimEnd();
     if (readerSentenceEnds(value)) return value;
@@ -1391,6 +1395,7 @@
   }
 
   function groupReaderBeats(beats, generated = false) {
+    if (generated) beats = beats.map((beat) => ({ ...beat, text: normalizeGeneratedReaderText(beat.text) }));
     if (beats.length <= 3 && !generated) return beats.map((beat) => ({ ...beat, positions: [beat.position], segments: [String(beat.text || "")] }));
     const sceneCount = Math.min(3, Math.ceil(beats.length / 2));
     let start = 0;
@@ -1756,7 +1761,7 @@
             </div>` : ""}
             <article class="story-player-copy" tabindex="0" aria-label="${escapeHtml(readerTr("text"))}" data-story-scene-focus data-reading-key="${escapeHtml(reading.key)}">
               ${isEnding ? `<span class="story-ending-label">${escapeHtml(tr("ending"))}</span>` : ""}
-              ${reading.beats[reading.index].segments.map((segment) => `<p>${escapeHtml(segment)}</p>`).join("")}
+              ${reading.beats[reading.index].segments.flatMap((segment) => String(segment).split(/\n\s*\n/u).filter(Boolean)).map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`).join("")}
             </article>
             ${choicePanel}
           </div>

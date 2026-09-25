@@ -68,6 +68,14 @@ describe('continuation output ending defense', () => {
       .toBe('The note read [stay].');
   });
 
+  it('turns escaped model line breaks into real paragraph breaks before storing prose', () => {
+    const result = validateStoryContinuationProviderResult({
+      ...valid,
+      beats: [{ beatType: 'paragraph', content: { en: 'She opened the file.\\r\\n\\r\\nThen she read it.' } }],
+    }, input);
+    expect(result.beats[0].content.en).toBe('She opened the file.\n\nThen she read it.');
+  });
+
   it('joins split words and removes only a short unfinished tail from long AI prose', () => {
     const beats = Array.from({ length: 10 }, (_, index) => ({
       beatType: 'paragraph' as const,

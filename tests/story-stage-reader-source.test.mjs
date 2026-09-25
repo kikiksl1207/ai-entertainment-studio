@@ -89,6 +89,16 @@ test('reader source: generated prose turns on sentence boundaries and hides a sh
   assert.ok(grouped.beats.every((page) => /[.!?。！？…][”"'’」』)]*$/.test(page.text)));
 });
 
+test('reader source: previously stored escaped line breaks render as paragraphs', () => {
+  const runtime = reader([0, 1, 2, 3], 0);
+  runtime.state.scene.isGenerated = true;
+  runtime.state.scene.beats[0].content.value = '첫 문장이다.\\r\\n\\r\\n둘째 문장이다.';
+  const first = runtime.readableBeats().beats[0];
+  assert.ok(first.text.includes('첫 문장이다.\n\n둘째 문장이다.'));
+  assert.doesNotMatch(first.text, /\\r\\n/);
+  assert.match(source, /segments\.flatMap\(\(segment\) => String\(segment\)\.split/);
+});
+
 test('reader source: completed reading cursor stays local and work/release/scene scoped', () => {
   const local = reader([1, 2, 3], 0, 'completed');
   local.state.completedBeat = { scope: local.readerScope(), position: 3 };
