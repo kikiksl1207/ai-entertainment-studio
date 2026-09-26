@@ -24,7 +24,7 @@ function fixture() {
   const prisma = { $transaction: jest.fn(async (run: (client: typeof tx) => Promise<unknown>) => run(tx)) };
   const repository = new SemanticAnalysisRepository(prisma as never);
   const provider = { readiness: jest.fn(() => { throw new Error('Discovery must not query provider'); }), generate: jest.fn() };
-  const service = new SemanticAnalysisService(repository, provider as never);
+  const service = new SemanticAnalysisService(repository, provider as never, {} as never);
   return { user, work, manuscript, tx, prisma, repository, provider, service };
 }
 

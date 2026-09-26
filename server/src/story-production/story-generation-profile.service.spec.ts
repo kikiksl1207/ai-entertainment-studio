@@ -59,6 +59,10 @@ function profileRow(overrides: Record<string, unknown> = {}) {
 
 function fixture() {
   const tx = {
+    $queryRaw: jest.fn().mockResolvedValue([{ id: workId }]),
+    storyWork: { findFirst: jest.fn() },
+    storyManuscriptVersion: { findFirst: jest.fn() },
+    storyAnalysisEvidence: { findMany: jest.fn() },
     storyWorkGenerationProfile: {
       findFirst: jest.fn(),
       create: jest.fn(),
@@ -93,11 +97,12 @@ function reviewedSettings() {
 }
 
 describe('StoryGenerationProfileService', () => {
-  it('materializes a review draft from the completed analysis of the latest manuscript', async () => {
+  it('recovers a missing draft for the owned latest completed semantic analysis without duplicating it', async () => {
     const f = fixture();
     sourceMocks(f.prisma);
-    f.prisma.storyWorkGenerationProfile.findFirst.mockResolvedValue(null);
-    f.prisma.storyAnalysisEvidence.findMany.mockResolvedValue([
+    let stored: ReturnType<typeof profileRow> | null = null;
+    f.prisma.storyWorkGenerationProfile.findFirst.mockImplementation(() => stored);
+    f.tx.storyAnalysisEvidence.findMany.mockResolvedValue([
       { id: 'e-style', evidenceType: 'style', sourcePartKey: 'part-1', sourceParagraphIndex: 0,
         payload: { title: 'Short rhythm', observation: 'Short sentences accelerate tense scenes.', styleCategory: 'sentence_rhythm' } },
       { id: 'e-event', evidenceType: 'event', sourcePartKey: 'part-2', sourceParagraphIndex: 0,
@@ -108,16 +113,17 @@ describe('StoryGenerationProfileService', () => {
         payload: { title: 'Harbor', observation: 'The harbor remains cold and foggy.' } },
     ]);
     f.tx.storyWorkGenerationProfile.findFirst.mockResolvedValue(null);
-    f.tx.storyWorkGenerationProfile.create.mockImplementation(({ data }) => profileRow({
-      ...data,
-      draftSettings: data.draftSettings,
-      draftFingerprint: data.draftFingerprint,
-      sourceFingerprint: data.sourceFingerprint,
-    }));
+    f.tx.storyWorkGenerationProfile.create.mockImplementation(({ data }) => {
+      stored = profileRow(data);
+      return stored;
+    });
 
     const result = await f.service.getOrCreate(owner, workId);
+    const replay = await f.service.getOrCreate(owner, workId);
     const draft = result.profile.draftSettings as ReturnType<typeof reviewedSettings>;
 
+    expect(replay.profile).toEqual(result.profile);
+    expect(f.tx.storyWorkGenerationProfile.create).toHaveBeenCalledTimes(1);
     expect(result.profile.status).toBe('needs_review');
     expect(result.profile.reviewRequired).toBe(true);
     expect(draft.sections).toHaveLength(8);
@@ -127,6 +133,63 @@ describe('StoryGenerationProfileService', () => {
     expect(f.tx.auditEvent.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ action: 'story_generation_profile.analysis_draft_created' }),
     }));
+    expect(f.tx.auditEvent.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not recover a legacy publication-style snapshot as a semantic profile', async () => {
+    const f = fixture();
+    sourceMocks(f.prisma);
+    f.prisma.storyAnalysisJob.findFirst.mockResolvedValue(null);
+
+    await expect(f.service.getOrCreate(owner, workId)).rejects.toMatchObject({
+      response: { code: 'GENERATION_PROFILE_ANALYSIS_REQUIRED' },
+    });
+    expect(f.prisma.storyAnalysisJob.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ pipeline: 'semantic_extraction_v1' }),
+    }));
+    expect(f.tx.storyWorkGenerationProfile.create).not.toHaveBeenCalled();
+  });
+
+  it('creates one NEEDS_REVIEW draft and audit event when completion is replayed', async () => {
+    const f = fixture();
+    sourceMocks(f.prisma);
+    f.tx.storyWork.findFirst.mockResolvedValue({ id: workId });
+    f.tx.storyManuscriptVersion.findFirst.mockResolvedValue(await f.prisma.storyManuscriptVersion.findFirst());
+    f.tx.storyAnalysisEvidence.findMany.mockResolvedValue([
+      { id: 'e-style', evidenceType: 'style', sourcePartKey: 'part-1', sourceParagraphIndex: 0,
+        payload: { title: 'Rhythm', observation: 'Short sentences.', styleCategory: 'sentence_rhythm' } },
+    ]);
+    let stored: ReturnType<typeof profileRow> | null = null;
+    f.tx.storyWorkGenerationProfile.findFirst.mockImplementation(({ where }) =>
+      where.analysisJobId ? stored : null);
+    f.tx.storyWorkGenerationProfile.create.mockImplementation(({ data }) => {
+      stored = profileRow(data);
+      return stored;
+    });
+    const job = { id: analysisId, workId, manuscriptVersionId: manuscriptId, actorUserId: owner,
+      pipeline: 'semantic_extraction_v1', status: 'running', phase: 'finalizing',
+      analysisVersion: 2, sourceContentHash: 'a'.repeat(64),
+      configHash: 'b'.repeat(64), totalParts: 2, totalParagraphs: 3 } as never;
+
+    const first = await f.service.createDraftAtCompletion(f.tx as never, job);
+    const replay = await f.service.createDraftAtCompletion(f.tx as never, job);
+
+    expect(replay).toBe(first);
+    expect(first.status).toBe('needs_review');
+    expect(first.approvedSettings).toBeNull();
+    expect(first.sourceFingerprint).toMatch(/^[a-f0-9]{64}$/);
+    expect(first.draftFingerprint).toMatch(/^[a-f0-9]{64}$/);
+    expect(f.tx.storyWorkGenerationProfile.create).toHaveBeenCalledTimes(1);
+    expect(f.tx.auditEvent.create).toHaveBeenCalledTimes(1);
+    expect(f.tx.storyAnalysisEvidence.findMany).toHaveBeenCalledTimes(1);
+  });
+
+  it('refuses to backfill a historically completed job', async () => {
+    const f = fixture();
+    await expect(f.service.createDraftAtCompletion(f.tx as never, {
+      actorUserId: owner, pipeline: 'semantic_extraction_v1', status: 'completed', phase: 'completed',
+    } as never)).rejects.toThrow('Invalid semantic profile source');
+    expect(f.tx.storyWorkGenerationProfile.create).not.toHaveBeenCalled();
   });
 
   it('does not approve a stale reviewed draft', async () => {

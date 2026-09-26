@@ -4,7 +4,7 @@ import {
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, type StoryAnalysisJob } from '@prisma/client';
 import { createHash } from 'crypto';
 import {
   CREATOR_GENERATION_PROFILE_SCHEMA,
@@ -54,54 +54,8 @@ export class StoryGenerationProfileService {
       orderBy: { profileVersion: 'desc' },
     });
     if (!profile) {
-      const settings = await this.settingsFromAnalysis(source.analysis.id, source.manuscript);
-      const sourceFingerprint = this.sourceFingerprint(source);
-      const draftFingerprint = creatorGenerationProfileFingerprint(sourceFingerprint, settings);
       try {
-        profile = await this.prisma.$transaction(async (tx) => {
-          const current = await tx.storyWorkGenerationProfile.findFirst({
-            where: { workId },
-            orderBy: { profileVersion: 'desc' },
-          });
-          const replay = await tx.storyWorkGenerationProfile.findFirst({
-            where: { workId, analysisJobId: source.analysis.id },
-            orderBy: { profileVersion: 'desc' },
-          });
-          if (replay) return replay;
-          const created = await tx.storyWorkGenerationProfile.create({
-            data: {
-              workId,
-              ownerUserId: userId,
-              manuscriptVersionId: source.manuscript.id,
-              analysisJobId: source.analysis.id,
-              sourceFingerprint,
-              profileVersion: (current?.profileVersion ?? 0) + 1,
-              status: 'needs_review',
-              draftSettings: settings as unknown as Prisma.InputJsonValue,
-              draftFingerprint,
-            },
-          });
-          await tx.auditEvent.create({
-            data: {
-              actorUserId: userId,
-              actorType: 'system',
-              action: 'story_generation_profile.analysis_draft_created',
-              targetType: 'story_work_generation_profile',
-              targetId: created.id,
-              afterData: {
-                status: created.status,
-                profileVersion: created.profileVersion,
-                draftFingerprint,
-              },
-              metadata: {
-                workId,
-                manuscriptVersionId: source.manuscript.id,
-                analysisJobId: source.analysis.id,
-              },
-            },
-          });
-          return created;
-        });
+        profile = await this.prisma.$transaction(tx => this.createDraft(tx, userId, source));
       } catch (error) {
         if (!this.isUniqueViolation(error)) throw error;
         profile = await this.prisma.storyWorkGenerationProfile.findFirst({
@@ -112,6 +66,61 @@ export class StoryGenerationProfileService {
       }
     }
     return this.project(workId, source, profile);
+  }
+
+  async createDraftAtCompletion(tx: Prisma.TransactionClient, job: StoryAnalysisJob) {
+    const userId = job.actorUserId;
+    if (!userId || job.pipeline !== SEMANTIC_PIPELINE || job.status !== 'running' || job.phase !== 'finalizing')
+      throw new Error('Invalid semantic profile source');
+    const work = await tx.storyWork.findFirst({
+      where: { id: job.workId, ownerUserId: userId }, select: { id: true },
+    });
+    const manuscript = await tx.storyManuscriptVersion.findFirst({
+      where: { id: job.manuscriptVersionId, workId: job.workId, ownerUserId: userId },
+      select: { id: true, version: true, locale: true, contentHash: true, structuredBody: true },
+    });
+    if (!work || !manuscript || manuscript.contentHash !== job.sourceContentHash)
+      throw new Error('Invalid semantic profile source');
+    return this.createDraft(tx, userId, { work, manuscript, analysis: {
+      id: job.id, analysisVersion: job.analysisVersion, sourceContentHash: job.sourceContentHash,
+      configHash: job.configHash, totalParts: job.totalParts, totalParagraphs: job.totalParagraphs,
+    } });
+  }
+
+  private async createDraft(
+    tx: Prisma.TransactionClient,
+    userId: string,
+    source: Awaited<ReturnType<StoryGenerationProfileService['latestCompletedSource']>>,
+  ) {
+    const workId = source.work.id;
+    const owned = await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT id FROM story_works WHERE id=${workId}::uuid AND owner_user_id=${userId}::uuid FOR UPDATE
+    `;
+    if (!owned.length) throw new NotFoundException('Story work not found');
+    const replay = await tx.storyWorkGenerationProfile.findFirst({
+      where: { workId, analysisJobId: source.analysis.id }, orderBy: { profileVersion: 'desc' },
+    });
+    if (replay) return replay;
+    const current = await tx.storyWorkGenerationProfile.findFirst({
+      where: { workId }, orderBy: { profileVersion: 'desc' },
+    });
+    const settings = await this.settingsFromAnalysis(tx, source.analysis.id, source.manuscript);
+    const sourceFingerprint = this.sourceFingerprint(source);
+    const draftFingerprint = creatorGenerationProfileFingerprint(sourceFingerprint, settings);
+    const created = await tx.storyWorkGenerationProfile.create({ data: {
+      workId, ownerUserId: userId,
+      manuscriptVersionId: source.manuscript.id, analysisJobId: source.analysis.id,
+      sourceFingerprint, profileVersion: (current?.profileVersion ?? 0) + 1,
+      status: 'needs_review', draftSettings: settings as unknown as Prisma.InputJsonValue, draftFingerprint,
+    } });
+    await tx.auditEvent.create({ data: {
+      actorUserId: created.ownerUserId, actorType: 'system',
+      action: 'story_generation_profile.analysis_draft_created',
+      targetType: 'story_work_generation_profile', targetId: created.id,
+      afterData: { status: created.status, profileVersion: created.profileVersion, draftFingerprint },
+      metadata: { workId, manuscriptVersionId: source.manuscript.id, analysisJobId: source.analysis.id },
+    } });
+    return created;
   }
 
   async update(userId: string, workId: string, input: UpdateStoryGenerationProfileDto) {
@@ -286,10 +295,11 @@ export class StoryGenerationProfileService {
   }
 
   private async settingsFromAnalysis(
+    db: Pick<Prisma.TransactionClient, 'storyAnalysisEvidence'>,
     analysisJobId: string,
     manuscript: { id: string; version: number; locale: string; structuredBody: Prisma.JsonValue },
   ): Promise<CreatorGenerationProfileSettings> {
-    const rows = await this.prisma.storyAnalysisEvidence.findMany({
+    const rows = await db.storyAnalysisEvidence.findMany({
       where: {
         analysisJobId,
         provenance: 'semantic_candidate',

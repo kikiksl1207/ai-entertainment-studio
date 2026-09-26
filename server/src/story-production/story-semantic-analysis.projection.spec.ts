@@ -18,7 +18,7 @@ describe('Semantic writer projections (mocked owner repository, not JWT HTTP)', 
       } }));
     const db = { storyAnalysisEvidence: { findMany: jest.fn().mockResolvedValue(rows), findFirst: jest.fn() } };
     const owned = jest.fn().mockResolvedValue(job);
-    const service = new SemanticAnalysisService({ prisma: db, owned } as never, new SemanticAnalysisProvider(semanticTestConfig(), jest.fn()));
+    const service = new SemanticAnalysisService({ prisma: db, owned } as never, new SemanticAnalysisProvider(semanticTestConfig(), jest.fn()), {} as never);
     return { job, rows, db, owned, service };
   }
   it('returns only curated interpreted observations, source refs and safe progress', async () => {
