@@ -155,7 +155,8 @@ test('public discovery works at desktop and mobile widths and captures verified 
       assert.equal(await page.locator('.ott-poster-media').evaluate((element) => {
         const bounds = element.getBoundingClientRect();
         const image = element.querySelector('img');
-        return image.complete && image.naturalWidth > 0 && Math.abs(bounds.width / bounds.height - 2 / 3) < .02;
+        return image.complete && image.naturalWidth > 0 && bounds.width >= 260 && bounds.width <= 300 &&
+          Math.abs(bounds.width / bounds.height - 2 / 3) < .02;
       }), true);
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
       await page.screenshot({ path: join(artifacts, `ott-browse-${width}.png`), fullPage: false });
