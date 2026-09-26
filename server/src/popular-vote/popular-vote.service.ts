@@ -47,12 +47,14 @@ export class PopularVoteService {
       };
     }
 
+    const { year, month } = this.kstParts(new Date());
+    const { start, end } = this.kstMonthRange(year, month);
     const rankings = await this.buildRankings(campaign.id, {
       includeZeroScoreActiveArtists: true,
-    });
+    }, start, end);
     return {
       campaign,
-      leader: rankings[0] ?? null,
+      leader: rankings[0]?.totalWeightedScore.greaterThan(0) ? rankings[0] : null,
       rankings,
     };
   }
@@ -77,10 +79,14 @@ export class PopularVoteService {
     const year = this.optionalNumber(query.year) ?? this.kstParts(new Date()).year;
     const { start, end } = this.kstYearRange(year);
     const rankings = await this.buildRankingsForDateRange(start, end);
+    const currentYear = this.kstParts(new Date()).year;
 
     return {
       year,
-      champion: rankings[0] ?? null,
+      champion:
+        year < currentYear && rankings[0]?.totalWeightedScore.greaterThan(0)
+          ? rankings[0]
+          : null,
       rankings,
       rule: 'annual_weighted_score_sum',
     };
@@ -96,7 +102,7 @@ export class PopularVoteService {
         : this.previousKstMonth(new Date());
     const { start, end } = this.kstMonthRange(year, month);
     const campaign = await this.findMonthlyCampaign(input.campaignId, start, end);
-    const rankings = await this.buildRankings(campaign.id);
+    const rankings = await this.buildRankings(campaign.id, {}, start, end);
     const winner = rankings[0];
 
     if (!winner) {
@@ -184,8 +190,13 @@ export class PopularVoteService {
   private async buildRankings(
     campaignId: string,
     options: { includeZeroScoreActiveArtists?: boolean } = {},
+    start?: Date,
+    end?: Date,
   ) {
-    return this.buildRankingsFromEvents({ campaignId }, options);
+    return this.buildRankingsFromEvents({
+      campaignId,
+      ...(start && end ? { createdAt: { gte: start, lt: end } } : {}),
+    }, options);
   }
 
   private buildRankingsForDateRange(start: Date, end: Date) {

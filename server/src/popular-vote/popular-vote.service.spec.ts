@@ -53,6 +53,14 @@ function createHarness() {
 }
 
 describe('PopularVoteService main pick rankings', () => {
+  beforeEach(() => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-09-27T03:00:00.000Z'));
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
   it('keeps active public characters visible in the read-only main-pick projection', async () => {
     const { service, prisma } = createHarness();
     prisma.boostCampaign.findFirst.mockResolvedValue(campaign);
@@ -93,6 +101,10 @@ describe('PopularVoteService main pick rankings', () => {
       expect.objectContaining({
         where: {
           campaignId: campaign.id,
+          createdAt: {
+            gte: new Date('2026-08-31T15:00:00.000Z'),
+            lt: new Date('2026-09-30T15:00:00.000Z'),
+          },
           artist: { status: 'active' },
         },
       }),
@@ -131,12 +143,66 @@ describe('PopularVoteService main pick rankings', () => {
       expect.objectContaining({
         where: {
           campaignId: campaign.id,
+          createdAt: {
+            gte: new Date('2026-08-31T15:00:00.000Z'),
+            lt: new Date('2026-09-30T15:00:00.000Z'),
+          },
           artist: { status: 'active' },
         },
       }),
     );
     expect(result.rankings.map((row) => row.artist.slug)).toEqual(['oh-hyerin']);
     expect(JSON.stringify(result.rankings)).not.toContain('hidden-character');
+  });
+
+  it('has no monthly winner before the first vote, even with active artists', async () => {
+    const { service, prisma } = createHarness();
+    prisma.boostCampaign.findFirst.mockResolvedValue(campaign);
+    prisma.artist.findMany.mockResolvedValue([yoonSerin, ohHyerin]);
+    prisma.artistBoostEvent.findMany.mockResolvedValue([]);
+
+    const result = await service.getMainPick();
+
+    expect(result.leader).toBeNull();
+    expect(result.rankings).toHaveLength(2);
+  });
+
+  it('uses the new KST month at midnight rather than the previous campaign total', async () => {
+    jest.setSystemTime(new Date('2026-09-30T15:00:00.000Z'));
+    const { service, prisma } = createHarness();
+    prisma.boostCampaign.findFirst.mockResolvedValue(campaign);
+    prisma.artist.findMany.mockResolvedValue([yoonSerin]);
+    prisma.artistBoostEvent.findMany.mockResolvedValue([]);
+
+    await service.getMainPick();
+
+    expect(prisma.artistBoostEvent.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: {
+        campaignId: campaign.id,
+        createdAt: {
+          gte: new Date('2026-09-30T15:00:00.000Z'),
+          lt: new Date('2026-10-31T15:00:00.000Z'),
+        },
+        artist: { status: 'active' },
+      },
+    }));
+  });
+
+  it('does not announce an annual champion before the year is over', async () => {
+    const { service, prisma } = createHarness();
+    prisma.artist.findMany.mockResolvedValue([yoonSerin]);
+    prisma.artistBoostEvent.findMany.mockResolvedValue([{
+      artistId: yoonSerin.id,
+      artist: yoonSerin,
+      boostType: 'free_like',
+      rawAmount: new Decimal(1),
+      weightedScore: new Decimal(1),
+    }]);
+
+    const result = await service.getYearChampion({ year: '2026' });
+
+    expect(result.champion).toBeNull();
+    expect(result.rankings[0].artist.slug).toBe('yoon-serin');
   });
 
   it('publishes the cross-lane public artist ranking projection contract', () => {

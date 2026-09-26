@@ -3326,7 +3326,7 @@ async function loadBoostState() {
   _currentCampaign = campaign;
   console.info(`[Lumina] 현재 캠페인: ${campaign.name || campaign.id}`);
 
-  const rankingsData = await apiFetch(`/api/v1/boost-campaigns/${campaign.id}/rankings`);
+  const rankingsData = await apiFetch(`/api/v1/boost-campaigns/${campaign.id}/rankings?period=month`);
   if (rankingsData) {
     const list = Array.isArray(rankingsData) ? rankingsData : (rankingsData.rankings || rankingsData.items || []);
     _rankings = list.map(r => ({
@@ -3411,12 +3411,12 @@ function formatLikeCount(n) {
 
 function likeButtonHTML(slug, extraClass = "") {
   const count = getLikesCount(slug);
+  const canVote = Boolean(getCharacterBySlug(slug)?.id);
   const liked = _userLikedSlugs.has(slug) ? " is-liked" : "";
   const cls = extraClass ? ` ${extraClass}` : "";
-  // 카탈로그에서는 클릭 시 루미나 픽으로 이동 — 호버 시 안내 (루미나 픽 페이지에서는 무관)
-  const tooltip = "루미나 픽에서 응원하기";
+  const tooltip = canVote ? "루미나 픽에서 응원하기" : "응원 기능 연결 중";
   return `
-    <button class="like-btn${cls}${liked}" data-like-slug="${slug}" type="button" aria-label="좋아요" title="${tooltip}">
+    <button class="like-btn${cls}${liked}" data-like-slug="${slug}" type="button" aria-label="${tooltip}" title="${tooltip}" ${canVote ? "" : "disabled"}>
       <svg class="like-heart" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
         <path d="M12 21s-7.5-4.5-9.5-9.5C1 8.5 3.5 5.5 7 5.5c2 0 3.5 1 5 2.5 1.5-1.5 3-2.5 5-2.5 3.5 0 6 3 4.5 6-2 5-9.5 9.5-9.5 9.5z"/>
       </svg>
@@ -3461,7 +3461,7 @@ async function handleLike(slug, btnEl) {
     updateLikeButtons(slug);
     // Q1 답변 권장: 좋아요 성공 후 rankings 재호출로 정확한 순위/점수 갱신
     // (실패해도 낙관적 갱신은 유지 — 사용자 경험 영향 없음)
-    apiFetch(`/api/v1/boost-campaigns/${_currentCampaign.id}/rankings`)
+    apiFetch(`/api/v1/boost-campaigns/${_currentCampaign.id}/rankings?period=month`)
       .then(rankingsData => {
         if (rankingsData) {
           const list = Array.isArray(rankingsData) ? rankingsData : (rankingsData?.rankings || rankingsData?.items || []);
@@ -3681,7 +3681,7 @@ async function openPaidLikeModal(slug) {
       loadFreeLikeQuota().then(updateHeroQuotaDisplay);
       loadPaidLikeQuota();
       // #261 — 랭킹도 서버에서 재조회. free-like 흐름과 동일 패턴(line 1505).
-      apiFetch(`/api/v1/boost-campaigns/${_currentCampaign.id}/rankings`)
+      apiFetch(`/api/v1/boost-campaigns/${_currentCampaign.id}/rankings?period=month`)
         .then(rankingsData => {
           if (!rankingsData) return;
           const list = Array.isArray(rankingsData) ? rankingsData : (rankingsData?.rankings || rankingsData?.items || []);
@@ -4160,14 +4160,10 @@ function getCharacterMessages(slug) {
   };
 }
 
-/* ── 초기 공개 라인업 (사용자/운영자 결정 기반) ──
-   초기 공개 6명: 윤세린, 한서율, 박도아, 최서진, 차도현, 서유안
-   - 운영팩 갤러리 seed에 연결되어 있는 6명 (운영 API에서 확인됨)
-   - tier 필드와 별개로 운영진이 결정한 공식 라인업
-   - 백엔드 main-pick API 응답이 우선, 비어있으면 이 리스트로 fallback */
+/* 공개 상태가 메인 노출을 결정하고, 저장된 라인업은 정렬 순서에만 사용한다. */
 
 function isPublicLineup(artist) {
-  return window.LuminaStaticData.publicLineupSlugs.includes(artist.slug);
+  return artist?.status === "public" && Boolean(artist.images?.thumb || artist.images?.cover);
 }
 
 function getPublicLineupOrder(slug) {
@@ -5235,6 +5231,7 @@ function pickArtistProfile(apiProfile, localProfile) {
 
 function adaptArtist(api) {
   const local = characters.find(c => c.slug === api.slug) || {};
+  const approvedLocalImages = shouldKeepLocalGallery(api.slug) && local.images;
   // 운영 API의 assets[]에서 usageType별로 우선 사용, 없으면 로컬 fallback.
   const assets = api.assets || [];
   const apiCover  = assets.find(a => a.usageType === "cover");
@@ -5245,12 +5242,12 @@ function adaptArtist(api) {
   return {
     ...local,
     id:          api.id            || api._id           || local.id,
-    name:        api.name          || local.name,
-    publicName:  api.publicName    || api.public_name    || local.publicName,
+    name:        local.name || api.name || api.displayName,
+    publicName:  local.publicName || api.publicName || api.public_name || api.displayName,
     slug:        api.slug,
-    type:        api.type          || local.type,
-    tier:        api.tier          || local.tier,
-    status:      api.status        || local.status,
+    type:        local.type || api.type || api.displayCategory || api.category || "아티스트",
+    tier:        api.tier || local.tier || "sub",
+    status:      api.status === "active" ? "public" : (local.status || api.status),
     summary:     api.summary       || local.summary,
     intro:       api.intro         || local.intro,
     concept:     api.concept       || local.concept,
@@ -5260,12 +5257,12 @@ function adaptArtist(api) {
     images: {
       // #030: coverImage/thumbnailImage는 asset object → .url 추출. 정답 필드명은 thumbnailImage.
       // local fallback도 normalize 안에 포함 → "./assets/..." 도 절대 경로로 통일
-      cover: normalizeAssetUrl(apiCover?.url || api.coverImage?.url || api.coverImageUrl || api.cover_image || local.images?.cover),
-      thumb: normalizeAssetUrl(apiThumb?.url || api.thumbnailImage?.url || api.thumbImage?.url || api.thumbImage || api.thumb_image || local.images?.thumb)
+      cover: normalizeAssetUrl((approvedLocalImages && local.images.cover) || apiCover?.url || api.coverImage?.url || api.coverImageUrl || api.cover_image || local.images?.cover),
+      thumb: normalizeAssetUrl((approvedLocalImages && local.images.thumb) || apiThumb?.url || api.thumbnailImage?.url || api.thumbImage?.url || api.thumbImage || api.thumb_image || local.images?.thumb)
     },
     gallery:           shouldKeepLocalGallery(api.slug) ? (local.gallery || []) : (apiGallery.length > 0 ? apiGallery : (local.gallery || [])),
     assets:            api.assets || [],   // #031: 원본 assets[] 보존 (상세 페이지에서 필터링용)
-    profile:           pickArtistProfile(api.profile, local.profile),
+    profile:           local.profile || pickArtistProfile(api.profile, local.profile),
     shorts:            api.shorts  || local.shorts  || [],
     // 프론트 전용 필드: 항상 로컬 유지
     role:              local.role,
@@ -5838,14 +5835,14 @@ async function init() {
       const adapted = apiArtists.map(adaptArtist);
       // 핵심 필드 검증 — 메인 캐릭터가 4명 이상 있어야 사용
       const valid = adapted.filter(a => a?.slug && a?.tier && a?.status && a?.images?.thumb);
-      const mainCount = valid.filter(a => (a.tier === "main" || a.tier === "premium") && a.status === "public").length;
+      const mainCount = valid.filter(a => a.status === "public").length;
       if (mainCount >= 4) {
         const bySlug = new Map(adapted.map(a => [a.slug, a]));
         _artists = characters.map(local => bySlug.get(local.slug) || local);
         adapted.forEach(apiArtist => {
           if (!characters.some(local => local.slug === apiArtist.slug)) _artists.push(apiArtist);
         });
-        console.info(`[Lumina] API 아티스트 ${_artists.length}명 로드됨 (메인 ${mainCount}명)`);
+        console.info(`[Lumina] API 아티스트 ${adapted.length}명 로드됨 (공개 ${mainCount}명)`);
       } else {
         console.warn(`[Lumina] API 응답 불완전 (메인 캐릭터 ${mainCount}명) — 로컬 데이터 유지`);
       }
@@ -5969,7 +5966,7 @@ function initScrollReveal() {
         observer.unobserve(entry.target);
       }
     });
-  }, { threshold: 0.12, rootMargin: "0px 0px -60px 0px" });
+  }, { threshold: 0, rootMargin: "0px 0px -60px 0px" });
 
   document.querySelectorAll(".reveal-on-scroll").forEach(el => observer.observe(el));
 }

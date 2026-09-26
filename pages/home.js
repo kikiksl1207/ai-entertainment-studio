@@ -7,13 +7,15 @@
 
     const list = _artists.filter(isPublicLineup);
     list.sort(compareByPublicLineupOrder);
+    const count = document.getElementById("homePublicArtistCount");
+    if (count) count.textContent = `${list.length}명`;
 
     root.innerHTML = list.map(a => `
       <article class="artist-card clickable-card" data-href="/character-detail?slug=${a.slug}"
         style="--char-accent: ${a.colorAccent || "#9f8bc7"}">
         <div class="artist-media artist-media-${a.slug}">
           <img class="artist-media-image artist-media-image-${a.slug}"
-            src="${a.images.thumb || a.images.cover}" alt="${a.publicName}"
+            src="${a.images.thumb || a.images.cover}" alt="${a.publicName}" loading="lazy" decoding="async"
             onerror="this.style.display='none'" />
           <div class="artist-media-copy">
             <span class="artist-role">${a.role}</span>
