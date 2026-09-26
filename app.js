@@ -6188,6 +6188,7 @@ init().catch(err => {
 
 function syncLateNavigationUI() {
   window.luminaI18n?.apply?.(document.body);
+  updateAuthUI();
   activateCurrentNavItem();
   openAuthBridgeFixtureIfNeeded();
 }
