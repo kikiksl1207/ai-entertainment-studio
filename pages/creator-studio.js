@@ -364,27 +364,31 @@
   function allow(data) {
     if (gate) gate.hidden = true;
     if (shell) shell.hidden = false;
-    const email = data?.access?.accountEmail || readAuth()?.user?.email;
+    const email = data?.viewer?.email || readAuth()?.user?.email;
     // #362 — sidebar 접속 계정 projection 으로 채우기. 실패/로딩 시 "로그인한 크리에이터" fallback.
     const account = document.getElementById("studioAccountEmail") || document.querySelector(".studio-account strong");
     if (account) account.textContent = email || "로그인한 크리에이터";
     const roleEl = document.getElementById("studioAccountRole");
-    const roleLabel = data?.access?.roleLabel || data?.access?.accountTypeLabel || "크리에이터";
+    const roleLabel = {
+      personal_creator: "개인 크리에이터",
+      studio_operator: "스튜디오 운영자",
+      admin_operator: "운영 관리자"
+    }[data?.access?.type] || "승인된 계정";
     if (roleEl) roleEl.textContent = roleLabel;
     markStudioReady();
     hydrateStudio(data);
+    loadWalletBalance();
     loadSettlementPreview();
+    loadPayoutSummary();
     loadSettlementConversions();
     loadKnowledgeUrls();
     if (document.getElementById("writer-manuscript")?.classList.contains("is-active")) loadWriterWorks();
   }
 
   function openStudioShellPending() {
-    if (gate) gate.hidden = true;
-    if (shell) shell.hidden = false;
-    const email = readAuth()?.user?.email;
-    const account = document.getElementById("studioAccountEmail") || document.querySelector(".studio-account strong");
-    if (account) account.textContent = email || "계정 정보를 불러오는 중입니다.";
+    if (gate) gate.hidden = false;
+    if (shell) shell.hidden = true;
+    setGateChecking();
     markStudioReady();
   }
 
@@ -411,12 +415,8 @@
     return formatNumber(Math.round(Number(value || 0))) + "원";
   }
 
-  function firstNumber(...values) {
-    for (const value of values) {
-      const number = Number(value);
-      if (Number.isFinite(number)) return number;
-    }
-    return 0;
+  function formatKnownKrw(value) {
+    return value == null || !Number.isFinite(Number(value)) ? "조회 불가" : formatKrw(value);
   }
 
   function showToast(message) {
@@ -468,10 +468,6 @@
     modal.classList.remove("is-hidden");
   }
 
-  function modalRow(label, value) {
-    return "<div><strong>" + escapeHtml(label) + "</strong><span>" + escapeHtml(value) + "</span></div>";
-  }
-
   function currentPeriod() {
     const now = new Date();
     return now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0");
@@ -504,35 +500,46 @@
     studioArtists = artists;
     const summary = data?.summary || {};
     const slotPolicy = data?.policy?.slotPolicy || {};
-    const usedSlots = Number(summary.usedSlots ?? slotPolicy.usedSlots ?? artists.length ?? 0);
-    const slotLimit = Number(summary.slotLimit ?? slotPolicy.initialSlotLimit ?? 10);
-    const activeCount = Number(summary.activeArtistCount ?? artists.filter(item => item?.artist?.status === "active").length);
-    const needsAttention = Number(summary.needsAttentionCount ?? summary.openImageRequestCount ?? 0);
+    const usedSlots = summary.usedSlots ?? slotPolicy.usedSlots;
+    const slotLimit = summary.slotLimit ?? slotPolicy.initialSlotLimit;
+    const activeCount = summary.activeArtistCount;
+    const openImageRequests = summary.openImageRequestCount;
 
     text("studioMetricArtists", formatNumber(summary.ownedArtistCount ?? artists.length) + "명");
-    text("studioMetricArtistsSub", "활동 " + formatNumber(activeCount) + " · 확인 필요 " + formatNumber(needsAttention));
-    text("studioSlotText", formatNumber(usedSlots) + " / " + formatNumber(slotLimit) + " 사용");
+    text("studioMetricArtistsSub", Number.isFinite(Number(activeCount)) && activeCount !== undefined
+      ? "활동 " + formatNumber(activeCount) + "명" : "활동 상태 집계 없음");
+    text("studioSlotText", Number.isFinite(Number(usedSlots)) && Number.isFinite(Number(slotLimit)) && usedSlots != null && slotLimit != null
+      ? formatNumber(usedSlots) + " / " + formatNumber(slotLimit) + " 사용" : "조회 불가");
     const slotBar = document.querySelector("#studioSlotBar span");
-    if (slotBar && slotLimit > 0) slotBar.style.width = Math.min(100, Math.max(0, usedSlots / slotLimit * 100)) + "%";
+    if (slotBar && Number(slotLimit) > 0 && usedSlots != null) slotBar.style.width = Math.min(100, Math.max(0, Number(usedSlots) / Number(slotLimit) * 100)) + "%";
+    document.getElementById("studioSlotBar")?.setAttribute("aria-label", document.getElementById("studioSlotText")?.textContent || "운영 슬롯 조회 불가");
 
-    if (needsAttention > 0) {
-      text("studioAttentionTitle", "확인 필요한 운영 항목 " + formatNumber(needsAttention) + "건");
-      text("studioAttentionBody", "프로필, 피드, 정산 정보 중 보완이 필요한 항목을 먼저 확인해주세요.");
+    if (openImageRequests == null || !Number.isFinite(Number(openImageRequests))) {
+      text("studioAttentionTitle", "운영 항목 조회 불가");
+      text("studioAttentionBody", "현재 확인할 일의 전체 집계는 제공되지 않습니다.");
+    } else if (Number(openImageRequests) > 0) {
+      text("studioAttentionTitle", "열린 이미지 요청 " + formatNumber(openImageRequests) + "건");
+      text("studioAttentionBody", "이미지 요청 상태를 확인해 주세요. 다른 운영 항목은 이 화면에 집계되지 않습니다.");
     } else {
-      text("studioAttentionTitle", "오늘의 필수 확인 항목 없음");
-      text("studioAttentionBody", "새 피드 예약과 정산 정보만 가볍게 확인하면 됩니다.");
+      text("studioAttentionTitle", "열린 이미지 요청 없음");
+      text("studioAttentionBody", "다른 운영 항목은 이 화면에 집계되지 않습니다.");
     }
 
-    renderArtists(artists, usedSlots, slotLimit);
+    renderArtists(artists);
+    renderMedia(artists);
     populateProfileEditor(artists);
     populateArtistIdentityEditor(artists);
     populateKnowledgeUrlArtistSelect(artists);
   }
 
-  function renderArtists(artists, usedSlots, slotLimit) {
+  function renderArtists(artists) {
     const cardRoot = document.getElementById("studioArtistCards");
     const rowRoot = document.getElementById("studioArtistRows");
-    if (!artists.length) return;
+    if (!artists.length) {
+      if (cardRoot) cardRoot.innerHTML = '<p class="studio-form-state">이 계정에 연결된 아티스트가 없습니다.</p>';
+      if (rowRoot) rowRoot.innerHTML = '<tr><td colspan="3">연결된 아티스트가 없습니다.</td></tr>';
+      return;
+    }
 
     if (cardRoot) {
       cardRoot.innerHTML = artists.map(item => {
@@ -542,21 +549,34 @@
         const badgeClass = artist.status === "active" ? "is-good" : artist.status === "paused" ? "is-warn" : "";
         return '<article class="artist-card">' +
           '<img class="artist-thumb" src="' + escapeHtml(artistImage(artist)) + '" alt="' + escapeHtml(artistName(item)) + '" />' +
-          '<div><h3>' + escapeHtml(artistName(item)) + '</h3><p>' + escapeHtml(summary) + '</p><div class="badge-row"><span class="badge ' + badgeClass + '">' + escapeHtml(status) + '</span><span class="badge">슬롯 ' + formatNumber(item?.artist?.sortOrder || 1) + '</span></div></div>' +
+          '<div><h3>' + escapeHtml(artistName(item)) + '</h3><p>' + escapeHtml(summary) + '</p><div class="badge-row"><span class="badge ' + badgeClass + '">' + escapeHtml(status) + '</span></div></div>' +
           '<button class="secondary-action" type="button" data-profile-artist="' + escapeHtml(artistId(item)) + '">관리</button>' +
         '</article>';
       }).join("");
     }
 
     if (rowRoot) {
-      rowRoot.innerHTML = artists.map((item, index) => {
+      rowRoot.innerHTML = artists.map(item => {
         const artist = item.artist || item;
         const status = artistStatusLabel(artist.status);
-        const recent = item?.imageRequests?.open ? "이미지 요청 " + formatNumber(item.imageRequests.open) + "건" : "최근 상태 확인";
-        const action = artist.status === "active" ? "운영 유지" : "프로필 보완";
-        return "<tr><td>" + escapeHtml(artistName(item)) + "</td><td><span class=\"badge\">" + escapeHtml(status) + "</span></td><td>" + escapeHtml(recent) + "</td><td>" + escapeHtml(action) + "</td><td>" + formatNumber(index + 1) + " / " + formatNumber(slotLimit || usedSlots || artists.length) + "</td></tr>";
+        const openRequests = item?.imageRequests?.open;
+        return "<tr><td>" + escapeHtml(artistName(item)) + "</td><td><span class=\"badge\">" + escapeHtml(status) + "</span></td><td>" + (openRequests == null ? "조회 불가" : formatNumber(openRequests) + "건") + "</td></tr>";
       }).join("");
     }
+  }
+
+  function renderMedia(artists) {
+    const root = document.getElementById("studioMediaGrid");
+    if (!root) return;
+    const assets = artists.flatMap(item => {
+      const artist = item.artist || item;
+      return (Array.isArray(artist.assets) ? artist.assets : [])
+        .filter(asset => asset.assetType === "image" && asset.url)
+        .map(asset => ({ asset, name: artistName(item) }));
+    });
+    root.innerHTML = assets.length ? assets.map(({ asset, name }) =>
+      '<article class="media-tile"><img src="' + escapeHtml(asset.url) + '" alt="' + escapeHtml(name) + '" /><footer><span>' + escapeHtml(name) + '</span><span>' + escapeHtml(asset.usageType || "이미지") + '</span></footer></article>'
+    ).join("") : '<p class="studio-form-state">이 계정에서 확인할 수 있는 공개 이미지가 없습니다.</p>';
   }
 
   function splitKeywords(value) {
@@ -586,7 +606,19 @@
 
   function populateProfileEditor(artists) {
     const select = document.getElementById("studioProfileArtistSelect");
-    if (!select || !artists.length) return;
+    if (!select) return;
+    const available = artists.length > 0;
+    select.disabled = !available;
+    document.querySelectorAll("#artists .form-grid input, #artists .form-grid textarea").forEach(field => { field.disabled = !available; });
+    ["studioProfileSaveButton", "studioProfileResetButton"].forEach(id => {
+      const button = document.getElementById(id);
+      if (button) button.disabled = !available;
+    });
+    if (!available) {
+      select.innerHTML = '<option value="">연결된 아티스트 없음</option>';
+      setProfileState("등록된 아티스트가 없습니다.", "");
+      return;
+    }
     select.innerHTML = artists.map(item => '<option value="' + escapeHtml(artistId(item)) + '">' + escapeHtml(artistName(item)) + '</option>').join("");
     fillProfileEditor(artists[0]);
   }
@@ -953,17 +985,55 @@
   }
 
   async function loadSettlementPreview() {
-    const token = readAuth()?.accessToken;
-    if (!token) return;
+    const identity = studioIdentity();
     try {
-      const res = await fetch(apiBase + "/api/v1/me/creator-studio/settlement-preview?period=" + currentPeriod(), {
-        headers: { Authorization: "Bearer " + token }
-      });
-      if (!res.ok) return;
+      const res = await fetchCreatorStudioApi("/api/v1/me/creator-studio/settlement-preview?period=" + currentPeriod(), { identity });
+      if (!currentStudioIdentity(identity)) return;
+      if (!res.ok) throw new Error("preview unavailable");
       const data = await res.json();
+      if (!currentStudioIdentity(identity)) return;
       renderSettlement(data);
     } catch (_) {
-      // Preview is optional; keep the static fallback when unavailable.
+      if (!currentStudioIdentity(identity)) return;
+      text("studioMetricSettlement", "조회 불가");
+      text("studioMetricSettlementSub", "예상 정산액을 불러오지 못했습니다.");
+      document.getElementById("studioSettlementRows").innerHTML = '<tr><td colspan="6">예상 정산 내역을 불러오지 못했습니다.</td></tr>';
+      document.getElementById("studioRevenueRows").innerHTML = '<tr><td colspan="5">수익원별 집계를 불러오지 못했습니다.</td></tr>';
+    }
+  }
+
+  async function loadWalletBalance() {
+    const identity = studioIdentity();
+    try {
+      const res = await fetchCreatorStudioApi("/api/v1/wallet", { identity });
+      if (!currentStudioIdentity(identity)) return;
+      if (!res.ok) throw new Error("wallet unavailable");
+      const wallet = await res.json();
+      if (!currentStudioIdentity(identity)) return;
+      const balance = wallet?.cachedBalance;
+      if (balance == null || !Number.isFinite(Number(balance))) throw new Error("balance unavailable");
+      text("studioMetricLumina", formatNumber(balance) + "L");
+      text("studioMetricLuminaSub", "현재 지갑 잔액");
+    } catch (_) {
+      if (!currentStudioIdentity(identity)) return;
+      text("studioMetricLumina", "조회 불가");
+      text("studioMetricLuminaSub", "지갑 잔액을 불러오지 못했습니다.");
+    }
+  }
+
+  async function loadPayoutSummary() {
+    const identity = studioIdentity();
+    try {
+      const res = await fetchCreatorStudioApi("/api/v1/me/creator-studio/payout-summary?period=" + currentPeriod(), { identity });
+      if (!currentStudioIdentity(identity)) return;
+      if (!res.ok) throw new Error("payout unavailable");
+      const data = await res.json();
+      if (currentStudioIdentity(identity)) renderPayoutBreakdown(data);
+    } catch (_) {
+      if (!currentStudioIdentity(identity)) return;
+      text("studioPayoutSampleBadge", "조회 불가");
+      const note = document.getElementById("studioPayoutSampleNote");
+      if (note) note.textContent = "정산 요약을 불러오지 못했습니다.";
     }
   }
 
@@ -994,7 +1064,7 @@
       rejected: "반려",
       canceled: "취소"
     };
-    return labels[status] || "요청됨 · 승인 필요";
+    return labels[status] || "상태 확인 불가";
   }
 
   function renderSettlementConversions(items = []) {
@@ -1007,90 +1077,82 @@
       return;
     }
     rows.innerHTML = items.map(item => {
-      const amount = Number(item.amountKrw || 0);
-      const lumina = Number(item.requestedLumina || Math.floor(amount / 10));
-      return "<tr><td>" + escapeHtml(item.settlementKey || "-") + "</td><td>" + formatKrw(amount) + "</td><td>" + formatNumber(lumina) + "L</td><td><span class=\"badge is-warn\">" + escapeHtml(conversionStatusLabel(item.status || "requested")) + "</span></td><td>" + escapeHtml(item.note || "-") + "</td></tr>";
+      const amount = item.amountKrw;
+      const lumina = item.requestedLumina;
+      return "<tr><td>" + escapeHtml(item.settlementKey || "-") + "</td><td>" + (amount == null ? "-" : formatKrw(amount)) + "</td><td>" + (lumina == null ? "-" : formatNumber(lumina) + "L") + "</td><td><span class=\"badge is-warn\">" + escapeHtml(item.status ? conversionStatusLabel(item.status) : "상태 확인 불가") + "</span></td><td>" + escapeHtml(item.note || "-") + "</td></tr>";
     }).join("");
     if (state) state.textContent = "표시된 신청은 요청됨/승인 필요 흐름입니다. 승인 전 지갑 잔액은 늘어나지 않습니다.";
   }
 
   function renderSettlement(data) {
     settlementPreview = data || null;
-    const total = Number(data?.totals?.creatorShareKrw || 0);
-    if (total) text("studioMetricSettlement", formatKrw(total));
-    renderPayoutBreakdown(data);
-    renderSettlementProfile(data?.settlementProfile || data?.payoutProfile || data?.profile);
+    const total = data?.totals?.creatorShareKrw;
+    text("studioMetricSettlement", total != null && Number.isFinite(Number(total)) ? formatKrw(total) : "조회 불가");
+    text("studioMetricSettlementSub", total != null && Number.isFinite(Number(total))
+      ? "환불·세무 검토 전 예상치" : "예상 정산액이 제공되지 않았습니다.");
+    const conversionButton = document.querySelector('[data-action="settlement-conversion"]');
+    if (conversionButton) conversionButton.disabled = settlementOptions().length === 0;
     const rows = document.getElementById("studioSettlementRows");
     if (rows && Array.isArray(data?.items) && data.items.length) {
       rows.innerHTML = [
-        "<tr><td>전체 합산</td><td>" + formatNumber(data.items.length) + "명 합산</td><td>" + formatKrw(data.totals?.grossRevenueKrw) + "</td><td>" + formatKrw(data.totals?.riskReserveKrw) + "</td><td class=\"money\">" + formatKrw(data.totals?.creatorShareKrw) + "</td><td><span class=\"badge is-warn\">예상치</span></td></tr>",
+        "<tr><td>전체 합산</td><td>" + formatNumber(data.items.length) + "명 합산</td><td>" + formatKnownKrw(data.totals?.grossRevenueKrw) + "</td><td>" + formatKnownKrw(data.totals?.riskReserveKrw) + "</td><td class=\"money\">" + formatKnownKrw(data.totals?.creatorShareKrw) + "</td><td><span class=\"badge is-warn\">예상치</span></td></tr>",
         ...data.items.map(item => {
           const name = item?.artist?.displayName || item?.artist?.slug || "아티스트";
-          return "<tr><td>캐릭터별</td><td>" + escapeHtml(name) + "</td><td>" + formatKrw(item?.financials?.grossRevenueKrw) + "</td><td>" + formatKrw(item?.financials?.riskReserveKrw) + "</td><td class=\"money\">" + formatKrw(item?.financials?.creatorShareKrw) + "</td><td><span class=\"badge\">예상</span></td></tr>";
+          return "<tr><td>캐릭터별</td><td>" + escapeHtml(name) + "</td><td>" + formatKnownKrw(item?.financials?.grossRevenueKrw) + "</td><td>" + formatKnownKrw(item?.financials?.riskReserveKrw) + "</td><td class=\"money\">" + formatKnownKrw(item?.financials?.creatorShareKrw) + "</td><td><span class=\"badge\">예상</span></td></tr>";
         })
       ].join("");
+    } else if (rows) {
+      rows.innerHTML = '<tr><td colspan="6">해당 기간 예상 정산 내역이 없습니다.</td></tr>';
     }
 
     const revenueRows = document.getElementById("studioRevenueRows");
     const breakdown = aggregateBreakdown(data?.items || []);
     if (revenueRows && breakdown.length) {
       revenueRows.innerHTML = breakdown.map(item => "<tr><td>" + escapeHtml(item.label) + "</td><td>" + formatNumber(item.eventCount) + "</td><td>" + formatNumber(item.grossLumina) + "L</td><td>" + formatKrw(item.grossRevenueKrw) + "</td><td>완료 건만 포함</td></tr>").join("");
+    } else if (revenueRows) {
+      revenueRows.innerHTML = '<tr><td colspan="5">해당 기간 수익원별 집계가 없습니다.</td></tr>';
     }
   }
 
   function renderPayoutBreakdown(data) {
     const card = document.getElementById("studioPayoutBreakdown");
     if (!card || !data?.totals) return;
-
-    const policy = data.policy || {};
-    const totals = data.totals || {};
-    const settlementRateBps = firstNumber(policy.settlementRateBps, 7000);
-    const unitPriceKrw = firstNumber(policy.unitPriceKrw, 10);
-    const withholdingRateBps = firstNumber(policy.withholdingTaxRateBps, policy.taxRateBps, 330);
-    const grossLumina = firstNumber(totals.grossLumina, totals.receivedLumina);
-    const grossKrw = firstNumber(totals.creatorShareKrw, totals.payoutGrossKrw, totals.grossPayoutKrw);
-    const eligibleLumina = firstNumber(
-      totals.eligibleLumina,
-      totals.settlementLumina,
-      grossLumina * settlementRateBps / 10000,
-      unitPriceKrw ? grossKrw / unitPriceKrw : 0
-    );
-    const taxKrw = firstNumber(totals.withholdingTaxKrw, totals.taxKrw, grossKrw * withholdingRateBps / 10000);
-    const netKrw = firstNumber(totals.netPayoutKrw, totals.payoutNetKrw, Math.max(0, grossKrw - taxKrw));
-    const hasRealAmount = grossLumina > 0 || grossKrw > 0;
-
-    card.classList.toggle("is-payout-sample", !hasRealAmount);
-    card.dataset.payoutState = hasRealAmount ? "estimate" : "sample";
+    if (data.policy?.hidePayoutRow === true) {
+      text("studioPayoutSampleBadge", "표시 대상 없음");
+      const note = document.getElementById("studioPayoutSampleNote");
+      if (note) note.textContent = "이 계정에는 표시 가능한 정산 요약이 없습니다.";
+      return;
+    }
+    const totals = data.totals;
+    const values = {
+      studioPayoutGrossLumina: totals.grossLumina,
+      studioPayoutEligibleLumina: totals.eligibleLumina,
+      studioPayoutGrossKrw: totals.grossAmount?.amount,
+      studioPayoutTaxKrw: totals.taxAmount?.amount,
+      studioPayoutNetKrw: totals.netAmount?.amount
+    };
+    const hasAmounts = Object.values(values).some(value => value != null && Number.isFinite(Number(value)));
+    if (!hasAmounts) {
+      const note = document.getElementById("studioPayoutSampleNote");
+      if (note) note.textContent = "표시 가능한 예상 정산 금액이 없습니다.";
+      return;
+    }
+    card.classList.remove("is-payout-sample");
+    card.dataset.payoutState = "estimate";
+    text("studioPayoutSampleBadge", "예상치");
     card.querySelectorAll("[data-payout-sample]").forEach(el => {
-      el.dataset.payoutSample = hasRealAmount ? "false" : "true";
+      el.dataset.payoutSample = "false";
+      el.removeAttribute("aria-label");
     });
-
-    if (!hasRealAmount) return;
-
-    text("studioPayoutGrossLumina", formatNumber(grossLumina) + "L");
-    text("studioPayoutEligibleLumina", formatNumber(Math.floor(eligibleLumina)) + "L");
-    text("studioPayoutGrossKrw", formatKrw(grossKrw));
-    text("studioPayoutTaxKrw", formatKrw(taxKrw));
-    text("studioPayoutNetKrw", formatKrw(netKrw));
-    text("studioPayoutCurrencyLabel", data.currencyLabel || policy.payoutCurrencyLabel || "KRW · 한국 원");
-    text("studioPayoutFxLabel", data.fxSnapshotLabel || policy.fxSnapshotLabel || "주간 기준환율 + 3~5% 안전마진");
-  }
-
-  function renderSettlementProfile(profile = {}) {
-    const identityVerified = Boolean(profile.identityVerified || profile.verifiedIdentity || profile.kycVerified);
-    const accountRegistered = Boolean(profile.bankAccountRegistered || profile.accountRegistered || profile.bankAccount?.status === "verified");
-    const accountMatched = profile.bankAccountOwnerMatched ?? profile.accountOwnerMatched ?? profile.bankAccount?.ownerMatched;
-    const taxAddressReady = Boolean(profile.taxAddressRegistered || profile.taxAddressReady || profile.taxAddress?.status === "registered");
-    const exceptionApproved = Boolean(profile.accountExceptionApproved || profile.exceptionApproved);
-
-    text("studioSettlementIdentity", identityVerified ? "완료" : "확인 필요");
-    text("studioSettlementIdentityHelp", identityVerified ? "본인인증이 확인되었습니다." : "정산 신청 전 본인인증을 완료해야 합니다.");
-    text("studioSettlementAccount", accountRegistered ? (accountMatched === false ? "명의 확인 필요" : "등록 완료") : "등록 전");
-    text("studioSettlementAccountHelp", accountRegistered
-      ? (accountMatched === false ? "본인인증 이름과 예금주가 일치해야 합니다." : "계좌 정보가 등록되었습니다.")
-      : "본인인증 이름과 예금주가 일치해야 합니다.");
-    text("studioSettlementTaxAddress", taxAddressReady ? "입력 완료" : "입력 대기");
-    text("studioSettlementException", exceptionApproved ? "예외 승인" : "고객센터 문의");
+    for (const [id, value] of Object.entries(values)) {
+      if (value != null && Number.isFinite(Number(value))) {
+        text(id, id.endsWith("Lumina") ? formatNumber(value) + "L" : formatKrw(value));
+      }
+    }
+    text("studioPayoutCurrencyLabel", totals.currency || data.currency || "통화 정보 없음");
+    text("studioPayoutFxLabel", data.fxSnapshot?.snapshotStatus === "krw_base_no_fx" ? "KRW 기준 · 환전 없음" : "환율 정보 없음");
+    const note = document.getElementById("studioPayoutSampleNote");
+    if (note) note.textContent = "조회된 금액은 예상치이며 최종 정산액이 아닙니다.";
   }
 
   // ── #409 — 아티스트 자료 URL 등록 ──────────────────────────────────────
@@ -1884,7 +1946,7 @@
       info_needed: "추가 정보 필요",
       failed:      "실패",
       rejected:    "반려"
-    })[status] || "요청 접수";
+    })[status] || "상태 확인 불가";
   }
 
   function aiContentRequestStatusClass(status) {
@@ -1911,8 +1973,8 @@
       const reqId = escapeHtml(item.requestId || item.id || "-");
       const artistDisplay = escapeHtml(item.artistName || item.artist?.displayName || item.artist?.slug || "-");
       const purpose = escapeHtml(item.purpose || item.usagePurpose || "-");
-      const method = escapeHtml(item.method || "운영 검토");
-      const status = String(item.status || "submitted");
+      const method = escapeHtml(item.method || "-");
+      const status = String(item.status || "");
       const statusLabel = aiContentRequestStatusLabel(status);
       const statusClass = aiContentRequestStatusClass(status);
       // info_needed/rejected 에는 admin note를 tooltip으로 표시
@@ -1981,11 +2043,9 @@
   }
 
   function settlementOptions() {
-    const period = settlementPreview?.period?.label || currentPeriod();
     return (settlementPreview?.items || []).map(item => {
       const artist = item.artist || {};
-      const id = artist.id || item.targetArtistId || "";
-      const key = item.settlementKey || (id ? "artist:" + id + ":" + period : "");
+      const key = item.settlementKey || "";
       const available = Math.floor(Number(item?.financials?.creatorShareKrw || 0));
       return {
         key,
@@ -1993,27 +2053,6 @@
         available
       };
     }).filter(item => item.key && item.available >= 1000);
-  }
-
-  function openSettlementRequestModal() {
-    const total = Number(settlementPreview?.totals?.creatorShareKrw || 0);
-    openStudioModal({
-      type: "SETTLEMENT",
-      title: "정산 신청 전 확인",
-      message: "표시 금액은 예상 정산액입니다. 최종 지급은 환불, 결제 취소, 세무·회계 검토 후 확정됩니다.",
-      summaryHtml: [
-        modalRow("이번 달 예상", formatKrw(total)),
-        modalRow("본인인증", document.getElementById("studioSettlementIdentity")?.textContent || "확인 필요"),
-        modalRow("정산 계좌", document.getElementById("studioSettlementAccount")?.textContent || "등록 전"),
-        modalRow("세무 주소", document.getElementById("studioSettlementTaxAddress")?.textContent || "입력 대기")
-      ].join(""),
-      confirmText: "정산 탭 확인",
-      onConfirm: () => {
-        closeStudioModal();
-        setActiveSection("settlement");
-        showToast("정산 프로필을 먼저 확인해주세요.");
-      }
-    });
   }
 
   function openSettlementConversionModal() {
@@ -2108,26 +2147,6 @@
         confirm.textContent = "충전 요청";
       }
     }
-  }
-
-  function openTonePreview() {
-    const body = document.getElementById("feedBody")?.value.trim() || "";
-    const item = selectedProfileItem();
-    const tone = item?.artist?.contentProfile?.contentTone || document.getElementById("studioProfileTone")?.value || "팬에게 공개 가능한 차분한 톤";
-    const preview = body
-      ? body + "\n\n" + "오늘의 감정은 크게 흔들리지 않게, 그래도 팬들에게 닿을 만큼은 선명하게 남겨둘게요."
-      : "본문을 입력하면 선택한 아티스트의 톤앤매너 기준으로 미리보기합니다.";
-    openStudioModal({
-      type: "TONE PREVIEW",
-      title: "톤앤매너 미리보기",
-      message: "실제 변환 기능 연결 전, 현재 저장된 톤 기준을 확인하는 미리보기입니다.",
-      summaryHtml: [
-        modalRow("아티스트", artistName(item)),
-        modalRow("톤 기준", tone),
-        modalRow("미리보기", preview)
-      ].join(""),
-      confirmText: "확인"
-    });
   }
 
   document.getElementById("studioProfileArtistSelect")?.addEventListener("change", () => {
@@ -2229,14 +2248,8 @@
     const actionButton = event.target.closest("[data-action]");
     if (!actionButton) return;
     const action = actionButton.dataset.action;
-    if (action === "tone") {
-      openTonePreview();
-    } else if (action === "settlement-request") {
-      openSettlementRequestModal();
-    } else if (action === "settlement-conversion") {
+    if (action === "settlement-conversion") {
       openSettlementConversionModal();
-    } else if (action === "toast") {
-      showToast(actionButton.textContent.trim() + " 기능은 다음 연결 단계에서 활성화합니다.");
     }
   });
 
@@ -2296,9 +2309,7 @@
       if (!res.ok) {
         if (res.status === 401) {
           deny("로그인 시간이 만료됐어요. 다시 로그인한 뒤 스튜디오를 열어 주세요.");
-        } else {
-          showToast("스튜디오 권한 확인을 마치지 못했어요. 잠시 후 다시 확인해 주세요.");
-        }
+        } else deny("스튜디오 권한 확인을 마치지 못했어요. 잠시 후 다시 확인해 주세요.");
         return;
       }
       const data = await res.json();

@@ -48,17 +48,17 @@
           </span>
         </a>
         <nav class="studio-nav" aria-label="크리에이터 스튜디오">
-          <button class="is-active" type="button" data-section="dashboard">홈 <b>4</b></button>
-          <button type="button" data-section="artists">아티스트 <b>3</b></button>
-          <button type="button" data-section="feed">피드 작성 <b>6</b></button>
-          <button type="button" data-section="media">이미지/숏폼 <b>24</b></button>
-          <button type="button" data-section="writer-manuscript"><span data-i18n="writerManuscript.nav">내 작품 원고</span> <b>!</b></button>
-          <button type="button" data-section="story-intake"><span data-i18n="storyIntake.nav">원고 접수</span> <b>!</b></button>
+          <button class="is-active" type="button" data-section="dashboard">홈</button>
+          <button type="button" data-section="artists">아티스트</button>
+          <button type="button" data-section="feed">피드 작성</button>
+          <button type="button" data-section="media">이미지/숏폼</button>
+          <button type="button" data-section="writer-manuscript"><span data-i18n="writerManuscript.nav">내 작품 원고</span></button>
+          <button type="button" data-section="story-intake"><span data-i18n="storyIntake.nav">원고 접수</span></button>
           <button type="button" data-section="image-lab" disabled aria-disabled="true" style="opacity:.45; cursor:not-allowed;">이미지 요청 <b>준비</b></button>
-          <button type="button" data-section="knowledge-url">자료 URL <b>0</b></button>
-          <button type="button" data-section="content-rights"><span id="contentRightsNavLabel">계약 설정</span> <b>C</b></button>
-          <button type="button" data-section="settlement">정산 <b>₩</b></button>
-          <button type="button" data-section="settings">설정 <b>!</b></button>
+          <button type="button" data-section="knowledge-url">자료 URL</button>
+          <button type="button" data-section="content-rights"><span id="contentRightsNavLabel">계약 설정</span></button>
+          <button type="button" data-section="settlement">정산</button>
+          <button type="button" data-section="settings">설정</button>
         </nav>
         <!-- #362 — 사이드바 접속 계정. JS가 실제 로그인한 크리에이터 계정 projection으로 #studioAccountEmail / #studioAccountRole 텍스트를 채운다.
              projection 도착 전 fallback은 "계정 정보를 불러오는 중입니다." 로 유지하고, test 계정 메일이 화면에 직접 노출되지 않게 한다. -->
@@ -66,7 +66,7 @@
           <small>접속 계정</small>
           <strong id="studioAccountEmail">계정 정보를 불러오는 중입니다.</strong>
           <span class="badge is-good" id="studioAccountRole">크리에이터</span>
-          <button type="button" data-action="toast">로그아웃</button>
+          <button type="button" disabled title="이 화면에서는 로그아웃을 지원하지 않습니다.">로그아웃</button>
         </div>
       </aside>
 
@@ -75,69 +75,45 @@
           <div>
             <span class="eyebrow">My Creator Stage</span>
             <h1>내 아티스트 운영실</h1>
-            <p>피드, 이미지, 숏폼, 정산 예정금까지 한 곳에서 관리합니다. 여러 캐릭터를 운영하는 계정은 캐릭터별 상태를 함께 확인합니다.</p>
+            <p>연결된 아티스트와 공개 이미지, 원고 접수 상태를 확인하고 예상 정산액을 조회합니다.</p>
           </div>
           <div class="top-actions">
-            <button type="button" data-action="toast">새 피드</button>
+            <button type="button" disabled title="피드 작성 기능을 사용할 수 없습니다.">새 피드</button>
             <button class="primary-action" type="button" disabled aria-disabled="true" style="opacity:.45; cursor:not-allowed;">이미지 요청</button>
           </div>
         </header>
 
         <section class="studio-section is-active" id="dashboard">
           <div class="metric-grid">
-            <article class="metric-card"><span>운영 아티스트</span><strong id="studioMetricArtists">3명</strong><small id="studioMetricArtistsSub">활동 2 · 휴식기 후보 1</small></article>
-            <article class="metric-card"><span>오늘 반응</span><strong>1,284</strong><small>피드 812 · 숏폼 472</small></article>
-            <article class="metric-card"><span>예상 정산액</span><strong class="money" id="studioMetricSettlement">205,440원</strong><small>환불·세무 검토 전 예상치</small></article>
+            <article class="metric-card"><span>운영 아티스트</span><strong id="studioMetricArtists">확인 중</strong><small id="studioMetricArtistsSub">계정 정보를 불러오는 중입니다.</small></article>
+            <article class="metric-card"><span>오늘 반응</span><strong>집계 없음</strong><small>현재 제공되는 반응 집계가 없습니다.</small></article>
+            <article class="metric-card"><span>예상 정산액</span><strong class="money" id="studioMetricSettlement">확인 중</strong><small id="studioMetricSettlementSub">정산 정보를 불러오는 중입니다.</small></article>
             <!-- #379 — 메트릭 카드 sub "요청형 기능 준비 중" 톤다운. -->
-            <article class="metric-card"><span>루미나</span><strong id="studioMetricLumina">420L</strong><small>요청형 기능은 별도 안내</small></article>
+            <article class="metric-card"><span>루미나 잔액</span><strong id="studioMetricLumina">확인 중</strong><small id="studioMetricLuminaSub">지갑 정보를 불러오는 중입니다.</small></article>
           </div>
           <div class="two-col">
             <article class="panel">
               <div class="panel-header">
                 <div><span class="panel-kicker">ATTENTION</span><h2>오늘 확인할 일</h2></div>
-                <button class="secondary-action" type="button" data-action="toast">전체 확인</button>
               </div>
-              <div class="artist-list">
-                <div class="notice"><strong>정산 주소 입력 필요</strong><span>첫 정산 전 세무 서류용 주소를 한 번만 입력해야 합니다. 주소는 정산/세무 처리에만 사용됩니다.</span></div>
-                <div class="notice"><strong id="studioAttentionTitle">박도아 피드 미작성 8시간</strong><span id="studioAttentionBody">6시간 이상 피드가 없으면 운영 상태에 표시됩니다. 예약 글이나 직접 작성 글로 공백을 줄여주세요.</span></div>
-                <!-- #379 — "준비 중" + "오픈 전까지" 반복 톤다운. -->
-                <div class="notice" style="opacity:.55;"><strong>이미지 요청 기능 오픈 안내</strong><span>오픈 일정은 별도 공지로 안내드려요. 그 전까지는 비활성 상태로 유지됩니다.</span></div>
-              </div>
+              <div class="artist-list"><div class="notice"><strong id="studioAttentionTitle">확인 중</strong><span id="studioAttentionBody">계정의 운영 항목을 불러오는 중입니다.</span></div></div>
             </article>
             <article class="panel">
               <div class="panel-header">
                 <div><span class="panel-kicker">STUDIO RULE</span><h2>운영 기준</h2></div>
               </div>
-              <p>일반 크리에이터는 1개 아티스트를 무료로 시작합니다. 여러 캐릭터를 운영하는 스튜디오 운영자는 캐릭터별 피드와 숏폼을 직접 관리하며, 30일 이상 활동이 없으면 휴식기 전환 대상이 됩니다.</p>
-              <p>이미지 요청은 유저 아티스트 운영 도구에서 순차 안내합니다. 비용과 재조정 기준은 신청·계약 단계에서 확인할 수 있어요.</p>
+              <p>이 계정에 연결된 아티스트와 운영 슬롯은 아래 인증된 계정 정보를 기준으로 표시됩니다.</p>
               <div class="slot-meter">
-                <div class="slot-meter-head"><span>운영 슬롯</span><strong id="studioSlotText">3 / 10 사용</strong></div>
-                <div class="slot-bar" id="studioSlotBar" aria-label="운영 슬롯 10개 중 3개 사용"><span></span></div>
-              </div>
-              <div class="account-mode">
-                <article class="mode-card">
-                  <span class="badge is-good">개인 크리에이터</span>
-                  <strong>1개 아티스트 무료 시작</strong>
-                  <p>첫 아티스트는 Lumina Stage가 제작을 지원합니다. 추가 아티스트는 등록권 구매 후 신청합니다.</p>
-                </article>
-                <article class="mode-card is-active">
-                  <span class="badge is-warn">스튜디오 운영자</span>
-                  <strong>여러 캐릭터 직접 운영</strong>
-                  <p>캐릭터별 피드, 숏폼, 이미지 관리를 직접 맡고 정산은 계정 단위로 합산해 확인합니다.</p>
-                </article>
+                <div class="slot-meter-head"><span>운영 슬롯</span><strong id="studioSlotText">확인 중</strong></div>
+                <div class="slot-bar" id="studioSlotBar" aria-label="운영 슬롯 확인 중"><span></span></div>
               </div>
             </article>
           </div>
           <article class="panel">
             <div class="panel-header">
               <div><span class="panel-kicker">WEEKLY FLOW</span><h2>이번 주 운영 흐름</h2></div>
-              <button class="secondary-action" type="button" data-action="toast">운영 메모 보기</button>
             </div>
-            <div class="studio-mini-grid">
-              <div class="studio-mini-card"><span>예약 피드</span><strong>6건</strong><small>오늘 2건 · 내일 4건</small></div>
-              <div class="studio-mini-card"><span>업로드 대기</span><strong>3건</strong><small>커버 1 · 갤러리 2</small></div>
-              <div class="studio-mini-card"><span>정산 보완</span><strong>2건</strong><small>본인인증 · 세무 주소</small></div>
-            </div>
+            <p class="studio-form-state">예약, 업로드 대기, 정산 보완 내역은 이 화면에서 조회할 수 없습니다.</p>
           </article>
         </section>
 
@@ -145,32 +121,14 @@
           <article class="panel">
             <div class="panel-header">
               <div><span class="panel-kicker">ARTISTS</span><h2>내 아티스트</h2></div>
-              <button class="primary-action" type="button" data-action="toast">추가 등록 신청</button>
+              <button class="primary-action" type="button" disabled title="추가 등록 신청은 이 화면에서 지원하지 않습니다.">추가 등록 신청</button>
             </div>
-            <div class="artist-list" id="studioArtistCards">
-              <article class="artist-card">
-                <img class="artist-thumb" src="/assets/characters/yoon-serin/thumb.png" alt="윤세린" onerror="this.src='/assets/brand/lumina-stage-logo.png'" />
-                <div><h3>윤세린</h3><p>차갑게 등장하고 뜨겁게 각인되는 퍼포먼스형 아티스트.</p><div class="badge-row"><span class="badge is-good">공개</span><span class="badge">피드 정상</span><span class="badge">정산 가능</span></div></div>
-                <button class="secondary-action" type="button" data-action="toast">관리</button>
-              </article>
-              <article class="artist-card">
-                <img class="artist-thumb" src="/assets/characters/ha-yuna/thumb.png" alt="하윤아" onerror="this.src='/assets/brand/lumina-stage-logo.png'" />
-                <div><h3>하윤아</h3><p>빠른 트렌드 감각과 거리감 있는 자신감이 강점인 모델형 캐릭터.</p><div class="badge-row"><span class="badge is-good">공개</span><span class="badge is-warn">숏폼 필요</span><span class="badge">이미지 24장</span></div></div>
-                <button class="secondary-action" type="button" data-action="toast">관리</button>
-              </article>
-              <article class="artist-card">
-                <img class="artist-thumb" src="/assets/characters/park-doa/thumb.png" alt="박도아" onerror="this.src='/assets/brand/lumina-stage-logo.png'" />
-                <div><h3>박도아</h3><p>친근한 리액션과 생활감 있는 장면으로 팬과 가까워지는 엔터테이너.</p><div class="badge-row"><span class="badge is-warn">휴식기 후보</span><span class="badge is-danger">피드 8시간 공백</span></div></div>
-                <button class="secondary-action" type="button" data-action="toast">관리</button>
-              </article>
-            </div>
+            <div class="artist-list" id="studioArtistCards"><p class="studio-form-state">아티스트를 불러오는 중입니다.</p></div>
             <div class="table-wrap" style="margin-top: 18px;">
               <table>
-                <thead><tr><th>아티스트</th><th>공개 상태</th><th>최근 활동</th><th>필요 조치</th><th>슬롯</th></tr></thead>
+                <thead><tr><th>아티스트</th><th>공개 상태</th><th>열린 이미지 요청</th></tr></thead>
                 <tbody id="studioArtistRows">
-                  <tr><td>윤세린</td><td><span class="badge is-good">공개</span></td><td>피드 오늘 13:20</td><td>프리미엄 영상 후보 검토</td><td>1 / 10</td></tr>
-                  <tr><td>하윤아</td><td><span class="badge is-good">공개</span></td><td>숏폼 예약 대기</td><td>숏폼 썸네일 선택</td><td>2 / 10</td></tr>
-                  <tr><td>박도아</td><td><span class="badge is-warn">휴식기 후보</span></td><td>피드 8시간 공백</td><td>오늘 피드 1건 작성</td><td>3 / 10</td></tr>
+                  <tr><td colspan="3">아티스트를 불러오는 중입니다.</td></tr>
                 </tbody>
               </table>
             </div>
@@ -197,8 +155,8 @@
             </div>
             <p id="studioProfileSaveState" class="studio-form-state">아티스트를 선택하면 현재 프로필을 불러옵니다.</p>
             <div class="composer-tools">
-              <button class="primary-action" type="button" id="studioProfileSaveButton">프로필 저장</button>
-              <button class="secondary-action" type="button" id="studioProfileResetButton">현재 값 다시 불러오기</button>
+              <button class="primary-action" type="button" id="studioProfileSaveButton" disabled>프로필 저장</button>
+              <button class="secondary-action" type="button" id="studioProfileResetButton" disabled>현재 값 다시 불러오기</button>
             </div>
           </article>
           <article class="panel" id="artistStoryIdentityPanel">
@@ -212,56 +170,23 @@
             <div class="artist-identity-assets" id="artistIdentityAssets"></div>
             <p id="artistIdentityState" class="studio-form-state" role="status" aria-live="polite">기준 이미지를 선택해 주세요.</p>
             <div class="composer-tools">
-              <button class="primary-action" type="button" id="artistIdentityAnalyze">선택 이미지 분석</button>
+              <button class="primary-action" type="button" id="artistIdentityAnalyze" disabled>선택 이미지 분석</button>
               <button class="secondary-action" type="button" id="artistIdentityReview" disabled>설정 검토</button>
             </div>
           </article>
         </section>
 
         <section class="studio-section" id="feed">
-          <article class="panel feed-composer">
-            <div class="panel-header">
-              <div><span class="panel-kicker">FEED</span><h2>피드 작성</h2></div>
-              <button class="secondary-action" type="button" data-action="tone">톤앤매너 미리보기</button>
-            </div>
-            <div class="form-grid">
-              <label><span>작성 아티스트</span><select><option>윤세린</option><option>하윤아</option><option>박도아</option></select></label>
-              <label><span>공개 방식</span><select><option>즉시 공개</option><option>예약 공개</option><option>임시저장</option></select></label>
-              <label class="is-wide"><span>본문</span><textarea id="feedBody">오늘 무대 전 조용히 호흡을 가다듬고 있어요. 팬들에게 보여줄 장면을 정확히 준비해볼게요.</textarea></label>
-              <label class="is-wide"><span>운영 메모</span><input placeholder="예약 사유, 수정 방향, 팬 반응 확인 포인트를 남겨주세요." /></label>
-            </div>
-            <div class="composer-tools">
-              <button class="primary-action" type="button" data-action="toast">피드 저장</button>
-              <button class="secondary-action" type="button" data-action="tone">AI 톤 변환</button>
-              <button class="secondary-action" type="button" data-action="toast">예약 설정</button>
-            </div>
-          </article>
-          <article class="table-card">
-            <header><h3>최근 피드</h3><button class="secondary-action" type="button" data-action="toast">더 보기</button></header>
-            <div class="table-wrap">
-              <table>
-                <thead><tr><th>아티스트</th><th>상태</th><th>반응</th><th>작성 시각</th><th>액션</th></tr></thead>
-                <tbody id="studioRecentFeedRows">
-                  <tr><td>윤세린</td><td><span class="badge is-good">공개</span></td><td>좋아요 184 · 댓글 32</td><td>오늘 13:20</td><td><button class="secondary-action" type="button" data-action="toast">보기</button></td></tr>
-                  <tr><td>하윤아</td><td><span class="badge">예약</span></td><td>-</td><td>오늘 21:00</td><td><button class="secondary-action" type="button" data-action="toast">수정</button></td></tr>
-                </tbody>
-              </table>
-            </div>
-          </article>
+          <article class="panel"><div class="panel-header"><div><span class="panel-kicker">FEED</span><h2>피드 작성</h2></div></div><p class="studio-form-state">피드 작성 및 예약 내역은 아직 이 화면에 연결되지 않았습니다.</p></article>
         </section>
 
         <section class="studio-section" id="media">
           <article class="panel">
             <div class="panel-header">
               <div><span class="panel-kicker">ASSETS</span><h2>이미지/숏폼 관리</h2></div>
-              <button class="primary-action" type="button" data-action="toast">업로드</button>
+              <button class="primary-action" type="button" disabled title="이 화면에서 이미지 업로드를 지원하지 않습니다.">업로드</button>
             </div>
-            <div class="media-grid">
-              <article class="media-tile"><img src="/assets/characters/yoon-serin/cover.png" alt="cover" onerror="this.src='/assets/brand/lumina-stage-logo.png'" /><footer><span>cover</span><span>공개</span></footer></article>
-              <article class="media-tile"><img src="/assets/characters/yoon-serin/thumb.png" alt="gallery" onerror="this.src='/assets/brand/lumina-stage-logo.png'" /><footer><span>gallery</span><span>1</span></footer></article>
-              <article class="media-tile"><img src="/assets/characters/ha-yuna/cover.png" alt="cover" onerror="this.src='/assets/brand/lumina-stage-logo.png'" /><footer><span>shortform</span><span>후보</span></footer></article>
-              <article class="media-tile"><img src="/assets/characters/kwon-taejun/cover.png" alt="cover" onerror="this.src='/assets/brand/lumina-stage-logo.png'" /><footer><span>gallery</span><span>검수</span></footer></article>
-            </div>
+            <div class="media-grid" id="studioMediaGrid"><p class="studio-form-state">공개 에셋을 불러오는 중입니다.</p></div>
           </article>
         </section>
 
@@ -440,7 +365,7 @@
               <span class="badge is-warn">오픈 예정</span>
             </div>
             <div class="form-grid">
-              <label><span>대상 아티스트</span><select disabled><option>윤세린</option><option>하윤아</option><option>박도아</option></select></label>
+              <label><span>대상 아티스트</span><select disabled><option>기능 미제공</option></select></label>
               <label><span>사용 목적</span><select disabled><option>프로필 이미지</option><option>피드 이미지</option><option>숏폼 썸네일</option><option>콘셉트 레퍼런스</option></select></label>
               <label class="is-wide"><span>요청 내용</span><textarea disabled>이미지 요청 기능은 오픈 후 입력할 수 있어요.</textarea></label>
               <label class="is-wide"><span>레퍼런스 파일</span><input type="file" accept="image/*" disabled /></label>
@@ -457,9 +382,7 @@
               <table>
                 <thead><tr><th>요청</th><th>아티스트</th><th>사용 목적</th><th>처리 방식</th><th>상태</th><th>메모</th></tr></thead>
                 <tbody id="studioImageRequestRows">
-                  <tr><td>IMG-024</td><td>하윤아</td><td>숏폼 썸네일</td><td>운영 검토</td><td><span class="badge is-warn">검수 대기</span></td><td>레드/블루 조명 후보</td></tr>
-                  <tr><td>IMG-023</td><td>윤세린</td><td>피드 이미지</td><td>운영 검토</td><td><span class="badge is-good">전달 완료</span></td><td>공식 피드 슬롯 연결</td></tr>
-                  <tr><td>IMG-022</td><td>박도아</td><td>콘셉트 레퍼런스</td><td>운영 검토</td><td><span class="badge">재조정 1회</span></td><td>표정 톤 재요청</td></tr>
+                  <tr><td colspan="6">이미지 요청 기능은 현재 제공되지 않습니다.</td></tr>
                 </tbody>
               </table>
             </div>
@@ -555,13 +478,13 @@
             <header>
               <div><span class="panel-kicker">SETTLEMENT</span><h2>예상 정산액</h2></div>
               <div class="top-actions">
-                <button class="primary-action" type="button" data-action="settlement-request">정산 신청</button>
-                <button class="secondary-action" type="button" data-action="settlement-conversion">정산금으로 충전</button>
+                <button class="primary-action" type="button" disabled title="이 화면에서는 정산 신청을 지원하지 않습니다.">정산 신청</button>
+                <button class="secondary-action" type="button" data-action="settlement-conversion" disabled>정산금으로 충전</button>
               </div>
             </header>
             <div class="notice" style="margin: 18px;"><strong>예상 금액 안내</strong><span>아래 금액은 확정 정산금이 아닙니다. 실제 지급액은 환불, 결제 취소, 세무·회계 검토 후 달라질 수 있습니다.</span></div>
             <div class="notice is-warn" id="legacySettlementIsolation" style="margin: 18px;"><strong>기존 미리보기 분리</strong><span>아래 비용 차감 후 80% 미리보기는 이 콘텐츠 권리 계약 또는 유효 정산 스냅샷이 아닙니다.</span></div>
-            <div class="notice" style="margin: 18px;"><strong>정산금으로 충전 신청</strong><span>신청은 관리자/회계 확인 대기 상태로 접수됩니다. 승인 전에는 지갑 잔액에 반영되지 않습니다.</span></div>
+            <div class="notice" style="margin: 18px;"><strong>정산금으로 충전 신청</strong><span>신청 가능한 정산 정보가 제공된 경우에만 요청할 수 있습니다. 승인 전에는 지갑 잔액에 반영되지 않습니다.</span></div>
             <div class="settlement-conversion-gate-map" data-settlement-conversion-gate-map="true" aria-label="정산금 충전 요청 확인 단계">
               <article><strong>정산Key 자동 사용</strong><p>정산 미리보기 데이터의 settlementKey를 사용하며 slug를 직접 입력하지 않습니다.</p></article>
               <article><strong>요청됨</strong><p>신청 직후 상태는 요청 접수이며 관리자/회계 확인 전입니다.</p></article>
@@ -571,40 +494,40 @@
             <div class="settlement-profile-grid" aria-label="정산 프로필 상태">
               <article class="settlement-profile-card">
                 <span>본인인증</span>
-                <strong id="studioSettlementIdentity">확인 필요</strong>
+                <strong id="studioSettlementIdentity">상태 확인 불가</strong>
                 <small id="studioSettlementIdentityHelp">정산 신청 전 본인인증을 완료해야 합니다.</small>
               </article>
               <article class="settlement-profile-card">
                 <span>정산 계좌</span>
-                <strong id="studioSettlementAccount">등록 전</strong>
+                <strong id="studioSettlementAccount">상태 확인 불가</strong>
                 <small id="studioSettlementAccountHelp">본인인증 이름과 예금주가 일치해야 합니다.</small>
               </article>
               <article class="settlement-profile-card">
                 <span>세무 주소</span>
-                <strong id="studioSettlementTaxAddress">입력 대기</strong>
+                <strong id="studioSettlementTaxAddress">상태 확인 불가</strong>
                 <small>암호화 보관되며 정산과 세무 처리에만 사용됩니다.</small>
               </article>
               <article class="settlement-profile-card">
                 <span>예외 진행</span>
-                <strong id="studioSettlementException">고객센터 문의</strong>
+                <strong id="studioSettlementException">상태 확인 불가</strong>
                 <small>본인 명의 계좌 진행이 어려운 경우 고객센터로 문의해주세요.</small>
               </article>
             </div>
 
             <!-- #219 — 출금 5분리 표기 (에밀리 v1 톤, 4국 언어 i18n 키 적용)
                  백엔드 정산표(루피) 확정 전까지는 placeholder 값 + 통화 라벨만 노출. -->
-            <section class="payout-breakdown is-payout-sample" id="studioPayoutBreakdown" aria-label="이번 정산 회차에 들어올 금액" data-payout-state="sample">
+            <section class="payout-breakdown is-payout-sample" id="studioPayoutBreakdown" aria-label="예상 정산 요약" data-payout-state="sample">
               <header class="payout-breakdown-head">
                 <span class="panel-kicker" data-i18n="payout.card.kicker">PAYOUT · 이번 정산 회차</span>
                 <!-- #362 — "예시" 라벨은 사용자에게 가짜 정산을 보는 듯한 인상을 주므로 "정산 대기"로 톤다운. JS가 hasRealAmount 시 노출 토글. -->
-                <span class="payout-sample-badge" id="studioPayoutSampleBadge" data-i18n="payout.card.sampleBadge">정산 대기</span>
-                <h3 data-i18n="payout.card.title">들어올 금액을 한눈에 정리했어요</h3>
+                <span class="payout-sample-badge" id="studioPayoutSampleBadge">조회 전</span>
+                <h3>예상 정산 요약</h3>
                 <p class="payout-breakdown-sub">
                   <span data-i18n="payout.card.sub.currencyPrefix">정산 통화</span>:
-                  <strong id="studioPayoutCurrencyLabel">KRW · 한국 원</strong>
+                  <strong id="studioPayoutCurrencyLabel">확인 중</strong>
                   ·
                   <span data-i18n="payout.card.sub.fxPrefix">환율 스냅샷</span>:
-                  <strong id="studioPayoutFxLabel" data-i18n="payout.card.sub.fxDefault">주간 기준환율과 안전마진을 함께 기록해요</strong>
+                  <strong id="studioPayoutFxLabel">확인 중</strong>
                 </p>
               </header>
               <!-- #353 — 정산 회차가 확정되기 전 사용자 화면에 오인 가능한 예시 금액을 노출하지 않는다.
@@ -613,12 +536,12 @@
                 <li class="payout-row">
                   <span class="payout-row-label" data-i18n="payout.row.grossLumina">받은 루미나</span>
                   <strong class="payout-row-value" id="studioPayoutGrossLumina" data-payout-sample="true" aria-label="정산 회차 확정 전">-</strong>
-                  <small class="payout-row-note" data-i18n="payout.row.grossLumina.note">유저가 보낸 루미나 전부예요. 무료·유료를 가르지 않고 합산해서 보여드려요.</small>
+                  <small class="payout-row-note">정산 요약에서 반환된 루미나입니다.</small>
                 </li>
                 <li class="payout-row">
                   <span class="payout-row-label" data-i18n="payout.row.eligibleLumina">정산 반영 루미나</span>
                   <strong class="payout-row-value" id="studioPayoutEligibleLumina" data-payout-sample="true" aria-label="정산 회차 확정 전">-</strong>
-                  <small class="payout-row-note" data-i18n="payout.row.eligibleLumina.note">환불·취소된 응원은 제외하고, 실제로 정산에 잡히는 양만 남겼어요.</small>
+                  <small class="payout-row-note">정산 요약에서 반환된 반영 대상 루미나입니다.</small>
                 </li>
                 <li class="payout-row">
                   <span class="payout-row-label" data-i18n="payout.row.grossKrw">정산 예정금 (세전)</span>
@@ -636,14 +559,8 @@
                   <small class="payout-row-note" data-i18n="payout.row.netKrw.note">세금을 뺀 뒤 계좌로 들어올 예상 금액이에요. 환율·세무 검토 후 소폭 달라질 수 있어요.</small>
                 </li>
               </ul>
-              <p class="payout-sample-note" id="studioPayoutSampleNote" data-i18n="payout.card.sampleNote">
-                <strong>정산 회차 확인 전입니다.</strong> 회차가 확정되면 금액이 표시됩니다.
-                실제 정산액은 계약 등급, 환불, 세금, 환율 기준에 따라 달라질 수 있어요.
-              </p>
-              <p class="payout-breakdown-foot" data-i18n="payout.foot">
-                유저가 결제한 통화와 아티스트 정산 통화가 다를 수 있어요. 환율은 주간 기준환율과 3~5% 안전마진을 기준으로 기록해요.
-                정산표·세금 정책이 확정되기 전까지는 예상치로만 보여드려요. 확정 금액은 정산 회차 마감 후 알려드릴게요.
-              </p>
+              <p class="payout-sample-note" id="studioPayoutSampleNote">예상 정산 요약을 확인하는 중입니다.</p>
+              <p class="payout-breakdown-foot">표시되는 금액은 조회 시점의 예상치이며, 최종 정산액은 별도 확인이 필요합니다.</p>
             </section>
 
             <!-- #353 — 정산 회차 확정 전에는 가짜 매출/정산 수치를 row 자리에 노출하지 않는다.
@@ -673,11 +590,7 @@
               </table>
               <p class="studio-form-state" id="studioSettlementConversionState">정산금 충전 신청은 승인 후에만 지갑에 반영됩니다.</p>
             </div>
-            <div class="requirement-list" style="margin: 18px;">
-              <div class="requirement-item"><strong>본인인증</strong><p>정산 신청 전 본인인증이 필요합니다.</p><span class="badge is-warn">확인 필요</span></div>
-              <div class="requirement-item"><strong>정산 계좌</strong><p>본인인증 이름과 예금주가 일치해야 합니다.</p><span class="badge is-warn">등록 전</span></div>
-              <div class="requirement-item"><strong>세무 주소</strong><p>첫 정산 전 한 번만 입력합니다. 정산과 세무 처리에만 사용됩니다.</p><span class="badge">입력 대기</span></div>
-            </div>
+            <p class="studio-form-state" style="margin: 18px;">본인인증, 정산 계좌, 세무 주소 상태는 이 화면에서 조회할 수 없습니다.</p>
             <div class="notice" style="margin: 18px;"><strong>첫 정산 전 안내</strong><span>정산금 지급과 세무 신고 처리를 위해 세무 서류용 주소가 필요합니다. 주소는 암호화되어 안전하게 보관되며, 정산과 세무 처리에만 사용됩니다.</span></div>
             <div class="notice is-warn" style="margin: 18px;"><strong>본인 명의 예외</strong><span>정산 계좌는 본인 명의 계좌 등록을 원칙으로 합니다. 본인 명의로 진행하기 어려운 경우 고객센터로 문의해주세요.</span></div>
           </article>
@@ -686,21 +599,7 @@
         <section class="studio-section" id="settings">
           <article class="panel">
             <div class="panel-header"><div><span class="panel-kicker">SETTINGS</span><h2>스튜디오 설정</h2></div></div>
-            <div class="form-grid">
-              <label><span>활동명</span><input value="Studio Lumi" /></label>
-              <label><span>계정 유형</span><select><option>스튜디오 운영자</option><option>개인 크리에이터</option></select></label>
-              <label><span>본인인증</span><input value="확인 필요" readonly /></label>
-              <label><span>정산 계좌</span><input value="등록 전" readonly /></label>
-              <label class="is-wide"><span>세무 서류용 주소</span><input placeholder="첫 정산 신청 시 입력" /></label>
-              <label class="is-wide"><span>스튜디오 운영 메모</span><textarea>여러 캐릭터를 운영하는 계정입니다. 캐릭터별 피드와 숏폼 활동이 30일 이상 멈추지 않도록 운영합니다.</textarea></label>
-            </div>
-            <p>연락처, 계좌, 주소 같은 민감 정보는 권한 있는 담당자와 회계 처리에만 사용됩니다.</p>
-            <div class="studio-checklist">
-              <div class="studio-check-item"><b>1</b><div><strong>스튜디오 진입 권한</strong><p>승인된 크리에이터 계정만 계정 메뉴에서 스튜디오 스테이지가 보입니다.</p></div><span class="badge is-good">승인</span></div>
-              <div class="studio-check-item"><b>2</b><div><strong>정산 프로필</strong><p>본인인증, 정산 계좌, 세무 주소가 준비되어야 정산 신청이 가능합니다.</p></div><span class="badge is-warn">보완 필요</span></div>
-              <div class="studio-check-item"><b>3</b><div><strong>추가 캐릭터</strong><p>추가 등록은 결제 오픈 전까지 데뷔 신청 또는 운영팀 검토 흐름으로 안내합니다.</p></div><span class="badge">검토형</span></div>
-            </div>
-            <button class="primary-action" type="button" data-action="toast">설정 저장</button>
+            <p class="studio-form-state">계정 설정 조회 및 저장은 아직 이 화면에 연결되지 않았습니다.</p>
           </article>
         </section>
       </main>

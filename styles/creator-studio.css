@@ -326,7 +326,8 @@ td { color: var(--text); }
 .slot-meter { display: grid; gap: 10px; margin-top: 16px; }
 .slot-meter-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--muted); font-size: 13px; font-weight: 900; }
 .slot-bar { overflow: hidden; height: 12px; border-radius: 999px; background: rgba(255,255,255,0.08); border: 1px solid var(--line); }
-.slot-bar span { display: block; height: 100%; width: 30%; border-radius: inherit; background: linear-gradient(90deg, var(--hot), var(--violet)); }
+.slot-bar span { display: block; height: 100%; width: 0; border-radius: inherit; background: linear-gradient(90deg, var(--hot), var(--violet)); }
+.media-grid > .studio-form-state { grid-column: 1 / -1; }
 .studio-mini-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 16px; }
 .studio-mini-card { min-height: 102px; padding: 14px; border: 1px solid var(--line); border-radius: 8px; background: rgba(255,255,255,0.04); display: grid; align-content: space-between; gap: 10px; }
 .studio-mini-card span { color: var(--muted); font-size: 12px; font-weight: 950; }
