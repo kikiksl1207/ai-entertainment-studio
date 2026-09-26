@@ -7,29 +7,6 @@
   const neutral = fallbackCopy.neutral || {};
   const submitCopy = fallbackCopy.submit || {};
   const copyPack = fallbackCopy.copyPackV1 || {};
-  const fanEngagementPhaseGateMap = [
-    {
-      phase: "read_only_teaser",
-      title: "오늘의 참여 미리보기",
-      body: "홈에서 오늘 열릴 미션과 참여 가능 상태만 미리 보여줘요."
-    },
-    {
-      phase: "login_required",
-      title: "로그인 필요",
-      body: "로그인하면 참여 버튼이 활성화돼요."
-    },
-    {
-      phase: "mutation_locked",
-      title: "참여 준비 중",
-      body: "제출·투표·제안은 안전한 참여 환경이 준비되면 열려요."
-    },
-    {
-      phase: "safe_qa_missing",
-      title: "참여 안내 준비 중",
-      body: "데이터를 불러오지 못하면 빈 상태와 재시도 안내를 분리해 보여줘요."
-    }
-  ];
-
   const homeMissionFixture = {
     generatedAt: "2026-05-10T00:00:00.000Z",
     locale: "ko",
@@ -232,26 +209,6 @@
     return map[uiState] || map.default;
   }
 
-  function missionPhaseGate(mission, uiState) {
-    if (uiState === "login_required") return "login_required";
-    if (uiState === "error") return "safe_qa_missing";
-    if (uiState === "default" && mission?.action?.requiresAuth) return "mutation_locked";
-    return "read_only_teaser";
-  }
-
-  function renderPhaseGateMap() {
-    return `
-      <section class="fan-phase-gate-map" data-fan-engagement-phase-gate-map="true" aria-label="팬 참여 단계 게이트">
-        ${fanEngagementPhaseGateMap.map(item => `
-          <article data-phase="${escapeHtml(item.phase)}">
-            <strong>${escapeHtml(item.title)}</strong>
-            <p>${escapeHtml(item.body)}</p>
-          </article>
-        `).join("")}
-      </section>
-    `;
-  }
-
   function missionOptions(mission) {
     const source = Array.isArray(mission?.options)
       ? mission.options
@@ -331,7 +288,7 @@
 
   function renderStateMessage(root, message, state) {
     root.dataset.state = state;
-    root.innerHTML = renderPhaseGateMap() + `<div class="fan-mission-empty" data-state="${escapeHtml(state)}">${escapeHtml(message)}</div>`;
+    root.innerHTML = `<div class="fan-mission-empty" data-state="${escapeHtml(state)}">${escapeHtml(message)}</div>`;
   }
 
   function renderMissionCard(mission) {
@@ -345,11 +302,10 @@
     const reward = rewardLabel(mission?.rewardPreview);
     const uiState = missionUiState(mission);
     const stateCopy = missionStateCopy(mission, uiState, cta);
-    const phaseGate = missionPhaseGate(mission, uiState);
     const missionBody = renderMissionBody(mission, uiState);
 
     return `
-      <article class="fan-mission-card is-${escapeHtml(uiState)}" data-mission-id="${escapeHtml(mission?.id)}" data-ui-state="${escapeHtml(uiState)}" data-phase-gate="${escapeHtml(phaseGate)}">
+      <article class="fan-mission-card is-${escapeHtml(uiState)}" data-mission-id="${escapeHtml(mission?.id)}" data-ui-state="${escapeHtml(uiState)}">
         <div class="fan-mission-card-head">
           <span class="fan-mission-type">${escapeHtml(type)}</span>
           <span class="fan-mission-status">${escapeHtml(status)}</span>
@@ -369,7 +325,7 @@
 
   function renderMissionList(root, missions, state) {
     root.dataset.state = state;
-    root.innerHTML = renderPhaseGateMap() + missions.map(renderMissionCard).join("");
+    root.innerHTML = missions.map(renderMissionCard).join("");
   }
 
   async function renderHomeMissionTeaser() {

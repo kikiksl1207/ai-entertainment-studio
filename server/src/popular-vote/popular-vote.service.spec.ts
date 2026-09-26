@@ -8,6 +8,8 @@ const campaign = {
   id: '11111111-1111-4111-8111-111111111111',
   slug: 'mvp-launch-main-pick',
   name: 'Lumina Pick',
+  startsAt: new Date('2026-01-01T00:00:00.000Z'),
+  endsAt: new Date('2027-01-01T00:00:00.000Z'),
 };
 const yoonSerin = {
   id: '22222222-2222-4222-8222-222222222222',
@@ -30,16 +32,20 @@ function createHarness() {
     boostCampaign: {
       findFirst: jest.fn(),
       findUnique: jest.fn(),
+      findMany: jest.fn().mockResolvedValue([]),
     },
     artistBoostEvent: {
       findMany: jest.fn(),
+      findFirst: jest.fn().mockResolvedValue(null),
     },
     artist: {
       findMany: jest.fn().mockResolvedValue([]),
     },
     monthlyPickWinner: {
       findMany: jest.fn(),
-      upsert: jest.fn(),
+      findUnique: jest.fn().mockResolvedValue(null),
+      findUniqueOrThrow: jest.fn(),
+      createMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
     auditEvent: {
       create: jest.fn(),
@@ -186,6 +192,7 @@ describe('PopularVoteService main pick rankings', () => {
         artist: { status: 'active' },
       },
     }));
+    expect(prisma.monthlyPickWinner.createMany).not.toHaveBeenCalled();
   });
 
   it('does not announce an annual champion before the year is over', async () => {
@@ -232,5 +239,200 @@ describe('PopularVoteService main pick rankings', () => {
         payoutMutation: false,
       },
     });
+  });
+});
+
+describe('PopularVoteService monthly archival', () => {
+  beforeEach(() => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-09-30T15:05:00.000Z'));
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it('archives the previous KST month with positive votes and keeps reads write-free', async () => {
+    const { service, prisma } = createHarness();
+    prisma.artistBoostEvent.findFirst.mockResolvedValue({
+      createdAt: new Date('2026-09-01T00:00:00.000Z'),
+    });
+    prisma.boostCampaign.findMany.mockResolvedValue([campaign]);
+    prisma.artist.findMany.mockResolvedValue([yoonSerin, ohHyerin]);
+    prisma.artistBoostEvent.findMany.mockResolvedValue([{
+      artistId: yoonSerin.id,
+      artist: yoonSerin,
+      boostType: 'free_like',
+      rawAmount: new Decimal(3),
+      weightedScore: new Decimal(3),
+    }]);
+
+    await service.archiveCompletedMonths();
+
+    expect(prisma.boostCampaign.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: {
+        startsAt: { lt: new Date('2026-09-30T15:00:00.000Z') },
+        endsAt: { gt: new Date('2026-08-31T15:00:00.000Z') },
+      },
+    }));
+    expect(prisma.monthlyPickWinner.createMany).toHaveBeenCalledWith({
+      data: [expect.objectContaining({
+        year: 2026,
+        month: 9,
+        campaignId: campaign.id,
+        artistId: yoonSerin.id,
+        metadata: { source: 'automatic_kst_rollover' },
+      })],
+      skipDuplicates: true,
+    });
+    expect(prisma.monthlyPickWinner.createMany.mock.calls[0][0].data[0]
+      .totalWeightedScore.toString()).toBe('3');
+  });
+
+  it('waits for the archival grace period after the public reset', async () => {
+    jest.setSystemTime(new Date('2026-09-30T15:04:59.999Z'));
+    const { service, prisma } = createHarness();
+    prisma.artistBoostEvent.findFirst.mockResolvedValue({
+      createdAt: new Date('2026-09-01T00:00:00.000Z'),
+    });
+
+    await service.archiveCompletedMonths();
+
+    expect(prisma.boostCampaign.findMany).not.toHaveBeenCalled();
+    expect(prisma.monthlyPickWinner.createMany).not.toHaveBeenCalled();
+  });
+
+  it('does not invent a winner for an empty or zero-score month', async () => {
+    const { service, prisma } = createHarness();
+    prisma.artistBoostEvent.findFirst.mockResolvedValue({
+      createdAt: new Date('2026-09-01T00:00:00.000Z'),
+    });
+    prisma.boostCampaign.findMany.mockResolvedValue([campaign]);
+    prisma.artist.findMany.mockResolvedValue([yoonSerin]);
+    prisma.artistBoostEvent.findMany.mockResolvedValue([{
+      artistId: yoonSerin.id,
+      artist: yoonSerin,
+      boostType: 'free_like',
+      rawAmount: new Decimal(0),
+      weightedScore: new Decimal(0),
+    }]);
+
+    await service.archiveCompletedMonths();
+
+    expect(prisma.monthlyPickWinner.createMany).not.toHaveBeenCalled();
+  });
+
+  it('selects the strongest positive campaign when campaigns overlap', async () => {
+    const { service, prisma } = createHarness();
+    const newerCampaign = { ...campaign, id: '33333333-3333-4333-8333-333333333333' };
+    prisma.artistBoostEvent.findFirst.mockResolvedValue({
+      createdAt: new Date('2026-09-01T00:00:00.000Z'),
+    });
+    prisma.boostCampaign.findMany.mockResolvedValue([newerCampaign, campaign]);
+    prisma.artist.findMany.mockResolvedValue([yoonSerin, ohHyerin]);
+    prisma.artistBoostEvent.findMany.mockImplementation(({ where }) => Promise.resolve(
+      where.campaignId === newerCampaign.id ? [] : [{
+        artistId: ohHyerin.id,
+        artist: ohHyerin,
+        boostType: 'free_like',
+        rawAmount: new Decimal(2),
+        weightedScore: new Decimal(2),
+      }],
+    ));
+
+    await service.archiveCompletedMonths();
+
+    expect(prisma.monthlyPickWinner.createMany.mock.calls[0][0].data[0])
+      .toMatchObject({ campaignId: campaign.id, artistId: ohHyerin.id });
+  });
+
+  it('catches up across a year boundary and does not overwrite an archived month', async () => {
+    jest.setSystemTime(new Date('2027-02-01T00:00:00.000Z'));
+    const { service, prisma } = createHarness();
+    prisma.artistBoostEvent.findFirst.mockResolvedValue({
+      createdAt: new Date('2026-12-31T14:00:00.000Z'),
+    });
+    prisma.monthlyPickWinner.findUnique.mockImplementation(({ where }) =>
+      where.year_month.month === 12 ? Promise.resolve({ id: 'existing' }) : Promise.resolve(null));
+    prisma.boostCampaign.findMany.mockResolvedValue([campaign]);
+    prisma.artist.findMany.mockResolvedValue([ohHyerin]);
+    prisma.artistBoostEvent.findMany.mockResolvedValue([{
+      artistId: ohHyerin.id,
+      artist: ohHyerin,
+      boostType: 'free_like',
+      rawAmount: new Decimal(1),
+      weightedScore: new Decimal(1),
+    }]);
+
+    await service.archiveCompletedMonths();
+
+    expect(prisma.monthlyPickWinner.findUnique).toHaveBeenCalledTimes(2);
+    expect(prisma.monthlyPickWinner.createMany).toHaveBeenCalledTimes(1);
+    expect(prisma.monthlyPickWinner.createMany.mock.calls[0][0].data[0])
+      .toMatchObject({ year: 2027, month: 1 });
+  });
+
+  it('preserves an existing manual award without recomputing or auditing', async () => {
+    const { service, prisma } = createHarness();
+    const existing = { id: 'existing', artistId: ohHyerin.id };
+    prisma.monthlyPickWinner.findUnique.mockResolvedValue(existing);
+
+    const result = await service.finalizeMonthlyPick({ id: 'admin' }, { year: 2026, month: 9 });
+
+    expect(result).toEqual({ winner: existing, rankings: [] });
+    expect(prisma.monthlyPickWinner.createMany).not.toHaveBeenCalled();
+    expect(prisma.auditEvent.create).not.toHaveBeenCalled();
+  });
+
+  it('handles a competing insert without changing the winning award or auditing twice', async () => {
+    const { service, prisma } = createHarness();
+    const existing = { id: 'existing', artistId: ohHyerin.id };
+    prisma.boostCampaign.findFirst.mockResolvedValue(campaign);
+    prisma.artist.findMany.mockResolvedValue([yoonSerin]);
+    prisma.artistBoostEvent.findMany.mockResolvedValue([{
+      artistId: yoonSerin.id,
+      artist: yoonSerin,
+      boostType: 'free_like',
+      rawAmount: new Decimal(1),
+      weightedScore: new Decimal(1),
+    }]);
+    prisma.monthlyPickWinner.createMany.mockResolvedValue({ count: 0 });
+    prisma.monthlyPickWinner.findUniqueOrThrow.mockResolvedValue(existing);
+
+    const result = await service.finalizeMonthlyPick({ id: 'admin' }, { year: 2026, month: 9 });
+
+    expect(result).toEqual({ winner: existing, rankings: [] });
+    expect(prisma.monthlyPickWinner.createMany).toHaveBeenCalledWith(expect.objectContaining({
+      skipDuplicates: true,
+    }));
+    expect(prisma.auditEvent.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects finalization before the KST month is complete', async () => {
+    const { service, prisma } = createHarness();
+    await expect(service.finalizeMonthlyPick({ id: 'admin' }, { year: 2026, month: 10 }))
+      .rejects.toThrow('Only settled KST months');
+    expect(prisma.monthlyPickWinner.createMany).not.toHaveBeenCalled();
+  });
+
+  it('rejects early manual finalization during the archival grace window', async () => {
+    jest.setSystemTime(new Date('2026-09-30T15:04:59.999Z'));
+    const { service, prisma } = createHarness();
+    await expect(service.finalizeMonthlyPick({ id: 'admin' }, { year: 2026, month: 9 }))
+      .rejects.toThrow('Only settled KST months');
+    expect(prisma.monthlyPickWinner.createMany).not.toHaveBeenCalled();
+  });
+
+  it('rejects an unrelated campaign and a partial month', async () => {
+    const { service, prisma } = createHarness();
+    prisma.boostCampaign.findUnique.mockResolvedValue({
+      ...campaign,
+      startsAt: new Date('2026-10-01T00:00:00.000Z'),
+    });
+    await expect(service.finalizeMonthlyPick({ id: 'admin' }, { year: 2026 }))
+      .rejects.toThrow('year and month must be provided together');
+    await expect(service.finalizeMonthlyPick({ id: 'admin' }, {
+      campaignId: campaign.id, year: 2026, month: 9,
+    })).rejects.toThrow('does not overlap');
+    expect(prisma.monthlyPickWinner.createMany).not.toHaveBeenCalled();
   });
 });

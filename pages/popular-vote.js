@@ -110,7 +110,7 @@ function renderMainPickTab() {
         </blockquote>
         <div class="vote-card-actions">
           <a class="text-link" href="/character-detail?slug=${leaderArtist.slug}">${leaderArtist.publicName} 무드 보기</a>
-          <a class="vote-premium-chat-link" href="/character-chat?slug=${encodeURIComponent(leaderArtist.slug)}">프리미엄챗</a>
+          <a class="vote-premium-chat-link" href="/character-chat?slug=${encodeURIComponent(leaderArtist.slug)}">AI 캐릭터챗</a>
         </div>
       </div>
     </article>
@@ -226,7 +226,7 @@ function renderDebutRaceTab() {
             <strong>${a.publicName}</strong>
             <small>${a.summary || ""}</small>
             <p class="vote-debut-appeal">"${appeal}"</p>
-            ${a.id ? `<a class="vote-premium-chat-link" href="/character-chat?slug=${encodeURIComponent(a.slug)}">프리미엄챗</a>` : ""}
+            ${a.id ? `<a class="vote-premium-chat-link" href="/character-chat?slug=${encodeURIComponent(a.slug)}">AI 캐릭터챗</a>` : ""}
         </div>
       </article>
     `;
