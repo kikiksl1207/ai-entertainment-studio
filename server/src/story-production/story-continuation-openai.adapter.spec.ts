@@ -274,14 +274,14 @@ describe('OpenAiStoryContinuationProvider (fake transport only)', () => {
     expect(result.nextChoices).toBeUndefined();
   });
 
-  it('keeps choices when structured output redundantly includes an ending', async () => {
+  it('rejects structured output that mixes choices with an ending', async () => {
     const f = fixture();
     f.transport.mockResolvedValue(new Response(JSON.stringify(envelope({
       ...output(), ending: { endingKey: 'ai-end' },
     }))));
-    const result = await f.provider.generate(request(), new AbortController().signal);
-    expect(result.nextChoices).toEqual(output().nextChoices);
-    expect(result.ending).toBeUndefined();
+    await expect(f.provider.generate(request(), new AbortController().signal)).rejects.toMatchObject({
+      code: 'provider_output_invalid', retryable: false,
+    });
   });
 
   it.each([

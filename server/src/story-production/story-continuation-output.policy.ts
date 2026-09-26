@@ -65,8 +65,8 @@ export function validateStoryContinuationProviderResult(
   if (beats.length > 40) invalid('Generated continuation requires 1 to 40 beats');
   const hasChoices = Array.isArray(value.nextChoices) && value.nextChoices.length > 0;
   const hasEnding = Boolean(value.ending);
-  if ((!hasChoices && !hasEnding) || (hasChoices && value.nextChoices!.length > 3)) {
-    invalid('Generated continuation requires 1 to 3 choices or one ending');
+  if (hasChoices === hasEnding || (hasChoices && value.nextChoices!.length !== 3)) {
+    invalid('Generated continuation requires exactly 3 choices or one ending');
   }
   const choices = (value.nextChoices ?? []).map((choice) => {
     const choiceKey = typeof choice.choiceKey === 'string' ? choice.choiceKey.trim() : '';

@@ -29,13 +29,31 @@ describe('continuation output ending defense', () => {
     expect(result.nextChoices).toBeUndefined();
   });
 
-  it('keeps continuation choices when a provider redundantly also marks an ending', () => {
+  it('keeps exactly three continuation choices', () => {
     const result = validateStoryContinuationProviderResult({
       ...valid,
-      nextChoices: [{ choiceKey: 'continue', label: { en: 'Continue' } }],
+      ending: undefined,
+      nextChoices: [
+        { choiceKey: 'left', label: { en: 'Take the left path' } },
+        { choiceKey: 'right', label: { en: 'Take the right path' } },
+        { choiceKey: 'wait', label: { en: 'Wait here' } },
+      ],
     }, input);
-    expect(result.nextChoices).toEqual([{ choiceKey: 'continue', label: { en: 'Continue' } }]);
+    expect(result.nextChoices).toHaveLength(3);
     expect(result.ending).toBeUndefined();
+  });
+  it('rejects one or two choices and mixed ending output', () => {
+    const choices = [
+      { choiceKey: 'left', label: { en: 'Take the left path' } },
+      { choiceKey: 'right', label: { en: 'Take the right path' } },
+      { choiceKey: 'wait', label: { en: 'Wait here' } },
+    ];
+    for (const nextChoices of [choices.slice(0, 1), choices.slice(0, 2)]) {
+      expect(() => validateStoryContinuationProviderResult({ ...valid, ending: undefined, nextChoices }, input))
+        .toThrow('Generated continuation requires exactly 3 choices or one ending');
+    }
+    expect(() => validateStoryContinuationProviderResult({ ...valid, nextChoices: choices }, input))
+      .toThrow('Generated continuation requires exactly 3 choices or one ending');
   });
   it.each([null, undefined, false, 0])('rejects empty routing %#', (ending) => {
     expect(() => validateStoryContinuationProviderResult({ ...valid, ending } as StoryContinuationProviderResult, input))
