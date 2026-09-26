@@ -11,6 +11,7 @@ import { type FixedRouteStoryKey } from './story-fixed-route-markdown.policy';
 
 const BATCH_SIZE = 8;
 const CHOICE_POLICY = 'published_fixed_route_ai_choices_v1';
+const REFRESH_TRANSACTION_TIMEOUT_MS = 90_000;
 type Client = PrismaService | Prisma.TransactionClient;
 type Choice = {
   id: string; sceneId: string; choiceKey: string; position: number; label: Prisma.JsonValue;
@@ -53,24 +54,40 @@ export class StoryFixedRouteChoiceRefreshService {
   }
 
   async refreshBatch(actorUserId: string, storyKey: FixedRouteStoryKey, workId: string, releaseId: string) {
-    const before = await this.inspect(this.prisma, storyKey, workId);
+    // The post-provider source check must see edits committed while the provider was running.
+    return this.prisma.$transaction(async (tx) => {
+      const [lock] = await tx.$queryRaw<Array<{ acquired: boolean }>>(Prisma.sql`
+        SELECT pg_try_advisory_xact_lock(hashtextextended(${`story-choice-refresh:${workId}`}, 0)) AS acquired
+      `);
+      if (!lock?.acquired) throw new ConflictException({
+        code: 'STORY_CHOICE_PREPARATION_IN_PROGRESS', retryable: true,
+        message: 'Choice preparation is already running for this work',
+      });
+      return this.refreshLocked(tx, actorUserId, storyKey, workId, releaseId);
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
+      maxWait: 2000, timeout: REFRESH_TRANSACTION_TIMEOUT_MS });
+  }
+
+  private async refreshLocked(tx: Prisma.TransactionClient, actorUserId: string,
+    storyKey: FixedRouteStoryKey, workId: string, releaseId: string) {
+    const before = await this.inspect(tx, storyKey, workId);
     if (before.phase === 'ready') return this.receipt(before.totalParts, 0, 'ready');
-    if (await this.prisma.storyAuthorFinalReviewProof.findFirst({ where: { workId }, select: { id: true } })) {
+    if (await tx.storyAuthorFinalReviewProof.findFirst({ where: { workId }, select: { id: true } })) {
       conflict('Approved authored content cannot be changed in place');
     }
     if (before.staged.length) {
-      const reconciled = await this.reconcileStaged(actorUserId, storyKey, workId, releaseId, before.totalParts);
+      const reconciled = await this.reconcileStaged(tx, actorUserId, storyKey, workId, releaseId, before.totalParts);
       if (reconciled) return reconciled;
     }
     const batch = before.pending.slice(0, BATCH_SIZE);
-    const work = await this.prisma.storyWork.findFirst({
+    const work = await tx.storyWork.findFirst({
       where: { id: workId, activeReleaseId: releaseId, status: 'published', fixtureSource: false },
       select: { title: true },
     });
     const workTitle = work ? korean(work.title) : '';
     if (!workTitle) conflict('Published work title is unavailable');
-    const input = await this.choiceInput(this.prisma, workTitle, batch);
-    const sourceFingerprints = await this.sourceFingerprints(this.prisma, batch, work!.title);
+    const input = await this.choiceInput(tx, workTitle, batch);
+    const sourceFingerprints = await this.sourceFingerprints(tx, batch, work!.title);
     let generated: Awaited<ReturnType<StoryChoicePreparationProvider['generate']>>;
     try {
       generated = await this.providerFactory().generate(input);
@@ -86,150 +103,157 @@ export class StoryFixedRouteChoiceRefreshService {
       throw new ServiceUnavailableException({ code: 'STORY_CHOICE_PREPARATION_INCOMPLETE' });
     }
 
-    await this.prisma.$transaction(async (tx) => {
-      await tx.$queryRaw(Prisma.sql`SELECT id FROM story_works WHERE id = ${workId}::uuid FOR UPDATE`);
-      const currentWork = await tx.storyWork.findFirst({
-        where: { id: workId, activeReleaseId: releaseId, status: 'published', fixtureSource: false },
-        select: { title: true },
-      });
-      const release = await tx.storyRelease.findFirst({
-        where: { id: releaseId, workId, status: 'active' }, select: { id: true },
-      });
-      if (!currentWork || !release || korean(currentWork.title) !== workTitle ||
-          await tx.storyAuthorFinalReviewProof.findFirst({ where: { workId }, select: { id: true } })) {
-        conflict('Published release or approved source changed during preparation');
-      }
-      for (const part of batch) {
-        await tx.$queryRaw(Prisma.sql`SELECT id FROM story_scenes WHERE id = ${part.sceneId}::uuid FOR UPDATE`);
-      }
-      const current = await this.inspect(tx, storyKey, workId);
-      const byScene = new Map(current.pending.map((part) => [part.sceneId, part]));
-      if (batch.some((part) => this.fingerprint(part) !== this.fingerprint(byScene.get(part.sceneId)))) {
-        conflict('A published choice changed during preparation');
-      }
-      const currentInput = await this.choiceInput(tx, workTitle, batch);
-      const currentFingerprints = await this.sourceFingerprints(tx, batch, currentWork.title);
-      if (this.fingerprint(currentInput) !== this.fingerprint(input) ||
-          this.fingerprint(currentFingerprints) !== this.fingerprint(sourceFingerprints)) {
-        conflict('The authored ending changed during preparation');
-      }
-      const stagedChoiceIds: Record<string, string[]> = {};
-      for (const part of batch) {
-        const labels = alternatives.get(part.partKey)!;
-        const data = labels.map((label, index) => ({
-          id: randomUUID(), sceneId: part.sceneId,
-          choiceKey: index === 0 ? 'ai-branch-b-v1' : 'ai-branch-c-v1',
-          position: -(index + 2), label: { ko: label }, routeKind: 'generation_required',
-          targetSceneId: null, targetEndingKey: null, declaredRejoinSceneId: null,
-        }));
-        await tx.storyChoice.createMany({ data });
-        stagedChoiceIds[part.sceneId] = data.map((choice) => choice.id);
-      }
-      await tx.auditEvent.create({ data: {
-        actorUserId, actorType: 'admin', action: 'story_public_beta.ai_choices.staged',
-        targetType: 'story_work', targetId: workId,
-        metadata: { storyKey, releaseId, policyVersion: CHOICE_POLICY,
-          sceneIds: batch.map((part) => part.sceneId),
-          sourceHash: this.fingerprint(input), sourceFingerprints, stagedChoiceIds },
-      } });
-    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, maxWait: 2000, timeout: 10000 });
+    await tx.$queryRaw(Prisma.sql`SELECT id FROM story_works WHERE id = ${workId}::uuid FOR UPDATE`);
+    const currentWork = await tx.storyWork.findFirst({
+      where: { id: workId, activeReleaseId: releaseId, status: 'published', fixtureSource: false },
+      select: { title: true },
+    });
+    const release = await tx.storyRelease.findFirst({
+      where: { id: releaseId, workId, status: 'active' }, select: { id: true },
+    });
+    if (!currentWork || !release || korean(currentWork.title) !== workTitle ||
+        await tx.storyAuthorFinalReviewProof.findFirst({ where: { workId }, select: { id: true } })) {
+      conflict('Published release or approved source changed during preparation');
+    }
+    for (const part of batch) {
+      await tx.$queryRaw(Prisma.sql`SELECT id FROM story_scenes WHERE id = ${part.sceneId}::uuid FOR UPDATE`);
+    }
+    const current = await this.inspect(tx, storyKey, workId);
+    const byScene = new Map(current.pending.map((part) => [part.sceneId, part]));
+    if (batch.some((part) => this.fingerprint(part) !== this.fingerprint(byScene.get(part.sceneId)))) {
+      conflict('A published choice changed during preparation');
+    }
+    const currentInput = await this.choiceInput(tx, workTitle, batch);
+    const currentFingerprints = await this.sourceFingerprints(tx, batch, currentWork.title);
+    if (this.fingerprint(currentInput) !== this.fingerprint(input) ||
+        this.fingerprint(currentFingerprints) !== this.fingerprint(sourceFingerprints)) {
+      conflict('The authored ending changed during preparation');
+    }
+    const stagedChoiceIds: Record<string, string[]> = {};
+    for (const part of batch) {
+      const labels = alternatives.get(part.partKey)!;
+      const data = labels.map((label, index) => ({
+        id: randomUUID(), sceneId: part.sceneId,
+        choiceKey: index === 0 ? 'ai-branch-b-v1' : 'ai-branch-c-v1',
+        position: -(index + 2), label: { ko: label }, routeKind: 'generation_required',
+        targetSceneId: null, targetEndingKey: null, declaredRejoinSceneId: null,
+      }));
+      await tx.storyChoice.createMany({ data });
+      stagedChoiceIds[part.sceneId] = data.map((choice) => choice.id);
+    }
+    await tx.auditEvent.create({ data: {
+      actorUserId, actorType: 'admin', action: 'story_public_beta.ai_choices.staged',
+      targetType: 'story_work', targetId: workId,
+      metadata: { storyKey, releaseId, policyVersion: CHOICE_POLICY,
+        sceneIds: batch.map((part) => part.sceneId),
+        sourceHash: this.fingerprint(input), sourceFingerprints, stagedChoiceIds },
+    } });
     return this.receipt(before.totalParts, before.pending.length - batch.length,
       before.pending.length === batch.length ? 'awaiting_promotion' : 'preparing');
   }
 
-  private async reconcileStaged(actorUserId: string, storyKey: FixedRouteStoryKey,
+  private async reconcileStaged(tx: Prisma.TransactionClient, actorUserId: string, storyKey: FixedRouteStoryKey,
     workId: string, releaseId: string, totalParts: number) {
-    return this.prisma.$transaction(async (tx) => {
-      await tx.$queryRaw(Prisma.sql`SELECT id FROM story_works WHERE id = ${workId}::uuid FOR UPDATE`);
-      const work = await tx.storyWork.findFirst({
-        where: { id: workId, activeReleaseId: releaseId, status: 'published', fixtureSource: false },
-        select: { id: true, title: true },
-      });
-      const release = await tx.storyRelease.findFirst({
-        where: { id: releaseId, workId, status: 'active' }, select: { id: true },
-      });
-      if (!work || !release || await tx.storyAuthorFinalReviewProof.findFirst({
-        where: { workId }, select: { id: true },
-      })) conflict('Published release or approved source changed before promotion');
-      const parts = await tx.storyPart.findMany({
-        where: { workId, status: 'published', fixtureSource: false }, select: { id: true },
-      });
-      const scenes = await tx.storyScene.findMany({
-        where: { partId: { in: parts.map((part) => part.id) }, status: 'published', fixtureSource: false }, select: { id: true },
-        orderBy: { id: 'asc' },
-      });
-      for (const scene of scenes) {
-        await tx.$queryRaw(Prisma.sql`SELECT id FROM story_scenes WHERE id = ${scene.id}::uuid FOR UPDATE`);
-      }
-      const current = await this.inspect(tx, storyKey, workId);
-      if (current.totalParts !== totalParts || current.phase === 'ready') {
-        conflict('Prepared choices changed before promotion');
-      }
-      const stagedAudits = await tx.auditEvent.findMany({
-        where: { targetType: 'story_work', targetId: workId, action: 'story_public_beta.ai_choices.staged' },
-        select: { metadata: true },
-      });
-      const recorded = new Map<string, string>();
-      for (const audit of stagedAudits) {
-        const metadata = audit.metadata;
-        if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata) ||
-            metadata.releaseId !== releaseId || metadata.storyKey !== storyKey ||
-            metadata.policyVersion !== CHOICE_POLICY) continue;
-        const fingerprints = metadata.sourceFingerprints;
-        const choiceIds = metadata.stagedChoiceIds;
-        if (!fingerprints || typeof fingerprints !== 'object' || Array.isArray(fingerprints) ||
-            !choiceIds || typeof choiceIds !== 'object' || Array.isArray(choiceIds)) continue;
-        for (const part of current.staged) {
-          const ids = choiceIds[part.sceneId];
-          if (!Array.isArray(ids) || ids.length !== 2 ||
-              ids.slice().sort().join(':') !== part.prepared.map((choice) => choice.id).sort().join(':')) continue;
-          const hash = fingerprints[part.sceneId];
-          if (typeof hash !== 'string' || !/^[a-f0-9]{64}$/.test(hash) || recorded.has(part.sceneId)) {
-            conflict('Staged source fingerprints are ambiguous');
-          }
-          recorded.set(part.sceneId, hash);
-        }
-      }
-      if (current.staged.some((part) => !recorded.has(part.sceneId))) {
-        conflict('Staged source fingerprints are missing');
-      }
-      const currentFingerprints = await this.sourceFingerprints(tx, current.staged, work.title);
-      const stale = current.staged.filter((part) =>
-        recorded.get(part.sceneId) !== currentFingerprints[part.sceneId]);
-      if (stale.length) {
-        for (const part of stale) {
-          const result = await tx.storyChoice.deleteMany({ where: {
-            id: { in: part.prepared.map((choice) => choice.id) }, sceneId: part.sceneId,
-            position: { lt: 0 }, choiceKey: { in: ['ai-branch-b-v1', 'ai-branch-c-v1'] },
-          } });
-          if (result.count !== 2) conflict('Staged alternatives changed during invalidation');
-        }
-        await tx.auditEvent.create({ data: {
-          actorUserId, actorType: 'admin', action: 'story_public_beta.ai_choices.invalidated',
-          targetType: 'story_work', targetId: workId,
-          metadata: { storyKey, releaseId, policyVersion: CHOICE_POLICY,
-            sceneIds: stale.map((part) => part.sceneId), reason: 'authored_source_changed' },
+    const initial = await this.stagedState(tx, storyKey, workId, releaseId, totalParts);
+    if (!initial.stale.length && initial.current.phase !== 'awaiting_promotion') return null;
+
+    await tx.$queryRaw(Prisma.sql`SELECT id FROM story_works WHERE id = ${workId}::uuid FOR UPDATE`);
+    const parts = await tx.storyPart.findMany({
+      where: { workId, status: 'published', fixtureSource: false }, select: { id: true },
+    });
+    const scenes = await tx.storyScene.findMany({
+      where: { partId: { in: parts.map((part) => part.id) }, status: 'published', fixtureSource: false }, select: { id: true },
+      orderBy: { id: 'asc' },
+    });
+    for (const scene of scenes) {
+      await tx.$queryRaw(Prisma.sql`SELECT id FROM story_scenes WHERE id = ${scene.id}::uuid FOR UPDATE`);
+    }
+    const { current, stale } = await this.stagedState(tx, storyKey, workId, releaseId, totalParts);
+    if (stale.length) {
+      for (const part of stale) {
+        const result = await tx.storyChoice.deleteMany({ where: {
+          id: { in: part.prepared.map((choice) => choice.id) }, sceneId: part.sceneId,
+          position: { lt: 0 }, choiceKey: { in: ['ai-branch-b-v1', 'ai-branch-c-v1'] },
         } });
-        return this.receipt(totalParts, current.pending.length + stale.length, 'preparing');
-      }
-      if (current.phase !== 'awaiting_promotion' || current.staged.length !== totalParts) return null;
-      for (const part of current.staged) {
-        for (const legacy of part.legacy) {
-          await tx.storyChoice.update({ where: { id: legacy.id }, data: { position: -(legacy.position + 10) } });
-        }
-        for (const prepared of part.prepared) {
-          await tx.storyChoice.update({ where: { id: prepared.id }, data: { position: -prepared.position } });
-        }
+        if (result.count !== 2) conflict('Staged alternatives changed during invalidation');
       }
       await tx.auditEvent.create({ data: {
-        actorUserId, actorType: 'admin', action: 'story_public_beta.ai_choices.promoted',
+        actorUserId, actorType: 'admin', action: 'story_public_beta.ai_choices.invalidated',
         targetType: 'story_work', targetId: workId,
         metadata: { storyKey, releaseId, policyVersion: CHOICE_POLICY,
-          sceneIds: current.staged.map((part) => part.sceneId),
-          retainedChoiceIds: current.staged.flatMap((part) => part.legacy.map((choice) => choice.id)) },
+          sceneIds: stale.map((part) => part.sceneId), reason: 'authored_source_changed' },
       } });
-      return this.receipt(totalParts, 0, 'ready');
-    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, maxWait: 2000, timeout: 30000 });
+      return this.receipt(totalParts, current.pending.length + stale.length, 'preparing');
+    }
+    if (current.phase !== 'awaiting_promotion' || current.staged.length !== totalParts) {
+      return this.receipt(totalParts, current.pending.length, 'preparing');
+    }
+    for (const part of current.staged) {
+      for (const legacy of part.legacy) {
+        await tx.storyChoice.update({ where: { id: legacy.id }, data: { position: -(legacy.position + 10) } });
+      }
+      for (const prepared of part.prepared) {
+        await tx.storyChoice.update({ where: { id: prepared.id }, data: { position: -prepared.position } });
+      }
+    }
+    await tx.auditEvent.create({ data: {
+      actorUserId, actorType: 'admin', action: 'story_public_beta.ai_choices.promoted',
+      targetType: 'story_work', targetId: workId,
+      metadata: { storyKey, releaseId, policyVersion: CHOICE_POLICY,
+        sceneIds: current.staged.map((part) => part.sceneId),
+        retainedChoiceIds: current.staged.flatMap((part) => part.legacy.map((choice) => choice.id)) },
+    } });
+    return this.receipt(totalParts, 0, 'ready');
+  }
+
+  private async stagedState(tx: Prisma.TransactionClient, storyKey: FixedRouteStoryKey,
+    workId: string, releaseId: string, totalParts: number) {
+    const work = await tx.storyWork.findFirst({
+      where: { id: workId, activeReleaseId: releaseId, status: 'published', fixtureSource: false },
+      select: { id: true, title: true },
+    });
+    const release = await tx.storyRelease.findFirst({
+      where: { id: releaseId, workId, status: 'active' }, select: { id: true },
+    });
+    if (!work || !release || await tx.storyAuthorFinalReviewProof.findFirst({
+      where: { workId }, select: { id: true },
+    })) conflict('Published release or approved source changed before promotion');
+    const current = await this.inspect(tx, storyKey, workId);
+    if (current.totalParts !== totalParts || current.phase === 'ready') {
+      conflict('Prepared choices changed before promotion');
+    }
+    const stagedAudits = await tx.auditEvent.findMany({
+      where: { targetType: 'story_work', targetId: workId, action: 'story_public_beta.ai_choices.staged' },
+      select: { metadata: true },
+    });
+    const recorded = new Map<string, string>();
+    for (const audit of stagedAudits) {
+      const metadata = audit.metadata;
+      if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata) ||
+          metadata.releaseId !== releaseId || metadata.storyKey !== storyKey ||
+          metadata.policyVersion !== CHOICE_POLICY) continue;
+      const fingerprints = metadata.sourceFingerprints;
+      const choiceIds = metadata.stagedChoiceIds;
+      if (!fingerprints || typeof fingerprints !== 'object' || Array.isArray(fingerprints) ||
+          !choiceIds || typeof choiceIds !== 'object' || Array.isArray(choiceIds)) continue;
+      for (const part of current.staged) {
+        const ids = choiceIds[part.sceneId];
+        if (!Array.isArray(ids) || ids.length !== 2 ||
+            ids.slice().sort().join(':') !== part.prepared.map((choice) => choice.id).sort().join(':')) continue;
+        const hash = fingerprints[part.sceneId];
+        if (typeof hash !== 'string' || !/^[a-f0-9]{64}$/.test(hash) || recorded.has(part.sceneId)) {
+          conflict('Staged source fingerprints are ambiguous');
+        }
+        recorded.set(part.sceneId, hash);
+      }
+    }
+    if (current.staged.some((part) => !recorded.has(part.sceneId))) {
+      conflict('Staged source fingerprints are missing');
+    }
+    const currentFingerprints = await this.sourceFingerprints(tx, current.staged, work.title);
+    const stale = current.staged.filter((part) =>
+      recorded.get(part.sceneId) !== currentFingerprints[part.sceneId]);
+    return { current, stale };
   }
 
   private receipt(totalParts: number, remainingParts: number,

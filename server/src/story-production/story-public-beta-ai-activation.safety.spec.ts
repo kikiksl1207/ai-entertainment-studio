@@ -70,12 +70,37 @@ describe('published legacy choice refresh', () => {
         }),
         findMany: jest.fn(async () => audits.filter((audit) => audit.action === 'story_public_beta.ai_choices.staged')),
       },
-      $queryRaw: jest.fn(async () => []),
+      $queryRaw: jest.fn(async (_query: { strings: readonly string[] }): Promise<Array<{ acquired: boolean }>> => []),
       $transaction: jest.fn(),
     };
-    db.$transaction.mockImplementation(async (callback: (tx: typeof db) => Promise<unknown>) => callback(db));
+    let refreshLocked = false;
+    const rowLocks: string[] = [];
+    const lockHooks: { onRowLock: (() => void) | null } = { onRowLock: null };
+    db.$transaction.mockImplementation(async (callback: (tx: typeof db) => Promise<unknown>) => {
+      let held = false;
+      const tx = { ...db, $queryRaw: jest.fn(async (query: { strings: readonly string[] }) => {
+        const sql = query.strings.join('');
+        if (sql.includes('FOR UPDATE')) {
+          rowLocks.push(sql);
+          const hook = lockHooks.onRowLock;
+          lockHooks.onRowLock = null;
+          hook?.();
+          return [];
+        }
+        if (!sql.includes('pg_try_advisory_xact_lock')) return [];
+        if (refreshLocked) return [{ acquired: false }];
+        refreshLocked = true;
+        held = true;
+        return [{ acquired: true }];
+      }) };
+      try {
+        return await callback(tx);
+      } finally {
+        if (held) refreshLocked = false;
+      }
+    });
     const service = new StoryFixedRouteChoiceRefreshService(db as never, () => ({ generate: generate as never }));
-    return { service, db, work, parts, choices, beats, audits, generate };
+    return { service, db, work, parts, choices, beats, audits, generate, rowLocks, lockHooks };
   }
 
   it('refreshes one bounded batch and resumes without rewriting original or cached rows', async () => {
@@ -115,7 +140,7 @@ describe('published legacy choice refresh', () => {
       preparedParts: 9, remainingParts: 0, ready: true,
     });
     expect(db.$transaction).toHaveBeenLastCalledWith(expect.any(Function), expect.objectContaining({
-      isolationLevel: 'Serializable', timeout: 30000,
+      isolationLevel: 'ReadCommitted', timeout: 90000,
     }));
     expect(cached).toMatchObject({ id: 'part-1-branch-b', position: -12, label: cachedLabel });
     expect(original).toMatchObject({ position: 1, label: originalLabel });
@@ -127,6 +152,67 @@ describe('published legacy choice refresh', () => {
       .resolves.toMatchObject({ ready: true, phase: 'ready' });
     expect(db.storyChoice.update).toHaveBeenCalledTimes(updates);
     expect(generate).toHaveBeenCalledTimes(2);
+  });
+
+  it('rejects a concurrent refresh before a second provider call and permits a later retry', async () => {
+    const { service, generate, choices } = fixture(9);
+    let providerStarted!: () => void;
+    let finishProvider!: () => void;
+    const started = new Promise<void>((resolve) => { providerStarted = resolve; });
+    const wait = new Promise<void>((resolve) => { finishProvider = resolve; });
+    const normalGenerate = generate.getMockImplementation()!;
+    generate.mockImplementationOnce(async (input) => {
+      providerStarted();
+      await wait;
+      return normalGenerate(input);
+    });
+
+    const first = service.refreshBatch('admin', 'monster', 'work', 'release');
+    await started;
+    await expect(service.refreshBatch('other-admin', 'monster', 'work', 'release'))
+      .rejects.toMatchObject({ response: { code: 'STORY_CHOICE_PREPARATION_IN_PROGRESS' } });
+    expect(generate).toHaveBeenCalledTimes(1);
+    expect(choices.every((choice) => choice.position > 0)).toBe(true);
+
+    finishProvider();
+    await expect(first).resolves.toMatchObject({ preparedParts: 8, remainingParts: 1 });
+    await expect(service.refreshBatch('admin', 'monster', 'work', 'release'))
+      .resolves.toMatchObject({ preparedParts: 9, phase: 'awaiting_promotion' });
+    expect(generate).toHaveBeenCalledTimes(2);
+  });
+
+  it('holds no work or scene row lock while a later batch waits for the provider', async () => {
+    const { service, generate, rowLocks } = fixture(9);
+    await service.refreshBatch('admin', 'monster', 'work', 'release');
+    rowLocks.length = 0;
+    let providerStarted!: () => void;
+    let finishProvider!: () => void;
+    const started = new Promise<void>((resolve) => { providerStarted = resolve; });
+    const wait = new Promise<void>((resolve) => { finishProvider = resolve; });
+    const normalGenerate = generate.getMockImplementation()!;
+    generate.mockImplementationOnce(async (input) => {
+      providerStarted();
+      await wait;
+      return normalGenerate(input);
+    });
+
+    const refresh = service.refreshBatch('admin', 'monster', 'work', 'release');
+    await started;
+    expect(rowLocks).toHaveLength(0);
+    finishProvider();
+    await expect(refresh).resolves.toMatchObject({ phase: 'awaiting_promotion' });
+    expect(rowLocks.length).toBeGreaterThan(0);
+  });
+
+  it('rechecks source drift under row locks before promotion', async () => {
+    const { service, choices, beats, generate, lockHooks } = fixture(1);
+    await service.refreshBatch('admin', 'monster', 'work', 'release');
+    lockHooks.onRowLock = () => { beats[0].content.ko = '잠금 직전에 바뀐 원고'; };
+
+    await expect(service.refreshBatch('admin', 'monster', 'work', 'release'))
+      .resolves.toMatchObject({ phase: 'preparing', remainingParts: 1 });
+    expect(choices.map((choice) => choice.position)).toEqual([1, 2, 3]);
+    expect(generate).toHaveBeenCalledTimes(1);
   });
 
   it('leaves an already-generated pair untouched', async () => {
