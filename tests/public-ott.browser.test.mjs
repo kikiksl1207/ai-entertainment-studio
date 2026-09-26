@@ -202,14 +202,20 @@ test('public discovery works at desktop and mobile widths and captures verified 
     assert.equal(await page.locator('[data-ott-branch]:visible').count(), 3);
     await page.waitForFunction(() => !document.querySelector('[data-ott-branch="ignore"]').disabled);
     assert.equal(await page.locator('[data-ott-branch="ignore"]').isEnabled(), true);
-    assert.equal(await page.locator('[data-ott-branch="hesitate"]').isDisabled(), true);
-    assert.match(await page.locator('[data-ott-branch="hesitate"]').innerText(), /아직 선택할 수 없습니다/);
+    assert.equal(await page.locator('[data-ott-branch="hesitate"]').isEnabled(), true);
     assert.equal(await page.locator('#ottFullscreenExit').isVisible(), true);
     assert.equal(await page.evaluate(() => {
       const choice = document.querySelector('[data-ott-branch="hesitate"]').getBoundingClientRect();
       return choice.top >= 0 && choice.bottom <= innerHeight;
     }), true);
     await page.screenshot({ path: join(artifacts, 'ott-choice-fullscreen-400.png'), fullPage: false });
+    await page.locator('[data-ott-branch="hesitate"]').click();
+    await page.waitForFunction(() => {
+      const element = document.getElementById('ottDemoVideo');
+      return element.currentSrc.endsWith('/04-branch-daughter-resists-final.mp4') && Math.abs(element.duration - 22.933991) < .1;
+    });
+    await video.evaluate((element) => { element.currentTime = element.duration - .4; });
+    await page.locator('#ottChoiceOverlay').waitFor({ state: 'visible', timeout: 20000 });
     await page.locator('[data-ott-branch="ignore"]').click();
     await page.waitForFunction(() => {
       const element = document.getElementById('ottDemoVideo');
@@ -234,8 +240,8 @@ test('public discovery works at desktop and mobile widths and captures verified 
     await page.locator('#ottOpenDemo').click();
     await page.waitForFunction(() => !document.querySelector('[data-ott-branch="ignore"]').disabled);
     assert.equal(await page.locator('[data-ott-branch="ignore"]').isEnabled(), true);
-    assert.equal(await page.locator('[data-ott-branch="hesitate"]').isDisabled(), true);
-    await page.route('**/04-branch-hesitate.mp4', (route) => route.fulfill({ status: 200, contentType: 'video/mp4', body: '' }));
+    assert.equal(await page.locator('[data-ott-branch="hesitate"]').isEnabled(), true);
+    await page.route('**/04-branch-daughter-resists-final.mp4', (route) => route.fulfill({ status: 200, contentType: 'video/mp4', body: '' }));
     await page.reload({ waitUntil: 'networkidle' });
     await page.locator('#ottOpenDemo').click();
     assert.equal(await page.locator('[data-ott-branch="ignore"]').isEnabled(), true);

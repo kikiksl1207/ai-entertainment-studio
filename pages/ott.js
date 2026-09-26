@@ -42,7 +42,7 @@
   const videoError = document.getElementById("ottVideoError");
   const restart = document.getElementById("ottRestart");
   const clipRoot = "/assets/ott/mothers-choice/";
-  const clips = { common: "01-common-to-choice.mp4", embrace: "02-branch-embrace-original.mp4", ignore: "03-branch-ignore.mp4", hesitate: "04-branch-hesitate.mp4" };
+  const clips = { common: "01-common-to-choice.mp4", embrace: "02-branch-embrace-original.mp4", ignore: "03-branch-ignore.mp4", hesitate: "04-branch-daughter-resists-final.mp4" };
   const availableBranches = new Set(["embrace"]);
   let currentClip = "common";
   let availabilityRequestId = 0;
