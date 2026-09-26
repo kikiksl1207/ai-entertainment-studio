@@ -48,9 +48,18 @@ describe('Semantic Responses adapter (fake transport only)', () => {
     Object.assign(output.evidence[0].citations[0], { end: 'The bell rang.'.length });
     expect(validateSemanticEvidence(output, repeated)[0].citations[0].start).toBe(0);
   });
-  it('rejects a large guessed offset even for a unique exact quote', () => {
+  it('realigns a unique quote even when the model reports the paragraph end', () => {
+    const text = `A unique quote. ${'Extra narration. '.repeat(12)}`;
+    const paragraph = { ...input, pieces: [{ ...input.pieces[0], text, end: text.length }] };
+    const output = semanticTestOutput(paragraph);
+    Object.assign(output.evidence[0].citations[0], { quote: 'A unique quote.', end: text.length });
+    expect(validateSemanticEvidence(output, paragraph)[0].citations[0]).toMatchObject({
+      start: 0, end: 'A unique quote.'.length,
+    });
+  });
+  it('rejects a reported offset outside the cited paragraph even for a unique quote', () => {
     const output = semanticTestOutput(input);
-    Object.assign(output.evidence[0].citations[0], { start: 17, end: 17 + input.pieces[0].text.length });
+    Object.assign(output.evidence[0].citations[0], { start: 999, end: 999 + input.pieces[0].text.length });
     expect(() => validateSemanticEvidence(output, input)).toThrow();
   });
   it('rejects unsupported free-form claims and version/hash substitution', () => {

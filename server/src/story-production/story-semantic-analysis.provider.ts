@@ -99,9 +99,11 @@ export function validateSemanticEvidence(value: unknown, input: SemanticInput): 
       let piece = direct;
       let start = Number(cite.start), end = Number(cite.end);
       if (!piece) {
-        // A model may count surrounding quotation marks as offsets. Recover only
-        // a unique, exact source quote with a small offset error in the cited paragraph.
+        // Models sometimes report the paragraph boundary instead of the quoted
+        // span. Recover only a unique exact quote inside the cited source piece.
         const matches = candidates.flatMap(candidate => {
+          if (Number(cite.start) < candidate.start - 16 || Number(cite.start) > candidate.end + 16 ||
+            Number(cite.end) < candidate.start - 16 || Number(cite.end) > candidate.end + 16) return [];
           const offset = candidate.text.indexOf(cite.quote as string);
           return offset >= 0 && candidate.text.indexOf(cite.quote as string, offset + 1) < 0 &&
             boundary(candidate.text, offset) && boundary(candidate.text, offset + (cite.quote as string).length)
@@ -112,8 +114,6 @@ export function validateSemanticEvidence(value: unknown, input: SemanticInput): 
         piece = match.candidate;
         start = match.start;
         end = start + cite.quote.length;
-        if (Math.abs(Number(cite.start) - start) > 16 || Math.abs(Number(cite.end) - end) > 16)
-          throw new Error('analysis_citation_invalid');
       }
       return { partIndex: piece.partIndex, partKey: piece.partKey, paragraphIndex: piece.paragraphIndex,
         start, end, quoteHash: sha256(cite.quote) };
