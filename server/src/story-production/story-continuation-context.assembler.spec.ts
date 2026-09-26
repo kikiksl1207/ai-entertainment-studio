@@ -113,6 +113,32 @@ describe('StoryContinuationContextAssembler', () => {
     expect(JSON.stringify(await f.assembler.assemble(claim))).not.toContain('scene-id');
   });
 
+  it('passes writer-approved semantic memory in the requested locale', async () => {
+    const f = fixture();
+    const memories = [{
+      id: 'approved-semantic-memory', memoryType: 'entity', revision: 1,
+      content: { ko: '주인공: 왼손을 다친 채 항구에 도착한다.' },
+    }];
+    f.prisma.storyMemoryRecord.findMany.mockResolvedValue(memories);
+    const memoryPins = continuationMemoryPins(memories);
+    const references = f.continuation.contextReferences;
+    f.continuation.contextReferences = {
+      ...references,
+      memoryPins,
+      executionFingerprint: continuationExecutionFingerprint({
+        contextFingerprint: f.continuation.contextFingerprint,
+        sourceHash: references.sourceHash,
+        pathHash: references.pathHash,
+        memoryPins,
+      }),
+    };
+
+    const context = await f.assembler.assemble(claim);
+    expect(context.memories).toEqual([{
+      memoryType: 'entity', content: '주인공: 왼손을 다친 채 항구에 도착한다.',
+    }]);
+  });
+
   it('rejects a progress that no longer matches the pinned reader path', async () => {
     const f = fixture(false);
     await expect(f.assembler.assemble(claim)).rejects.toBeInstanceOf(ConflictException);

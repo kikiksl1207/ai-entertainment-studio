@@ -230,6 +230,7 @@ export class StoryGenerationProfileService {
         });
       }
       const profile = await tx.storyWorkGenerationProfile.findUniqueOrThrow({ where: { id: current.id } });
+      const approvedMemoryCount = await this.persistApprovedMemories(tx, source, profile.id, settings);
       await tx.auditEvent.create({
         data: {
           actorUserId: userId,
@@ -244,11 +245,72 @@ export class StoryGenerationProfileService {
             reviewRevision: profile.reviewRevision,
             approvedFingerprint: profile.approvedFingerprint,
           },
-          metadata: { workId, analysisJobId: source.analysis.id },
+          metadata: { workId, analysisJobId: source.analysis.id, approvedMemoryCount },
         },
       });
       return this.project(workId, source, profile);
     });
+  }
+
+  private async persistApprovedMemories(
+    tx: Prisma.TransactionClient,
+    source: Awaited<ReturnType<StoryGenerationProfileService['latestCompletedSource']>>,
+    profileId: string,
+    settings: CreatorGenerationProfileSettings,
+  ) {
+    const sectionTypes: Record<string, string[]> = {
+      canon: ['entity', 'background'],
+      timeline: ['event'],
+      narrative_devices: ['foreshadow', 'payoff'],
+    };
+    const reviewed = settings.sections
+      .filter((section) => ['accepted', 'edited'].includes(section.decision) && sectionTypes[section.key])
+      .map((section) => ({ section, observations: Array.isArray(section.value.observations)
+        ? section.value.observations : [] }));
+    const ids = [...new Set(reviewed.flatMap(({ observations }) => observations.flatMap((value) => {
+      const ref = this.record(value).sourceRef;
+      return typeof ref === 'string' && /^analysis:[0-9a-f-]{36}$/i.test(ref) ? [ref.slice(9)] : [];
+    })))];
+    const evidence = ids.length ? await tx.storyAnalysisEvidence.findMany({
+      where: { id: { in: ids }, analysisJobId: source.analysis.id, provenance: 'semantic_candidate' },
+      select: { id: true, evidenceType: true, sourcePartKey: true },
+    }) : [];
+    const evidenceById = new Map(evidence.map((row) => [row.id, row]));
+    const memories: Prisma.StoryMemoryRecordCreateManyInput[] = [];
+    const used = new Set<string>();
+    for (const { section, observations } of reviewed) {
+      const valid = observations.flatMap((value) => {
+        const observation = this.record(value);
+        const ref = observation.sourceRef;
+        const row = typeof ref === 'string' ? evidenceById.get(ref.slice(9)) : undefined;
+        const detail = this.text(observation.detail, 320);
+        if (!row || !detail || !sectionTypes[section.key].includes(row.evidenceType) || used.has(row.id)) return [];
+        used.add(row.id);
+        return [{ row, detail, title: this.text(observation.title, 80) }];
+      });
+      for (const { row, detail, title } of this.spread(valid, 6)) {
+        const memoryType = section.key === 'canon' ? 'entity' : section.key === 'timeline' ? 'event' : 'foreshadow';
+        memories.push({
+          workId: source.work.id,
+          analysisJobId: source.analysis.id,
+          manuscriptVersionId: source.manuscript.id,
+          memoryType,
+          memoryKey: `profile:${profileId}:${row.id}`,
+          partKey: row.sourcePartKey,
+          content: { [source.manuscript.locale]: title ? `${title}: ${detail}` : detail },
+          evidenceIds: [row.id],
+          provenance: 'writer_approved_semantic',
+          status: 'approved',
+        });
+      }
+    }
+    await tx.storyMemoryRecord.updateMany({
+      where: { workId: source.work.id, analysisJobId: source.analysis.id,
+        provenance: 'writer_approved_semantic', status: 'approved' },
+      data: { status: 'superseded' },
+    });
+    if (memories.length) await tx.storyMemoryRecord.createMany({ data: memories });
+    return memories.length;
   }
 
   private async latestCompletedSource(userId: string, workId: string) {

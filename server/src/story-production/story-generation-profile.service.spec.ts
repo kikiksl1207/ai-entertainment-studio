@@ -1,5 +1,6 @@
 import { ConflictException } from '@nestjs/common';
-import { CREATOR_GENERATION_PROFILE_SCHEMA, STORY_PROFILE_SECTION_KEYS } from '../generation-profile/creator-generation-profile.policy';
+import { CREATOR_GENERATION_PROFILE_SCHEMA, STORY_PROFILE_SECTION_KEYS,
+  type CreatorGenerationProfileSettings } from '../generation-profile/creator-generation-profile.policy';
 import { PrismaService } from '../prisma/prisma.service';
 import { StoryGenerationProfileService } from './story-generation-profile.service';
 
@@ -70,6 +71,7 @@ function fixture() {
       updateMany: jest.fn(),
       findUniqueOrThrow: jest.fn(),
     },
+    storyMemoryRecord: { updateMany: jest.fn(), createMany: jest.fn() },
     auditEvent: { create: jest.fn().mockResolvedValue({ id: 'audit' }) },
   };
   const prisma = {
@@ -83,13 +85,13 @@ function fixture() {
   return { prisma, tx, service: new StoryGenerationProfileService(prisma as unknown as PrismaService) };
 }
 
-function reviewedSettings() {
+function reviewedSettings(): CreatorGenerationProfileSettings {
   return {
     schemaVersion: CREATOR_GENERATION_PROFILE_SCHEMA,
     kind: 'story',
     sections: STORY_PROFILE_SECTION_KEYS.map((key) => ({
       key,
-      decision: 'accepted',
+      decision: 'accepted' as const,
       value: { summary: key },
       evidence: [],
     })),
@@ -205,5 +207,78 @@ describe('StoryGenerationProfileService', () => {
       expectedDraftFingerprint: 'e'.repeat(64),
     })).rejects.toBeInstanceOf(ConflictException);
     expect(f.tx.storyWorkGenerationProfile.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('indexes only writer-approved semantic facts and supersedes older profile memories', async () => {
+    const f = fixture();
+    sourceMocks(f.prisma);
+    const entityId = '00000000-0000-4000-8000-000000000301';
+    const eventId = '00000000-0000-4000-8000-000000000302';
+    const omittedId = '00000000-0000-4000-8000-000000000303';
+    const settings = reviewedSettings();
+    for (const section of settings.sections) {
+      if (section.key === 'canon') section.value = { observations: [
+        { sourceRef: `analysis:${entityId}`, title: '주인공', detail: '왼손을 다친 채 항구에 도착한다.' },
+      ] };
+      if (section.key === 'timeline') section.value = { observations: [
+        { sourceRef: `analysis:${eventId}`, title: '도착', detail: '폭풍이 지나간 뒤에 도착한다.' },
+      ] };
+      if (section.key === 'narrative_devices') {
+        section.decision = 'removed';
+        section.value = { observations: [
+          { sourceRef: `analysis:${omittedId}`, title: '제외한 복선', detail: '저장하지 않는다.' },
+        ] };
+      }
+    }
+    f.tx.storyWorkGenerationProfile.findFirst.mockResolvedValue(profileRow({ draftSettings: settings }));
+    f.tx.storyWorkGenerationProfile.updateMany.mockResolvedValue({ count: 1 });
+    f.tx.storyWorkGenerationProfile.findUniqueOrThrow.mockResolvedValue(profileRow({
+      status: 'approved', draftSettings: settings,
+    }));
+    f.tx.storyAnalysisEvidence.findMany.mockResolvedValue([
+      { id: entityId, evidenceType: 'entity', sourcePartKey: 'part-1' },
+      { id: eventId, evidenceType: 'event', sourcePartKey: 'part-2' },
+    ]);
+
+    await f.service.approve(owner, workId, { expectedDraftFingerprint: 'd'.repeat(64) });
+
+    expect(f.tx.storyAnalysisEvidence.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: { in: [entityId, eventId] }, analysisJobId: analysisId,
+        provenance: 'semantic_candidate' },
+    }));
+    expect(f.tx.storyMemoryRecord.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ analysisJobId: analysisId, status: 'approved',
+        provenance: 'writer_approved_semantic' }),
+      data: { status: 'superseded' },
+    }));
+    const created = f.tx.storyMemoryRecord.createMany.mock.calls[0][0].data;
+    expect(created).toHaveLength(2);
+    expect(created).toEqual(expect.arrayContaining([
+      expect.objectContaining({ memoryType: 'entity', evidenceIds: [entityId],
+        content: { ko: '주인공: 왼손을 다친 채 항구에 도착한다.' } }),
+      expect.objectContaining({ memoryType: 'event', evidenceIds: [eventId],
+        content: { ko: '도착: 폭풍이 지나간 뒤에 도착한다.' } }),
+    ]));
+    expect(f.tx.auditEvent.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ metadata: expect.objectContaining({ approvedMemoryCount: 2 }) }),
+    }));
+  });
+
+  it('does not persist unverified references from a reviewed section', async () => {
+    const f = fixture();
+    sourceMocks(f.prisma);
+    const settings = reviewedSettings();
+    settings.sections.find((section) => section.key === 'canon')!.value = { observations: [
+      { sourceRef: 'analysis:00000000-0000-4000-8000-000000000399', detail: '다른 분석의 인물' },
+    ] };
+    f.tx.storyWorkGenerationProfile.findFirst.mockResolvedValue(profileRow({ draftSettings: settings }));
+    f.tx.storyWorkGenerationProfile.updateMany.mockResolvedValue({ count: 1 });
+    f.tx.storyWorkGenerationProfile.findUniqueOrThrow.mockResolvedValue(profileRow({ status: 'approved' }));
+    f.tx.storyAnalysisEvidence.findMany.mockResolvedValue([]);
+
+    await f.service.approve(owner, workId, { expectedDraftFingerprint: 'd'.repeat(64) });
+
+    expect(f.tx.storyMemoryRecord.createMany).not.toHaveBeenCalled();
+    expect(f.tx.storyMemoryRecord.updateMany).toHaveBeenCalledTimes(1);
   });
 });
