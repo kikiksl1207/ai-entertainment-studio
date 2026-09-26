@@ -27,6 +27,32 @@ test('restored receipt stays idle; fresh submit and double activation send one r
   assert.equal(evidenceItems(screen).length, 1);
 });
 
+test('published manuscript analysis can be restored without a browser upload receipt or paid POST', async () => {
+  const storage = new Map();
+  const screen = createHarness({ storage, receipt: false });
+  assert.equal(screen.elements.writerAnalysisRestore.hidden, false);
+  await screen.elements.writerAnalysisRestore.fire(); await screen.flush();
+  assert.equal(screen.posts().length, 0);
+  assert.equal(screen.elements.writerAnalysis.hidden, false);
+  assert.equal(element(screen, 'Start').hidden, true);
+  assert.equal(screen.elements.writerGenerationEntry.hidden, false);
+  assert.ok(screen.calls.some(call => call.path.includes(`/stories/${ids.work}/manuscripts?limit=1`)));
+  assert.ok(screen.calls.some(call => call.path.includes(`/manuscripts/${ids.manuscript}/analyses?limit=30`)));
+  const reload = createHarness({ storage, receipt: false }); await reload.flush();
+  assert.equal(reload.posts().length, 0);
+  assert.equal(reload.elements.writerAnalysis.hidden, false);
+  assert.equal(reload.elements.writerGenerationEntry.hidden, false);
+});
+
+test('saved-analysis restore leaves a work without completed semantic analysis unmodified', async () => {
+  const legacy = makeJob({ kind: 'structural_legacy', semanticCompleted: false });
+  const screen = createHarness({ job: legacy, receipt: false });
+  await screen.elements.writerAnalysisRestore.fire(); await screen.flush();
+  assert.equal(screen.posts().length, 0);
+  assert.equal(screen.elements.writerAnalysis.hidden, true);
+  assert.match(screen.elements.writerAnalysisRestoreState.textContent, /완료된 AI 분석이 없습니다/);
+});
+
 test('shows how many unverifiable candidates were excluded from the writer analysis', async () => {
   const screen = createHarness({ job: makeJob({ discardedEvidenceCount: 2 }) });
   await click(screen, 'Start');

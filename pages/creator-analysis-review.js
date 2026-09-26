@@ -24,6 +24,10 @@
     save: document.getElementById("writerGenerationSave"),
     approve: document.getElementById("writerGenerationApprove")
   };
+  const restore = {
+    button: document.getElementById("writerAnalysisRestore"),
+    state: document.getElementById("writerAnalysisRestoreState")
+  };
   const generationSectionOrder = ["writing_style", "scene_scale", "canon", "timeline", "narrative_devices", "branch_behavior", "visual_direction", "visual_cast"];
   const generationOptional = new Set(["narrative_devices", "visual_cast"]);
   const generationCopy = {
@@ -33,6 +37,8 @@
       loading: "원고 분석 결과를 생성 설정으로 정리하고 있습니다.", ready: "생성 전에 확인할 설정이 준비되었습니다.", approved: "이 원고의 생성 설정이 적용되었습니다.",
       saved: "수정 내용이 저장되었습니다.", saveFailed: "설정을 저장하지 못했습니다. 다시 시도해주세요.", approveFailed: "모든 필수 항목을 확인한 뒤 적용해주세요.",
       discardedCount: "확인 불가 분석 {count}건 제외",
+      restore: "저장된 분석 보기", restoreLoading: "기존 분석을 확인하고 있습니다.",
+      restoreMissing: "이 작품의 최신 원고에는 완료된 AI 분석이 없습니다.", restoreFailed: "기존 분석을 불러오지 못했습니다. 다시 시도해 주세요.",
       accept: "맞음", edit: "수정해서 사용", remove: "이 항목 제외", evidence: "판단 근거 보기", noEvidence: "직접 확인이 필요한 기본 기준입니다.",
       writing_style: "작가 문체", scene_scale: "장면 분량", canon: "세계관과 고정 설정", timeline: "시간 흐름", narrative_devices: "복선과 회수", branch_behavior: "선택 후 전개", visual_direction: "배경과 그림 분위기", visual_cast: "등장인물 외형"
     },
@@ -42,6 +48,8 @@
       loading: "Preparing generation settings from the manuscript analysis.", ready: "Generation settings are ready for review.", approved: "Generation settings are active for this manuscript.",
       saved: "Your changes were saved.", saveFailed: "Settings could not be saved. Try again.", approveFailed: "Confirm every required item before applying.",
       discardedCount: "{count} unverifiable findings excluded",
+      restore: "View saved analysis", restoreLoading: "Checking the saved analysis.",
+      restoreMissing: "The latest manuscript for this work has no completed AI analysis.", restoreFailed: "Could not load the saved analysis. Try again.",
       accept: "Confirm", edit: "Use my edit", remove: "Exclude item", evidence: "View supporting analysis", noEvidence: "This default needs your confirmation.",
       writing_style: "Writing style", scene_scale: "Scene length", canon: "Canon and world rules", timeline: "Timeline", narrative_devices: "Foreshadowing and payoff", branch_behavior: "Branch behavior", visual_direction: "Background and visual mood", visual_cast: "Character appearance"
     },
@@ -51,6 +59,8 @@
       loading: "原稿分析から生成設定を整理しています。", ready: "生成前に確認する設定が準備できました。", approved: "この原稿の生成設定を適用しました。",
       saved: "修正内容を保存しました。", saveFailed: "設定を保存できませんでした。もう一度お試しください。", approveFailed: "必須項目をすべて確認してから適用してください。",
       discardedCount: "確認できない分析 {count} 件を除外",
+      restore: "保存済みの分析を見る", restoreLoading: "保存済みの分析を確認しています。",
+      restoreMissing: "この作品の最新原稿には完了したAI分析がありません。", restoreFailed: "保存済みの分析を読み込めませんでした。もう一度お試しください。",
       accept: "正しい", edit: "修正して使用", remove: "この項目を除外", evidence: "判断根拠を見る", noEvidence: "確認が必要な基本設定です。",
       writing_style: "作家の文体", scene_scale: "場面の分量", canon: "世界観と固定設定", timeline: "時間の流れ", narrative_devices: "伏線と回収", branch_behavior: "選択後の展開", visual_direction: "背景と画面の雰囲気", visual_cast: "登場人物の外見"
     },
@@ -60,6 +70,8 @@
       loading: "正在根据稿件分析整理生成设置。", ready: "生成设置已准备好，等待核对。", approved: "已应用此稿件的生成设置。",
       saved: "修改内容已保存。", saveFailed: "无法保存设置，请重试。", approveFailed: "请确认所有必填项后再应用。",
       discardedCount: "已排除 {count} 条无法核实的分析",
+      restore: "查看已保存的分析", restoreLoading: "正在检查已保存的分析。",
+      restoreMissing: "本作品的最新稿件没有已完成的 AI 分析。", restoreFailed: "无法加载已保存的分析，请重试。",
       accept: "正确", edit: "修改后使用", remove: "排除此项", evidence: "查看判断依据", noEvidence: "这是需要确认的默认标准。",
       writing_style: "作者文风", scene_scale: "场景篇幅", canon: "世界观与固定设定", timeline: "时间线", narrative_devices: "伏笔与回收", branch_behavior: "选择后的发展", visual_direction: "背景与画面氛围", visual_cast: "人物外观"
     },
@@ -69,6 +81,8 @@
       loading: "正在根據稿件分析整理生成設定。", ready: "生成設定已準備好，等待核對。", approved: "已套用此稿件的生成設定。",
       saved: "修改內容已儲存。", saveFailed: "無法儲存設定，請重試。", approveFailed: "請確認所有必填項後再套用。",
       discardedCount: "已排除 {count} 條無法核實的分析",
+      restore: "查看已儲存的分析", restoreLoading: "正在檢查已儲存的分析。",
+      restoreMissing: "本作品的最新稿件沒有已完成的 AI 分析。", restoreFailed: "無法載入已儲存的分析，請重試。",
       accept: "正確", edit: "修改後使用", remove: "排除此項", evidence: "查看判斷依據", noEvidence: "這是需要確認的預設標準。",
       writing_style: "作者文風", scene_scale: "場景篇幅", canon: "世界觀與固定設定", timeline: "時間線", narrative_devices: "伏筆與回收", branch_behavior: "選擇後的發展", visual_direction: "背景與畫面氛圍", visual_cast: "人物外觀"
     }
@@ -92,6 +106,7 @@
   let generationResponse = null;
   let generationBusy = false;
   let generationLoadedFor = null;
+  let restoring = false;
   const controllers = new Set();
 
   function t(key, values = {}) {
@@ -132,6 +147,14 @@
     generationResponse = null; generationBusy = false; generationLoadedFor = null;
     generation.entry.hidden = true; generation.sections.replaceChildren();
     closeGenerationModal();
+    renderRestore();
+  }
+  function renderRestore() {
+    if (!restore.button) return;
+    restore.button.hidden = Boolean(receipt) || !uuid.test(scope?.workId || "") ||
+      Boolean(document.getElementById("writerManuscriptBody")?.value);
+    restore.button.disabled = restoring;
+    restore.button.textContent = gt("restore");
   }
   function receiptKey() { return `lumina.writer.analysis:${scope.identity.ownerId}:${receipt.id}`; }
   function pointerKey() { return `lumina.writer.resume:${scope.identity.ownerId}:${scope.workId}:${scope.sourceLocale}`; }
@@ -146,14 +169,15 @@
   function savedRequest() {
     try {
       const value = JSON.parse(sessionStorage.getItem(receiptKey()) || "null");
-      if (/^[A-Za-z0-9_-]{8,200}$/.test(value?.requestKey || "") && (!value.analysisId || uuid.test(value.analysisId))) return value;
+      const validKey = /^[A-Za-z0-9_-]{8,200}$/.test(value?.requestKey || "");
+      if ((validKey || uuid.test(value?.analysisId || "")) && (!value.analysisId || uuid.test(value.analysisId))) return value;
     } catch (_) {}
     return null;
   }
-  function receive(value, { fromSubmit = false } = {}) {
+  function receive(value, { fromSubmit = false, existingAnalysisId = null } = {}) {
     if (receipt?.id === value?.id && value.workId === scope?.workId &&
         value.sourceLocale === scope?.sourceLocale && api.isCurrent(value.identity) &&
-        sameContext(scope, context()) && api.isCurrent(scope.identity)) {
+        sameContext(scope, context()) && api.isCurrent(scope.identity) && (!existingAnalysisId || analysisId === existingAnalysisId)) {
       if (fromSubmit) start();
       return;
     }
@@ -164,8 +188,10 @@
     receipt = { ...value };
     const saved = savedRequest();
     requestKey = saved?.requestKey || null;
-    analysisId = saved?.analysisId || null;
+    analysisId = existingAnalysisId || saved?.analysisId || null;
     phase = analysisId ? "loading" : requestKey ? "unknown" : "ready";
+    restore.state.textContent = "";
+    renderRestore();
     render();
     if (analysisId) loadPage(null, 0);
     else if (fromSubmit) start();
@@ -174,16 +200,42 @@
     const next = context();
     if (sameContext(scope, next)) return;
     invalidate();
+    restore.state.textContent = "";
     if (!next.identity.ownerId || !uuid.test(next.workId) || !locales.includes(next.sourceLocale)) return;
     const retained = manuscript.receipt();
     if (retained?.workId === next.workId && retained.sourceLocale === next.sourceLocale && api.isCurrent(retained.identity)) return receive(retained);
     if (document.getElementById("writerManuscriptBody")?.value) return;
     scope = next;
+    renderRestore();
     try {
       const pointer = JSON.parse(sessionStorage.getItem(pointerKey()) || "null");
-      if (!uuid.test(pointer?.manuscriptId || "")) return invalidate();
+      if (!uuid.test(pointer?.manuscriptId || "")) return;
       receive({ id: pointer.manuscriptId, workId: next.workId, sourceLocale: next.sourceLocale, identity: next.identity });
-    } catch (_) { invalidate(); }
+    } catch (_) {}
+  }
+  async function restoreExisting() {
+    if (restoring || receipt || !scope || !current() || document.getElementById("writerManuscriptBody")?.value) return;
+    const stamp = epoch;
+    restoring = true;
+    restore.state.textContent = gt("restoreLoading");
+    renderRestore();
+    try {
+      const sourcePage = await request(`/stories/${scope.workId}/manuscripts?limit=1`, {}, stamp);
+      if (sourcePage?.workId !== scope.workId || !Array.isArray(sourcePage.items) || sourcePage.items.length > 1) throw new Error("source projection");
+      const source = sourcePage.items[0];
+      if (!source || source.locale !== scope.sourceLocale) { restore.state.textContent = gt("restoreMissing"); return; }
+      if (!uuid.test(source.id) || source.workId !== scope.workId || !Number.isSafeInteger(source.version) || source.version < 1 ||
+          !/^[a-f0-9]{64}$/i.test(source.contentHash || "")) throw new Error("source projection");
+      const analysisPage = await request(`/manuscripts/${source.id}/analyses?limit=30`, {}, stamp);
+      if (analysisPage?.manuscriptVersionId !== source.id || !Array.isArray(analysisPage.items) || analysisPage.items.length > 30) throw new Error("analysis projection");
+      const latest = analysisPage.items.find(item => item?.kind === "semantic_extraction_v1" && item.status === "completed" &&
+        item.semanticCompleted === true && item.progress?.coverageComplete === true && item.sourceLocale === source.locale &&
+        item.sourceContentHash === source.contentHash && uuid.test(item.id || ""));
+      if (!latest) { restore.state.textContent = gt("restoreMissing"); return; }
+      receive({ id: source.id, workId: source.workId, sourceLocale: source.locale, version: source.version,
+        contentHash: source.contentHash, identity: scope.identity }, { existingAnalysisId: latest.id });
+    } catch (_) { if (current(stamp)) restore.state.textContent = gt("restoreFailed"); }
+    finally { restoring = false; renderRestore(); }
   }
   async function request(path, options = {}, stamp = epoch) {
     if (!current(stamp)) throw new Error("stale");
@@ -533,6 +585,8 @@
     const previous = history.at(-1); loadPage(previous.cursor, previous.start, { navigation: "previous" });
   });
   generation.open.addEventListener("click", () => generationResponse ? openGenerationModal() : loadGenerationProfile(false));
+  restore.button?.addEventListener("click", restoreExisting);
+  document.getElementById("writerManuscriptBody")?.addEventListener("input", renderRestore);
   generation.close.addEventListener("click", closeGenerationModal);
   generation.cancel.addEventListener("click", closeGenerationModal);
   generation.save.addEventListener("click", () => saveGenerationProfile(false));
@@ -548,6 +602,7 @@
     render();
     if (!generation.modal.classList.contains("is-hidden") && generationResponse) { setGenerationCopy(); renderGenerationSections(); }
     if (job) loadPage(page.cursor, page.start);
+    renderRestore();
   });
   window.addEventListener("storage", event => { if (["lumina_auth", "lumina.session", null].includes(event.key)) current(); });
   window.addEventListener("lumina:auth-expired", invalidate);

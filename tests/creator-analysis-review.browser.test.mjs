@@ -18,7 +18,7 @@ before(async () => { browser = await chromium.launch({ executablePath: process.e
 after(async () => { await browser?.close(); });
 
 async function fixture({ locale = 'en-US', width = 390, rows = [makeEvidence(0, { observation: longObservation })], hook,
-  submit = true, expectAnalysis = true } = {}) {
+  submit = true, expectAnalysis = true, draft = true } = {}) {
   const context = await browser.newContext({ viewport: { width, height: width > 400 ? 900 : 844 }, serviceWorkers: 'block' });
   await context.addInitScript(({ origin, locale }) => {
     window.LUMINA_API_BASE = origin;
@@ -77,10 +77,12 @@ async function fixture({ locale = 'en-US', width = 390, rows = [makeEvidence(0, 
     throw new Error(JSON.stringify({ failure: error.message, state, errors, paths: calls.map(call => call.method + ' ' + call.path) }));
   }
   await page.locator('#writerManuscriptWork').selectOption(ids.work);
-  await page.locator('#writerManuscriptBody').fill(manuscriptText);
-  await page.locator('#writerManuscriptParts input[maxlength="240"]').fill('Local fixture part');
-  await page.locator('#writerManuscriptReview').click();
-  await page.locator('#writerManuscriptConfirm').check();
+  if (draft) {
+    await page.locator('#writerManuscriptBody').fill(manuscriptText);
+    await page.locator('#writerManuscriptParts input[maxlength="240"]').fill('Local fixture part');
+    await page.locator('#writerManuscriptReview').click();
+    await page.locator('#writerManuscriptConfirm').check();
+  }
   if (submit) await page.locator('#writerManuscriptSubmit').click();
   if (submit && expectAnalysis) await page.locator('#writerAnalysis').waitFor({ state: 'visible' });
   return { page, calls, errors, unexpectedWrites, close: () => context.close(),
@@ -97,6 +99,28 @@ test('analysis browser functional: actual paste receipt automatically enqueues o
     assert.equal(await f.page.locator('blockquote').textContent(), quoteText);
     assert.equal(await f.page.locator('#writerAnalysis script').count(), 0);
     assert.deepEqual(f.unexpectedWrites, []);
+    assert.deepEqual(f.errors, []);
+  } finally { await f.close(); }
+});
+
+test('analysis browser functional: previously published analysis opens without reupload or paid generation', async () => {
+  const f = await fixture({ draft: false, submit: false, expectAnalysis: false, hook: call => {
+    if (call.method === 'GET' && call.path.endsWith(`/stories/${ids.work}/manuscripts`)) return {
+      body: { workId: ids.work, items: [{ id: ids.manuscript, workId: ids.work, version: 3, locale: 'ko', contentHash: 'a'.repeat(64) }] }
+    };
+    if (call.method === 'GET' && call.path.endsWith(`/manuscripts/${ids.manuscript}/analyses`)) return {
+      body: { manuscriptVersionId: ids.manuscript, items: [makeJob()] }
+    };
+    return null;
+  } });
+  try {
+    await f.page.locator('#writerAnalysisRestore').click();
+    await f.ready();
+    assert.equal(await f.page.locator('#writerGenerationEntry').isVisible(), true);
+    assert.equal(await f.page.locator('#writerAnalysisStart').isVisible(), false);
+    assert.equal(f.calls.some(call => call.path.endsWith(`/stories/${ids.work}/manuscripts`)), true);
+    assert.equal(f.calls.some(call => call.path.endsWith(`/manuscripts/${ids.manuscript}/analyses`)), true);
+    assert.equal(f.calls.filter(call => call.method !== 'GET').length, 0);
     assert.deepEqual(f.errors, []);
   } finally { await f.close(); }
 });

@@ -9,6 +9,7 @@
 - A published work retains its previous completed non-semantic analysis while the new semantic profile is awaiting review. Approval switches subsequent continuations to the semantic analysis; works without a prior published analysis still fail closed.
 - The semantic provider can reuse the server's existing `OPENAI_API_KEY`; an explicitly configured semantic key takes precedence.
 - A pilot-only manuscript ID allowlist prevents other uploads from entering the paid queue while the first book is analyzed. It does not bypass ownership or idempotency checks.
+- Creator Studio can restore the latest completed semantic analysis for an owned work even when the manuscript was published before the current browser session. The restore path uses owned read-only discovery and never enqueues another paid analysis.
 - Focused frontend and backend tests pass. The semantic provider, worker, review draft, approval-to-memory path and three-choice validation are deployed on the production API (commit `94b6349`).
 
 ## Production audit before the pilot

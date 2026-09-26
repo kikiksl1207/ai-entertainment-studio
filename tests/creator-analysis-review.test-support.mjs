@@ -60,7 +60,8 @@ class Element {
 export function createHarness({ job = makeJob(), rows = [makeEvidence()], storage = new Map(), receipt = true, handler } = {}) {
   const analysisIds = ['writerAnalysis', ...['Version', 'State', 'Progress', 'Counts', 'Start', 'Check', 'Boundary', 'Evidence', 'Pages', 'Previous', 'Next', 'PageCount'].map(name => 'writerAnalysis' + name)];
   const generationIds = ['Entry', 'ReviewOpen', 'ReviewState', 'Modal', 'Eyebrow', 'Title', 'Intro', 'Status', 'Sections', 'Close', 'Cancel', 'Save', 'Approve'].map(name => 'writerGeneration' + name);
-  const elements = Object.fromEntries([...analysisIds, ...generationIds, 'writerManuscriptBody'].map(id => [id, new Element()]));
+  const elements = Object.fromEntries([...analysisIds, ...generationIds,
+    'writerManuscriptBody', 'writerAnalysisRestore', 'writerAnalysisRestoreState'].map(id => [id, new Element()]));
   elements.writerGenerationModal.classList.add('is-hidden');
   Object.values(elements).forEach(element => { element.root = true; });
   let identity = { ownerId: 'fixture-owner', epoch: 1 };
@@ -73,6 +74,11 @@ export function createHarness({ job = makeJob(), rows = [makeEvidence()], storag
   const receiptValue = () => ({ id: ids.manuscript, ...selected, sourceLocale: selected.sourceLocale, version: 3, contentHash: sourceHash, identity: { ...identity } });
   const defaultRoute = (path, options) => {
     if (options.method === 'POST' && path.endsWith('/analyses')) return response(currentJob);
+    if (path.includes(`/stories/${ids.work}/manuscripts?`)) return response({ workId: ids.work,
+      items: [{ id: ids.manuscript, workId: ids.work, version: 3, locale: selected.sourceLocale, contentHash: sourceHash }],
+      hasMore: false, nextCursor: null });
+    if (path.includes(`/manuscripts/${ids.manuscript}/analyses?`)) return response({ manuscriptVersionId: ids.manuscript,
+      items: [currentJob], hasMore: false, nextCursor: null });
     const source = path.match(/\/evidence\/([^/]+)\/source$/);
     if (source) return response({ evidenceId: source[1], manuscriptVersionId: ids.manuscript, sourceLocale: selected.sourceLocale,
       reviewRequired: true, citations: [{ ...citation, quote: quoteText }] });
