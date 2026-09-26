@@ -31,7 +31,9 @@
 
 ## Remaining release gates
 
-1. Have the owner review/edit and approve the pilot profile in Creator Studio. Approval must not be inferred from job completion. Inspect source citations and rejected-candidate count before promoting the new profile.
+For works credited to `루미나` that also have matching official company publication provenance (a published import job or admin publication audit) and the same owner account, the owner has authorized automatic acceptance of the semantic generation-profile draft. On API startup, pending company drafts are reconciled; newly completed analyses attempt approval immediately. Approval remains pinned to the latest manuscript/analysis, writes the normal approved memories and a distinct system audit event, and does not change public release, AI-rights consent, or external-author review. A failed attempt leaves the draft recoverable. Drafts already edited by a person are not overwritten. The first pilot's production approval and reader-quality result still require observation after deployment.
+
+1. Confirm the company-origin guard and automatic approval of the completed pilot profile in production. Inspect the approved profile and rejected-candidate count before treating its prose as validated.
 2. Complete the remaining profile approval -> three prepared choices -> selected continuation run on the pilot. Verify source-version pinning, retry behavior, length, perspective, syntax, and route consequences on desktop and mobile. The existing published route remains available pending approval.
 3. Replace the requirement that a writer types the original route label for every part with AI proposals in the final review, while preserving writer edit/approval. The finalization screen currently asks for one manually entered label per part.
 4. Evaluate generated prose from differently styled manuscripts, including the revised third and fourth works. Compare voice, POV, dialogue rhythm, chronology, foreshadow tracking, and narrative length; adjust analysis and generation prompts based on actual samples rather than claiming exact author imitation from unit tests.

@@ -24,7 +24,8 @@ function fixture() {
     leased: jest.fn(async (_job: unknown, run: (client: { storyAnalysisJob: { update: jest.Mock } }) => Promise<unknown>) => run(tx)),
   };
   const provider = { config, readiness: jest.fn().mockResolvedValue({ enabled: true }) };
-  const profiles = { createDraftAtCompletion: jest.fn().mockResolvedValue({ status: 'needs_review' }) };
+  const profiles = { createDraftAtCompletion: jest.fn().mockResolvedValue({ status: 'needs_review' }),
+    autoApproveCompany: jest.fn().mockResolvedValue(null) };
   const service = new SemanticAnalysisService(repository as never, provider as never, profiles as never);
   jest.spyOn(service as any, 'source').mockResolvedValue([]);
   return { job, tx, repository, profiles, service };
@@ -43,6 +44,7 @@ describe('Semantic analysis profile completion', () => {
       data: expect.objectContaining({ status: 'completed', phase: 'completed' }),
     }));
     expect(f.profiles.createDraftAtCompletion).toHaveBeenCalledTimes(1);
+    expect(f.profiles.autoApproveCompany).toHaveBeenCalledWith('owner', 'work');
   });
 
   it('retries a failed draft without publishing completion, then succeeds once', async () => {
@@ -61,6 +63,17 @@ describe('Semantic analysis profile completion', () => {
     }));
     expect(await f.service.executeOne('worker')).toEqual({ status: 'processed' });
     expect(f.profiles.createDraftAtCompletion).toHaveBeenCalledTimes(2);
+    expect(f.profiles.autoApproveCompany).toHaveBeenCalledTimes(1);
+    expect(f.tx.storyAnalysisJob.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ status: 'completed' }),
+    }));
+  });
+
+  it('keeps a completed analysis when company auto-approval needs recovery', async () => {
+    const f = fixture();
+    f.profiles.autoApproveCompany.mockRejectedValueOnce(new Error('temporary approval failure'));
+
+    expect(await f.service.executeOne('worker')).toEqual({ status: 'processed' });
     expect(f.tx.storyAnalysisJob.update).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ status: 'completed' }),
     }));

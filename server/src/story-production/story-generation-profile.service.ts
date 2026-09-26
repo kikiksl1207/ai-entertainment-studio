@@ -1,7 +1,9 @@
 import {
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
+  OnApplicationBootstrap,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { Prisma, type StoryAnalysisJob } from '@prisma/client';
@@ -44,8 +46,86 @@ type ProfileEvidenceRow = {
 };
 
 @Injectable()
-export class StoryGenerationProfileService {
+export class StoryGenerationProfileService implements OnApplicationBootstrap {
+  private readonly logger = new Logger(StoryGenerationProfileService.name);
   constructor(private readonly prisma: PrismaService) {}
+
+  onApplicationBootstrap() {
+    void this.approvePendingCompanyProfiles().catch((error: unknown) => {
+      this.logger.warn(`Company story profile recovery stopped: ${error instanceof Error ? error.name : 'unknown error'}`);
+    });
+  }
+
+  private async approvePendingCompanyProfiles() {
+    const pending = await this.prisma.storyWorkGenerationProfile.findMany({
+      where: { status: 'needs_review' },
+      select: { workId: true, ownerUserId: true },
+      orderBy: { createdAt: 'asc' },
+      take: 100,
+    });
+    for (const profile of pending) {
+      try {
+        await this.autoApproveCompany(profile.ownerUserId, profile.workId);
+      } catch (error) {
+        this.logger.warn(`Company story profile recovery skipped ${profile.workId}: ${error instanceof Error ? error.name : 'unknown error'}`);
+      }
+    }
+  }
+
+  async autoApproveCompany(userId: string, workId: string) {
+    const source = await this.latestCompletedSource(userId, workId);
+    return this.prisma.$transaction(async (tx) => {
+      const work = await tx.storyWork.findFirst({
+        where: { id: workId, ownerUserId: userId },
+        select: { authorDisplayName: true, fixtureSource: true },
+      });
+      if (work?.authorDisplayName !== '루미나' || work.fixtureSource) return null;
+      const companyImport = await tx.storyPublicationImportJob.findFirst({
+        where: { workId, actorUserId: userId, status: 'published' }, select: { id: true },
+      });
+      const companyPublication = companyImport ? null : await tx.auditEvent.findFirst({
+        where: { actorUserId: userId, actorType: 'admin',
+          action: { in: ['story_approved_source.public_beta_published', 'story_upload.public_beta_published'] },
+          afterData: { path: ['workId'], equals: workId } },
+        select: { id: true },
+      });
+      if (!companyImport && !companyPublication) return null;
+      const current = await tx.storyWorkGenerationProfile.findFirst({
+        where: { workId }, orderBy: { profileVersion: 'desc' },
+      });
+      if (!current || current.analysisJobId !== source.analysis.id || current.status !== 'needs_review' ||
+          current.sourceFingerprint !== this.sourceFingerprint(source) || current.reviewRevision !== 0) return null;
+      const draft = normalizeCreatorGenerationProfile('story', current.draftSettings);
+      if (draft.sections.some((section) => section.decision !== 'proposed')) return null;
+      const settings = normalizeCreatorGenerationProfile('story', {
+        ...draft,
+        sections: draft.sections.map((section) => ({ ...section, decision: 'accepted' })),
+      });
+      assertCreatorGenerationProfileApprovable(settings);
+      const fingerprint = creatorGenerationProfileFingerprint(current.sourceFingerprint, settings);
+      const updated = await tx.storyWorkGenerationProfile.updateMany({
+        where: { id: current.id, status: 'needs_review', sourceFingerprint: current.sourceFingerprint,
+          draftFingerprint: current.draftFingerprint, reviewRevision: 0 },
+        data: { status: 'approved', draftSettings: settings as unknown as Prisma.InputJsonValue,
+          draftFingerprint: fingerprint, approvedSettings: settings as unknown as Prisma.InputJsonValue,
+          approvedFingerprint: fingerprint, approvedByUserId: userId, approvedAt: new Date(),
+          reviewRevision: { increment: 1 }, updatedAt: new Date() },
+      });
+      if (updated.count !== 1) return null;
+      const approved = await tx.storyWorkGenerationProfile.findUniqueOrThrow({ where: { id: current.id } });
+      const approvedMemoryCount = await this.persistApprovedMemories(tx, source, approved.id, settings);
+      await tx.auditEvent.create({ data: { actorUserId: userId, actorType: 'system',
+        action: 'story_generation_profile.company_auto_approved',
+        targetType: 'story_work_generation_profile', targetId: approved.id,
+        beforeData: { status: current.status, reviewRevision: current.reviewRevision },
+        afterData: { status: approved.status, reviewRevision: approved.reviewRevision,
+          approvedFingerprint: approved.approvedFingerprint },
+        metadata: { workId, analysisJobId: source.analysis.id,
+          ...(companyImport ? { companyImportJobId: companyImport.id } : { companyPublicationAuditId: companyPublication!.id }),
+          approvedMemoryCount } } });
+      return this.project(workId, source, approved);
+    });
+  }
 
   async getOrCreate(userId: string, workId: string) {
     const source = await this.latestCompletedSource(userId, workId);
@@ -63,6 +143,14 @@ export class StoryGenerationProfileService {
           orderBy: { profileVersion: 'desc' },
         });
         if (!profile) throw error;
+      }
+    }
+    if (profile.status === 'needs_review') {
+      try {
+        const approved = await this.autoApproveCompany(userId, workId);
+        if (approved) return approved;
+      } catch (error) {
+        this.logger.warn(`Company story profile remained in review for ${workId}: ${error instanceof Error ? error.name : 'unknown error'}`);
       }
     }
     return this.project(workId, source, profile);

@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma, type StoryAnalysisChunk, type StoryAnalysisJob } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import { randomUUID } from 'crypto';
@@ -14,6 +14,7 @@ import { StoryGenerationProfileService } from './story-generation-profile.servic
 
 @Injectable()
 export class SemanticAnalysisService {
+  private readonly logger = new Logger(SemanticAnalysisService.name);
   private cache?: { jobId: string; parts: ManuscriptPart[]; digest: string };
   constructor(
     private readonly repository: SemanticAnalysisRepository,
@@ -355,6 +356,13 @@ export class SemanticAnalysisService {
             result: { ...jsonRecord(job.result), continuityEntryCount: count },
           } });
         });
+        if (job.actorUserId) {
+          try {
+            await this.generationProfiles.autoApproveCompany(job.actorUserId, job.workId);
+          } catch (error) {
+            this.logger.warn(`Company story profile remained in review for ${job.workId}: ${error instanceof Error ? error.name : 'unknown error'}`);
+          }
+        }
       } catch (error) {
         if (error instanceof SemanticAnalysisError && error.code === 'analysis_lease_lost') throw error;
         throw new SemanticAnalysisError('analysis_profile_draft_unavailable');
