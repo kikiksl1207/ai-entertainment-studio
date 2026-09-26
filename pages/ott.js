@@ -281,9 +281,7 @@
     catalog.hidden = false;
     status(tr("loading"));
     try {
-      const response = await fetch("/api/v1/ott", { headers: { Accept: "application/json" }, credentials: "omit" });
-      if (!response.ok) throw new Error("catalog unavailable");
-      const payload = await response.json();
+      const payload = await apiFetch("/api/v1/ott", { throwOnError: true });
       render(Array.isArray(payload?.items) ? payload.items : []);
     } catch {
       status(tr("errorTitle"), tr("errorBody"));

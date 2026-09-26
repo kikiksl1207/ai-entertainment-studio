@@ -10,6 +10,10 @@ const { chromium } = createRequire(import.meta.url)('playwright');
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const artifacts = process.env.OTT_PUBLIC_BROWSER_ARTIFACTS || 'E:\\CodexMovedCache\\qa-public-ott-20260922';
+const catalogApi = 'https://api.lumina-stage.com/api/v1/ott';
+const emptyCatalog = (route) => route.fulfill({
+  status: 200, contentType: 'application/json', body: '{"items":[]}',
+});
 const mime = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp', '.mp4': 'video/mp4' };
 
 function staticServer() {
@@ -60,6 +64,7 @@ test('public discovery works at desktop and mobile widths and captures verified 
     });
     for (const width of [390, 400, 1280]) {
       const page = await browser.newPage({ viewport: { width, height: width < 500 ? 844 : 800 } });
+      await page.route(catalogApi, emptyCatalog);
       await page.addInitScript(() => {
         sessionStorage.setItem('ls_splashed', '1');
         localStorage.setItem('lumina_locale', 'ko-KR');
@@ -123,11 +128,12 @@ test('public discovery works at desktop and mobile widths and captures verified 
       assert.equal(await page.locator('#ottCatalog').isVisible(), true);
       assert.match(await page.locator('#ottCatalogRoot').innerText(), /지금 공개된 선택극장 작품이 없습니다/);
       if (width === 390) {
-        await page.route('**/api/v1/ott', (route) => route.fulfill({ status: 503 }));
+        await page.unroute(catalogApi);
+        await page.route(catalogApi, (route) => route.fulfill({ status: 503 }));
         await page.reload({ waitUntil: 'networkidle' });
         assert.match(await page.locator('#ottCatalogRoot').innerText(), /작품 목록을 불러오지 못했습니다/);
-        await page.unroute('**/api/v1/ott');
-        await page.route('**/api/v1/ott', (route) => route.fulfill({
+        await page.unroute(catalogApi);
+        await page.route(catalogApi, (route) => route.fulfill({
           status: 200,
           contentType: 'application/json',
           body: JSON.stringify({ items: [{ title: { ko: '공개 시연' }, synopsis: { ko: '줄거리' }, creatorName: { ko: '제작자' }, publishedAt: '2026-09-25T00:00:00Z' }] }),
@@ -136,7 +142,8 @@ test('public discovery works at desktop and mobile widths and captures verified 
         assert.equal(await page.locator('.ott-card h3').innerText(), '공개 시연');
         await page.locator('.ott-detail-button').click();
         assert.match(await page.locator('.ott-boundary').innerText(), /감상 이용은 제공되지 않습니다/);
-        await page.unroute('**/api/v1/ott');
+        await page.unroute(catalogApi);
+        await page.route(catalogApi, emptyCatalog);
         await page.reload({ waitUntil: 'networkidle' });
         await page.evaluate(() => scrollTo(0, 0));
       }
@@ -167,6 +174,7 @@ test('public discovery works at desktop and mobile widths and captures verified 
     }
 
     const page = await browser.newPage({ viewport: { width: 400, height: 844 }, isMobile: true, hasTouch: true });
+    await page.route(catalogApi, emptyCatalog);
     await page.addInitScript(() => {
       window.__ottOrientation = { locks: [], unlocks: 0 };
       Object.defineProperty(screen.orientation, 'lock', { configurable: true, value: async (value) => { window.__ottOrientation.locks.push(value); } });
@@ -235,6 +243,7 @@ test('public discovery works at desktop and mobile widths and captures verified 
     await page.close();
 
     const fallbackPage = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+    await fallbackPage.route(catalogApi, emptyCatalog);
     await fallbackPage.goto(`${base}/ott`, { waitUntil: 'domcontentloaded' });
     await fallbackPage.evaluate(() => {
       Object.defineProperty(document.querySelector('.ott-video-wrap'), 'requestFullscreen', { value: undefined });
