@@ -125,8 +125,7 @@ test('public discovery works at desktop and mobile widths and captures verified 
         }
         await page.evaluate(() => window.luminaI18n.setLocale('ko-KR'));
       }
-      assert.equal(await page.locator('#ottCatalog').isVisible(), true);
-      assert.match(await page.locator('#ottCatalogRoot').innerText(), /지금 공개된 선택극장 작품이 없습니다/);
+      assert.equal(await page.locator('#ottCatalog').isVisible(), false);
       if (width === 390) {
         await page.unroute(catalogApi);
         await page.route(catalogApi, (route) => route.fulfill({ status: 503 }));

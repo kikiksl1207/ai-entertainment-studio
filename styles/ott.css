@@ -101,7 +101,7 @@
   .ott-player-controls { gap: 4px; padding: 6px; }
   .ott-player-controls button { width: 30px; height: 30px; padding: 5px; }
   .ott-time { min-width: 70px; font-size: 11px; }
-  .ott-choice-overlay { padding: 8px; }
+  .ott-choice-overlay { align-items: center; padding: 8px; }
   .ott-choice-content { margin-bottom: 0; }
   .ott-choice-content > p { margin-bottom: 6px; font-size: 13px; }
   .ott-choice-list { gap: 5px; }

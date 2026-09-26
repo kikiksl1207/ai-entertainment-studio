@@ -303,11 +303,11 @@
   }
 
   function render(items) {
-    catalog.hidden = false;
     if (!items.length) {
-      status(tr("emptyTitle"), tr("emptyBody"));
+      catalog.hidden = true;
       return;
     }
+    catalog.hidden = false;
     root.innerHTML = `<div class="ott-grid">${items.map((item) => `<article class="ott-card">
       <div class="ott-card-art" aria-hidden="true">LUMINA STAGE</div>
       <div class="ott-card-body"><h3>${escapeHtml(text(item.title))}</h3><p>${escapeHtml(text(item.synopsis))}</p>
@@ -321,12 +321,12 @@
   }
 
   async function load() {
-    catalog.hidden = false;
-    status(tr("loading"));
+    catalog.hidden = true;
     try {
       const payload = await apiFetch("/api/v1/ott", { throwOnError: true });
       render(Array.isArray(payload?.items) ? payload.items : []);
     } catch {
+      catalog.hidden = false;
       status(tr("errorTitle"), tr("errorBody"));
     }
   }
