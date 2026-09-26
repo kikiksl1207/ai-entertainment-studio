@@ -179,7 +179,7 @@ export class ArtistsService {
         id: artistAsset.asset.id,
         usageType: artistAsset.usageType,
         assetType: artistAsset.asset.assetType,
-        url: this.assetUrl(artistAsset.asset.storageKey),
+        url: this.assetUrl(artistAsset.asset.storageKey, artistAsset.asset.storageProvider),
         mimeType: artistAsset.asset.mimeType,
         width: artistAsset.asset.width,
         height: artistAsset.asset.height,
@@ -230,6 +230,7 @@ export class ArtistsService {
         sortOrder: number;
         asset: {
           id: string;
+          storageProvider: string;
           storageKey: string;
           metadata: unknown;
         };
@@ -260,9 +261,9 @@ export class ArtistsService {
         this.stringFromUnknown(profileFacts.publicTagline) ?? artist.publicProfile?.tagline ?? null,
       fandomCandidate: this.stringFromUnknown(profileFacts.fandomNameCandidate),
       characterType: this.stringFromUnknown(profileFacts.characterType),
-      thumbnailUrl: thumb ? this.assetUrl(thumb.asset.storageKey) : null,
-      thumbUrl: thumb ? this.assetUrl(thumb.asset.storageKey) : null,
-      coverUrl: cover ? this.assetUrl(cover.asset.storageKey) : null,
+      thumbnailUrl: thumb ? this.assetUrl(thumb.asset.storageKey, thumb.asset.storageProvider) : null,
+      thumbUrl: thumb ? this.assetUrl(thumb.asset.storageKey, thumb.asset.storageProvider) : null,
+      coverUrl: cover ? this.assetUrl(cover.asset.storageKey, cover.asset.storageProvider) : null,
       galleryCount,
       imageBaselineNote: this.stringFromUnknown(profileFacts.imageBaselineNote),
       metadata: {
@@ -283,7 +284,14 @@ export class ArtistsService {
     };
   }
 
-  private assetUrl(storageKey: string) {
+  private assetUrl(storageKey: string, storageProvider: string) {
+    if (storageProvider === 'local' && /^assets\/characters\/[a-z0-9-]+\/[a-zA-Z0-9_./-]+$/.test(storageKey) &&
+        !storageKey.includes('..')) {
+      const base = this.configService.get<string>('FRONTEND_PUBLIC_BASE_URL') ??
+        this.configService.get<string>('WEB_PUBLIC_BASE_URL') ??
+        'https://www.lumina-stage.com';
+      return `${base.replace(/\/+$/, '')}/${storageKey}`;
+    }
     return buildPublicAssetUrl(this.configService, storageKey);
   }
 

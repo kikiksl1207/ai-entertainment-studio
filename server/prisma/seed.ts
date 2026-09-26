@@ -461,6 +461,19 @@ async function main() {
   }
 
   for (const artist of artistsToSeed) {
+    const existing = await prisma.artist.findUnique({
+      where: { slug: artist.slug }, include: { publicProfile: true },
+    });
+    const existingMetadata = existing?.publicProfile?.publicMetadata;
+    if (existing && existingMetadata && typeof existingMetadata === 'object' &&
+        !Array.isArray(existingMetadata) &&
+        existingMetadata.approvedRelease === 'approved-public-artists-2026-09-27') {
+      if (existing.status === 'active') {
+        artistBySlug.set(artist.slug, existing);
+      }
+      console.log(`Preserving approved public artist release: ${artist.slug}`);
+      continue;
+    }
     const status = seedArtistStatus(artist.slug);
     const row = await prisma.artist.upsert({
       where: { slug: artist.slug },
