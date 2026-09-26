@@ -34,7 +34,16 @@ class Element {
   constructor(tag = 'div') {
     this.tagName = tag.toUpperCase(); this.hidden = false; this.disabled = false; this.value = '';
     this.dataset = {}; this.children = []; this.parent = null; this.listeners = {}; this.attributes = {};
-    this.ownText = ''; this.classList = { add() {}, remove() {}, toggle() {}, contains: () => false };
+    this.ownText = '';
+    const classes = new Set();
+    this.classList = {
+      add: name => classes.add(name), remove: name => classes.delete(name), contains: name => classes.has(name),
+      toggle: (name, force) => {
+        const enabled = force === undefined ? !classes.has(name) : force;
+        if (enabled) classes.add(name); else classes.delete(name);
+        return enabled;
+      }
+    };
   }
   get isConnected() { return this.root || Boolean(this.parent?.isConnected); }
   get textContent() { return this.ownText + this.children.map(child => child.textContent).join(''); }
@@ -44,6 +53,7 @@ class Element {
   setAttribute(key, value) { this.attributes[key] = String(value); }
   removeAttribute(key) { delete this.attributes[key]; }
   addEventListener(type, handler) { (this.listeners[type] ||= []).push(handler); }
+  focus() {}
   async fire(type = 'click') { if (!this.disabled) for (const handler of this.listeners[type] || []) await handler({ target: this }); }
 }
 
@@ -51,6 +61,7 @@ export function createHarness({ job = makeJob(), rows = [makeEvidence()], storag
   const analysisIds = ['writerAnalysis', ...['Version', 'State', 'Progress', 'Counts', 'Start', 'Check', 'Boundary', 'Evidence', 'Pages', 'Previous', 'Next', 'PageCount'].map(name => 'writerAnalysis' + name)];
   const generationIds = ['Entry', 'ReviewOpen', 'ReviewState', 'Modal', 'Eyebrow', 'Title', 'Intro', 'Status', 'Sections', 'Close', 'Cancel', 'Save', 'Approve'].map(name => 'writerGeneration' + name);
   const elements = Object.fromEntries([...analysisIds, ...generationIds, 'writerManuscriptBody'].map(id => [id, new Element()]));
+  elements.writerGenerationModal.classList.add('is-hidden');
   Object.values(elements).forEach(element => { element.root = true; });
   let identity = { ownerId: 'fixture-owner', epoch: 1 };
   let selected = { workId: ids.work, sourceLocale: 'ko' };
@@ -93,10 +104,10 @@ export function createHarness({ job = makeJob(), rows = [makeEvidence()], storag
     runPoll: async () => { const match = [...timers].find(([, value]) => value.ms >= 2500 && value.ms < 12000);
       if (match) { timers.delete(match[0]); await match[1].fn(); } await screen.flush(); },
     flush: async () => { for (let i = 0; i < 4; i++) await new Promise(resolve => setImmediate(resolve)); },
-    receive: () => window.LuminaCreatorAnalysis.receive(receiptValue())
+    receive: (options, value = receiptValue()) => window.LuminaCreatorAnalysis.receive(value, options)
   };
   vm.runInNewContext(script, { window, document, sessionStorage: { getItem: key => storage.get(key) || null, setItem: (key, value) => storage.set(key, value) },
-    crypto: { randomUUID }, URLSearchParams, AbortController, queueMicrotask,
+    crypto: { randomUUID }, URLSearchParams, AbortController, queueMicrotask, structuredClone,
     setTimeout: (fn, ms) => { timers.set(++timerId, { fn, ms }); return timerId; }, clearTimeout: id => timers.delete(id),
     setInterval: fn => { intervals.set(++timerId, fn); return timerId; } }, { filename: 'creator-analysis-review.js' });
   return screen;

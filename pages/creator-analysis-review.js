@@ -144,7 +144,13 @@
     } catch (_) {}
     return null;
   }
-  function receive(value) {
+  function receive(value, { fromSubmit = false } = {}) {
+    if (receipt?.id === value?.id && value.workId === scope?.workId &&
+        value.sourceLocale === scope?.sourceLocale && api.isCurrent(value.identity) &&
+        sameContext(scope, context()) && api.isCurrent(scope.identity)) {
+      if (fromSubmit) start();
+      return;
+    }
     invalidate();
     scope = context();
     if (!scope.identity.ownerId || !uuid.test(value?.id || "") || value.workId !== scope.workId ||
@@ -156,6 +162,7 @@
     phase = analysisId ? "loading" : requestKey ? "unknown" : "ready";
     render();
     if (analysisId) loadPage(null, 0);
+    else if (fromSubmit) start();
   }
   function contextChanged() {
     const next = context();

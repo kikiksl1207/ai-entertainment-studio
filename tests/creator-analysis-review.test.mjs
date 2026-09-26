@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { createHarness, makeJob, makeEvidence, response, failure, deferred, element, click, evidenceItems,
   ids, citation, quoteText, script } from './creator-analysis-review.test-support.mjs';
 
-test('verified receipt requires explicit start and double activation sends one retained-key POST', async () => {
+test('restored receipt stays idle; fresh submit and double activation send one retained-key POST', async () => {
   const gate = deferred();
   const screen = createHarness({ handler: (call, route, screen) => {
     if (call.options.method === 'POST') {
@@ -15,15 +15,48 @@ test('verified receipt requires explicit start and double activation sends one r
   } });
   assert.equal(screen.calls.length, 0);
   assert.equal(element(screen, 'Start').hidden, false);
-  const pending = click(screen, 'Start');
+  screen.receive({ fromSubmit: true });
+  screen.receive({ fromSubmit: true });
   await click(screen, 'Start');
   assert.equal(screen.posts().length, 1);
-  gate.resolve(response(makeJob())); await pending;
+  gate.resolve(response(makeJob())); await screen.flush();
   assert.equal(screen.calls.filter(call => call.path.includes(`/analyses/${ids.job}`)).length, 1);
   assert.equal(screen.posts()[0].path, `/api/v1/me/creator-studio/manuscripts/${ids.manuscript}/analyses`);
   assert.equal(screen.posts()[0].options.body, undefined);
   assert.match(element(screen, 'State').textContent, /writerAnalysis.completed/);
   assert.equal(evidenceItems(screen).length, 1);
+});
+
+test('submit replay after reload reuses the unknown key, while known jobs resume by GET', async () => {
+  const storage = new Map();
+  const first = createHarness({ storage, handler: () => { throw new Error('lost acknowledgement'); } });
+  first.receive({ fromSubmit: true }); await first.flush();
+  const key = first.posts()[0].options.headers['Idempotency-Key'];
+  const replay = createHarness({ storage, receipt: false });
+  assert.equal(replay.posts().length, 0);
+  replay.receive({ fromSubmit: true }); await replay.flush();
+  assert.equal(replay.posts().length, 1);
+  assert.equal(replay.posts()[0].options.headers['Idempotency-Key'], key);
+  const known = createHarness({ storage, receipt: false });
+  known.receive({ fromSubmit: true }); await known.flush();
+  assert.equal(known.posts().length, 0);
+  assert.ok(known.calls.some(call => call.path.includes(`/analyses/${ids.job}`)));
+});
+
+test('stale submit receipts cannot enqueue for another owner, work or source locale', async () => {
+  for (const change of [
+    screen => screen.setIdentity({ ownerId: 'other-owner', epoch: 2 }),
+    screen => screen.setContext({ workId: ids.job }),
+    screen => screen.setContext({ sourceLocale: 'ja' })
+  ]) {
+    const screen = createHarness({ receipt: false });
+    const stale = { id: ids.manuscript, workId: ids.work, sourceLocale: 'ko',
+      identity: { ownerId: 'fixture-owner', epoch: 1 } };
+    change(screen);
+    screen.receive({ fromSubmit: true }, stale); await screen.flush();
+    assert.equal(screen.posts().length, 0);
+    assert.equal(screen.elements.writerAnalysis.hidden, true);
+  }
 });
 
 test('unknown enqueue replays the original key after local reload without reupload or discovery guess', async () => {

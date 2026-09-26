@@ -25,6 +25,7 @@
   let writerSubmitting = false;
   let writerSubmitted = false;
   let writerReceipt = null;
+  let writerUiLocaleEpoch = 0;
   let studioAuthMarker = null;
   let studioAuthEpoch = 0;
   let artistIdentityResponse = null;
@@ -1620,12 +1621,14 @@
     const formData = new FormData();
     formData.append("manuscript", new Blob([review.bytes], { type: "text/plain" }), "manuscript.txt");
     formData.append("manifest", JSON.stringify(review.manifest));
+    const uiLocaleEpoch = writerUiLocaleEpoch;
     setWriterSubmitting(true);
     writerFeedback = { key: "submitting", tone: "" };
     writerSourceChanged();
     try {
       const response = await fetchWriterPaste(review.workId, formData, { identity: review.identity });
       if (!writerMatchesReview(review)) return;
+      if (uiLocaleEpoch !== writerUiLocaleEpoch) return;
       if (!response) {
         writerFeedback = { key: "authRequired", tone: "danger" };
       } else if (!response.ok) {
@@ -1635,6 +1638,7 @@
       } else {
         const receipt = await response.json().catch(() => null);
         if (!writerMatchesReview(review)) return;
+        if (uiLocaleEpoch !== writerUiLocaleEpoch) return;
         if (receipt?.manuscript?.workId !== review.workId || receipt.manuscript.locale !== review.locale ||
             !/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(receipt.manuscript.id || "") ||
             !/^[0-9a-f]{64}$/i.test(receipt.manuscript.contentHash || "") ||
@@ -1656,7 +1660,7 @@
             values: { version: receipt.manuscript.version, count: receipt.received.parts,
               bytes: receipt.received.byteLength.toLocaleString() }
           };
-          window.LuminaCreatorAnalysis?.receive?.(writerReceipt);
+          window.LuminaCreatorAnalysis?.receive?.(writerReceipt, { fromSubmit: true });
         }
       }
     } catch (_) {
@@ -2188,6 +2192,8 @@
   document.getElementById("writerManuscriptSubmit")?.addEventListener("click", submitWriterManuscript);
   document.getElementById("writerManuscriptClear")?.addEventListener("click", clearWriterManuscript);
   window.addEventListener("lumina:localechange", () => {
+    writerUiLocaleEpoch++;
+    if (writerSubmitting) invalidateWriterReview();
     renderWriterParts();
     if (!document.getElementById("writerManuscriptWork")?.disabled) writerSourceChanged();
     syncWriterSubmit();

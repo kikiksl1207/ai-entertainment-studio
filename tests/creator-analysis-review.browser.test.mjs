@@ -17,7 +17,8 @@ let browser;
 before(async () => { browser = await chromium.launch({ executablePath: process.env.STORY_UI_BROWSER, headless: true }); });
 after(async () => { await browser?.close(); });
 
-async function fixture({ locale = 'en-US', width = 390, rows = [makeEvidence(0, { observation: longObservation })], hook } = {}) {
+async function fixture({ locale = 'en-US', width = 390, rows = [makeEvidence(0, { observation: longObservation })], hook,
+  submit = true, expectAnalysis = true } = {}) {
   const context = await browser.newContext({ viewport: { width, height: width > 400 ? 900 : 844 }, serviceWorkers: 'block' });
   await context.addInitScript(({ origin, locale }) => {
     window.LUMINA_API_BASE = origin;
@@ -80,17 +81,16 @@ async function fixture({ locale = 'en-US', width = 390, rows = [makeEvidence(0, 
   await page.locator('#writerManuscriptParts input[maxlength="240"]').fill('Local fixture part');
   await page.locator('#writerManuscriptReview').click();
   await page.locator('#writerManuscriptConfirm').check();
-  await page.locator('#writerManuscriptSubmit').click();
-  await page.locator('#writerAnalysisStart').waitFor({ state: 'visible' });
+  if (submit) await page.locator('#writerManuscriptSubmit').click();
+  if (submit && expectAnalysis) await page.locator('#writerAnalysis').waitFor({ state: 'visible' });
   return { page, calls, errors, unexpectedWrites, close: () => context.close(),
-    start: async () => { await page.locator('#writerAnalysisStart').click(); await page.locator('.writer-analysis-item').first().waitFor(); } };
+    ready: async () => page.locator('.writer-analysis-item').first().waitFor() };
 }
 
-test('analysis browser functional: actual paste receipt then explicit one analysis request and source quotation', async () => {
+test('analysis browser functional: actual paste receipt automatically enqueues once and source quotation stays private', async () => {
   const f = await fixture();
   try {
-    assert.equal(f.calls.filter(call => call.path.endsWith('/analyses')).length, 0);
-    await f.start();
+    await f.ready();
     assert.equal(f.calls.filter(call => call.method === 'POST' && call.path.endsWith('/analyses')).length, 1);
     await f.page.locator('.writer-analysis-item button').click();
     await f.page.locator('blockquote').waitFor();
@@ -101,11 +101,92 @@ test('analysis browser functional: actual paste receipt then explicit one analys
   } finally { await f.close(); }
 });
 
+test('analysis browser functional: failed upload cannot enqueue', async () => {
+  const f = await fixture({ expectAnalysis: false, hook: call => call.path.endsWith('/manuscripts/paste') ?
+    { status: 500, body: { error: { code: 'UPLOAD_FAILED' } } } : null });
+  try {
+    await f.page.waitForFunction(() => !document.getElementById('writerManuscriptSubmit').disabled);
+    assert.equal(f.calls.filter(call => call.method === 'POST' && call.path.endsWith('/analyses')).length, 0);
+    assert.equal(await f.page.locator('#writerAnalysis').isVisible(), false);
+    assert.deepEqual(f.errors, []);
+  } finally { await f.close(); }
+});
+
+test('analysis browser functional: double submit click enqueues once', async () => {
+  const pasteSeen = deferred(), releasePaste = deferred();
+  const f = await fixture({ submit: false, hook: async call => {
+    if (call.path.endsWith('/manuscripts/paste')) { pasteSeen.resolve(); await releasePaste.promise; }
+  } });
+  try {
+    await f.page.evaluate(() => { const button = document.getElementById('writerManuscriptSubmit'); button.click(); button.click(); });
+    await pasteSeen.promise;
+    assert.equal(f.calls.filter(call => call.method === 'POST' && call.path.endsWith('/manuscripts/paste')).length, 1);
+    releasePaste.resolve(); await f.ready();
+    assert.equal(f.calls.filter(call => call.method === 'POST' && call.path.endsWith('/analyses')).length, 1);
+    assert.deepEqual(f.unexpectedWrites, []);
+  } finally { releasePaste.resolve(); await f.close(); }
+});
+
+test('analysis browser functional: UI locale change during upload ignores late receipt', async () => {
+  const pasteSeen = deferred(), releasePaste = deferred();
+  const f = await fixture({ submit: false, hook: async call => {
+    if (call.path.endsWith('/manuscripts/paste')) { pasteSeen.resolve(); await releasePaste.promise; }
+  } });
+  try {
+    await f.page.locator('#writerManuscriptSubmit').click(); await pasteSeen.promise;
+    await f.page.evaluate(() => window.dispatchEvent(new Event('lumina:localechange')));
+    releasePaste.resolve();
+    await f.page.waitForFunction(() => !Object.hasOwn(document.getElementById('writerManuscriptSubmit').dataset, 'writerWasDisabled'));
+    assert.equal(f.calls.filter(call => call.method === 'POST' && call.path.endsWith('/analyses')).length, 0);
+    assert.equal(await f.page.locator('#writerAnalysis').isVisible(), false);
+    assert.deepEqual(f.errors, []);
+  } finally { releasePaste.resolve(); await f.close(); }
+});
+
+test('analysis browser functional: reload restores a known job by GET without a second enqueue', async () => {
+  const f = await fixture();
+  try {
+    await f.ready();
+    await f.page.goto(origin + '/creator-studio/?reload=1#writer-manuscript');
+    await f.page.waitForFunction(() => window.LuminaCreatorAnalysis && !document.getElementById('writerManuscriptWork').disabled);
+    await f.page.locator('#writerManuscriptWork').selectOption(ids.work);
+    await f.ready();
+    assert.equal(f.calls.filter(call => call.method === 'POST' && call.path.endsWith('/analyses')).length, 1);
+    assert.equal(f.calls.filter(call => call.method === 'GET' && call.path.endsWith(`/analyses/${ids.job}`)).length >= 2, true);
+    assert.deepEqual(f.unexpectedWrites, []);
+  } finally { await f.close(); }
+});
+
+for (const [name, change] of [
+  ['account', () => {
+    localStorage.setItem('lumina_auth', JSON.stringify({ accessToken: 'other-token', user: { id: 'other-owner' } }));
+    window.dispatchEvent(new StorageEvent('storage', { key: 'lumina_auth' }));
+  }],
+  ['work', () => { const select = document.getElementById('writerManuscriptWork'); select.value = ''; select.dispatchEvent(new Event('change')); }],
+  ['source locale', () => { const select = document.getElementById('writerManuscriptLocale'); select.value = 'ja'; select.dispatchEvent(new Event('change')); }]
+]) {
+  test(`analysis browser functional: ${name} change during upload ignores late receipt`, async () => {
+    const pasteSeen = deferred(), releasePaste = deferred();
+    const f = await fixture({ submit: false, hook: async call => {
+      if (call.path.endsWith('/manuscripts/paste')) { pasteSeen.resolve(); await releasePaste.promise; }
+    } });
+    try {
+      await f.page.locator('#writerManuscriptSubmit').click(); await pasteSeen.promise;
+      await f.page.evaluate(change);
+      releasePaste.resolve();
+      await f.page.waitForFunction(() => !Object.hasOwn(document.getElementById('writerManuscriptSubmit').dataset, 'writerWasDisabled'));
+      assert.equal(f.calls.filter(call => call.method === 'POST' && call.path.endsWith('/analyses')).length, 0);
+      assert.equal(await f.page.locator('#writerAnalysis').isVisible(), false);
+      assert.deepEqual(f.errors, []);
+    } finally { releasePaste.resolve(); await f.close(); }
+  });
+}
+
 test('analysis browser functional: full cursor traversal and reread do not enqueue or approve again', async () => {
   const rows = Array.from({ length: 205 }, (_, index) => makeEvidence(index));
   const f = await fixture({ width: 400, rows });
   try {
-    await f.start();
+    await f.ready();
     await f.page.locator('#writerAnalysisNext').click();
     await f.page.locator('.writer-analysis-item h3').first().filter({ hasText: 'Local fixture 101' }).waitFor();
     await f.page.locator('#writerAnalysisNext').click();
@@ -125,7 +206,6 @@ test('analysis browser functional: unknown response keeps original key; nested r
     if (call.method === 'POST' && call.path.endsWith('/analyses') && !dropped) { dropped = true; return { abort: true }; }
   } });
   try {
-    await f.page.locator('#writerAnalysisStart').click();
     await f.page.waitForFunction(() => !document.getElementById('writerAnalysisCheck').hidden && !document.getElementById('writerAnalysisCheck').disabled);
     await f.page.locator('#writerAnalysisCheck').click();
     await f.page.locator('.writer-analysis-item').waitFor();
@@ -136,7 +216,6 @@ test('analysis browser functional: unknown response keeps original key; nested r
   const reserved = await fixture({ hook: call => call.method === 'POST' && call.path.endsWith('/analyses') ?
     { status: 409, body: { success: false, error: { code: 'ANALYSIS_VERSION_ALREADY_RESERVED', message: 'Private diagnostic' } } } : null });
   try {
-    await reserved.page.locator('#writerAnalysisStart').click();
     await reserved.page.waitForFunction(() => document.getElementById('writerAnalysisState').textContent.includes('already has an analysis request'));
     assert.equal(await reserved.page.locator('#writerAnalysisCheck').isVisible(), false);
     assert.equal(reserved.calls.filter(call => /\/analyses\//.test(call.path)).length, 0);
@@ -148,7 +227,7 @@ test('analysis browser functional: late private source cannot repaint after acco
   const gate = deferred();
   const f = await fixture({ hook: async call => { if (call.path.endsWith('/source')) { await gate.promise; return null; } } });
   try {
-    await f.start(); await f.page.locator('.writer-analysis-item button').click();
+    await f.ready(); await f.page.locator('.writer-analysis-item button').click();
     await f.page.evaluate(() => {
       localStorage.setItem('lumina_auth', JSON.stringify({ accessToken: 'new-fixture-token', user: { id: 'other-owner' } }));
       window.dispatchEvent(new StorageEvent('storage', { key: 'lumina_auth' }));
@@ -164,7 +243,7 @@ for (const locale of ['ko-KR', 'en-US', 'ja-JP', 'zh-CN', 'zh-Hant']) for (const
     assert.match(artifacts || '', /^E:[/\\]/i, 'explicit E artifact directory required');
     const f = await fixture({ locale, width });
     try {
-      await f.start();
+      await f.ready();
       assert.equal(await f.page.locator('.writer-analysis-item > p').last().textContent(), longObservation);
       await f.page.locator('.writer-analysis-item button').click();
       await f.page.locator('blockquote').waitFor();
