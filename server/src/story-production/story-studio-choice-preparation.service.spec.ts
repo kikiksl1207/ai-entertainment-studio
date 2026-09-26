@@ -37,6 +37,7 @@ function fixture() {
     storyBeat: { findMany: jest.fn().mockResolvedValue([{ content: { ko: '첫 문장. 마지막 문장.' } }]) },
     storyChoice: { findMany: jest.fn().mockImplementation(async () => choices),
       createMany: jest.fn(async ({ data }) => { choices.push(...data); return { count: data.length }; }) },
+    storyStudioChoiceJob: { findUnique: jest.fn().mockResolvedValue(null) },
     auditEvent: { create: jest.fn(async ({ data }) => { evidence = data; return data; }),
       findFirst: jest.fn(async () => evidence) },
     $queryRaw: jest.fn().mockResolvedValue([]),
@@ -82,6 +83,18 @@ describe('Studio authored choice preparation', () => {
       .rejects.toMatchObject({ response: { code: 'STUDIO_CHOICES_GENERATION_FAILED' } });
     expect(f.db.$transaction).not.toHaveBeenCalled();
     expect(f.db.storyChoice.createMany).not.toHaveBeenCalled();
+  });
+
+  it('blocks legacy scene-by-scene calls while a durable background job owns the release', async () => {
+    const f = fixture();
+    const leaseToken = randomUUID();
+    f.db.storyStudioChoiceJob.findUnique.mockResolvedValue({ status: 'processing', leaseToken,
+      leaseExpiresAt: new Date(Date.now() + 60_000) });
+    await expect(f.service.prepare(f.ids.owner, f.ids.work, f.ids.release, f.ids.scene))
+      .rejects.toMatchObject({ response: { code: 'STUDIO_CHOICES_BACKGROUND_JOB_ACTIVE' } });
+    expect(f.provider.generate).not.toHaveBeenCalled();
+    await expect(f.service.prepare(f.ids.owner, f.ids.work, f.ids.release, f.ids.scene, leaseToken))
+      .resolves.toMatchObject({ choiceCount: 3 });
   });
 
   it('rejects a changed manuscript between generation and storage', async () => {

@@ -21,6 +21,7 @@ function fixture() {
     validationSummary: { ready: false } };
   const partRows: any[] = []; const sceneRows: any[] = []; const beatRows: any[] = []; const choiceRows: any[] = [];
   let storedRelease: any = null;
+  let choiceJob: any = null;
   const db: any = {
     storyWork: { findFirst: jest.fn().mockResolvedValue(work) },
     storyManuscriptVersion: { findFirst: jest.fn().mockResolvedValue(manuscript) },
@@ -44,6 +45,9 @@ function fixture() {
     storyBeat: { createMany: jest.fn(async ({ data }) => { beatRows.push(...data); return { count: data.length }; }) },
     storyChoice: { createMany: jest.fn(async ({ data }) => { choiceRows.push(...data); return { count: data.length }; }),
       findMany: jest.fn(async ({ where }) => choiceRows.filter(row => row.sceneId === where.sceneId)) },
+    storyStudioChoiceJob: { findUnique: jest.fn(async () => choiceJob),
+      create: jest.fn(async ({ data }) => { choiceJob = { ...data, status: 'queued', completedParts: 0 }; return choiceJob; }),
+      upsert: jest.fn(async ({ create }) => { choiceJob ??= { ...create, status: 'queued', completedParts: 0 }; return choiceJob; }) },
     auditEvent: { create: jest.fn().mockResolvedValue({}) },
     $queryRaw: jest.fn().mockResolvedValue([]),
     $transaction: jest.fn(async (run: (tx: unknown) => Promise<unknown>) => run(db)),
@@ -83,6 +87,8 @@ describe('generic Studio linear manuscript materialization', () => {
     expect(f.db.storyRelease.create).toHaveBeenCalledWith({ data: expect.objectContaining({
       validationSummary: expect.objectContaining({ ready: false }) }) });
     expect(f.choiceRows).toHaveLength(2);
+    expect(f.db.storyStudioChoiceJob.create).toHaveBeenCalledWith({ data: expect.objectContaining({
+      releaseId: result.releaseId, totalParts: 2 }) });
   });
 
   it('rejects missing review, consent, changed source and unconfirmed routes without creating scenes', async () => {
@@ -133,6 +139,7 @@ describe('generic Studio linear manuscript materialization', () => {
     expect(replay).toMatchObject({ releaseId: first.releaseId, idempotentReplay: true });
     expect(f.db.storyPart.createMany).toHaveBeenCalledTimes(1);
     expect(f.db.storyChoice.createMany).toHaveBeenCalledTimes(1);
+    expect(f.db.storyStudioChoiceJob.upsert).toHaveBeenCalledTimes(1);
     await expect(f.service.materialize(f.ids.owner, f.ids.work, { ...f.body,
       originalRoutes: [{ ...f.body.originalRoutes[0], label: '다른 길을 간다' }, f.body.originalRoutes[1]] }))
       .rejects.toMatchObject({ response: { code: 'STUDIO_LINEAR_EXISTING_RELEASE_CONFLICT' } });

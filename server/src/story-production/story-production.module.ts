@@ -69,6 +69,7 @@ import { StoryStudioChoicePreparationController } from './story-studio-choice-pr
 import { StoryStudioChoicePreparationService } from './story-studio-choice-preparation.service';
 import { StoryStudioLinearController } from './story-studio-linear.controller';
 import { StoryStudioLinearService } from './story-studio-linear.service';
+import { StoryStudioChoiceJobService } from './story-studio-choice-job.service';
 
 @Module({
   imports: [ModerationModule, StoryUploadModule],
@@ -104,6 +105,7 @@ import { StoryStudioLinearService } from './story-studio-linear.service';
     StoryAuthoredImportService,
     StoryAuthorFinalReviewService,
     StoryStudioChoicePreparationService,
+    StoryStudioChoiceJobService,
     StoryStudioLinearService,
     StoryAuthoredImportMultipartInterceptor,
     StoryProductionService,

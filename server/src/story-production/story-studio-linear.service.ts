@@ -89,6 +89,8 @@ export class StoryStudioLinearService {
     const release = await this.prisma.storyRelease.findFirst({ where: { workId, manuscriptVersionId,
       status: 'candidate' }, orderBy: { version: 'desc' } });
     const scenes = release ? await this.scenes(this.prisma, workId) : [];
+    const choiceJob = release ? await this.prisma.storyStudioChoiceJob.findUnique({ where: { releaseId: release.id },
+      select: { status: true, totalParts: true, completedParts: true, errorCode: true } }) : null;
     return { manuscriptVersionId, manuscriptHash: manuscript.contentHash, analysisJobId: analysis?.id ?? null,
       review: review ? { reviewId: review.id, state: review.state, revision: review.revision } : null,
       consent: consent ? { revision: consent.revision, active: consent.status === 'active' && consent.rightsConfirmed &&
@@ -100,7 +102,7 @@ export class StoryStudioLinearService {
         endingExcerpt: part.paragraphs.map(row => row.text).join('').trim().slice(-300),
         nextPartTitle: prepared.parts[index + 1]?.title ?? null })),
       releaseId: release?.id ?? null, ready: (release?.validationSummary as Record<string, unknown> | undefined)?.ready === true,
-      scenes };
+      scenes, choiceJob };
   }
 
   async materialize(ownerUserId: string, workId: string, body: MaterializeStudioLinearDto) {
@@ -129,6 +131,10 @@ export class StoryStudioLinearService {
         if (scenes.length !== plan.length || scenes.some((scene, index) => scene.partKey !== plan[index].partKey)) {
           reject('STUDIO_LINEAR_EXISTING_GRAPH_CHANGED');
         }
+        await tx.storyStudioChoiceJob.upsert({ where: { releaseId: existing.id }, update: {}, create: {
+          ownerUserId, workId, releaseId: existing.id, manuscriptVersionId: manuscript.id,
+          totalParts: plan.length,
+        } });
         return { releaseId: existing.id, scenes, idempotentReplay: true };
       }
       if (await tx.storyPart.count({ where: { workId } }) ||
@@ -165,6 +171,8 @@ export class StoryStudioLinearService {
         routeKind: 'writer_original', targetSceneId: sceneRows[index + 1]?.id ?? null,
         targetEndingKey: index === plan.length - 1 ? 'author_main' : null,
       })) });
+      await tx.storyStudioChoiceJob.create({ data: { ownerUserId, workId, releaseId: release.id,
+        manuscriptVersionId: manuscript.id, totalParts: plan.length } });
       await tx.auditEvent.create({ data: { actorUserId: ownerUserId, actorType: 'user',
         action: 'story_studio_linear.private_materialized', targetType: 'story_work', targetId: workId,
         metadata: { releaseId: release.id, manuscriptHash: manuscript.contentHash,

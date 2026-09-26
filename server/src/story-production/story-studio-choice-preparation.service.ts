@@ -112,8 +112,10 @@ export class StoryStudioChoicePreparationService {
     return parts[0].status === 'draft' ? { partIds: parts.map(part => part.id), sceneIds } : undefined;
   }
 
-  async prepare(ownerUserId: string, workId: string, releaseId: string, sceneId: string) {
+  async prepare(ownerUserId: string, workId: string, releaseId: string, sceneId: string,
+    jobLeaseToken?: string) {
     if (![workId, releaseId, sceneId].every(id => isUUID(id))) fail('STUDIO_CHOICES_INVALID_ID');
+    await this.assertJobLease(this.prisma, releaseId, jobLeaseToken);
     const snapshot = await this.readiness(this.prisma, ownerUserId, workId, releaseId, sceneId);
     const provider = this.provider();
     let alternatives: [string, string];
@@ -135,6 +137,7 @@ export class StoryStudioChoicePreparationService {
       return await this.prisma.$transaction(async tx => {
       await tx.$queryRaw(Prisma.sql`SELECT id FROM story_scenes WHERE id = ${sceneId}::uuid FOR UPDATE`);
       await tx.$queryRaw(Prisma.sql`SELECT id FROM story_style_profile_consents WHERE work_id = ${workId}::uuid FOR SHARE`);
+      await this.assertJobLease(tx, releaseId, jobLeaseToken);
       const current = await this.readiness(tx, ownerUserId, workId, releaseId, sceneId);
       if (JSON.stringify(current) !== JSON.stringify(snapshot)) fail('STUDIO_CHOICES_SOURCE_CHANGED');
       const choices = await tx.storyChoice.findMany({ where: { sceneId }, orderBy: { position: 'asc' } });
@@ -165,6 +168,16 @@ export class StoryStudioChoicePreparationService {
     if (!apiKey) throw new ServiceUnavailableException({ code: 'STUDIO_CHOICES_PROVIDER_NOT_CONFIGURED' });
     return new StoryChoicePreparationProvider({ apiKey,
       model: process.env.STORY_CONTINUATION_OPENAI_MODEL || 'gpt-5.4-mini-2026-03-17' });
+  }
+
+  private async assertJobLease(db: PrismaService | Prisma.TransactionClient,
+    releaseId: string, leaseToken?: string) {
+    const job = await db.storyStudioChoiceJob.findUnique({ where: { releaseId },
+      select: { status: true, leaseToken: true, leaseExpiresAt: true } });
+    if (job && (job.status !== 'processing' || !leaseToken || job.leaseToken !== leaseToken ||
+        !job.leaseExpiresAt || job.leaseExpiresAt <= new Date())) {
+      fail('STUDIO_CHOICES_BACKGROUND_JOB_ACTIVE');
+    }
   }
 
   private async readiness(db: PrismaService | Prisma.TransactionClient, ownerUserId: string,

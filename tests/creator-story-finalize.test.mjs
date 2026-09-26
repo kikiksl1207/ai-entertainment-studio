@@ -30,14 +30,16 @@ class Element {
   }
 }
 
-function fixture({ failFirstChoice = false, finishNotReady = false, issues = [] } = {}) {
+function fixture({ missingJob = false, existingDraft = false, issues = [] } = {}) {
   const ids = ['writerFinalEntry', 'writerFinalModal', 'writerFinalParts', 'writerFinalIssues', 'writerFinalWarningsLabel', 'writerFinalState',
     'writerFinalEntryState', 'writerFinalPrepare', 'writerFinalOpen', 'writerFinalClose',
     'writerFinalCancel', 'writerFinalReviewed', 'writerFinalRights', 'writerFinalAi', 'writerFinalWarnings'];
   const elements = Object.fromEntries(ids.map(name => [name, new Element(name)]));
   const calls = [];
+  const intervals = [];
   let reviewState = 'analysis_ready'; let revision = 1; let ready = false;
-  let submitted = false; let consented = false; let materialized = false; let failed = false;
+  let submitted = existingDraft; let consented = existingDraft; let materialized = existingDraft;
+  let job = null;
   const scenes = [0, 1].map(index => ({ partKey: `p${index + 1}`, sceneId: `${index + 5}`.repeat(36).slice(0, 36),
     choiceCount: 1, originalLabel: `원래 길 ${index + 1}` }));
   const preview = () => ({ manuscriptVersionId: manuscriptId, manuscriptHash: 'a'.repeat(64),
@@ -45,7 +47,8 @@ function fixture({ failFirstChoice = false, finishNotReady = false, issues = [] 
     consent: consented ? { active: true, revision: 1 } : null,
     parts: [{ partKey: 'p1', title: '처음', endingExcerpt: '갈림길', nextPartTitle: '다음' },
       { partKey: 'p2', title: '다음', endingExcerpt: '결말', nextPartTitle: null }],
-    releaseId: materialized ? releaseId : null, scenes: materialized ? scenes : [], ready });
+    releaseId: materialized ? releaseId : null, scenes: materialized ? scenes : [], ready,
+    choiceJob: materialized ? job : null });
   const fetch = async (path, options = {}) => {
     calls.push({ path, ...options });
     let result;
@@ -58,18 +61,14 @@ function fixture({ failFirstChoice = false, finishNotReady = false, issues = [] 
     else if (path.endsWith('/style-consent')) { consented = true; result = { status: 'active' }; }
     else if (path.endsWith('/materialize')) {
       materialized = true;
+      if (!missingJob) job = { status: 'queued', totalParts: 2, completedParts: 0, errorCode: null };
       options.body.originalRoutes.forEach((route, index) => { scenes[index].originalLabel = route.label; });
       result = { releaseId, scenes };
     }
-    else if (path.endsWith('/prepare-choices')) {
-      if (failFirstChoice && !failed) {
-        failed = true;
-        return { ok: false, json: async () => ({ code: 'STUDIO_CHOICES_GENERATION_FAILED' }) };
-      }
-      scenes.find(scene => path.includes(scene.sceneId)).choiceCount = 3;
-      result = { choiceCount: 3 };
+    else if (path.endsWith('/retry-choices')) {
+      job = { ...job, status: 'queued', errorCode: null };
+      result = { releaseId, status: 'queued' };
     }
-    else if (path.endsWith('/finish')) { ready = !finishNotReady; result = { ready: true }; }
     else throw new Error(`unexpected ${path}`);
     return { ok: true, json: async () => result };
   };
@@ -77,8 +76,11 @@ function fixture({ failFirstChoice = false, finishNotReady = false, issues = [] 
   const window = { LuminaCreatorStudioApi: { fetch, isCurrent: () => true },
     LuminaCreatorAnalysis: { completed: () => ({ manuscriptVersionId: manuscriptId, workId: id,
       analysisJobId: analysisId, identity: { ownerId: id } }) }, addEventListener() {} };
-  vm.runInNewContext(script, { window, document, setInterval: () => 1, console });
-  return { elements, calls, scenes };
+  vm.runInNewContext(script, { window, document, setInterval: callback => { intervals.push(callback); return intervals.length; }, console });
+  return { elements, calls, scenes,
+    refresh: () => intervals[1](),
+    setJob: (status, completedParts = 0) => { job = { ...job, status, completedParts,
+      errorCode: status === 'failed' ? 'STUDIO_CHOICES_GENERATION_FAILED' : null }; if (status === 'completed') ready = true; } };
 }
 
 test('Studio final review prepares exactly two AI alternatives only after explicit author checks', async () => {
@@ -101,14 +103,15 @@ test('Studio final review prepares exactly two AI alternatives only after explic
   assert.equal(consent.body.rightsConfirmed, true);
   assert.equal(consent.body.aiBranchAllowed, true);
   assert.equal(consent.body.imageTransformationAllowed, false);
-  assert.equal(calls.filter(call => call.path.endsWith('/prepare-choices')).length, 2);
+  assert.equal(calls.filter(call => call.path.endsWith('/prepare-choices')).length, 0);
   assert.ok(calls.findIndex(call => call.path.endsWith('/submit')) < calls.findIndex(call => call.path.endsWith('/materialize')));
-  assert.ok(calls.findIndex(call => call.path.endsWith('/materialize')) < calls.findIndex(call => call.path.endsWith('/finish')));
-  assert.match(elements.writerFinalState.textContent, /선택지 3개/);
+  assert.equal(calls.some(call => call.path.endsWith('/finish')), false);
+  assert.match(elements.writerFinalState.textContent, /서버에서 AI 선택지를 준비/);
+  assert.equal(elements.writerFinalPrepare.disabled, true);
 });
 
-test('failed AI generation stays private and a second reviewed attempt resumes without resubmitting consent', async () => {
-  const { elements, calls, scenes } = fixture({ failFirstChoice: true });
+test('failed background choice preparation stays private and can be retried without resubmitting consent', async () => {
+  const { elements, calls, setJob } = fixture();
   await elements.writerFinalOpen.fire('click');
   const labels = elements.writerFinalParts.querySelectorAll('input[data-part-key]');
   labels[0].value = '첫 기록을 따라간다';
@@ -116,17 +119,16 @@ test('failed AI generation stays private and a second reviewed attempt resumes w
   for (const name of ['Reviewed', 'Rights', 'Ai', 'Warnings']) elements[`writerFinal${name}`].checked = true;
   await elements.writerFinalPrepare.fire('click');
   assert.equal(calls.some(call => call.path.endsWith('/finish')), false);
-  assert.match(elements.writerFinalState.textContent, /STUDIO_CHOICES_GENERATION_FAILED/);
-  assert.deepEqual(scenes.map(scene => scene.choiceCount), [1, 1]);
+  setJob('failed', 1);
   elements.writerFinalClose.fire('click');
   await elements.writerFinalOpen.fire('click');
-  assert.equal(elements.writerFinalParts.querySelectorAll('input[data-part-key]')[0].value, '첫 기록을 따라간다');
-  for (const name of ['Reviewed', 'Rights', 'Ai', 'Warnings']) elements[`writerFinal${name}`].checked = true;
+  assert.match(elements.writerFinalState.textContent, /1 \/ 2파트에서 멈췄습니다/);
+  assert.equal(elements.writerFinalPrepare.disabled, false);
   await elements.writerFinalPrepare.fire('click');
   assert.equal(calls.filter(call => call.path.endsWith('/submit')).length, 1);
   assert.equal(calls.filter(call => call.path.endsWith('/style-consent')).length, 1);
-  assert.equal(calls.filter(call => call.path.endsWith('/finish')).length, 1);
-  assert.deepEqual(scenes.map(scene => scene.choiceCount), [3, 3]);
+  assert.equal(calls.filter(call => call.path.endsWith('/retry-choices')).length, 1);
+  assert.match(elements.writerFinalState.textContent, /서버에서 AI 선택지를 준비/);
 });
 
 test('unresolved critical continuity finding blocks the author approval button', async () => {
@@ -162,15 +164,43 @@ test('generic original-route labels are rejected before review or consent writes
   assert.equal(calls.filter(call => call.method === 'POST' || call.method === 'PUT').length, writes);
 });
 
-test('finish response alone does not claim publish readiness without a ready draft snapshot', async () => {
-  const { elements } = fixture({ finishNotReady: true });
+test('materialization response alone does not claim queued work without a persisted job', async () => {
+  const { elements } = fixture({ missingJob: true });
   await elements.writerFinalOpen.fire('click');
   const labels = elements.writerFinalParts.querySelectorAll('input[data-part-key]');
   labels[0].value = '기록을 가지고 다음 장소로 간다';
   labels[1].value = '원래 결말을 받아들인다';
   for (const name of ['Reviewed', 'Rights', 'Ai']) elements[`writerFinal${name}`].checked = true;
   await elements.writerFinalPrepare.fire('click');
-  assert.match(elements.writerFinalState.textContent, /준비 완료 상태를 확인할 수 없습니다/);
+  assert.match(elements.writerFinalState.textContent, /서버의 선택지 준비 작업을 확인할 수 없습니다/);
   assert.doesNotMatch(elements.writerFinalState.textContent, /공개 전 운영 검토가 남아 있습니다/);
   assert.equal(elements.writerFinalPrepare.disabled, false);
+});
+
+test('an open review updates from background progress to verified completion', async () => {
+  const { elements, setJob, refresh } = fixture();
+  await elements.writerFinalOpen.fire('click');
+  const labels = elements.writerFinalParts.querySelectorAll('input[data-part-key]');
+  labels[0].value = '기록을 가지고 다음 장소로 간다';
+  labels[1].value = '원래 결말을 받아들인다';
+  for (const name of ['Reviewed', 'Rights', 'Ai']) elements[`writerFinal${name}`].checked = true;
+  await elements.writerFinalPrepare.fire('click');
+  setJob('processing', 1);
+  await refresh();
+  assert.match(elements.writerFinalState.textContent, /1 \/ 2/);
+  setJob('completed', 2);
+  await refresh();
+  assert.match(elements.writerFinalState.textContent, /선택지 3개가 모두 준비/);
+  assert.equal(elements.writerFinalPrepare.disabled, true);
+});
+
+test('a private candidate from before the worker deployment can queue its saved scenes', async () => {
+  const { elements, calls } = fixture({ existingDraft: true });
+  await elements.writerFinalOpen.fire('click');
+  assert.equal(elements.writerFinalPrepare.disabled, false);
+  assert.equal(elements.writerFinalParts.querySelectorAll('input[data-part-key]')[0].readOnly, true);
+  for (const name of ['Reviewed', 'Rights', 'Ai']) elements[`writerFinal${name}`].checked = true;
+  await elements.writerFinalPrepare.fire('click');
+  assert.equal(calls.filter(call => call.path.endsWith('/materialize')).length, 1);
+  assert.match(elements.writerFinalState.textContent, /서버에서 AI 선택지를 준비/);
 });

@@ -4,11 +4,13 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { MaterializeStudioLinearDto } from './dto/story-studio-linear.dto';
 import { StoryStudioLinearService } from './story-studio-linear.service';
+import { StoryStudioChoiceJobService } from './story-studio-choice-job.service';
 
 @Controller('me/creator-studio/stories/:workId')
 @UseGuards(JwtAuthGuard)
 export class StoryStudioLinearController {
-  constructor(private readonly linear: StoryStudioLinearService) {}
+  constructor(private readonly linear: StoryStudioLinearService,
+    private readonly choiceJobs: StoryStudioChoiceJobService) {}
 
   @Get('linear-draft/:manuscriptVersionId')
   preview(@CurrentUser() user: AuthUser, @Param('workId') workId: string,
@@ -26,5 +28,11 @@ export class StoryStudioLinearController {
   finish(@CurrentUser() user: AuthUser, @Param('workId') workId: string,
     @Param('releaseId') releaseId: string) {
     return this.linear.finish(user.id, workId, releaseId);
+  }
+
+  @Post('linear-draft/releases/:releaseId/retry-choices')
+  retryChoices(@CurrentUser() user: AuthUser, @Param('workId') workId: string,
+    @Param('releaseId') releaseId: string) {
+    return this.choiceJobs.retry(user.id, workId, releaseId);
   }
 }

@@ -15,6 +15,23 @@
   let snapshot = null;
   let active = null;
   let busy = false;
+  let refreshing = false;
+
+  function choiceJobMessage() {
+    const job = snapshot?.choiceJob;
+    if (snapshot?.ready) return "선택지 3개가 모두 준비되어 있습니다. 이 원고는 아직 비공개입니다.";
+    if (job?.status === "failed") return `AI 선택지 준비가 ${job.completedParts} / ${job.totalParts}파트에서 멈췄습니다. 확인 후 다시 시도할 수 있습니다. (${job.errorCode || "준비 실패"})`;
+    if (job?.status === "queued" || job?.status === "processing")
+      return `서버에서 AI 선택지를 준비하고 있습니다: ${job.completedParts} / ${job.totalParts}. 화면을 닫아도 계속됩니다.`;
+    return "원고의 원래 다음 경로를 확인하고 선택 문구를 입력해 주세요.";
+  }
+  function updatePrepareButton() {
+    const retry = snapshot?.choiceJob?.status === "failed";
+    prepare.textContent = retry ? "선택지 준비 다시 시도" : "확인하고 선택지 준비";
+    prepare.disabled = busy || !snapshot || snapshot.ready || snapshot.issuesTruncated ||
+      (snapshot.issues || []).some(issue => issue.severity === "critical") ||
+      (Boolean(snapshot.releaseId && snapshot.choiceJob) && !retry);
+  }
 
   function current() {
     const completed = analysis.completed();
@@ -82,7 +99,7 @@
       input.required = true;
       input.dataset.partKey = part.partKey;
       input.value = snapshot.scenes[index]?.originalLabel || "";
-      input.readOnly = Boolean(snapshot.ready);
+      input.readOnly = Boolean(snapshot.releaseId);
       input.setAttribute("aria-label", `${part.title} 원작 경로 선택 문구`);
       label.append(input);
       item.append(heading, excerpt, destination, label);
@@ -109,14 +126,24 @@
       setState(snapshot.issuesTruncated ? "분석 경고가 너무 많아 이 화면에서 모두 확인할 수 없습니다. 운영 검토가 필요합니다." :
         (snapshot.issues || []).some(issue => issue.severity === "critical")
           ? "심각한 설정 충돌이 남아 있습니다. 분석 내용을 수정한 뒤 다시 검토해 주세요." :
-        snapshot.ready ? "선택지 3개가 모두 준비되어 있습니다. 이 원고는 아직 비공개입니다." :
-          "원고의 원래 다음 경로를 확인하고 선택 문구를 입력해 주세요.");
+        choiceJobMessage());
     } catch (error) { snapshot = null; setState(error.message, true); }
-    finally { prepare.disabled = !snapshot || snapshot.ready || snapshot.issuesTruncated ||
-      (snapshot.issues || []).some(issue => issue.severity === "critical"); }
+    finally { updatePrepareButton(); }
   }
   async function finalize() {
     if (busy || !snapshot || snapshot.ready || !current()) return;
+    if (snapshot.choiceJob?.status === "failed") {
+      busy = true;
+      updatePrepareButton();
+      try {
+        await request(routePath(`/releases/${encodeURIComponent(snapshot.releaseId)}/retry-choices`), { method: "POST" });
+        snapshot = await request(routePath(`/${encodeURIComponent(active.manuscriptVersionId)}`));
+        setState(choiceJobMessage());
+      } catch (error) { setState(error.message, true); }
+      finally { busy = false; updatePrepareButton(); }
+      return;
+    }
+    if (snapshot.releaseId && snapshot.choiceJob) return;
     const routeInputs = [...parts.querySelectorAll("input[data-part-key]")];
     const originalRoutes = routeInputs.map(input => ({
       partKey: input.dataset.partKey, label: input.value.trim()
@@ -173,26 +200,29 @@
       const result = await request(routePath("/materialize"), { method: "POST",
         body: { manuscriptVersionId: active.manuscriptVersionId, expectedManuscriptHash: snapshot.manuscriptHash,
           originalRoutesReviewed: true, originalRoutes } });
-      for (let index = 0; index < result.scenes.length; index++) {
-        const scene = result.scenes[index];
-        if (scene.choiceCount === 3) continue;
-        if (scene.choiceCount !== 1) throw new Error("선택지 상태가 달라졌습니다. 다시 확인해 주세요.");
-        setState(`AI 선택지 준비 중: ${index + 1} / ${result.scenes.length}`);
-        await request(`/stories/${encodeURIComponent(active.workId)}/releases/${encodeURIComponent(result.releaseId)}` +
-          `/scenes/${encodeURIComponent(scene.sceneId)}/prepare-choices`, { method: "POST" });
-      }
-      setState("선택지와 원고를 최종 검증하고 있습니다.");
-      await request(routePath(`/releases/${encodeURIComponent(result.releaseId)}/finish`), { method: "POST" });
+      if (!result.releaseId || !Array.isArray(result.scenes) || result.scenes.length !== snapshot.parts.length)
+        throw new Error("비공개 장면의 준비 상태를 확인할 수 없습니다.");
       snapshot = await request(routePath(`/${encodeURIComponent(active.manuscriptVersionId)}`));
-      if (!snapshot.ready) throw new Error("선택지 준비 완료 상태를 확인할 수 없습니다.");
+      if (snapshot.choiceJob?.status !== "queued" && snapshot.choiceJob?.status !== "processing" && !snapshot.ready)
+        throw new Error("서버의 선택지 준비 작업을 확인할 수 없습니다.");
       renderParts();
-      setState("모든 파트에 선택지 3개가 준비되었습니다. 공개 전 운영 검토가 남아 있습니다.");
+      setState(choiceJobMessage());
     } catch (error) {
       setState(`${error.message} 준비된 파트는 보존됩니다. 다시 열어 이어서 진행해 주세요.`, true);
       try { snapshot = await request(routePath(`/${encodeURIComponent(active.manuscriptVersionId)}`)); }
       catch (_) { /* Keep the failure visible until the author retries. */ }
-    } finally { busy = false; prepare.disabled = !snapshot || snapshot.ready || snapshot.issuesTruncated ||
-      (snapshot.issues || []).some(issue => issue.severity === "critical"); }
+    } finally { busy = false; updatePrepareButton(); }
+  }
+  async function refreshChoiceJob() {
+    if (refreshing || busy || modal.classList.contains("is-hidden") || !current() ||
+        !["queued", "processing"].includes(snapshot?.choiceJob?.status)) return;
+    refreshing = true;
+    try {
+      snapshot = await request(routePath(`/${encodeURIComponent(active.manuscriptVersionId)}`));
+      setState(choiceJobMessage(), snapshot.choiceJob?.status === "failed");
+      updatePrepareButton();
+    } catch (_) { /* The next poll or reopening the review restores progress. */ }
+    finally { refreshing = false; }
   }
   document.getElementById("writerFinalOpen").addEventListener("click", open);
   document.getElementById("writerFinalClose").addEventListener("click", close);
@@ -202,5 +232,6 @@
   document.addEventListener("keydown", event => { if (event.key === "Escape") close(); });
   window.addEventListener("lumina:auth-expired", () => { if (!busy) close(); active = null; snapshot = null; updateEntry(); });
   setInterval(updateEntry, 1000);
+  setInterval(refreshChoiceJob, 3000);
   updateEntry();
 })();

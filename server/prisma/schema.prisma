@@ -2068,6 +2068,25 @@ model StoryRelease {
   @@map("story_releases")
 }
 
+model StoryStudioChoiceJob {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ownerUserId         String    @map("owner_user_id") @db.Uuid
+  workId              String    @map("work_id") @db.Uuid
+  releaseId           String    @unique @map("release_id") @db.Uuid
+  manuscriptVersionId String    @map("manuscript_version_id") @db.Uuid
+  status              String    @default("queued") @db.VarChar(24)
+  totalParts          Int       @map("total_parts")
+  completedParts      Int       @default(0) @map("completed_parts")
+  leaseToken          String?   @map("lease_token") @db.Uuid
+  leaseExpiresAt      DateTime? @map("lease_expires_at") @db.Timestamptz(6)
+  errorCode           String?   @map("error_code") @db.VarChar(120)
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([status, leaseExpiresAt, createdAt], map: "idx_story_studio_choice_jobs_claim")
+  @@map("story_studio_choice_jobs")
+}
+
 model StoryAuthoredImport {
   id                     String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   workId                 String   @unique @map("work_id") @db.Uuid
