@@ -211,6 +211,9 @@
       const aiActive = ai?.status === "active" && ai.active === true;
       const aiUnavailable = !ai || ai.status === "unavailable";
       const busy = state.activatingKey === story.key;
+      const fixedChoicePreparation = (story.key === "monster" || story.key === "rebellion") ? ai?.choicePreparation : null;
+      const fixedChoicesPending = fixedChoicePreparation && fixedChoicePreparation.ready !== true;
+      const fixedChoicesStaged = fixedChoicePreparation?.phase === "awaiting_promotion";
       const visual = state.visualStatuses[story.key];
       const choiceStatus = state.choiceStatuses[story.key];
       const choicesReady = story.key !== "inheritor" || choiceStatus?.status === "ready";
@@ -231,6 +234,7 @@
         ${published && story.aiActivationAvailable ? `<section class="story-ai-activation" data-story-ai-card="${escapeHtml(story.key)}">
           <div><strong>AI 분기 생성</strong><span class="status-badge ${aiActive ? "is-approved" : "is-review"}">${aiActive ? "활성" : aiUnavailable ? "확인 필요" : "비활성"}</span></div>
           ${aiActive ? `<small>독자가 선택하면 새 장면을 생성합니다. 분기 장면이 미리 생성된 상태는 아닙니다.</small>` : ""}
+          ${fixedChoicePreparation ? `<small>${Number(fixedChoicePreparation.preparedParts || 0).toLocaleString("ko-KR")} / ${Number(fixedChoicePreparation.totalParts || 0).toLocaleString("ko-KR")}파트 선택지 준비${fixedChoicesPending ? " · 기존 선택지는 독자에게 계속 공개 중" : ""}</small>` : ""}
           <fieldset class="story-ai-confirmations" ${busy ? "disabled" : ""}>
             <legend>${aiActive ? "설정 갱신 확인" : "활성화 전 확인"}</legend>
             <label><input type="checkbox" data-story-ai-confirm /> 원고 기반 AI 분기 생성을 승인했습니다.</label>
@@ -238,7 +242,7 @@
             <label><input type="checkbox" data-story-ai-confirm /> 검수된 동일 결과 재사용을 승인했습니다.</label>
             <label><input type="checkbox" data-story-ai-confirm /> 장면 이미지 변환을 승인했습니다.</label>
           </fieldset>
-          <button type="button" class="primary-action story-ai-activate-button" data-story-ai-activate="${escapeHtml(story.key)}" disabled>${busy ? "설정 중..." : aiActive ? "AI 설정 갱신" : "AI 분기 활성화"}</button>${!choicesReady ? "<small>선택지 3개 준비가 끝나면 활성화할 수 있습니다.</small>" : ""}
+          <button type="button" class="primary-action story-ai-activate-button" data-story-ai-activate="${escapeHtml(story.key)}" disabled>${busy ? "설정 중..." : fixedChoicesStaged ? "준비된 선택지 적용" : fixedChoicesPending ? "다음 최대 8파트 준비" : aiActive ? "AI 설정 갱신" : "AI 분기 활성화"}</button>${!choicesReady ? "<small>선택지 3개 준비가 끝나면 활성화할 수 있습니다.</small>" : ""}
           <p class="form-status" data-story-ai-status role="status" aria-live="polite"></p>
         </section>${story.visualIdentityManaged ? fixedVisualControls(story, visual) : ""}` : published ? `<div class="story-fixed-release-controls"><section class="story-ai-activation"><div><strong>독자 공개 방식</strong><span class="status-badge is-approved">고정 메인 루트</span></div><small>작가 최종 원고 순서대로 공개되며 시스템의 다음 장 이동만 제공합니다.</small></section>${story.visualIdentityManaged ? fixedVisualControls(story, visual) : ""}</div>` : ""}
       </article>`;
@@ -614,7 +618,7 @@
     button.textContent = "활성화 중...";
     if (inlineStatus) inlineStatus.textContent = "문체 표본, 이용 승인, AI 생성 설정을 연결하고 있습니다.";
     try {
-      await api.fetch(`${publicationEndpoint}/published/${encodeURIComponent(storyKey)}/activate-ai`, {
+      const result = await api.fetch(`${publicationEndpoint}/published/${encodeURIComponent(storyKey)}/activate-ai`, {
         method: "POST",
         auth: true,
         body: {
@@ -624,9 +628,24 @@
           imageTransformationConfirmed: true
         }
       });
+      const preparing = result?.status === "preparing_choices" && typeof result.active === "boolean";
+      const prepared = Number(result?.preparedParts);
+      const total = Number(result?.totalParts);
+      if (preparing && (!Number.isInteger(prepared) || !Number.isInteger(total) || prepared < 0 || prepared > total ||
+        (prepared === total) !== (result.phase === "awaiting_promotion"))) {
+        throw new Error("선택지 준비 진행률을 확인하지 못했습니다.");
+      }
+      if (!preparing && (result?.status !== "active" || result.active !== true)) {
+        throw new Error("AI 활성화 결과를 확인하지 못했습니다.");
+      }
+      state.activatingKey = null;
       state.loaded = false;
       await load({ force: true });
-      setStatus(`${knownStories.find((story) => story.key === storyKey).title} AI ${wasActive ? "설정을 갱신" : "분기를 활성화"}했습니다.`, "success");
+      if (!state.loaded) throw new Error("작업 결과를 받았지만 최신 상태를 다시 확인하지 못했습니다.");
+      const title = knownStories.find((story) => story.key === storyKey).title;
+      setStatus(preparing
+        ? `${title}: ${prepared.toLocaleString("ko-KR")} / ${total.toLocaleString("ko-KR")}파트 준비. ${result.phase === "awaiting_promotion" ? "다음 승인에서 모든 선택지를 한 번에 적용합니다." : "다음 승인에서 이어집니다."}${result.active ? " 기존 AI 활성화는 유지됩니다." : ""}`
+        : `${title} AI ${wasActive ? "설정을 갱신" : "분기를 활성화"}했습니다.`, preparing ? "" : "success");
     } catch (error) {
       if (inlineStatus) {
         inlineStatus.textContent = error?.message || "AI 분기를 활성화하지 못했습니다.";

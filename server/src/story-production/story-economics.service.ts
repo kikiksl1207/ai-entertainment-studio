@@ -1309,7 +1309,7 @@ export class StoryEconomicsService {
       }),
       this.activeStyleConsent(context.work.id, now),
       this.prisma.storyChoice.findMany({
-        where: { sceneId: context.scene.id },
+        where: { sceneId: context.scene.id, position: { gt: 0 } },
         orderBy: { position: 'asc' },
         take: 3,
         select: { id: true, label: true },

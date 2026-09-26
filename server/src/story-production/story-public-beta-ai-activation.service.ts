@@ -7,10 +7,7 @@ import { STORY_AI_QUALITY_RUBRIC } from './dto/story-ai-activation.dto';
 import type { ActivatePublishedStoryAiDto } from './dto/story-publication-intake.dto';
 import { StoryAiActivationService } from './story-ai-activation.service';
 import { INHERITOR_STORY } from './story-inheritor-publication.policy';
-import {
-  fixedRouteSuggestedChoices,
-  type FixedRouteStoryKey,
-} from './story-fixed-route-markdown.policy';
+import { StoryFixedRouteChoiceRefreshService } from './story-fixed-route-choice-refresh.service';
 
 const STORY_KEYS = {
   imjin: 'records-of-the-burning-sea-imjin-war',
@@ -46,9 +43,12 @@ export class StoryPublicBetaAiActivationService {
       return { storyKey, status: 'unavailable', active: false };
     }
     const activation = await this.latestValidActivation(this.prisma, work.id, work.activeReleaseId);
-    const choicesReady = activation && (storyKey === 'monster' || storyKey === 'rebellion' || storyKey === 'inheritor')
-      ? await this.fixedRouteChoicesReady(this.prisma, work.id)
-      : Boolean(activation);
+    const choicePreparation = storyKey === 'monster' || storyKey === 'rebellion'
+      ? await new StoryFixedRouteChoiceRefreshService(this.prisma).status(storyKey, work.id)
+      : null;
+    const choicesReady = storyKey === 'inheritor'
+        ? await this.fixedRouteChoicesReady(this.prisma, work.id)
+        : true;
     const readyActivation = choicesReady ? activation : null;
     return {
       storyKey,
@@ -57,6 +57,7 @@ export class StoryPublicBetaAiActivationService {
       locale: readyActivation?.locale ?? LOCALE,
       region: readyActivation?.region ?? REGION,
       expiresAt: readyActivation?.expiresAt ?? null,
+      ...(choicePreparation ? { choicePreparation } : {}),
     };
   }
 
@@ -129,30 +130,14 @@ export class StoryPublicBetaAiActivationService {
     });
 
     if (storyKey === 'monster' || storyKey === 'rebellion') {
-      await this.prisma.$transaction(async (tx) => {
-        const parts = await tx.storyPart.findMany({
-          where: { workId: prepared.work.id, status: 'published', fixtureSource: false },
-          orderBy: [{ position: 'asc' }, { id: 'asc' }],
-          select: { id: true, position: true, title: true },
-        });
-        const addedChoiceCount = await this.ensureFixedRouteSuggestedChoices(tx, storyKey, parts);
-        if (!(await this.fixedRouteChoicesReady(tx, prepared.work.id))) {
-          throw new ConflictException('Published fixed-route story requires three choices per part');
-        }
-        await tx.auditEvent.create({ data: {
-          actorUserId,
-          actorType: 'admin',
-          action: 'story_public_beta.fixed_route_choices.materialized',
-          targetType: 'story_work',
-          targetId: prepared.work.id,
-          metadata: {
-            storyKey,
-            releaseId: prepared.release.id,
-            choicePolicy: 'writer_original_plus_two_generated_v1',
-            addedChoiceCount,
-          },
-        } });
-      });
+      const choices = await new StoryFixedRouteChoiceRefreshService(this.prisma)
+        .refreshBatch(actorUserId, storyKey, prepared.work.id, prepared.release.id);
+      if (!choices.ready) return {
+        storyKey, status: 'preparing_choices',
+        active: Boolean(await this.latestValidActivation(this.prisma, prepared.work.id, prepared.release.id)),
+        totalParts: choices.totalParts, preparedParts: choices.preparedParts,
+        remainingParts: choices.remainingParts, phase: choices.phase,
+      };
     }
 
     const existing = await this.latestValidActivation(
@@ -231,70 +216,6 @@ export class StoryPublicBetaAiActivationService {
     return works[0] ?? null;
   }
 
-  private async ensureFixedRouteSuggestedChoices(
-    tx: Tx,
-    storyKey: FixedRouteStoryKey,
-    parts: Array<{ id: string; position: number; title: Prisma.JsonValue }>,
-  ) {
-    const scenes = await tx.storyScene.findMany({
-      where: { partId: { in: parts.map((part) => part.id) }, status: 'published', fixtureSource: false },
-      orderBy: [{ position: 'asc' }, { id: 'asc' }],
-      select: { id: true, partId: true },
-    });
-    const sceneByPart = new Map(scenes.map((scene) => [scene.partId, scene.id]));
-    if (sceneByPart.size !== parts.length) {
-      throw new ConflictException('Published fixed-route story scene binding is incomplete');
-    }
-    let addedChoiceCount = 0;
-    for (const [index, part] of parts.entries()) {
-      const sceneId = sceneByPart.get(part.id)!;
-      const title = this.localized(part.title, LOCALE) || `파트 ${part.position}`;
-      const template = fixedRouteSuggestedChoices(
-        storyKey,
-        title,
-        part.position,
-        parts[index + 1] ? `part-${parts[index + 1].position}` : null,
-      );
-      const canonical = await tx.storyChoice.findFirst({
-        where: { sceneId, routeKind: 'writer_original' },
-        orderBy: [{ position: 'asc' }, { id: 'asc' }],
-      });
-      if (!canonical) throw new ConflictException('Published fixed-route story canonical choice is missing');
-      await tx.storyChoice.update({
-        where: { id: canonical.id },
-        data: { label: { ko: template[0].label }, position: 1 },
-      });
-      for (const choice of template.slice(1)) {
-        const prior = await tx.storyChoice.findUnique({
-          where: { sceneId_choiceKey: { sceneId, choiceKey: choice.choiceKey } },
-        });
-        await tx.storyChoice.upsert({
-          where: { sceneId_choiceKey: { sceneId, choiceKey: choice.choiceKey } },
-          create: {
-            sceneId,
-            choiceKey: choice.choiceKey,
-            position: choice.position,
-            label: { ko: choice.label },
-            routeKind: 'generation_required',
-            targetSceneId: null,
-            targetEndingKey: null,
-            declaredRejoinSceneId: null,
-          },
-          update: {
-            position: choice.position,
-            label: { ko: choice.label },
-            routeKind: 'generation_required',
-            targetSceneId: null,
-            targetEndingKey: null,
-            declaredRejoinSceneId: null,
-          },
-        });
-        if (!prior) addedChoiceCount += 1;
-      }
-    }
-    return addedChoiceCount;
-  }
-
   private async fixedRouteChoicesReady(client: PrismaService | Tx, workId: string) {
     const parts = await client.storyPart.findMany({
       where: { workId, status: 'published', fixtureSource: false },
@@ -308,7 +229,7 @@ export class StoryPublicBetaAiActivationService {
     if (scenes.length !== parts.length || new Set(scenes.map((scene) => scene.partId)).size !== parts.length) return false;
     const counts = await client.storyChoice.groupBy({
       by: ['sceneId'],
-      where: { sceneId: { in: scenes.map((scene) => scene.id) } },
+      where: { sceneId: { in: scenes.map((scene) => scene.id) }, position: { gt: 0 } },
       _count: { _all: true },
     });
     return counts.length === scenes.length && counts.every((count) => count._count._all === 3);

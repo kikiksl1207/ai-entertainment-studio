@@ -13,6 +13,8 @@ import {
 import { validateStoryReleaseCapability } from './story-economics.policy';
 import { HttpExceptionFilter } from '../common/http-exception.filter';
 import { StoryProductionController } from './story-production.controller';
+import { StoryFixedRouteChoiceRefreshService } from './story-fixed-route-choice-refresh.service';
+import { FIXED_ROUTE_STORIES } from './story-fixed-route-markdown.policy';
 
 const capability = {
   releaseId: 'release', status: 'active', revision: 2, fixedChoiceCount: 12,
@@ -393,6 +395,9 @@ describe('First public release suggested choices', () => {
     f.choices[0].targetEndingKey = 'author_main' as never;
     jest.spyOn(f.production, 'currentProgress').mockResolvedValue({} as never);
     await f.production.selectChoice('reader', 'progress', 'choice-1', 3);
+    expect(f.prisma.storyChoice.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { sceneId: 'scene', position: { gt: 0 } },
+    }));
     expect(f.mutations.eventCreate).toHaveBeenCalledWith({ data: expect.objectContaining({
       endingKey: 'author_main', endingType: 'author_main',
     }) });
@@ -433,6 +438,56 @@ describe('First public release suggested choices', () => {
     expect(f.mutations.customCreate).not.toHaveBeenCalled();
     expect(f.mutations.eventCreate).not.toHaveBeenCalled();
     expect(f.mutations.progressUpdate).not.toHaveBeenCalled();
+  });
+
+  it('keeps a legacy fixed-route choice available while hidden alternatives are staged', async () => {
+    const f = fixture();
+    f.work.slug = FIXED_ROUTE_STORIES.monster.slug;
+    f.choices[1].routeKind = 'generation_required';
+    f.choices[1].targetSceneId = null as never;
+    (f.choices[1] as typeof f.choices[1] & { choiceKey: string }).choiceKey = 'branch-b';
+    const readiness = jest.spyOn(StoryFixedRouteChoiceRefreshService.prototype, 'status')
+      .mockResolvedValue({ totalParts: 32, preparedParts: 8, remainingParts: 24,
+        ready: false, phase: 'preparing', publicChoiceSet: 'legacy' });
+    const receipt = { continuationId: 'queued', status: 'queued' };
+    const enqueue = jest.spyOn(f.economics, 'requestRecommendedChoiceTx').mockResolvedValue(receipt as never);
+    try {
+      await expect(f.production.selectChoice(
+        'reader', 'progress', 'choice-2', 3, 'ko', 'legacy-choice-key',
+      )).resolves.toEqual(receipt);
+      expect(readiness).toHaveBeenCalledWith('monster', 'work', f.prisma);
+      expect(f.legalActivation.authorize).toHaveBeenCalled();
+      expect(enqueue).toHaveBeenCalledTimes(1);
+      expectNoWrites(f);
+    } finally {
+      readiness.mockRestore();
+      enqueue.mockRestore();
+    }
+  });
+
+  it('refuses a stale or mixed fixed-route public choice before paid enqueue', async () => {
+    const f = fixture();
+    f.work.slug = FIXED_ROUTE_STORIES.monster.slug;
+    f.choices[1].routeKind = 'generation_required';
+    f.choices[1].targetSceneId = null as never;
+    (f.choices[1] as typeof f.choices[1] & { choiceKey: string }).choiceKey = 'branch-b';
+    const readiness = jest.spyOn(StoryFixedRouteChoiceRefreshService.prototype, 'status')
+      .mockResolvedValueOnce({ totalParts: 32, preparedParts: 32, remainingParts: 0,
+        ready: true, phase: 'ready', publicChoiceSet: 'prepared' })
+      .mockRejectedValueOnce(new Error('mixed public set'));
+    const enqueue = jest.spyOn(f.economics, 'requestRecommendedChoiceTx');
+    try {
+      await expect(f.production.selectChoice('reader', 'progress', 'choice-2', 3, 'ko', 'stale-choice-key'))
+        .rejects.toMatchObject({ response: { code: 'STORY_AI_CHOICES_NOT_READY' } });
+      await expect(f.production.selectChoice('reader', 'progress', 'choice-2', 3, 'ko', 'mixed-choice-key'))
+        .rejects.toThrow('mixed public set');
+      expect(f.legalActivation.authorize).not.toHaveBeenCalled();
+      expect(enqueue).not.toHaveBeenCalled();
+      expectNoWrites(f);
+    } finally {
+      readiness.mockRestore();
+      enqueue.mockRestore();
+    }
   });
 
   it('recovers a P2002 race only when revision and normalized locale match', async () => {
@@ -749,6 +804,7 @@ describe('Release capability and regression contract', () => {
       ...f.prisma,
       $queryRaw: jest.fn().mockResolvedValue([{ id: 'work' }]),
       storyAuthoredImport: { findUnique: jest.fn().mockResolvedValue(null) },
+      storyManuscriptVersion: { findUnique: jest.fn().mockResolvedValue(null) },
       storyWork: { findUnique: jest.fn().mockResolvedValue({ ...f.work, status: 'release_ready', releaseRevision: 1 }), updateMany: jest.fn() },
       storyRelease: { findFirst: jest.fn().mockResolvedValue({ id: 'release', validationSummary: { ready: true } }), update: jest.fn() },
       storyPublicationTransition: { findUnique: jest.fn().mockResolvedValue(null) },

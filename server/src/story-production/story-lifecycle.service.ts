@@ -192,7 +192,7 @@ export class StoryLifecycleService {
         });
         const choiceCounts = await tx.storyChoice.groupBy({
           by: ['sceneId'],
-          where: { sceneId: { in: scenes.map((scene) => scene.id) } },
+          where: { sceneId: { in: scenes.map((scene) => scene.id) }, position: { gt: 0 } },
           _count: { _all: true },
         });
         for (const count of choiceCounts) assertSuggestedChoiceCount(count._count._all);

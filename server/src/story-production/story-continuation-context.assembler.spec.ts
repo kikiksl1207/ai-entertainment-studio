@@ -114,6 +114,21 @@ describe('StoryContinuationContextAssembler', () => {
     expect(JSON.stringify(await f.assembler.assemble(claim))).not.toContain('scene-id');
   });
 
+  it('resolves a queued continuation by its retired choice id and unchanged label', async () => {
+    const f = fixture();
+    f.prisma.storyChoice.findFirst.mockResolvedValue({
+      id: 'choice-b', position: -2, label: { ko: '다른 길' },
+    });
+
+    await expect(f.assembler.assemble(claim)).resolves.toMatchObject({
+      selectedChoice: { label: '다른 길' },
+    });
+    expect(f.prisma.storyChoice.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ id: 'choice-b' }),
+    }));
+    expect(f.prisma.storyChoice.findFirst.mock.calls[0][0].where).not.toHaveProperty('position');
+  });
+
   it('passes writer-approved semantic memory in the requested locale', async () => {
     const f = fixture();
     const memories = [{

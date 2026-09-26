@@ -716,6 +716,9 @@ describe('StoryProductionService', () => {
       maxChoices: 20,
       fullGraphIncluded: false,
     });
+    expect(prisma.storyChoice.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { sceneId: 'scene-1', position: { gt: 0 } },
+    }));
     expect(prisma.storyScene.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
@@ -927,7 +930,7 @@ describe('StoryProductionService', () => {
       expect.objectContaining({ take: 40 }),
     );
     expect(prisma.storyChoice.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ take: 4 }),
+      expect.objectContaining({ where: { sceneId: 'scene-1', position: { gt: 0 } }, take: 4 }),
     );
   });
 });

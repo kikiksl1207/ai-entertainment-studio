@@ -1106,7 +1106,9 @@ export class StoryPublicationIntakeService {
         throw new ServiceUnavailableException('Choice preparation did not produce distinct routes');
       }
       part.choices = [original, ...labels.map((label, index) => ({
-        choiceKey: index === 0 ? 'branch-b' : 'branch-c',
+        choiceKey: plan.storyKey === 'monster' || plan.storyKey === 'rebellion'
+          ? index === 0 ? 'ai-branch-b-v1' : 'ai-branch-c-v1'
+          : index === 0 ? 'branch-b' : 'branch-c',
         label,
         position: index + 2,
         routeKind: 'generation_required',

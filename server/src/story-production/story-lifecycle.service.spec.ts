@@ -180,7 +180,7 @@ describe('StoryLifecycleService', () => {
 
     await expect(publish(lifecycle)).resolves.toMatchObject({ toStatus: 'published', idempotentReplay: false });
     expect(tx.storyChoice.groupBy).toHaveBeenCalledWith({ by: ['sceneId'],
-      where: { sceneId: { in: ['scene-1', 'scene-2'] } }, _count: { _all: true } });
+      where: { sceneId: { in: ['scene-1', 'scene-2'] }, position: { gt: 0 } }, _count: { _all: true } });
     expect(tx.storyPart.updateMany).toHaveBeenCalledTimes(1);
     expect(tx.storyScene.updateMany).toHaveBeenCalledTimes(1);
     expect(tx.storyRelease.update).toHaveBeenCalledTimes(1);
