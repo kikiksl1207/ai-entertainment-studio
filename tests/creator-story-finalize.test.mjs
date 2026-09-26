@@ -23,13 +23,14 @@ class Element {
   append(...children) { this.children.push(...children); }
   replaceChildren(...children) { this.children = children; }
   setAttribute() {}
+  focus() { this.focused = true; }
   querySelectorAll(selector) {
     const walk = node => [node, ...node.children.flatMap(walk)];
     return this.children.flatMap(walk).filter(node => selector === 'input[data-part-key]' && node.dataset.partKey);
   }
 }
 
-function fixture({ failFirstChoice = false, issues = [] } = {}) {
+function fixture({ failFirstChoice = false, finishNotReady = false, issues = [] } = {}) {
   const ids = ['writerFinalEntry', 'writerFinalModal', 'writerFinalParts', 'writerFinalIssues', 'writerFinalWarningsLabel', 'writerFinalState',
     'writerFinalEntryState', 'writerFinalPrepare', 'writerFinalOpen', 'writerFinalClose',
     'writerFinalCancel', 'writerFinalReviewed', 'writerFinalRights', 'writerFinalAi', 'writerFinalWarnings'];
@@ -68,7 +69,7 @@ function fixture({ failFirstChoice = false, issues = [] } = {}) {
       scenes.find(scene => path.includes(scene.sceneId)).choiceCount = 3;
       result = { choiceCount: 3 };
     }
-    else if (path.endsWith('/finish')) { ready = true; result = { ready: true }; }
+    else if (path.endsWith('/finish')) { ready = !finishNotReady; result = { ready: true }; }
     else throw new Error(`unexpected ${path}`);
     return { ok: true, json: async () => result };
   };
@@ -134,4 +135,42 @@ test('unresolved critical continuity finding blocks the author approval button',
   assert.equal(elements.writerFinalPrepare.disabled, true);
   assert.match(elements.writerFinalState.textContent, /심각한 설정 충돌/);
   assert.equal(calls.filter(call => call.method === 'POST').length, 0);
+});
+
+test('generic original-route labels are rejected before review or consent writes', async () => {
+  const { elements, calls } = fixture();
+  await elements.writerFinalOpen.fire('click');
+  const labels = elements.writerFinalParts.querySelectorAll('input[data-part-key]');
+  labels[0].value = 'Continue';
+  labels[1].value = '원래 결말을 받아들인다';
+  for (const name of ['Reviewed', 'Rights', 'Ai']) elements[`writerFinal${name}`].checked = true;
+  await elements.writerFinalPrepare.fire('click');
+  assert.match(elements.writerFinalState.textContent, /구체적인 선택/);
+  assert.equal(labels[0].focused, true);
+  assert.equal(calls.some(call => call.method === 'POST' || call.method === 'PUT'), false);
+
+  labels[0].value = '기록을 가지고 다음 장소로 간다';
+  await elements.writerFinalPrepare.fire('click');
+  assert.equal(calls.filter(call => call.path.endsWith('/materialize')).length, 1);
+  assert.equal(elements.writerFinalPrepare.disabled, true);
+  assert.equal(elements.writerFinalParts.querySelectorAll('input[data-part-key]')[0].readOnly, true);
+  const writes = calls.filter(call => call.method === 'POST' || call.method === 'PUT').length;
+  await elements.writerFinalOpen.fire('click');
+  assert.equal(elements.writerFinalPrepare.disabled, true);
+  assert.equal(elements.writerFinalParts.querySelectorAll('input[data-part-key]')[0].readOnly, true);
+  await elements.writerFinalPrepare.fire('click');
+  assert.equal(calls.filter(call => call.method === 'POST' || call.method === 'PUT').length, writes);
+});
+
+test('finish response alone does not claim publish readiness without a ready draft snapshot', async () => {
+  const { elements } = fixture({ finishNotReady: true });
+  await elements.writerFinalOpen.fire('click');
+  const labels = elements.writerFinalParts.querySelectorAll('input[data-part-key]');
+  labels[0].value = '기록을 가지고 다음 장소로 간다';
+  labels[1].value = '원래 결말을 받아들인다';
+  for (const name of ['Reviewed', 'Rights', 'Ai']) elements[`writerFinal${name}`].checked = true;
+  await elements.writerFinalPrepare.fire('click');
+  assert.match(elements.writerFinalState.textContent, /준비 완료 상태를 확인할 수 없습니다/);
+  assert.doesNotMatch(elements.writerFinalState.textContent, /공개 전 운영 검토가 남아 있습니다/);
+  assert.equal(elements.writerFinalPrepare.disabled, false);
 });

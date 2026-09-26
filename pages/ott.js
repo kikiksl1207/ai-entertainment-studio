@@ -45,6 +45,8 @@
   const clips = { common: "01-common-to-choice.mp4", embrace: "02-branch-embrace-original.mp4", ignore: "03-branch-ignore.mp4", hesitate: "04-branch-hesitate.mp4" };
   const availableBranches = new Set(["embrace"]);
   let currentClip = "common";
+  let availabilityRequestId = 0;
+  let orientationLocked = false;
   const locale = () => {
     const value = String(window.LuminaI18n?.getLocale?.() || localStorage.getItem("lumina_locale") || navigator.language || "ko");
     if (value.startsWith("ja")) return "ja";
@@ -74,12 +76,7 @@
     document.getElementById("ottDemoSynopsis").textContent = demo.synopsis;
     document.getElementById("ottDemoMeta").textContent = demo.meta;
     document.getElementById("ottChoicePrompt").textContent = currentClip === "common" ? demo.prompt : demo.again;
-    document.getElementById("ottChoiceEmbrace").textContent = demo.embrace;
-    document.getElementById("ottChoiceIgnore").textContent = demo.ignore;
-    document.getElementById("ottChoiceHesitate").textContent = demo.hesitate;
-    choiceOverlay.querySelectorAll("[data-ott-branch]").forEach((button) => {
-      button.title = button.disabled ? demo.pending : "";
-    });
+    syncBranchButtons();
     document.getElementById("ottRestart").textContent = demo.restart;
     document.getElementById("ottVideoErrorText").textContent = demo.error;
     document.getElementById("ottVideoRetry").textContent = demo.retry;
@@ -94,6 +91,14 @@
     return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
   };
   const isFullscreen = () => document.fullscreenElement === playerWrap || playerWrap.classList.contains("is-pseudo-fullscreen");
+  function syncBranchButtons() {
+    const demo = demoCopy[locale()] || demoCopy.ko;
+    choiceOverlay.querySelectorAll("[data-ott-branch]").forEach((button) => {
+      const label = document.getElementById(`ottChoice${button.dataset.ottBranch[0].toUpperCase()}${button.dataset.ottBranch.slice(1)}`);
+      label.textContent = demo[button.dataset.ottBranch] + (button.disabled ? ` · ${demo.pending}` : "");
+      button.title = button.disabled ? demo.pending : "";
+    });
+  }
   function syncPlayerControls() {
     const labels = controlsCopy[locale()] || controlsCopy.ko;
     const playing = !demoVideo.paused && !demoVideo.ended;
@@ -117,9 +122,16 @@
     if (document.fullscreenElement === playerWrap) {
       try { await document.exitFullscreen(); } catch { /* Keep the player usable if the browser rejects exit. */ }
     }
+    unlockOrientation();
     playerWrap.classList.remove("is-pseudo-fullscreen");
     document.body.classList.remove("ott-fullscreen-active");
     syncPlayerControls();
+  }
+
+  function unlockOrientation() {
+    if (!orientationLocked) return;
+    orientationLocked = false;
+    try { screen.orientation.unlock(); } catch { /* The browser may have already restored orientation. */ }
   }
 
   async function togglePlayerFullscreen() {
@@ -128,6 +140,13 @@
       if (!playerWrap.requestFullscreen) throw new Error("element fullscreen unavailable");
       await playerWrap.requestFullscreen();
       if (document.fullscreenElement !== playerWrap) throw new Error("player was not fullscreened");
+      if (navigator.maxTouchPoints > 0 && typeof screen.orientation?.lock === "function") {
+        try {
+          await screen.orientation.lock("landscape");
+          orientationLocked = true;
+          if (document.fullscreenElement !== playerWrap) unlockOrientation();
+        } catch { /* Orientation lock is not supported by every mobile browser. */ }
+      }
     } catch {
       playerWrap.classList.add("is-pseudo-fullscreen");
       document.body.classList.add("ott-fullscreen-active");
@@ -136,17 +155,20 @@
   }
 
   async function refreshBranchAvailability() {
+    const requestId = ++availabilityRequestId;
     await Promise.all(["ignore", "hesitate"].map(async (key) => {
+      let available = false;
       try {
         const response = await fetch(clipRoot + clips[key], { method: "HEAD", cache: "no-store" });
-        if (response.ok && /^video\/mp4(?:;|$)/i.test(response.headers.get("content-type") || "")) availableBranches.add(key);
-        else availableBranches.delete(key);
-      } catch {
-        availableBranches.delete(key);
-      }
+        available = response.ok && /^video\/mp4(?:;|$)/i.test(response.headers.get("content-type") || "")
+          && Number(response.headers.get("content-length")) > 0;
+      } catch { /* Keep an unavailable branch disabled. */ }
+      if (requestId !== availabilityRequestId) return;
+      if (available) availableBranches.add(key);
+      else availableBranches.delete(key);
       const button = choiceOverlay.querySelector(`[data-ott-branch="${key}"]`);
-      button.disabled = !availableBranches.has(key);
-      button.title = button.disabled ? (demoCopy[locale()] || demoCopy.ko).pending : "";
+      button.disabled = !available;
+      syncBranchButtons();
     }));
   }
 
@@ -184,7 +206,10 @@
   toggleMute.addEventListener("click", () => { demoVideo.muted = !demoVideo.muted; syncPlayerControls(); });
   toggleFullscreen.addEventListener("click", () => { void togglePlayerFullscreen(); });
   fullscreenExit.addEventListener("click", () => { void exitPlayerFullscreen(); });
-  document.addEventListener("fullscreenchange", syncPlayerControls);
+  document.addEventListener("fullscreenchange", () => {
+    if (document.fullscreenElement !== playerWrap) unlockOrientation();
+    syncPlayerControls();
+  });
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && playerWrap.classList.contains("is-pseudo-fullscreen")) void exitPlayerFullscreen();
   });
@@ -235,9 +260,9 @@
   }
 
   function render(items) {
-    catalog.hidden = !items.length;
+    catalog.hidden = false;
     if (!items.length) {
-      root.replaceChildren();
+      status(tr("emptyTitle"), tr("emptyBody"));
       return;
     }
     root.innerHTML = `<div class="ott-grid">${items.map((item) => `<article class="ott-card">
@@ -253,6 +278,7 @@
   }
 
   async function load() {
+    catalog.hidden = false;
     status(tr("loading"));
     try {
       const response = await fetch("/api/v1/ott", { headers: { Accept: "application/json" }, credentials: "omit" });
@@ -260,7 +286,7 @@
       const payload = await response.json();
       render(Array.isArray(payload?.items) ? payload.items : []);
     } catch {
-      catalog.hidden = true;
+      status(tr("errorTitle"), tr("errorBody"));
     }
   }
 

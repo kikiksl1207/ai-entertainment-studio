@@ -46,7 +46,7 @@
 .ott-video-wrap:fullscreen, .ott-video-wrap.is-pseudo-fullscreen { width: 100vw; height: 100dvh; max-width: none; min-height: 0; aspect-ratio: auto; background: #000; }
 .ott-video-wrap.is-pseudo-fullscreen { position: fixed; z-index: 9999; inset: 0; }
 .ott-page.ott-fullscreen-active { overflow: hidden; }
-.ott-video-wrap:fullscreen .ott-choice-overlay, .ott-video-wrap.is-pseudo-fullscreen .ott-choice-overlay { align-items: center; }
+.ott-video-wrap:fullscreen .ott-choice-overlay, .ott-video-wrap.is-pseudo-fullscreen .ott-choice-overlay { align-items: safe center; overflow-y: auto; }
 .ott-choice-overlay[hidden], .ott-video-error[hidden] { display: none; }
 .ott-choice-overlay, .ott-video-error { position: absolute; z-index: 3; inset: 0; display: flex; align-items: flex-end; justify-content: center; padding: 20px; background: rgba(2, 5, 8, .62); }
 .ott-choice-content { width: min(100%, 560px); margin-bottom: 12px; }

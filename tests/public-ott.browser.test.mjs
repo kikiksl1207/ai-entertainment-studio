@@ -120,7 +120,26 @@ test('public discovery works at desktop and mobile widths and captures verified 
         }
         await page.evaluate(() => window.luminaI18n.setLocale('ko-KR'));
       }
-      assert.equal(await page.locator('#ottCatalog').isVisible(), false);
+      assert.equal(await page.locator('#ottCatalog').isVisible(), true);
+      assert.match(await page.locator('#ottCatalogRoot').innerText(), /지금 공개된 선택극장 작품이 없습니다/);
+      if (width === 390) {
+        await page.route('**/api/v1/ott', (route) => route.fulfill({ status: 503 }));
+        await page.reload({ waitUntil: 'networkidle' });
+        assert.match(await page.locator('#ottCatalogRoot').innerText(), /작품 목록을 불러오지 못했습니다/);
+        await page.unroute('**/api/v1/ott');
+        await page.route('**/api/v1/ott', (route) => route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ items: [{ title: { ko: '공개 시연' }, synopsis: { ko: '줄거리' }, creatorName: { ko: '제작자' }, publishedAt: '2026-09-25T00:00:00Z' }] }),
+        }));
+        await page.reload({ waitUntil: 'networkidle' });
+        assert.equal(await page.locator('.ott-card h3').innerText(), '공개 시연');
+        await page.locator('.ott-detail-button').click();
+        assert.match(await page.locator('.ott-boundary').innerText(), /감상 이용은 제공되지 않습니다/);
+        await page.unroute('**/api/v1/ott');
+        await page.reload({ waitUntil: 'networkidle' });
+        await page.evaluate(() => scrollTo(0, 0));
+      }
       assert.equal(await page.locator('video').count(), 1);
       assert.equal(await page.locator('audio, [data-private-preview]').count(), 0);
       assert.equal(await page.locator('[data-ott-branch]').count(), 3);
@@ -148,6 +167,11 @@ test('public discovery works at desktop and mobile widths and captures verified 
     }
 
     const page = await browser.newPage({ viewport: { width: 400, height: 844 }, isMobile: true, hasTouch: true });
+    await page.addInitScript(() => {
+      window.__ottOrientation = { locks: [], unlocks: 0 };
+      Object.defineProperty(screen.orientation, 'lock', { configurable: true, value: async (value) => { window.__ottOrientation.locks.push(value); } });
+      Object.defineProperty(screen.orientation, 'unlock', { configurable: true, value: () => { window.__ottOrientation.unlocks++; } });
+    });
     await page.goto(`${base}/ott`, { waitUntil: 'domcontentloaded' });
     await page.locator('#ottOpenDemo').click();
     const video = page.locator('#ottDemoVideo');
@@ -156,6 +180,10 @@ test('public discovery works at desktop and mobile widths and captures verified 
     await page.locator('#ottToggleFullscreen').click();
     await page.waitForFunction(() => document.fullscreenElement?.classList.contains('ott-video-wrap') || document.querySelector('.ott-video-wrap').classList.contains('is-pseudo-fullscreen'));
     assert.equal(await page.evaluate(() => document.fullscreenElement === document.getElementById('ottDemoVideo')), false);
+    if (await page.evaluate(() => document.fullscreenElement?.classList.contains('ott-video-wrap'))) {
+      await page.waitForFunction(() => window.__ottOrientation.locks.length > 0);
+      assert.deepEqual(await page.evaluate(() => window.__ottOrientation.locks), ['landscape']);
+    }
     await video.evaluate((element) => {
       element.currentTime = element.duration - 2.5;
       element.dispatchEvent(new Event('timeupdate'));
@@ -166,6 +194,7 @@ test('public discovery works at desktop and mobile widths and captures verified 
     await page.waitForFunction(() => !document.querySelector('[data-ott-branch="ignore"]').disabled);
     assert.equal(await page.locator('[data-ott-branch="ignore"]').isEnabled(), true);
     assert.equal(await page.locator('[data-ott-branch="hesitate"]').isDisabled(), true);
+    assert.match(await page.locator('[data-ott-branch="hesitate"]').innerText(), /아직 선택할 수 없습니다/);
     assert.equal(await page.locator('#ottFullscreenExit').isVisible(), true);
     assert.equal(await page.evaluate(() => {
       const choice = document.querySelector('[data-ott-branch="hesitate"]').getBoundingClientRect();
@@ -185,6 +214,10 @@ test('public discovery works at desktop and mobile widths and captures verified 
     assert.equal(await page.locator('[data-ott-branch="ignore"]').isEnabled(), true);
     await page.locator('#ottFullscreenExit').click();
     assert.equal(await page.evaluate(() => document.fullscreenElement === null && !document.querySelector('.ott-video-wrap').classList.contains('is-pseudo-fullscreen')), true);
+    if (await page.evaluate(() => window.__ottOrientation.locks.length)) {
+      await page.waitForFunction(() => window.__ottOrientation.unlocks > 0);
+      assert.equal(await page.evaluate(() => window.__ottOrientation.unlocks), 1);
+    }
     await page.locator('#ottRestart').click();
     await page.waitForFunction(() => document.getElementById('ottDemoVideo').currentSrc.endsWith('/01-common-to-choice.mp4'));
 
@@ -197,7 +230,8 @@ test('public discovery works at desktop and mobile widths and captures verified 
     await page.reload({ waitUntil: 'networkidle' });
     await page.locator('#ottOpenDemo').click();
     assert.equal(await page.locator('[data-ott-branch="ignore"]').isEnabled(), true);
-    assert.equal(await page.locator('[data-ott-branch="hesitate"]').isEnabled(), true);
+    assert.equal(await page.locator('[data-ott-branch="hesitate"]').isDisabled(), true);
+    assert.match(await page.locator('[data-ott-branch="hesitate"]').innerText(), /아직 선택할 수 없습니다/);
     await page.close();
 
     const fallbackPage = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
@@ -222,6 +256,12 @@ test('public discovery works at desktop and mobile widths and captures verified 
       return bounds.top >= 0 && bounds.bottom <= innerHeight;
     }), true);
     await fallbackPage.screenshot({ path: join(artifacts, 'ott-choice-landscape-844.png'), fullPage: false });
+    await fallbackPage.setViewportSize({ width: 568, height: 320 });
+    await fallbackPage.locator('[data-ott-branch="embrace"]').scrollIntoViewIfNeeded();
+    assert.equal(await fallbackPage.locator('[data-ott-branch="embrace"]').evaluate((element) => {
+      const bounds = element.getBoundingClientRect();
+      return bounds.top >= 0 && bounds.bottom <= innerHeight;
+    }), true);
     await fallbackPage.locator('[data-ott-branch="embrace"]').click();
     await fallbackPage.waitForFunction(() => document.getElementById('ottDemoVideo').currentSrc.endsWith('/02-branch-embrace-original.mp4'));
     await fallbackPage.locator('#ottToggleFullscreen').click();

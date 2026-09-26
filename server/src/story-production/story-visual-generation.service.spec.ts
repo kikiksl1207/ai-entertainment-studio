@@ -643,12 +643,15 @@ describe('StoryVisualGenerationService', () => {
 
   it('keeps a generated beta image in the database when object storage rejects the upload', async () => {
     const f = fixture();
+    const warning = jest.spyOn((f.service as any).logger, 'warn').mockImplementation();
     const image = await sharp({
       create: { width: 1536, height: 1024, channels: 3, background: '#556677' },
     }).webp().toBuffer();
     jest.spyOn(global, 'fetch')
       .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [{ b64_json: image.toString('base64') }] }) } as Response)
-      .mockResolvedValueOnce({ ok: false, status: 403 } as Response);
+      .mockResolvedValueOnce({ ok: false, status: 403,
+        text: async () => '<Error><Code>AccessDenied</Code><Message>private account details</Message></Error>',
+      } as Response);
 
     await expect(f.service.requestForProgress('user-id', progressId, sourceSceneKey)).resolves.toEqual({
       status: 'ready', sourceSceneKey,
@@ -662,6 +665,10 @@ describe('StoryVisualGenerationService', () => {
         }),
       }),
     }) });
+    expect(warning).toHaveBeenCalledWith(expect.objectContaining({
+      event: 'story_visual_database_fallback', objectStorageStatus: 403, objectStorageCode: 'AccessDenied',
+    }));
+    expect(JSON.stringify(warning.mock.calls)).not.toContain('private account details');
   });
 
   it('serves a verified database fallback image from the public story endpoint', async () => {

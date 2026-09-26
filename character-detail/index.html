@@ -7,7 +7,7 @@
     <link rel="canonical" href="https://www.lumina-stage.com/character-detail" />
     <script>(function(){if(window.history&&history.replaceState&&location.pathname.length>1&&location.pathname.charAt(location.pathname.length-1)==="/"){history.replaceState(null,"",location.pathname.slice(0,-1)+location.search+location.hash);}})();</script>
     <link rel="stylesheet" href="/styles.css" />
-    <link rel="stylesheet" href="/styles/character-detail.css" />
+    <link rel="stylesheet" href="/styles/character-detail.css?v=artist-readiness-20260926" />
     <!-- SEO -->
     <meta name="description" content="Lumina Stage 공식 아티스트의 프로필, 숏폼 하이라이트, 팬 활동을 한곳에서 만나보세요." />
     <meta name="robots" content="noindex, nofollow" />
@@ -23,35 +23,6 @@
     <meta name="twitter:title" content="캐릭터 프로필 — Lumina Stage" />
     <meta name="twitter:description" content="Lumina Stage 공식 아티스트의 프로필, 숏폼 하이라이트, 팬 활동을 한곳에서 만나보세요." />
     <meta name="twitter:image" content="/assets/characters/yoon-serin/thumb.png" />
-  <style>
-    /* CSS 충돌 방지 — 갤러리/프로필 레이아웃 직접 고정 */
-    .detail-body-grid {
-      display: grid !important;
-      grid-template-columns: 1fr 1fr !important;
-      gap: 24px !important;
-      align-items: stretch !important;
-      margin-bottom: 40px !important;
-    }
-    /* 갤러리 패널: flex column으로 슬라이더가 남은 공간을 채우도록 */
-    .detail-gallery-panel {
-      width: 100% !important;
-      height: 100% !important;
-      display: flex !important;
-      flex-direction: column !important;
-    }
-    .detail-gallery-slider { width: 100% !important; overflow: hidden !important; border-radius: 16px !important; background: #16122a !important; }
-    .gallery-track { display: flex !important; }
-    /* 모바일: 갤러리/프로필 세로 쌓기 */
-    @media (max-width: 768px) {
-      .detail-body-grid {
-        grid-template-columns: 1fr !important;
-        gap: 16px !important;
-      }
-      .detail-gallery-panel {
-        height: auto !important;
-      }
-    }
-  </style>
     <!-- Google tag (gtag.js) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-1L7TCBQ0N4"></script>
     <script>
@@ -118,7 +89,7 @@
            └──────────────────────────────────────────────────────────┘
            공통 원칙: AI챗=무료·AI응답, 프리미엄챗=유료·아티스트 직접. 텍스트 겹침 없음.
       -->
-      <section class="content-section">
+      <section class="content-section" id="detailChatSection">
         <div class="shell">
           <!-- #607 — AI 캐릭터챗 / 프리미엄챗 두 갈래 구분 UX 강화 -->
           <!-- #833 — v2: eyebrow 추가, 무료/유료 타입 라벨 명시, small 설명 개선 -->
@@ -146,21 +117,10 @@
           </div>
           <p class="detail-chat-select-note">AI 캐릭터챗은 무료로 언제든 시작할 수 있어요. 프리미엄챗은 아티스트가 직접 답변하는 유료 서비스예요.</p>
         </div>
-        <script>
-          (function () {
-            try {
-              const slug = new URLSearchParams(window.location.search).get("slug") || "";
-              const link = document.getElementById("chatStartLink");
-              if (slug && link) {
-                link.href = "/character-chat?slug=" + encodeURIComponent(slug);
-              }
-            } catch (_) { /* noop */ }
-          })();
-        </script>
       </section>
 
       <!-- 하단: 갤러리 + 프로필 + 숏폼 -->
-      <section class="content-section">
+      <section class="content-section" id="detailBodySection">
         <div class="shell">
           <div class="detail-body-grid">
             <!-- 갤러리 -->
@@ -184,12 +144,12 @@
       </section>
 
       <!-- CTA -->
-      <section class="content-section section-soft">
+      <section class="content-section section-soft" id="detailCtaSection">
         <div class="shell" id="detailCta"></div>
       </section>
 
       <!-- 태그 -->
-      <section class="content-section">
+      <section class="content-section" id="detailTagSection">
         <div class="shell">
           <p class="eyebrow">태그 탐색</p>
           <h3>이 캐릭터와 연결된 태그</h3>
@@ -217,7 +177,7 @@
     </footer>
 
     <script src="/data/characters.js"></script>
-    <script src="/pages/character-detail.js"></script>
+    <script src="/pages/character-detail.js?v=artist-readiness-20260926"></script>
     <script src="/cms-bootstrap.js"></script>
     <script src="/app.js"></script>
     <!-- ── 모바일 하단 탭바 (768px 이하 노출, #017 — 2026-05-02) ── -->

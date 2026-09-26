@@ -43,6 +43,10 @@
   function routePath(suffix = "") {
     return `/stories/${encodeURIComponent(active.workId)}/linear-draft${suffix}`;
   }
+  function validOriginalLabel(label) {
+    return Boolean(label && label.length <= 120 && !label.includes("\0") &&
+      !/^(다음|계속|next|continue)(\s*(장|파트|으로|part))?$/iu.test(label));
+  }
   function close() { if (!busy) modal.classList.add("is-hidden"); }
   function setState(message, error = false) {
     state.textContent = message;
@@ -78,6 +82,7 @@
       input.required = true;
       input.dataset.partKey = part.partKey;
       input.value = snapshot.scenes[index]?.originalLabel || "";
+      input.readOnly = Boolean(snapshot.ready);
       input.setAttribute("aria-label", `${part.title} 원작 경로 선택 문구`);
       label.append(input);
       item.append(heading, excerpt, destination, label);
@@ -107,16 +112,23 @@
         snapshot.ready ? "선택지 3개가 모두 준비되어 있습니다. 이 원고는 아직 비공개입니다." :
           "원고의 원래 다음 경로를 확인하고 선택 문구를 입력해 주세요.");
     } catch (error) { snapshot = null; setState(error.message, true); }
-    finally { prepare.disabled = !snapshot || snapshot.issuesTruncated ||
+    finally { prepare.disabled = !snapshot || snapshot.ready || snapshot.issuesTruncated ||
       (snapshot.issues || []).some(issue => issue.severity === "critical"); }
   }
   async function finalize() {
-    if (busy || !snapshot || !current()) return;
-    const originalRoutes = [...parts.querySelectorAll("input[data-part-key]")].map(input => ({
+    if (busy || !snapshot || snapshot.ready || !current()) return;
+    const routeInputs = [...parts.querySelectorAll("input[data-part-key]")];
+    const originalRoutes = routeInputs.map(input => ({
       partKey: input.dataset.partKey, label: input.value.trim()
     }));
+    const invalidRoute = originalRoutes.findIndex(item => !validOriginalLabel(item.label));
+    if (invalidRoute >= 0) {
+      setState("다음/Continue 같은 일반적인 문구 대신 해당 장면의 구체적인 선택을 적어주세요.", true);
+      routeInputs[invalidRoute].focus();
+      return;
+    }
     if (snapshot.issuesTruncated || (snapshot.issues || []).some(issue => issue.severity === "critical") ||
-        originalRoutes.length !== snapshot.parts.length || originalRoutes.some(item => !item.label) ||
+        originalRoutes.length !== snapshot.parts.length ||
         !checks.slice(0, 3).every(check => check.checked) ||
         ((snapshot.issues || []).some(issue => issue.severity === "warning") && !checks[3].checked)) {
       setState("모든 원작 선택 문구와 검토·권리·AI 승인 항목을 확인해 주세요.", true);
@@ -172,12 +184,15 @@
       setState("선택지와 원고를 최종 검증하고 있습니다.");
       await request(routePath(`/releases/${encodeURIComponent(result.releaseId)}/finish`), { method: "POST" });
       snapshot = await request(routePath(`/${encodeURIComponent(active.manuscriptVersionId)}`));
+      if (!snapshot.ready) throw new Error("선택지 준비 완료 상태를 확인할 수 없습니다.");
+      renderParts();
       setState("모든 파트에 선택지 3개가 준비되었습니다. 공개 전 운영 검토가 남아 있습니다.");
     } catch (error) {
       setState(`${error.message} 준비된 파트는 보존됩니다. 다시 열어 이어서 진행해 주세요.`, true);
       try { snapshot = await request(routePath(`/${encodeURIComponent(active.manuscriptVersionId)}`)); }
       catch (_) { /* Keep the failure visible until the author retries. */ }
-    } finally { busy = false; prepare.disabled = false; }
+    } finally { busy = false; prepare.disabled = !snapshot || snapshot.ready || snapshot.issuesTruncated ||
+      (snapshot.issues || []).some(issue => issue.severity === "critical"); }
   }
   document.getElementById("writerFinalOpen").addEventListener("click", open);
   document.getElementById("writerFinalClose").addEventListener("click", close);

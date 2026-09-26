@@ -7,18 +7,32 @@ function catalogStatusCopy(status, type = "label") {
   return window.luminaI18n?.t?.(key) || fallback || status;
 }
 
+function catalogText(value) {
+  return String(value ?? "").replace(/[&<>"']/g, ch => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  })[ch]);
+}
+
+function catalogHasValue(value) {
+  return value !== null && value !== undefined &&
+    String(value).trim() !== "" && !/^(?:-|—|N\/A|TBD)$/i.test(String(value).trim());
+}
+
 function renderCatalogMedia(a) {
-  const s = statusMeta[a.status];
+  const s = statusMeta[a.status] || {};
   if (a.status === "secret" || a.status === "pending") {
     return `<div class="catalog-media catalog-media-${a.tier} catalog-media-${a.status}">
       <div class="catalog-overlay">
-        <span class="eyebrow">${a.type}</span>
-        <strong>${a.publicName}</strong>
+        <span class="eyebrow">${catalogText(a.type)}</span>
+        <strong>${catalogText(a.publicName)}</strong>
         <em class="catalog-status-caption" data-i18n="${s.summaryKey || ""}">${catalogStatusCopy(a.status, "summary")}</em>
       </div></div>`;
   }
-  return `<div class="catalog-media catalog-media-${a.tier} catalog-media-${a.status}">
-    <img class="catalog-image catalog-image-${a.slug}" src="${a.images.thumb || a.images.cover}" alt="${a.publicName}" onerror="this.style.display='none'" />
+  const primary = a.images?.thumb || a.images?.cover;
+  const fallback = a.images?.thumb && a.images?.cover && a.images.thumb !== a.images.cover ? a.images.cover : "";
+  return `<div class="catalog-media catalog-media-${a.tier} catalog-media-${a.status}${primary ? "" : " is-image-unavailable"}">
+    ${primary ? `<img class="catalog-image catalog-image-${catalogText(a.slug)}" src="${catalogText(primary)}" data-fallback-src="${catalogText(fallback)}" alt="${catalogText(a.publicName)}" />` : ""}
+    <strong class="catalog-image-fallback">${catalogText(a.publicName)}</strong>
     <div class="catalog-overlay"><em class="catalog-status-caption" data-i18n="${s.summaryKey || ""}">${catalogStatusCopy(a.status, "summary")}</em></div>
   </div>`;
 }
@@ -39,7 +53,7 @@ function renderCharacterCatalog(filter = "all", tagFilter = "", statusFilter = "
   } else {
     list = _artists.filter(a => a.type === filter || a.tier === filter);
   }
-  if (tagFilter) list = list.filter(a => a.tags.includes(tagFilter));
+  if (tagFilter) list = list.filter(a => (a.tags || []).includes(tagFilter));
   // status 필터 (사용자 클릭 시) — type 필터와 독립적으로 AND 적용
   if (statusFilter && statusFilter !== "all") {
     list = list.filter(a => a.status === statusFilter);
@@ -56,6 +70,17 @@ function renderCharacterCatalog(filter = "all", tagFilter = "", statusFilter = "
     return getLikesCount(b.slug) - getLikesCount(a.slug);
   });
 
+  const note = document.getElementById("activeFilterNote");
+  if (note) {
+    const parts = [];
+    if (tagFilter) parts.push(`태그: <strong>${catalogText(tagFilter)}</strong>`);
+    if (filter && filter !== "all") parts.push(`분류: <strong>${catalogText(filter)}</strong>`);
+    if (statusFilter && statusFilter !== "all") parts.push(`상태: <strong>${catalogText(catalogStatusCopy(statusFilter))}</strong>`);
+    note.innerHTML = parts.length
+      ? `<span>현재 필터: ${parts.join(" / ")}</span><a href="/characters" class="text-link">필터 해제</a>`
+      : "";
+  }
+
   // #080 — 빈상태: 필터 결과가 0이면 안내 카드
   if (list.length === 0) {
     // #362 — 빈상태 카피 톤다운. "준비 중" 반복 없이 실서비스 안내.
@@ -68,42 +93,36 @@ function renderCharacterCatalog(filter = "all", tagFilter = "", statusFilter = "
 
   root.innerHTML = list.map(a => `
     <article class="catalog-card ${statusMeta[a.status].className} clickable-card"
-      data-href="/character-detail?slug=${a.slug}"
+      data-href="/character-detail?slug=${encodeURIComponent(a.slug)}"
       data-secret="${a.status === "secret" || a.status === "pending"}"
       style="--char-accent: ${a.colorAccent || "#9f8bc7"}">
       ${renderCatalogMedia(a)}
       ${(a.status === "public" || a.status === "debut") ? likeButtonHTML(a.slug, "like-btn-large like-btn-catalog") : ""}
       <div class="catalog-body">
-        <h3 class="catalog-name">${a.publicName}</h3>
+        <h3 class="catalog-name">${catalogText(a.publicName)}</h3>
         <div class="catalog-meta">
           <span data-i18n="${statusMeta[a.status].labelKey || ""}">${catalogStatusCopy(a.status)}</span>
-          <span>${tierLabel[a.tier] || a.tier}</span>
+          <span>${catalogText(tierLabel[a.tier] || a.tier)}</span>
         </div>
-        <p class="catalog-summary">${artistToneCopy(a)}</p>
-        <dl class="catalog-details">
-          <div><dt>팬 포인트</dt><dd>${a.fandom}</dd></div>
-          <div><dt>브랜드 무드</dt><dd>${a.business}</dd></div>
-        </dl>
-        <div class="tag-list">${a.tags.map(t => `<span>${t}</span>`).join("")}</div>
-        <a class="text-link ${(a.status === "secret" || a.status === "pending") ? "is-dimmed" : ""}" href="/character-detail?slug=${a.slug}">무드 보기</a>
+        ${catalogHasValue(artistToneCopy(a)) ? `<p class="catalog-summary">${catalogText(artistToneCopy(a))}</p>` : ""}
+        ${catalogHasValue(a.fandom) || catalogHasValue(a.business) ? `<dl class="catalog-details">
+          ${catalogHasValue(a.fandom) ? `<div><dt>팬 포인트</dt><dd>${catalogText(a.fandom)}</dd></div>` : ""}
+          ${catalogHasValue(a.business) ? `<div><dt>브랜드 무드</dt><dd>${catalogText(a.business)}</dd></div>` : ""}
+        </dl>` : ""}
+        ${(a.tags || []).length ? `<div class="tag-list">${a.tags.map(t => `<span>${catalogText(t)}</span>`).join("")}</div>` : ""}
+        <a class="text-link ${(a.status === "secret" || a.status === "pending") ? "is-dimmed" : ""}" href="/character-detail?slug=${encodeURIComponent(a.slug)}">무드 보기</a>
       </div>
     </article>`).join("");
-
-  const note = document.getElementById("activeFilterNote");
-  if (note) {
-    const parts = [];
-    if (tagFilter) parts.push(`태그: <strong>${tagFilter}</strong>`);
-    if (filter && filter !== "all") parts.push(`분류: <strong>${filter}</strong>`);
-    if (statusFilter && statusFilter !== "all") {
-      parts.push(`상태: <strong>${catalogStatusCopy(statusFilter)}</strong>`);
-    }
-    if (parts.length === 0) {
-      note.innerHTML = "";
-    } else {
-      note.innerHTML = `<span>현재 필터: ${parts.join(" / ")}</span>` +
-        (tagFilter ? `<a href="/characters" class="text-link">필터 해제</a>` : "");
-    }
-  }
+  root.querySelectorAll(".catalog-image").forEach(img => {
+    img.addEventListener("error", () => {
+      if (img.dataset.fallbackSrc && img.src !== new URL(img.dataset.fallbackSrc, window.location.href).href) {
+        img.src = img.dataset.fallbackSrc;
+      } else {
+        img.closest(".catalog-media").classList.add("is-image-unavailable");
+        img.remove();
+      }
+    });
+  });
   window.luminaI18n?.apply?.(root);
 }
 

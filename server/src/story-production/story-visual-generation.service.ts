@@ -1236,11 +1236,20 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
     const response = await fetch(url, { method: 'PUT', headers: { 'content-type': 'image/webp' },
       body: image as unknown as BodyInit });
     if (!response.ok) {
+      let objectStorageCode = 'unknown';
+      try {
+        const errorBody = await response.text();
+        objectStorageCode = errorBody.match(/<Code>([A-Za-z][A-Za-z0-9]{0,63})<\/Code>/)?.[1] ?? 'unknown';
+      } catch {
+        // The HTTP status remains enough when object storage omits an XML error body.
+      }
       if (this.databaseFallbackEnabled()) {
         this.logger.warn({ event: 'story_visual_database_fallback', workId, sourceSceneKey,
-          objectStorageStatus: response.status });
+          objectStorageStatus: response.status, objectStorageCode });
         return { provider: 'database', key, inlineBase64: image.toString('base64') };
       }
+      this.logger.warn({ event: 'story_visual_object_storage_rejected', workId, sourceSceneKey,
+        objectStorageStatus: response.status, objectStorageCode });
       throw new Error(`OBJECT_STORAGE_${response.status}`);
     }
     return { provider, key };
