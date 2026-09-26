@@ -189,6 +189,114 @@
         { key: "C", label: "에너지 응원", message: "오늘도 끝까지 뛰는 모습 응원해요. 지치지 말아요." },
         { key: "D", label: "활기찬 안부", message: "요즘 잘 지내요? 저는 에너지 넘치게 지내고 있어요." }
       ]
+    },
+    "nam-ian": {
+      preferLocalStarterOnDefaultApi: true,
+      statusLine: "행동 관찰 아카이브를 정리하는 중이에요",
+      welcomeMessage: "왔어요? 오늘 눈에 띈 작은 습관이 있나요? 함께 단서를 찾아봐요.",
+      lastMessagePreview: "오늘 눈에 띈 작은 습관이 있나요?",
+      starters: [
+        { key: "A", label: "일상 속 습관 이야기", message: "일상에서 반복되는 작은 습관 하나를 같이 관찰해보고 싶어요." },
+        { key: "B", label: "행동과학 질문", message: "익숙한 행동을 다르게 보게 만든 질문이 있나요?" },
+        { key: "C", label: "관찰 아카이브 응원", message: "작은 단서를 꼼꼼히 기록하는 이야기가 기대돼요." },
+        { key: "D", label: "실험 다큐멘터리 기대", message: "다음 실험형 다큐멘터리에서 어떤 질문을 다룰지 궁금해요." }
+      ]
+    },
+    "jang-taegeon": {
+      preferLocalStarterOnDefaultApi: true,
+      statusLine: "현장 안전 브리핑을 확인하는 중이에요",
+      welcomeMessage: "왔어요. 멋진 장면도 모두가 안전하게 돌아가야 완성되죠. 오늘은 어떤 현장을 이야기할까요?",
+      lastMessagePreview: "오늘은 어떤 현장을 이야기할까요?",
+      starters: [
+        { key: "A", label: "현장 안전 이야기", message: "현장에서 가장 먼저 확인하는 안전 기준이 궁금해요." },
+        { key: "B", label: "액션 퍼포먼스 응원", message: "사람을 먼저 챙기는 액션 퍼포먼스를 응원해요." },
+        { key: "C", label: "위기대응 콘텐츠 기대", message: "위기대응 콘텐츠에서 어떤 판단을 보여줄지 기대돼요." },
+        { key: "D", label: "팀을 지키는 리더십", message: "팀이 안전하게 결과를 완성하도록 이끄는 모습이 인상 깊어요." }
+      ]
+    },
+    "bae-seongpil": {
+      preferLocalStarterOnDefaultApi: true,
+      statusLine: "흥행 기획 테이블을 살피는 중이에요",
+      welcomeMessage: "왔군요. 좋은 사람과 정확한 타이밍을 연결하는 이야기라면 언제든 듣겠습니다.",
+      lastMessagePreview: "좋은 사람과 정확한 타이밍을 연결하는 이야기",
+      starters: [
+        { key: "A", label: "기획 이야기 나누기", message: "새로운 콘텐츠 기획에서 가장 먼저 보는 가능성이 궁금해요." },
+        { key: "B", label: "파트너십 이야기", message: "좋은 사람과 기회를 연결하는 과정이 궁금해요." },
+        { key: "C", label: "후배 창작자 응원", message: "후배 창작자의 다음 기회를 여는 일을 응원합니다." },
+        { key: "D", label: "다음 무대 기대", message: "다음에는 어떤 무대를 성사시킬지 기대하고 있어요." }
+      ]
+    },
+    "jung-doyun": {
+      preferLocalStarterOnDefaultApi: true,
+      statusLine: "생활 법률 브리핑을 준비하는 중이에요",
+      welcomeMessage: "왔어요. 어려운 이야기도 생활의 언어로 풀어볼게요. 어떤 주제가 궁금한가요?",
+      lastMessagePreview: "어떤 주제가 궁금한가요?",
+      starters: [
+        { key: "A", label: "생활 법률 콘텐츠", message: "생활 법률을 쉽게 전하는 다음 콘텐츠가 궁금해요." },
+        { key: "B", label: "창작자 권익 이야기", message: "창작자가 놓치기 쉬운 권리를 다루는 이야기를 듣고 싶어요." },
+        { key: "C", label: "시사 토크 응원", message: "근거를 분명히 전하는 시사 토크를 응원해요." },
+        { key: "D", label: "쉬운 설명 기대", message: "복잡한 제도를 일상의 언어로 설명하는 방식이 좋아요." }
+      ]
+    },
+    "lim-jaeguk": {
+      preferLocalStarterOnDefaultApi: true,
+      statusLine: "현장 관찰 노트를 정리하는 중이에요",
+      welcomeMessage: "왔군요. 큰 사건보다 작은 변화가 오래 남을 때가 있죠. 오늘은 어떤 장면이 눈에 들어왔나요?",
+      lastMessagePreview: "오늘은 어떤 장면이 눈에 들어왔나요?",
+      starters: [
+        { key: "A", label: "작은 변화 이야기", message: "현장에서 발견한 작은 변화가 어떻게 이야기로 이어지는지 궁금해요." },
+        { key: "B", label: "관찰 예능 응원", message: "사람을 서두르지 않고 보는 관찰 예능을 응원해요." },
+        { key: "C", label: "다큐멘터리 기대", message: "다음 다큐멘터리에서 어떤 순간을 기록할지 기대돼요." },
+        { key: "D", label: "현장 멘토 이야기", message: "팀의 변화를 읽고 이끄는 현장 이야기를 듣고 싶어요." }
+      ]
+    },
+    "cha-mawang": {
+      preferLocalStarterOnDefaultApi: true,
+      statusLine: "크리에이터 IP 투자 테이블을 살피는 중이에요",
+      welcomeMessage: "왔어요? 좋은 IP는 가능성과 책임을 함께 봐야 하죠. 오늘은 어떤 콘텐츠 이야기를 해볼까요?",
+      lastMessagePreview: "오늘은 어떤 콘텐츠 이야기를 해볼까요?",
+      starters: [
+        { key: "A", label: "IP 가능성 이야기", message: "크리에이터 IP의 가능성을 볼 때 어떤 기준을 먼저 살피나요?" },
+        { key: "B", label: "콘텐츠 제작 응원", message: "선택한 사람과 프로젝트를 끝까지 책임지는 제작을 응원해요." },
+        { key: "C", label: "라이브 콘텐츠 기대", message: "다음 라이브 콘텐츠 제작 이야기가 궁금해요." },
+        { key: "D", label: "협상과 책임", message: "숫자와 사람에 대한 책임을 함께 보는 이유를 듣고 싶어요." }
+      ]
+    },
+    "seo-ika": {
+      preferLocalStarterOnDefaultApi: true,
+      statusLine: "협동 생존 라이브 준비 중이에요",
+      welcomeMessage: "왔어요? 놓친 단서가 있으면 함께 찾아봐요. 팀의 마음도 끝까지 살필게요.",
+      lastMessagePreview: "놓친 단서가 있으면 함께 찾아봐요.",
+      starters: [
+        { key: "A", label: "스토리 게임 이야기", message: "스토리 게임에서 눈여겨본 단서를 같이 이야기해요." },
+        { key: "B", label: "협동 생존 응원", message: "팀을 끝까지 챙기는 협동 생존 라이브를 응원해요." },
+        { key: "C", label: "호러 라이브 기대", message: "다음 호러 라이브에서 어떤 장면을 만날지 궁금해요." },
+        { key: "D", label: "팀원 마음 살피기", message: "위기 속에서도 팀원의 마음을 먼저 살피는 모습이 좋아요." }
+      ]
+    },
+    "baek-toga": {
+      preferLocalStarterOnDefaultApi: true,
+      statusLine: "정확한 한 동작을 확인하는 중이에요",
+      welcomeMessage: "왔어요. 거창한 결심보다 지금 할 수 있는 한 동작부터 시작해볼까요?",
+      lastMessagePreview: "지금 할 수 있는 한 동작부터 시작해볼까요?",
+      starters: [
+        { key: "A", label: "한 동작부터 시작", message: "지금 바로 실천할 수 있는 한 동작을 보여줄래요?" },
+        { key: "B", label: "정확한 시범 응원", message: "복잡한 설명보다 정확한 시범을 보여주는 방식이 좋아요." },
+        { key: "C", label: "생활 운동 콘텐츠", message: "다음 생활 운동 콘텐츠가 궁금해요." },
+        { key: "D", label: "꾸준한 실천 이야기", message: "작은 변화를 꾸준히 이어가는 이야기를 듣고 싶어요." }
+      ]
+    },
+    "kwon-bandong": {
+      preferLocalStarterOnDefaultApi: true,
+      statusLine: "원정 안전 계획을 확인하는 중이에요",
+      welcomeMessage: "왔군요. 출발보다 귀환을 먼저 계획합니다. 어떤 원정 이야기를 나눠볼까요?",
+      lastMessagePreview: "어떤 원정 이야기를 나눠볼까요?",
+      starters: [
+        { key: "A", label: "원정 안전 이야기", message: "원정을 계획할 때 복귀 조건을 어떻게 정하는지 궁금해요." },
+        { key: "B", label: "생존 콘텐츠 응원", message: "약속한 귀환까지 책임지는 생존 콘텐츠를 응원해요." },
+        { key: "C", label: "아웃도어 현장", message: "아웃도어 현장에서 가장 먼저 살피는 것이 궁금해요." },
+        { key: "D", label: "안전 계획 기대", message: "다음 원정 안전 계획 콘텐츠를 기대하고 있어요." }
+      ]
     }
   };
 
