@@ -32,6 +32,27 @@ describe('Semantic Responses adapter (fake transport only)', () => {
     Object.assign(output.evidence[0].citations[0], { [field]: field === 'quote' || field === 'partKey' ? 'not-source' : 999 });
     expect(() => validateSemanticEvidence(output, input)).toThrow();
   });
+  it('realigns a unique exact quote when the model counts two extra punctuation units', () => {
+    const output = semanticTestOutput(input);
+    output.evidence[0].citations[0].end += 2;
+    const citation = validateSemanticEvidence(output, input)[0].citations[0];
+    expect(citation).toMatchObject({ start: 0, end: input.pieces[0].text.length,
+      quoteHash: sha256(input.pieces[0].text) });
+  });
+  it('rejects ambiguous quote repair but accepts an exact offset for repeated text', () => {
+    const text = 'The bell rang. The bell rang.';
+    const repeated = { ...input, pieces: [{ ...input.pieces[0], text, end: text.length }] };
+    const output = semanticTestOutput(repeated);
+    Object.assign(output.evidence[0].citations[0], { quote: 'The bell rang.', end: 16 });
+    expect(() => validateSemanticEvidence(output, repeated)).toThrow();
+    Object.assign(output.evidence[0].citations[0], { end: 'The bell rang.'.length });
+    expect(validateSemanticEvidence(output, repeated)[0].citations[0].start).toBe(0);
+  });
+  it('rejects a large guessed offset even for a unique exact quote', () => {
+    const output = semanticTestOutput(input);
+    Object.assign(output.evidence[0].citations[0], { start: 17, end: 17 + input.pieces[0].text.length });
+    expect(() => validateSemanticEvidence(output, input)).toThrow();
+  });
   it('rejects unsupported free-form claims and version/hash substitution', () => {
     for (const extra of [{ claims: 'invented plot' }, { manuscriptVersionId: 'other' }, { contentHash: 'b'.repeat(64) }])
       expect(() => validateSemanticEvidence({ ...semanticTestOutput(input), ...extra }, input)).toThrow();

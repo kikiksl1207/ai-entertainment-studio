@@ -25,6 +25,7 @@ export const SEMANTIC_INSTRUCTIONS = [
   'Identify scene/background passages, entities/events, candidate foreshadow/payoff passages, and style observations.',
   'Every item requires an exact short quote from a supplied segment and its version/part/paragraph/character citation.',
   'Offsets are UTF-16 code units, zero-based, half-open [start,end), relative to the ORIGINAL paragraph.',
+  'Set end = start + quote.length in UTF-16 code units; do not count JSON quotation marks around quote.',
   'Never split surrogate pairs. Copy quotes exactly. Citation ranges must stay within the supplied segment.',
   'Provide a short plain-text title and a concrete plain-text observation in the source locale for each candidate.',
   'Explain what the cited passage suggests: scene/background context, entity/event, possible setup/payoff, or a specific style pattern.',

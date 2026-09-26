@@ -88,14 +88,35 @@ export function validateSemanticEvidence(value: unknown, input: SemanticInput): 
       !Array.isArray(item.citations) || item.citations.length < 1 || item.citations.length > 4) throw new Error('analysis_citation_invalid');
     const citations = item.citations.map(value => {
       const cite = exact(value, ['partIndex', 'partKey', 'paragraphIndex', 'start', 'end', 'quote']);
-      const piece = input.pieces.find(piece => piece.partIndex === cite.partIndex && piece.partKey === cite.partKey &&
-        piece.paragraphIndex === cite.paragraphIndex && Number(cite.start) >= piece.start && Number(cite.end) <= piece.end);
-      if (!piece || typeof cite.quote !== 'string' || cite.quote.length < 1 || cite.quote.length > 512 ||
-        typeof cite.start !== 'number' || typeof cite.end !== 'number' || cite.end <= cite.start ||
-        !boundary(piece.text, cite.start - piece.start) || !boundary(piece.text, cite.end - piece.start) ||
-        piece.text.slice(cite.start - piece.start, cite.end - piece.start) !== cite.quote) throw new Error('analysis_citation_invalid');
+      if (typeof cite.quote !== 'string' || cite.quote.length < 1 || cite.quote.length > 512 ||
+        !Number.isSafeInteger(cite.start) || !Number.isSafeInteger(cite.end) ||
+        Number(cite.end) <= Number(cite.start)) throw new Error('analysis_citation_invalid');
+      const candidates = input.pieces.filter(piece => piece.partIndex === cite.partIndex && piece.partKey === cite.partKey &&
+        piece.paragraphIndex === cite.paragraphIndex);
+      const direct = candidates.find(piece => Number(cite.start) >= piece.start && Number(cite.end) <= piece.end &&
+        boundary(piece.text, Number(cite.start) - piece.start) && boundary(piece.text, Number(cite.end) - piece.start) &&
+        piece.text.slice(Number(cite.start) - piece.start, Number(cite.end) - piece.start) === cite.quote);
+      let piece = direct;
+      let start = Number(cite.start), end = Number(cite.end);
+      if (!piece) {
+        // A model may count surrounding quotation marks as offsets. Recover only
+        // a unique, exact source quote with a small offset error in the cited paragraph.
+        const matches = candidates.flatMap(candidate => {
+          const offset = candidate.text.indexOf(cite.quote as string);
+          return offset >= 0 && candidate.text.indexOf(cite.quote as string, offset + 1) < 0 &&
+            boundary(candidate.text, offset) && boundary(candidate.text, offset + (cite.quote as string).length)
+            ? [{ candidate, start: candidate.start + offset }] : [];
+        });
+        if (matches.length !== 1) throw new Error('analysis_citation_invalid');
+        const match = matches[0];
+        piece = match.candidate;
+        start = match.start;
+        end = start + cite.quote.length;
+        if (Math.abs(Number(cite.start) - start) > 16 || Math.abs(Number(cite.end) - end) > 16)
+          throw new Error('analysis_citation_invalid');
+      }
       return { partIndex: piece.partIndex, partKey: piece.partKey, paragraphIndex: piece.paragraphIndex,
-        start: cite.start, end: cite.end, quoteHash: sha256(cite.quote) };
+        start, end, quoteHash: sha256(cite.quote) };
     });
     return { kind: item.kind as SemanticEvidence['kind'], title, observation,
       styleCategory: item.styleCategory as SemanticEvidence['styleCategory'], citations };

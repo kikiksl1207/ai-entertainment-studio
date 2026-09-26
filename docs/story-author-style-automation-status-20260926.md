@@ -24,6 +24,7 @@
 - The final reader manuscript has 32 part files, 205,934 UTF-16 characters and 481,760 UTF-8 bytes. An offline o200k count of the manuscript text alone is 122,146 tokens; chunk framing, repeated instructions and output reservations make the actual job estimate higher.
 - A read-only plan against the published manuscript version and the active rate card produced 70 chunks, 564,851 reserved input tokens, 1,120,000 reserved output tokens and KRW 8,195.457445 worst-case reservation with an 8,192/16,000 per-chunk limit. The job output ceiling must be at least 1,120,000; a one-million ceiling would fail after reserving the manuscript version.
 - The pilot manuscript version ID is `7a1035e1-3afe-4812-a57c-e0e1a20c66f7`. Keep `STORY_SEMANTIC_ANALYSIS_MANUSCRIPT_ID_ALLOWLIST` set to this ID until the pilot is reviewed and costs/quality are accepted.
+- A live first-chunk probe reached the pinned model and returned grounded evidence, but its citation `end` offsets counted two extra units for many exact quotes. The full job was not enqueued. The adapter now realigns only a unique exact quote in the cited source paragraph when both reported offsets are within 16 UTF-16 units; ambiguous or forged citations still fail. Re-probe after deploying that validator change before enqueue.
 - Do not enqueue until the production provider, matching active rate card, worker and worst-case aggregate reservation are verified. A budget-rejected reserved job cannot currently be retried on the same manuscript version.
 
 ## Remaining release gates
