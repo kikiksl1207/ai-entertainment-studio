@@ -68,7 +68,16 @@ export class SemanticAnalysisProvider {
         if (message.status !== 'completed') throw new Error();
       }
       if (envelope.status !== 'completed' || texts.length !== 1 || Buffer.byteLength(texts[0]) > 100000) throw new Error();
-      return { evidence: validateSemanticEvidence(JSON.parse(texts[0]), input), usage };
+      const value = exact(JSON.parse(texts[0]), ['manuscriptVersionId', 'contentHash', 'evidence']);
+      validateSemanticEvidence({ ...value, evidence: [] }, input);
+      if (!Array.isArray(value.evidence) || value.evidence.length > 64) throw new Error();
+      const evidence: SemanticEvidence[] = [];
+      for (const item of value.evidence) {
+        try { evidence.push(...validateSemanticEvidence({ ...value, evidence: [item] }, input)); }
+        catch { /* A single uncited candidate cannot poison the complete source chunk. */ }
+      }
+      if (value.evidence.length && !evidence.length) throw new Error();
+      return { evidence, usage, discardedEvidenceCount: value.evidence.length - evidence.length };
     } catch (error) {
       if (error instanceof SemanticAnalysisError && error.code === 'provider_refusal') throw error;
       throw new SemanticAnalysisError('provider_output_invalid', 'received', usage);
@@ -84,7 +93,7 @@ export function validateSemanticEvidence(value: unknown, input: SemanticInput): 
     const title = semanticPlainText(item.title, 120), observation = semanticPlainText(item.observation, 1200);
     if (title === null || observation === null) throw new Error('analysis_observation_invalid');
     if (!SEMANTIC_KINDS.includes(item.kind as never) ||
-      (item.kind === 'style' ? !STYLE_CATEGORIES.includes(item.styleCategory as never) : item.styleCategory !== null) ||
+      (item.kind === 'style' && !STYLE_CATEGORIES.includes(item.styleCategory as never)) ||
       !Array.isArray(item.citations) || item.citations.length < 1 || item.citations.length > 4) throw new Error('analysis_citation_invalid');
     const citations = item.citations.map(value => {
       const cite = exact(value, ['partIndex', 'partKey', 'paragraphIndex', 'start', 'end', 'quote']);
@@ -119,7 +128,7 @@ export function validateSemanticEvidence(value: unknown, input: SemanticInput): 
         start, end, quoteHash: sha256(cite.quote) };
     });
     return { kind: item.kind as SemanticEvidence['kind'], title, observation,
-      styleCategory: item.styleCategory as SemanticEvidence['styleCategory'], citations };
+      styleCategory: item.kind === 'style' ? item.styleCategory as SemanticEvidence['styleCategory'] : null, citations };
   });
 }
 async function boundedResponse(response: Response, signal: AbortSignal) {

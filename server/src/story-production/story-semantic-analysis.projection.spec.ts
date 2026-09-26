@@ -8,7 +8,7 @@ describe('Semantic writer projections (mocked owner repository, not JWT HTTP)', 
       status: 'completed', phase: 'completed', sourceLocale: 'ko', sourceContentHash: 'a'.repeat(64),
       totalParagraphs: 130, completedParagraphs: 130, plannedParagraphs: 130, plannedChunks: 5, completedChunks: 5,
       configPins: { apiKey: 'private-config-key' },
-      result: { evidenceCount: 135, counts: { style: 5, providerPayload: 'private' }, styleCounts: { sentence_rhythm: 5, private: 'never' }, providerPayload: 'raw-envelope' },
+      result: { evidenceCount: 135, discardedEvidenceCount: 3, counts: { style: 5, providerPayload: 'private' }, styleCounts: { sentence_rhythm: 5, private: 'never' }, providerPayload: 'raw-envelope' },
     };
     const rows = Array.from({ length: 101 }, (_, i) => ({ id: `e-${i}`, sequence: i, evidenceType: 'style',
       sourcePartKey: 'part-1', sourceParagraphIndex: i, provenance: 'semantic_candidate', payload: {
@@ -26,7 +26,8 @@ describe('Semantic writer projections (mocked owner repository, not JWT HTTP)', 
     const result = await f.service.get('owner', 'job');
     expect(f.owned).toHaveBeenCalledWith('owner', 'job');
     expect(result).toMatchObject({ hasMore: true, nextCursor: 'e-99', endCursor: 'e-99', review: { fullyReviewed: false },
-      job: { semanticCompleted: true, sourceLocale: 'ko', styleCandidates: { sentence_rhythm: 5 }, approval: 'not_approved', memoryApproved: false } });
+      job: { semanticCompleted: true, sourceLocale: 'ko', styleCandidates: { sentence_rhythm: 5 },
+        discardedEvidenceCount: 3, approval: 'not_approved', memoryApproved: false } });
     expect(result.evidence).toHaveLength(100);
     expect(result.evidence[0]).toMatchObject({ title: 'Short sentences', observation: expect.any(String),
       interpretation: 'model_inference', factualTruthApproved: false, reviewRequired: true });

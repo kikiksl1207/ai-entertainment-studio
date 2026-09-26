@@ -27,6 +27,12 @@ test('restored receipt stays idle; fresh submit and double activation send one r
   assert.equal(evidenceItems(screen).length, 1);
 });
 
+test('shows how many unverifiable candidates were excluded from the writer analysis', async () => {
+  const screen = createHarness({ job: makeJob({ discardedEvidenceCount: 2 }) });
+  await click(screen, 'Start');
+  assert.match(element(screen, 'Counts').textContent, /확인 불가 분석 2건 제외/);
+});
+
 test('submit replay after reload reuses the unknown key, while known jobs resume by GET', async () => {
   const storage = new Map();
   const first = createHarness({ storage, handler: () => { throw new Error('lost acknowledgement'); } });

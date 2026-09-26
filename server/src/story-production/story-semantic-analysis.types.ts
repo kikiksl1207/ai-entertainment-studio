@@ -16,7 +16,7 @@ export type SemanticEvidence = {
   citations: SemanticCitation[];
 };
 export type SemanticUsage = { inputTokens: number; outputTokens: number; cachedInputTokens: number; reasoningTokens: number };
-export type SemanticResult = { evidence: SemanticEvidence[]; usage: SemanticUsage };
+export type SemanticResult = { evidence: SemanticEvidence[]; usage: SemanticUsage; discardedEvidenceCount?: number };
 export class SemanticAnalysisError extends Error {
   constructor(
     readonly code: string,

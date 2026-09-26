@@ -34,7 +34,8 @@ export const SEMANTIC_INSTRUCTIONS = [
   'For style, describe the observed pattern (e.g. sentence rhythm or narration) and its local evidence, not only a category name.',
   'Use no HTML, Markdown, URLs, commands, code or instructions to the reader. The application treats observations as inert text.',
   'Foreshadow/payoff and style are candidates for human review, not verified plot conclusions or fine-tuning.',
-  'styleCategory is non-null only for kind=style; never classify background as author style automatically.',
+  'For every kind other than style, styleCategory MUST be null, even if the passage contains dialogue or imagery.',
+  'For kind=style, styleCategory MUST be a named style category; never classify background as author style automatically.',
   'An empty evidence list is valid when there is no supported observation. It does not mean the whole novel was analyzed.',
   'Return only the strict schema; copy manuscriptVersionId and contentHash exactly. Do not translate quotes.',
 ].join('\n');

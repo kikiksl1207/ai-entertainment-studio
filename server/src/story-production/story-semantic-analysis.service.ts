@@ -107,6 +107,7 @@ export class SemanticAnalysisService {
       counts: Object.fromEntries(Object.entries(counts).filter(([key, value]) =>
         ['scene','beat','dialogue','background','cast','time','place','branch_candidate','entity','event','foreshadow','payoff','style'].includes(key) && Number.isSafeInteger(value))),
       partCount: job.totalParts || safeCount(result.partCount), evidenceCount: safeCount(result.evidenceCount),
+      discardedEvidenceCount: safeCount(result.discardedEvidenceCount),
       continuityEntryCount: safeCount(result.continuityEntryCount), criticalIssueCount: safeCount(result.criticalIssueCount),
       warningIssueCount: safeCount(result.warningIssueCount),
       progress: { totalParagraphs: job.totalParagraphs, plannedParagraphs: job.plannedParagraphs,
@@ -327,7 +328,8 @@ export class SemanticAnalysisService {
       await tx.storyAnalysisJob.update({ where: { id: job.id }, data: {
         completedChunks: { increment: 1 }, completedParagraphs: { increment: chunk.paragraphCount },
         observedCostKrw: { increment: this.usage(job, response.usage).actualCostKrw! },
-        result: { ...result, counts, styleCounts, evidenceCount: safeCount(result.evidenceCount) + rows.length },
+        result: { ...result, counts, styleCounts, evidenceCount: safeCount(result.evidenceCount) + rows.length,
+          discardedEvidenceCount: safeCount(result.discardedEvidenceCount) + (response.discardedEvidenceCount ?? 0) },
       } });
     });
   }
