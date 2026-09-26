@@ -57,6 +57,7 @@ import {
   continuationHash,
   continuationExecutionFingerprint,
   continuationGenerationProfileSnapshot,
+  STORY_CONTINUATION_PROFILE_VIEW_VERSION,
   approvedContinuationMemoryText,
   continuationMemoryPins,
   continuationPathHash,
@@ -470,7 +471,8 @@ export class StoryEconomicsService {
       capabilityRevision: capability.revision,
       styleConsent: { id: consent.id, revision: consent.revision },
       rights: { contractId: rightsContract!.id, versionId: rights.id, revision: rights.revision },
-      ...(generationProfilePin ? { generationProfile: generationProfilePin } : {}),
+      ...(generationProfilePin ? { generationProfile: generationProfilePin,
+        generationProfileViewVersion: STORY_CONTINUATION_PROFILE_VIEW_VERSION } : {}),
       ...(participantSnapshot ? { participantArtist: participantSnapshot.pin } : {}),
       rateCard: { id: rateCard.id, version: rateCard.version },
       promptVersion: 'story-continuation-v5',
@@ -496,7 +498,8 @@ export class StoryEconomicsService {
       routeIdentity: { version: STORY_ROUTE_IDENTITY_VERSION, hash: sharingRouteHash },
       memory: memoryPins.map(({ revision, contentHash }) => ({ revision, contentHash })),
       analysisVersion: analysis.analysisVersion,
-      ...(generationProfilePin ? { generationProfilePin } : {}),
+      ...(generationProfilePin ? { generationProfilePin,
+        generationProfileViewVersion: STORY_CONTINUATION_PROFILE_VIEW_VERSION } : {}),
       ...(participantSnapshot ? { participantPin: participantSnapshot.pin } : {}),
       locale,
     });
@@ -800,7 +803,8 @@ export class StoryEconomicsService {
           pathHash,
           executionFingerprint,
           narrativeLength,
-          ...(generationProfilePin ? { generationProfilePin } : {}),
+          ...(generationProfilePin ? { generationProfilePin,
+            generationProfileViewVersion: STORY_CONTINUATION_PROFILE_VIEW_VERSION } : {}),
           ...(participantSnapshot ? { participantPin: participantSnapshot.pin } : {}),
           sharedClaimToken: sharedResult?.claimToken ?? null,
           fullManuscriptIncluded: false,
@@ -2748,7 +2752,8 @@ export class StoryEconomicsService {
           pathHash: prepared.pathHash,
           executionFingerprint: prepared.executionFingerprint,
           ...(prepared.generationProfilePin
-            ? { generationProfilePin: prepared.generationProfilePin }
+            ? { generationProfilePin: prepared.generationProfilePin,
+              generationProfileViewVersion: STORY_CONTINUATION_PROFILE_VIEW_VERSION }
             : {}),
           ...(prepared.participantPin
             ? { participantPin: prepared.participantPin }

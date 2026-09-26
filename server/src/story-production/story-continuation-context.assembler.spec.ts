@@ -6,6 +6,7 @@ import {
   continuationMemoryPins,
   continuationPathHash,
   continuationSourceHash,
+  STORY_CONTINUATION_PROFILE_VIEW_VERSION,
 } from './story-continuation-context.policy';
 import {
   creatorGenerationProfileFingerprint,
@@ -185,6 +186,7 @@ describe('StoryContinuationContextAssembler', () => {
     };
     const snapshot = continuationGenerationProfileSnapshot(profile as never);
     (f.continuation.contextReferences as Record<string, unknown>).generationProfilePin = snapshot.pin;
+    (f.continuation.contextReferences as Record<string, unknown>).generationProfileViewVersion = STORY_CONTINUATION_PROFILE_VIEW_VERSION;
     f.continuation.contextReferences.executionFingerprint = continuationExecutionFingerprint({
       contextFingerprint: f.continuation.contextFingerprint,
       sourceHash: f.continuation.contextReferences.sourceHash,
@@ -223,6 +225,15 @@ describe('StoryContinuationContextAssembler', () => {
       generationProfilePin: pin,
     });
     f.prisma.storyWorkGenerationProfile.findFirst.mockResolvedValue(null);
+    await expect(f.assembler.assemble(claim)).rejects.toThrow('pinned_context_changed');
+  });
+
+  it('rejects a queued profile continuation from a different prompt-view version', async () => {
+    const f = fixture();
+    (f.continuation.contextReferences as Record<string, unknown>).generationProfilePin = {
+      id: 'profile-id', profileVersion: 1, reviewRevision: 1,
+      sourceFingerprint: 'a'.repeat(64), approvedFingerprint: 'b'.repeat(64),
+    };
     await expect(f.assembler.assemble(claim)).rejects.toThrow('pinned_context_changed');
   });
 });

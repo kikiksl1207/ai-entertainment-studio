@@ -215,6 +215,7 @@ describe('recommended choice enqueue transaction', () => {
       id: 'profile-id', profileVersion: 2, reviewRevision: 4,
       approvedFingerprint: profile.approvedFingerprint,
     });
+    expect(data.contextReferences.generationProfileViewVersion).toBe('story-profile-prompt-v2');
     expect(f.provider.preflight).toHaveBeenCalledWith(expect.objectContaining({
       approvedContext: expect.objectContaining({
         generationProfile: expect.objectContaining({

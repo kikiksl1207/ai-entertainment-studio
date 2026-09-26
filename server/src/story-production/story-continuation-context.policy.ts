@@ -48,6 +48,13 @@ export type StoryContinuationSemanticPathStep = {
 };
 
 const MAX_SEMANTIC_PATH_STEPS = 12;
+export const STORY_CONTINUATION_PROFILE_VIEW_VERSION = 'story-profile-prompt-v2';
+const MAX_PROFILE_VIEW_BYTES = 16_384;
+const PROFILE_VIEW_LIMITS = [
+  { summary: 240, detail: 160, title: 80, categoryExample: 120 },
+  { summary: 200, detail: 120, title: 60, categoryExample: 80 },
+  { summary: 160, detail: 100, title: 40, categoryExample: 60 },
+] as const;
 
 type SemanticSceneRow = { id: string; title: Prisma.JsonValue; endingType: string | null };
 type CanonicalChoiceRow = {
@@ -232,13 +239,67 @@ export function continuationGenerationProfileSnapshot(profile: ApprovedStoryGene
     sourceFingerprint: profile.sourceFingerprint,
     approvedFingerprint,
   };
-  const approved: StoryContinuationApprovedGenerationProfile = {
-    schemaVersion: CREATOR_GENERATION_PROFILE_SCHEMA,
-    sections: normalized.sections
-      .filter((section) => section.decision === 'accepted' || section.decision === 'edited')
-      .map((section) => ({ key: section.key, value: section.value })),
-  };
-  return { pin, approved };
+  const sections = normalized.sections.filter((section) =>
+    section.decision === 'accepted' || section.decision === 'edited');
+  for (const limits of PROFILE_VIEW_LIMITS) {
+    const approved: StoryContinuationApprovedGenerationProfile = {
+      schemaVersion: CREATOR_GENERATION_PROFILE_SCHEMA,
+      sections: sections.map((section) => ({
+        key: section.key, value: continuationProfileValue(section.key, section.value, limits),
+      })),
+    };
+    if (Buffer.byteLength(JSON.stringify(approved), 'utf8') <= MAX_PROFILE_VIEW_BYTES) {
+      return { pin, approved };
+    }
+  }
+  throw new Error('generation_profile_context_too_large');
+}
+
+function continuationProfileValue(
+  key: string,
+  value: Record<string, unknown>,
+  limits: typeof PROFILE_VIEW_LIMITS[number],
+) {
+  const projected: Record<string, unknown> = {};
+  for (const [field, item] of Object.entries(value)) {
+    if (field === 'observations' || field === 'categories') continue;
+    projected[field] = field === 'summary' ? profileText(item, limits.summary) : item;
+  }
+  if (Array.isArray(value.observations)) {
+    const limit = key === 'writing_style' ? 4
+      : ['canon', 'timeline', 'narrative_devices'].includes(key) ? 2 : 1;
+    const observations = spreadProfileItems(value.observations, limit)
+      .flatMap((raw) => {
+        if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return [];
+        const row = raw as Record<string, unknown>;
+        const detail = profileText(row.detail, limits.detail);
+        return detail ? [{ title: profileText(row.title, limits.title), detail }] : [];
+      });
+    if (observations.length) projected.observations = observations;
+  }
+  if (key === 'writing_style' && Array.isArray(value.categories)) {
+    const categories = value.categories.slice(0, 6).flatMap((raw) => {
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return [];
+      const row = raw as Record<string, unknown>;
+      const category = profileText(row.category, 40);
+      const example = Array.isArray(row.observations)
+        ? row.observations.map((item) => profileText(item, limits.categoryExample)).find(Boolean) : null;
+      return category && example ? [{ category, example }] : [];
+    });
+    if (categories.length) projected.categories = categories;
+  }
+  return projected;
+}
+
+function spreadProfileItems(items: unknown[], limit: number) {
+  if (items.length <= limit) return items;
+  if (limit === 1) return [items[Math.floor(items.length / 2)]];
+  return Array.from({ length: limit }, (_, index) =>
+    items[Math.round(index * (items.length - 1) / (limit - 1))]);
+}
+
+function profileText(value: unknown, maxCharacters: number) {
+  return typeof value === 'string' ? Array.from(value.trim()).slice(0, maxCharacters).join('').trim() : '';
 }
 
 export function parseContinuationGenerationProfilePin(

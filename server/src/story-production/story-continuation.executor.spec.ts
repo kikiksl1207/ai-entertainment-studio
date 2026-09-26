@@ -50,6 +50,7 @@ const result = {
   nextChoices: [
     { choiceKey: 'route-1', label: { ko: '첫 선택' } },
     { choiceKey: 'route-2', label: { ko: '둘째 선택' } },
+    { choiceKey: 'route-3', label: { ko: '셋째 선택' } },
   ],
   usage: { inputTokens: 10, outputTokens: 20, cachedInputTokens: 0, imageUnits: 0 },
 };

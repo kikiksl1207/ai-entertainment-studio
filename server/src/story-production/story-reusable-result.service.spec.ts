@@ -368,6 +368,7 @@ describe('shared story result cache integration', () => {
     f.tx.storyAiGeneratedBeat.findMany.mockResolvedValue([{
       position: 1, beatType: 'paragraph', content: { ko: '개인별 생성 본문' },
     }]);
+    f.tx.storyScene.findMany.mockResolvedValue([{ id: 'scene-id' }]);
     await expect(f.service.requestRecommendedChoiceTx(f.tx, input))
       .resolves.toMatchObject({ status: 'queued', provenance: 'ai_generated' });
     expect(f.tx.storyAiReusableResult.upsert).not.toHaveBeenCalled();

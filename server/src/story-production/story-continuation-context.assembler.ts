@@ -14,6 +14,7 @@ import {
   localizedContinuationText,
   stableContinuationJson,
   parseContinuationGenerationProfilePin,
+  STORY_CONTINUATION_PROFILE_VIEW_VERSION,
   type StoryContinuationMemoryPin,
   type StoryContinuationSemanticPathStep,
 } from './story-continuation-context.policy';
@@ -61,6 +62,9 @@ export class StoryContinuationContextAssembler {
     try {
       generationProfilePin = parseContinuationGenerationProfilePin(references.generationProfilePin);
     } catch {
+      throw new StoryContinuationContextError('pinned_context_changed');
+    }
+    if (generationProfilePin && references.generationProfileViewVersion !== STORY_CONTINUATION_PROFILE_VIEW_VERSION) {
       throw new StoryContinuationContextError('pinned_context_changed');
     }
     const participantSnapshot = this.storyParticipants
