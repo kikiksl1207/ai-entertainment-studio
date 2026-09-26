@@ -499,7 +499,7 @@
     } finally {
       state.uploadingKey = null;
       button.disabled = false;
-      button.textContent = storyKey === "inheritor" ? "링크 테스트 공개" : "확인 후 바로 공개";
+      button.textContent = storyKey === "inheritor" ? "공개 테스트 등록" : "확인 후 바로 공개";
       button.removeAttribute("aria-busy");
     }
   }
