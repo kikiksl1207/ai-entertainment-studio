@@ -41,7 +41,7 @@
     const sorted = [...candidates].sort((a, b) => getLikesCount(b.slug) - getLikesCount(a.slug));
     const top = sorted[0];
     const likes = getLikesCount(top.slug);
-    const label = likes > 0 ? `이달의 픽 · ${formatLikeCount(likes)} 응원` : "이달의 아티스트";
+    const label = likes > 0 ? `이달의 픽 · ${formatLikeCount(likes)} 응원` : "대표 아티스트";
     const tagsHTML = (top.tags || []).slice(0, 3).map(t => `<li>${t}</li>`).join("");
 
     root.innerHTML = `
