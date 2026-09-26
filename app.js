@@ -233,7 +233,7 @@ const I18N_DICT = {
   "home.discovery.story.label": { "ko-KR": "스토리", "ja-JP": "ストーリー", "en-US": "Story", "zh-CN": "故事", "zh-Hant": "故事" },
   "home.discovery.story": { "ko-KR": "공개된 이야기를 찾아보세요", "ja-JP": "公開中の物語を探す", "en-US": "Browse published stories", "zh-CN": "探索已公开的故事", "zh-Hant": "探索已公開的故事" },
   "home.discovery.ott.label": { "ko-KR": "선택극장", "ja-JP": "選択劇場", "en-US": "Choice Theater", "zh-CN": "选择剧场", "zh-Hant": "選擇劇場" },
-  "home.discovery.ott": { "ko-KR": "공개가 승인된 작품을 확인하세요", "ja-JP": "公開が承認された作品を見る", "en-US": "See titles cleared for release", "zh-CN": "查看已获准公开的作品", "zh-Hant": "查看已獲准公開的作品" },
+  "home.discovery.ott": { "ko-KR": "선택에 따라 달라지는 장면을 만나보세요", "ja-JP": "選択で変わるシーンを楽しもう", "en-US": "Explore scenes shaped by your choices", "zh-CN": "探索随选择而变化的场景", "zh-Hant": "探索隨選擇而變化的場景" },
   "home.discovery.pick.label": { "ko-KR": "루미나 픽", "ja-JP": "ルミナピック", "en-US": "Lumina Pick", "zh-CN": "Lumina Pick", "zh-Hant": "Lumina Pick" },
   "home.discovery.pick": { "ko-KR": "오늘의 아티스트에게 투표하세요", "ja-JP": "今日のアーティストに投票", "en-US": "Vote for today's artist", "zh-CN": "为今日艺人投票", "zh-Hant": "為今日藝人投票" },
   "nav.feedShorts": { "ko-KR": "쇼츠", "ja-JP": "ショート", "en-US": "Shorts", "zh-CN": "短视频", "zh-Hant": "短影音" },
