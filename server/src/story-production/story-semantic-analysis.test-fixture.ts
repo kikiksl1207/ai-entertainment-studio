@@ -4,7 +4,7 @@ import { boundary } from './story-semantic-analysis.source';
 
 export const semanticTestConfig = (changes: Partial<SemanticConfig> = {}): SemanticConfig => ({
   packingProfile: SEMANTIC_PACKING_PROFILE,
-  enabled: true, workerEnabled: false, apiKey: 'offline-synthetic-test-key', provider: 'openai',
+  enabled: true, workerEnabled: false, manuscriptAllowlist: [], apiKey: 'offline-synthetic-test-key', provider: 'openai',
   model: 'gpt-4o-mini-2024-07-18', rateCardId: '00000000-0000-4000-8000-000000000183', rateCardVersion: 'offline-v1',
   inputKrwPerMillion: '1000', cachedInputKrwPerMillion: '500', outputKrwPerMillion: '2000',
   inputTokenLimit: 8192, outputTokenLimit: 2048, maxJobInputTokens: 10000000,

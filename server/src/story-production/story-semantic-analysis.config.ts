@@ -14,13 +14,15 @@ export type SemanticPins = {
 };
 export type SemanticConfig = SemanticPins & {
   enabled: boolean; workerEnabled: boolean; apiKey: string; timeoutMs: number;
+  manuscriptAllowlist: string[];
 };
 export function semanticConfig(env: NodeJS.ProcessEnv = process.env): SemanticConfig {
   const get = (name: string) => env[`STORY_SEMANTIC_ANALYSIS_${name}`] ?? '';
   return {
     packingProfile: SEMANTIC_PACKING_PROFILE,
     enabled: get('ENABLED') === 'true', workerEnabled: get('WORKER_ENABLED') === 'true',
-    apiKey: get('API_KEY'), provider: get('PROVIDER'), model: get('MODEL'),
+    manuscriptAllowlist: get('MANUSCRIPT_ID_ALLOWLIST').split(',').map(id => id.trim()).filter(Boolean),
+    apiKey: get('API_KEY') || env.OPENAI_API_KEY || '', provider: get('PROVIDER'), model: get('MODEL'),
     rateCardId: get('RATE_CARD_ID'), rateCardVersion: get('RATE_CARD_VERSION'),
     inputKrwPerMillion: get('INPUT_KRW_PER_MILLION'),
     cachedInputKrwPerMillion: get('CACHED_INPUT_KRW_PER_MILLION'),

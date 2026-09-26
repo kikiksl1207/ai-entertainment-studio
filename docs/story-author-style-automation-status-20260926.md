@@ -6,6 +6,9 @@
 - Completing a new semantic analysis now creates a `needs_review` generation-profile draft in the same transaction. The writer must still review and approve it. The approved profile is pinned to later AI continuation requests.
 - Generated continuation output now requires exactly three distinct choices or an ending. A mixed ending/choice result is rejected instead of silently changing its route.
 - Approving a reviewed semantic profile now indexes its cited, creator-approved canon, timeline, and foreshadow observations as bounded continuity memories. Older approved semantic memories for the same analysis are superseded in the approval transaction; unreviewed and foreign-analysis evidence cannot enter the generation context.
+- A published work retains its previous completed non-semantic analysis while the new semantic profile is awaiting review. Approval switches subsequent continuations to the semantic analysis; works without a prior published analysis still fail closed.
+- The semantic provider can reuse the server's existing `OPENAI_API_KEY`; an explicitly configured semantic key takes precedence.
+- A pilot-only manuscript ID allowlist prevents other uploads from entering the paid queue while the first book is analyzed. It does not bypass ownership or idempotency checks.
 - Focused frontend and backend tests pass. These changes are local commits, not production deployment.
 
 ## Production audit
@@ -19,6 +22,8 @@
 
 - First work: `내 이름을 먹지 않은 괴물`; user-approved analysis ceiling: KRW 10,000 for that one work.
 - The final reader manuscript has 32 part files, 205,934 UTF-16 characters and 481,760 UTF-8 bytes. An offline o200k count of the manuscript text alone is 122,146 tokens; chunk framing, repeated instructions and output reservations make the actual job estimate higher.
+- A read-only plan against the published manuscript version and the active rate card produced 70 chunks, 564,851 reserved input tokens, 1,120,000 reserved output tokens and KRW 8,195.457445 worst-case reservation with an 8,192/16,000 per-chunk limit. The job output ceiling must be at least 1,120,000; a one-million ceiling would fail after reserving the manuscript version.
+- The pilot manuscript version ID is `7a1035e1-3afe-4812-a57c-e0e1a20c66f7`. Keep `STORY_SEMANTIC_ANALYSIS_MANUSCRIPT_ID_ALLOWLIST` set to this ID until the pilot is reviewed and costs/quality are accepted.
 - Do not enqueue until the production provider, matching active rate card, worker and worst-case aggregate reservation are verified. A budget-rejected reserved job cannot currently be retried on the same manuscript version.
 
 ## Remaining release gates

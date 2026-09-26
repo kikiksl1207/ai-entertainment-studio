@@ -44,4 +44,15 @@ describe('Pinned semantic packing compatibility', () => {
     expect(semanticConfig({})).toMatchObject({ enabled: false, workerEnabled: false, apiKey: '',
       packingProfile: SEMANTIC_PACKING_PROFILE });
   });
+
+  it('reuses the existing OpenAI key unless a dedicated semantic key is supplied', () => {
+    expect(semanticConfig({ OPENAI_API_KEY: 'existing-key' }).apiKey).toBe('existing-key');
+    expect(semanticConfig({ OPENAI_API_KEY: 'existing-key', STORY_SEMANTIC_ANALYSIS_API_KEY: 'dedicated-key' }).apiKey)
+      .toBe('dedicated-key');
+  });
+
+  it('parses an optional manuscript-version pilot allowlist without enabling paid analysis', () => {
+    expect(semanticConfig({ STORY_SEMANTIC_ANALYSIS_MANUSCRIPT_ID_ALLOWLIST: ' first-id, second-id ' }))
+      .toMatchObject({ enabled: false, workerEnabled: false, manuscriptAllowlist: ['first-id', 'second-id'] });
+  });
 });

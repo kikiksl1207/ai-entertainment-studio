@@ -137,6 +137,16 @@ postgres('Semantic analysis durable pipeline (isolated PostgreSQL, fake transpor
     expect(await db.storyAnalysisJob.count({ where: { workId } })).toBe(0);
     expect(transport).not.toHaveBeenCalled();
   });
+  it('restricts paid queue admission to the pilot manuscript version', async () => {
+    services({ manuscriptAllowlist: [randomUUID()] });
+    await expect(enqueue()).rejects.toMatchObject({
+      status: 503,
+      response: { code: 'SEMANTIC_ANALYSIS_UNAVAILABLE', reason: 'analysis_manuscript_not_in_pilot' },
+    });
+    expect(await db.storyAnalysisJob.count({ where: { workId } })).toBe(0);
+    services({ manuscriptAllowlist: [manuscriptId] });
+    await expect(enqueue()).resolves.toMatchObject({ manuscriptVersionId: manuscriptId });
+  });
   it.each(['same', 'different'])('reserves one version under concurrent %s keys across clients', async mode => {
     const key = randomUUID();
     const results = await Promise.allSettled([enqueue(a, key), enqueue(b, mode === 'same' ? key : randomUUID())]);

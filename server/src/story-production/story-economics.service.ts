@@ -208,7 +208,7 @@ export class StoryEconomicsService {
           },
         })
       : Promise.resolve(null);
-    const [capability, rateCard, consent, analysis, rightsContract, latestGenerationProfile] = await Promise.all([
+    const [capability, rateCard, consent, latestAnalysis, rightsContract, latestGenerationProfile] = await Promise.all([
       tx.storyReleaseCapability.findUnique({ where: { releaseId: input.release.id } }),
       tx.storyAiRateCard.findUnique({ where: { id: input.progress.aiRateCardId } }),
       tx.storyStyleProfileConsent.findFirst({
@@ -249,6 +249,36 @@ export class StoryEconomicsService {
       }),
       generationProfileQuery,
     ]);
+    // A completed semantic analysis remains in review until the creator approves
+    // its profile. Keep the published legacy route available during that window.
+    let analysis = latestAnalysis;
+    const pendingNewSemanticProfile = analysis?.pipeline === 'semantic_extraction_v1' &&
+      latestGenerationProfile?.analysisJobId === analysis.id &&
+      latestGenerationProfile.status === 'needs_review';
+    const previouslyApprovedSemanticProfile = pendingNewSemanticProfile && latestAnalysis
+      ? await tx.storyWorkGenerationProfile.findFirst({
+          where: {
+            workId: input.work.id,
+            manuscriptVersionId: input.release.manuscriptVersionId,
+            analysisJobId: latestAnalysis.id,
+            status: 'approved',
+          },
+          select: { id: true },
+        })
+      : null;
+    const usingLegacyReviewFallback = pendingNewSemanticProfile && !previouslyApprovedSemanticProfile;
+    if (usingLegacyReviewFallback && latestAnalysis) {
+      analysis = await tx.storyAnalysisJob.findFirst({
+        where: {
+          workId: input.work.id,
+          manuscriptVersionId: input.release.manuscriptVersionId,
+          status: 'completed',
+          pipeline: { not: 'semantic_extraction_v1' },
+          analysisVersion: { lt: latestAnalysis.analysisVersion },
+        },
+        orderBy: [{ analysisVersion: 'desc' }, { createdAt: 'desc' }],
+      });
+    }
     const rights = rightsContract?.versions?.[0];
     const legalActivation = rights
       ? await this.legalActivation?.authorize({
@@ -286,7 +316,7 @@ export class StoryEconomicsService {
 
     let generationProfilePin: StoryContinuationGenerationProfilePin | undefined;
     let approvedGenerationProfile: ReturnType<typeof continuationGenerationProfileSnapshot>['approved'] | undefined;
-    if (latestGenerationProfile) {
+    if (latestGenerationProfile && !usingLegacyReviewFallback) {
       if (
         latestGenerationProfile.manuscriptVersionId !== input.release.manuscriptVersionId ||
         latestGenerationProfile.analysisJobId !== analysis.id

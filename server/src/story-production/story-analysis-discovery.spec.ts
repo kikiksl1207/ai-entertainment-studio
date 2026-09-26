@@ -8,6 +8,7 @@ import { StoryAnalysisDiscoveryQueryDto } from './dto/story-analysis-discovery.d
 import { SemanticAnalysisRepository } from './story-semantic-analysis.repository';
 import { SemanticAnalysisService } from './story-semantic-analysis.service';
 import { semanticConfig } from './story-semantic-analysis.config';
+import { semanticTestConfig } from './story-semantic-analysis.test-fixture';
 
 const query = (limit = 12, cursor?: string) => Object.assign(new StoryAnalysisDiscoveryQueryDto(), { limit, cursor });
 
@@ -29,6 +30,20 @@ function fixture() {
 }
 
 describe('Owned analysis discovery (no provider, bounded metadata)', () => {
+  it('rejects a non-pilot manuscript before creating an analysis job', async () => {
+    const f = fixture();
+    const source = { id: f.manuscript, workId: f.work, ownerUserId: f.user,
+      contentHash: 'a'.repeat(64), locale: 'ko' };
+    f.tx.storyManuscriptVersion.findFirst.mockResolvedValue(source);
+    f.tx.storyManuscriptVersion.findUniqueOrThrow.mockResolvedValue(source);
+    await expect(f.repository.enqueue(f.user, f.manuscript, randomUUID(),
+      semanticTestConfig({ manuscriptAllowlist: [randomUUID()] })))
+      .rejects.toMatchObject({
+        status: 503,
+        response: { code: 'SEMANTIC_ANALYSIS_UNAVAILABLE', reason: 'analysis_manuscript_not_in_pilot' },
+      });
+    expect(f.tx.storyAnalysisJob.findFirst).toHaveBeenCalledTimes(1);
+  });
   it('uses one repeatable-read snapshot and selects no manuscript body', async () => {
     const f = fixture();
     const rows = [3, 2, 1].map(version => ({ id: randomUUID(), workId: f.work, version,
