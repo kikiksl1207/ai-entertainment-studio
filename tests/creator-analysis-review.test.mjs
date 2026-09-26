@@ -19,7 +19,7 @@ test('verified receipt requires explicit start and double activation sends one r
   await click(screen, 'Start');
   assert.equal(screen.posts().length, 1);
   gate.resolve(response(makeJob())); await pending;
-  assert.equal(screen.calls.length, 2);
+  assert.equal(screen.calls.filter(call => call.path.includes(`/analyses/${ids.job}`)).length, 1);
   assert.equal(screen.posts()[0].path, `/api/v1/me/creator-studio/manuscripts/${ids.manuscript}/analyses`);
   assert.equal(screen.posts()[0].options.body, undefined);
   assert.match(element(screen, 'State').textContent, /writerAnalysis.completed/);

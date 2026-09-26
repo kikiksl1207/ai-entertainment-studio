@@ -34,7 +34,7 @@ class Element {
   constructor(tag = 'div') {
     this.tagName = tag.toUpperCase(); this.hidden = false; this.disabled = false; this.value = '';
     this.dataset = {}; this.children = []; this.parent = null; this.listeners = {}; this.attributes = {};
-    this.ownText = ''; this.classList = { toggle() {} };
+    this.ownText = ''; this.classList = { add() {}, remove() {}, toggle() {}, contains: () => false };
   }
   get isConnected() { return this.root || Boolean(this.parent?.isConnected); }
   get textContent() { return this.ownText + this.children.map(child => child.textContent).join(''); }
@@ -48,7 +48,9 @@ class Element {
 }
 
 export function createHarness({ job = makeJob(), rows = [makeEvidence()], storage = new Map(), receipt = true, handler } = {}) {
-  const elements = Object.fromEntries(['writerAnalysis', ...['Version', 'State', 'Progress', 'Counts', 'Start', 'Check', 'Boundary', 'Evidence', 'Pages', 'Previous', 'Next', 'PageCount'].map(name => 'writerAnalysis' + name), 'writerManuscriptBody'].map(id => [id, new Element()]));
+  const analysisIds = ['writerAnalysis', ...['Version', 'State', 'Progress', 'Counts', 'Start', 'Check', 'Boundary', 'Evidence', 'Pages', 'Previous', 'Next', 'PageCount'].map(name => 'writerAnalysis' + name)];
+  const generationIds = ['Entry', 'ReviewOpen', 'ReviewState', 'Modal', 'Eyebrow', 'Title', 'Intro', 'Status', 'Sections', 'Close', 'Cancel', 'Save', 'Approve'].map(name => 'writerGeneration' + name);
+  const elements = Object.fromEntries([...analysisIds, ...generationIds, 'writerManuscriptBody'].map(id => [id, new Element()]));
   Object.values(elements).forEach(element => { element.root = true; });
   let identity = { ownerId: 'fixture-owner', epoch: 1 };
   let selected = { workId: ids.work, sourceLocale: 'ko' };
@@ -79,7 +81,7 @@ export function createHarness({ job = makeJob(), rows = [makeEvidence()], storag
   };
   const window = { LuminaCreatorStudioApi: api, LuminaCreatorManuscript: { context: () => ({ ...selected }), receipt: () => receipt ? receiptValue() : null },
     luminaI18n: { t: key => `${locale}:${key}` }, addEventListener: (type, fn) => (listeners[type] ||= []).push(fn) };
-  const document = { hidden: false, getElementById: id => elements[id], createElement: tag => new Element(tag),
+  const document = { hidden: false, body: { style: {} }, getElementById: id => elements[id], querySelector: () => null, createElement: tag => new Element(tag),
     addEventListener: (type, fn) => (docListeners[type] ||= []).push(fn) };
   const screen = { elements, calls, storage, window, document, timers,
     posts: () => calls.filter(call => call.options.method === 'POST'),
@@ -94,7 +96,7 @@ export function createHarness({ job = makeJob(), rows = [makeEvidence()], storag
     receive: () => window.LuminaCreatorAnalysis.receive(receiptValue())
   };
   vm.runInNewContext(script, { window, document, sessionStorage: { getItem: key => storage.get(key) || null, setItem: (key, value) => storage.set(key, value) },
-    crypto: { randomUUID }, URLSearchParams, AbortController,
+    crypto: { randomUUID }, URLSearchParams, AbortController, queueMicrotask,
     setTimeout: (fn, ms) => { timers.set(++timerId, { fn, ms }); return timerId; }, clearTimeout: id => timers.delete(id),
     setInterval: fn => { intervals.set(++timerId, fn); return timerId; } }, { filename: 'creator-analysis-review.js' });
   return screen;
