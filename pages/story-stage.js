@@ -1178,7 +1178,7 @@
     const dialog = state.dialog;
     if (!dialog || !state.detailSlug) return;
     const pack = state.pack;
-    const title = packTitle(pack) || accessTr("detailUnavailable");
+    const title = packTitle(pack) || (state.detailStatus === "loading" ? tr("loading") : accessTr("detailUnavailable"));
     const cover = coverUrl(pack);
     const action = detailAction();
     const active = document.activeElement;

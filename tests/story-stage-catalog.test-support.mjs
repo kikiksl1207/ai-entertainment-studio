@@ -136,6 +136,26 @@ export function registerCatalogTests({ getBrowser, repo, artifacts, base, api })
 
   registerPurchaseTests({ fixture, owner, detail, progress, access, workId, otherId, progressId, artifacts, locales, gate, delay });
 
+  test('catalog: detail shows loading rather than an unavailable error before the response', async () => {
+    const pending = gate();
+    const f = await fixture({ locale: 'ko', auth: false });
+    try {
+      await f.page.locator('[data-pack-slug="private-local-story"]').waitFor();
+      f.setHook(async (request) => {
+        if (request.path === '/api/v1/stories/private-local-story') await pending.promise;
+      });
+      await f.page.locator('[data-pack-slug="private-local-story"]').click();
+      await f.page.locator('.story-detail-actions[data-story-detail-state="loading"]').waitFor();
+      assert.equal(await f.page.locator('#storyDetailTitle').textContent(), '스토리를 불러오는 중입니다.');
+      assert.doesNotMatch(await f.page.locator('[data-story-detail-status]').textContent(), /확인할 수 없습니다/);
+      pending.release();
+      await f.page.locator('#storyDetailTitle').getByText('QA ko', { exact: false }).waitFor();
+    } finally {
+      pending.release();
+      await f.close();
+    }
+  });
+
   for (const width of [820, 900, 1024, 1100]) {
     test(`catalog: ${width}px desktop header and cards fit without clipping`, async () => {
       const f = await fixture({ locale: 'ko', width });
