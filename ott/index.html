@@ -6,7 +6,7 @@
     <title>루미나 선택극장 | Lumina Stage</title>
     <link rel="canonical" href="https://www.lumina-stage.com/ott" />
     <link rel="stylesheet" href="/styles.css" />
-    <link rel="stylesheet" href="/styles/ott.css?v=ott-poster-layout-20260926" />
+    <link rel="stylesheet" href="/styles/ott.css?v=ott-joker-two-endings-20260927" />
     <meta name="description" content="루미나 선택극장에서 선택에 따라 달라지는 영상 작품을 만나보세요." />
     <meta name="robots" content="index, follow" />
     <meta property="og:type" content="website" />
@@ -47,13 +47,22 @@
       <section class="ott-browse shell" id="ottBrowse" aria-labelledby="ottBrowseTitle">
         <h2 id="ottBrowseTitle">영상 작품</h2>
         <div class="ott-poster-grid">
-          <button class="ott-poster-card" id="ottOpenDemo" type="button" aria-controls="ottDemo">
+          <button class="ott-poster-card" id="ottOpenDemo" type="button" data-ott-demo="mother" aria-controls="ottDemo">
             <span class="ott-poster-media"><img src="/assets/ott/mothers-choice/poster-common.jpg" alt="" /></span>
             <span class="ott-poster-copy">
               <strong id="ottPosterTitle">엄마의 선택</strong>
               <span id="ottPosterSynopsis">도망치던 엄마 앞에 아이가 쓰러진다.</span>
               <span class="ott-poster-meta" id="ottPosterMeta">한국어 음성 · 선택형 시연</span>
               <span class="ott-poster-action" id="ottPosterWatch">시청하기</span>
+            </span>
+          </button>
+          <button class="ott-poster-card" id="ottOpenJoker" type="button" data-ott-demo="joker" aria-controls="ottDemo">
+            <span class="ott-poster-media"><img src="/assets/ott/joker-choice/poster.jpg" alt="" /></span>
+            <span class="ott-poster-copy">
+              <strong id="ottJokerTitle">조커의 선택</strong>
+              <span id="ottJokerSynopsis">조커를 고르는 순간, 이야기는 두 결말로 갈라진다.</span>
+              <span class="ott-poster-meta" id="ottJokerMeta">한국어 음성 · 선택형 시연</span>
+              <span class="ott-poster-action" id="ottJokerWatch">시청하기</span>
             </span>
           </button>
         </div>
@@ -143,7 +152,7 @@
 
     <script src="/data/characters.js"></script>
     <script src="/app.js"></script>
-    <script src="/pages/ott.js?v=ott-api-20260926"></script>
+    <script src="/pages/ott.js?v=ott-joker-two-endings-20260927"></script>
 
     <nav class="mobile-tabbar" aria-label="모바일 하단 메뉴">
       <a href="/" class="mobile-tab" data-tab-key="index"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.5L12 4l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg><span data-i18n="tab.home">홈</span></a>

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, statSync } from 'node:fs';
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
 
@@ -15,6 +15,18 @@ test('public OTT surface is separate and never links owner-private playback', ()
   assert.doesNotMatch(html, /<video id="ottDemoVideo" controls/);
   assert.match(script, /playerWrap\.requestFullscreen/);
   assert.match(script, /is-pseudo-fullscreen/);
+});
+
+test('joker demo has one common clip, two playable endings, and no third branch', () => {
+  const html = read('ott/index.html');
+  const script = read('pages/ott.js');
+  assert.match(html, /data-ott-demo="joker"/);
+  assert.match(script, /branches: \["embrace", "ignore"\]/);
+  assert.match(script, /selectedWork === "mother" && currentClip === "common"/);
+  for (const file of ['01-common.mp4', '02-original-ending.mp4', '03-alternate-ending.mp4', 'poster.jpg']) {
+    assert.ok(statSync(new URL(`../assets/ott/joker-choice/${file}`, import.meta.url)).size > 0, file);
+    assert.match(script, new RegExp(file.replace('.', '\\.')));
+  }
 });
 
 test('home and primary mobile surfaces expose the canonical six-item discovery order', () => {
