@@ -130,7 +130,7 @@ type PublicationPlan = {
   prompts: PublicationPrompt[];
   visualBible?: FixedRouteVisualBible;
   contentRating?: 'adults_only';
-  catalogVisibility?: 'unlisted';
+  catalogVisibility?: 'unlisted' | 'public_test';
   choicePreparation?: { version: string; preparedPartKeys: string[] };
   submissionId?: string;
 };
@@ -1255,9 +1255,10 @@ export class StoryPublicationIntakeService {
   }
 
   private assertPublicRatingReady(
-    plan: Pick<PublicationPlan, 'contentRating' | 'catalogVisibility'>,
+    plan: Pick<PublicationPlan, 'storyKey' | 'contentRating' | 'catalogVisibility'>,
   ) {
-    if (plan.contentRating === 'adults_only' && plan.catalogVisibility !== 'unlisted') {
+    const approvedPublicTest = plan.storyKey === 'inheritor' && plan.catalogVisibility === 'public_test';
+    if (plan.contentRating === 'adults_only' && plan.catalogVisibility !== 'unlisted' && !approvedPublicTest) {
       throw new ConflictException({
         code: 'STORY_ADULT_VERIFICATION_REQUIRED',
         message: 'Adult identity verification must be enforced before a listed release can be published',
@@ -1619,7 +1620,7 @@ export class StoryPublicationIntakeService {
       parts: source.parts,
       prompts: source.prompts,
       contentRating: 'adults_only',
-      catalogVisibility: 'unlisted',
+      catalogVisibility: 'public_test',
     };
   }
 

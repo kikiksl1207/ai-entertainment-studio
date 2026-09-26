@@ -123,13 +123,19 @@ describe('StoryPublicationIntakeService queue projection', () => {
       expect.objectContaining({ manuscripts: [expect.objectContaining({ buffer })] }), 'submission-id');
   });
 
-  it('blocks adult-rated publication until verified age access is implemented', () => {
+  it('limits adult-rated listing to the approved inheritor public test', () => {
     const service = new StoryPublicationIntakeService({} as never, {} as never);
     expect(() => (service as any).assertPublicRatingReady({ contentRating: 'adults_only' }))
       .toThrow('Adult identity verification must be enforced');
     expect(() => (service as any).assertPublicRatingReady({
       contentRating: 'adults_only', catalogVisibility: 'unlisted',
     })).not.toThrow();
+    expect(() => (service as any).assertPublicRatingReady({
+      storyKey: 'inheritor', contentRating: 'adults_only', catalogVisibility: 'public_test',
+    })).not.toThrow();
+    expect(() => (service as any).assertPublicRatingReady({
+      storyKey: 'monster', contentRating: 'adults_only', catalogVisibility: 'public_test',
+    })).toThrow('Adult identity verification must be enforced');
     expect(() => (service as any).assertPublicRatingReady({})).not.toThrow();
   });
 
