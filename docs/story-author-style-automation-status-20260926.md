@@ -1,6 +1,6 @@
 # Story author-style automation status (2026-09-26)
 
-## Implemented locally
+## Implemented and deployed
 
 - A successful creator manuscript submission now starts the semantic analysis request once with a retained idempotency key. Restored receipts do not auto-start, and stale account, work, or locale context cannot start it.
 - Completing a new semantic analysis now creates a `needs_review` generation-profile draft in the same transaction. The writer must still review and approve it. The approved profile is pinned to later AI continuation requests.
@@ -9,35 +9,35 @@
 - A published work retains its previous completed non-semantic analysis while the new semantic profile is awaiting review. Approval switches subsequent continuations to the semantic analysis; works without a prior published analysis still fail closed.
 - The semantic provider can reuse the server's existing `OPENAI_API_KEY`; an explicitly configured semantic key takes precedence.
 - A pilot-only manuscript ID allowlist prevents other uploads from entering the paid queue while the first book is analyzed. It does not bypass ownership or idempotency checks.
-- Focused frontend and backend tests pass. These changes are local commits, not production deployment.
+- Focused frontend and backend tests pass. The semantic provider, worker, review draft, approval-to-memory path and three-choice validation are deployed on the production API (commit `94b6349`).
 
-## Production audit
+## Production audit before the pilot
 
 - Five published stories have active AI consent and eight approved author-source style excerpts each.
-- Their only completed analyses use `publication_style_snapshot_v1`. None has a completed `semantic_extraction_v1` analysis or an approved generation profile.
-- The production semantic-analysis provider and worker are not configured. Uploading a new manuscript after deploying only the UI change would return `SEMANTIC_ANALYSIS_UNAVAILABLE`.
-- No paid semantic-analysis job was started during this audit. Existing published stories were not changed.
+- Their pre-pilot analyses used `publication_style_snapshot_v1`. The four other published works have not been semantically backfilled or approved.
+- The pilot-only provider and worker configuration is active in production, reusing the existing `OPENAI_API_KEY`. The manuscript allowlist contains only the pilot version.
+- The existing published reader route was not changed by starting the analysis.
 
 ## Agreed pilot
 
 - First work: `내 이름을 먹지 않은 괴물`; user-approved analysis ceiling: KRW 10,000 for that one work.
 - The final reader manuscript has 32 part files, 205,934 UTF-16 characters and 481,760 UTF-8 bytes. An offline o200k count of the manuscript text alone is 122,146 tokens; chunk framing, repeated instructions and output reservations make the actual job estimate higher.
-- A read-only plan against the published manuscript version and the active rate card produced 70 chunks, 564,851 reserved input tokens, 1,120,000 reserved output tokens and KRW 8,195.457445 worst-case reservation with an 8,192/16,000 per-chunk limit. The job output ceiling must be at least 1,120,000; a one-million ceiling would fail after reserving the manuscript version.
+- The production job planned 70 chunks and reserved KRW 8,199.793195 worst-case, under the approved KRW 10,000 ceiling, with an 8,192/16,000 per-chunk limit.
 - The pilot manuscript version ID is `7a1035e1-3afe-4812-a57c-e0e1a20c66f7`. Keep `STORY_SEMANTIC_ANALYSIS_MANUSCRIPT_ID_ALLOWLIST` set to this ID until the pilot is reviewed and costs/quality are accepted.
-- Live first-chunk probes reached the pinned model and returned grounded evidence, but many citation `end` offsets pointed to the whole paragraph or included extra units rather than the exact quotation. The full job was not enqueued. The adapter now realigns only a unique exact quote within the cited source piece while requiring the reported offsets to remain within that piece (with a 16-unit boundary margin); ambiguous, nonexistent and out-of-paragraph citations still fail. Re-probe after deploying that validator change before enqueue.
+- Live first- and last-chunk probes reached the pinned model and passed citation validation after the adapter changes. The adapter realigns only a unique exact quote within the cited source piece while requiring the reported offsets to remain within that piece (with a 16-unit boundary margin); ambiguous, nonexistent and out-of-paragraph citations still fail.
 - A later-part probe showed non-style scene/event items with an irrelevant dialogue style category. That field is now cleared on non-style evidence. One malformed candidate no longer discards an otherwise valid chunk: valid cited candidates are retained and the rejected count is exposed to the writer in the analysis screen. If a nonempty model result has no valid candidate at all, the chunk still fails closed.
-- Do not enqueue until the production provider, matching active rate card, worker and worst-case aggregate reservation are verified. A budget-rejected reserved job cannot currently be retried on the same manuscript version.
+- The one authorized full-book job `c955581a-7f7c-411d-aed2-2ef1be33671f` completed in production: 70/70 chunks and 8,163/8,163 paragraphs, no job error. Actual observed cost was KRW 1,666.085625; five invalid candidates were discarded. A `needs_review` generation-profile draft `de7660fb-dc18-4232-81fb-1b784b812945` was created with eight review sections. The job retained 111 entity, 145 event, 79 foreshadow, 41 payoff, 153 scene, 130 style and 70 background semantic evidence items, plus 8,163 structural beats. These counts verify storage and coverage, not literary quality.
 
 ## Remaining release gates
 
-1. Configure and verify a dedicated semantic provider, matching active rate card, worker, and operational safety budget. Pilot on one manuscript before processing long books; the API instance has previously hit its memory limit.
-2. Complete a real upload -> full analysis -> profile review/approval -> three prepared choices -> selected continuation run. Verify source-version pinning, retry behavior, length, perspective, syntax, and route consequences on desktop and mobile.
+1. Have the owner review/edit and approve the pilot profile in Creator Studio. Approval must not be inferred from job completion. Inspect source citations and rejected-candidate count before promoting the new profile.
+2. Complete the remaining profile approval -> three prepared choices -> selected continuation run on the pilot. Verify source-version pinning, retry behavior, length, perspective, syntax, and route consequences on desktop and mobile. The existing published route remains available pending approval.
 3. Replace the requirement that a writer types the original route label for every part with AI proposals in the final review, while preserving writer edit/approval. The finalization screen currently asks for one manually entered label per part.
 4. Evaluate generated prose from differently styled manuscripts, including the revised third and fourth works. Compare voice, POV, dialogue rhythm, chronology, foreshadow tracking, and narrative length; adjust analysis and generation prompts based on actual samples rather than claiming exact author imitation from unit tests.
-5. Backfill existing published works only after the new route is verified. Do not create unapproved drafts in bulk: a pending draft currently blocks that work's AI continuation until the owner approves it.
+5. Backfill existing published works only after the new route is verified. Do not create unapproved drafts in bulk; the pilot-only allowlist and cost ceiling stay in place until prose QA and operational memory behavior are accepted.
 
 The legacy memory-builder endpoint still rejects semantic candidates. The new path is profile approval, which promotes only reviewed cited observations. It is intentionally bounded to 18 memories per profile; whole-book, scene-relevant retrieval still needs a production quality trial.
 
 ## Estimate
 
-After production model and rate-card configuration, one complete author-style demonstration is roughly 3-5 working days. A reader-facing beta with multi-work prose QA and safe existing-work migration is roughly 1-2 weeks more. These are engineering estimates, not a guarantee; the first full-length analysis and generated continuation may expose provider, memory, or quality issues.
+The first full-length semantic analysis is complete. The remaining author-style demonstration depends on creator review and a real continuation QA run, not another full-book extraction. Multi-work prose QA and safe migration remain separate release gates; the completed analysis alone does not prove faithful author-style generation.
