@@ -270,7 +270,7 @@ describe('StoryPublicBetaAiActivationService', () => {
     jest.spyOn(scoped as any, 'ensureConsent').mockResolvedValue({ id: 'consent', revision: 1 });
     jest.spyOn(scoped as any, 'ensureRights').mockResolvedValue({ id: 'rights' });
     jest.spyOn(scoped as any, 'ensureCapability').mockResolvedValue({ revision: 1, includedAiRouteCount: 3 });
-    const choices = jest.spyOn(scoped as any, 'ensureFixedRouteSuggestedChoices').mockImplementation(async () => {
+    const choices = jest.spyOn(StoryFixedRouteChoiceRefreshService.prototype, 'refreshBatch').mockImplementation(async () => {
       order.push('choices');
       throw new Error('choice preparation failed');
     });
@@ -283,9 +283,12 @@ describe('StoryPublicBetaAiActivationService', () => {
     await expect(scoped.activate('operator', 'monster', confirmations)).rejects.toThrow('choice preparation failed');
     expect(order).toEqual(['choices']);
     expect(legalActivation.createActivation).not.toHaveBeenCalled();
-    expect(prisma.$transaction).toHaveBeenCalledTimes(2);
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
 
-    choices.mockImplementation(async () => { order.push('choices'); return 2; });
+    choices.mockImplementation(async () => {
+      order.push('choices');
+      return { ready: true, totalParts: 1, preparedParts: 1, remainingParts: 0, phase: 'ready' } as never;
+    });
     jest.spyOn(scoped as any, 'latestValidActivation').mockResolvedValue(null);
     await expect(scoped.activate('operator', 'monster', confirmations)).resolves.toMatchObject({ active: true });
     expect(order).toEqual(['choices', 'choices', 'legal']);
