@@ -300,6 +300,19 @@ describe('OpenAiStoryContinuationProvider (fake transport only)', () => {
     await expect(f.provider.generate(request(), new AbortController().signal)).rejects.toMatchObject({ retryable: false });
   });
 
+  it.each([
+    ['max_output_tokens', 'provider_output_token_limit'],
+    ['content_filter', 'provider_content_filtered'],
+    ['unexpected', 'provider_incomplete_output'],
+  ])('classifies incomplete response reason %s without retaining partial prose', async (reason, code) => {
+    const f = fixture();
+    f.transport.mockResolvedValue(new Response(JSON.stringify({
+      ...envelope(), status: 'incomplete', incomplete_details: { reason },
+    })));
+    await expect(f.provider.generate(request(), new AbortController().signal))
+      .rejects.toMatchObject({ code, retryable: false });
+  });
+
   it('classifies refusal without logging or retaining refusal payload', async () => {
     const f = fixture();
     const e = envelope();

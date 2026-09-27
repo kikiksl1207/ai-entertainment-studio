@@ -76,7 +76,11 @@ export function sourceStoryContinuationLengthBounds(
 export function storyContinuationOutputTokenLimit(bounds: StoryContinuationLengthBounds, ceiling: number): number {
   assertStoryContinuationLengthBounds(bounds);
   if (!integer(ceiling, 16, 32_768)) fail('author_length_output_limit_invalid');
-  return Math.min(ceiling, Math.max(2_048, Math.ceil(bounds.maxUnits * 1.5) + 2_048));
+  const longForm = bounds.minUnits >= 2_400;
+  const visibleAndReasoning = longForm
+    ? Math.ceil(bounds.maxUnits * 2.5) + 8_192
+    : Math.ceil(bounds.maxUnits * 1.5) + 2_048;
+  return Math.min(ceiling, Math.max(2_048, visibleAndReasoning));
 }
 
 export function assertStoryContinuationLengthBounds(value: unknown): asserts value is StoryContinuationLengthBounds {

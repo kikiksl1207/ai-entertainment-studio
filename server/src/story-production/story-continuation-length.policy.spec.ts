@@ -29,7 +29,7 @@ describe('independent proposed author-length policy', () => {
     const short = proposeStoryContinuationLength(reference(2_710)).bounds;
     const long = proposeStoryContinuationLength(reference(7_158)).bounds;
     expect(storyContinuationOutputTokenLimit(short, 32_768)).toBe(6_926);
-    expect(storyContinuationOutputTokenLimit(long, 32_768)).toBe(14_932);
+    expect(storyContinuationOutputTokenLimit(long, 32_768)).toBe(29_665);
     expect(storyContinuationOutputTokenLimit(long, 8_192)).toBe(8_192);
     expect(() => storyContinuationOutputTokenLimit(short, 0)).toThrow('author_length_output_limit_invalid');
   });
