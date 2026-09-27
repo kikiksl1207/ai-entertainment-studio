@@ -43,6 +43,14 @@ Next: add a pre-display continuity/prose quality gate grounded in the approved a
 
 ## Remaining release gates
 
+### Cross-mode artist memory (confirmed product requirement)
+
+- An artist who actually participates in a reader's story route must later recognize that shared experience in character chat with the same reader. This is a private, per-reader/per-artist memory, not a change to the artist's global persona or a shared canonical story fact.
+- Derive candidate memories from settled, visible route events and the artist's actual participation. Preserve the selected branch, scene order, relationship changes, and the artist's own perspective; do not include unvisited choices, unpublished drafts, rejected generations, or facts the artist could not have witnessed.
+- Keep a bounded, versioned projection that chat can load server-side, with source event references and a reset/revocation rule. Never mix another reader's path into the chat. A story reset must not silently leave an impossible shared memory active.
+- Current state: story participant selection and continuation context exist, but the story-to-chat shared-memory projection and chat consumption are not implemented. The older companion context contract is explicitly disabled and is not evidence of this feature working.
+
+
 For works credited to `루미나` that also have matching official company publication provenance (a published import job or admin publication audit) and the same owner account, the owner has authorized automatic acceptance of the semantic generation-profile draft. On API startup, pending company drafts are reconciled; newly completed analyses attempt approval immediately. Approval remains pinned to the latest manuscript/analysis, writes the normal approved memories and a distinct system audit event, and does not change public release, AI-rights consent, or external-author review. A failed attempt leaves the draft recoverable. Drafts already edited by a person are not overwritten. The first pilot's production approval is confirmed; reader-quality still requires a selected-continuation trial.
 
 1. The first selected continuation now completes and restores on reload, but its continuity and prose findings block quality approval. Add a grounded pre-display quality gate and retest a fresh route, including mobile layout and visual fit. Auto-approval and synthetic input preflight do not establish literary quality.
