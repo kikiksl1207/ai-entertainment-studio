@@ -257,7 +257,7 @@ function integrationFixture() {
 }
 
 describe('shared story result cache integration', () => {
-  it('settles one paid generation, then reuses it for another reader with zero provider, allowance, or cost', async () => {
+  it.each([false, true])('settles and reuses a generated result with ending=%s for another reader at zero cost', async (isEnding) => {
     const f = integrationFixture();
     const first = await f.service.requestRecommendedChoiceTx(f.tx, f.input('reader-1'));
     const continuation = f.continuations.get(first.continuationId)!;
@@ -276,7 +276,8 @@ describe('shared story result cache integration', () => {
         characters: [],
         fallback: { publicAssetPath: '/assets/story/fallback.webp', altKey: 'story.visual.fallback' },
       },
-      nextChoices: [{ choiceKey: 'next', label: { ko: '계속' } }],
+      nextChoices: isEnding ? [] : [{ choiceKey: 'next', label: { ko: '계속' } }],
+      ...(isEnding ? { ending: { endingKey: 'ai-shared-ending' } } : {}),
     }, 'settle-shared-result', 'lease-token')).resolves.toMatchObject({ status: 'completed' });
 
     expect(f.getShared()).toMatchObject({
@@ -310,6 +311,10 @@ describe('shared story result cache integration', () => {
         status: 'completed', provenance: 'ai_reused', allowanceRemaining: 0,
         resultGeneratedSceneId: 'generated-2',
       });
+    expect(f.progresses['progress-2']).toMatchObject({
+      currentGeneratedSceneId: 'generated-2',
+      status: isEnding ? 'completed' : 'active',
+    });
 
     expect(f.provider.readiness).toHaveBeenCalledTimes(providerChecksAfterFirst);
     expect(f.provider.preflight).toHaveBeenCalledTimes(preflightChecksAfterFirst);

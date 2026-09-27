@@ -405,16 +405,15 @@ export class StoryProgressControlService {
           invalidatedEventCount: plan.invalidatedEventCount,
         },
       });
-      const activePath = jsonRecordArray(progress.pathSummary);
       const activeSeen = jsonStringArray(progress.seenSceneIds);
       const invalidated = new Set(plan.invalidatedSceneIds);
       const actRoute = body.target === 'act'
         ? await restoreStoryActRoute(tx, progress, plan.targetSceneId, plan.targetAct) : null;
-      const routeNodeId = body.target === 'full'
+      const routeNodeId = body.target === 'full' || !actRoute
         ? await createStoryRouteRoot(tx, { ...progress,
             activeReleaseId: resetRelease?.pin.activeReleaseId ?? progress.activeReleaseId,
           }, plan.targetSceneId, plan.targetAct)
-        : actRoute?.nodeId ?? null;
+        : actRoute.nodeId;
       const updatedProgress = await tx.storyReaderProgress.updateMany({
         where: { id: progress.id, userId, progressRevision: body.expectedRevision },
         data: {
@@ -427,12 +426,9 @@ export class StoryProgressControlService {
           progressRevision: { increment: 1 },
           storyVersion: work.publishedVersion,
           ...(resetRelease ? resetRelease.pin : {}),
-          pathSummary:
-            body.target === 'full'
-              ? []
-              : (actRoute?.pathSummary ?? activePath.filter((entry) => !invalidated.has(String(entry.sceneId)))) as Prisma.InputJsonValue,
+          pathSummary: (actRoute?.pathSummary ?? []) as Prisma.InputJsonValue,
           seenSceneIds:
-            body.target === 'full'
+            !actRoute
               ? [plan.targetSceneId]
               : activeSeen.filter((sceneId) => !invalidated.has(sceneId)),
           status: 'active',
@@ -993,10 +989,6 @@ export class StoryProgressControlService {
       currentRevision,
     });
   }
-}
-
-function jsonRecordArray(value: Prisma.JsonValue): Array<Record<string, unknown>> {
-  return Array.isArray(value) ? (value as Array<Record<string, unknown>>) : [];
 }
 
 function jsonStringArray(value: Prisma.JsonValue): string[] {

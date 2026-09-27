@@ -751,6 +751,8 @@ describe('Release capability and regression contract', () => {
     const f = fixture();
     f.work.priceLumina = new Decimal(0);
     f.progress.visitedEndingKeys = ['known-ending'] as never;
+    f.progress.pathSummary = [{ sourceSceneId: 'scene', generatedSceneId: 'abandoned-ai-route' }] as never;
+    f.progress.seenSceneIds = ['scene', 'abandoned-ai-route'] as never;
     const bucket = { id: 'bucket', revision: 1, usedCount: 0, limitCount: limit };
     const commands = new Map<string, Record<string, unknown>>();
     const quotaUpdate = jest.fn().mockImplementation(async ({ where }) => {
@@ -794,6 +796,9 @@ describe('Release capability and regression contract', () => {
     expect(resetCreate).toHaveBeenCalledTimes(limit);
     expect(eventsUpdate).toHaveBeenCalledTimes(limit);
     expect(f.mutations.checkpointCreate).toHaveBeenLastCalledWith({ data: expect.objectContaining({ visitedEndingKeys: ['known-ending'] }) });
+    expect(f.mutations.progressUpdate).toHaveBeenLastCalledWith(expect.objectContaining({ data: expect.objectContaining({
+      routeNodeId: 'reset-route-root', pathSummary: [], seenSceneIds: ['scene'],
+    }) }));
     expect(f.mutations.customCreate).not.toHaveBeenCalled();
     expect(f.mutations.allowanceUpsert).not.toHaveBeenCalled();
   });

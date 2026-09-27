@@ -2879,7 +2879,7 @@ export class StoryEconomicsService {
       },
       data: {
         currentSceneId: null,
-        currentGeneratedSceneId: sharedResult.endingKey ? null : scene.id,
+        currentGeneratedSceneId: scene.id,
         currentBeatPosition: 0,
         status: sharedResult.endingKey ? 'completed' : 'active',
         progressRevision: { increment: 1 },
