@@ -12,6 +12,7 @@ The public OTT surface is intentionally separate from Story and from the existin
 - `rightsAuthorization: "cleared_for_public_streaming"`
 - an authorization time, publication time, work ID, authored playback manifest ID, and the approved rights-contract version IDs that cover every media version in the manifest
 - complete `ko`, `en`, `ja`, `zh-Hans`, and `zh-Hant` title, synopsis, and creator-name text
+- optionally, a rights-cleared 16:9 poster stored under `/assets/ott/<slug>/` as a local WebP, PNG, or JPEG path; external URLs and traversal paths are rejected
 
 The registry is an explicit publication allowlist, not a replacement for persisted checks. Before each public list/detail projection, the server also requires:
 
@@ -25,6 +26,6 @@ Any failed lookup, invalid value, exception, or withdrawn prerequisite excludes 
 
 ## Public response boundary
 
-`GET /api/v1/ott` returns `{ items }`. `GET /api/v1/ott/:slug` returns one item or 404. Items contain only localized title, synopsis and creator name, slug, publication time, a public detail path, and `viewing.available: false`.
+`GET /api/v1/ott` returns `{ items }`. `GET /api/v1/ott/:slug` returns one item or 404. Items contain only localized title, synopsis and creator name, slug, publication time, a public detail path, an optional local poster path, and `viewing.available: false`. The poster and title open that item's detail view on desktop and mobile. A missing approved poster retains a neutral fallback rather than borrowing a frame from another title.
 
-The public response never includes owner IDs, work IDs, manifest IDs, graphs, file/version IDs, storage keys, raw URLs, cookies, grants, tokens, subtitles, private preview paths, or delivery paths. No public watch-start endpoint is defined by this slice. The UI therefore offers catalog/detail information only and plainly says when viewing is unavailable.
+The public response never includes owner IDs, work IDs, manifest IDs, graphs, file/version IDs, storage keys, raw media URLs, cookies, grants, tokens, subtitles, private preview paths, or delivery paths. No public watch-start endpoint is defined by this slice. Registry titles therefore offer catalog/detail information only and plainly say when viewing is unavailable. The separately packaged public demo clips on the same page do not use this registry or grant access to an owner's private preview. A registry watch action must be added only with an authorized public playback endpoint; a poster or a private preview link never grants viewing access.

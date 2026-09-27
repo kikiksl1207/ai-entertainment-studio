@@ -27,4 +27,13 @@ describe('OTT public registry contract', () => {
     expect(item).toMatchObject({ slug: 'author-cut', detailPath: '/ott?title=author-cut', viewing: { available: false } });
     expect(JSON.stringify(item)).not.toMatch(/workId|manifestId|rightsContract|fileId|storage|token|url/i);
   });
+
+  it('accepts only a local OTT poster path and carries it into the public card', () => {
+    const withPoster = { ...release, posterPath: '/assets/ott/author-cut/poster.webp' };
+    expect(toOttPublicCatalogItem(parseOttPublicReleaseRegistry(JSON.stringify([withPoster]))[0]).posterPath)
+      .toBe(withPoster.posterPath);
+    for (const posterPath of ['https://example.com/poster.webp', '/assets/ott/../private.jpg', '//example.com/poster.webp']) {
+      expect(parseOttPublicReleaseRegistry(JSON.stringify([{ ...release, posterPath }]))).toEqual([]);
+    }
+  });
 });

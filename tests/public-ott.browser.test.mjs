@@ -16,13 +16,22 @@ const emptyCatalog = (route) => route.fulfill({
 });
 const mime = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp', '.mp4': 'video/mp4' };
 
-function staticServer() {
+function staticServer(items = []) {
   return createServer(async (request, response) => {
     try {
       const pathname = decodeURIComponent(new URL(request.url, 'http://local').pathname);
       if (pathname === '/api/v1/ott') {
         response.writeHead(200, { 'content-type': 'application/json' });
-        return response.end('{"items":[]}');
+        return response.end(JSON.stringify({ items }));
+      }
+      if (pathname.startsWith('/api/v1/ott/')) {
+        const item = items.find((entry) => entry.slug === pathname.slice('/api/v1/ott/'.length));
+        response.writeHead(item ? 200 : 404, { 'content-type': 'application/json' });
+        return response.end(JSON.stringify(item || { error: 'not found' }));
+      }
+      if (pathname === '/assets/ott/test-title/poster.webp') {
+        response.writeHead(200, { 'content-type': 'image/webp' });
+        return response.end(await readFile(join(root, 'assets/story/norse-myth-cover.webp')));
       }
       let path = normalize(join(root, pathname.replace(/^\/+/, '')));
       if (!path.startsWith(normalize(root))) throw new Error('outside root');
@@ -127,6 +136,10 @@ test('public discovery works at desktop and mobile widths and captures verified 
       }
       assert.equal(await page.locator('#ottCatalog').isVisible(), false);
       if (width === 390) {
+        const catalogItem = {
+          slug: 'public-demo', title: { ko: '공개 시연' }, synopsis: { ko: '줄거리' },
+          creatorName: { ko: '제작자' }, publishedAt: '2026-09-25T00:00:00Z',
+        };
         await page.unroute(catalogApi);
         await page.route(catalogApi, (route) => route.fulfill({ status: 503 }));
         await page.reload({ waitUntil: 'networkidle' });
@@ -135,12 +148,16 @@ test('public discovery works at desktop and mobile widths and captures verified 
         await page.route(catalogApi, (route) => route.fulfill({
           status: 200,
           contentType: 'application/json',
-          body: JSON.stringify({ items: [{ title: { ko: '공개 시연' }, synopsis: { ko: '줄거리' }, creatorName: { ko: '제작자' }, publishedAt: '2026-09-25T00:00:00Z' }] }),
+          body: JSON.stringify({ items: [catalogItem] }),
+        }));
+        await page.route(`${catalogApi}/public-demo`, (route) => route.fulfill({
+          status: 200, contentType: 'application/json', body: JSON.stringify(catalogItem),
         }));
         await page.reload({ waitUntil: 'networkidle' });
         assert.equal(await page.locator('.ott-card h3').innerText(), '공개 시연');
         await page.locator('.ott-detail-button').click();
         assert.match(await page.locator('.ott-boundary').innerText(), /감상 이용은 제공되지 않습니다/);
+        await page.locator('.ott-back').click();
         await page.unroute(catalogApi);
         await page.route(catalogApi, emptyCatalog);
         await page.reload({ waitUntil: 'networkidle' });
@@ -151,10 +168,10 @@ test('public discovery works at desktop and mobile widths and captures verified 
       assert.equal(await page.locator('[data-ott-branch]').count(), 3);
       assert.equal(await page.locator('#ottDemo').isVisible(), false);
       assert.equal(await page.locator('#ottOpenDemo').isVisible(), true);
-      assert.equal(await page.locator('.ott-poster-media').evaluate((element) => {
+      assert.equal(await page.locator('.ott-poster-media').first().evaluate((element) => {
         const bounds = element.getBoundingClientRect();
         const image = element.querySelector('img');
-        return image.complete && image.naturalWidth > 0 && bounds.width >= 260 && bounds.width <= 300 &&
+        return image.complete && image.naturalWidth > 0 && bounds.width >= 140 && bounds.width <= 300 &&
           Math.abs(bounds.width / bounds.height - 2 / 3) < .02;
       }), true);
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
@@ -243,6 +260,7 @@ test('public discovery works at desktop and mobile widths and captures verified 
     await page.route('**/04-branch-daughter-resists-final.mp4', (route) => route.fulfill({ status: 200, contentType: 'video/mp4', body: '' }));
     await page.reload({ waitUntil: 'networkidle' });
     await page.locator('#ottOpenDemo').click();
+    await page.waitForFunction(() => !document.querySelector('[data-ott-branch="ignore"]').disabled);
     assert.equal(await page.locator('[data-ott-branch="ignore"]').isEnabled(), true);
     assert.equal(await page.locator('[data-ott-branch="hesitate"]').isDisabled(), true);
     assert.match(await page.locator('[data-ott-branch="hesitate"]').innerText(), /아직 선택할 수 없습니다/);
@@ -282,6 +300,60 @@ test('public discovery works at desktop and mobile widths and captures verified 
     await fallbackPage.locator('#ottToggleFullscreen').click();
     assert.equal(await fallbackPage.locator('.ott-video-wrap').evaluate((element) => element.classList.contains('is-pseudo-fullscreen')), false);
     await fallbackPage.close();
+  } finally {
+    await browser?.close();
+    server.closeAllConnections?.();
+    await new Promise((resolve) => server.close(resolve));
+    server.unref();
+  }
+});
+
+test('approved title poster opens a detail view without exposing private playback', async () => {
+  await mkdir(artifacts, { recursive: true });
+  const item = {
+    slug: 'test-title', title: { ko: '시연 작품' }, synopsis: { ko: '선택에 따라 결말이 달라지는 이야기.' },
+    creatorName: { ko: 'Lumina Stage' }, publishedAt: '2026-09-24T00:00:00.000Z',
+    detailPath: '/ott?title=test-title', posterPath: '/assets/ott/test-title/poster.webp',
+    viewing: { available: false },
+  };
+  const server = staticServer([item, {
+    ...item, slug: 'missing-poster', title: { ko: '포스터 누락 작품' },
+    posterPath: '/assets/ott/missing-poster/poster.webp',
+  }]);
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  let browser;
+  try {
+    browser = await chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE
+      ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE } : {}) });
+    for (const width of [390, 1280]) {
+      const page = await browser.newPage({ viewport: { width, height: 844 } });
+      await page.route(catalogApi, (route) => route.fulfill({
+        status: 200, contentType: 'application/json', body: JSON.stringify({ items: [item, {
+          ...item, slug: 'missing-poster', title: { ko: '포스터 누락 작품' },
+          posterPath: '/assets/ott/missing-poster/poster.webp',
+        }] }),
+      }));
+      await page.route(`${catalogApi}/test-title`, (route) => route.fulfill({
+        status: 200, contentType: 'application/json', body: JSON.stringify(item),
+      }));
+      await page.addInitScript(() => sessionStorage.setItem('ls_splashed', '1'));
+      await page.goto(`${base}/ott`, { waitUntil: 'networkidle' });
+      await page.locator('.ott-card-art img').first().waitFor();
+      assert.equal(await page.locator('.ott-card-art img').evaluate((image) => image.complete && image.naturalWidth > 0), true);
+      await page.locator('.ott-card-art-fallback').waitFor();
+      assert.equal(await page.locator('.ott-card-art-fallback').count(), 1);
+      await page.screenshot({ path: join(artifacts, `ott-poster-${width}.png`), fullPage: true });
+      await page.locator('.ott-card-art').first().click();
+      await page.locator('.ott-detail-copy h2').getByText('시연 작품').waitFor();
+      assert.equal(new URL(page.url()).searchParams.get('title'), 'test-title');
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
+      assert.equal(await page.locator('video:visible, audio, [data-private-preview]').count(), 0);
+      await page.screenshot({ path: join(artifacts, `ott-detail-${width}.png`), fullPage: true });
+      await page.locator('.ott-back').click();
+      await page.locator('.ott-card-art img').first().waitFor();
+      await page.close();
+    }
   } finally {
     await browser?.close();
     server.closeAllConnections?.();

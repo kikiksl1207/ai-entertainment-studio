@@ -64,7 +64,8 @@
 .ott-video-error button { border: 1px solid #6ed6c2; border-radius: 4px; padding: 10px 14px; background: #19312e; color: #fff; font: inherit; cursor: pointer; }
 .ott-catalog { padding-top: 48px; padding-bottom: 100px; }
 .ott-section-heading { display: flex; justify-content: space-between; align-items: end; gap: 28px; margin-bottom: 28px; }
-.ott-section-heading h2 { margin: 0; font-size: 34px; letter-spacing: 0; }
+.ott-section-heading h1 { margin: 0 0 12px; font-size: 32px; letter-spacing: 0; }
+.ott-section-heading h2 { margin: 0; font-size: 22px; letter-spacing: 0; }
 .ott-section-heading > p { max-width: 520px; margin: 0; color: #9ca7b6; line-height: 1.6; }
 .ott-catalog-root { min-height: 190px; }
 .ott-status { display: grid; place-items: center; min-height: 190px; padding: 32px; border: 1px solid rgba(255,255,255,.13); background: #0e131a; text-align: center; }
@@ -73,12 +74,24 @@
 .ott-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 18px; }
 .ott-card { min-width: 0; border: 1px solid rgba(255,255,255,.14); border-radius: 6px; background: #111821; overflow: hidden; }
 .ott-card-art { aspect-ratio: 16/9; display: grid; place-items: center; background: #1a2730; color: #75d5c5; font-size: 13px; font-weight: 800; }
+.ott-card-art img, .ott-detail-art img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.ott-card-art-fallback { display: grid; place-items: center; width: 100%; height: 100%; }
 .ott-card-body { padding: 22px; }
 .ott-card h3 { margin: 0 0 9px; font-size: 21px; letter-spacing: 0; }
+.ott-card h3 a { color: inherit; text-decoration: none; }
+.ott-card h3 a:hover, .ott-card h3 a:focus-visible { color: #75d5c5; }
 .ott-card p { margin: 0; color: #aeb8c5; line-height: 1.55; }
 .ott-card-meta { display: flex; justify-content: space-between; gap: 12px; margin-top: 18px; color: #75d5c5; font-size: 12px; }
-.ott-detail-button { margin-top: 18px; border: 1px solid #75d5c5; border-radius: 4px; padding: 9px 13px; background: transparent; color: #f7f8fb; font: inherit; font-weight: 700; cursor: pointer; }
+.ott-detail-button { display: inline-block; margin-top: 18px; border: 1px solid #75d5c5; border-radius: 4px; padding: 9px 13px; background: transparent; color: #f7f8fb; font: inherit; font-weight: 700; text-decoration: none; }
 .ott-boundary { margin-top: 14px; color: #c5ccd7 !important; font-size: 13px; }
+.ott-detail-view .ott-intro, .ott-detail-view .ott-browse, .ott-detail-view .ott-demo, .ott-detail-view .ott-section-heading { display: none; }
+.ott-detail { max-width: 1120px; }
+.ott-back { display: inline-block; margin-bottom: 24px; color: #75d5c5; text-decoration: none; }
+.ott-detail-layout { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(280px, .75fr); gap: 32px; align-items: start; }
+.ott-detail-art { aspect-ratio: 16/9; overflow: hidden; border: 1px solid rgba(255,255,255,.14); border-radius: 6px; background: #1a2730; }
+.ott-detail-copy h2 { margin: 0 0 16px; font-size: 32px; }
+.ott-detail-copy > p { line-height: 1.75; color: #d6dce4; }
+.ott-detail-copy .ott-detail-creator { color: #75d5c5; font-size: 14px; }
 @media (max-width: 768px) {
   .ott-intro { padding-top: 24px; padding-bottom: 22px; }
   .ott-intro h1 { font-size: 30px; }
@@ -93,9 +106,12 @@
   .ott-video-wrap { min-height: 230px; }
   .ott-catalog { padding-top: 42px; padding-bottom: 72px; }
   .ott-section-heading { display: block; }
-  .ott-section-heading h2 { font-size: 27px; }
+  .ott-section-heading h1 { font-size: 28px; }
+  .ott-section-heading h2 { font-size: 20px; }
   .ott-section-heading > p { margin-top: 12px; font-size: 14px; }
   .ott-grid { grid-template-columns: 1fr; }
+  .ott-detail-layout { grid-template-columns: 1fr; gap: 20px; }
+  .ott-detail-copy h2 { font-size: 26px; }
 }
 @media (max-width: 410px) {
   .ott-player-controls { gap: 4px; padding: 6px; }

@@ -2,11 +2,11 @@
   "use strict";
 
   const copy = {
-    ko: { name: "루미나 선택극장", description: "공개와 감상 권한이 확인된 작품만 소개합니다.", catalog: "공개 작품", note: "현재 공개 기준을 충족한 작품을 확인할 수 있습니다.", loading: "공개 작품을 확인하고 있어요.", emptyTitle: "지금 공개된 선택극장 작품이 없습니다.", emptyBody: "감상 가능한 작품이 공개되면 이곳에 표시됩니다.", errorTitle: "작품 목록을 불러오지 못했습니다.", errorBody: "잠시 후 다시 확인해 주세요.", by: "제작", details: "작품 정보", unavailable: "현재 이 작품의 감상 이용은 제공되지 않습니다." },
-    en: { name: "Lumina Choice Theater", description: "Only titles cleared for public release and viewing are listed.", catalog: "Released titles", note: "Browse titles that currently meet the public release requirements.", loading: "Checking released titles.", emptyTitle: "No Choice Theater titles are public right now.", emptyBody: "Titles will appear here when they are cleared for viewing.", errorTitle: "The catalog could not be loaded.", errorBody: "Please check again shortly.", by: "Created by", details: "Title details", unavailable: "Viewing is not currently available for this title." },
-    ja: { name: "ルミナ選択劇場", description: "公開と視聴の権利が確認された作品のみ掲載します。", catalog: "公開作品", note: "現在の公開基準を満たす作品を確認できます。", loading: "公開作品を確認しています。", emptyTitle: "現在公開中の選択劇場作品はありません。", emptyBody: "視聴可能な作品が公開されると、ここに表示されます。", errorTitle: "作品一覧を読み込めませんでした。", errorBody: "しばらくしてからもう一度ご確認ください。", by: "制作", details: "作品情報", unavailable: "現在、この作品の視聴は提供されていません。" },
-    "zh-Hans": { name: "Lumina 选择剧场", description: "这里只展示已确认公开和观看授权的作品。", catalog: "公开作品", note: "查看目前符合公开标准的作品。", loading: "正在确认公开作品。", emptyTitle: "目前没有公开的选择剧场作品。", emptyBody: "可观看作品公开后会显示在这里。", errorTitle: "无法加载作品列表。", errorBody: "请稍后再试。", by: "制作", details: "作品信息", unavailable: "目前暂不提供此作品的观看服务。" },
-    "zh-Hant": { name: "Lumina 選擇劇場", description: "這裡只展示已確認公開與觀看授權的作品。", catalog: "公開作品", note: "查看目前符合公開標準的作品。", loading: "正在確認公開作品。", emptyTitle: "目前沒有公開的選擇劇場作品。", emptyBody: "可觀看作品公開後會顯示在這裡。", errorTitle: "無法載入作品列表。", errorBody: "請稍後再試。", by: "製作", details: "作品資訊", unavailable: "目前暫不提供此作品的觀看服務。" },
+    ko: { name: "루미나 선택극장", catalog: "공개 작품", note: "현재 공개 기준을 충족한 작품을 확인할 수 있습니다.", loading: "공개 작품을 확인하고 있어요.", emptyTitle: "아직 공개된 작품이 없습니다.", emptyBody: "감상 가능한 작품이 공개되면 이곳에 표시됩니다.", errorTitle: "작품 목록을 불러오지 못했습니다.", errorBody: "잠시 후 다시 확인해 주세요.", by: "제작", details: "작품 정보", back: "작품 목록", unavailable: "현재 이 작품의 감상 이용은 제공되지 않습니다." },
+    en: { name: "Lumina Choice Theater", catalog: "Released titles", note: "Browse titles that currently meet the public release requirements.", loading: "Checking released titles.", emptyTitle: "No titles are public right now.", emptyBody: "Titles will appear here when they are cleared for viewing.", errorTitle: "The catalog could not be loaded.", errorBody: "Please check again shortly.", by: "Created by", details: "Title details", back: "All titles", unavailable: "Viewing is not currently available for this title." },
+    ja: { name: "ルミナ選択劇場", catalog: "公開作品", note: "現在の公開基準を満たす作品を確認できます。", loading: "公開作品を確認しています。", emptyTitle: "現在公開中の作品はありません。", emptyBody: "視聴可能な作品が公開されると、ここに表示されます。", errorTitle: "作品一覧を読み込めませんでした。", errorBody: "しばらくしてからもう一度ご確認ください。", by: "制作", details: "作品情報", back: "作品一覧", unavailable: "現在、この作品の視聴は提供されていません。" },
+    "zh-Hans": { name: "Lumina 选择剧场", catalog: "公开作品", note: "查看目前符合公开标准的作品。", loading: "正在确认公开作品。", emptyTitle: "目前没有公开的作品。", emptyBody: "可观看作品公开后会显示在这里。", errorTitle: "无法加载作品列表。", errorBody: "请稍后再试。", by: "制作", details: "作品信息", back: "作品列表", unavailable: "目前暂不提供此作品的观看服务。" },
+    "zh-Hant": { name: "Lumina 選擇劇場", catalog: "公開作品", note: "查看目前符合公開標準的作品。", loading: "正在確認公開作品。", emptyTitle: "目前沒有公開的作品。", emptyBody: "可觀看作品公開後會顯示在這裡。", errorTitle: "無法載入作品列表。", errorBody: "請稍後再試。", by: "製作", details: "作品資訊", back: "作品列表", unavailable: "目前暫不提供此作品的觀看服務。" },
   };
 
   const root = document.getElementById("ottCatalogRoot");
@@ -64,6 +64,7 @@
   let activePoster = posterButtons[0];
   let availableBranches = new Set(works.mother.initiallyAvailable);
   let currentClip = "common";
+  let catalogHasItems = false;
   let availabilityRequestId = 0;
   let orientationLocked = false;
   const locale = () => {
@@ -79,6 +80,27 @@
   const workCopy = () => ({ ...(demoCopy[locale()] || demoCopy.ko), ...(work().copy[locale()] || work().copy.ko) });
   const text = (value) => value?.[locale()] || value?.ko || value?.en || "";
   const escapeHtml = (value) => String(value || "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
+  const posterPath = (value) => typeof value === "string" && /^\/assets\/ott\/[a-zA-Z0-9_-]+(?:\/[a-zA-Z0-9_-]+)*\.(?:webp|png|jpg|jpeg)$/.test(value) ? value : "";
+  const detailPath = (item) => `/ott?title=${encodeURIComponent(item.slug)}`;
+  const requestedSlug = () => new URLSearchParams(location.search).get("title");
+
+  function poster(item) {
+    const path = posterPath(item.posterPath);
+    return path ? `<img src="${escapeHtml(path)}" alt="" loading="lazy" />` : '<span class="ott-card-art-fallback">LUMINA STAGE</span>';
+  }
+
+  function bindPosterFallbacks() {
+    root.querySelectorAll(".ott-card-art img, .ott-detail-art img").forEach((img) => {
+      const showFallback = () => {
+        const fallback = document.createElement("span");
+        fallback.className = "ott-card-art-fallback";
+        fallback.textContent = "LUMINA STAGE";
+        img.replaceWith(fallback);
+      };
+      img.addEventListener("error", showFallback, { once: true });
+      if (img.complete && img.naturalWidth === 0) showFallback();
+    });
+  }
 
   function applyCopy() {
     document.documentElement.lang = locale();
@@ -259,6 +281,7 @@
       applyCopy();
       void refreshBranchAvailability();
       browse.hidden = true;
+      catalog.hidden = true;
       demoSection.hidden = false;
       playClip("common");
       demoSection.scrollIntoView({ block: "start" });
@@ -272,6 +295,7 @@
     videoError.hidden = true;
     demoSection.hidden = true;
     browse.hidden = false;
+    catalog.hidden = !catalogHasItems;
     activePoster.focus();
   });
   demoVideo.addEventListener("timeupdate", () => {
@@ -303,28 +327,46 @@
   }
 
   function render(items) {
-    if (!items.length) {
+    catalogHasItems = items.length > 0;
+    document.body.classList.remove("ott-detail-view");
+    if (!catalogHasItems) {
       catalog.hidden = true;
       return;
     }
-    catalog.hidden = false;
+    catalog.hidden = browse.hidden;
     root.innerHTML = `<div class="ott-grid">${items.map((item) => `<article class="ott-card">
-      <div class="ott-card-art" aria-hidden="true">LUMINA STAGE</div>
-      <div class="ott-card-body"><h3>${escapeHtml(text(item.title))}</h3><p>${escapeHtml(text(item.synopsis))}</p>
+      <a class="ott-card-art" href="${escapeHtml(detailPath(item))}" aria-label="${escapeHtml(text(item.title))} · ${escapeHtml(tr("details"))}">${poster(item)}</a>
+      <div class="ott-card-body"><h3><a href="${escapeHtml(detailPath(item))}">${escapeHtml(text(item.title))}</a></h3><p>${escapeHtml(text(item.synopsis))}</p>
       <div class="ott-card-meta"><span>${escapeHtml(tr("by"))} ${escapeHtml(text(item.creatorName))}</span><span>${escapeHtml(new Date(item.publishedAt).toLocaleDateString(locale()))}</span></div>
-      <button class="ott-detail-button" type="button">${escapeHtml(tr("details"))}</button>
-      <p class="ott-boundary" hidden>${escapeHtml(tr("unavailable"))}</p></div></article>`).join("")}</div>`;
-    root.querySelectorAll(".ott-detail-button").forEach((button) => button.addEventListener("click", () => {
-      const boundary = button.nextElementSibling;
-      boundary.hidden = !boundary.hidden;
-    }));
+      <a class="ott-detail-button" href="${escapeHtml(detailPath(item))}">${escapeHtml(tr("details"))}</a></div></article>`).join("")}</div>`;
+    bindPosterFallbacks();
+  }
+
+  function renderDetail(item) {
+    document.body.classList.add("ott-detail-view");
+    catalog.hidden = false;
+    root.innerHTML = `<div class="ott-detail">
+      <a class="ott-back" href="/ott">← ${escapeHtml(tr("back"))}</a>
+      <div class="ott-detail-layout"><div class="ott-detail-art">${poster(item)}</div>
+      <div class="ott-detail-copy"><h2>${escapeHtml(text(item.title))}</h2>
+      <p class="ott-detail-creator">${escapeHtml(tr("by"))} ${escapeHtml(text(item.creatorName))}</p>
+      <p>${escapeHtml(text(item.synopsis))}</p>
+      <p class="ott-boundary" role="status">${escapeHtml(tr("unavailable"))}</p></div></div></div>`;
+    bindPosterFallbacks();
   }
 
   async function load() {
-    catalog.hidden = true;
+    const slug = requestedSlug();
+    if (slug) {
+      document.body.classList.add("ott-detail-view");
+      catalog.hidden = false;
+      status(tr("loading"));
+    } else catalog.hidden = true;
     try {
-      const payload = await apiFetch("/api/v1/ott", { throwOnError: true });
-      render(Array.isArray(payload?.items) ? payload.items : []);
+      if (slug && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) throw new Error("invalid title");
+      const payload = await apiFetch(slug ? `/api/v1/ott/${encodeURIComponent(slug)}` : "/api/v1/ott", { throwOnError: true });
+      if (slug) renderDetail(payload);
+      else render(Array.isArray(payload?.items) ? payload.items : []);
     } catch {
       catalog.hidden = false;
       status(tr("errorTitle"), tr("errorBody"));

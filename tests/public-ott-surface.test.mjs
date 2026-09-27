@@ -15,6 +15,8 @@ test('public OTT surface is separate and never links owner-private playback', ()
   assert.doesNotMatch(html, /<video id="ottDemoVideo" controls/);
   assert.match(script, /playerWrap\.requestFullscreen/);
   assert.match(script, /is-pseudo-fullscreen/);
+  assert.match(script, /ott-card-art.*href=/);
+  assert.match(script, /posterPath/);
 });
 
 test('joker demo has one common clip, two playable endings, and no third branch', () => {

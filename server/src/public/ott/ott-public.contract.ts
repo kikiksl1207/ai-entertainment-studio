@@ -14,6 +14,7 @@ export type OttPublicReleaseCandidate = {
   title: Record<Locale, string>;
   synopsis: Record<Locale, string>;
   creatorName: Record<Locale, string>;
+  posterPath?: string;
 };
 
 export type OttPublicCatalogItem = {
@@ -23,6 +24,7 @@ export type OttPublicCatalogItem = {
   creatorName: Record<Locale, string>;
   publishedAt: Date;
   detailPath: string;
+  posterPath: string | null;
   viewing: { available: false };
 };
 
@@ -50,6 +52,7 @@ export function toOttPublicCatalogItem(release: OttPublicReleaseCandidate): OttP
     creatorName: release.creatorName,
     publishedAt: release.publishedAt,
     detailPath: `/ott?title=${encodeURIComponent(release.slug)}`,
+    posterPath: release.posterPath ?? null,
     viewing: { available: false },
   };
 }
@@ -59,7 +62,7 @@ function parseRelease(value: unknown): OttPublicReleaseCandidate {
   const allowed = [
     'slug', 'workId', 'manifestId', 'rightsContractVersionIds', 'status', 'source',
     'fixtureSource', 'rightsAuthorization', 'authorizedAt', 'publishedAt',
-    'title', 'synopsis', 'creatorName',
+    'title', 'synopsis', 'creatorName', 'posterPath',
   ];
   if (Object.keys(item).some((key) => !allowed.includes(key))) throw new Error('invalid release');
   if (typeof item.slug !== 'string' || !SLUG.test(item.slug) || item.slug.length > 100) throw new Error('invalid slug');
@@ -79,7 +82,15 @@ function parseRelease(value: unknown): OttPublicReleaseCandidate {
     title: localized(item.title, 160),
     synopsis: localized(item.synopsis, 1200),
     creatorName: localized(item.creatorName, 120),
+    ...(item.posterPath === undefined ? {} : { posterPath: posterPath(item.posterPath) }),
   };
+}
+
+function posterPath(value: unknown): string {
+  if (typeof value !== 'string' || !/^\/assets\/ott\/[a-zA-Z0-9_-]+(?:\/[a-zA-Z0-9_-]+)*\.(?:webp|png|jpg|jpeg)$/.test(value)) {
+    throw new Error('invalid poster path');
+  }
+  return value;
 }
 
 function localized(value: unknown, maximum: number): Record<Locale, string> {
