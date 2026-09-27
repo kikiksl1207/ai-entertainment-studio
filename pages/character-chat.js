@@ -416,8 +416,8 @@
     hydrateChatCms(slug);
     const firstSet = Array.isArray(data?.sets) ? data.sets[0] : null;
 
-    if (!firstSet) {
-      // API 가 0개 보내도 fallback 으로 3~5개 보여줌 (#315 v2: tone.starters 우선)
+    if (!firstSet || shouldPreferLocalStarters(slug, firstSet)) {
+      // Missing or generic API starters must not replace the approved local artist tone.
       setText("chatStarterPrompt", "이렇게 말을 걸어볼까요?");
       renderStarterOptions([], slug);
       setFallback(null);
@@ -737,6 +737,13 @@
     const getter = window.LuminaStaticData?.getChatTone;
     if (typeof getter === "function") return getter(slug);
     return null;
+  }
+
+  function shouldPreferLocalStarters(slug, starterSet) {
+    return Boolean(
+      getCharacterTone(slug)?.preferLocalStarterOnDefaultApi &&
+      starterSet?.id === `${slug}-soft-start-1`
+    );
   }
 
   /* #226 — character-catalog read-only API 가 머지되면 자동으로 사용한다.
@@ -1586,6 +1593,9 @@
       if (profile) profile.href = "/character-detail?slug=" + encodeURIComponent(slug);
       setText("chatHeroName", character.name || slug);
       setText("chatHeroSummary", tone?.statusLine || "활동 중 · 메시지를 기다리고 있어요");
+      if (tone?.preferLocalStarterOnDefaultApi) {
+        setText("chatStarterEyebrow", `${character.name}에게 첫 인사 골라보기`);
+      }
       setHeroAvatar(slug, { displayName: character.name, avatarUrl: character.images?.thumb });
     }
 

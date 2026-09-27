@@ -6,12 +6,14 @@ import {
   continuationMemoryPins,
   continuationPathHash,
   continuationSourceHash,
+  STORY_CONTINUATION_PROFILE_VIEW_VERSION,
 } from './story-continuation-context.policy';
 import {
   creatorGenerationProfileFingerprint,
   normalizeCreatorGenerationProfile,
 } from '../generation-profile/creator-generation-profile.policy';
 import { StoryContinuationClaim } from './story-continuation.repository';
+import { sourceStoryContinuationLengthBounds } from './story-continuation-length.policy';
 
 const claim: StoryContinuationClaim = {
   continuationId: 'continuation-id', leaseToken: 'lease-token',
@@ -99,6 +101,10 @@ describe('StoryContinuationContextAssembler', () => {
       selectedChoice: { label: '다른 길' },
       path: f.semanticPath,
       memories: [{ memoryType: 'event', content: '{"summary":"승인된 최소 기억"}' }],
+      narrativeLength: sourceStoryContinuationLengthBounds('ko', [
+        { beatType: 'paragraph', content: '현재 장면 본문' },
+        { beatType: 'dialogue', content: '이어쓰기 직전 대사' },
+      ]),
     });
     expect(f.prisma.storyReaderProgress.findFirst).toHaveBeenCalledWith({ where: {
       id: 'progress-id', userId: 'reader-id', workId: 'work-id',
@@ -106,6 +112,47 @@ describe('StoryContinuationContextAssembler', () => {
       status: 'ai_pending', progressRevision: 10,
     } });
     expect(JSON.stringify(await f.assembler.assemble(claim))).not.toContain('scene-id');
+  });
+
+  it('resolves a queued continuation by its retired choice id and unchanged label', async () => {
+    const f = fixture();
+    f.prisma.storyChoice.findFirst.mockResolvedValue({
+      id: 'choice-b', position: -2, label: { ko: '다른 길' },
+    });
+
+    await expect(f.assembler.assemble(claim)).resolves.toMatchObject({
+      selectedChoice: { label: '다른 길' },
+    });
+    expect(f.prisma.storyChoice.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ id: 'choice-b' }),
+    }));
+    expect(f.prisma.storyChoice.findFirst.mock.calls[0][0].where).not.toHaveProperty('position');
+  });
+
+  it('passes writer-approved semantic memory in the requested locale', async () => {
+    const f = fixture();
+    const memories = [{
+      id: 'approved-semantic-memory', memoryType: 'entity', revision: 1,
+      content: { ko: '주인공: 왼손을 다친 채 항구에 도착한다.' },
+    }];
+    f.prisma.storyMemoryRecord.findMany.mockResolvedValue(memories);
+    const memoryPins = continuationMemoryPins(memories);
+    const references = f.continuation.contextReferences;
+    f.continuation.contextReferences = {
+      ...references,
+      memoryPins,
+      executionFingerprint: continuationExecutionFingerprint({
+        contextFingerprint: f.continuation.contextFingerprint,
+        sourceHash: references.sourceHash,
+        pathHash: references.pathHash,
+        memoryPins,
+      }),
+    };
+
+    const context = await f.assembler.assemble(claim);
+    expect(context.memories).toEqual([{
+      memoryType: 'entity', content: '주인공: 왼손을 다친 채 항구에 도착한다.',
+    }]);
   });
 
   it('rejects a progress that no longer matches the pinned reader path', async () => {
@@ -154,6 +201,7 @@ describe('StoryContinuationContextAssembler', () => {
     };
     const snapshot = continuationGenerationProfileSnapshot(profile as never);
     (f.continuation.contextReferences as Record<string, unknown>).generationProfilePin = snapshot.pin;
+    (f.continuation.contextReferences as Record<string, unknown>).generationProfileViewVersion = STORY_CONTINUATION_PROFILE_VIEW_VERSION;
     f.continuation.contextReferences.executionFingerprint = continuationExecutionFingerprint({
       contextFingerprint: f.continuation.contextFingerprint,
       sourceHash: f.continuation.contextReferences.sourceHash,
@@ -192,6 +240,15 @@ describe('StoryContinuationContextAssembler', () => {
       generationProfilePin: pin,
     });
     f.prisma.storyWorkGenerationProfile.findFirst.mockResolvedValue(null);
+    await expect(f.assembler.assemble(claim)).rejects.toThrow('pinned_context_changed');
+  });
+
+  it('rejects a queued profile continuation from a different prompt-view version', async () => {
+    const f = fixture();
+    (f.continuation.contextReferences as Record<string, unknown>).generationProfilePin = {
+      id: 'profile-id', profileVersion: 1, reviewRevision: 1,
+      sourceFingerprint: 'a'.repeat(64), approvedFingerprint: 'b'.repeat(64),
+    };
     await expect(f.assembler.assemble(claim)).rejects.toThrow('pinned_context_changed');
   });
 });

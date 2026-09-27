@@ -396,11 +396,21 @@ export class BoostsService {
     });
   }
 
-  async getRankings(campaignId: string) {
+  async getRankings(campaignId: string, period: string = 'campaign') {
+    if (period !== 'campaign' && period !== 'month') {
+      throw new BadRequestException('period must be campaign or month');
+    }
+    const now = new Date();
+    const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+    const year = kst.getUTCFullYear();
+    const monthIndex = kst.getUTCMonth();
+    const start = new Date(Date.UTC(year, monthIndex, 1) - 9 * 60 * 60 * 1000);
+    const end = new Date(Date.UTC(year, monthIndex + 1, 1) - 9 * 60 * 60 * 1000);
     const [events, activeArtists] = await Promise.all([
       this.prisma.artistBoostEvent.findMany({
         where: {
           campaignId,
+          ...(period === 'month' ? { createdAt: { gte: start, lt: end } } : {}),
           artist: { status: 'active' },
         },
         include: {

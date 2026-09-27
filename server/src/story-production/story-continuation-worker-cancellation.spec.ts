@@ -6,7 +6,9 @@ function fixture() {
   const queue = { claimExpiredTerminal: jest.fn().mockResolvedValue(null), claimNext: jest.fn().mockResolvedValue(claim), releaseForRetry: jest.fn(), markDispatched: jest.fn(), releaseNotAcceptedForRetry: jest.fn() };
   const provider = { readiness: jest.fn().mockResolvedValue({ enabled: true }), generate: jest.fn() };
   const economics = { continuationExecutionAuthorization: jest.fn().mockResolvedValue({ allowed: true }), failClaimedContinuation: jest.fn(), settleClaimedContinuation: jest.fn() };
-  const assembler = { assemble: jest.fn().mockResolvedValue({}) };
+  const assembler = { assemble: jest.fn().mockResolvedValue({
+    sourceScene: { beats: [{ beatType: 'paragraph', content: 'Source scene' }] },
+  }) };
   const executor = new StoryContinuationExecutor(queue as never, provider as never, economics as never, assembler as never, {} as never);
   return { executor, queue, provider, economics, assembler, claim };
 }

@@ -84,6 +84,15 @@ export class OpenAiStoryContinuationProvider extends StoryContinuationProvider {
     try { envelope = record(JSON.parse(raw)); } catch { fail('provider_malformed_response'); }
     if (envelope!.model !== this.config.model) fail('provider_response_model_mismatch');
     if (!Array.isArray(envelope!.output)) fail('provider_malformed_response');
+    if (envelope!.status === 'incomplete') {
+      const details = envelope!.incomplete_details;
+      const reason = details && typeof details === 'object' && !Array.isArray(details)
+        ? (details as Record<string, unknown>).reason : undefined;
+      if (reason === 'max_output_tokens') fail('provider_output_token_limit');
+      if (reason === 'content_filter') fail('provider_content_filtered');
+      fail('provider_incomplete_output');
+    }
+    if (envelope!.status !== 'completed') fail('provider_incomplete_output');
     const texts: string[] = [];
     for (const item of envelope!.output as unknown[]) {
       const output = record(item);
@@ -97,12 +106,12 @@ export class OpenAiStoryContinuationProvider extends StoryContinuationProvider {
       }
       if (output.status !== 'completed') fail('provider_incomplete_output');
     }
-    if (envelope!.status !== 'completed') fail('provider_incomplete_output');
     if (texts.length !== 1 || Buffer.byteLength(texts[0], 'utf8') > 100_000) fail('provider_output_size_invalid');
     let value: Record<string, unknown>;
     try { value = record(JSON.parse(texts[0])); } catch { fail('provider_malformed_output'); }
     exactKeys(value!, ['title', 'beats', 'nextChoices', 'ending']);
     if (!Array.isArray(value!.beats) || !Array.isArray(value!.nextChoices)) fail('provider_malformed_output');
+    if (value!.nextChoices.length > 0 && value!.nextChoices.length !== 3) fail('provider_output_route_invalid');
     for (const beat of value!.beats as unknown[]) exactKeys(record(beat), ['beatType', 'content']);
     for (const choice of value!.nextChoices as unknown[]) exactKeys(record(choice), ['choiceKey', 'label']);
     if (value!.ending !== null) {
@@ -197,6 +206,7 @@ function safeOutputValidationCode(message: string) {
     'Generated localized text is invalid': 'provider_output_locale_shape_invalid',
     'Generated localized text must contain only the requested locale': 'provider_output_locale_invalid',
     'Generated localized text exceeds its byte limit': 'provider_output_text_limit',
+    'Generated continuation contains a stray bracket paragraph': 'provider_output_punctuation_artifact',
     'Generated continuation output exceeds the byte limit': 'provider_output_total_limit',
   };
   return codes[message] ?? 'provider_output_invalid';

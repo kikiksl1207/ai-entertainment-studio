@@ -16,6 +16,10 @@ test('generated prose remains hidden until its matching artwork is ready', () =>
   assert.match(page, /scene\?\.deliveryState === "artwork_pending"/);
   assert.match(page, /data-story-paired-retry/);
   assert.match(page, /ensurePairedSceneVisual/);
+  assert.match(page, /state\.pairedVisualStatus = "idle";\s*state\.pairedVisualStartedAt = Date\.now\(\)/);
+  assert.doesNotMatch(page, /scene\?\.deliveryState === "artwork_unavailable" \? "failed"/);
+  assert.match(page, /state\.pairedVisualTransportFailures \+= 1/);
+  assert.match(page, /loadScene\(\{ restorePending: false \}\)/);
   assert.match(css, /\.story-paired-delivery-panel/);
 });
 

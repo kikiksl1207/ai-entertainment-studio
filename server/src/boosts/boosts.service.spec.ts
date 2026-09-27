@@ -321,6 +321,30 @@ describe('BoostsService wallet mutation safety', () => {
     expect(row.totalWeightedScore.toString()).toBe('4');
   });
 
+  it('can scope public rankings to the current KST month without changing campaign rankings', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-09-30T15:00:00.000Z'));
+    try {
+      const { service, prisma } = createHarness();
+      prisma.artist.findMany.mockResolvedValue([artist]);
+      prisma.artistBoostEvent.findMany.mockResolvedValue([]);
+
+      await service.getRankings(campaign.id, 'month');
+
+      expect(prisma.artistBoostEvent.findMany).toHaveBeenCalledWith(expect.objectContaining({
+        where: {
+          campaignId: campaign.id,
+          createdAt: {
+            gte: new Date('2026-09-30T15:00:00.000Z'),
+            lt: new Date('2026-10-31T15:00:00.000Z'),
+          },
+          artist: { status: 'active' },
+        },
+      }));
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it('keeps active artists with zero likes visible in campaign rankings', async () => {
     const { service, prisma } = createHarness();
     const ohHyerin = {

@@ -177,7 +177,7 @@ export function composeStoryVisualPrompt(bible: StoryVisualBible, scenePrompt: s
     bible.privatePrompt,
     '',
     '[SCENE-SPECIFIC DIRECTION]',
-    'The scene reference may mention many people, places, and actions over time. Do not illustrate them all. Give the scene title and the final consequence more weight than incidental names. Choose one decisive action that matches both, place it inside a detailed full-bleed environment, center the most important acting character, and include at most two supporting characters. Preserve all recurring character anchors exactly; prioritize recognizable identity and natural anatomy over decorative detail. The finished frame must look like a polished still from the same premium production as the approved cover, not an unrelated AI illustration. Render a full-bleed portrait 2:3 frame even if older notes say 16:9; keep the cover identity, not its crop. Never render quoted story text.',
+    'The scene reference may span many moments. Do not illustrate them all. Choose one decisive action matching the title and final consequence. Show one continuous physical location and moment in a detailed full-bleed 2:3 frame, with one focal character and at most two distinct supporters. Never a character-sheet layout, poster montage, isolated cutouts, duplicated faces, floating figures, or black void. Ground complete bodies in their surroundings; keep faces and environmental detail readable even in darkness. Match the approved cover\'s medium, palette, and recurring identities, not its poster layout. Prioritize natural anatomy. Ignore older 16:9 notes. Never render quoted story text.',
     boundedScene,
   ].join('\n');
 }

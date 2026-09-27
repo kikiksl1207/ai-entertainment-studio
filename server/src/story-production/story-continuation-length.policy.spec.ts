@@ -1,6 +1,9 @@
 import {
+  authorPartStoryContinuationLengthBounds,
   assertStoryContinuationLengthBounds,
   proposeStoryContinuationLength,
+  storyContinuationOutputTokenLimit,
+  sourceStoryContinuationLengthBounds,
   validateStoryContinuationNarrativeLength,
 } from './story-continuation-length.policy';
 
@@ -12,6 +15,29 @@ function beats(units: number, locale = 'ko') {
 const reference = (units = 10_000, locale = 'ko') => ({ locale, beats: beats(units, locale) });
 
 describe('independent proposed author-length policy', () => {
+  it('derives the live Part_002 parity floor from the approved source scene', () => {
+    const bounds = sourceStoryContinuationLengthBounds('ko', [
+      { beatType: 'paragraph', content: '\uac00'.repeat(7_158) },
+    ]);
+    expect(bounds).toMatchObject({ referenceUnits: 7_158, minUnits: 5_727, targetUnits: 7_158 });
+    expect(() => validateStoryContinuationNarrativeLength({ locale: 'ko', beats: beats(3_180) }, bounds))
+      .toThrow('continuation_output_underlength');
+    expect(validateStoryContinuationNarrativeLength({ locale: 'ko', beats: beats(5_727) }, bounds).units)
+      .toBe(5_727);
+  });
+  it('scales the output cap to scene length while respecting the approved ceiling', () => {
+    const short = proposeStoryContinuationLength(reference(2_710)).bounds;
+    const long = proposeStoryContinuationLength(reference(7_158)).bounds;
+    expect(storyContinuationOutputTokenLimit(short, 32_768)).toBe(6_926);
+    expect(storyContinuationOutputTokenLimit(long, 32_768)).toBe(29_665);
+    expect(storyContinuationOutputTokenLimit(long, 8_192)).toBe(8_192);
+    expect(() => storyContinuationOutputTokenLimit(short, 0)).toThrow('author_length_output_limit_invalid');
+  });
+  it('uses the whole authored part as the stable length reference across later branches', () => {
+    const bounds = authorPartStoryContinuationLengthBounds('ko', ['가'.repeat(3_000), '나'.repeat(4_000)]);
+    expect(bounds).toMatchObject({ referenceUnits: 7_000, minUnits: 5_600, maxUnits: 8_400 });
+    expect(() => authorPartStoryContinuationLengthBounds('ko', [])).toThrow('author_length_beats_invalid');
+  });
   it.each([10_000, 20_000])('scales an authored %i-unit reference without a global fixed target', units => {
     const source = reference(units);
     const unchanged = JSON.stringify(source);

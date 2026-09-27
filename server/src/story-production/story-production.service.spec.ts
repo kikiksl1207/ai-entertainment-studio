@@ -339,6 +339,67 @@ describe('StoryProductionService', () => {
     });
   });
 
+  it('keeps an unlisted link-test story out of catalog and hashtag counts', async () => {
+    const workId = '00000000-0000-0000-0000-000000000021';
+    const releaseId = '00000000-0000-0000-0000-000000000031';
+    prisma.storyWork.findMany.mockResolvedValue([{
+      id: workId,
+      slug: 'unlisted-test-story',
+      defaultLocale: 'ko',
+      title: { ko: 'Unlisted' },
+      summary: { ko: 'Summary' },
+      hashtagKeys: ['thriller'],
+      hashtagLabels: { thriller: { ko: '스릴러' } },
+      coverManifest: {
+        publicAssetPath: '/assets/story/unlisted.webp',
+        catalogVisibility: 'unlisted',
+        contentRating: 'adults_only',
+      },
+      priceLumina: new Decimal(0),
+      fixtureSource: false,
+      publishedAt: new Date(),
+      activeReleaseId: releaseId,
+    }]);
+    prisma.storyRelease.findMany.mockResolvedValue([{ id: releaseId, workId, checksum: 'a'.repeat(64) }]);
+
+    const result = await service.catalog(undefined, new StoryCatalogQueryDto());
+
+    expect(result.items).toEqual([]);
+    expect(result.filters.hashtags).toEqual([]);
+  });
+
+  it('lists the approved adult public-test story with its rating and hashtag', async () => {
+    const workId = '00000000-0000-0000-0000-000000000021';
+    const releaseId = '00000000-0000-0000-0000-000000000031';
+    prisma.storyWork.findMany.mockResolvedValue([{
+      id: workId,
+      slug: 'the-killer-inherits-the-dead-test',
+      defaultLocale: 'ko',
+      title: { ko: '살인자는 죽은 자의 능력을 계승한다' },
+      summary: { ko: '소개' },
+      hashtagKeys: ['thriller'],
+      hashtagLabels: { thriller: { ko: '스릴러' } },
+      coverManifest: {
+        publicAssetPath: '/assets/story/killer-inherits-cover.webp',
+        catalogVisibility: 'public_test',
+        contentRating: 'adults_only',
+      },
+      priceLumina: new Decimal(0),
+      fixtureSource: false,
+      publishedAt: new Date(),
+      activeReleaseId: releaseId,
+    }]);
+    prisma.storyRelease.findMany.mockResolvedValue([{ id: releaseId, workId, checksum: 'a'.repeat(64) }]);
+
+    const result = await service.catalog(undefined, new StoryCatalogQueryDto());
+
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0].cover).toMatchObject({ contentRating: 'adults_only' });
+    expect(result.filters.hashtags).toEqual(expect.arrayContaining([
+      expect.objectContaining({ key: 'thriller', count: 1 }),
+    ]));
+  });
+
   it('filters the public catalog by search text and hashtag while returning localized hashtag facets', async () => {
     const query = Object.assign(new StoryCatalogQueryDto(), {
       locale: 'en',
@@ -351,6 +412,7 @@ describe('StoryProductionService', () => {
       defaultLocale: 'ko',
       title: { ko: '로맨스 작품' },
       summary: { ko: '소개' },
+      authorDisplayName: '루미나',
       hashtagKeys: ['romance'],
       hashtagLabels: { romance: { ko: '로맨스', en: 'Romance' } },
       coverManifest: { url: '/public/story/romance.webp' },
@@ -372,6 +434,7 @@ describe('StoryProductionService', () => {
     expect(result.items[0].hashtags).toEqual([
       expect.objectContaining({ key: 'romance', label: 'Romance' }),
     ]);
+    expect(result.items[0].author).toEqual({ displayName: '루미나' });
     expect(result.filters.hashtags).toEqual([{ key: 'romance', label: 'Romance', count: 1 }]);
   });
 
@@ -653,6 +716,9 @@ describe('StoryProductionService', () => {
       maxChoices: 20,
       fullGraphIncluded: false,
     });
+    expect(prisma.storyChoice.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { sceneId: 'scene-1', position: { gt: 0 } },
+    }));
     expect(prisma.storyScene.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
@@ -864,7 +930,7 @@ describe('StoryProductionService', () => {
       expect.objectContaining({ take: 40 }),
     );
     expect(prisma.storyChoice.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ take: 4 }),
+      expect.objectContaining({ where: { sceneId: 'scene-1', position: { gt: 0 } }, take: 4 }),
     );
   });
 });

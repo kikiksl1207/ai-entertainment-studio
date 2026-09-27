@@ -1,10 +1,12 @@
 import {
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
+  OnApplicationBootstrap,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, type StoryAnalysisJob } from '@prisma/client';
 import { createHash } from 'crypto';
 import {
   CREATOR_GENERATION_PROFILE_SCHEMA,
@@ -44,8 +46,86 @@ type ProfileEvidenceRow = {
 };
 
 @Injectable()
-export class StoryGenerationProfileService {
+export class StoryGenerationProfileService implements OnApplicationBootstrap {
+  private readonly logger = new Logger(StoryGenerationProfileService.name);
   constructor(private readonly prisma: PrismaService) {}
+
+  onApplicationBootstrap() {
+    void this.approvePendingCompanyProfiles().catch((error: unknown) => {
+      this.logger.warn(`Company story profile recovery stopped: ${error instanceof Error ? error.name : 'unknown error'}`);
+    });
+  }
+
+  private async approvePendingCompanyProfiles() {
+    const pending = await this.prisma.storyWorkGenerationProfile.findMany({
+      where: { status: 'needs_review' },
+      select: { workId: true, ownerUserId: true },
+      orderBy: { createdAt: 'asc' },
+      take: 100,
+    });
+    for (const profile of pending) {
+      try {
+        await this.autoApproveCompany(profile.ownerUserId, profile.workId);
+      } catch (error) {
+        this.logger.warn(`Company story profile recovery skipped ${profile.workId}: ${error instanceof Error ? error.name : 'unknown error'}`);
+      }
+    }
+  }
+
+  async autoApproveCompany(userId: string, workId: string) {
+    const source = await this.latestCompletedSource(userId, workId);
+    return this.prisma.$transaction(async (tx) => {
+      const work = await tx.storyWork.findFirst({
+        where: { id: workId, ownerUserId: userId },
+        select: { authorDisplayName: true, fixtureSource: true },
+      });
+      if (work?.authorDisplayName !== '루미나' || work.fixtureSource) return null;
+      const companyImport = await tx.storyPublicationImportJob.findFirst({
+        where: { workId, actorUserId: userId, status: 'published' }, select: { id: true },
+      });
+      const companyPublication = companyImport ? null : await tx.auditEvent.findFirst({
+        where: { actorUserId: userId, actorType: 'admin',
+          action: { in: ['story_approved_source.public_beta_published', 'story_upload.public_beta_published'] },
+          afterData: { path: ['workId'], equals: workId } },
+        select: { id: true },
+      });
+      if (!companyImport && !companyPublication) return null;
+      const current = await tx.storyWorkGenerationProfile.findFirst({
+        where: { workId }, orderBy: { profileVersion: 'desc' },
+      });
+      if (!current || current.analysisJobId !== source.analysis.id || current.status !== 'needs_review' ||
+          current.sourceFingerprint !== this.sourceFingerprint(source) || current.reviewRevision !== 0) return null;
+      const draft = normalizeCreatorGenerationProfile('story', current.draftSettings);
+      if (draft.sections.some((section) => section.decision !== 'proposed')) return null;
+      const settings = normalizeCreatorGenerationProfile('story', {
+        ...draft,
+        sections: draft.sections.map((section) => ({ ...section, decision: 'accepted' })),
+      });
+      assertCreatorGenerationProfileApprovable(settings);
+      const fingerprint = creatorGenerationProfileFingerprint(current.sourceFingerprint, settings);
+      const updated = await tx.storyWorkGenerationProfile.updateMany({
+        where: { id: current.id, status: 'needs_review', sourceFingerprint: current.sourceFingerprint,
+          draftFingerprint: current.draftFingerprint, reviewRevision: 0 },
+        data: { status: 'approved', draftSettings: settings as unknown as Prisma.InputJsonValue,
+          draftFingerprint: fingerprint, approvedSettings: settings as unknown as Prisma.InputJsonValue,
+          approvedFingerprint: fingerprint, approvedByUserId: userId, approvedAt: new Date(),
+          reviewRevision: { increment: 1 }, updatedAt: new Date() },
+      });
+      if (updated.count !== 1) return null;
+      const approved = await tx.storyWorkGenerationProfile.findUniqueOrThrow({ where: { id: current.id } });
+      const approvedMemoryCount = await this.persistApprovedMemories(tx, source, approved.id, settings);
+      await tx.auditEvent.create({ data: { actorUserId: userId, actorType: 'system',
+        action: 'story_generation_profile.company_auto_approved',
+        targetType: 'story_work_generation_profile', targetId: approved.id,
+        beforeData: { status: current.status, reviewRevision: current.reviewRevision },
+        afterData: { status: approved.status, reviewRevision: approved.reviewRevision,
+          approvedFingerprint: approved.approvedFingerprint },
+        metadata: { workId, analysisJobId: source.analysis.id,
+          ...(companyImport ? { companyImportJobId: companyImport.id } : { companyPublicationAuditId: companyPublication!.id }),
+          approvedMemoryCount } } });
+      return this.project(workId, source, approved);
+    });
+  }
 
   async getOrCreate(userId: string, workId: string) {
     const source = await this.latestCompletedSource(userId, workId);
@@ -54,54 +134,8 @@ export class StoryGenerationProfileService {
       orderBy: { profileVersion: 'desc' },
     });
     if (!profile) {
-      const settings = await this.settingsFromAnalysis(source.analysis.id, source.manuscript);
-      const sourceFingerprint = this.sourceFingerprint(source);
-      const draftFingerprint = creatorGenerationProfileFingerprint(sourceFingerprint, settings);
       try {
-        profile = await this.prisma.$transaction(async (tx) => {
-          const current = await tx.storyWorkGenerationProfile.findFirst({
-            where: { workId },
-            orderBy: { profileVersion: 'desc' },
-          });
-          const replay = await tx.storyWorkGenerationProfile.findFirst({
-            where: { workId, analysisJobId: source.analysis.id },
-            orderBy: { profileVersion: 'desc' },
-          });
-          if (replay) return replay;
-          const created = await tx.storyWorkGenerationProfile.create({
-            data: {
-              workId,
-              ownerUserId: userId,
-              manuscriptVersionId: source.manuscript.id,
-              analysisJobId: source.analysis.id,
-              sourceFingerprint,
-              profileVersion: (current?.profileVersion ?? 0) + 1,
-              status: 'needs_review',
-              draftSettings: settings as unknown as Prisma.InputJsonValue,
-              draftFingerprint,
-            },
-          });
-          await tx.auditEvent.create({
-            data: {
-              actorUserId: userId,
-              actorType: 'system',
-              action: 'story_generation_profile.analysis_draft_created',
-              targetType: 'story_work_generation_profile',
-              targetId: created.id,
-              afterData: {
-                status: created.status,
-                profileVersion: created.profileVersion,
-                draftFingerprint,
-              },
-              metadata: {
-                workId,
-                manuscriptVersionId: source.manuscript.id,
-                analysisJobId: source.analysis.id,
-              },
-            },
-          });
-          return created;
-        });
+        profile = await this.prisma.$transaction(tx => this.createDraft(tx, userId, source));
       } catch (error) {
         if (!this.isUniqueViolation(error)) throw error;
         profile = await this.prisma.storyWorkGenerationProfile.findFirst({
@@ -111,7 +145,70 @@ export class StoryGenerationProfileService {
         if (!profile) throw error;
       }
     }
+    if (profile.status === 'needs_review') {
+      try {
+        const approved = await this.autoApproveCompany(userId, workId);
+        if (approved) return approved;
+      } catch (error) {
+        this.logger.warn(`Company story profile remained in review for ${workId}: ${error instanceof Error ? error.name : 'unknown error'}`);
+      }
+    }
     return this.project(workId, source, profile);
+  }
+
+  async createDraftAtCompletion(tx: Prisma.TransactionClient, job: StoryAnalysisJob) {
+    const userId = job.actorUserId;
+    if (!userId || job.pipeline !== SEMANTIC_PIPELINE || job.status !== 'running' || job.phase !== 'finalizing')
+      throw new Error('Invalid semantic profile source');
+    const work = await tx.storyWork.findFirst({
+      where: { id: job.workId, ownerUserId: userId }, select: { id: true },
+    });
+    const manuscript = await tx.storyManuscriptVersion.findFirst({
+      where: { id: job.manuscriptVersionId, workId: job.workId, ownerUserId: userId },
+      select: { id: true, version: true, locale: true, contentHash: true, structuredBody: true },
+    });
+    if (!work || !manuscript || manuscript.contentHash !== job.sourceContentHash)
+      throw new Error('Invalid semantic profile source');
+    return this.createDraft(tx, userId, { work, manuscript, analysis: {
+      id: job.id, analysisVersion: job.analysisVersion, sourceContentHash: job.sourceContentHash,
+      configHash: job.configHash, totalParts: job.totalParts, totalParagraphs: job.totalParagraphs,
+    } });
+  }
+
+  private async createDraft(
+    tx: Prisma.TransactionClient,
+    userId: string,
+    source: Awaited<ReturnType<StoryGenerationProfileService['latestCompletedSource']>>,
+  ) {
+    const workId = source.work.id;
+    const owned = await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT id FROM story_works WHERE id=${workId}::uuid AND owner_user_id=${userId}::uuid FOR UPDATE
+    `;
+    if (!owned.length) throw new NotFoundException('Story work not found');
+    const replay = await tx.storyWorkGenerationProfile.findFirst({
+      where: { workId, analysisJobId: source.analysis.id }, orderBy: { profileVersion: 'desc' },
+    });
+    if (replay) return replay;
+    const current = await tx.storyWorkGenerationProfile.findFirst({
+      where: { workId }, orderBy: { profileVersion: 'desc' },
+    });
+    const settings = await this.settingsFromAnalysis(tx, source.analysis.id, source.manuscript);
+    const sourceFingerprint = this.sourceFingerprint(source);
+    const draftFingerprint = creatorGenerationProfileFingerprint(sourceFingerprint, settings);
+    const created = await tx.storyWorkGenerationProfile.create({ data: {
+      workId, ownerUserId: userId,
+      manuscriptVersionId: source.manuscript.id, analysisJobId: source.analysis.id,
+      sourceFingerprint, profileVersion: (current?.profileVersion ?? 0) + 1,
+      status: 'needs_review', draftSettings: settings as unknown as Prisma.InputJsonValue, draftFingerprint,
+    } });
+    await tx.auditEvent.create({ data: {
+      actorUserId: created.ownerUserId, actorType: 'system',
+      action: 'story_generation_profile.analysis_draft_created',
+      targetType: 'story_work_generation_profile', targetId: created.id,
+      afterData: { status: created.status, profileVersion: created.profileVersion, draftFingerprint },
+      metadata: { workId, manuscriptVersionId: source.manuscript.id, analysisJobId: source.analysis.id },
+    } });
+    return created;
   }
 
   async update(userId: string, workId: string, input: UpdateStoryGenerationProfileDto) {
@@ -221,6 +318,7 @@ export class StoryGenerationProfileService {
         });
       }
       const profile = await tx.storyWorkGenerationProfile.findUniqueOrThrow({ where: { id: current.id } });
+      const approvedMemoryCount = await this.persistApprovedMemories(tx, source, profile.id, settings);
       await tx.auditEvent.create({
         data: {
           actorUserId: userId,
@@ -235,11 +333,72 @@ export class StoryGenerationProfileService {
             reviewRevision: profile.reviewRevision,
             approvedFingerprint: profile.approvedFingerprint,
           },
-          metadata: { workId, analysisJobId: source.analysis.id },
+          metadata: { workId, analysisJobId: source.analysis.id, approvedMemoryCount },
         },
       });
       return this.project(workId, source, profile);
     });
+  }
+
+  private async persistApprovedMemories(
+    tx: Prisma.TransactionClient,
+    source: Awaited<ReturnType<StoryGenerationProfileService['latestCompletedSource']>>,
+    profileId: string,
+    settings: CreatorGenerationProfileSettings,
+  ) {
+    const sectionTypes: Record<string, string[]> = {
+      canon: ['entity', 'background'],
+      timeline: ['event'],
+      narrative_devices: ['foreshadow', 'payoff'],
+    };
+    const reviewed = settings.sections
+      .filter((section) => ['accepted', 'edited'].includes(section.decision) && sectionTypes[section.key])
+      .map((section) => ({ section, observations: Array.isArray(section.value.observations)
+        ? section.value.observations : [] }));
+    const ids = [...new Set(reviewed.flatMap(({ observations }) => observations.flatMap((value) => {
+      const ref = this.record(value).sourceRef;
+      return typeof ref === 'string' && /^analysis:[0-9a-f-]{36}$/i.test(ref) ? [ref.slice(9)] : [];
+    })))];
+    const evidence = ids.length ? await tx.storyAnalysisEvidence.findMany({
+      where: { id: { in: ids }, analysisJobId: source.analysis.id, provenance: 'semantic_candidate' },
+      select: { id: true, evidenceType: true, sourcePartKey: true },
+    }) : [];
+    const evidenceById = new Map(evidence.map((row) => [row.id, row]));
+    const memories: Prisma.StoryMemoryRecordCreateManyInput[] = [];
+    const used = new Set<string>();
+    for (const { section, observations } of reviewed) {
+      const valid = observations.flatMap((value) => {
+        const observation = this.record(value);
+        const ref = observation.sourceRef;
+        const row = typeof ref === 'string' ? evidenceById.get(ref.slice(9)) : undefined;
+        const detail = this.text(observation.detail, 320);
+        if (!row || !detail || !sectionTypes[section.key].includes(row.evidenceType) || used.has(row.id)) return [];
+        used.add(row.id);
+        return [{ row, detail, title: this.text(observation.title, 80) }];
+      });
+      for (const { row, detail, title } of this.spread(valid, 6)) {
+        const memoryType = section.key === 'canon' ? 'entity' : section.key === 'timeline' ? 'event' : 'foreshadow';
+        memories.push({
+          workId: source.work.id,
+          analysisJobId: source.analysis.id,
+          manuscriptVersionId: source.manuscript.id,
+          memoryType,
+          memoryKey: `profile:${profileId}:${row.id}`,
+          partKey: row.sourcePartKey,
+          content: { [source.manuscript.locale]: title ? `${title}: ${detail}` : detail },
+          evidenceIds: [row.id],
+          provenance: 'writer_approved_semantic',
+          status: 'approved',
+        });
+      }
+    }
+    await tx.storyMemoryRecord.updateMany({
+      where: { workId: source.work.id, analysisJobId: source.analysis.id,
+        provenance: 'writer_approved_semantic', status: 'approved' },
+      data: { status: 'superseded' },
+    });
+    if (memories.length) await tx.storyMemoryRecord.createMany({ data: memories });
+    return memories.length;
   }
 
   private async latestCompletedSource(userId: string, workId: string) {
@@ -286,10 +445,11 @@ export class StoryGenerationProfileService {
   }
 
   private async settingsFromAnalysis(
+    db: Pick<Prisma.TransactionClient, 'storyAnalysisEvidence'>,
     analysisJobId: string,
     manuscript: { id: string; version: number; locale: string; structuredBody: Prisma.JsonValue },
   ): Promise<CreatorGenerationProfileSettings> {
-    const rows = await this.prisma.storyAnalysisEvidence.findMany({
+    const rows = await db.storyAnalysisEvidence.findMany({
       where: {
         analysisJobId,
         provenance: 'semantic_candidate',

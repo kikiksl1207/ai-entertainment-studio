@@ -82,7 +82,7 @@ postgres('Owned analysis discovery HTTP (isolated PG, providers disabled)', () =
     transport = jest.fn(() => { throw new Error('No external provider transport allowed'); });
     provider = new SemanticAnalysisProvider(semanticConfig({}), transport);
     readiness = jest.spyOn(provider, 'readiness');
-    const semantic = new SemanticAnalysisService(new SemanticAnalysisRepository(db as never), provider);
+    const semantic = new SemanticAnalysisService(new SemanticAnalysisRepository(db as never), provider, {} as never);
     const stories = new StoryProductionService(db as never, undefined, undefined, undefined, semantic);
     const jwt = new JwtService(), secret = randomUUID();
     ownerToken = await jwt.signAsync({ sub: owner, tokenType: 'access' }, { secret, expiresIn: '5m' });

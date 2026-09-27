@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 
 const app = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
 const html = readFileSync(new URL('../story-upload/index.html', import.meta.url), 'utf8');
+const upload = readFileSync(new URL('../pages/story-upload.js', import.meta.url), 'utf8');
 const locales = ['ko-KR', 'en-US', 'ja-JP', 'zh-CN', 'zh-Hant'];
 
 function translations(key) {
@@ -28,4 +29,15 @@ test('story-upload binds title and footer to locale updates', () => {
   assert.match(app, /async function setLocale\(locale\)[\s\S]*?applyI18n\(\)/);
   assert.match(app, /async function initI18n\(\)[\s\S]*?applyI18n\(\)/);
   assert.doesNotMatch(html, /Artists and fans meet on the same stage\./);
+});
+
+test('upload confirmation distinguishes review intake from publication and prepared AI branches', () => {
+  const confirmations = [...upload.matchAll(/submittedBody: "([^"]+)"/g)].map((match) => match[1]);
+  assert.equal(confirmations.length, 5);
+  for (const confirmation of confirmations) {
+    assert.match(confirmation, /AI/);
+    assert.match(confirmation, /[.!。]$/);
+  }
+  assert.match(confirmations[1], /Submission does not publish the story or prepare AI branches/);
+  assert.match(upload, /function renderSuccess\(\)[\s\S]*?<p>\$\{escapeHtml\(tr\("submittedBody"\)\)\}<\/p>/);
 });

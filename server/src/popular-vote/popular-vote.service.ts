@@ -6,6 +6,8 @@ import { PrismaService } from '../prisma/prisma.service';
 
 type PopularVoteQuery = Record<string, string | undefined>;
 
+export const MONTHLY_PICK_ARCHIVE_GRACE_MS = 5 * 60 * 1000;
+
 export const PUBLIC_ARTIST_RANKING_PROJECTION_CONTRACT = {
   version: '2026-06-16.public-artist-ranking-projection.v1',
   includedArtistStatus: 'active',
@@ -47,12 +49,14 @@ export class PopularVoteService {
       };
     }
 
+    const { year, month } = this.kstParts(new Date());
+    const { start, end } = this.kstMonthRange(year, month);
     const rankings = await this.buildRankings(campaign.id, {
       includeZeroScoreActiveArtists: true,
-    });
+    }, start, end);
     return {
       campaign,
-      leader: rankings[0] ?? null,
+      leader: rankings[0]?.totalWeightedScore.greaterThan(0) ? rankings[0] : null,
       rankings,
     };
   }
@@ -77,10 +81,14 @@ export class PopularVoteService {
     const year = this.optionalNumber(query.year) ?? this.kstParts(new Date()).year;
     const { start, end } = this.kstYearRange(year);
     const rankings = await this.buildRankingsForDateRange(start, end);
+    const currentYear = this.kstParts(new Date()).year;
 
     return {
       year,
-      champion: rankings[0] ?? null,
+      champion:
+        year < currentYear && rankings[0]?.totalWeightedScore.greaterThan(0)
+          ? rankings[0]
+          : null,
       rankings,
       rule: 'annual_weighted_score_sum',
     };
@@ -90,38 +98,33 @@ export class PopularVoteService {
     user: AuthUser,
     input: { campaignId?: string; year?: number; month?: number },
   ) {
+    if ((input.year === undefined) !== (input.month === undefined)) {
+      throw new BadRequestException('year and month must be provided together');
+    }
     const { year, month } =
-      input.year && input.month
+      input.year !== undefined && input.month !== undefined
         ? this.assertMonth(input.year, input.month)
         : this.previousKstMonth(new Date());
-    const { start, end } = this.kstMonthRange(year, month);
-    const campaign = await this.findMonthlyCampaign(input.campaignId, start, end);
-    const rankings = await this.buildRankings(campaign.id);
-    const winner = rankings[0];
-
-    if (!winner) {
-      throw new BadRequestException('Campaign has no ranking rows to finalize');
+    this.assertCompletedMonth(year, month);
+    const existing = await this.prisma.monthlyPickWinner.findUnique({
+      where: { year_month: { year, month } },
+      include: this.monthlyPickInclude(),
+    });
+    if (existing) {
+      return { winner: existing, rankings: [] };
     }
 
-    const result = await this.prisma.monthlyPickWinner.upsert({
-      where: {
-        year_month: { year, month },
-      },
-      update: {
-        campaignId: campaign.id,
-        artistId: winner.artist.id,
-        rankNo: winner.rankNo,
-        totalFreeLikes: winner.totalFreeLikes,
-        totalLuminaBoosts: winner.totalLuminaBoosts,
-        totalWeightedScore: winner.totalWeightedScore,
-        decidedAt: new Date(),
-        updatedAt: new Date(),
-        metadata: this.toJson({
-          finalizedByUserId: user.id,
-          source: 'admin_manual',
-        }),
-      },
-      create: {
+    const { start, end } = this.kstMonthRange(year, month);
+    const campaign = await this.findMonthlyCampaign(input.campaignId, start, end);
+    const rankings = await this.buildRankings(campaign.id, {}, start, end);
+    const winner = rankings[0];
+
+    if (!winner?.totalWeightedScore.greaterThan(0)) {
+      throw new BadRequestException('Campaign has no positive-score winner to finalize');
+    }
+
+    const created = await this.prisma.monthlyPickWinner.createMany({
+      data: [{
         campaignId: campaign.id,
         artistId: winner.artist.id,
         year,
@@ -134,21 +137,88 @@ export class PopularVoteService {
           finalizedByUserId: user.id,
           source: 'admin_manual',
         }),
-      },
+      }],
+      skipDuplicates: true,
+    });
+    const result = await this.prisma.monthlyPickWinner.findUniqueOrThrow({
+      where: { year_month: { year, month } },
       include: this.monthlyPickInclude(),
     });
 
-    await this.recordAudit(user, 'popular_vote.monthly_pick.finalize', result.id, {
-      campaignId: campaign.id,
-      year,
-      month,
-      artistId: winner.artist.id,
-    });
+    if (created.count) {
+      await this.recordAudit(user, 'popular_vote.monthly_pick.finalize', result.id, {
+        campaignId: campaign.id,
+        year,
+        month,
+        artistId: winner.artist.id,
+      });
+    }
 
     return {
       winner: result,
-      rankings,
+      rankings: created.count ? rankings : [],
     };
+  }
+
+  async archiveCompletedMonths(now = new Date()) {
+    const firstEvent = await this.prisma.artistBoostEvent.findFirst({
+      orderBy: { createdAt: 'asc' },
+      select: { createdAt: true },
+    });
+    if (!firstEvent) {
+      return;
+    }
+
+    const first = this.kstParts(firstEvent.createdAt);
+    // Let votes already in flight at midnight commit before fixing the award.
+    const last = this.previousKstMonth(new Date(now.getTime() - MONTHLY_PICK_ARCHIVE_GRACE_MS));
+    let { year, month } = first.year < 2026 ? { year: 2026, month: 1 } : first;
+    while (year < last.year || (year === last.year && month <= last.month)) {
+      await this.archiveMonth(year, month);
+      ({ year, month } = this.nextMonth(year, month));
+    }
+  }
+
+  private async archiveMonth(year: number, month: number) {
+    const where = { year_month: { year, month } };
+    if (await this.prisma.monthlyPickWinner.findUnique({ where, select: { id: true } })) {
+      return;
+    }
+
+    const { start, end } = this.kstMonthRange(year, month);
+    const campaigns = await this.prisma.boostCampaign.findMany({
+      where: { startsAt: { lt: end }, endsAt: { gt: start } },
+      orderBy: [{ startsAt: 'desc' }, { id: 'asc' }],
+    });
+    let best: {
+      campaignId: string;
+      winner: Awaited<ReturnType<PopularVoteService['buildRankings']>>[number];
+    } | undefined;
+    for (const campaign of campaigns) {
+      const winner = (await this.buildRankings(campaign.id, {}, start, end))[0];
+      if (winner?.totalWeightedScore.greaterThan(0) &&
+          (!best || winner.totalWeightedScore.greaterThan(best.winner.totalWeightedScore))) {
+        best = { campaignId: campaign.id, winner };
+      }
+    }
+    if (!best) {
+      return;
+    }
+
+    await this.prisma.monthlyPickWinner.createMany({
+      data: [{
+        campaignId: best.campaignId,
+        artistId: best.winner.artist.id,
+        year,
+        month,
+        rankNo: best.winner.rankNo,
+        totalFreeLikes: best.winner.totalFreeLikes,
+        totalLuminaBoosts: best.winner.totalLuminaBoosts,
+        totalWeightedScore: best.winner.totalWeightedScore,
+        metadata: this.toJson({ source: 'automatic_kst_rollover' }),
+      }],
+      skipDuplicates: true,
+    });
   }
 
   private findCurrentMainPickCampaign() {
@@ -178,14 +248,23 @@ export class PopularVoteService {
       throw new NotFoundException('Boost campaign not found for monthly pick');
     }
 
+    if (campaign.startsAt >= end || campaign.endsAt <= start) {
+      throw new BadRequestException('Boost campaign does not overlap the requested month');
+    }
+
     return campaign;
   }
 
   private async buildRankings(
     campaignId: string,
     options: { includeZeroScoreActiveArtists?: boolean } = {},
+    start?: Date,
+    end?: Date,
   ) {
-    return this.buildRankingsFromEvents({ campaignId }, options);
+    return this.buildRankingsFromEvents({
+      campaignId,
+      ...(start && end ? { createdAt: { gte: start, lt: end } } : {}),
+    }, options);
   }
 
   private buildRankingsForDateRange(start: Date, end: Date) {
@@ -342,6 +421,17 @@ export class PopularVoteService {
     }
 
     return { year, month: month - 1 };
+  }
+
+  private nextMonth(year: number, month: number) {
+    return month === 12 ? { year: year + 1, month: 1 } : { year, month: month + 1 };
+  }
+
+  private assertCompletedMonth(year: number, month: number) {
+    const { end } = this.kstMonthRange(year, month);
+    if (Date.now() < end.getTime() + MONTHLY_PICK_ARCHIVE_GRACE_MS) {
+      throw new BadRequestException('Only settled KST months can be finalized');
+    }
   }
 
   private kstParts(date: Date) {

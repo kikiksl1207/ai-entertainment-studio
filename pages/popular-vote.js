@@ -2,12 +2,21 @@
 let _popularVote = {
   mainPick: null,         // { campaign, leader, rankings }
   monthlyPicks: [],       // 월간 1위 배열 (해당 연도)
+  monthlyPicksLoaded: false,
   yearChampion: null,     // { year, champion, rankings, rule }
   loaded: false
 };
 
+function kstCurrentYear() {
+  return Number(new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Seoul", year: "numeric" }).format(new Date()));
+}
+
+function kstCurrentMonth() {
+  return Number(new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Seoul", month: "numeric" }).format(new Date()));
+}
+
 async function loadPopularVoteState() {
-  const year = new Date().getFullYear();
+  const year = kstCurrentYear();
   try {
     const [mainPick, monthlyPicks, yearChampion] = await Promise.all([
       apiFetch("/api/v1/popular-vote/main-pick").catch(err => {
@@ -30,6 +39,7 @@ async function loadPopularVoteState() {
     _popularVote = {
       mainPick,
       monthlyPicks: monthlyArr,
+      monthlyPicksLoaded: monthlyPicks !== null,
       // year-champion 응답: { year, champion, rankings, rule } — 객체 통째로 저장
       yearChampion: yearChampion,
       loaded: true
@@ -47,38 +57,28 @@ function renderMainPickTab() {
   const rankingsRoot = document.getElementById("mainPickRankings");
   if (!leaderRoot || !rankingsRoot) return;
 
-  // 데이터 소스 결정: API 우선, 없으면 로컬 fallback
+  // 집계 실패나 0표인 달에 이전 달의 로컬 누적값을 1위로 표시하지 않는다.
   const apiLeader = _popularVote.mainPick?.leader;
   const apiRankings = _popularVote.mainPick?.rankings;
 
   let leaderArtist = null;
   let rankingsList = [];
 
-  if (apiLeader && Array.isArray(apiRankings) && apiRankings.length > 0) {
+  if (_popularVote.mainPick && Array.isArray(apiRankings)) {
     // API 데이터 사용 — 차모 답변(2026-05-02 Q4) 기준 row 구조:
     // { rankNo, artist, totalFreeLikes, totalLuminaBoosts, totalWeightedScore }
-    leaderArtist = getCharacterBySlug(apiLeader.artist?.slug || apiLeader.slug || apiLeader.artistSlug);
+    leaderArtist = apiLeader ? getCharacterBySlug(apiLeader.artist?.slug || apiLeader.slug || apiLeader.artistSlug) : null;
     rankingsList = apiRankings.map(r => ({
       artist: getCharacterBySlug(r.artist?.slug || r.slug || r.artistSlug),
       likes: typeof getRankingLikes === "function"
         ? getRankingLikes(r)
         : (r.totalWeightedScore ?? r.totalFreeLikes ?? r.totalLikes ?? r.likes ?? r.score ?? 0)
     })).filter(r => r.artist);
-  } else {
-    // Fallback: 초기 공개 6명 라인업을 좋아요 순으로
-    const mainList = _artists
-      .filter(isPublicLineup)
-      .map(a => ({ artist: a, likes: getLikesCount(a.slug) }))
-      .sort((a, b) => b.likes - a.likes);
-    if (mainList.length > 0) {
-      leaderArtist = mainList[0].artist;
-      rankingsList = mainList;
-    }
   }
 
   // 헤더 패널 leader 이름 갱신
   const heroLeaderEl = document.getElementById("heroLeaderName");
-  if (heroLeaderEl && leaderArtist) heroLeaderEl.textContent = leaderArtist.publicName;
+  if (heroLeaderEl) heroLeaderEl.textContent = leaderArtist?.publicName || "집계 중";
 
   // 헤더 패널 캠페인 이름 자동 갱신 (백엔드 boost 캠페인 데이터 있으면 사용)
   const heroCampaignEl = document.getElementById("heroCampaignLabel");
@@ -90,7 +90,7 @@ function renderMainPickTab() {
   }
 
   if (!leaderArtist) {
-    leaderRoot.innerHTML = `<div class="vote-empty">아직 첫 응원이 도착하기 전이에요. 이달의 주인공은 팬의 첫 선택에서 시작됩니다.</div>`;
+    leaderRoot.innerHTML = `<div class="vote-empty">${_popularVote.mainPick ? "아직 첫 응원이 도착하기 전이에요. 이달의 주인공은 팬의 첫 선택에서 시작됩니다." : "이달의 집계를 불러오지 못했어요. 잠시 후 다시 확인해 주세요."}</div>`;
     rankingsRoot.innerHTML = "";
     return;
   }
@@ -116,7 +116,7 @@ function renderMainPickTab() {
         </blockquote>
         <div class="vote-card-actions">
           <a class="text-link" href="/character-detail?slug=${leaderArtist.slug}">${leaderArtist.publicName} 무드 보기</a>
-          <a class="vote-premium-chat-link" href="/character-chat?slug=${encodeURIComponent(leaderArtist.slug)}">프리미엄챗</a>
+          <a class="vote-premium-chat-link" href="/character-chat?slug=${encodeURIComponent(leaderArtist.slug)}">AI 캐릭터챗</a>
         </div>
       </div>
     </article>
@@ -232,7 +232,7 @@ function renderDebutRaceTab() {
             <strong>${a.publicName}</strong>
             <small>${a.summary || ""}</small>
             <p class="vote-debut-appeal">"${appeal}"</p>
-            <a class="vote-premium-chat-link" href="/character-chat?slug=${encodeURIComponent(a.slug)}">프리미엄챗</a>
+            ${a.id ? `<a class="vote-premium-chat-link" href="/character-chat?slug=${encodeURIComponent(a.slug)}">AI 캐릭터챗</a>` : ""}
         </div>
       </article>
     `;
@@ -246,7 +246,7 @@ function renderHallOfFameTab() {
   const monthlyRoot = document.getElementById("monthlyPicksGrid");
   if (!championRoot || !monthlyRoot) return;
 
-  const year = new Date().getFullYear();
+  const year = kstCurrentYear();
 
   // Year Champion (1년 누적 1위 — 연말에만 결정)
   // 차모 답변(2026-05-02 Q4) 기준 응답: { year, champion, rankings, rule }
@@ -277,19 +277,41 @@ function renderHallOfFameTab() {
     championRoot.innerHTML = renderHallOfFameWaiting(year);
   }
 
-  // Monthly Picks (해당 연도 월간 1위들)
+  // Closed months remain visible even when no winner was recorded.
+  if (!_popularVote.monthlyPicksLoaded) {
+    monthlyRoot.innerHTML = '<div class="vote-empty">월간 기록을 불러오지 못했어요. 잠시 후 다시 확인해 주세요.</div>';
+    return;
+  }
   const picks = _popularVote.monthlyPicks || [];
-  if (picks.length === 0) {
+  const campaignStart = _popularVote.mainPick?.campaign?.startsAt || picks[0]?.campaign?.startsAt;
+  const campaignDate = campaignStart ? new Date(campaignStart) : null;
+  const campaignYear = campaignDate && !Number.isNaN(campaignDate.getTime())
+    ? Number(new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Seoul", year: "numeric" }).format(campaignDate))
+    : null;
+  const campaignMonth = campaignDate && !Number.isNaN(campaignDate.getTime())
+    ? Number(new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Seoul", month: "numeric" }).format(campaignDate))
+    : null;
+  const winnerMonths = picks.map(pick => Number(pick.month)).filter(month => Number.isInteger(month) && month >= 1 && month <= 12);
+  const firstMonth = Math.min(
+    ...(campaignYear === year && campaignMonth ? [campaignMonth] : []),
+    ...winnerMonths,
+    13
+  );
+  const lastClosedMonth = kstCurrentMonth() - 1;
+  if (firstMonth > lastClosedMonth) {
     monthlyRoot.innerHTML = `<div class="vote-empty">${year}년 첫 월간 1위는 팬들의 응원이 모이는 순간 이곳에 기록됩니다.</div>`;
     return;
   }
 
-  // 월 내림차순 정렬 (최근 월 먼저)
-  // 차모 답변 기준: MonthlyPickWinner row에 campaign, artist include
-  const sorted = [...picks].sort((a, b) => (b.month || 0) - (a.month || 0));
-  monthlyRoot.innerHTML = sorted.map(pick => {
+  const picksByMonth = new Map(picks.map(pick => [Number(pick.month), pick]));
+  const months = Array.from({ length: lastClosedMonth - firstMonth + 1 }, (_, index) => lastClosedMonth - index);
+  monthlyRoot.innerHTML = months.map(month => {
+    const pick = picksByMonth.get(month);
+    const monthLabel = `${year}.${String(month).padStart(2, "0")}`;
+    if (!pick) {
+      return `<div class="vote-monthly-card vote-monthly-card-empty"><span class="vote-monthly-month">${monthLabel}</span><strong>선정 기록 없음</strong></div>`;
+    }
     const artist = getCharacterBySlug(pick.artist?.slug || pick.slug || pick.artistSlug);
-    const monthLabel = `${year}.${String(pick.month || "?").padStart(2, "0")}`;
     const score = pick.totalWeightedScore ?? pick.totalFreeLikes ?? pick.totalScore ?? pick.score ?? 0;
     if (!artist) {
       return `

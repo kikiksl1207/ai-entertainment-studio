@@ -117,6 +117,8 @@ export class SemanticAnalysisRepository {
           throw new ConflictException({ code: 'ANALYSIS_VERSION_ALREADY_RESERVED', analysisJobId: prior.id,
             details: { analysisJobId: prior.id } });
         }
+        if (config.manuscriptAllowlist.length && !config.manuscriptAllowlist.includes(manuscriptId))
+          throw new ServiceUnavailableException({ code: 'SEMANTIC_ANALYSIS_UNAVAILABLE', reason: 'analysis_manuscript_not_in_pilot' });
         if (disabledReason) throw new ServiceUnavailableException({ code: 'SEMANTIC_ANALYSIS_UNAVAILABLE', reason: disabledReason });
         await this.assertRateCard(tx, config);
         const latest = await tx.storyAnalysisJob.findFirst({ where: { manuscriptVersionId: manuscriptId },

@@ -43,9 +43,27 @@
       ],
       aiActivationAvailable: true,
       visualIdentityManaged: true
+    },
+    {
+      key: "inheritor",
+      title: "살인자는 죽은 자의 능력을 계승한다",
+      slug: "the-killer-inherits-the-dead",
+      checksums: [
+        "3f8243a8e5f973c9aa21aa06b5b7aa94ea9717b1bd53629f71f6805b74d1dfaf",
+        "c948fd717e358eb4dd4a6822df95ba206455d108f2781ecb3f85fc6fc0474326"
+      ],
+      aiActivationAvailable: true,
+      visualIdentityManaged: true
     }
   ];
-  const state = { items: [], publishedWorks: [], aiStatuses: {}, visualStatuses: {}, loading: false, loaded: false, promotingId: null, uploadingKey: null, activatingKey: null, replacingKey: null };
+  const state = { items: [], publishedWorks: [], aiStatuses: {}, visualStatuses: {}, choiceStatuses: {}, loading: false, loaded: false, promotingId: null, uploadingKey: null, activatingKey: null, replacingKey: null, preparingChoices: false };
+
+  function matchesPublishedStory(work, story) {
+    if (!work || !story || work.status !== "published") return false;
+    return story.key === "inheritor"
+      ? work.slug?.startsWith(`${story.slug}-`)
+      : work.slug === story.slug;
+  }
 
   const list = document.getElementById("storyPublicationSubmissionList");
   const statusCards = document.getElementById("storyPublicationStatusCards");
@@ -130,13 +148,16 @@
   }
 
   function storyState(story) {
-    if (state.publishedWorks.some((work) => work?.slug === story.slug && work?.status === "published")) {
+    if (state.publishedWorks.some((work) => matchesPublishedStory(work, story))) {
       const ai = state.aiStatuses[story.key];
       if (story.aiActivationAvailable && (!ai || ai.status === "unavailable")) {
         return { published: true, label: "원고 공개 / AI 분기 확인 필요", className: "is-review", detail: "원고는 독자 화면에 공개 중" };
       }
-      if (story.aiActivationAvailable && ai.active !== true) {
+      if (story.aiActivationAvailable && (ai.status !== "active" || ai.active !== true)) {
         return { published: true, label: "원고 공개 / AI 분기 미활성", className: "is-review", detail: "원고는 독자 화면에 공개 중" };
+      }
+      if (story.aiActivationAvailable) {
+        return { published: true, label: "원고 공개 / AI 생성 활성", className: "is-approved", detail: "분기 장면은 독자 선택 후 생성" };
       }
       return { published: true, label: "공개 완료", className: "is-approved", detail: "독자 화면에 공개 중" };
     }
@@ -163,9 +184,19 @@
         : readyCount > 0
           ? "현재 생성된 장면 그림이 최신 작품 기준과 일치합니다."
           : "독자가 장면에 도달하면 작품 기준에 맞춰 그림을 생성합니다.";
+    const staleItems = Array.isArray(visual?.items) ? visual.items : [];
+    const assetBase = String(window.LUMINA_API_BASE || "https://api.lumina-stage.com").replace(/\/$/, "");
     return `<section class="story-ai-activation story-visual-consistency" data-story-visual-card="${escapeHtml(story.key)}">
       <div><strong>장면 그림 일관성</strong><span class="status-badge ${className}">${escapeHtml(label)}</span></div>
       <small>${escapeHtml(description)}</small>
+      ${staleItems.length ? `<div class="story-visual-review-list">${staleItems.map((item) => {
+        const assetId = /^[a-f0-9-]{36}$/i.test(item.assetId || "") ? item.assetId : "";
+        return `<div class="story-visual-review-row">
+          ${assetId ? `<img loading="lazy" src="${escapeHtml(assetBase)}/api/v1/story-visual-assets/${escapeHtml(assetId)}" alt="교체 전 장면 그림" />` : ""}
+          <code>${escapeHtml(item.sourceSceneKey || "")}</code>
+          <button type="button" class="story-visual-review-button" data-story-visual-replace="${escapeHtml(story.key)}" data-story-visual-scene="${escapeHtml(item.sourceSceneKey || "")}" ${busy ? "disabled" : ""}>이 그림 교체</button>
+        </div>`;
+      }).join("")}</div>` : ""}
       ${staleCount > 0 ? `<button type="button" class="primary-action story-visual-replace-button" data-story-visual-replace="${escapeHtml(story.key)}" ${busy ? "disabled" : ""}>${busy ? "교체 중..." : `남은 ${staleCount.toLocaleString("ko-KR")}장 전체 교체`}</button>` : ""}
       <p class="form-status" data-story-visual-status role="status" aria-live="polite"></p>
     </section>`;
@@ -177,26 +208,41 @@
       const current = storyState(story);
       const published = current.published === true;
       const ai = state.aiStatuses[story.key];
-      const aiActive = ai?.active === true;
+      const aiActive = ai?.status === "active" && ai.active === true;
       const aiUnavailable = !ai || ai.status === "unavailable";
       const busy = state.activatingKey === story.key;
+      const fixedChoicePreparation = (story.key === "monster" || story.key === "rebellion") ? ai?.choicePreparation : null;
+      const fixedChoicesPending = fixedChoicePreparation && fixedChoicePreparation.ready !== true;
+      const fixedChoicesStaged = fixedChoicePreparation?.phase === "awaiting_promotion";
       const visual = state.visualStatuses[story.key];
+      const choiceStatus = state.choiceStatuses[story.key];
+      const choicesReady = story.key !== "inheritor" || choiceStatus?.status === "ready";
+      const choiceControls = story.key === "inheritor" && published ? `<section class="story-ai-activation" data-story-choice-card>
+        <div><strong>파트별 선택지</strong><span class="status-badge ${choicesReady ? "is-approved" : "is-review"}">${choicesReady ? "준비 완료" : "준비 필요"}</span></div>
+        <small>${choiceStatus?.totalParts ? `${Number(choiceStatus.preparedParts || 0).toLocaleString("ko-KR")} / ${Number(choiceStatus.totalParts).toLocaleString("ko-KR")}파트에 선택지 3개 준비` : "선택지 상태를 확인하고 있습니다."}</small>
+        ${choiceStatus?.slug ? `<a class="story-preview-link" href="/story-stage?slug=${encodeURIComponent(choiceStatus.slug)}" target="_blank" rel="noopener noreferrer">독자 화면 확인</a>` : ""}
+        ${!choicesReady ? `<button type="button" class="primary-action" data-story-prepare-choices ${state.preparingChoices ? "disabled" : ""}>${state.preparingChoices ? "준비 중..." : "남은 선택지 준비"}</button>` : ""}
+        <p class="form-status" data-story-choice-status role="status" aria-live="polite"></p>
+      </section>` : "";
       return `<article class="story-publication-status-item">
         <div class="story-publication-status-title"><span>대상 작품</span><h3>${escapeHtml(story.title)}</h3></div>
         <div class="story-publication-status-result">
           <span class="status-badge ${current.className}">${escapeHtml(current.label)}</span>
           <small>${escapeHtml(current.detail)}</small>
         </div>
+        ${choiceControls}
         ${published && story.aiActivationAvailable ? `<section class="story-ai-activation" data-story-ai-card="${escapeHtml(story.key)}">
           <div><strong>AI 분기 생성</strong><span class="status-badge ${aiActive ? "is-approved" : "is-review"}">${aiActive ? "활성" : aiUnavailable ? "확인 필요" : "비활성"}</span></div>
-          ${aiActive ? `<small>한국어 공개 테스트 · 선택에 따른 새 장면과 제목 생성</small>` : `<fieldset class="story-ai-confirmations" ${busy ? "disabled" : ""}>
-            <legend>활성화 전 확인</legend>
+          ${aiActive ? `<small>독자가 선택하면 새 장면을 생성합니다. 분기 장면이 미리 생성된 상태는 아닙니다.</small>` : ""}
+          ${fixedChoicePreparation ? `<small>${Number(fixedChoicePreparation.preparedParts || 0).toLocaleString("ko-KR")} / ${Number(fixedChoicePreparation.totalParts || 0).toLocaleString("ko-KR")}파트 선택지 준비${fixedChoicesPending ? " · 기존 선택지는 독자에게 계속 공개 중" : ""}</small>` : ""}
+          <fieldset class="story-ai-confirmations" ${busy ? "disabled" : ""}>
+            <legend>${aiActive ? "설정 갱신 확인" : "활성화 전 확인"}</legend>
             <label><input type="checkbox" data-story-ai-confirm /> 원고 기반 AI 분기 생성을 승인했습니다.</label>
             <label><input type="checkbox" data-story-ai-confirm /> 작가 문체 참고를 승인했습니다.</label>
             <label><input type="checkbox" data-story-ai-confirm /> 검수된 동일 결과 재사용을 승인했습니다.</label>
             <label><input type="checkbox" data-story-ai-confirm /> 장면 이미지 변환을 승인했습니다.</label>
           </fieldset>
-          <button type="button" class="primary-action story-ai-activate-button" data-story-ai-activate="${escapeHtml(story.key)}" disabled>${busy ? "활성화 중..." : "AI 분기 활성화"}</button>`}
+          <button type="button" class="primary-action story-ai-activate-button" data-story-ai-activate="${escapeHtml(story.key)}" disabled>${busy ? "설정 중..." : fixedChoicesStaged ? "준비된 선택지 적용" : fixedChoicesPending ? "다음 최대 8파트 준비" : aiActive ? "AI 설정 갱신" : "AI 분기 활성화"}</button>${!choicesReady ? "<small>선택지 3개 준비가 끝나면 활성화할 수 있습니다.</small>" : ""}
           <p class="form-status" data-story-ai-status role="status" aria-live="polite"></p>
         </section>${story.visualIdentityManaged ? fixedVisualControls(story, visual) : ""}` : published ? `<div class="story-fixed-release-controls"><section class="story-ai-activation"><div><strong>독자 공개 방식</strong><span class="status-badge is-approved">고정 메인 루트</span></div><small>작가 최종 원고 순서대로 공개되며 시스템의 다음 장 이동만 제공합니다.</small></section>${story.visualIdentityManaged ? fixedVisualControls(story, visual) : ""}</div>` : ""}
       </article>`;
@@ -291,7 +337,7 @@
           return [story.key, { active: false, status: "unavailable" }];
         }
       })), Promise.all(knownStories.filter((story) => story.visualIdentityManaged).map(async (story) => {
-        const work = state.publishedWorks.find((candidate) => candidate?.slug === story.slug && candidate?.status === "published");
+        const work = state.publishedWorks.find((candidate) => matchesPublishedStory(candidate, story));
         if (!work?.id) return [story.key, { status: "unavailable", readyCount: 0, staleCount: 0, items: [] }];
         try {
           return [story.key, await api.fetch(`/admin/api/v1/story-visuals/${encodeURIComponent(work.id)}/replacement-status`, { auth: true })];
@@ -301,6 +347,13 @@
       }))]);
       state.aiStatuses = Object.fromEntries(aiStatuses);
       state.visualStatuses = Object.fromEntries(visualStatuses);
+      if (state.publishedWorks.some((work) => matchesPublishedStory(work, knownStories.find((story) => story.key === "inheritor")))) {
+        try {
+          state.choiceStatuses.inheritor = await api.fetch(`${publicationEndpoint}/published/inheritor/choice-status`, { auth: true });
+        } catch {
+          state.choiceStatuses.inheritor = { status: "unavailable" };
+        }
+      }
       state.loaded = true;
       setStatus(`${state.items.length.toLocaleString("ko-KR")}건을 확인했습니다.`, "success");
     } catch (error) {
@@ -402,11 +455,12 @@
       }
       const phaseLabels = {
         queued: "공개 데이터를 준비하고 있습니다.",
+        preparing_choices: "원고를 분석해 파트별 선택지를 준비하고 있습니다.",
         structuring: "파트와 장면 뼈대를 만들고 있습니다.",
         materializing: "본문, 선택지, 이미지 프롬프트를 넣고 있습니다.",
         finalizing: "독자 공개 상태를 최종 확인하고 있습니다."
       };
-      for (let step = 0; result?.status !== "published" && step < 100; step += 1) {
+      for (let step = 0; result?.status !== "published" && step < 200; step += 1) {
         if (!result?.jobId || result.status === "failed") {
           throw new Error(result?.errorCode || "공개 작업을 이어갈 수 없습니다.");
         }
@@ -426,6 +480,14 @@
       if (inlineStatus) {
         inlineStatus.textContent = `${story.title} 최종본을 공개했습니다.`;
         inlineStatus.className = "form-status is-success";
+        if (storyKey === "inheritor" && result.work?.slug) {
+          const link = document.createElement("a");
+          link.href = `/story-stage?slug=${encodeURIComponent(result.work.slug)}`;
+          link.textContent = "전용 링크 열기";
+          link.target = "_blank";
+          link.rel = "noopener noreferrer";
+          inlineStatus.append(" ", link);
+        }
       }
       state.loaded = false;
       await load({ force: true });
@@ -437,7 +499,7 @@
     } finally {
       state.uploadingKey = null;
       button.disabled = false;
-      button.textContent = "확인 후 바로 공개";
+      button.textContent = storyKey === "inheritor" ? "공개 테스트 등록" : "확인 후 바로 공개";
       button.removeAttribute("aria-busy");
     }
   }
@@ -466,7 +528,7 @@
     button.setAttribute("aria-busy", "true");
     if (inlineStatus) inlineStatus.textContent = "확인된 접수를 승격하고 있습니다.";
     try {
-      await api.fetch(`${endpoint}/${encodeURIComponent(item.id)}/promote`, {
+      let result = await api.fetch(`${endpoint}/${encodeURIComponent(item.id)}/promote`, {
         method: "POST",
         auth: true,
         body: {
@@ -476,6 +538,16 @@
           publicReleaseConfirmed: true
         }
       });
+      for (let step = 0; result?.jobId && result.status !== "published" && step < 200; step += 1) {
+        if (result.status === "failed") throw new Error(result.errorCode || "공개 작업이 중단됐습니다.");
+        if (inlineStatus) inlineStatus.textContent = result.status === "preparing_choices"
+          ? `원고에 맞는 선택지를 준비하고 있습니다. ${Number(result.processedParts || 0).toLocaleString("ko-KR")} / ${Number(result.totalParts || 0).toLocaleString("ko-KR")}`
+          : `원고와 선택지를 공개하고 있습니다. ${Number(result.processedParts || 0).toLocaleString("ko-KR")} / ${Number(result.totalParts || 0).toLocaleString("ko-KR")}`;
+        result = await api.fetch(`${endpoint}/jobs/${encodeURIComponent(result.jobId)}/process`, {
+          method: "POST", auth: true
+        });
+      }
+      if (result?.jobId && result.status !== "published") throw new Error("공개 작업이 끝나지 않았습니다. 다시 눌러 이어서 진행해 주세요.");
       setStatus(`${identification.story.title} 접수를 승격했습니다.`, "success");
       state.loaded = false;
       await load({ force: true });
@@ -497,11 +569,46 @@
     const button = card?.querySelector("[data-story-ai-activate]");
     if (!button) return;
     const confirmations = [...card.querySelectorAll("[data-story-ai-confirm]")];
-    button.disabled = Boolean(state.activatingKey) || confirmations.length !== 4 || confirmations.some((input) => !input.checked);
+    const inheritorNotReady = card?.dataset.storyAiCard === "inheritor" && state.choiceStatuses.inheritor?.status !== "ready";
+    button.disabled = Boolean(state.activatingKey) || inheritorNotReady || confirmations.length !== 4 || confirmations.some((input) => !input.checked);
+  }
+
+  async function prepareInheritorChoices(button) {
+    if (state.preparingChoices) return;
+    state.preparingChoices = true;
+    const card = button.closest("[data-story-choice-card]");
+    const inlineStatus = card?.querySelector("[data-story-choice-status]");
+    button.disabled = true;
+    button.textContent = "준비 중...";
+    try {
+      let result = state.choiceStatuses.inheritor;
+      for (let step = 0; result?.status !== "ready" && step < 40; step += 1) {
+        result = await api.fetch(`${publicationEndpoint}/published/inheritor/prepare-choices`, {
+          method: "POST", auth: true
+        });
+        state.choiceStatuses.inheritor = result;
+        if (inlineStatus) inlineStatus.textContent = `${Number(result.preparedParts || 0).toLocaleString("ko-KR")} / ${Number(result.totalParts || 0).toLocaleString("ko-KR")}파트 준비`;
+      }
+      if (result?.status !== "ready") throw new Error("선택지 준비가 중단됐습니다. 다시 눌러 이어서 진행해 주세요.");
+      state.loaded = false;
+      await load({ force: true });
+      setStatus("모든 파트의 선택지 3개가 준비됐습니다.", "success");
+    } catch (error) {
+      if (inlineStatus) {
+        const reason = error?.body?.error?.details?.reason;
+        inlineStatus.textContent = `${error?.message || "선택지 준비에 실패했습니다. 다시 시도하면 이어서 진행합니다."}${reason ? ` (${reason})` : ""}`;
+        inlineStatus.className = "form-status is-error";
+      }
+      button.disabled = false;
+      button.textContent = "남은 선택지 준비";
+    } finally {
+      state.preparingChoices = false;
+    }
   }
 
   async function activateAi(button) {
     const storyKey = button.dataset.storyAiActivate;
+    const wasActive = state.aiStatuses[storyKey]?.active === true;
     const card = button.closest("[data-story-ai-card]");
     const inlineStatus = card?.querySelector("[data-story-ai-status]");
     const confirmations = [...(card?.querySelectorAll("[data-story-ai-confirm]") || [])];
@@ -511,7 +618,7 @@
     button.textContent = "활성화 중...";
     if (inlineStatus) inlineStatus.textContent = "문체 표본, 이용 승인, AI 생성 설정을 연결하고 있습니다.";
     try {
-      await api.fetch(`${publicationEndpoint}/published/${encodeURIComponent(storyKey)}/activate-ai`, {
+      const result = await api.fetch(`${publicationEndpoint}/published/${encodeURIComponent(storyKey)}/activate-ai`, {
         method: "POST",
         auth: true,
         body: {
@@ -521,15 +628,30 @@
           imageTransformationConfirmed: true
         }
       });
+      const preparing = result?.status === "preparing_choices" && typeof result.active === "boolean";
+      const prepared = Number(result?.preparedParts);
+      const total = Number(result?.totalParts);
+      if (preparing && (!Number.isInteger(prepared) || !Number.isInteger(total) || prepared < 0 || prepared > total ||
+        (prepared === total) !== (result.phase === "awaiting_promotion"))) {
+        throw new Error("선택지 준비 진행률을 확인하지 못했습니다.");
+      }
+      if (!preparing && (result?.status !== "active" || result.active !== true)) {
+        throw new Error("AI 활성화 결과를 확인하지 못했습니다.");
+      }
+      state.activatingKey = null;
       state.loaded = false;
       await load({ force: true });
-      setStatus(`${knownStories.find((story) => story.key === storyKey).title} AI 분기를 활성화했습니다.`, "success");
+      if (!state.loaded) throw new Error("작업 결과를 받았지만 최신 상태를 다시 확인하지 못했습니다.");
+      const title = knownStories.find((story) => story.key === storyKey).title;
+      setStatus(preparing
+        ? `${title}: ${prepared.toLocaleString("ko-KR")} / ${total.toLocaleString("ko-KR")}파트 준비. ${result.phase === "awaiting_promotion" ? "다음 승인에서 모든 선택지를 한 번에 적용합니다." : "다음 승인에서 이어집니다."}${result.active ? " 기존 AI 활성화는 유지됩니다." : ""}`
+        : `${title} AI ${wasActive ? "설정을 갱신" : "분기를 활성화"}했습니다.`, preparing ? "" : "success");
     } catch (error) {
       if (inlineStatus) {
         inlineStatus.textContent = error?.message || "AI 분기를 활성화하지 못했습니다.";
         inlineStatus.className = "form-status is-error";
       }
-      button.textContent = "AI 분기 활성화";
+      button.textContent = wasActive ? "AI 설정 갱신" : "AI 분기 활성화";
       button.disabled = false;
     } finally {
       state.activatingKey = null;
@@ -541,15 +663,17 @@
     const storyKey = button.dataset.storyVisualReplace;
     const story = knownStories.find((candidate) => candidate.key === storyKey && candidate.visualIdentityManaged);
     const visual = state.visualStatuses[storyKey];
-    const items = Array.isArray(visual?.items) ? visual.items : [];
-    const work = state.publishedWorks.find((candidate) => candidate?.slug === story?.slug && candidate?.status === "published");
+    const staleItems = Array.isArray(visual?.items) ? visual.items : [];
+    const selectedKey = button.dataset.storyVisualScene;
+    const items = selectedKey ? staleItems.filter((item) => item.sourceSceneKey === selectedKey) : staleItems;
+    const work = state.publishedWorks.find((candidate) => matchesPublishedStory(candidate, story));
     const card = button.closest("[data-story-visual-card]");
     const inlineStatus = card?.querySelector("[data-story-visual-status]");
     if (!story || !work?.id || !items.length || !visual?.releaseId || !visual?.releaseChecksum || state.replacingKey) return;
     state.replacingKey = storyKey;
     button.disabled = true;
     button.textContent = `0 / ${items.length} 교체 중`;
-    if (inlineStatus) inlineStatus.textContent = "표지와 같은 화풍·인물 기준으로 남은 장면 그림을 모두 다시 만들고 있습니다.";
+    if (inlineStatus) inlineStatus.textContent = selectedKey ? "선택한 장면 그림을 새 기준으로 만들고 있습니다." : "표지와 같은 화풍·인물 기준으로 남은 장면 그림을 모두 다시 만들고 있습니다.";
     let completed = 0;
     try {
       for (const item of items) {
@@ -602,6 +726,8 @@
     if (event.target.matches("[data-story-ai-confirm]")) updateAiActivationButton(event.target.closest("[data-story-ai-card]"));
   });
   statusCards?.addEventListener("click", (event) => {
+    const choiceButton = event.target.closest("[data-story-prepare-choices]");
+    if (choiceButton) return prepareInheritorChoices(choiceButton);
     const aiButton = event.target.closest("[data-story-ai-activate]");
     if (aiButton) return activateAi(aiButton);
     const visualButton = event.target.closest("[data-story-visual-replace]");

@@ -516,13 +516,15 @@
 }
 .vote-monthly-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
 }
-@media (max-width: 1080px) { .vote-monthly-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-@media (max-width: 768px)  { .vote-monthly-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 768px) { .vote-monthly-grid { grid-template-columns: minmax(0, 1fr); } }
 
 .vote-monthly-card {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  min-height: 112px;
   border: 1px solid var(--line);
   border-radius: 16px;
   background: var(--panel);
@@ -535,11 +537,34 @@
   border-color: rgba(255, 20, 147, 0.30);
 }
 .vote-monthly-card-unknown {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  padding: 18px;
   cursor: default;
   opacity: 0.55;
 }
+.vote-monthly-card-empty {
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  cursor: default;
+}
+.vote-monthly-card-empty:hover {
+  transform: none;
+  border-color: var(--line);
+}
+.vote-monthly-card-empty strong {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted);
+}
 .vote-monthly-media {
-  aspect-ratio: 1/1;
+  width: 112px;
+  height: 112px;
   overflow: hidden;
 }
 .vote-monthly-media img {
@@ -553,6 +578,7 @@
   padding: 12px 14px;
   display: flex;
   flex-direction: column;
+  justify-content: center;
   gap: 2px;
 }
 .vote-monthly-month {

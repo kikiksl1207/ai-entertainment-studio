@@ -38,6 +38,7 @@
   justify-content: stretch;
   color: white;
   min-height: 100%;
+  overflow: hidden;
 }
 
 .catalog-media-main {
@@ -78,6 +79,22 @@
   object-position: center top;
   display: block;
   background: linear-gradient(180deg, rgba(18, 15, 29, 0.96), rgba(39, 31, 58, 0.88));
+}
+
+.catalog-image-fallback {
+  display: none;
+  position: absolute;
+  inset: 0;
+  padding: 24px;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.catalog-media.is-image-unavailable .catalog-image-fallback {
+  display: flex;
 }
 
 .catalog-image-yoon-serin {
@@ -286,5 +303,27 @@
 
   .catalog-media {
     min-height: 0;
+    aspect-ratio: 4 / 5;
+  }
+
+  .catalog-image {
+    position: absolute;
+    inset: 0;
+    height: 100%;
+    min-height: 0;
+  }
+
+  .catalog-body {
+    min-width: 0;
+    padding: 18px;
+  }
+
+  .catalog-name {
+    font-size: 28px;
+    overflow-wrap: anywhere;
+  }
+
+  .catalog-details dd {
+    overflow-wrap: anywhere;
   }
 }

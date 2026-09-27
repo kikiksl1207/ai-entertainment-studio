@@ -63,6 +63,7 @@ const FEED_PUBLIC_CLEANUP_GUARD_NOT: Prisma.CommunityPostWhereInput[] = [
   { body: { equals: '테스트' } },
   { body: { contains: '임시문구' } },
   { body: { contains: '샘플문구' } },
+  { body: { contains: 'QA358', mode: 'insensitive' } },
 ];
 
 export const USER_SOCIAL_ACCOUNT_CONTRACT = {

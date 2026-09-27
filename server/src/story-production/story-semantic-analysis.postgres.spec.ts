@@ -4,6 +4,7 @@ import { randomUUID } from 'crypto';
 import { SemanticAnalysisRepository } from './story-semantic-analysis.repository';
 import { SemanticAnalysisService } from './story-semantic-analysis.service';
 import { SemanticAnalysisProvider } from './story-semantic-analysis.provider';
+import { StoryGenerationProfileService } from './story-generation-profile.service';
 import { semanticTestConfig, semanticTestEnvelope, semanticTestOutput } from './story-semantic-analysis.test-fixture';
 import { manuscriptContentHash } from './story-production.policy';
 import { SEMANTIC_PACKING_PROFILE, semanticPinHash, semanticPins, semanticReservation, type SemanticConfig, type SemanticPins } from './story-semantic-analysis.config';
@@ -20,14 +21,16 @@ postgres('Semantic analysis durable pipeline (isolated PostgreSQL, fake transpor
   let config: SemanticConfig;
   let a: SemanticAnalysisService, b: SemanticAnalysisService;
   let repoA: SemanticAnalysisRepository, repoB: SemanticAnalysisRepository;
+  let profilesA: StoryGenerationProfileService;
   let transport: jest.Mock;
 
   function services(changes: Partial<SemanticConfig> = {}) {
     config = semanticTestConfig({ rateCardId: cardId, rateCardVersion: `offline-${cardId}`, ...changes });
     repoA = new SemanticAnalysisRepository(left as never);
     repoB = new SemanticAnalysisRepository(right as never);
-    a = new SemanticAnalysisService(repoA, new SemanticAnalysisProvider(config, transport));
-    b = new SemanticAnalysisService(repoB, new SemanticAnalysisProvider(config, transport));
+    profilesA = new StoryGenerationProfileService(left as never);
+    a = new SemanticAnalysisService(repoA, new SemanticAnalysisProvider(config, transport), profilesA);
+    b = new SemanticAnalysisService(repoB, new SemanticAnalysisProvider(config, transport), new StoryGenerationProfileService(right as never));
   }
   beforeAll(async () => {
     const parsed = new URL(url!);
@@ -133,6 +136,16 @@ postgres('Semantic analysis durable pipeline (isolated PostgreSQL, fake transpor
     await expect(enqueue()).rejects.toMatchObject({ status: 503, response: { code: 'SEMANTIC_ANALYSIS_UNAVAILABLE' } });
     expect(await db.storyAnalysisJob.count({ where: { workId } })).toBe(0);
     expect(transport).not.toHaveBeenCalled();
+  });
+  it('restricts paid queue admission to the pilot manuscript version', async () => {
+    services({ manuscriptAllowlist: [randomUUID()] });
+    await expect(enqueue()).rejects.toMatchObject({
+      status: 503,
+      response: { code: 'SEMANTIC_ANALYSIS_UNAVAILABLE', reason: 'analysis_manuscript_not_in_pilot' },
+    });
+    expect(await db.storyAnalysisJob.count({ where: { workId } })).toBe(0);
+    services({ manuscriptAllowlist: [manuscriptId] });
+    await expect(enqueue()).resolves.toMatchObject({ manuscriptVersionId: manuscriptId });
   });
   it.each(['same', 'different'])('reserves one version under concurrent %s keys across clients', async mode => {
     const key = randomUUID();
@@ -265,7 +278,25 @@ postgres('Semantic analysis durable pipeline (isolated PostgreSQL, fake transpor
     expect(await db.storyContinuityEntry.count({ where: { analysisJobId: job.id } })).toBe(3);
     expect(await db.storyContinuityIssue.count({ where: { analysisJobId: job.id } })).toBe(0);
     expect(await db.storyMemoryRecord.count({ where: { workId } })).toBe(0);
+    const profiles = await db.storyWorkGenerationProfile.findMany({ where: { workId } });
+    expect(profiles).toHaveLength(1);
+    expect(profiles[0]).toMatchObject({ manuscriptVersionId: manuscriptId, analysisJobId: job.id,
+      status: 'needs_review', approvedAt: null, approvedFingerprint: null });
+    await b.executeOne('replay-worker');
+    expect(await db.storyWorkGenerationProfile.count({ where: { workId } })).toBe(1);
     expect(JSON.stringify(page)).not.toMatch(/apiKey|offline-synthetic-test-key|structuredBody|providerPayload/);
+  });
+  it('rolls back completion when the draft write fails, then retries without a duplicate', async () => {
+    const job = await enqueue();
+    await until(job.id, value => value.phase === 'finalizing');
+    jest.spyOn(profilesA, 'createDraftAtCompletion').mockRejectedValueOnce(new Error('temporary draft failure'));
+
+    expect(await a.executeOne('draft-retry-worker')).toEqual({ status: 'retry_wait' });
+    expect(await row(job.id)).toMatchObject({ status: 'running', phase: 'finalizing' });
+    expect(await db.storyWorkGenerationProfile.count({ where: { workId } })).toBe(0);
+    expect(await b.executeOne('draft-success-worker')).toEqual({ status: 'processed' });
+    expect(await row(job.id)).toMatchObject({ status: 'completed', phase: 'completed' });
+    expect(await db.storyWorkGenerationProfile.count({ where: { workId, status: 'needs_review' } })).toBe(1);
   });
   it.each([
     { maxJobInputTokens: 8192 }, { maxJobOutputTokens: 2048 }, { maxJobCostKrw: '0.01' },

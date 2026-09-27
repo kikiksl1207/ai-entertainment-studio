@@ -65,12 +65,19 @@ import { StoryPublicBetaAiActivationService } from './story-public-beta-ai-activ
 import { StoryUploadModule } from '../story-upload/story-upload.module';
 import { StoryGenerationProfileService } from './story-generation-profile.service';
 import { StoryArtistParticipantService } from './story-artist-participant.service';
+import { StoryStudioChoicePreparationController } from './story-studio-choice-preparation.controller';
+import { StoryStudioChoicePreparationService } from './story-studio-choice-preparation.service';
+import { StoryStudioLinearController } from './story-studio-linear.controller';
+import { StoryStudioLinearService } from './story-studio-linear.service';
+import { StoryStudioChoiceJobService } from './story-studio-choice-job.service';
 
 @Module({
   imports: [ModerationModule, StoryUploadModule],
   controllers: [
     StoryAiActivationAdminController,
     StoryManuscriptFileController,
+    StoryStudioChoicePreparationController,
+    StoryStudioLinearController,
     StoryAuthoredImportController,
     StoryProductionController,
     StoryProgressAdminController,
@@ -97,6 +104,9 @@ import { StoryArtistParticipantService } from './story-artist-participant.servic
     StoryManuscriptPasteMultipartInterceptor,
     StoryAuthoredImportService,
     StoryAuthorFinalReviewService,
+    StoryStudioChoicePreparationService,
+    StoryStudioChoiceJobService,
+    StoryStudioLinearService,
     StoryAuthoredImportMultipartInterceptor,
     StoryProductionService,
     StoryProgressControlService,

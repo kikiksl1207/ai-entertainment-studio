@@ -49,12 +49,15 @@ import {
 } from './story-continuation.provider';
 import type { StoryContinuationClaim } from './story-continuation.repository';
 import type { StoryContinuationApprovedContext } from './story-continuation-context.assembler';
+import { sourceStoryContinuationLengthBounds, storyContinuationOutputTokenLimit } from './story-continuation-length.policy';
+import { authoredPartContinuationLengthBounds } from './story-continuation-author-length.store';
 import { StoryContinuationLegalActivationGate } from './story-continuation-legal-activation.gate';
 import {
   assembleContinuationSemanticPath,
   continuationHash,
   continuationExecutionFingerprint,
   continuationGenerationProfileSnapshot,
+  STORY_CONTINUATION_PROFILE_VIEW_VERSION,
   approvedContinuationMemoryText,
   continuationMemoryPins,
   continuationPathHash,
@@ -71,6 +74,7 @@ import {
   storyReusableResultKey,
 } from './story-reusable-result.policy';
 import { StoryArtistParticipantService, type StoryParticipantPin } from './story-artist-participant.service';
+import { STORY_CONTINUATION_PROMPT_VERSION } from './story-continuation-openai.schema';
 
 type CustomChoiceContext = {
   progress: {
@@ -206,7 +210,7 @@ export class StoryEconomicsService {
           },
         })
       : Promise.resolve(null);
-    const [capability, rateCard, consent, analysis, rightsContract, latestGenerationProfile] = await Promise.all([
+    const [capability, rateCard, consent, latestAnalysis, rightsContract, latestGenerationProfile] = await Promise.all([
       tx.storyReleaseCapability.findUnique({ where: { releaseId: input.release.id } }),
       tx.storyAiRateCard.findUnique({ where: { id: input.progress.aiRateCardId } }),
       tx.storyStyleProfileConsent.findFirst({
@@ -247,6 +251,36 @@ export class StoryEconomicsService {
       }),
       generationProfileQuery,
     ]);
+    // A completed semantic analysis remains in review until the creator approves
+    // its profile. Keep the published legacy route available during that window.
+    let analysis = latestAnalysis;
+    const pendingNewSemanticProfile = analysis?.pipeline === 'semantic_extraction_v1' &&
+      latestGenerationProfile?.analysisJobId === analysis.id &&
+      latestGenerationProfile.status === 'needs_review';
+    const previouslyApprovedSemanticProfile = pendingNewSemanticProfile && latestAnalysis
+      ? await tx.storyWorkGenerationProfile.findFirst({
+          where: {
+            workId: input.work.id,
+            manuscriptVersionId: input.release.manuscriptVersionId,
+            analysisJobId: latestAnalysis.id,
+            status: 'approved',
+          },
+          select: { id: true },
+        })
+      : null;
+    const usingLegacyReviewFallback = pendingNewSemanticProfile && !previouslyApprovedSemanticProfile;
+    if (usingLegacyReviewFallback && latestAnalysis) {
+      analysis = await tx.storyAnalysisJob.findFirst({
+        where: {
+          workId: input.work.id,
+          manuscriptVersionId: input.release.manuscriptVersionId,
+          status: 'completed',
+          pipeline: { not: 'semantic_extraction_v1' },
+          analysisVersion: { lt: latestAnalysis.analysisVersion },
+        },
+        orderBy: [{ analysisVersion: 'desc' }, { createdAt: 'desc' }],
+      });
+    }
     const rights = rightsContract?.versions?.[0];
     const legalActivation = rights
       ? await this.legalActivation?.authorize({
@@ -284,7 +318,7 @@ export class StoryEconomicsService {
 
     let generationProfilePin: StoryContinuationGenerationProfilePin | undefined;
     let approvedGenerationProfile: ReturnType<typeof continuationGenerationProfileSnapshot>['approved'] | undefined;
-    if (latestGenerationProfile) {
+    if (latestGenerationProfile && !usingLegacyReviewFallback) {
       if (
         latestGenerationProfile.manuscriptVersionId !== input.release.manuscriptVersionId ||
         latestGenerationProfile.analysisJobId !== analysis.id
@@ -395,6 +429,24 @@ export class StoryEconomicsService {
         retryable: false,
       });
     }
+    let outputTokenLimit: number;
+    let narrativeLength: ReturnType<typeof sourceStoryContinuationLengthBounds>;
+    try {
+      narrativeLength = input.sourceKind === 'generated'
+        ? await authoredPartContinuationLengthBounds(tx, input.part.id, locale)
+        : sourceStoryContinuationLengthBounds(locale, approvedContext.sourceScene.beats);
+      approvedContext.narrativeLength = narrativeLength;
+      outputTokenLimit = storyContinuationOutputTokenLimit(
+        narrativeLength,
+        capability.aiOutputTokenLimit,
+      );
+    } catch {
+      throw new ForbiddenException({
+        code: 'STORY_AI_CONTEXT_BUDGET_EXCEEDED',
+        messageKey: 'story.progress.aiGeneration.contextBudgetExceeded',
+        retryable: false,
+      });
+    }
     const pathHash = continuationPathHash(semanticPath);
     const route = await storyRouteSnapshot(tx, input.progress);
     const sharingRouteHash = await storyRouteSharingHash(tx, input.progress);
@@ -416,13 +468,15 @@ export class StoryEconomicsService {
         ? { id: analysis.id, version: analysis.analysisVersion }
         : null,
       locale,
+      narrativeLength,
       capabilityRevision: capability.revision,
       styleConsent: { id: consent.id, revision: consent.revision },
       rights: { contractId: rightsContract!.id, versionId: rights.id, revision: rights.revision },
-      ...(generationProfilePin ? { generationProfile: generationProfilePin } : {}),
+      ...(generationProfilePin ? { generationProfile: generationProfilePin,
+        generationProfileViewVersion: STORY_CONTINUATION_PROFILE_VIEW_VERSION } : {}),
       ...(participantSnapshot ? { participantArtist: participantSnapshot.pin } : {}),
       rateCard: { id: rateCard.id, version: rateCard.version },
-      promptVersion: 'story-continuation-v1',
+      promptVersion: STORY_CONTINUATION_PROMPT_VERSION,
       outputSchemaVersion: 'story-continuation-output-v1',
     };
     const contextFingerprint = createHash('sha256')
@@ -445,7 +499,8 @@ export class StoryEconomicsService {
       routeIdentity: { version: STORY_ROUTE_IDENTITY_VERSION, hash: sharingRouteHash },
       memory: memoryPins.map(({ revision, contentHash }) => ({ revision, contentHash })),
       analysisVersion: analysis.analysisVersion,
-      ...(generationProfilePin ? { generationProfilePin } : {}),
+      ...(generationProfilePin ? { generationProfilePin,
+        generationProfileViewVersion: STORY_CONTINUATION_PROFILE_VIEW_VERSION } : {}),
       ...(participantSnapshot ? { participantPin: participantSnapshot.pin } : {}),
       locale,
     });
@@ -622,7 +677,7 @@ export class StoryEconomicsService {
       promptVersion: context.promptVersion,
       outputSchemaVersion: context.outputSchemaVersion,
       inputTokenLimit: capability.aiInputTokenLimit,
-      outputTokenLimit: capability.aiOutputTokenLimit,
+      outputTokenLimit,
       provider: rateCard.provider,
       model: rateCard.model,
       rateCardId: rateCard.id,
@@ -657,7 +712,7 @@ export class StoryEconomicsService {
     }
     const estimatedCostKrw = calculateStoryUsageCost(this.rateNumbers(rateCard), {
       inputTokens: estimatedInputTokens!,
-      outputTokens: capability.aiOutputTokenLimit,
+      outputTokens: outputTokenLimit,
     });
     if (storyBudgetDecision(
       estimatedCostKrw,
@@ -748,7 +803,9 @@ export class StoryEconomicsService {
           sourceHash,
           pathHash,
           executionFingerprint,
-          ...(generationProfilePin ? { generationProfilePin } : {}),
+          narrativeLength,
+          ...(generationProfilePin ? { generationProfilePin,
+            generationProfileViewVersion: STORY_CONTINUATION_PROFILE_VIEW_VERSION } : {}),
           ...(participantSnapshot ? { participantPin: participantSnapshot.pin } : {}),
           sharedClaimToken: sharedResult?.claimToken ?? null,
           fullManuscriptIncluded: false,
@@ -757,7 +814,7 @@ export class StoryEconomicsService {
         estimatedCostKrw,
         hardBudgetKrw: capability.hardBudgetKrw,
         inputTokenLimit: capability.aiInputTokenLimit,
-        outputTokenLimit: capability.aiOutputTokenLimit,
+        outputTokenLimit,
         maxAttempts: 3,
       },
     });
@@ -774,7 +831,7 @@ export class StoryEconomicsService {
         model: rateCard.model,
         rateCardVersion: rateCard.version,
         inputTokens: estimatedInputTokens!,
-        outputTokens: capability.aiOutputTokenLimit,
+        outputTokens: outputTokenLimit,
         estimatedCostKrw,
         allowanceDelta: 0,
         progressApplied: false,
@@ -1253,7 +1310,7 @@ export class StoryEconomicsService {
       }),
       this.activeStyleConsent(context.work.id, now),
       this.prisma.storyChoice.findMany({
-        where: { sceneId: context.scene.id },
+        where: { sceneId: context.scene.id, position: { gt: 0 } },
         orderBy: { position: 'asc' },
         take: 3,
         select: { id: true, label: true },
@@ -2084,7 +2141,7 @@ export class StoryEconomicsService {
           },
           data: {
             currentSceneId: null,
-            currentGeneratedSceneId: body.ending ? null : scene.id,
+            currentGeneratedSceneId: scene.id,
             currentBeatPosition: 0,
             status: body.ending ? 'completed' : 'active',
             progressRevision: { increment: 1 },
@@ -2122,7 +2179,7 @@ export class StoryEconomicsService {
           data: {
             currentSceneId: continuation.sourceSceneId,
             currentGeneratedSceneId: continuation.sourceGeneratedSceneId,
-            currentBeatPosition: 0,
+            currentBeatPosition: progress.currentBeatPosition,
             status: 'active',
             progressRevision: { increment: 1 },
             updatedAt: new Date(),
@@ -2258,6 +2315,7 @@ export class StoryEconomicsService {
           targetId: continuation.id,
           metadata: {
             status: finalStatus,
+            failureCode: finalStatus === 'completed' ? null : body.failureCode ?? null,
             progressApplied: finalStatus === 'completed',
             allowanceConsumed: finalStatus === 'completed',
             rateCardVersion: rateCard.version,
@@ -2695,7 +2753,8 @@ export class StoryEconomicsService {
           pathHash: prepared.pathHash,
           executionFingerprint: prepared.executionFingerprint,
           ...(prepared.generationProfilePin
-            ? { generationProfilePin: prepared.generationProfilePin }
+            ? { generationProfilePin: prepared.generationProfilePin,
+              generationProfileViewVersion: STORY_CONTINUATION_PROFILE_VIEW_VERSION }
             : {}),
           ...(prepared.participantPin
             ? { participantPin: prepared.participantPin }
@@ -2821,7 +2880,7 @@ export class StoryEconomicsService {
       },
       data: {
         currentSceneId: null,
-        currentGeneratedSceneId: sharedResult.endingKey ? null : scene.id,
+        currentGeneratedSceneId: scene.id,
         currentBeatPosition: 0,
         status: sharedResult.endingKey ? 'completed' : 'active',
         progressRevision: { increment: 1 },

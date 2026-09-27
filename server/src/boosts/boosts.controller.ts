@@ -6,6 +6,7 @@ import {
   Headers,
   Param,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { AuthUser } from '../auth/auth.types';
@@ -43,8 +44,8 @@ export class BoostsController {
   }
 
   @Get('boost-campaigns/:campaignId/rankings')
-  getRankings(@Param('campaignId') campaignId: string) {
-    return this.boostsService.getRankings(campaignId);
+  getRankings(@Param('campaignId') campaignId: string, @Query('period') period?: string) {
+    return this.boostsService.getRankings(campaignId, period);
   }
 
   @Post('boost-campaigns/:campaignId/free-like')

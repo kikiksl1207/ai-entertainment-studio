@@ -111,6 +111,19 @@ describe('StoryArtistParticipantService', () => {
     expect(result.participantFingerprint).toMatch(/^[a-f0-9]{64}$/);
   });
 
+  it('rejects participation when an artist has no approved visual identity', async () => {
+    prisma.storyProgressArtistParticipant.findUnique.mockResolvedValue(null);
+    prisma.artist.findFirst.mockResolvedValue({
+      id: searchedArtistId, slug: 'search-artist', displayName: 'Search Artist', storyIdentityProfiles: [],
+    });
+    prisma.artistBoostEvent.findFirst.mockResolvedValue(null);
+    prisma.conceptVoteBallot.findFirst.mockResolvedValue(null);
+
+    await expect(service.bind(prisma as never, { progressId, userId, workId, artistId: searchedArtistId }))
+      .rejects.toMatchObject({ response: expect.objectContaining({ code: 'STORY_PARTICIPANT_IDENTITY_NOT_READY' }) });
+    expect(prisma.storyProgressArtistParticipant.create).not.toHaveBeenCalled();
+  });
+
   it('rejects a different artist after the progress participant is fixed', async () => {
     prisma.storyProgressArtistParticipant.findUnique.mockResolvedValue({ artistId: likedArtistId });
     await expect(service.bind(prisma as never, {

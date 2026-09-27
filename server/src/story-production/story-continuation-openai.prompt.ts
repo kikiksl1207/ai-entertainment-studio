@@ -1,8 +1,9 @@
 import { STORY_PAYLOAD_LOCALES } from '../story-stage/story-locale-payload-contract';
 import { StoryContinuationProviderError, type StoryContinuationProviderRequest, type StoryContinuationProviderPreflight } from './story-continuation.provider';
 import { inRange, storyContinuationConfigFailure, type StoryContinuationOpenAiConfig } from './story-continuation-openai.config';
-import { STORY_CONTINUATION_PROMPT_VERSION, STORY_CONTINUATION_SCHEMA_VERSION, storyContinuationOutputSchema } from './story-continuation-openai.schema';
+import { LEGACY_STORY_CONTINUATION_PROMPT_VERSION, STORY_CONTINUATION_PROMPT_VERSION, STORY_CONTINUATION_SCHEMA_VERSION, storyContinuationOutputSchema } from './story-continuation-openai.schema';
 import { STORY_CONTINUATION_TOKEN_BUDGET_METHOD, storyContinuationInputTokenBudget } from './story-continuation-tokenizer';
+import { assertStoryContinuationLengthBounds, sourceStoryContinuationLengthBounds } from './story-continuation-length.policy';
 
 export function buildStoryContinuationOpenAiRequest(request: StoryContinuationProviderRequest, config: StoryContinuationOpenAiConfig) {
   const body = prepareRequest(request, config);
@@ -28,7 +29,8 @@ function prepareRequest(request: StoryContinuationProviderRequest, config: Story
       request.rateCardId !== config.rateCardId || request.rateCardVersion !== config.rateCardVersion) {
     fail('provider_pin_mismatch');
   }
-  if (request.promptVersion !== STORY_CONTINUATION_PROMPT_VERSION || request.outputSchemaVersion !== STORY_CONTINUATION_SCHEMA_VERSION) {
+  if (![STORY_CONTINUATION_PROMPT_VERSION, LEGACY_STORY_CONTINUATION_PROMPT_VERSION].includes(request.promptVersion) ||
+      request.outputSchemaVersion !== STORY_CONTINUATION_SCHEMA_VERSION) {
     fail('provider_version_mismatch');
   }
   if (!(STORY_PAYLOAD_LOCALES as readonly string[]).includes(request.locale)) fail('provider_locale_invalid');
@@ -40,6 +42,9 @@ function prepareRequest(request: StoryContinuationProviderRequest, config: Story
       !Array.isArray(context.sourceScene.beats) || !inRange(context.sourceScene.beats.length, 1, 40) ||
       !Array.isArray(context.path) || context.path.length > 12 ||
       !Array.isArray(context.memories) || context.memories.length > 64) fail('provider_context_invalid');
+  const length = context.narrativeLength ?? sourceStoryContinuationLengthBounds(request.locale, context.sourceScene.beats);
+  assertStoryContinuationLengthBounds(length);
+  if (length.locale !== request.locale) fail('provider_context_invalid');
   // Project only the assembler's approved fields; never serialize request/ORM objects wholesale.
   const approved = {
     sourceScene: {
@@ -51,6 +56,13 @@ function prepareRequest(request: StoryContinuationProviderRequest, config: Story
       })),
     },
     selectedChoice: { label: boundedText(context.selectedChoice.label, 1_000) },
+    narrativeLength: {
+      measurement: length.measurement,
+      sourceUnits: length.referenceUnits,
+      minimumUnits: length.minUnits,
+      targetUnits: length.targetUnits,
+      maximumUnits: length.maxUnits,
+    },
     path: context.path.map((step) => ({
       sourceTitle: boundedText(step.sourceTitle, 500), choiceLabel: boundedText(step.choiceLabel, 1_000),
       targetTitle: step.targetTitle === null ? null : boundedText(step.targetTitle, 500),
@@ -80,21 +92,26 @@ function prepareRequest(request: StoryContinuationProviderRequest, config: Story
       'Preserve the supplied approved author/style memories, narrative voice, world facts and relationship continuity.',
       'When an approved generationProfile is supplied, every section is a creator-approved production constraint. Preserve its writing style, scene scale, canon, timeline, narrative devices, branch behavior, visual direction, and recurring cast identity.',
       'When participantArtist is supplied, that selected artist character must participate naturally in the continuation. Preserve fixed_identity exactly; adapt only the presentation traits explicitly allowed by adaptable_presentation.',
+      ...(request.promptVersion === STORY_CONTINUATION_PROMPT_VERSION
+        ? ['When participantArtist is supplied, use its displayName literally at least once in a narrative beat so the character is identifiable in the scene.']
+        : []),
       'Use style memories as writing-pattern evidence; never copy their sentences verbatim.',
       'The selected choice must materially change events or relationships; do not erase its consequences.',
       'Do not force convergence to a canonical route. Rejoin only when explicitly established by approved context.',
       'Create a fresh scene title that reflects the selected choice and its consequences; reuse the source title only when it is genuinely still the same scene.',
-      'Match the source scene narrative density and aim for 80% to 120% of its narrative length unless a natural ending requires less.',
-      'Split long prose across multiple paragraph or dialogue beats; keep every individual beat below 8,000 Unicode characters.',
+      'Write a complete scene, not a synopsis. The narrativeLength minimumUnits and maximumUnits are mandatory bounds for non-whitespace narrative code points, including an ending. Develop new events and dialogue naturally; never pad or repeat prose to meet the minimum.',
+      'For long scenes, fill every required beat near the middle of its schema length range. Each beat can contain several natural paragraphs or dialogue exchanges. Advance events in each beat; do not pad or repeat. Keep the combined narrative strictly within narrativeLength minimumUnits and maximumUnits.',
+      'Never cut a word or sentence between beats. End every beat at a complete sentence boundary. The final beat must end with a complete, punctuated sentence that leads naturally to the three next choices or resolves the ending.',
       `Write every title, beat and choice label exclusively in locale ${request.locale}; no translation or locale fallback.`,
-      'Return JSON matching the schema. Produce 1 to 40 nonempty beats.',
-      'Return either 1 to 3 distinct nextChoices and ending=null, or nextChoices=[] and an ending.',
+      'Return JSON matching the schema. Produce exactly the required number of nonempty beats.',
+      'Return exactly 3 distinct nextChoices and ending=null, or nextChoices=[] and an ending.',
       'Choice keys must match ^[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$; ending keys must start ai-.',
       'Do not invent canonical routes, claim publication authority, reveal secrets, or reproduce an entire manuscript.',
       'No tools, image generation, external requests, asset paths, usage claims or implementation metadata.',
     ].join('\n'),
     input: [{ role: 'user', content: [{ type: 'input_text', text: JSON.stringify(approved) }] }],
-    text: { format: { type: 'json_schema', name: 'story_continuation', strict: true, schema: storyContinuationOutputSchema(request.locale) } },
+    text: { format: { type: 'json_schema', name: 'story_continuation', strict: true,
+      schema: storyContinuationOutputSchema(request.locale, length.minUnits, length.maxUnits) } },
   };
   return body;
 }

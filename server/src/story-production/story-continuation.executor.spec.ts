@@ -28,7 +28,7 @@ const claim: StoryContinuationClaim = {
     operationId: 'continuation-id',
     locale: 'ko',
     contextFingerprint: 'fingerprint',
-    promptVersion: 'story-continuation-v1',
+    promptVersion: 'story-continuation-v6',
     outputSchemaVersion: 'story-continuation-output-v1',
     inputTokenLimit: 1000,
     outputTokenLimit: 500,
@@ -50,6 +50,7 @@ const result = {
   nextChoices: [
     { choiceKey: 'route-1', label: { ko: '첫 선택' } },
     { choiceKey: 'route-2', label: { ko: '둘째 선택' } },
+    { choiceKey: 'route-3', label: { ko: '셋째 선택' } },
   ],
   usage: { inputTokens: 10, outputTokens: 20, cachedInputTokens: 0, imageUnits: 0 },
 };
@@ -72,7 +73,7 @@ function fixture() {
     failClaimedContinuation: jest.fn(),
   };
   const approvedContext = {
-    sourceScene: { title: '장면', beats: [{ beatType: 'paragraph', content: '본문' }] },
+    sourceScene: { title: '장면', beats: [{ beatType: 'paragraph', content: '검증용 본문' }] },
     selectedChoice: { label: '다른 길' },
     path: [{
       sourceTitle: '이전 장면', choiceLabel: '이전 선택', targetTitle: '장면',
@@ -228,6 +229,69 @@ describe('StoryContinuationExecutor', () => {
       }),
     );
     expect(f.queue.releaseForRetry).not.toHaveBeenCalled();
+  });
+
+  it('does not publish a scene that omits the selected artist', async () => {
+    const f = fixture();
+    Object.assign(f.approvedContext, { participantArtist: { displayName: '서이카' } });
+    await expect(f.executor.executeOne('worker')).resolves.toMatchObject({ status: 'failed' });
+    expect(f.economics.settleClaimedContinuation).not.toHaveBeenCalled();
+    expect(f.economics.failClaimedContinuation).toHaveBeenCalledWith(
+      claim, 'participant_missing_from_scene', 'failed',
+    );
+  });
+
+  it('publishes a scene that names the selected artist in its narrative', async () => {
+    const f = fixture();
+    Object.assign(f.approvedContext, { participantArtist: { displayName: '서이카' } });
+    jest.mocked(f.provider.generate).mockResolvedValue({
+      ...result,
+      beats: [{ beatType: 'paragraph', content: { ko: '서이카 등장.' } }],
+    });
+    await expect(f.executor.executeOne('worker')).resolves.toMatchObject({ status: 'completed' });
+    expect(f.economics.settleClaimedContinuation).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps an already queued v5 continuation on its original participant rule', async () => {
+    const f = fixture();
+    Object.assign(f.approvedContext, { participantArtist: { displayName: '서이카' } });
+    jest.mocked(f.queue.claimNext).mockResolvedValue({ ...claim,
+      request: { ...claim.request, promptVersion: 'story-continuation-v5' },
+    });
+    await expect(f.executor.executeOne('worker')).resolves.toMatchObject({ status: 'completed' });
+  });
+
+  it('does not publish a 3,180-unit branch for the 7,158-unit authored Part_002 source', async () => {
+    const f = fixture();
+    f.approvedContext.sourceScene.beats = [{ beatType: 'paragraph', content: '가'.repeat(7_158) }];
+    jest.mocked(f.provider.generate).mockResolvedValue({
+      ...result,
+      beats: [{ beatType: 'paragraph', content: { ko: '나'.repeat(3_180) } }],
+    });
+    await expect(f.executor.executeOne('worker')).resolves.toMatchObject({ status: 'failed' });
+    expect(f.economics.settleClaimedContinuation).not.toHaveBeenCalled();
+    expect(f.economics.failClaimedContinuation).toHaveBeenCalledWith(
+      claim, 'continuation_output_underlength', 'failed',
+    );
+  });
+
+  it('settles a branch meeting the Part_002 floor without modifying its prose', async () => {
+    const f = fixture();
+    f.approvedContext.sourceScene.beats = [{ beatType: 'paragraph', content: '가'.repeat(7_158) }];
+    jest.mocked(f.provider.generate).mockResolvedValue({
+      ...result,
+      beats: [
+        { beatType: 'paragraph', content: { ko: '나'.repeat(3_000) } },
+        { beatType: 'paragraph', content: { ko: '나'.repeat(2_727) } },
+      ],
+    });
+    await expect(f.executor.executeOne('worker')).resolves.toMatchObject({ status: 'completed' });
+    expect(f.economics.settleClaimedContinuation).toHaveBeenCalledWith(
+      claim, expect.objectContaining({ beats: [
+        { beatType: 'paragraph', content: { ko: '나'.repeat(3_000) } },
+        { beatType: 'paragraph', content: { ko: '나'.repeat(2_727) } },
+      ] }),
+    );
   });
 
   it('uses server moderation and rejects provider output before settlement', async () => {

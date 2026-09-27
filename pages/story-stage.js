@@ -34,12 +34,15 @@
       open: "작품 보기",
       close: "닫기",
       synopsis: "작품 소개",
+      authorLabel: "작가",
       storyStructure: "이야기 구성",
       storyStructureParts: "총 {count}개 파트",
       storyStructureDynamic: "선택에 따라 다음 장면과 제목이 달라집니다. 아직 만나지 않은 경로는 미리 공개되지 않습니다.",
       storyStructureFixed: "작가가 완성한 원고 순서대로 이어지는 작품입니다. 다음 장으로 이동하며 이야기를 감상할 수 있습니다.",
+      adultsOnly: "19+",
+      adultNotice: "성인 대상 작품입니다. 공개 테스트 중입니다.",
       searchLabel: "스토리 검색",
-      searchPlaceholder: "제목, 소개, 해시태그 검색",
+      searchPlaceholder: "제목, 작가, 소개, 해시태그 검색",
       searchButton: "검색",
       hashtagFilter: "해시태그",
       allTags: "전체 태그",
@@ -50,6 +53,7 @@
       participantSearchPlaceholder: "아티스트 이름 입력",
       participantSearchButton: "검색",
       participantEmpty: "좋아요·투표한 아티스트가 아직 없어요. 이름으로 검색해 보세요.",
+      participantSearchError: "검색 결과를 불러오지 못했어요. 다시 검색해 주세요.",
       participantSelected: "선택됨",
       participantVisualReady: "캐릭터 이미지 준비 완료",
       participantVisualPending: "캐릭터 이미지 기준 준비 중",
@@ -59,6 +63,7 @@
       continue: "이어보기",
       starting: "시작하는 중입니다.",
       startFailed: "지금은 스토리를 시작할 수 없습니다. 잠시 후 다시 시도해 주세요.",
+      participantNotReady: "선택한 아티스트의 이미지 기준이 아직 준비되지 않았어요. 다른 아티스트를 선택해 주세요.",
       sceneLoading: "장면을 불러오는 중입니다.",
       sceneFailed: "장면을 불러오지 못했습니다.",
       sceneNoVisual: "이 장면은 본문 중심으로 이어집니다.",
@@ -118,12 +123,15 @@
       open: "View story",
       close: "Close",
       synopsis: "Synopsis",
+      authorLabel: "Author",
       storyStructure: "Story structure",
       storyStructureParts: "{count} parts in total",
       storyStructureDynamic: "Your choices change the next scene and its title. Routes you have not reached remain hidden.",
       storyStructureFixed: "This story follows the author's completed manuscript in order. Continue chapter by chapter to read it.",
+      adultsOnly: "19+",
+      adultNotice: "For adults. This work is in a public test.",
       searchLabel: "Search stories",
-      searchPlaceholder: "Search titles, descriptions, or hashtags",
+      searchPlaceholder: "Search titles, authors, descriptions, or hashtags",
       searchButton: "Search",
       hashtagFilter: "Hashtags",
       allTags: "All tags",
@@ -134,6 +142,7 @@
       participantSearchPlaceholder: "Enter an artist name",
       participantSearchButton: "Search",
       participantEmpty: "You have no liked or voted artists yet. Search by name.",
+      participantSearchError: "Artists could not be loaded. Please search again.",
       participantSelected: "Selected",
       participantVisualReady: "Character image ready",
       participantVisualPending: "Character image setup pending",
@@ -143,6 +152,7 @@
       continue: "Continue",
       starting: "Starting story.",
       startFailed: "This story cannot be started right now. Please try again shortly.",
+      participantNotReady: "This artist's image reference is not ready. Please choose another artist.",
       sceneLoading: "Loading scene.",
       sceneFailed: "The scene could not be loaded.",
       sceneNoVisual: "This scene continues as text.",
@@ -202,12 +212,15 @@
       open: "作品を見る",
       close: "閉じる",
       synopsis: "作品紹介",
+      authorLabel: "作者",
       storyStructure: "物語の構成",
       storyStructureParts: "全{count}パート",
       storyStructureDynamic: "選択によって次のシーンとタイトルが変わります。まだ到達していないルートは事前に公開されません。",
       storyStructureFixed: "作家が完成させた原稿の順番どおりに進む作品です。次の章へ進みながら物語を楽しめます。",
+      adultsOnly: "19+",
+      adultNotice: "成人向け作品です。公開テスト中です。",
       searchLabel: "ストーリー検索",
-      searchPlaceholder: "タイトル・紹介・ハッシュタグを検索",
+      searchPlaceholder: "タイトル・作者・紹介・ハッシュタグを検索",
       searchButton: "検索",
       hashtagFilter: "ハッシュタグ",
       allTags: "すべてのタグ",
@@ -218,6 +231,7 @@
       participantSearchPlaceholder: "アーティスト名を入力",
       participantSearchButton: "検索",
       participantEmpty: "いいね・投票したアーティストはまだいません。名前で検索してください。",
+      participantSearchError: "検索結果を読み込めませんでした。もう一度検索してください。",
       participantSelected: "選択中",
       participantVisualReady: "キャラクター画像準備完了",
       participantVisualPending: "キャラクター画像設定準備中",
@@ -227,6 +241,7 @@
       continue: "続きから",
       starting: "ストーリーを開始しています。",
       startFailed: "現在このストーリーを開始できません。しばらくしてからお試しください。",
+      participantNotReady: "このアーティストの画像基準はまだ準備できていません。別のアーティストを選んでください。",
       sceneLoading: "シーンを読み込んでいます。",
       sceneFailed: "シーンを読み込めませんでした。",
       sceneNoVisual: "このシーンは本文を中心に続きます。",
@@ -286,12 +301,15 @@
       open: "查看作品",
       close: "关闭",
       synopsis: "作品介绍",
+      authorLabel: "作者",
       storyStructure: "故事结构",
       storyStructureParts: "共{count}个章节",
       storyStructureDynamic: "你的选择会改变下一个场景及其标题。尚未到达的路线不会提前公开。",
       storyStructureFixed: "本作品将按作者完成的原稿顺序展开。你可以逐章继续阅读。",
+      adultsOnly: "19+",
+      adultNotice: "仅限成年人。本作品正在公开测试。",
       searchLabel: "搜索故事",
-      searchPlaceholder: "搜索标题、简介或话题标签",
+      searchPlaceholder: "搜索标题、作者、简介或话题标签",
       searchButton: "搜索",
       hashtagFilter: "话题标签",
       allTags: "全部标签",
@@ -302,6 +320,7 @@
       participantSearchPlaceholder: "输入艺人姓名",
       participantSearchButton: "搜索",
       participantEmpty: "暂无点赞或投票过的艺人，请按姓名搜索。",
+      participantSearchError: "无法加载搜索结果，请重试。",
       participantSelected: "已选择",
       participantVisualReady: "角色图片已准备",
       participantVisualPending: "角色图片设定准备中",
@@ -311,6 +330,7 @@
       continue: "继续阅读",
       starting: "正在开始故事。",
       startFailed: "暂时无法开始此故事，请稍后重试。",
+      participantNotReady: "该艺人的图像基准尚未准备好，请选择其他艺人。",
       sceneLoading: "正在加载场景。",
       sceneFailed: "无法加载场景。",
       sceneNoVisual: "本场景将以正文继续。",
@@ -370,12 +390,15 @@
       open: "查看作品",
       close: "關閉",
       synopsis: "作品介紹",
+      authorLabel: "作者",
       storyStructure: "故事結構",
       storyStructureParts: "共{count}個章節",
       storyStructureDynamic: "你的選擇會改變下一個場景及其標題。尚未到達的路線不會提前公開。",
       storyStructureFixed: "本作品將按作者完成的原稿順序展開。你可以逐章繼續閱讀。",
+      adultsOnly: "19+",
+      adultNotice: "僅限成年人。本作品正在公開測試。",
       searchLabel: "搜尋故事",
-      searchPlaceholder: "搜尋標題、簡介或主題標籤",
+      searchPlaceholder: "搜尋標題、作者、簡介或主題標籤",
       searchButton: "搜尋",
       hashtagFilter: "主題標籤",
       allTags: "全部標籤",
@@ -386,6 +409,7 @@
       participantSearchPlaceholder: "輸入藝人姓名",
       participantSearchButton: "搜尋",
       participantEmpty: "暫無按讚或投票過的藝人，請按姓名搜尋。",
+      participantSearchError: "無法載入搜尋結果，請重試。",
       participantSelected: "已選擇",
       participantVisualReady: "角色圖片已準備",
       participantVisualPending: "角色圖片設定準備中",
@@ -395,6 +419,7 @@
       continue: "繼續閱讀",
       starting: "正在開始故事。",
       startFailed: "暫時無法開始此故事，請稍後重試。",
+      participantNotReady: "該藝人的圖像基準尚未準備好，請選擇其他藝人。",
       sceneLoading: "正在載入場景。",
       sceneFailed: "無法載入場景。",
       sceneNoVisual: "本場景將以正文繼續。",
@@ -622,6 +647,8 @@
     visualRequestKey: "",
     pairedVisualSceneKey: "",
     pairedVisualStatus: "idle",
+    pairedVisualStartedAt: 0,
+    pairedVisualTransportFailures: 0,
     participantCandidates: [],
     participantSearchResults: [],
     participantQuery: "",
@@ -747,6 +774,9 @@
         body: options.body ? JSON.stringify(options.body) : undefined,
         signal: options.signal,
       });
+      if (response.status === 401 && options.auth && typeof window.apiFetch === "function") {
+        return window.apiFetch(path, { ...options, signal: undefined, throwOnError: true });
+      }
       if (!response.ok) {
         const error = new Error(`HTTP ${response.status}`);
         error.status = response.status;
@@ -1021,8 +1051,9 @@
               <button type="button" class="story-pack-open" data-pack-slug="${escapeHtml(slug)}" aria-label="${escapeHtml(`${tr("open")}: ${title}`)}">
                 <span class="story-pack-cover${cover ? " has-image" : ""}">${cover ? `<img src="${escapeHtml(cover)}" alt="" loading="lazy" />` : ""}</span>
                 <span class="story-pack-copy">
-                  <span class="story-pack-status">${pricing ? `<em>${escapeHtml(pricing)}</em>` : ""}</span>
+                  <span class="story-pack-status">${pricing ? `<em>${escapeHtml(pricing)}</em>` : ""}${pack.cover?.contentRating === "adults_only" ? `<em class="story-age-rating">${escapeHtml(tr("adultsOnly"))}</em>` : ""}</span>
                   <strong>${escapeHtml(title)}</strong>
+                  ${pack.author?.displayName ? `<span class="story-pack-author">${escapeHtml(tr("authorLabel"))} · ${escapeHtml(pack.author.displayName)}</span>` : ""}
                   ${packSummary(pack) ? `<p>${escapeHtml(packSummary(pack))}</p>` : ""}
                 </span>
               </button>
@@ -1125,18 +1156,20 @@
       ${!fixed ? `<form class="story-participant-search" data-story-artist-search-form role="search">
         <label class="story-sr-only" for="storyArtistSearch">${escapeHtml(tr("participantSearch"))}</label>
         <input id="storyArtistSearch" type="search" maxlength="80" value="${escapeHtml(state.participantQuery)}" placeholder="${escapeHtml(tr("participantSearchPlaceholder"))}" data-story-artist-search />
-        <button type="submit" class="story-button story-button-secondary">${escapeHtml(tr("participantSearchButton"))}</button>
+        <button type="submit" class="story-button story-button-secondary" data-story-artist-search-submit>${escapeHtml(tr("participantSearchButton"))}</button>
       </form>` : ""}
+      ${state.participantStatus === "error" ? `<p class="story-participant-empty" role="alert">${escapeHtml(tr("participantSearchError"))}</p>` : ""}
       <div class="story-participant-list" role="list">
         ${items.length ? items.map((item) => {
           const selected = item.artistId === selectedId;
-          return `<button type="button" class="story-participant-item${selected ? " is-selected" : ""}" data-story-artist-id="${escapeHtml(item.artistId)}" aria-pressed="${selected}" ${fixed ? "disabled" : ""} role="listitem">
+          const unavailable = !fixed && !item.visualIdentityReady;
+          return `<button type="button" class="story-participant-item${selected ? " is-selected" : ""}${unavailable ? " is-unavailable" : ""}" data-story-artist-id="${escapeHtml(item.artistId)}" aria-pressed="${selected}" ${fixed || unavailable ? "disabled" : ""} role="listitem">
             <span class="story-participant-thumb">${item.thumbnail ? `<img src="${escapeHtml(item.thumbnail)}" alt="" />` : `<span aria-hidden="true">${escapeHtml(item.displayName.slice(0, 1))}</span>`}</span>
             <span class="story-participant-copy"><strong>${escapeHtml(item.displayName)}</strong>
               <small>${escapeHtml(item.visualIdentityReady ? tr("participantVisualReady") : tr("participantVisualPending"))}</small></span>
             ${selected ? `<span class="story-participant-selected">${escapeHtml(tr("participantSelected"))}</span>` : ""}
           </button>`;
-        }).join("") : `<p class="story-participant-empty">${escapeHtml(state.participantStatus === "loading" ? tr("loading") : tr("participantEmpty"))}</p>`}
+        }).join("") : state.participantStatus === "error" ? "" : `<p class="story-participant-empty" role="status">${escapeHtml(state.participantStatus === "loading" ? tr("loading") : tr("participantEmpty"))}</p>`}
       </div>
     </section>`;
   }
@@ -1145,11 +1178,13 @@
     const dialog = state.dialog;
     if (!dialog || !state.detailSlug) return;
     const pack = state.pack;
-    const title = packTitle(pack) || accessTr("detailUnavailable");
+    const title = packTitle(pack) || (state.detailStatus === "loading" ? tr("loading") : accessTr("detailUnavailable"));
     const cover = coverUrl(pack);
     const action = detailAction();
     const active = document.activeElement;
-    const focusSelector = ["data-story-start", "data-story-purchase", "data-story-purchase-confirm", "data-story-purchase-retry", "data-story-purchase-cancel", "data-story-detail-retry"].find((attribute) => active?.hasAttribute(attribute));
+    const focusSelector = ["data-story-start", "data-story-purchase", "data-story-purchase-confirm", "data-story-purchase-retry", "data-story-purchase-cancel", "data-story-detail-retry", "data-story-artist-search", "data-story-artist-search-submit"].find((attribute) => active?.hasAttribute(attribute));
+    const focusedArtistId = safeGraphId(active?.dataset?.storyArtistId);
+    const clearedArtist = active?.hasAttribute("data-story-artist-clear");
     const operation = pendingPurchase();
     const quote = operation?.quote || purchaseQuote(state.readerAccess?.access?.purchaseConfirmation);
     const purchaseBusy = operation?.pending === true;
@@ -1164,6 +1199,8 @@
           ${cover ? `<div class="story-detail-cover has-image"><img src="${escapeHtml(cover)}" alt="" /></div>` : ""}
           <div class="story-detail-copy">
             ${priceText(state.readerAccess?.access || pack.access) ? `<p>${escapeHtml(priceText(state.readerAccess?.access || pack.access))}</p>` : ""}
+            ${pack.cover?.contentRating === "adults_only" ? `<p class="story-adult-notice"><strong>${escapeHtml(tr("adultsOnly"))}</strong> ${escapeHtml(tr("adultNotice"))}</p>` : ""}
+            ${pack.author?.displayName ? `<p class="story-detail-author">${escapeHtml(tr("authorLabel"))} · ${escapeHtml(pack.author.displayName)}</p>` : ""}
             ${packHashtags(pack).length ? `<div class="story-detail-tags" aria-label="${escapeHtml(tr("hashtagFilter"))}">
               ${packHashtags(pack).map((hashtag) => `<button type="button" data-story-tag-key="${escapeHtml(hashtag.key)}">#${escapeHtml(hashtag.label)}</button>`).join("")}
             </div>` : ""}
@@ -1185,7 +1222,10 @@
     const focusTarget = focusSelector && !state.detailPending && !purchaseBusy
       ? dialog.querySelector(`[${focusSelector}]:not(:disabled)`) || dialog.querySelector("[data-story-purchase-confirm]:not(:disabled)") || dialog.querySelector("[data-story-purchase]:not(:disabled)") || dialog.querySelector("[data-story-start]:not(:disabled)")
       : null;
-    (focusTarget || dialog.querySelector("[data-story-close]"))?.focus({ preventScroll: true });
+    const artistFocus = focusedArtistId && !state.detailPending
+      ? dialog.querySelector(`[data-story-artist-id="${focusedArtistId}"]:not(:disabled)`)
+      : null;
+    (focusTarget || artistFocus || (clearedArtist ? dialog.querySelector("[data-story-artist-search]") : null) || dialog.querySelector("[data-story-close]"))?.focus({ preventScroll: true });
   }
 
   function openPack(slug, trigger, push = true) {
@@ -1337,21 +1377,51 @@
     return textValue(value);
   }
 
-  function groupReaderBeats(beats) {
-    if (beats.length <= 3) return beats.map((beat) => ({ ...beat, positions: [beat.position], segments: [String(beat.text || "")] }));
+  function readerSentenceEnds(text) {
+    return /[.!?。！？…]+[”"'’」』)]*$/u.test(String(text || "").trimEnd());
+  }
+
+  function normalizeGeneratedReaderText(text) {
+    return String(text || "").replace(/\\r\\n|\\n|\\r/gu, "\n");
+  }
+
+  function finishGeneratedReaderTail(text) {
+    const value = String(text || "").trimEnd();
+    if (readerSentenceEnds(value)) return value;
+    let completeEnd = 0;
+    for (const match of value.matchAll(/[.!?。！？…]+[”"'’」』)]*\s*/gu)) completeEnd = match.index + match[0].length;
+    return completeEnd && Array.from(value.slice(completeEnd)).length <= 120
+      ? value.slice(0, completeEnd).trimEnd() : value;
+  }
+
+  function groupReaderBeats(beats, generated = false) {
+    if (generated) beats = beats.map((beat) => ({ ...beat, text: normalizeGeneratedReaderText(beat.text) }));
+    if (beats.length <= 3 && !generated) return beats.map((beat) => ({ ...beat, positions: [beat.position], segments: [String(beat.text || "")] }));
     const sceneCount = Math.min(3, Math.ceil(beats.length / 2));
+    let start = 0;
     return Array.from({ length: sceneCount }, (_, index) => {
-      const start = Math.ceil(index * beats.length / sceneCount);
-      const end = Math.ceil((index + 1) * beats.length / sceneCount);
+      let end = index === sceneCount - 1 ? beats.length : Math.ceil((index + 1) * beats.length / sceneCount);
+      if (generated) {
+        const latest = beats.length - (sceneCount - index - 1);
+        while (end < latest && !readerSentenceEnds(beats[end - 1].text)) end++;
+      }
       const members = beats.slice(start, end);
+      start = end;
       const visualBeat = members.find((beat) => beat.visualContext?.assetReadiness === "ready") ||
         members.find((beat) => beat.visualContext?.generationAvailable === true) ||
         members.find((beat) => beat.visualContext != null) || members[0];
+      const segments = [];
+      for (const member of members) {
+        const text = String(member.text || "");
+        if (generated && segments.length && !readerSentenceEnds(segments.at(-1))) segments[segments.length - 1] += text;
+        else segments.push(text);
+      }
+      if (generated && index === sceneCount - 1) segments[segments.length - 1] = finishGeneratedReaderTail(segments.at(-1));
       return {
         position: members.at(-1).position,
         positions: members.map((beat) => beat.position),
-        segments: members.map((beat) => String(beat.text || "")),
-        text: members.map((beat) => String(beat.text || "")).join("\n\n"),
+        segments,
+        text: segments.join("\n\n"),
         visualContext: visualBeat.visualContext,
       };
     });
@@ -1366,7 +1436,8 @@
     if (rawBeats.some((beat) => !Number.isSafeInteger(beat.position) || beat.position < 0) ||
         new Set(rawBeats.map((beat) => beat.position)).size !== rawBeats.length) return null;
     rawBeats.sort((left, right) => left.position - right.position);
-    const beats = groupReaderBeats(rawBeats);
+    const generated = state.scene?.isGenerated === true || state.scene?.deliveryState === "ready";
+    const beats = groupReaderBeats(rawBeats, generated);
     const scope = readerScope();
     const position = state.progress?.status === "completed" && state.completedBeat?.scope === scope
       ? state.completedBeat.position : state.progress?.currentBeatPosition ?? 0;
@@ -1560,9 +1631,12 @@
     const sceneKey = typeof scene?.sceneKey === "string" ? scene.sceneKey : "";
     if (state.pairedVisualSceneKey !== sceneKey) {
       state.pairedVisualSceneKey = sceneKey;
-      state.pairedVisualStatus = scene?.deliveryState === "artwork_unavailable" ? "failed" : "idle";
+      state.pairedVisualStatus = "idle";
+      state.pairedVisualStartedAt = Date.now();
+      state.pairedVisualTransportFailures = 0;
     }
-    const failed = state.pairedVisualStatus === "failed" || scene?.deliveryState === "artwork_unavailable";
+    const failed = state.pairedVisualStatus === "failed" ||
+      Date.now() - state.pairedVisualStartedAt > 180000;
     root.innerHTML = `
       <section class="story-player story-paired-delivery" aria-busy="${failed ? "false" : "true"}">
         <a class="story-back" href="/story-stage">← ${escapeHtml(tr("backToStories"))}</a>
@@ -1576,12 +1650,12 @@
     if (!failed) ensurePairedSceneVisual(scene);
   }
 
-  async function ensurePairedSceneVisual(scene, force = false) {
+  async function ensurePairedSceneVisual(scene) {
     const sceneKey = typeof scene?.sceneKey === "string" ? scene.sceneKey : "";
     const sessionId = safeGraphId(state.sessionId);
     if (!sceneKey || !sessionId || !signedIn()) return;
     const scopedKey = `paired:${sessionId}:${sceneKey}`;
-    if (!force && state.visualRequestKey === scopedKey) return;
+    if (state.visualRequestKey === scopedKey) return;
     state.visualRequestKey = scopedKey;
     state.pairedVisualStatus = "loading";
     try {
@@ -1594,6 +1668,7 @@
       if (result?.status === "ready") {
         state.visualRequestKey = "";
         state.pairedVisualStatus = "idle";
+        state.pairedVisualTransportFailures = 0;
         return loadScene({ restorePending: false });
       }
       if (result?.status === "processing") {
@@ -1610,8 +1685,17 @@
     } catch {
       if (state.pairedVisualSceneKey !== sceneKey || state.sessionId !== sessionId) return;
       state.visualRequestKey = "";
-      state.pairedVisualStatus = "failed";
-      renderPairedDelivery(scene);
+      state.pairedVisualTransportFailures += 1;
+      if (state.pairedVisualTransportFailures >= 2) {
+        state.pairedVisualStatus = "failed";
+        renderPairedDelivery(scene);
+      } else {
+        setTimeout(() => {
+          if (state.pairedVisualSceneKey === sceneKey && state.sessionId === sessionId) {
+            loadScene({ restorePending: false });
+          }
+        }, 1800);
+      }
     }
   }
 
@@ -1626,7 +1710,7 @@
     const visual = readingVisual(reading);
     const { background, characters } = visual;
     const visualPending = Boolean(readingVisualKey(reading));
-    const showVisualStage = Boolean(background || visualPending);
+    const showVisualStage = Boolean(background);
     const sceneTitle = textValue(scene?.title);
     const lastBeat = reading.index === reading.beats.length - 1;
     const navigationBlocked = state.busy || aiRequestOpen() || !["active", "completed"].includes(state.progress?.status);
@@ -1677,7 +1761,7 @@
             </div>` : ""}
             <article class="story-player-copy" tabindex="0" aria-label="${escapeHtml(readerTr("text"))}" data-story-scene-focus data-reading-key="${escapeHtml(reading.key)}">
               ${isEnding ? `<span class="story-ending-label">${escapeHtml(tr("ending"))}</span>` : ""}
-              ${reading.beats[reading.index].segments.map((segment) => `<p>${escapeHtml(segment)}</p>`).join("")}
+              ${reading.beats[reading.index].segments.flatMap((segment) => String(segment).split(/\n\s*\n/u).filter(Boolean)).map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`).join("")}
             </article>
             ${choicePanel}
           </div>
@@ -2215,7 +2299,9 @@
       if (epoch !== state.epoch || identity !== readerIdentity()) return;
       state.detailStatus = "access-error";
       state.readerAccess = null;
-      state.detailError = error?.status === 401 ? tr("loginRequired") : tr("startFailed");
+      const code = error?.body?.error?.code || error?.body?.code;
+      state.detailError = error?.status === 401 ? tr("loginRequired")
+        : code === "STORY_PARTICIPANT_IDENTITY_NOT_READY" ? tr("participantNotReady") : tr("startFailed");
     } finally {
       state.detailPending = false;
       renderPack();
@@ -2579,8 +2665,10 @@
     if (event.target.closest("[data-story-ai-recover]")) return recoverAiOperation();
     if (event.target.closest("[data-story-paired-retry]")) {
       state.pairedVisualStatus = "idle";
+      state.pairedVisualStartedAt = Date.now();
+      state.pairedVisualTransportFailures = 0;
       state.visualRequestKey = "";
-      return ensurePairedSceneVisual(state.scene, true);
+      return renderPairedDelivery(state.scene);
     }
     const choiceButton = event.target.closest("[data-choice-id]");
     if (choiceButton) return submitChoice(choiceButton.dataset.choiceId);

@@ -68,7 +68,16 @@ export class SemanticAnalysisProvider {
         if (message.status !== 'completed') throw new Error();
       }
       if (envelope.status !== 'completed' || texts.length !== 1 || Buffer.byteLength(texts[0]) > 100000) throw new Error();
-      return { evidence: validateSemanticEvidence(JSON.parse(texts[0]), input), usage };
+      const value = exact(JSON.parse(texts[0]), ['manuscriptVersionId', 'contentHash', 'evidence']);
+      validateSemanticEvidence({ ...value, evidence: [] }, input);
+      if (!Array.isArray(value.evidence) || value.evidence.length > 64) throw new Error();
+      const evidence: SemanticEvidence[] = [];
+      for (const item of value.evidence) {
+        try { evidence.push(...validateSemanticEvidence({ ...value, evidence: [item] }, input)); }
+        catch { /* A single uncited candidate cannot poison the complete source chunk. */ }
+      }
+      if (value.evidence.length && !evidence.length) throw new Error();
+      return { evidence, usage, discardedEvidenceCount: value.evidence.length - evidence.length };
     } catch (error) {
       if (error instanceof SemanticAnalysisError && error.code === 'provider_refusal') throw error;
       throw new SemanticAnalysisError('provider_output_invalid', 'received', usage);
@@ -84,21 +93,42 @@ export function validateSemanticEvidence(value: unknown, input: SemanticInput): 
     const title = semanticPlainText(item.title, 120), observation = semanticPlainText(item.observation, 1200);
     if (title === null || observation === null) throw new Error('analysis_observation_invalid');
     if (!SEMANTIC_KINDS.includes(item.kind as never) ||
-      (item.kind === 'style' ? !STYLE_CATEGORIES.includes(item.styleCategory as never) : item.styleCategory !== null) ||
+      (item.kind === 'style' && !STYLE_CATEGORIES.includes(item.styleCategory as never)) ||
       !Array.isArray(item.citations) || item.citations.length < 1 || item.citations.length > 4) throw new Error('analysis_citation_invalid');
     const citations = item.citations.map(value => {
       const cite = exact(value, ['partIndex', 'partKey', 'paragraphIndex', 'start', 'end', 'quote']);
-      const piece = input.pieces.find(piece => piece.partIndex === cite.partIndex && piece.partKey === cite.partKey &&
-        piece.paragraphIndex === cite.paragraphIndex && Number(cite.start) >= piece.start && Number(cite.end) <= piece.end);
-      if (!piece || typeof cite.quote !== 'string' || cite.quote.length < 1 || cite.quote.length > 512 ||
-        typeof cite.start !== 'number' || typeof cite.end !== 'number' || cite.end <= cite.start ||
-        !boundary(piece.text, cite.start - piece.start) || !boundary(piece.text, cite.end - piece.start) ||
-        piece.text.slice(cite.start - piece.start, cite.end - piece.start) !== cite.quote) throw new Error('analysis_citation_invalid');
+      if (typeof cite.quote !== 'string' || cite.quote.length < 1 || cite.quote.length > 512 ||
+        !Number.isSafeInteger(cite.start) || !Number.isSafeInteger(cite.end) ||
+        Number(cite.end) <= Number(cite.start)) throw new Error('analysis_citation_invalid');
+      const candidates = input.pieces.filter(piece => piece.partIndex === cite.partIndex && piece.partKey === cite.partKey &&
+        piece.paragraphIndex === cite.paragraphIndex);
+      const direct = candidates.find(piece => Number(cite.start) >= piece.start && Number(cite.end) <= piece.end &&
+        boundary(piece.text, Number(cite.start) - piece.start) && boundary(piece.text, Number(cite.end) - piece.start) &&
+        piece.text.slice(Number(cite.start) - piece.start, Number(cite.end) - piece.start) === cite.quote);
+      let piece = direct;
+      let start = Number(cite.start), end = Number(cite.end);
+      if (!piece) {
+        // Models sometimes report the paragraph boundary instead of the quoted
+        // span. Recover only a unique exact quote inside the cited source piece.
+        const matches = candidates.flatMap(candidate => {
+          if (Number(cite.start) < candidate.start - 16 || Number(cite.start) > candidate.end + 16 ||
+            Number(cite.end) < candidate.start - 16 || Number(cite.end) > candidate.end + 16) return [];
+          const offset = candidate.text.indexOf(cite.quote as string);
+          return offset >= 0 && candidate.text.indexOf(cite.quote as string, offset + 1) < 0 &&
+            boundary(candidate.text, offset) && boundary(candidate.text, offset + (cite.quote as string).length)
+            ? [{ candidate, start: candidate.start + offset }] : [];
+        });
+        if (matches.length !== 1) throw new Error('analysis_citation_invalid');
+        const match = matches[0];
+        piece = match.candidate;
+        start = match.start;
+        end = start + cite.quote.length;
+      }
       return { partIndex: piece.partIndex, partKey: piece.partKey, paragraphIndex: piece.paragraphIndex,
-        start: cite.start, end: cite.end, quoteHash: sha256(cite.quote) };
+        start, end, quoteHash: sha256(cite.quote) };
     });
     return { kind: item.kind as SemanticEvidence['kind'], title, observation,
-      styleCategory: item.styleCategory as SemanticEvidence['styleCategory'], citations };
+      styleCategory: item.kind === 'style' ? item.styleCategory as SemanticEvidence['styleCategory'] : null, citations };
   });
 }
 async function boundedResponse(response: Response, signal: AbortSignal) {

@@ -19,6 +19,7 @@ function fixture() {
   const progress = {
     id: 'progress-id', userId: 'reader-id', workId: 'work-id', activeReleaseId: 'release-id',
     currentSceneId: 'scene-id', currentGeneratedSceneId: null, progressRevision: 10,
+    currentBeatPosition: 3,
     currentAct: 1, status: 'ai_pending', pathSummary: [], seenSceneIds: ['scene-id'],
     visitedEndingKeys: [],
   };
@@ -114,5 +115,45 @@ describe('recommended continuation overlay settlement', () => {
       data: expect.objectContaining({ resultSceneId: null, resultGeneratedSceneId: 'generated-scene-id' }),
     }));
     expect(f.tx.storyAiAllowanceBucket.updateMany).toHaveBeenCalledTimes(1);
+  });
+
+  it('restores the source reading position when generation fails', async () => {
+    const f = fixture();
+    await expect(f.service.settleContinuation(null, 'continuation-id', {
+      status: 'failed', moderationDecision: 'reject',
+      inputTokens: 0, outputTokens: 0, cachedInputTokens: 0, imageUnits: 0,
+      failureCode: 'provider_incomplete_output',
+    }, 'failed-settlement-key', 'lease-token')).resolves.toMatchObject({ status: 'failed' });
+    expect(f.tx.storyReaderProgress.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        currentSceneId: 'scene-id', currentBeatPosition: 3, status: 'active',
+      }),
+    }));
+    expect(f.generatedSceneCreate).not.toHaveBeenCalled();
+  });
+
+  it('keeps a generated ending scene readable after completion', async () => {
+    const f = fixture();
+    await expect(f.service.settleContinuation(null, 'continuation-id', {
+      status: 'completed', moderationDecision: 'allow', actualCostKrw: 0,
+      inputTokens: 10, outputTokens: 10, cachedInputTokens: 0, imageUnits: 0,
+      resultTitle: { ko: '독자 엔딩' },
+      resultBeats: [{ beatType: 'paragraph', content: { ko: '마침내 이야기가 끝났다.' } }],
+      resultVisualManifest: {
+        sceneKey: 'ai-continuation-id',
+        background: { state: 'fallback', altKey: 'story.visual.fallback' },
+        characters: [],
+        fallback: { publicAssetPath: '/assets/story/fallback.webp', altKey: 'story.visual.fallback' },
+      },
+      nextChoices: [], ending: { endingKey: 'ai-reader-ending' },
+    }, 'ending-settlement-key', 'lease-token')).resolves.toMatchObject({ status: 'completed' });
+    expect(f.tx.storyReaderProgress.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        currentSceneId: null,
+        currentGeneratedSceneId: 'generated-scene-id',
+        currentBeatPosition: 0,
+        status: 'completed',
+      }),
+    }));
   });
 });

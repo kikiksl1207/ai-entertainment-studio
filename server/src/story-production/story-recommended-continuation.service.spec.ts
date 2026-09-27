@@ -190,7 +190,7 @@ describe('recommended choice enqueue transaction', () => {
       recommendedChoiceId: 'choice-b', sourcePartId: 'part-id', sourceSceneId: 'scene-id',
       manuscriptVersionId: 'manuscript-id', analysisJobId: 'analysis-id', analysisVersion: 7,
       rightsContractId: 'rights-contract-id', rightsContractVersionId: 'rights-version-id',
-      styleConsentRevision: 3, promptVersion: 'story-continuation-v1',
+      styleConsentRevision: 3, promptVersion: 'story-continuation-v6',
       outputSchemaVersion: 'story-continuation-output-v1',
     });
     expect(data.contextFingerprint).toMatch(/^[a-f0-9]{64}$/);
@@ -215,6 +215,7 @@ describe('recommended choice enqueue transaction', () => {
       id: 'profile-id', profileVersion: 2, reviewRevision: 4,
       approvedFingerprint: profile.approvedFingerprint,
     });
+    expect(data.contextReferences.generationProfileViewVersion).toBe('story-profile-prompt-v2');
     expect(f.provider.preflight).toHaveBeenCalledWith(expect.objectContaining({
       approvedContext: expect.objectContaining({
         generationProfile: expect.objectContaining({
@@ -238,6 +239,72 @@ describe('recommended choice enqueue transaction', () => {
     await expect(f.service.requestRecommendedChoiceTx(f.tx as never, f.input))
       .rejects.toMatchObject({ response: { code: 'STORY_GENERATION_PROFILE_APPROVAL_REQUIRED' } });
     expect(f.tx.storyAiAllowanceBucket.upsert).not.toHaveBeenCalled();
+    expect(f.createContinuation).not.toHaveBeenCalled();
+  });
+
+  it('keeps a published legacy route available while a completed semantic profile awaits review', async () => {
+    const f = fixture();
+    const pending = {
+      ...approvedProfile(), analysisJobId: 'semantic-id', status: 'needs_review',
+      approvedFingerprint: null, approvedSettings: null,
+    };
+    Object.assign(f.tx, {
+      storyWorkGenerationProfile: { findFirst: jest.fn().mockResolvedValueOnce(pending).mockResolvedValueOnce(null) },
+    });
+    f.tx.storyAnalysisJob.findFirst
+      .mockResolvedValueOnce({ id: 'semantic-id', pipeline: 'semantic_extraction_v1', analysisVersion: 8 })
+      .mockResolvedValueOnce({ id: 'analysis-id', pipeline: 'publication_style_snapshot_v1', analysisVersion: 7 });
+
+    await f.service.requestRecommendedChoiceTx(f.tx as never, f.input);
+
+    expect(f.tx.storyAnalysisJob.findFirst).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      where: expect.objectContaining({
+        status: 'completed', pipeline: { not: 'semantic_extraction_v1' },
+        analysisVersion: { lt: 8 },
+      }),
+    }));
+    expect(f.createContinuation.mock.calls[0][0].data).toMatchObject({
+      analysisJobId: 'analysis-id', analysisVersion: 7,
+    });
+    expect(f.createContinuation.mock.calls[0][0].data.contextReferences).not.toHaveProperty('generationProfilePin');
+  });
+
+  it('fails closed when an unapproved semantic profile has no previous published analysis', async () => {
+    const f = fixture();
+    Object.assign(f.tx, {
+      storyWorkGenerationProfile: { findFirst: jest.fn().mockResolvedValueOnce({
+        ...approvedProfile(), analysisJobId: 'semantic-id', status: 'needs_review',
+        approvedFingerprint: null, approvedSettings: null,
+      }).mockResolvedValueOnce(null) },
+    });
+    f.tx.storyAnalysisJob.findFirst
+      .mockResolvedValueOnce({ id: 'semantic-id', pipeline: 'semantic_extraction_v1', analysisVersion: 1 })
+      .mockResolvedValueOnce(null);
+
+    await expect(f.service.requestRecommendedChoiceTx(f.tx as never, f.input)).rejects.toMatchObject({
+      response: { code: 'STORY_AI_GENERATION_NOT_AUTHORIZED' },
+    });
+    expect(f.createContinuation).not.toHaveBeenCalled();
+  });
+
+  it('does not downgrade a revised semantic profile that was previously approved', async () => {
+    const f = fixture();
+    Object.assign(f.tx, {
+      storyWorkGenerationProfile: { findFirst: jest.fn()
+        .mockResolvedValueOnce({
+          ...approvedProfile(), analysisJobId: 'semantic-id', status: 'needs_review',
+          approvedFingerprint: null, approvedSettings: null,
+        })
+        .mockResolvedValueOnce({ id: 'earlier-approved-semantic-profile' }) },
+    });
+    f.tx.storyAnalysisJob.findFirst.mockResolvedValueOnce({
+      id: 'semantic-id', pipeline: 'semantic_extraction_v1', analysisVersion: 8,
+    });
+
+    await expect(f.service.requestRecommendedChoiceTx(f.tx as never, f.input)).rejects.toMatchObject({
+      response: { code: 'STORY_GENERATION_PROFILE_APPROVAL_REQUIRED' },
+    });
+    expect(f.tx.storyAnalysisJob.findFirst).toHaveBeenCalledTimes(1);
     expect(f.createContinuation).not.toHaveBeenCalled();
   });
 

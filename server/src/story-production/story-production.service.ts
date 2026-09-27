@@ -54,6 +54,8 @@ import { appendStoryRoute, createStoryRouteRoot } from './story-route-identity.s
 import { StoryVisualGenerationService } from './story-visual-generation.service';
 import { StoryPublicBetaPolicy } from './story-public-beta.policy';
 import { StoryArtistParticipantService } from './story-artist-participant.service';
+import { FIXED_ROUTE_STORIES } from './story-fixed-route-markdown.policy';
+import { StoryFixedRouteChoiceRefreshService } from './story-fixed-route-choice-refresh.service';
 import {
   normalizeStoryHashtagKey,
   projectStoryHashtags,
@@ -141,6 +143,7 @@ export class StoryProductionService {
         defaultLocale: true,
         title: true,
         summary: true,
+        authorDisplayName: true,
         hashtagKeys: true,
         hashtagLabels: true,
         coverManifest: true,
@@ -187,6 +190,9 @@ export class StoryProductionService {
       coverManifest: Prisma.JsonValue;
       activeReleaseId: string | null;
     }) =>
+      !(row.coverManifest && typeof row.coverManifest === 'object' &&
+        !Array.isArray(row.coverManifest) &&
+        (row.coverManifest as Record<string, unknown>).catalogVisibility === 'unlisted') &&
       isPublicStorySourceSafe({
         fixtureSource: row.fixtureSource,
         slug: row.slug,
@@ -248,6 +254,7 @@ export class StoryProductionService {
           slug: row.slug,
           title,
           summary,
+          author: row.authorDisplayName ? { displayName: row.authorDisplayName } : null,
           hashtags: projectStoryHashtags(
             row.hashtagKeys,
             row.hashtagLabels,
@@ -338,6 +345,7 @@ export class StoryProductionService {
       slug: work.slug,
       title: projectLocalizedValue(work.title, query.locale, work.defaultLocale),
       summary: projectLocalizedValue(work.summary, query.locale, work.defaultLocale),
+      author: work.authorDisplayName ? { displayName: work.authorDisplayName } : null,
       hashtags: projectStoryHashtags(
         work.hashtagKeys,
         work.hashtagLabels,
@@ -889,7 +897,7 @@ export class StoryProductionService {
       }
       const choices = sourceKind === 'canonical'
         ? await tx.storyChoice.findMany({
-            where: { sceneId: scene.id },
+            where: { sceneId: scene.id, position: { gt: 0 } },
             orderBy: [{ position: 'asc' }, { id: 'asc' }],
             take: STORY_FIRST_RELEASE_CHOICE_POLICY.maxSuggestedChoices + 1,
           })
@@ -902,6 +910,21 @@ export class StoryProductionService {
       const choice: any = choices.find((item) => item.id === choiceId);
       if (!choice) throw new BadRequestException('Choice is not available for the current scene');
       if (choice.routeKind === 'generation_required') {
+        const fixedRouteKey = work.slug === FIXED_ROUTE_STORIES.monster.slug ? 'monster'
+          : work.slug === FIXED_ROUTE_STORIES.rebellion.slug ? 'rebellion' : null;
+        if (fixedRouteKey) {
+          const preparation = await new StoryFixedRouteChoiceRefreshService(this.prisma)
+            .status(fixedRouteKey, work.id, tx);
+          const expectedKeys = preparation.publicChoiceSet === 'legacy'
+            ? ['branch-b', 'branch-c'] : ['ai-branch-b-v1', 'ai-branch-c-v1'];
+          if (!expectedKeys.includes(choice.choiceKey)) throw new ConflictException({
+            code: 'STORY_AI_CHOICES_NOT_READY',
+            messageKey: 'story.choice.status.generationUnavailable',
+            retryable: true,
+            progressMutated: false,
+            generationStarted: false,
+          });
+        }
         const normalizedLocale = STORY_LOCALES.find((candidate) => candidate.toLowerCase() === locale.trim().toLowerCase()) ?? locale.trim();
         const now = new Date();
         const contract = await tx.contentRightsContract.findFirst({
@@ -1145,7 +1168,7 @@ export class StoryProductionService {
         : null;
     if (!scene) throw new NotFoundException('Story scene not found');
     const choices = await this.prisma.storyChoice.findMany({
-      where: { sceneId: scene.id },
+      where: { sceneId: scene.id, position: { gt: 0 } },
       orderBy: { position: 'asc' },
       take: 20,
       select: {
@@ -1176,7 +1199,7 @@ export class StoryProductionService {
       },
     });
     const parentCandidates = await this.prisma.storyChoice.findMany({
-      where: { targetSceneId: scene.id },
+      where: { targetSceneId: scene.id, position: { gt: 0 } },
       select: {
         sceneId: true,
         routeKind: true,
@@ -1544,6 +1567,7 @@ export class StoryProductionService {
         scene: {
           id: scene.id,
           sceneKey: scene.sceneKey,
+          isGenerated: true,
           title: null,
           beats: [],
           visualManifest,
@@ -1573,6 +1597,7 @@ export class StoryProductionService {
       scene: {
         id: scene.id,
         sceneKey: scene.sceneKey,
+        isGenerated: true,
         title: projectLocalizedValue(scene.title, locale, work.defaultLocale),
         beats: beats.map((beat) => ({
           id: beat.id,
@@ -1634,7 +1659,7 @@ export class StoryProductionService {
     const [beats, choices, releaseCapability] = await Promise.all([
       this.prisma.storyBeat.findMany({ where: { sceneId: scene.id }, orderBy: { position: 'asc' }, take: 40 }),
       this.prisma.storyChoice.findMany({
-        where: { sceneId: scene.id },
+        where: { sceneId: scene.id, position: { gt: 0 } },
         orderBy: [{ position: 'asc' }, { id: 'asc' }],
         take: STORY_FIRST_RELEASE_CHOICE_POLICY.maxSuggestedChoices + 1,
       }),

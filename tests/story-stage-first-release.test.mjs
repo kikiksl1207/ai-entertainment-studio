@@ -240,6 +240,57 @@ for (const index of [0, 1, 2]) {
 
 const continuationId = '66666666-6666-4666-8666-666666666666';
 
+function publicationChoices() {
+  const current = projection(3, 'en');
+  current.scene.beats = [{ position: 0, content: 'Published writer manuscript' }];
+  current.choices = [
+    { id: 'choice-0', label: 'Follow the writer original', routeKind: 'writer_original', targetSceneId: 'writer-next-scene' },
+    { id: 'choice-1', label: 'Take the first new path', routeKind: 'generation_required', targetSceneId: null },
+    { id: 'choice-2', label: 'Take the second new path', routeKind: 'generation_required', targetSceneId: null },
+  ];
+  return current;
+}
+
+test('published writer-original and two generation-required choices all render; original stays direct', async () => {
+  const f = await fixture({ work: true, current: publicationChoices() });
+  try {
+    await f.ready();
+    assert.deepEqual(await f.page.locator('[data-choice-id]').allTextContents(), [
+      '1Follow the writer original', '2Take the first new path', '3Take the second new path',
+    ]);
+    assert.equal(await f.page.locator('[data-choice-id]:enabled').count(), 3);
+    await f.page.locator('[data-choice-id="choice-0"]').click();
+    await f.page.waitForFunction(() => document.querySelector('[data-story-scene-focus]')?.textContent.includes('writer-next-scene'));
+    assert.deepEqual(f.requests.filter((r) => r.method === 'POST' && r.path.includes('/choices/')).map((r) => r.path.split('/').at(-1)), ['choice-0']);
+  } finally { await f.close(); }
+});
+
+for (const choiceId of ['choice-1', 'choice-2']) {
+  test(`published ${choiceId} shows generation pending then failed without losing the three choices`, async () => {
+    const f = await fixture({ work: true, current: publicationChoices(), hook: (r, state) => {
+      if (r.method === 'POST' && r.path.endsWith(`/choices/${choiceId}`)) {
+        state.setCurrent({ ...publicationChoices(), status: 'ai_pending', revision: 4, choices: [] });
+        return { body: { continuationId, status: 'queued', revisionAfterRequest: 4 } };
+      }
+      if (r.method === 'GET' && r.path.endsWith(`/ai-continuations/${continuationId}`)) {
+        state.setCurrent({ ...publicationChoices(), revision: 5 });
+        return { body: { continuationId, status: 'failed', revisionAfterRequest: 4 } };
+      }
+    } });
+    try {
+      await f.ready();
+      assert.equal(await f.page.locator('[data-choice-id]:enabled').count(), 3);
+      await f.page.locator(`[data-choice-id="${choiceId}"]`).click();
+      await f.page.waitForFunction(() => document.querySelector('[data-story-ai-notice]')?.textContent.includes('Waiting to generate'));
+      assert.equal(await f.page.locator('[data-choice-id]:enabled').count(), 0);
+      await f.page.waitForFunction(() => document.querySelector('[data-story-ai-notice]')?.textContent.includes('could not be generated'));
+      assert.equal(await f.page.locator('[data-choice-id]:enabled').count(), 3);
+      assert.equal(f.requests.filter((r) => r.method === 'POST' && r.path.includes('/choices/')).length, 1);
+      assert.deepEqual(await f.page.evaluate(() => Object.keys(sessionStorage).filter((key) => key.includes('story-ai-pending'))), []);
+    } finally { await f.close(); }
+  });
+}
+
 function pendingStorageKey(scope, choiceId, revision = 3, progressId = sessionId, work = 'session-only') {
   return ['lumina:story-ai-pending:v1', scope, work, progressId, choiceId, revision]
     .map((value) => encodeURIComponent(String(value))).join(':');

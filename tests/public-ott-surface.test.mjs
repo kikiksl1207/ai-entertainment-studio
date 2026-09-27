@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, statSync } from 'node:fs';
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
 
@@ -11,6 +11,22 @@ test('public OTT surface is separate and never links owner-private playback', ()
   assert.match(script, /\/api\/v1\/ott/);
   assert.doesNotMatch(`${html}\n${script}`, /me\/ott-media|ott-private-preview|playback-session|private-files|storageKey|fileId/);
   assert.match(script, /viewing|감상 이용은 제공되지 않습니다/);
+  assert.match(html, /<video id="ottDemoVideo" playsinline webkit-playsinline/);
+  assert.doesNotMatch(html, /<video id="ottDemoVideo" controls/);
+  assert.match(script, /playerWrap\.requestFullscreen/);
+  assert.match(script, /is-pseudo-fullscreen/);
+});
+
+test('joker demo has one common clip, two playable endings, and no third branch', () => {
+  const html = read('ott/index.html');
+  const script = read('pages/ott.js');
+  assert.match(html, /data-ott-demo="joker"/);
+  assert.match(script, /branches: \["embrace", "ignore"\]/);
+  assert.match(script, /selectedWork === "mother" && currentClip === "common"/);
+  for (const file of ['01-common.mp4', '02-original-ending.mp4', '03-alternate-ending.mp4', 'poster.jpg']) {
+    assert.ok(statSync(new URL(`../assets/ott/joker-choice/${file}`, import.meta.url)).size > 0, file);
+    assert.match(script, new RegExp(file.replace('.', '\\.')));
+  }
 });
 
 test('home and primary mobile surfaces expose the canonical six-item discovery order', () => {
@@ -26,7 +42,7 @@ test('home and primary mobile surfaces expose the canonical six-item discovery o
   assert.match(home, /href="\/ott"/);
   assert.match(home, /href="\/lumina-pick"/);
   assert.match(home, /home\.discovery\.story\.label">스토리</);
-  assert.match(home, /home\.discovery\.ott\.label">영상 작품</);
+  assert.match(home, /home\.discovery\.ott\.label">선택극장</);
   assert.match(home, /home\.discovery\.pick\.label">루미나 픽</);
   assert.doesNotMatch(home, /<strong>(?:Story|OTT|Pick)<\/strong>/);
   for (const key of ['home', 'artists', 'story', 'ott', 'feed', 'pick']) {
@@ -48,7 +64,7 @@ test('public API projection is gated and omits private identifiers', () => {
   assert.match(service, /media\.includes\('ott_streaming'\)/);
   assert.match(service, /status: 'confirmed'/);
   assert.match(service, /upload\.revocation/);
-  assert.doesNotMatch(contract.match(/export type OttPublicCatalogItem[\s\S]*?};\n/)[0], /workId|manifestId|fileId|url|token|graph/);
+  assert.doesNotMatch(contract.match(/export type OttPublicCatalogItem[\s\S]*?};\r?\n/)[0], /workId|manifestId|fileId|url|token|graph/);
   assert.match(controller, /@Controller\('ott'\)/);
   assert.doesNotMatch(controller, /UseGuards|me\/ott-media/);
 });

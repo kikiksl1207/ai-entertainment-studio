@@ -34,7 +34,16 @@ class Element {
   constructor(tag = 'div') {
     this.tagName = tag.toUpperCase(); this.hidden = false; this.disabled = false; this.value = '';
     this.dataset = {}; this.children = []; this.parent = null; this.listeners = {}; this.attributes = {};
-    this.ownText = ''; this.classList = { toggle() {} };
+    this.ownText = '';
+    const classes = new Set();
+    this.classList = {
+      add: name => classes.add(name), remove: name => classes.delete(name), contains: name => classes.has(name),
+      toggle: (name, force) => {
+        const enabled = force === undefined ? !classes.has(name) : force;
+        if (enabled) classes.add(name); else classes.delete(name);
+        return enabled;
+      }
+    };
   }
   get isConnected() { return this.root || Boolean(this.parent?.isConnected); }
   get textContent() { return this.ownText + this.children.map(child => child.textContent).join(''); }
@@ -44,11 +53,16 @@ class Element {
   setAttribute(key, value) { this.attributes[key] = String(value); }
   removeAttribute(key) { delete this.attributes[key]; }
   addEventListener(type, handler) { (this.listeners[type] ||= []).push(handler); }
+  focus() {}
   async fire(type = 'click') { if (!this.disabled) for (const handler of this.listeners[type] || []) await handler({ target: this }); }
 }
 
 export function createHarness({ job = makeJob(), rows = [makeEvidence()], storage = new Map(), receipt = true, handler } = {}) {
-  const elements = Object.fromEntries(['writerAnalysis', ...['Version', 'State', 'Progress', 'Counts', 'Start', 'Check', 'Boundary', 'Evidence', 'Pages', 'Previous', 'Next', 'PageCount'].map(name => 'writerAnalysis' + name), 'writerManuscriptBody'].map(id => [id, new Element()]));
+  const analysisIds = ['writerAnalysis', ...['Version', 'State', 'Progress', 'Counts', 'Start', 'Check', 'Boundary', 'Evidence', 'Pages', 'Previous', 'Next', 'PageCount'].map(name => 'writerAnalysis' + name)];
+  const generationIds = ['Entry', 'ReviewOpen', 'ReviewState', 'Modal', 'Eyebrow', 'Title', 'Intro', 'Status', 'Sections', 'Close', 'Cancel', 'Save', 'Approve'].map(name => 'writerGeneration' + name);
+  const elements = Object.fromEntries([...analysisIds, ...generationIds,
+    'writerManuscriptBody', 'writerAnalysisRestore', 'writerAnalysisRestoreState'].map(id => [id, new Element()]));
+  elements.writerGenerationModal.classList.add('is-hidden');
   Object.values(elements).forEach(element => { element.root = true; });
   let identity = { ownerId: 'fixture-owner', epoch: 1 };
   let selected = { workId: ids.work, sourceLocale: 'ko' };
@@ -60,6 +74,11 @@ export function createHarness({ job = makeJob(), rows = [makeEvidence()], storag
   const receiptValue = () => ({ id: ids.manuscript, ...selected, sourceLocale: selected.sourceLocale, version: 3, contentHash: sourceHash, identity: { ...identity } });
   const defaultRoute = (path, options) => {
     if (options.method === 'POST' && path.endsWith('/analyses')) return response(currentJob);
+    if (path.includes(`/stories/${ids.work}/manuscripts?`)) return response({ workId: ids.work,
+      items: [{ id: ids.manuscript, workId: ids.work, version: 3, locale: selected.sourceLocale, contentHash: sourceHash }],
+      hasMore: false, nextCursor: null });
+    if (path.includes(`/manuscripts/${ids.manuscript}/analyses?`)) return response({ manuscriptVersionId: ids.manuscript,
+      items: [currentJob], hasMore: false, nextCursor: null });
     const source = path.match(/\/evidence\/([^/]+)\/source$/);
     if (source) return response({ evidenceId: source[1], manuscriptVersionId: ids.manuscript, sourceLocale: selected.sourceLocale,
       reviewRequired: true, citations: [{ ...citation, quote: quoteText }] });
@@ -79,7 +98,7 @@ export function createHarness({ job = makeJob(), rows = [makeEvidence()], storag
   };
   const window = { LuminaCreatorStudioApi: api, LuminaCreatorManuscript: { context: () => ({ ...selected }), receipt: () => receipt ? receiptValue() : null },
     luminaI18n: { t: key => `${locale}:${key}` }, addEventListener: (type, fn) => (listeners[type] ||= []).push(fn) };
-  const document = { hidden: false, getElementById: id => elements[id], createElement: tag => new Element(tag),
+  const document = { hidden: false, body: { style: {} }, getElementById: id => elements[id], querySelector: () => null, createElement: tag => new Element(tag),
     addEventListener: (type, fn) => (docListeners[type] ||= []).push(fn) };
   const screen = { elements, calls, storage, window, document, timers,
     posts: () => calls.filter(call => call.options.method === 'POST'),
@@ -91,10 +110,10 @@ export function createHarness({ job = makeJob(), rows = [makeEvidence()], storag
     runPoll: async () => { const match = [...timers].find(([, value]) => value.ms >= 2500 && value.ms < 12000);
       if (match) { timers.delete(match[0]); await match[1].fn(); } await screen.flush(); },
     flush: async () => { for (let i = 0; i < 4; i++) await new Promise(resolve => setImmediate(resolve)); },
-    receive: () => window.LuminaCreatorAnalysis.receive(receiptValue())
+    receive: (options, value = receiptValue()) => window.LuminaCreatorAnalysis.receive(value, options)
   };
   vm.runInNewContext(script, { window, document, sessionStorage: { getItem: key => storage.get(key) || null, setItem: (key, value) => storage.set(key, value) },
-    crypto: { randomUUID }, URLSearchParams, AbortController,
+    crypto: { randomUUID }, URLSearchParams, AbortController, queueMicrotask, structuredClone,
     setTimeout: (fn, ms) => { timers.set(++timerId, { fn, ms }); return timerId; }, clearTimeout: id => timers.delete(id),
     setInterval: fn => { intervals.set(++timerId, fn); return timerId; } }, { filename: 'creator-analysis-review.js' });
   return screen;

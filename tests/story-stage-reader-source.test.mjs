@@ -14,6 +14,34 @@ function reader(positions, position = 0, status = 'active') {
   return { state, ...api };
 }
 
+test('reader source: a signed request recovers an expired access token through shared auth', async () => {
+  const requestSource = source.slice(source.indexOf('async function request('), source.indexOf('function renderLoading('));
+  const calls = [];
+  const sharedResult = { currentBeatPosition: 2 };
+  const request = runInNewContext(`${requestSource}; request`, {
+    API_ORIGIN: 'https://api.example.test',
+    window: {
+      getAuth: () => ({ accessToken: 'expired' }),
+      apiFetch: async (path, options) => {
+        calls.push({ path, options });
+        return sharedResult;
+      },
+    },
+    fetch: async () => ({ status: 401, ok: false }),
+  });
+  const signal = new AbortController().signal;
+  const result = await request('/api/v1/me/story-progress/progress/beat', {
+    method: 'POST', auth: true, signal, body: { position: 2 },
+  });
+  assert.equal(result, sharedResult);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].path, '/api/v1/me/story-progress/progress/beat');
+  assert.equal(calls[0].options.method, 'POST');
+  assert.equal(calls[0].options.body.position, 2);
+  assert.equal(calls[0].options.signal, undefined);
+  assert.equal(calls[0].options.throwOnError, true);
+});
+
 test('reader source: canonical/generated persisted positions and full text are not array-indexed or truncated', () => {
   const canonical = reader([3, 1, 2]);
   assert.equal(canonical.readableBeats().beats[0].text, 'full.text.1\n\nSecond paragraph.');
@@ -44,6 +72,31 @@ test('reader source: six short beats become three full-page scenes without losin
   assert.equal(visualGroups.length, 2);
   assert.equal(visualGroups[0].visualContext.id, 'ready');
   assert.equal(visualGroups[1].visualContext.id, 'third');
+});
+
+test('reader source: generated prose turns on sentence boundaries and hides a short unfinished tail', () => {
+  const runtime = reader(Array.from({ length: 10 }, (_, index) => index), 0);
+  runtime.state.scene.deliveryState = 'ready';
+  runtime.state.scene.beats = Array.from({ length: 10 }, (_, index) => ({
+    position: index,
+    content: { value: index === 3 ? '그는 재빨' : index === 4 ? '리 제지했다.' :
+      index === 9 ? '“누가 왔죠?” 그는' : `장면 ${index}이 끝났다.` },
+  }));
+  const grouped = runtime.readableBeats();
+  assert.equal(grouped.beats.length, 3);
+  assert.ok(grouped.beats.some((page) => page.text.includes('재빨리 제지했다.')));
+  assert.equal(grouped.beats.at(-1).text.endsWith('“누가 왔죠?”'), true);
+  assert.ok(grouped.beats.every((page) => /[.!?。！？…][”"'’」』)]*$/.test(page.text)));
+});
+
+test('reader source: previously stored escaped line breaks render as paragraphs', () => {
+  const runtime = reader([0, 1, 2, 3], 0);
+  runtime.state.scene.isGenerated = true;
+  runtime.state.scene.beats[0].content.value = '첫 문장이다.\\r\\n\\r\\n둘째 문장이다.';
+  const first = runtime.readableBeats().beats[0];
+  assert.ok(first.text.includes('첫 문장이다.\n\n둘째 문장이다.'));
+  assert.doesNotMatch(first.text, /\\r\\n/);
+  assert.match(source, /segments\.flatMap\(\(segment\) => String\(segment\)\.split/);
 });
 
 test('reader source: completed reading cursor stays local and work/release/scene scoped', () => {

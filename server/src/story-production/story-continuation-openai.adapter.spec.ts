@@ -15,7 +15,7 @@ function request(): StoryContinuationProviderRequest {
   return {
     operationId: 'operation-1', locale: 'en', contextFingerprint: 'fingerprint',
     provider: config.provider, model: config.model, rateCardId: config.rateCardId, rateCardVersion: config.rateCardVersion,
-    promptVersion: 'story-continuation-v1', outputSchemaVersion: 'story-continuation-output-v1',
+    promptVersion: 'story-continuation-v5', outputSchemaVersion: 'story-continuation-output-v1',
     inputTokenLimit: 8_192, outputTokenLimit: 500,
     approvedContext: {
       sourceScene: { title: 'Crossroads', beats: [{ beatType: 'paragraph', content: 'Two paths diverge.' }] },
@@ -26,8 +26,12 @@ function request(): StoryContinuationProviderRequest {
 
 function output() {
   return {
-    title: { en: 'The Left Path' }, beats: [{ beatType: 'paragraph', content: { en: 'The path leads to a gate.' } }],
-    nextChoices: [{ choiceKey: 'open-gate', label: { en: 'Open the gate' } }], ending: null as { endingKey: string } | null,
+    title: { en: 'The Left Path' }, beats: [{ beatType: 'paragraph', content: { en: 'The gate appears.' } }],
+    nextChoices: [
+      { choiceKey: 'open-gate', label: { en: 'Open the gate' } },
+      { choiceKey: 'ask-guard', label: { en: 'Question the guard' } },
+      { choiceKey: 'turn-back', label: { en: 'Turn back' } },
+    ], ending: null as { endingKey: string } | null,
   };
 }
 
@@ -53,6 +57,7 @@ describe('OpenAiStoryContinuationProvider (fake transport only)', () => {
   it('defaults OFF without looking up or using a general chat key', async () => {
     const reader = { get: jest.fn().mockReturnValue(undefined) };
     const c = readStoryContinuationOpenAiConfig(reader);
+    expect(c.maxOutputTokens).toBe(32_768);
     const f = fixture(c);
     await expect(f.provider.readiness()).resolves.toEqual({ enabled: false, reason: 'provider_disabled' });
     await expect(f.provider.generate(request(), new AbortController().signal)).rejects.toMatchObject({ code: 'provider_disabled', retryable: false });
@@ -103,9 +108,28 @@ describe('OpenAiStoryContinuationProvider (fake transport only)', () => {
     expect(init.redirect).toBe('error');
     expect(body).toMatchObject({ model: config.model, store: false, stream: false, background: false, truncation: 'disabled', max_output_tokens: 500,
       text: { format: { type: 'json_schema', strict: true, schema: { additionalProperties: false, properties: { nextChoices: { maxItems: 3 } } } } } });
+    expect(body.instructions).toContain('exactly 3 distinct nextChoices');
+    expect(body.instructions).toContain('mandatory bounds');
+    expect(JSON.parse(body.input[0].content[0].text).narrativeLength).toMatchObject({
+      sourceUnits: 16, minimumUnits: 13, targetUnits: 16, maximumUnits: 19,
+    });
     expect(body).not.toHaveProperty('tools');
     expect(body.text.format.schema.properties).not.toHaveProperty('visualManifest');
     expect(f.transport).toHaveBeenCalledTimes(1);
+  });
+
+  it('requires enough bounded prose beats for a long author-scale continuation', () => {
+    const req = request();
+    req.outputTokenLimit = 16_000;
+    req.approvedContext!.sourceScene.beats = [{ beatType: 'paragraph', content: 'A'.repeat(8_000) }];
+    const body = buildStoryContinuationOpenAiRequest(req, { ...config, maxOutputTokens: 32_768 });
+    const beats = JSON.parse(JSON.stringify(body)).text.format.schema.properties.beats;
+    expect(beats.minItems).toBeGreaterThanOrEqual(10);
+    expect(beats.maxItems).toBe(beats.minItems);
+    expect(beats.items.properties.beatType.enum).toEqual(['paragraph', 'dialogue']);
+    expect(beats.items.properties.content.properties.en.minLength).toBeGreaterThanOrEqual(500);
+    expect(beats.items.properties.content.properties.en.maxLength).toBeLessThanOrEqual(1_100);
+    expect(beats.maxItems * beats.items.properties.content.properties.en.maxLength).toBeLessThanOrEqual(9_600);
   });
 
   it('projects only approved context and does not send request ids, pins, raw manuscript or secret extra fields', async () => {
@@ -140,6 +164,7 @@ describe('OpenAiStoryContinuationProvider (fake transport only)', () => {
   it('sends the selected artist as a fixed participant without leaking reference assets', async () => {
     const f = fixture();
     const req = request();
+    req.promptVersion = 'story-continuation-v6';
     req.approvedContext!.participantArtist = {
       artistId: 'artist-1',
       slug: 'seo-rin',
@@ -158,7 +183,14 @@ describe('OpenAiStoryContinuationProvider (fake transport only)', () => {
     const outbound = JSON.parse(body.input[0].content[0].text);
     expect(outbound.participantArtist).toEqual(req.approvedContext!.participantArtist);
     expect(body.instructions).toContain('must participate naturally');
+    expect(body.instructions).toContain('use its displayName literally at least once');
     expect(JSON.stringify(outbound)).not.toContain('referenceAssetIds');
+  });
+
+  it('keeps the pinned v5 participant instruction unchanged for queued requests', () => {
+    const req = request();
+    const body = buildStoryContinuationOpenAiRequest(req, config);
+    expect(body.instructions).not.toContain('use its displayName literally at least once');
   });
 
   it('counts serialized instructions/schema and framing, not only context length', async () => {
@@ -173,16 +205,17 @@ describe('OpenAiStoryContinuationProvider (fake transport only)', () => {
     expect(() => buildStoryContinuationOpenAiRequest({ ...req, inputTokenLimit: total }, config)).not.toThrow();
   });
 
-  it('fits a synthetic 10k-character Korean scene with instructions/schema into an 8k-token cap without truncation', () => {
+  it('fits a synthetic 10k-character Korean scene and its length contract into the release input cap', () => {
     const req = request();
     req.locale = 'ko';
+    req.inputTokenLimit = 32_768;
     const sentence = '\uc131\ubb38 \uc55e\uc5d0 \uc120 \uadf8\ub294 \uc57d\uc18d\uc744 \ub5a0\uc62c\ub838\ub2e4. \ub3d9\ub8cc\uc758 \uc120\ud0dd\uc744 \uc874\uc911\ud558\uba70 \ub2e4\ub978 \uae38\uc744 \ud0dd\ud588\ub2e4. ';
     const text = sentence.repeat(300).slice(0, 10_000);
     req.approvedContext!.sourceScene.beats = Array.from({ length: 10 }, (_, i) => ({ beatType: 'paragraph', content: text.slice(i * 1_000, (i + 1) * 1_000) }));
     const original = JSON.stringify(req.approvedContext);
     const result = preflightStoryContinuationOpenAiRequest(req, config);
-    expect(result).toMatchObject({ supported: true, reason: 'provider_preflight_ready', budgetMethod: 'js_tiktoken_o200k_base_v1', inputTokenLimit: 8_192 });
-    expect(result.inputTokenUpperBound).toBeLessThanOrEqual(8_192);
+    expect(result).toMatchObject({ supported: true, reason: 'provider_preflight_ready', budgetMethod: 'js_tiktoken_o200k_base_v1', inputTokenLimit: 32_768 });
+    expect(result.inputTokenUpperBound).toBeLessThanOrEqual(32_768);
     expect(JSON.stringify(req.approvedContext)).toBe(original);
     expect(buildStoryContinuationOpenAiRequest({ ...req, inputTokenLimit: 32_768 }, config).instructions)
       .toContain('Preserve the supplied approved author/style memories');
@@ -208,7 +241,8 @@ describe('OpenAiStoryContinuationProvider (fake transport only)', () => {
   it('pins provider-enforceable bounds for prose and route keys', () => {
     const schema = buildStoryContinuationOpenAiRequest(request(), config).text.format.schema;
     const serialized = JSON.stringify(schema);
-    expect(serialized).toContain('"maxLength":10000');
+    expect(serialized).toContain('"maxLength":19');
+    expect(serialized).toContain('"minItems":1,"maxItems":1');
     expect(serialized).toContain('^[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$');
     expect(serialized).toContain('^ai-[a-zA-Z0-9][a-zA-Z0-9_-]{0,116}$');
   });
@@ -216,6 +250,8 @@ describe('OpenAiStoryContinuationProvider (fake transport only)', () => {
   it.each([
     { title: { ko: 'wrong locale' } }, { title: { en: 'right', ko: 'extra' } },
     { nextChoices: Array.from({ length: 4 }, (_, i) => ({ choiceKey: `c${i}`, label: { en: `Choice ${i}` } })) },
+    { nextChoices: output().nextChoices.slice(0, 1) },
+    { nextChoices: output().nextChoices.slice(0, 2) },
     { nextChoices: [], ending: null },
     { nextChoices: [], ending: { endingKey: '' } },
     { visualManifest: { background: { publicAssetPath: 'https://invented.invalid/image.png' } } },
@@ -230,6 +266,16 @@ describe('OpenAiStoryContinuationProvider (fake transport only)', () => {
     expect(f.transport).toHaveBeenCalledTimes(1);
   });
 
+  it('returns a safe punctuation-artifact code for a standalone closing bracket', async () => {
+    const f = fixture();
+    f.transport.mockResolvedValue(new Response(JSON.stringify(envelope({
+      ...output(), beats: [{ beatType: 'paragraph', content: { en: 'She waited.\n]\nThen left.' } }],
+    }))));
+    await expect(f.provider.generate(request(), new AbortController().signal)).rejects.toMatchObject({
+      code: 'provider_output_punctuation_artifact', retryable: false,
+    });
+  });
+
   it('accepts an ending only with no choices', async () => {
     const f = fixture();
     f.transport.mockResolvedValue(new Response(JSON.stringify(envelope({ ...output(), nextChoices: [], ending: { endingKey: 'ai-end' } }))));
@@ -238,14 +284,14 @@ describe('OpenAiStoryContinuationProvider (fake transport only)', () => {
     expect(result.nextChoices).toBeUndefined();
   });
 
-  it('keeps choices when structured output redundantly includes an ending', async () => {
+  it('rejects structured output that mixes choices with an ending', async () => {
     const f = fixture();
     f.transport.mockResolvedValue(new Response(JSON.stringify(envelope({
       ...output(), ending: { endingKey: 'ai-end' },
     }))));
-    const result = await f.provider.generate(request(), new AbortController().signal);
-    expect(result.nextChoices).toEqual(output().nextChoices);
-    expect(result.ending).toBeUndefined();
+    await expect(f.provider.generate(request(), new AbortController().signal)).rejects.toMatchObject({
+      code: 'provider_output_invalid', retryable: false,
+    });
   });
 
   it.each([
@@ -260,6 +306,19 @@ describe('OpenAiStoryContinuationProvider (fake transport only)', () => {
     const f = fixture();
     f.transport.mockResolvedValue(new Response(JSON.stringify({ ...envelope(), ...change })));
     await expect(f.provider.generate(request(), new AbortController().signal)).rejects.toMatchObject({ retryable: false });
+  });
+
+  it.each([
+    ['max_output_tokens', 'provider_output_token_limit'],
+    ['content_filter', 'provider_content_filtered'],
+    ['unexpected', 'provider_incomplete_output'],
+  ])('classifies incomplete response reason %s without retaining partial prose', async (reason, code) => {
+    const f = fixture();
+    f.transport.mockResolvedValue(new Response(JSON.stringify({
+      ...envelope(), status: 'incomplete', incomplete_details: { reason },
+    })));
+    await expect(f.provider.generate(request(), new AbortController().signal))
+      .rejects.toMatchObject({ code, retryable: false });
   });
 
   it('classifies refusal without logging or retaining refusal payload', async () => {

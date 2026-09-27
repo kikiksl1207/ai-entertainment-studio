@@ -52,9 +52,10 @@ export function buildStorySearchText(
   title: string,
   summary: string,
   labels: Record<string, LocalizedValue>,
+  authorDisplayName = '',
 ) {
   const labelText = Object.values(labels).flatMap((localized) => Object.values(localized));
-  return [title, summary, ...labelText]
+  return [title, summary, authorDisplayName, ...labelText]
     .join(' ')
     .normalize('NFKC')
     .toLocaleLowerCase()

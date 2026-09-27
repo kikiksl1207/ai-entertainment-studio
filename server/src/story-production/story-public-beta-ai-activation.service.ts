@@ -6,16 +6,15 @@ import { INTERNAL_GENERATION_COST_TREATMENT } from '../story-settlement/content-
 import { STORY_AI_QUALITY_RUBRIC } from './dto/story-ai-activation.dto';
 import type { ActivatePublishedStoryAiDto } from './dto/story-publication-intake.dto';
 import { StoryAiActivationService } from './story-ai-activation.service';
-import {
-  fixedRouteSuggestedChoices,
-  type FixedRouteStoryKey,
-} from './story-fixed-route-markdown.policy';
+import { INHERITOR_STORY } from './story-inheritor-publication.policy';
+import { StoryFixedRouteChoiceRefreshService } from './story-fixed-route-choice-refresh.service';
 
 const STORY_KEYS = {
   imjin: 'records-of-the-burning-sea-imjin-war',
   norse: 'norse-myth-loki-crossroads',
   monster: 'the-monster-that-did-not-eat-my-name',
   rebellion: 'we-wrote-rebellion-on-each-others-bodies',
+  inheritor: INHERITOR_STORY.slug,
 } as const;
 const STORY_LOCALES = ['ko', 'en', 'ja', 'zh-Hans', 'zh-Hant'];
 const RATE_CARD_ID = 'ed9b8bf1-df49-4f2d-9f62-6aeb9c5ed4f6';
@@ -39,27 +38,37 @@ export class StoryPublicBetaAiActivationService {
 
   async status(storyKeyValue: string) {
     const storyKey = this.storyKey(storyKeyValue);
-    const work = await this.prisma.storyWork.findUnique({
-      where: { slug: STORY_KEYS[storyKey] },
-      select: { id: true, activeReleaseId: true, status: true },
-    });
+    const work = await this.findWork(this.prisma, storyKey);
     if (!work?.activeReleaseId || work.status !== 'published') {
       return { storyKey, status: 'unavailable', active: false };
     }
     const activation = await this.latestValidActivation(this.prisma, work.id, work.activeReleaseId);
+    const choicePreparation = storyKey === 'monster' || storyKey === 'rebellion'
+      ? await new StoryFixedRouteChoiceRefreshService(this.prisma).status(storyKey, work.id)
+      : null;
+    const choicesReady = storyKey === 'inheritor'
+        ? await this.fixedRouteChoicesReady(this.prisma, work.id)
+        : true;
+    const readyActivation = choicesReady ? activation : null;
     return {
       storyKey,
-      status: activation ? 'active' : 'inactive',
-      active: Boolean(activation),
-      locale: activation?.locale ?? LOCALE,
-      region: activation?.region ?? REGION,
-      expiresAt: activation?.expiresAt ?? null,
+      status: readyActivation ? 'active' : 'inactive',
+      active: Boolean(readyActivation),
+      locale: readyActivation?.locale ?? LOCALE,
+      region: readyActivation?.region ?? REGION,
+      expiresAt: readyActivation?.expiresAt ?? null,
+      ...(choicePreparation ? { choicePreparation } : {}),
     };
   }
 
   async activate(actorUserId: string, storyKeyValue: string, body: ActivatePublishedStoryAiDto) {
     const storyKey = this.storyKey(storyKeyValue);
-    if (!body || Object.values(body).some((value) => value !== true)) {
+    if (!body || !(
+      body.aiBranchGenerationConfirmed === true &&
+      body.authorStyleReferenceConfirmed === true &&
+      body.generatedResultReuseConfirmed === true &&
+      body.imageTransformationConfirmed === true
+    )) {
       throw new BadRequestException('All AI publication confirmations are required');
     }
     const now = new Date();
@@ -68,7 +77,7 @@ export class StoryPublicBetaAiActivationService {
     expiresAt.setUTCFullYear(expiresAt.getUTCFullYear() + 1);
 
     const prepared = await this.prisma.$transaction(async (tx) => {
-      const work = await tx.storyWork.findUnique({ where: { slug: STORY_KEYS[storyKey] } });
+      const work = await this.findWork(tx, storyKey);
       if (!work || work.status !== 'published' || work.fixtureSource || !work.activeReleaseId) {
         throw new NotFoundException('Published story work not found');
       }
@@ -86,6 +95,9 @@ export class StoryPublicBetaAiActivationService {
         select: { id: true, position: true, title: true },
       });
       if (!parts.length) throw new ConflictException('Published story has no parts');
+      if (storyKey === 'inheritor' && !(await this.fixedRouteChoicesReady(tx, work.id))) {
+        throw new ConflictException('Published story requires three choices per part before AI activation');
+      }
 
       const rateCard = await this.ensureRateCard(tx, actorUserId, startsAt);
       const analysis = await this.ensureStyleSnapshot(tx, actorUserId, work, manuscript, parts, rateCard.id);
@@ -118,27 +130,14 @@ export class StoryPublicBetaAiActivationService {
     });
 
     if (storyKey === 'monster' || storyKey === 'rebellion') {
-      await this.prisma.$transaction(async (tx) => {
-        const parts = await tx.storyPart.findMany({
-          where: { workId: prepared.work.id, status: 'published', fixtureSource: false },
-          orderBy: [{ position: 'asc' }, { id: 'asc' }],
-          select: { id: true, position: true, title: true },
-        });
-        const addedChoiceCount = await this.ensureFixedRouteSuggestedChoices(tx, storyKey, parts);
-        await tx.auditEvent.create({ data: {
-          actorUserId,
-          actorType: 'admin',
-          action: 'story_public_beta.fixed_route_choices.materialized',
-          targetType: 'story_work',
-          targetId: prepared.work.id,
-          metadata: {
-            storyKey,
-            releaseId: prepared.release.id,
-            choicePolicy: 'writer_original_plus_two_generated_v1',
-            addedChoiceCount,
-          },
-        } });
-      });
+      const choices = await new StoryFixedRouteChoiceRefreshService(this.prisma)
+        .refreshBatch(actorUserId, storyKey, prepared.work.id, prepared.release.id);
+      if (!choices.ready) return {
+        storyKey, status: 'preparing_choices',
+        active: Boolean(await this.latestValidActivation(this.prisma, prepared.work.id, prepared.release.id)),
+        totalParts: choices.totalParts, preparedParts: choices.preparedParts,
+        remainingParts: choices.remainingParts, phase: choices.phase,
+      };
     }
 
     const existing = await this.latestValidActivation(
@@ -201,68 +200,39 @@ export class StoryPublicBetaAiActivationService {
     return value as StoryKey;
   }
 
-  private async ensureFixedRouteSuggestedChoices(
-    tx: Tx,
-    storyKey: FixedRouteStoryKey,
-    parts: Array<{ id: string; position: number; title: Prisma.JsonValue }>,
-  ) {
-    const scenes = await tx.storyScene.findMany({
+  private async findWork(client: PrismaService | Tx, storyKey: StoryKey) {
+    if (storyKey !== 'inheritor') {
+      return client.storyWork.findUnique({ where: { slug: STORY_KEYS[storyKey] } });
+    }
+    const works = await client.storyWork.findMany({
+      where: {
+        slug: { startsWith: `${INHERITOR_STORY.slug}-` },
+        status: 'published',
+        fixtureSource: false,
+      },
+      take: 2,
+    });
+    if (works.length > 1) throw new ConflictException('Multiple published inheritor works match');
+    return works[0] ?? null;
+  }
+
+  private async fixedRouteChoicesReady(client: PrismaService | Tx, workId: string) {
+    const parts = await client.storyPart.findMany({
+      where: { workId, status: 'published', fixtureSource: false },
+      select: { id: true },
+    });
+    if (!parts.length) return false;
+    const scenes = await client.storyScene.findMany({
       where: { partId: { in: parts.map((part) => part.id) }, status: 'published', fixtureSource: false },
-      orderBy: [{ position: 'asc' }, { id: 'asc' }],
       select: { id: true, partId: true },
     });
-    const sceneByPart = new Map(scenes.map((scene) => [scene.partId, scene.id]));
-    if (sceneByPart.size !== parts.length) {
-      throw new ConflictException('Published fixed-route story scene binding is incomplete');
-    }
-    let addedChoiceCount = 0;
-    for (const [index, part] of parts.entries()) {
-      const sceneId = sceneByPart.get(part.id)!;
-      const title = this.localized(part.title, LOCALE) || `파트 ${part.position}`;
-      const template = fixedRouteSuggestedChoices(
-        storyKey,
-        title,
-        part.position,
-        parts[index + 1] ? `part-${parts[index + 1].position}` : null,
-      );
-      const canonical = await tx.storyChoice.findFirst({
-        where: { sceneId, routeKind: 'writer_original' },
-        orderBy: [{ position: 'asc' }, { id: 'asc' }],
-      });
-      if (!canonical) throw new ConflictException('Published fixed-route story canonical choice is missing');
-      await tx.storyChoice.update({
-        where: { id: canonical.id },
-        data: { label: { ko: template[0].label }, position: 1 },
-      });
-      for (const choice of template.slice(1)) {
-        const prior = await tx.storyChoice.findUnique({
-          where: { sceneId_choiceKey: { sceneId, choiceKey: choice.choiceKey } },
-        });
-        await tx.storyChoice.upsert({
-          where: { sceneId_choiceKey: { sceneId, choiceKey: choice.choiceKey } },
-          create: {
-            sceneId,
-            choiceKey: choice.choiceKey,
-            position: choice.position,
-            label: { ko: choice.label },
-            routeKind: 'generation_required',
-            targetSceneId: null,
-            targetEndingKey: null,
-            declaredRejoinSceneId: null,
-          },
-          update: {
-            position: choice.position,
-            label: { ko: choice.label },
-            routeKind: 'generation_required',
-            targetSceneId: null,
-            targetEndingKey: null,
-            declaredRejoinSceneId: null,
-          },
-        });
-        if (!prior) addedChoiceCount += 1;
-      }
-    }
-    return addedChoiceCount;
+    if (scenes.length !== parts.length || new Set(scenes.map((scene) => scene.partId)).size !== parts.length) return false;
+    const counts = await client.storyChoice.groupBy({
+      by: ['sceneId'],
+      where: { sceneId: { in: scenes.map((scene) => scene.id) }, position: { gt: 0 } },
+      _count: { _all: true },
+    });
+    return counts.length === scenes.length && counts.every((count) => count._count._all === 3);
   }
 
   private async ensureRateCard(tx: Tx, actorUserId: string, effectiveAt: Date) {
@@ -514,7 +484,7 @@ export class StoryPublicBetaAiActivationService {
       actResetLimit: 3,
       includedAiRouteCount: Math.min(1000, partCount + 10),
       aiInputTokenLimit: 32768,
-      aiOutputTokenLimit: 8192,
+      aiOutputTokenLimit: 32768,
       warningBudgetKrw: 100,
       hardBudgetKrw: 300,
       status: 'active',

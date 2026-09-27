@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma, type StoryAnalysisChunk, type StoryAnalysisJob } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import { randomUUID } from 'crypto';
@@ -10,11 +10,17 @@ import { nextSourceChunk, pieceFor, sha256, sourceParts } from './story-semantic
 import { SEMANTIC_PIPELINE, STYLE_CATEGORIES, SemanticAnalysisError, type SemanticInput, type SemanticResult,
   type SourceCursor, type SourceRef, type SemanticUsage } from './story-semantic-analysis.types';
 import { StoryAnalysisDiscoveryQueryDto } from './dto/story-analysis-discovery.dto';
+import { StoryGenerationProfileService } from './story-generation-profile.service';
 
 @Injectable()
 export class SemanticAnalysisService {
+  private readonly logger = new Logger(SemanticAnalysisService.name);
   private cache?: { jobId: string; parts: ManuscriptPart[]; digest: string };
-  constructor(private readonly repository: SemanticAnalysisRepository, private readonly provider: SemanticAnalysisProvider) {}
+  constructor(
+    private readonly repository: SemanticAnalysisRepository,
+    private readonly provider: SemanticAnalysisProvider,
+    private readonly generationProfiles: StoryGenerationProfileService,
+  ) {}
   private get db() { return this.repository.prisma; }
 
   manuscripts(userId: string, workId: string, query: StoryAnalysisDiscoveryQueryDto) {
@@ -102,6 +108,7 @@ export class SemanticAnalysisService {
       counts: Object.fromEntries(Object.entries(counts).filter(([key, value]) =>
         ['scene','beat','dialogue','background','cast','time','place','branch_candidate','entity','event','foreshadow','payoff','style'].includes(key) && Number.isSafeInteger(value))),
       partCount: job.totalParts || safeCount(result.partCount), evidenceCount: safeCount(result.evidenceCount),
+      discardedEvidenceCount: safeCount(result.discardedEvidenceCount),
       continuityEntryCount: safeCount(result.continuityEntryCount), criticalIssueCount: safeCount(result.criticalIssueCount),
       warningIssueCount: safeCount(result.warningIssueCount),
       progress: { totalParagraphs: job.totalParagraphs, plannedParagraphs: job.plannedParagraphs,
@@ -173,6 +180,17 @@ export class SemanticAnalysisService {
       return { status: 'processed' };
     } catch (error) {
       const safe = error instanceof SemanticAnalysisError ? error : new SemanticAnalysisError('analysis_local_failure');
+      if (safe.code === 'analysis_profile_draft_unavailable') {
+        try {
+          const attempts = safeCount(jsonRecord(job.result).profileDraftAttempts) + 1;
+          const exhausted = attempts >= 3;
+          await this.repository.leased(job, tx => tx.storyAnalysisJob.update({ where: { id: job.id }, data: {
+            result: { ...jsonRecord(job.result), profileDraftAttempts: attempts },
+            ...(exhausted ? { status: 'failed', errorCode: safe.code, completedAt: new Date(), actualCostKrw: null } : {}),
+          } }));
+          return { status: exhausted ? 'failed' : 'retry_wait' };
+        } catch { return { status: 'failed' }; }
+      }
       // Persistence may fail after paid generation. The durable fence remains and
       // a later lease holder terminates unknown; it never repeats the provider call.
       try {
@@ -311,7 +329,8 @@ export class SemanticAnalysisService {
       await tx.storyAnalysisJob.update({ where: { id: job.id }, data: {
         completedChunks: { increment: 1 }, completedParagraphs: { increment: chunk.paragraphCount },
         observedCostKrw: { increment: this.usage(job, response.usage).actualCostKrw! },
-        result: { ...result, counts, styleCounts, evidenceCount: safeCount(result.evidenceCount) + rows.length },
+        result: { ...result, counts, styleCounts, evidenceCount: safeCount(result.evidenceCount) + rows.length,
+          discardedEvidenceCount: safeCount(result.discardedEvidenceCount) + (response.discardedEvidenceCount ?? 0) },
       } });
     });
   }
@@ -329,10 +348,25 @@ export class SemanticAnalysisService {
       entryType: { in: ['foreshadow','payoff'] }, ...(job.finalCursor ? { id: { gt: job.finalCursor } } : {}) }, orderBy: { id: 'asc' }, take: 100 });
     if (!entries.length) {
       const count = await this.db.storyContinuityEntry.count({ where: { analysisJobId: job.id } });
-      await this.repository.leased(job, tx => tx.storyAnalysisJob.update({ where: { id: job.id }, data: {
-        status: 'completed', phase: 'completed', completedAt: new Date(), actualCostKrw: job.observedCostKrw,
-        result: { ...jsonRecord(job.result), continuityEntryCount: count },
-      } }));
+      try {
+        await this.repository.leased(job, async tx => {
+          await this.generationProfiles.createDraftAtCompletion(tx, job);
+          await tx.storyAnalysisJob.update({ where: { id: job.id }, data: {
+            status: 'completed', phase: 'completed', completedAt: new Date(), actualCostKrw: job.observedCostKrw,
+            result: { ...jsonRecord(job.result), continuityEntryCount: count },
+          } });
+        });
+        if (job.actorUserId) {
+          try {
+            await this.generationProfiles.autoApproveCompany(job.actorUserId, job.workId);
+          } catch (error) {
+            this.logger.warn(`Company story profile remained in review for ${job.workId}: ${error instanceof Error ? error.name : 'unknown error'}`);
+          }
+        }
+      } catch (error) {
+        if (error instanceof SemanticAnalysisError && error.code === 'analysis_lease_lost') throw error;
+        throw new SemanticAnalysisError('analysis_profile_draft_unavailable');
+      }
       this.cache = undefined;
       return;
     }

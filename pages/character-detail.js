@@ -1,4 +1,29 @@
 (function initCharacterDetailPage() {
+function detailText(value) {
+  return String(value ?? "").replace(/[&<>"']/g, ch => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  })[ch]);
+}
+
+function detailHasValue(value) {
+  return value !== null && value !== undefined && String(value).trim() !== "" &&
+    !/^(?:-|—|N\/A|TBD)$/i.test(String(value).trim());
+}
+
+function bindDetailPortraitFallback(hero, artist) {
+  const img = hero.querySelector(".detail-hero-image");
+  if (!img) return;
+  const fallback = artist.images?.thumb && artist.images?.cover && artist.images.thumb !== artist.images.cover
+    ? artist.images.thumb : "";
+  img.addEventListener("error", () => {
+    if (fallback && img.src !== new URL(fallback, window.location.href).href) img.src = fallback;
+    else {
+      hero.classList.add("is-image-unavailable");
+      img.remove();
+    }
+  });
+}
+
 /* ── 렌더링: 캐릭터 상세 ─────────────────────── */
 /* ── 캐릭터 상세 페이지 갤러리 비동기 갱신 (#031) ──
    목록 API `/api/v1/artists`에 assets[]이 빠져있을 가능성 대비.
@@ -13,7 +38,8 @@ async function fetchAndUpdateDetailGallery(slug, artistName) {
 
     const galleryItems = full.assets
       .filter(a => a.usageType === "gallery")
-      .map(a => ({ caption: a.caption || "Gallery", src: normalizeAssetUrl(a.url) }));
+      .map(a => ({ caption: a.caption || "Gallery", src: normalizeAssetUrl(a.url) }))
+      .filter(item => item.src);
 
     if (galleryItems.length === 0) return;
 
@@ -178,6 +204,11 @@ function renderCharacterDetail() {
 
   const slug   = new URLSearchParams(window.location.search).get("slug");
   const artist = slug ? getCharacterBySlug(slug) : null;
+  const routeSections = ["detailChatSection", "detailBodySection", "detailCtaSection", "detailTagSection"];
+  routeSections.forEach(id => {
+    const section = document.getElementById(id);
+    if (section) section.hidden = !artist || (id === "detailChatSection" && ["secret", "pending"].includes(artist.status));
+  });
 
   // #080 후속 — slug 누락 또는 일치 없음 → 빈상태 안내 (이전: _artists[0] fallback이라 다른 캐릭터가 보였음)
   // #406 — slug 누락/불일치 시 오류 카드 느낌 제거 → 아티스트 목록 진입 유도로 대체.
@@ -192,6 +223,12 @@ function renderCharacterDetail() {
     if (gallery) gallery.innerHTML = "";
     const shorts = document.getElementById("detailShorts");
     if (shorts) shorts.innerHTML = "";
+    const profile = document.getElementById("detailProfile");
+    if (profile) profile.innerHTML = "";
+    const cta = document.getElementById("detailCta");
+    if (cta) cta.innerHTML = "";
+    const tags = document.getElementById("detailTagNavigation");
+    if (tags) tags.innerHTML = "";
     document.title = "아티스트 선택 — Lumina Stage";
     return;
   }
@@ -209,21 +246,25 @@ function renderCharacterDetail() {
   const isHidden = artist.status === "secret" || artist.status === "pending";
   hero.className = `detail-hero-card ${status.className}`;
   hero.innerHTML = isHidden
-    ? `<div class="detail-hero-secret"><span class="eyebrow">${artist.type}</span><strong>${artist.publicName}</strong><em class="catalog-status-caption">${status.label}</em></div>`
-    : `<div class="detail-hero-frame"><img class="detail-hero-image detail-hero-image-${artist.slug}" src="${artist.images.cover || artist.images.thumb}" alt="${artist.publicName}" /></div>`;
+    ? `<div class="detail-hero-secret"><span class="eyebrow">${detailText(artist.type)}</span><strong>${detailText(artist.publicName)}</strong><em class="catalog-status-caption">${detailText(status.label)}</em></div>`
+    : `<div class="detail-hero-frame">${artist.images?.cover || artist.images?.thumb ? `<img class="detail-hero-image detail-hero-image-${detailText(artist.slug)}" src="${detailText(artist.images.cover || artist.images.thumb)}" alt="${detailText(artist.publicName)}" />` : ""}<strong class="detail-image-fallback">${detailText(artist.publicName)}</strong></div>`;
+  if (!isHidden) {
+    if (!artist.images?.cover && !artist.images?.thumb) hero.classList.add("is-image-unavailable");
+    bindDetailPortraitFallback(hero, artist);
+  }
 
   const intro = document.getElementById("detailIntro");
   if (intro) {
     intro.innerHTML = `
       <p class="eyebrow">공식 프로필</p>
-      <h1 data-cms-key="character-detail.intro.publicName">${artist.publicName}</h1>
-      <p class="detail-summary" data-cms-key="character-detail.intro.summary" data-cms-field="body">${artist.summary}</p>
+      <h1 data-cms-key="character-detail.intro.publicName">${detailText(artist.publicName)}</h1>
+      ${detailHasValue(artist.summary) ? `<p class="detail-summary" data-cms-key="character-detail.intro.summary" data-cms-field="body">${detailText(artist.summary)}</p>` : ""}
       <div class="detail-bio">
-        <p data-cms-key="character-detail.intro.body" data-cms-field="body">${artist.intro}</p>
-        <p class="detail-concept" data-cms-key="character-detail.intro.concept" data-cms-field="body">${artist.concept}</p>
+        ${detailHasValue(artist.intro) ? `<p data-cms-key="character-detail.intro.body" data-cms-field="body">${detailText(artist.intro)}</p>` : ""}
+        ${detailHasValue(artist.concept) ? `<p class="detail-concept" data-cms-key="character-detail.intro.concept" data-cms-field="body">${detailText(artist.concept)}</p>` : ""}
       </div>
       <div class="detail-intro-bottom">
-        <div class="detail-sns-section">
+        <div class="detail-sns-section" hidden>
           <span class="detail-section-label">SNS</span>
           <div class="detail-sns-buttons">
             <a class="detail-sns-btn detail-sns-btn-youtube" href="#" aria-label="유튜브">
@@ -240,7 +281,7 @@ function renderCharacterDetail() {
         <div class="detail-tags-section">
           <span class="detail-section-label">태그</span>
           <div class="detail-hashtags">
-            ${artist.tags.map(t => `<span class="detail-hashtag">#${t}</span>`).join("")}
+            ${(artist.tags || []).map(t => `<span class="detail-hashtag">#${detailText(t)}</span>`).join("")}
           </div>
         </div>
       </div>`;
@@ -261,24 +302,14 @@ function renderCharacterDetail() {
 
   const gallery = document.getElementById("detailGallery");
   if (gallery) {
-    const galleryUnavailable = artist.galleryMode === "hidden";
-    const galleryItems = artist.gallery?.length
+    const galleryItems = (artist.gallery?.length
       ? artist.gallery.map(item => Array.isArray(item)
         ? { caption: item[0] || "Gallery", src: item[1] }
         : item)
-      : [];
-
-    // detail-body-grid 인라인 스타일 직접 적용 (CSS 충돌 완전 차단)
+      : []).filter(item => item?.src);
+    const galleryUnavailable = artist.galleryMode === "hidden" || galleryItems.length === 0;
     const bodyGrid = gallery.closest(".detail-body-grid");
-    if (bodyGrid) {
-      Object.assign(bodyGrid.style, {
-        display: "grid",
-        gridTemplateColumns: galleryUnavailable ? "1fr" : "1fr 1fr",
-        gap: "24px",
-        alignItems: "stretch",
-        marginBottom: "40px"
-      });
-    }
+    bodyGrid?.classList.toggle("is-gallery-unavailable", galleryUnavailable);
 
     if (galleryUnavailable) {
       gallery.hidden = true;
@@ -300,8 +331,21 @@ function renderCharacterDetail() {
         <div id="gallerySlider" style="width:100%;flex:1;min-height:0;overflow:hidden;border-radius:14px;background:#16122a;">
           <div id="galleryTrack" style="display:flex;height:100%;"></div>
         </div>`;
+      if (!gallery.dataset.imageFallbackBound) {
+        gallery.dataset.imageFallbackBound = "1";
+        gallery.addEventListener("error", event => {
+          const img = event.target;
+          if (img.matches(".gallery-slide img") && img.dataset.retried === "1") {
+            const slide = img.closest(".gallery-slide");
+            slide.classList.add("is-image-unavailable");
+            slide.removeAttribute("data-lightbox");
+            slide.style.cursor = "default";
+            img.remove();
+          }
+        }, { capture: true });
+      }
 
-      if (!isHidden && galleryItems.length > 0) {
+      if (!isHidden) {
         initGallerySlider(galleryItems, artist.publicName);
         initLightbox(galleryItems, artist.publicName);
 
@@ -313,19 +357,22 @@ function renderCharacterDetail() {
 
   const profile = document.getElementById("detailProfile");
   if (profile) {
-    profile.innerHTML = Object.entries(artist.profile)
-      .map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join("");
+    const entries = Object.entries(artist.profile || {}).filter(([k, v]) =>
+      detailHasValue(k) && detailHasValue(v) && (typeof v === "string" || typeof v === "number"));
+    profile.innerHTML = entries.length
+      ? entries.map(([k, v]) => `<div><dt>${detailText(k)}</dt><dd>${detailText(v)}</dd></div>`).join("")
+      : `<p class="detail-profile-empty">공개된 프로필 정보가 없습니다.</p>`;
   }
 
   const shortsRoot = document.getElementById("detailShorts");
   if (shortsRoot) {
-    shortsRoot.innerHTML = artist.shorts.map(item => `
+    shortsRoot.innerHTML = (artist.shorts || []).map(item => `
       <article class="detail-short-card">
-        <div class="detail-short-media ${status.className}"${mediaStyle(artist.images.thumb)}>
-          <span class="eyebrow">${artist.publicName}</span>
-          <strong>${item.title}</strong>
+        <div class="detail-short-media ${status.className}"${mediaStyle(artist.images?.thumb)}>
+          <span class="eyebrow">${detailText(artist.publicName)}</span>
+          <strong>${detailText(item.title)}</strong>
         </div>
-        <div class="detail-short-body"><span>${item.metric}</span></div>
+        <div class="detail-short-body"><span>${detailText(item.metric)}</span></div>
       </article>`).join("");
   }
 
@@ -387,11 +434,13 @@ function renderCharacterDetail() {
       chatSelect.style.display = "";
     }
   }
+  const chatStartLink = document.getElementById("chatStartLink");
+  if (chatStartLink && !isHidden) chatStartLink.href = `/character-chat?slug=${encodeURIComponent(artist.slug)}`;
 
   const tagNav = document.getElementById("detailTagNavigation");
   if (tagNav) {
-    tagNav.innerHTML = artist.tags
-      .map(t => `<a class="tag-link" href="/characters?tag=${encodeURIComponent(t)}">${t}</a>`).join("");
+    tagNav.innerHTML = (artist.tags || [])
+      .map(t => `<a class="tag-link" href="/characters?tag=${encodeURIComponent(t)}">${detailText(t)}</a>`).join("");
   }
 
   // #324 — 운영자가 Backstage CMS에서 수정한 캐릭터별 문구가 있으면 덮어쓰기.

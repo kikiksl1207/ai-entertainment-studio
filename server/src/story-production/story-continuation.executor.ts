@@ -10,9 +10,16 @@ import {
 } from './story-continuation.repository';
 import { StoryContinuationContextAssembler } from './story-continuation-context.assembler';
 import { StoryContinuationContextError } from './story-continuation-context.assembler';
-import { validateStoryContinuationProviderResult } from './story-continuation-output.policy';
+import { normalizeLongStoryContinuationProse, validateStoryContinuationProviderResult } from './story-continuation-output.policy';
+import {
+  assertStoryContinuationLengthBounds,
+  sourceStoryContinuationLengthBounds,
+  StoryContinuationLengthPolicyError,
+  validateStoryContinuationNarrativeLength,
+} from './story-continuation-length.policy';
 import { createStoryContinuationTimingPolicy } from './story-continuation-timing.policy';
 import { StoryVisualGenerationService } from './story-visual-generation.service';
+import { STORY_CONTINUATION_PROMPT_VERSION } from './story-continuation-openai.schema';
 
 const CONTINUATION_TIMING = createStoryContinuationTimingPolicy();
 const PROVIDER_TIMEOUT_MS = CONTINUATION_TIMING.executorDeadlineMs;
@@ -62,6 +69,13 @@ export class StoryContinuationExecutor {
         return { status: 'failed' as const, continuationId: claim.continuationId };
       }
       const approvedContext = await this.contextAssembler.assemble(claim);
+      const lengthBounds = approvedContext.narrativeLength ?? sourceStoryContinuationLengthBounds(
+        claim.request.locale, approvedContext.sourceScene.beats,
+      );
+      assertStoryContinuationLengthBounds(lengthBounds);
+      if (lengthBounds.locale !== claim.request.locale) {
+        throw new StoryContinuationLengthPolicyError('author_length_locale_mismatch');
+      }
       throwIfCancelled(signal);
       const request = { ...claim.request, approvedContext };
       const preflight = await this.provider.preflight?.(request);
@@ -82,12 +96,28 @@ export class StoryContinuationExecutor {
         signal,
       );
       if (signal?.aborted) throw new StoryContinuationProviderError('provider_outcome_unknown', false);
-      const result = validateStoryContinuationProviderResult(providerResult, {
+      const sanitized = validateStoryContinuationProviderResult(providerResult, {
         locale: claim.request.locale,
         sceneKey: `ai-${claim.continuationId}`,
         inputTokenLimit: claim.request.inputTokenLimit,
         outputTokenLimit: claim.request.outputTokenLimit,
       });
+      const result = validateStoryContinuationProviderResult(
+        normalizeLongStoryContinuationProse(sanitized, claim.request.locale), {
+          locale: claim.request.locale,
+          sceneKey: `ai-${claim.continuationId}`,
+          inputTokenLimit: claim.request.inputTokenLimit,
+          outputTokenLimit: claim.request.outputTokenLimit,
+        });
+      validateStoryContinuationNarrativeLength({
+        locale: claim.request.locale,
+        beats: result.beats,
+      }, lengthBounds);
+      const participantName = approvedContext.participantArtist?.displayName?.trim().normalize('NFC');
+      if (claim.request.promptVersion === STORY_CONTINUATION_PROMPT_VERSION && participantName && !result.beats.some((beat) =>
+        beat.content[claim.request.locale].normalize('NFC').includes(participantName))) {
+        throw new StoryContinuationProviderError('participant_missing_from_scene', false);
+      }
       const moderation = this.moderation.preview({
         surface: 'story_ai_continuation',
         body: [
@@ -169,6 +199,9 @@ function throwIfCancelled(signal?: AbortSignal) {
 
 function normalizeProviderError(error: unknown) {
   if (error instanceof StoryContinuationContextError) {
+    return new StoryContinuationProviderError(error.code, false);
+  }
+  if (error instanceof StoryContinuationLengthPolicyError) {
     return new StoryContinuationProviderError(error.code, false);
   }
   if (error instanceof StoryContinuationProviderError) {

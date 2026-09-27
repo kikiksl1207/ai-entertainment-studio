@@ -28,4 +28,8 @@ describe('story hashtag policy', () => {
     expect(normalizeStoryHashtagKey(' Romance ')).toBe('romance');
     expect(normalizeStoryHashtagKey('#로맨스')).toBe('');
   });
+
+  it('includes the credited author in normalized story search', () => {
+    expect(buildStorySearchText('제목', '소개', {}, '루미나')).toContain('루미나');
+  });
 });

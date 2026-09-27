@@ -1,21 +1,35 @@
-export const STORY_CONTINUATION_PROMPT_VERSION = 'story-continuation-v1';
+export const STORY_CONTINUATION_PROMPT_VERSION = 'story-continuation-v6';
+export const LEGACY_STORY_CONTINUATION_PROMPT_VERSION = 'story-continuation-v5';
 export const STORY_CONTINUATION_SCHEMA_VERSION = 'story-continuation-output-v1';
 
 function object(properties: Record<string, unknown>) {
   return { type: 'object', properties, required: Object.keys(properties), additionalProperties: false };
 }
 
-export function storyContinuationOutputSchema(locale: string) {
+export function storyContinuationOutputSchema(locale: string, minimumNarrativeUnits = 0, maximumNarrativeUnits = 0) {
+  const longForm = minimumNarrativeUnits >= 2_400 && maximumNarrativeUnits > minimumNarrativeUnits;
+  const bounded = minimumNarrativeUnits > 0 && maximumNarrativeUnits >= minimumNarrativeUnits;
+  const requiredBeats = longForm ? Math.min(40, Math.ceil(minimumNarrativeUnits / 460)) : 1;
+  // JSON Schema length includes whitespace, so this also caps non-whitespace
+  // narrative units before the server's author-length validation runs.
+  const maximumBeatLength = bounded ? Math.min(2_500, Math.floor(maximumNarrativeUnits / requiredBeats)) : 2_500;
+  const minimumBeatLength = bounded
+    ? Math.min(maximumBeatLength, Math.ceil(minimumNarrativeUnits / requiredBeats / 0.8))
+    : 1;
+  if (minimumBeatLength > maximumBeatLength) throw new Error('provider_narrative_schema_unavailable');
   const localized = (maxLength: number) => object({
     [locale]: { type: 'string', minLength: 1, maxLength },
+  });
+  const narrative = object({
+    [locale]: { type: 'string', minLength: minimumBeatLength, maxLength: maximumBeatLength },
   });
   return object({
     title: localized(160),
     beats: {
-      type: 'array', minItems: 1, maxItems: 40,
+      type: 'array', minItems: requiredBeats, maxItems: bounded ? requiredBeats : 40,
       items: object({
-        beatType: { type: 'string', enum: ['paragraph', 'dialogue', 'scene_break'] },
-        content: localized(10_000),
+        beatType: { type: 'string', enum: longForm ? ['paragraph', 'dialogue'] : ['paragraph', 'dialogue', 'scene_break'] },
+        content: narrative,
       }),
     },
     nextChoices: {

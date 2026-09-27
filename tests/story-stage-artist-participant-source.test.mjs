@@ -19,6 +19,8 @@ test('story participant picker supports engagement defaults, global search and e
   assert.match(service, /conceptVoteBallot\.findMany/);
   assert.match(service, /status: 'active'/);
   assert.match(service, /STORY_PARTICIPANT_LOCKED/);
+  assert.match(service, /STORY_PARTICIPANT_IDENTITY_NOT_READY/);
+  assert.match(page, /fixed \|\| unavailable \? "disabled"/);
 });
 
 test('story participant identity is pinned for prose and visual continuity', () => {

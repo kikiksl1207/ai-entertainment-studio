@@ -27,9 +27,54 @@ describe('Semantic Responses adapter (fake transport only)', () => {
     expect(body.metadata).toBeUndefined();
     expect(body.instructions).toContain('untrusted DATA');
   });
+  it('keeps grounded candidates when one malformed candidate has an invalid citation', async () => {
+    const valid = semanticTestOutput(input);
+    const malformed = { ...valid.evidence[0], title: 'Unverifiable candidate', citations: [
+      { ...valid.evidence[0].citations[0], start: 999, end: 1001 },
+    ] };
+    const output = { ...valid, evidence: [...valid.evidence, malformed] };
+    const provider = new SemanticAnalysisProvider(semanticTestConfig(), async () =>
+      new Response(JSON.stringify(semanticTestEnvelope(output))));
+    const result = await provider.generate(input, signal());
+    expect(result.evidence).toHaveLength(1);
+    expect(result.discardedEvidenceCount).toBe(1);
+    const allBad = new SemanticAnalysisProvider(semanticTestConfig(), async () =>
+      new Response(JSON.stringify(semanticTestEnvelope({ ...valid, evidence: [malformed] }))));
+    await expect(allBad.generate(input, signal())).rejects.toMatchObject({ code: 'provider_output_invalid' });
+  });
   it.each(['partIndex', 'partKey', 'paragraphIndex', 'start', 'end', 'quote'])('rejects nonexistent or forged %s citations', field => {
     const output = semanticTestOutput(input);
     Object.assign(output.evidence[0].citations[0], { [field]: field === 'quote' || field === 'partKey' ? 'not-source' : 999 });
+    expect(() => validateSemanticEvidence(output, input)).toThrow();
+  });
+  it('realigns a unique exact quote when the model counts two extra punctuation units', () => {
+    const output = semanticTestOutput(input);
+    output.evidence[0].citations[0].end += 2;
+    const citation = validateSemanticEvidence(output, input)[0].citations[0];
+    expect(citation).toMatchObject({ start: 0, end: input.pieces[0].text.length,
+      quoteHash: sha256(input.pieces[0].text) });
+  });
+  it('rejects ambiguous quote repair but accepts an exact offset for repeated text', () => {
+    const text = 'The bell rang. The bell rang.';
+    const repeated = { ...input, pieces: [{ ...input.pieces[0], text, end: text.length }] };
+    const output = semanticTestOutput(repeated);
+    Object.assign(output.evidence[0].citations[0], { quote: 'The bell rang.', end: 16 });
+    expect(() => validateSemanticEvidence(output, repeated)).toThrow();
+    Object.assign(output.evidence[0].citations[0], { end: 'The bell rang.'.length });
+    expect(validateSemanticEvidence(output, repeated)[0].citations[0].start).toBe(0);
+  });
+  it('realigns a unique quote even when the model reports the paragraph end', () => {
+    const text = `A unique quote. ${'Extra narration. '.repeat(12)}`;
+    const paragraph = { ...input, pieces: [{ ...input.pieces[0], text, end: text.length }] };
+    const output = semanticTestOutput(paragraph);
+    Object.assign(output.evidence[0].citations[0], { quote: 'A unique quote.', end: text.length });
+    expect(validateSemanticEvidence(output, paragraph)[0].citations[0]).toMatchObject({
+      start: 0, end: 'A unique quote.'.length,
+    });
+  });
+  it('rejects a reported offset outside the cited paragraph even for a unique quote', () => {
+    const output = semanticTestOutput(input);
+    Object.assign(output.evidence[0].citations[0], { start: 999, end: 999 + input.pieces[0].text.length });
     expect(() => validateSemanticEvidence(output, input)).toThrow();
   });
   it('rejects unsupported free-form claims and version/hash substitution', () => {
@@ -42,12 +87,14 @@ describe('Semantic Responses adapter (fake transport only)', () => {
     Object.assign(output.evidence[0].citations[0], { end: 1, quote: '\uD83D' });
     expect(() => validateSemanticEvidence(output, surrogate)).toThrow();
   });
-  it('never treats background evidence as style and retains explicit style categories', () => {
+  it('drops an irrelevant style category from non-style evidence and retains style categories on style evidence', () => {
     const output = semanticTestOutput(input);
     Object.assign(output.evidence[0], { kind: 'background', styleCategory: 'imagery' });
-    expect(() => validateSemanticEvidence(output, input)).toThrow();
+    expect(validateSemanticEvidence(output, input)[0]).toMatchObject({ kind: 'background', styleCategory: null });
     Object.assign(output.evidence[0], { kind: 'style' });
     expect(validateSemanticEvidence(output, input)[0].styleCategory).toBe('imagery');
+    Object.assign(output.evidence[0], { styleCategory: null });
+    expect(() => validateSemanticEvidence(output, input)).toThrow();
   });
   it('preserves bounded interpreted observations separately from exact citation hashes', () => {
     const output = semanticTestOutput(input);

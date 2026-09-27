@@ -9,7 +9,7 @@
     <script>(function(){if(window.history&&history.replaceState&&location.pathname.length>1&&location.pathname.charAt(location.pathname.length-1)==="/"){history.replaceState(null,"",location.pathname.slice(0,-1)+location.search+location.hash);}})();</script>
     <meta name="description" content="Lumina Stage 운영자 전용 백스테이지입니다." />
     <link rel="stylesheet" href="/backstage.css" />
-    <link rel="stylesheet" href="/backstage-story-publication.css" />
+    <link rel="stylesheet" href="/backstage-story-publication.css?v=visual-review-20260926" />
   </head>
   <body class="is-booting">
     <main class="backstage-shell" id="backstageApp">
@@ -372,6 +372,29 @@
                   <button class="primary-action" type="submit">확인 후 바로 공개</button>
                 </div>
               </form>
+
+              <form class="table-card story-publication-upload-card" data-story-upload-form="inheritor">
+                <header>
+                  <div><span class="section-kicker">Approved Source</span><h3>살인자는 죽은 자의 능력을 계승한다</h3></div>
+                  <span class="status-badge is-review">19+ · 공개 테스트</span>
+                </header>
+                <p>265파트 최종 통합 원고와 배경 이미지 지시 통합본만 선택합니다. 설정·QA 문서는 공개하지 않습니다.</p>
+                <label class="story-upload-file-control">
+                  <span>최종 통합 원고 + 배경 이미지 지시</span>
+                  <input type="file" name="manuscripts" accept=".md" multiple required />
+                </label>
+                <p>공개 테스트에서는 일반 스토리 목록과 검색에도 표시됩니다. 19+ 표시는 유지되며 성인 본인확인은 별도로 준비 중입니다.</p>
+                <fieldset class="story-publication-confirmations story-upload-confirmations">
+                  <legend>공개 테스트 확인</legend>
+                  <label><input type="checkbox" name="finalManuscriptConfirmed" value="true" required /> 최종 원고가 맞습니다.</label>
+                  <label><input type="checkbox" name="rightsConfirmed" value="true" required /> 공개 권리를 확인했습니다.</label>
+                  <label><input type="checkbox" name="publicReleaseConfirmed" value="true" required /> 일반 목록 노출과 19+ 표시를 확인했습니다.</label>
+                </fieldset>
+                <div class="story-upload-action">
+                  <span class="form-status" data-story-upload-status role="status" aria-live="polite"></span>
+                  <button class="primary-action" type="submit">공개 테스트 등록</button>
+                </div>
+              </form>
             </div>
 
             <article class="table-card story-publication-list-card">
@@ -639,13 +662,13 @@
                 <input name="contractId" type="hidden" />
                 <input name="sourceVersionId" type="hidden" />
                 <div class="content-rights-admin-fields">
-                  <label><span data-rights-label="workType">작품 유형</span><select name="workType" required><option value="story">Story</option><option value="ott">OTT</option></select></label>
+                  <label><span data-rights-label="workType">작품 유형</span><select name="workType" required><option value="story">Story</option><option value="ott">선택극장</option></select></label>
                   <label><span data-rights-label="workId">작품 ID</span><input name="workId" type="text" required autocomplete="off" /></label>
                   <label><span data-rights-label="contentVersionId">콘텐츠 버전 ID</span><input name="contentVersionId" type="text" required autocomplete="off" /></label>
                   <label><span data-rights-label="exclusivity">독점 범위</span><select name="exclusivity" required><option value="exclusive">Exclusive</option><option value="nonexclusive">Non-exclusive</option></select></label>
                   <fieldset class="content-rights-media"><legend data-rights-label="media">허용 미디어</legend>
                     <label><input name="media" type="checkbox" value="story_publication" /> Story</label>
-                    <label><input name="media" type="checkbox" value="ott_streaming" /> OTT</label>
+                    <label><input name="media" type="checkbox" value="ott_streaming" /> 선택극장</label>
                     <label><input name="media" type="checkbox" value="download" /> Download</label>
                     <label><input name="media" type="checkbox" value="audio" /> Audio</label>
                     <label><input name="media" type="checkbox" value="translation" /> Translation</label>
@@ -655,7 +678,7 @@
                   <label><span data-rights-label="startsAt">시작 시각</span><input name="startsAt" type="datetime-local" required /></label>
                   <label><span data-rights-label="endsAt">종료 시각 (선택)</span><input name="endsAt" type="datetime-local" /></label>
                   <label><span data-rights-label="effectiveFrom">설정 적용 기준 시각</span><input name="effectiveFrom" type="datetime-local" required /></label>
-                  <label><span data-rights-label="creatorRole">권리자 역할</span><select name="creatorRole"><option value="author">Author</option><option value="rights_holder">OTT rights holder</option></select></label>
+                  <label><span data-rights-label="creatorRole">권리자 역할</span><select name="creatorRole"><option value="author">Author</option><option value="rights_holder">선택극장 권리자</option></select></label>
                   <label><span data-rights-label="creatorUserId">권리자 사용자 ID</span><input name="creatorUserId" type="text" required autocomplete="off" /></label>
                   <label><span data-rights-label="creatorBps">권리자 비율 (bps)</span><input name="authorRightsHolderShareBps" type="number" min="0" max="5000" step="1" required /></label>
                   <label><span data-rights-label="agencyIdentifier">영업/에이전시 식별자 (선택)</span><input name="agencyIdentifier" type="text" autocomplete="off" /></label>
@@ -751,6 +774,6 @@
     <script src="/backstage-site-content.js"></script>
     <script src="/pages/content-rights-contract-ui.js"></script>
     <script src="/backstage-content-rights.js"></script>
-    <script src="/backstage-story-publication.js"></script>
+    <script src="/backstage-story-publication.js?v=visual-review-20260926"></script>
   </body>
 </html>

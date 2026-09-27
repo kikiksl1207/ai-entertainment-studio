@@ -38,6 +38,7 @@ describe('StoryVisualGenerationService', () => {
         localizedDisplaySnapshot: { ko: { title: '불타는 바다의 기록자', summary: '임진왜란 역사 서사' } },
         sceneAssetManifest: { state: 'prompt_backed' } }) },
       storyAiContinuation: { findFirst: jest.fn() },
+      storyAiGeneratedBeat: { findMany: jest.fn() },
       storyWorkGenerationProfile: { findFirst: jest.fn() },
       storyBeat: { findFirst: jest.fn().mockResolvedValue({ id: 'beat-id' }),
         findMany: jest.fn().mockResolvedValue([{ content: { ko: '이순신은 늘 같은 검은 수염과 붉은 철릭 차림으로 갑판에 섰다.' } }]) },
@@ -135,6 +136,74 @@ describe('StoryVisualGenerationService', () => {
     expect(provider).not.toHaveBeenCalled();
   });
 
+  it('recovers a generated scene prompt on the first scene read after continuation settlement', async () => {
+    const f = fixture();
+    const generatedSceneKey = 'ai-00000000-0000-4000-8000-000000000008';
+    const generatedSceneId = '00000000-0000-4000-8000-000000000007';
+    f.prisma.storyVisualPrompt.findMany.mockResolvedValue([]);
+    f.prisma.storyVisualPrompt.findUnique.mockResolvedValue({ id: 'prompt-id' });
+    f.prisma.storyAiGeneratedScene.findFirst.mockResolvedValue({ id: generatedSceneId });
+    const recover = jest.spyOn(f.service, 'registerGeneratedContinuationPrompt')
+      .mockResolvedValue({ created: true } as never);
+    f.prisma.storyAiGeneratedScene.findFirst.mockResolvedValueOnce({ id: generatedSceneId });
+    f.prisma.storyAiGeneratedBeat.findMany.mockResolvedValue([
+      { beatType: 'paragraph', content: { ko: '새 장면이 시작됐다.' } },
+    ]);
+    f.prisma.storyAiGeneratedScene.findFirst.mockResolvedValueOnce({
+      id: generatedSceneId, continuationId: generatedSceneKey.slice(3), title: { ko: '갈림길' },
+    });
+
+    await expect(f.service.promptKeys(workId, releaseId, [generatedSceneKey]))
+      .resolves.toEqual(new Set([generatedSceneKey]));
+    expect(recover).toHaveBeenCalledWith(generatedSceneKey.slice(3), {
+      title: { ko: '갈림길' },
+      beats: [{ beatType: 'paragraph', content: { ko: '새 장면이 시작됐다.' } }],
+    });
+    expect(f.prisma.storyVisualPrompt.findUnique).toHaveBeenCalledWith({
+      where: { workId_releaseId_sourceSceneKey: { workId, releaseId, sourceSceneKey: generatedSceneKey } },
+      select: { id: true },
+    });
+  });
+
+  it('does not claim a generated prompt is ready when its recovery fails', async () => {
+    const f = fixture();
+    const generatedSceneKey = 'ai-00000000-0000-4000-8000-000000000008';
+    const warn = jest.spyOn(Reflect.get(f.service, 'logger'), 'warn').mockImplementation();
+    f.prisma.storyVisualPrompt.findMany.mockResolvedValue([]);
+    f.prisma.storyAiGeneratedScene.findFirst.mockResolvedValue({ id: sceneId });
+    jest.spyOn(f.service, 'registerGeneratedContinuationPrompt').mockRejectedValue(new Error('private detail'));
+    f.prisma.storyAiGeneratedScene.findFirst.mockResolvedValueOnce({ id: sceneId });
+    f.prisma.storyAiGeneratedScene.findFirst.mockResolvedValueOnce({
+      id: sceneId, continuationId: generatedSceneKey.slice(3), title: { ko: '갈림길' },
+    });
+    f.prisma.storyAiGeneratedBeat.findMany.mockResolvedValue([]);
+
+    await expect(f.service.promptKeys(workId, releaseId, [generatedSceneKey]))
+      .resolves.toEqual(new Set());
+    expect(f.prisma.storyVisualPrompt.findUnique).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith({
+      event: 'story_visual_prompt_recovery_failed', workId,
+      sourceSceneKey: generatedSceneKey, code: 'PROMPT_REGISTRATION_FAILED',
+    });
+    expect(JSON.stringify(warn.mock.calls)).not.toContain('private detail');
+  });
+
+  it('keeps a transient recovery lookup error from breaking the scene read', async () => {
+    const f = fixture();
+    const generatedSceneKey = 'ai-00000000-0000-4000-8000-000000000008';
+    const warn = jest.spyOn(Reflect.get(f.service, 'logger'), 'warn').mockImplementation();
+    f.prisma.storyVisualPrompt.findMany.mockResolvedValue([]);
+    f.prisma.storyAiGeneratedScene.findFirst.mockRejectedValue(new Error('private database detail'));
+
+    await expect(f.service.promptKeys(workId, releaseId, [generatedSceneKey]))
+      .resolves.toEqual(new Set());
+    expect(warn).toHaveBeenCalledWith({
+      event: 'story_visual_prompt_recovery_failed', workId,
+      sourceSceneKey: generatedSceneKey, code: 'PROMPT_REGISTRATION_FAILED',
+    });
+    expect(JSON.stringify(warn.mock.calls)).not.toContain('private database detail');
+  });
+
   it('generates an exact admin sample without requiring reader progress', async () => {
     const f = fixture(false);
     const provider = jest.spyOn(global, 'fetch');
@@ -177,6 +246,36 @@ describe('StoryVisualGenerationService', () => {
         status: 'ready',
       },
       select: { id: true },
+    });
+  });
+
+  it('recovers a missing prompt from an already stored generated scene without regenerating prose', async () => {
+    const f = fixture(false);
+    const generatedSceneId = '00000000-0000-4000-8000-000000000007';
+    const continuationId = '00000000-0000-4000-8000-000000000008';
+    const generatedSceneKey = 'ai-reader-route-0001';
+    f.prisma.storyReaderProgress.findFirst.mockResolvedValue({
+      workId, currentSceneId: null, currentGeneratedSceneId: generatedSceneId, activeReleaseId: releaseId,
+    });
+    f.prisma.storyAiGeneratedScene.findFirst
+      .mockResolvedValueOnce({ id: generatedSceneId })
+      .mockResolvedValueOnce({ id: generatedSceneId, continuationId, title: { ko: '다른 길' } });
+    f.prisma.storyAiGeneratedBeat.findMany.mockResolvedValue([
+      { beatType: 'paragraph', content: { ko: '새 이야기가 시작됐다.' } },
+    ]);
+    f.prisma.storyVisualPrompt.findUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ workId, releaseId, releaseChecksum: checksum,
+        sourceSceneKey: generatedSceneKey, promptSha256,
+        promptText: 'A sufficiently detailed private scene image direction.' });
+    const register = jest.spyOn(f.service, 'registerGeneratedContinuationPrompt')
+      .mockResolvedValue({ created: true } as never);
+
+    await expect(f.service.requestForProgress('user-id', progressId, generatedSceneKey))
+      .resolves.toEqual({ status: 'unavailable', reason: 'generation_disabled' });
+    expect(register).toHaveBeenCalledWith(continuationId, {
+      title: { ko: '다른 길' },
+      beats: [{ beatType: 'paragraph', content: { ko: '새 이야기가 시작됐다.' } }],
     });
   });
 
@@ -475,7 +574,7 @@ describe('StoryVisualGenerationService', () => {
       releaseChecksum: checksum,
       readyCount: 1,
       staleCount: 1,
-      items: [{ sourceSceneKey, updatedAt }],
+      items: [{ sourceSceneKey, assetId, updatedAt }],
     });
     expect(f.prisma.storyVisualGeneration.findMany).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({ variantKey: 'default', status: 'ready', assetId: { not: null } }),
@@ -544,12 +643,15 @@ describe('StoryVisualGenerationService', () => {
 
   it('keeps a generated beta image in the database when object storage rejects the upload', async () => {
     const f = fixture();
+    const warning = jest.spyOn((f.service as any).logger, 'warn').mockImplementation();
     const image = await sharp({
       create: { width: 1536, height: 1024, channels: 3, background: '#556677' },
     }).webp().toBuffer();
     jest.spyOn(global, 'fetch')
       .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [{ b64_json: image.toString('base64') }] }) } as Response)
-      .mockResolvedValueOnce({ ok: false, status: 403 } as Response);
+      .mockResolvedValueOnce({ ok: false, status: 403,
+        text: async () => '<Error><Code>AccessDenied</Code><Message>private account details</Message></Error>',
+      } as Response);
 
     await expect(f.service.requestForProgress('user-id', progressId, sourceSceneKey)).resolves.toEqual({
       status: 'ready', sourceSceneKey,
@@ -563,6 +665,10 @@ describe('StoryVisualGenerationService', () => {
         }),
       }),
     }) });
+    expect(warning).toHaveBeenCalledWith(expect.objectContaining({
+      event: 'story_visual_database_fallback', objectStorageStatus: 403, objectStorageCode: 'AccessDenied',
+    }));
+    expect(JSON.stringify(warning.mock.calls)).not.toContain('private account details');
   });
 
   it('serves a verified database fallback image from the public story endpoint', async () => {

@@ -1137,6 +1137,7 @@ describe('CommunityService Lumina Feed post edit/delete contract', () => {
             { body: { equals: 'sample', mode: 'insensitive' } },
             { body: { contains: '임시문구' } },
             { body: { contains: '샘플문구' } },
+            { body: { contains: 'QA358', mode: 'insensitive' } },
           ]),
         }),
       }),
