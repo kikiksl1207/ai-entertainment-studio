@@ -112,6 +112,11 @@ export class StoryContinuationExecutor {
         locale: claim.request.locale,
         beats: result.beats,
       }, lengthBounds);
+      const participantName = approvedContext.participantArtist?.displayName?.trim().normalize('NFC');
+      if (participantName && !result.beats.some((beat) =>
+        beat.content[claim.request.locale].normalize('NFC').includes(participantName))) {
+        throw new StoryContinuationProviderError('participant_missing_from_scene', false);
+      }
       const moderation = this.moderation.preview({
         surface: 'story_ai_continuation',
         body: [

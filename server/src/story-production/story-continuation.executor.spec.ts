@@ -231,6 +231,27 @@ describe('StoryContinuationExecutor', () => {
     expect(f.queue.releaseForRetry).not.toHaveBeenCalled();
   });
 
+  it('does not publish a scene that omits the selected artist', async () => {
+    const f = fixture();
+    Object.assign(f.approvedContext, { participantArtist: { displayName: '서이카' } });
+    await expect(f.executor.executeOne('worker')).resolves.toMatchObject({ status: 'failed' });
+    expect(f.economics.settleClaimedContinuation).not.toHaveBeenCalled();
+    expect(f.economics.failClaimedContinuation).toHaveBeenCalledWith(
+      claim, 'participant_missing_from_scene', 'failed',
+    );
+  });
+
+  it('publishes a scene that names the selected artist in its narrative', async () => {
+    const f = fixture();
+    Object.assign(f.approvedContext, { participantArtist: { displayName: '서이카' } });
+    jest.mocked(f.provider.generate).mockResolvedValue({
+      ...result,
+      beats: [{ beatType: 'paragraph', content: { ko: '서이카 등장.' } }],
+    });
+    await expect(f.executor.executeOne('worker')).resolves.toMatchObject({ status: 'completed' });
+    expect(f.economics.settleClaimedContinuation).toHaveBeenCalledTimes(1);
+  });
+
   it('does not publish a 3,180-unit branch for the 7,158-unit authored Part_002 source', async () => {
     const f = fixture();
     f.approvedContext.sourceScene.beats = [{ beatType: 'paragraph', content: '가'.repeat(7_158) }];

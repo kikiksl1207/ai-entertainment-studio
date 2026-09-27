@@ -1,74 +1,56 @@
-# Story author-style automation status (2026-09-26)
+# 스토리 자동화 진행 현황
 
-## Implemented and deployed
+최종 확인: 2026-09-27
 
-- A successful creator manuscript submission now starts the semantic analysis request once with a retained idempotency key. Restored receipts do not auto-start, and stale account, work, or locale context cannot start it.
-- Completing a new semantic analysis creates a `needs_review` generation-profile draft in the same transaction. Verified Lumina company works then auto-approve; outside authors still review and approve their draft. The approved profile is pinned to later AI continuation requests.
-- Generated continuation output now requires exactly three distinct choices or an ending. A mixed ending/choice result is rejected instead of silently changing its route.
-- Approving a reviewed semantic profile now indexes its cited, creator-approved canon, timeline, and foreshadow observations as bounded continuity memories. Older approved semantic memories for the same analysis are superseded in the approval transaction; unreviewed and foreign-analysis evidence cannot enter the generation context.
-- A published work retains its previous completed non-semantic analysis while the new semantic profile is awaiting review. Approval switches subsequent continuations to the semantic analysis; works without a prior published analysis still fail closed.
-- The semantic provider can reuse the server's existing `OPENAI_API_KEY`; an explicitly configured semantic key takes precedence.
-- A pilot-only manuscript ID allowlist prevents other uploads from entering the paid queue while the first book is analyzed. It does not bypass ownership or idempotency checks.
-- Creator Studio can restore the latest completed semantic analysis for an owned work even when the manuscript was published before the current browser session. The restore path uses owned read-only discovery and never enqueues another paid analysis.
-- Focused frontend and backend tests pass. The semantic provider, worker, review draft, approval-to-memory path and three-choice validation are deployed on the production API (commit `94b6349`).
+## 한눈에 보기
 
-## Production audit before the pilot
+| 항목 | 현재 상태 | 독자가 체감하는 결과 |
+| --- | --- | --- |
+| 작가 원고 전체 분석 | 첫 작품 분석 완료 | 원고의 사건, 인물, 시간선, 복선과 문체를 다음 이야기 생성에 참고할 수 있음 |
+| 선택에 따른 새 이야기 | 기능 동작 확인, 품질 검수 미완료 | 선택 후 다른 경로의 글과 선택지 3개가 생성되고 다시 접속해도 이어 읽을 수 있음 |
+| AI 엔딩 | 표시 오류 수정 및 배포 | 새 엔딩과 재사용 엔딩의 본문이 완료 후에도 남도록 수정함. 실제 운영 재생 검증은 남음 |
+| 초기화 | 이전 경로 혼입 오류 수정 및 배포 | 전체 초기화 또는 막 초기화 후 버린 AI 경로의 기록이 현재 경로에 남지 않도록 수정함 |
+| 캐릭터와의 공유 추억 | 생성 장면의 첫 확인 단계 추가, 전체 기능은 미완성 | 선택한 아티스트가 새 장면 본문에 이름조차 없으면 저장하지 않음. 캐릭터챗의 추억 연결은 아직 없음 |
+| 생성 글의 품질 검사 | 미완성, 공개 확대 전 필수 | 시간선·인물 발화·날짜·맞춤법 오류가 있는 글을 독자에게 보여주기 전에 막는 단계가 필요함 |
 
-- Five published stories have active AI consent and eight approved author-source style excerpts each.
-- Their pre-pilot analyses used `publication_style_snapshot_v1`. The four other published works have not been semantically backfilled or approved.
-- The pilot-only provider and worker configuration is active in production, reusing the existing `OPENAI_API_KEY`. The manuscript allowlist contains only the pilot version.
-- The existing published reader route was not changed by starting the analysis.
+**현재 판정:** 기술적으로 첫 AI 분기는 작동하지만, 작가의 문체와 설정을 안정적으로 유지한다고 말할 단계는 아니다. 품질 검사를 통과하기 전에는 다른 작품의 유료 분석이나 대량 생성을 시작하지 않는다.
 
-## Agreed pilot
+## 지금까지 한 일
 
-- First work: `내 이름을 먹지 않은 괴물`; user-approved analysis ceiling: KRW 10,000 for that one work.
-- The final reader manuscript has 32 part files, 205,934 UTF-16 characters and 481,760 UTF-8 bytes. An offline o200k count of the manuscript text alone is 122,146 tokens; chunk framing, repeated instructions and output reservations make the actual job estimate higher.
-- The production job planned 70 chunks and reserved KRW 8,199.793195 worst-case, under the approved KRW 10,000 ceiling, with an 8,192/16,000 per-chunk limit.
-- The pilot manuscript version ID is `7a1035e1-3afe-4812-a57c-e0e1a20c66f7`. Keep `STORY_SEMANTIC_ANALYSIS_MANUSCRIPT_ID_ALLOWLIST` set to this ID until the pilot is reviewed and costs/quality are accepted.
-- Live first- and last-chunk probes reached the pinned model and passed citation validation after the adapter changes. The adapter realigns only a unique exact quote within the cited source piece while requiring the reported offsets to remain within that piece (with a 16-unit boundary margin); ambiguous, nonexistent and out-of-paragraph citations still fail.
-- A later-part probe showed non-style scene/event items with an irrelevant dialogue style category. That field is now cleared on non-style evidence. One malformed candidate no longer discards an otherwise valid chunk: valid cited candidates are retained and the rejected count is exposed to the writer in the analysis screen. If a nonempty model result has no valid candidate at all, the chunk still fails closed.
-- The one authorized full-book job `c955581a-7f7c-411d-aed2-2ef1be33671f` completed in production: 70/70 chunks and 8,163/8,163 paragraphs, no job error. Actual observed cost was KRW 1,666.085625; five invalid candidates were discarded. A `needs_review` generation-profile draft `de7660fb-dc18-4232-81fb-1b784b812945` was created with eight review sections. The job retained 111 entity, 145 event, 79 foreshadow, 41 payoff, 153 scene, 130 style and 70 background semantic evidence items, plus 8,163 structural beats. These counts verify storage and coverage, not literary quality.
-- Production confirmed that the pilot profile is now approved by the company auto-approval path, with a corresponding system audit event. The other four published Lumina works still have no completed semantic extraction; this change does not launch paid backfills.
-- QA found that the approved pilot profile occupies 124,814 UTF-8 bytes and contains 20 observations in each of eight sections. Sending it whole would exceed or approach the 32,768-token continuation input ceiling, especially with 10,046-31,978 bytes of source scene prose. The continuation prompt now uses a deterministic, versioned, <=16,384-byte view while retaining the full approved profile and fingerprint in storage. A synthetic long-Korean-scene preflight passes without calling the model; production prose quality remains unverified until a reader-route trial.
+- 작가가 원고를 올리면 분석 작업이 한 번만 시작되도록 연결했다. 중복 요청이나 다른 사람 작품에 대한 요청은 차단한다.
+- 분석 결과를 작가가 확인하고 승인하는 절차를 만들었다. 회사 작품인 `루미나`의 검증된 원고는 정해진 조건에서 자동 승인한다. 외부 작가는 직접 확인해야 한다.
+- 승인된 자료에서 인물·사건·시간선·복선·문체 정보를 다음 이야기 생성에 전달한다. 긴 원고 분석 자료를 통째로 보내 비용과 입력 한도를 넘기지 않도록 필요한 부분만 제한해서 사용한다.
+- AI가 만든 장면은 다음 선택지 **정확히 3개** 또는 **엔딩 1개** 중 하나여야 한다. 둘을 섞거나 선택지가 부족하면 저장하지 않는다.
+- 첫 작품 《내 이름을 먹지 않은 괴물》의 전체 원고 분석은 운영 서버에서 끝났다. 32파트, 원고 약 20만 5천 자를 분석했고, 실제 관측 비용은 약 **1,666원**이었다. 사용자가 승인한 첫 시험 한도 1만 원 이내다. 분석 완료 자체는 글의 품질 합격을 뜻하지 않는다.
+- 실제 독자 경로에서 한 선택을 시험했다. 작가의 원래 3파트로 곧장 합류하지 않고 새로운 장면 `섬으로 가는 첫 배`가 나왔으며, 이어서 세 선택지가 표시됐다. 새로고침 후에도 그 장면과 읽던 위치가 유지됐다.
+- 생성 실패 시 읽던 장면의 위치가 처음으로 돌아가던 문제를 수정했다.
+- AI가 만든 엔딩과 다른 독자가 만든 결과를 재사용한 엔딩에서 본문이 사라질 수 있던 문제를 수정했다.
+- 막 초기화 시 버린 AI 분기의 기록이 남을 수 있던 문제를 수정했다. 이전 경로를 정확히 복원할 수 없으면 새 시작점에서 시작한다.
+- 선택한 아티스트의 이름이 AI 장면 본문에 전혀 없으면 그 장면을 공개하지 않는 검사를 추가했다. 이름 확인만으로 실제 행동·대화·공유 경험을 증명할 수는 없으므로, 추억 기능을 활성화하는 근거로 쓰지 않는다.
 
-## 2026-09-27 live reader-route pilot
+## 아직 막힌 곳
 
-- Tested `내 이름을 먹지 않은 괴물`, Part 02 `존재하지 않았던 언니`, choice 2 (`사라진 이름의 흔적을 따라 금지된 장소로 들어간다`) in a logged-in public reader session. The first attempt failed `continuation_output_overlength`; commit `c400005` bounded the provider schema to the approved author-scene maximum. The second attempt failed `provider_incomplete_output`; commit `89b03dc` increased long-form output reservation within the existing 32,768-token and KRW 300 per-request ceilings and records known incomplete reasons separately.
-- On the deployed `89b03dc` version, the same choice generated `섬으로 가는 첫 배` as a three-page scene. Its last page displayed three distinct next choices. Reloading the public page restored the same generated scene and read position without another generation request. The branch goes to the eastern warehouse rather than following the authored Part 03 encounter, so it is not a forced immediate rejoin.
-- This is a functional pilot, not a prose-quality pass. The generated text has at least four review findings: the inbound ferry describes Haemyeong Island moving farther away; dialogue attributes the three-call rule to Hae-won after Sera introduced it; the photo date is said to align with a father's note previously dated differently; and several Korean words are joined without spaces. The displayed illustration is not specific to the new warehouse scene.
-- Do not promote this generated result for cross-reader reuse on the strength of the functional test. A persisted shared result remains pending until separate moderation and quality evidence plus explicit admin promotion. The original-route choice label in this published work is still generic. Mobile visual QA and comparison with a differently styled manuscript remain open.
-- Follow-up fix: when a continuation fails, settlement now restores the source scene's saved beat position instead of resetting the reader to beat 0. Focused continuation tests (54 cases), server build, and lint pass. This is a regression fix, not a literary-quality gate. A full Jest run was stopped after unrelated OTT tests required an E-drive TEMP and parallel workers exhausted local memory; it is not counted as a passing full-suite run.
+1. **글의 완성도:** 실제 시험 글에서 섬으로 가는 배의 방향, 대화한 사람, 사진과 메모의 날짜, 일부 띄어쓰기 오류를 발견했다. 현재 검사는 분량·형식·안전성 중심이라 이런 설정 충돌을 독자에게 보여주기 전에 걸러내지 못한다. 원고와 승인된 설정을 근거로 검사하고, 문제가 있으면 재생성하거나 공개를 보류하는 절차가 필요하다.
+2. **캐릭터챗의 추억:** 캐릭터 선택과 이미지 고정은 있지만, 캐릭터챗에서 둘이 겪은 이야기를 기억하는 기능은 아직 없다. 실제 등장하고 독자가 지나온 장면만 사용해야 하며, 다른 독자나 초기화한 옛 루트의 추억은 섞이면 안 된다. 사용자가 정한 기준은 **현재 루트의 추억만 기억**이다.
+3. **작가 편의:** 지금은 원래 경로로 가는 선택지 문구를 작가가 직접 적어야 하는 부분이 있다. AI가 먼저 제안하고 작가가 고치거나 승인하도록 바꿔야 한다. 공개 중인 일부 문구도 아직 일반적이다.
+4. **작품별 문체 검증:** 다른 작가처럼 보이도록 수정한 작품과 첫 작품의 생성 결과를 비교하지 않았다. 시점, 문장 호흡, 대화 방식, 복선 회수, 한 파트의 분량을 실제 결과로 확인해야 한다.
+5. **화면과 운영 검증:** 새 AI 엔딩의 운영 재생, 모바일 그림과 글 배치, 실제 월 경계의 루미나픽 초기화, OTT 분기 재생, 로그인 화면 등은 아직 전체 통과 판정을 내리지 않았다.
 
-Next: add a pre-display continuity/prose quality gate grounded in the approved author timeline and source scene, with a bounded regenerate-or-hold outcome, then retest a fresh route. Only after this gate passes should the Studio's per-part original-route AI proposals replace manual entry while keeping author edit and approval. Do not backfill the other four works yet.
+## 검수 결과
 
-## Remaining release gates
+- 개발 검수는 기존 핵심 테스트 **127개**를 통과했다. 이후 엔딩과 초기화 수정에 대한 집중 테스트 **85개**가 통과했고, 아티스트 이름 검사 테스트를 포함한 별도 **28개**도 통과했다. 서로 다른 실행의 수치이며 전체 테스트를 모두 통과했다는 뜻은 아니다.
+- 공개 사이트 검수는 PC 1440×900, 모바일 390×844에서 메뉴, 스토리 목록과 검색, 기존 독서 경로, 아티스트 목록과 갤러리, 루미나픽 화면, 선택극장 첫 화면을 표본 확인했다. 이 표본에서는 재현되는 오류가 없었다. 로그인, 실제 결제·생성, 달이 바뀌는 순간 등은 별도 검수가 필요하다.
+- 운영 서버는 초기화 및 엔딩 수정 버전 `df72035`가 실행 중인 것을 확인했다. 테스트만 통과하고 사이트에 반영하지 않은 상태는 아니다.
 
-### Cross-mode artist memory (confirmed product requirement)
+## 다음 순서
 
-- An artist who actually participates in a reader's story route must later recognize that shared experience in character chat with the same reader. This is a private, per-reader/per-artist memory, not a change to the artist's global persona or a shared canonical story fact.
-- Derive candidate memories from settled, visible route events and the artist's actual participation. Preserve the selected branch, scene order, relationship changes, and the artist's own perspective; do not include unvisited choices, unpublished drafts, rejected generations, or facts the artist could not have witnessed.
-- Keep a bounded, versioned projection that chat can load server-side, with source event references and a reset/revocation rule. Never mix another reader's path into the chat. A story reset must not silently leave an impossible shared memory active.
-- Product decision (2026-09-27): after a full or act reset, character chat remembers only experiences on the current active route. Prior invalidated branches must not be presented as shared memories.
-- Current state: story participant selection and continuation context exist, but the story-to-chat shared-memory projection and chat consumption are not implemented. The older companion context contract is explicitly disabled and is not evidence of this feature working.
+1. 독자에게 보여주기 전에 AI 글의 시간선·인물·복선 충돌을 검사하고, 실패하면 보류하는 단계부터 만든다.
+2. 새 경로를 실제로 다시 시험하고 문체와 그림의 일치 여부까지 확인한다. 첫 작품이 통과하면 다른 문체의 작품을 비교한다.
+3. 스토리에서 **실제로 함께 겪은 장면만** 캐릭터챗으로 전달한다. 초기화 후에는 현재 루트만 남도록 검증한다.
+4. 작가 화면에 선택지 제안과 최종 검수 절차를 붙인다. 그 뒤 다른 작품의 분석 확대를 판단한다.
 
-### Parallel QA pass (2026-09-27)
+## 운영 메모
 
-- Development QA ran 9 targeted suites / 127 tests successfully, without paid generation. It found a P1 generated-ending projection defect: settlement cleared `currentGeneratedSceneId` on completion, so the reader could not reload the ending prose. The settlement now retains that scene; focused settlement and reader-projection tests pass (2 suites / 4 tests), along with server build and changed-file lint. A live generated-ending route has not been triggered for verification.
-- The pilot's timeline, speaker-attribution, date and Korean-spacing errors remain a P1 prose-quality failure because structural/moderation checks do not verify continuity before display. The generic published original-route label remains P2. Story-to-chat shared memory remains unimplemented and is a cross-mode release gate.
-- Public-site QA sampled desktop 1440x900 and mobile 390x844 views for navigation, story catalog/filter, an existing reader route, artist listing/profile gallery, Pick display/archive, and OTT landing/mobile controls. It found no reproducible issue in that sample. Login modal, actual month-boundary Pick rollover, OTT choice playback, paid/new AI branches, and unsampled pages or widths were not tested; this is not a whole-site QA pass.
-- Follow-up reset QA found that an act reset without a provable route prefix could retain an old AI `generatedSceneId` in `pathSummary` because the fallback filtered only `sceneId`. It now starts a fresh route root when possible and clears both the old path and seen-scene list except the target scene. A proven surviving prefix still restores normally. The focused reset suites pass (74 tests). This closes a stale-route data path, but it does not implement artist-chat memory.
-- Follow-up ending QA found the same missing-ending-prose issue on an approved shared-result reuse path. Reused endings now retain their reader-owned generated scene ID. Generation and reuse ending tests pass (11 tests across three suites); live ending/reuse playback is still unverified.
-
-
-For works credited to `루미나` that also have matching official company publication provenance (a published import job or admin publication audit) and the same owner account, the owner has authorized automatic acceptance of the semantic generation-profile draft. On API startup, pending company drafts are reconciled; newly completed analyses attempt approval immediately. Approval remains pinned to the latest manuscript/analysis, writes the normal approved memories and a distinct system audit event, and does not change public release, AI-rights consent, or external-author review. A failed attempt leaves the draft recoverable. Drafts already edited by a person are not overwritten. The first pilot's production approval is confirmed; reader-quality still requires a selected-continuation trial.
-
-1. The first selected continuation now completes and restores on reload, but its continuity and prose findings block quality approval. Add a grounded pre-display quality gate and retest a fresh route, including mobile layout and visual fit. Auto-approval and synthetic input preflight do not establish literary quality.
-2. Replace the requirement that a writer types the original route label for every part with AI proposals in the final review, while preserving writer edit/approval. The finalization screen currently asks for one manually entered label per part.
-3. Evaluate generated prose from differently styled manuscripts, including the revised third and fourth works. Compare voice, POV, dialogue rhythm, chronology, foreshadow tracking, and narrative length; adjust analysis and generation prompts based on actual samples rather than claiming exact author imitation from unit tests.
-4. Backfill existing published works only after the new route is verified. Do not create unapproved drafts in bulk; the pilot-only allowlist and cost ceiling stay in place until prose QA and operational memory behavior are accepted.
-
-The legacy memory-builder endpoint still rejects semantic candidates. The new path is profile approval, which promotes only reviewed cited observations. It is intentionally bounded to 18 memories per profile; whole-book, scene-relevant retrieval still needs a production quality trial.
-
-## Estimate
-
-The first full-length semantic analysis and one functional reader-route run are complete. The author-style demonstration still depends on a quality-gated continuation that passes timeline, voice and scene-visual review. Multi-work prose QA and safe migration remain separate release gates; the completed analysis alone does not prove faithful author-style generation.
+- 첫 시험 대상은 《내 이름을 먹지 않은 괴물》 한 작품이다. 다른 네 작품에는 아직 같은 전체 분석을 일괄 실행하지 않았다.
+- 현재 생성 결과는 품질 문제가 해결되기 전까지 다른 독자에게 자동으로 널리 재사용하도록 승인하지 않는다.
+- 작가 승인과 AI 생성 권한은 별개다. 외부 작품의 권리와 승인을 자동으로 추정하지 않는다.
