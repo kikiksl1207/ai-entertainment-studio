@@ -99,7 +99,7 @@ function prepareRequest(request: StoryContinuationProviderRequest, config: Story
       'For long scenes, fill every required beat near the middle of its schema length range. Each beat can contain several natural paragraphs or dialogue exchanges. Advance events in each beat; do not pad or repeat. Keep the combined narrative strictly within narrativeLength minimumUnits and maximumUnits.',
       'Never cut a word or sentence between beats. End every beat at a complete sentence boundary. The final beat must end with a complete, punctuated sentence that leads naturally to the three next choices or resolves the ending.',
       `Write every title, beat and choice label exclusively in locale ${request.locale}; no translation or locale fallback.`,
-      'Return JSON matching the schema. Produce 1 to 40 nonempty beats.',
+      'Return JSON matching the schema. Produce exactly the required number of nonempty beats.',
       'Return exactly 3 distinct nextChoices and ending=null, or nextChoices=[] and an ending.',
       'Choice keys must match ^[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$; ending keys must start ai-.',
       'Do not invent canonical routes, claim publication authority, reveal secrets, or reproduce an entire manuscript.',

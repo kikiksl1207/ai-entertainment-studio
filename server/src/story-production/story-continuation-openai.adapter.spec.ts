@@ -26,7 +26,7 @@ function request(): StoryContinuationProviderRequest {
 
 function output() {
   return {
-    title: { en: 'The Left Path' }, beats: [{ beatType: 'paragraph', content: { en: 'The path leads to a gate.' } }],
+    title: { en: 'The Left Path' }, beats: [{ beatType: 'paragraph', content: { en: 'The gate appears.' } }],
     nextChoices: [
       { choiceKey: 'open-gate', label: { en: 'Open the gate' } },
       { choiceKey: 'ask-guard', label: { en: 'Question the guard' } },
@@ -125,10 +125,11 @@ describe('OpenAiStoryContinuationProvider (fake transport only)', () => {
     const body = buildStoryContinuationOpenAiRequest(req, { ...config, maxOutputTokens: 32_768 });
     const beats = JSON.parse(JSON.stringify(body)).text.format.schema.properties.beats;
     expect(beats.minItems).toBeGreaterThanOrEqual(10);
-    expect(beats.maxItems).toBe(beats.minItems + 3);
+    expect(beats.maxItems).toBe(beats.minItems);
     expect(beats.items.properties.beatType.enum).toEqual(['paragraph', 'dialogue']);
     expect(beats.items.properties.content.properties.en.minLength).toBeGreaterThanOrEqual(500);
     expect(beats.items.properties.content.properties.en.maxLength).toBeLessThanOrEqual(1_100);
+    expect(beats.maxItems * beats.items.properties.content.properties.en.maxLength).toBeLessThanOrEqual(9_600);
   });
 
   it('projects only approved context and does not send request ids, pins, raw manuscript or secret extra fields', async () => {
@@ -232,7 +233,8 @@ describe('OpenAiStoryContinuationProvider (fake transport only)', () => {
   it('pins provider-enforceable bounds for prose and route keys', () => {
     const schema = buildStoryContinuationOpenAiRequest(request(), config).text.format.schema;
     const serialized = JSON.stringify(schema);
-    expect(serialized).toContain('"maxLength":2500');
+    expect(serialized).toContain('"maxLength":19');
+    expect(serialized).toContain('"minItems":1,"maxItems":1');
     expect(serialized).toContain('^[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$');
     expect(serialized).toContain('^ai-[a-zA-Z0-9][a-zA-Z0-9_-]{0,116}$');
   });
