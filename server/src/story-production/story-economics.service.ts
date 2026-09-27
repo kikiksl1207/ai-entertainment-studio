@@ -2178,7 +2178,7 @@ export class StoryEconomicsService {
           data: {
             currentSceneId: continuation.sourceSceneId,
             currentGeneratedSceneId: continuation.sourceGeneratedSceneId,
-            currentBeatPosition: 0,
+            currentBeatPosition: progress.currentBeatPosition,
             status: 'active',
             progressRevision: { increment: 1 },
             updatedAt: new Date(),
