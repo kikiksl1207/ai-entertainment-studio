@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
@@ -38,6 +39,7 @@ import {
   CHARACTER_CHAT_PREMIUM_TRANSITION_CTA_CONTRACT,
   PREMIUM_CHAT_SUPPORT_CONTRACT,
 } from './premium-chat-support-contract';
+import { activeStoryPathChoices, storyMemoryText, StoryChatMemoryContext } from './story-chat-memory';
 
 const DEFAULT_CURRENCY = 'LUMINA';
 const UUID_V4_PATTERN =
@@ -639,6 +641,8 @@ const CHARACTER_CHAT_DEFAULT_TONE_GUIDE_KO =
 
 @Injectable()
 export class ChatService {
+  private readonly logger = new Logger(ChatService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly llmProvider: ChatLlmProviderAdapter,
@@ -2064,6 +2068,12 @@ export class ChatService {
     runtimePersona.knowledgeContext = await this.loadApprovedArtistKnowledgeContext(
       session.artist.id,
     );
+    let storyMemoryContext: StoryChatMemoryContext = { source: 'active_story_route', items: [] };
+    try {
+      storyMemoryContext = await this.loadCurrentStoryMemory(userId, session.artist.id);
+    } catch {
+      this.logger.warn('Current story memory lookup failed; continuing chat without story context');
+    }
 
     try {
       const generated = await this.llmProvider.generate({
@@ -2081,6 +2091,7 @@ export class ChatService {
             }
           : null,
         runtimePersona,
+        storyMemoryContext,
         mode: order?.chatFeatureProduct.featureType ?? BASIC_CHAT_POLICY.mode,
         userMessage: body,
         recentMessages: recentMessages.reverse(),
@@ -2991,6 +3002,91 @@ export class ChatService {
     }
 
     return session;
+  }
+
+  private async loadCurrentStoryMemory(userId: string, artistId: string): Promise<StoryChatMemoryContext> {
+    const empty: StoryChatMemoryContext = { source: 'active_story_route', items: [] };
+    const progresses = await this.prisma.storyReaderProgress.findMany({
+      where: {
+        userId,
+        status: { in: ['active', 'completed'] },
+        participantArtist: { is: { artistId, identityApprovedFingerprint: { not: null } } },
+      },
+      select: {
+        id: true, workId: true, activeReleaseId: true, pathSummary: true,
+        participantArtist: {
+          select: {
+            identityProfileId: true, identityProfileVersion: true,
+            identityReviewRevision: true, identitySourceFingerprint: true,
+            identityApprovedFingerprint: true,
+          },
+        },
+      },
+      orderBy: { updatedAt: 'desc' },
+      take: 1,
+    });
+    const routes = progresses.map((progress) => ({
+      progressId: progress.id,
+      workId: progress.workId,
+      releaseId: progress.activeReleaseId,
+      identity: progress.participantArtist,
+      choices: activeStoryPathChoices(progress.pathSummary),
+    })).filter((route) => route.choices.length);
+    if (!routes.length) return empty;
+
+    const route = routes[0];
+    const identity = route.identity;
+    if (!identity?.identityProfileId || !identity.identityProfileVersion ||
+        identity.identityReviewRevision == null || !identity.identitySourceFingerprint ||
+        !identity.identityApprovedFingerprint) return empty;
+    const approvedProfile = await this.prisma.artistStoryIdentityProfile.findFirst({
+      where: {
+        id: identity.identityProfileId,
+        artistId,
+        profileVersion: identity.identityProfileVersion,
+        reviewRevision: identity.identityReviewRevision,
+        sourceFingerprint: identity.identitySourceFingerprint,
+        approvedFingerprint: identity.identityApprovedFingerprint,
+        status: 'approved',
+      },
+      select: { id: true },
+    });
+    if (!approvedProfile) return empty;
+
+    const choiceIds = [...new Set(routes.flatMap((route) => route.choices.map((choice) => choice.choiceId)))];
+    const sceneIds = [...new Set(routes.flatMap((route) => route.choices.flatMap((choice) => choice.sceneId ? [choice.sceneId] : [])))];
+    const [works, choices, generatedChoices, scenes, generatedScenes] = await Promise.all([
+      this.prisma.storyWork.findMany({
+        where: { id: route.workId, status: 'published', fixtureSource: false },
+        select: { id: true, title: true },
+      }),
+      this.prisma.storyChoice.findMany({ where: { id: { in: choiceIds }, sceneId: { in: sceneIds } }, select: { id: true, sceneId: true, label: true } }),
+      this.prisma.storyAiGeneratedChoice.findMany({ where: { id: { in: choiceIds }, sceneId: { in: sceneIds } }, select: { id: true, sceneId: true, label: true } }),
+      this.prisma.storyScene.findMany({ where: { id: { in: sceneIds }, status: 'published', fixtureSource: false }, select: { id: true, partId: true, title: true } }),
+      route.releaseId
+        ? this.prisma.storyAiGeneratedScene.findMany({ where: { id: { in: sceneIds }, progressId: route.progressId, userId, workId: route.workId, releaseId: route.releaseId, status: 'ready' }, select: { id: true, title: true } })
+        : Promise.resolve([]),
+    ]);
+    const parts = scenes.length ? await this.prisma.storyPart.findMany({
+      where: { id: { in: scenes.map((scene) => scene.partId) }, workId: route.workId, status: 'published', fixtureSource: false },
+      select: { id: true },
+    }) : [];
+    const approvedPartIds = new Set(parts.map((part) => part.id));
+    const approvedScenes = scenes.filter((scene) => approvedPartIds.has(scene.partId));
+    const approvedSceneIds = new Set([...approvedScenes, ...generatedScenes].map((scene) => scene.id));
+    const workTitles = new Map(works.map((work) => [work.id, storyMemoryText(work.title, 80)]));
+    const choiceLabels = new Map([...choices, ...generatedChoices]
+      .filter((choice) => approvedSceneIds.has(choice.sceneId))
+      .map((choice) => [choice.id, { sceneId: choice.sceneId, label: storyMemoryText(choice.label, 120) }]));
+    const sceneTitles = new Map([...approvedScenes, ...generatedScenes].map((scene) => [scene.id, storyMemoryText(scene.title, 80)]));
+    const items = routes.flatMap((route) => route.choices.flatMap((choice) => {
+      const workTitle = workTitles.get(route.workId);
+      const selectedChoice = choiceLabels.get(choice.choiceId);
+      if (!workTitle || !choice.sceneId || !approvedSceneIds.has(choice.sceneId) ||
+          selectedChoice?.sceneId !== choice.sceneId || !selectedChoice.label) return [];
+      return [{ workTitle, sceneTitle: sceneTitles.get(choice.sceneId) || '', choiceLabel: selectedChoice.label }];
+    }));
+    return { source: 'active_story_route', items: items.slice(-6) };
   }
 
   private async getFeatureOrderForGeneration(

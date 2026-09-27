@@ -9256,6 +9256,9 @@ describe('ChatService.generateMessage provider beta', () => {
       artistKnowledgeUrl: {
         findMany: jest.fn().mockResolvedValue([]),
       },
+      storyReaderProgress: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
       $transaction: jest.fn((callback) => callback(tx)),
     };
   }
@@ -9939,6 +9942,9 @@ describe('ChatService.generateMessage provider beta', () => {
         findMany: jest.fn().mockResolvedValue([]),
       },
       artistKnowledgeUrl: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+      storyReaderProgress: {
         findMany: jest.fn().mockResolvedValue([]),
       },
       $transaction: jest.fn((callback) => callback(tx)),
