@@ -28,7 +28,7 @@ const claim: StoryContinuationClaim = {
     operationId: 'continuation-id',
     locale: 'ko',
     contextFingerprint: 'fingerprint',
-    promptVersion: 'story-continuation-v5',
+    promptVersion: 'story-continuation-v6',
     outputSchemaVersion: 'story-continuation-output-v1',
     inputTokenLimit: 1000,
     outputTokenLimit: 500,
@@ -250,6 +250,15 @@ describe('StoryContinuationExecutor', () => {
     });
     await expect(f.executor.executeOne('worker')).resolves.toMatchObject({ status: 'completed' });
     expect(f.economics.settleClaimedContinuation).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps an already queued v5 continuation on its original participant rule', async () => {
+    const f = fixture();
+    Object.assign(f.approvedContext, { participantArtist: { displayName: '서이카' } });
+    jest.mocked(f.queue.claimNext).mockResolvedValue({ ...claim,
+      request: { ...claim.request, promptVersion: 'story-continuation-v5' },
+    });
+    await expect(f.executor.executeOne('worker')).resolves.toMatchObject({ status: 'completed' });
   });
 
   it('does not publish a 3,180-unit branch for the 7,158-unit authored Part_002 source', async () => {

@@ -74,6 +74,7 @@ import {
   storyReusableResultKey,
 } from './story-reusable-result.policy';
 import { StoryArtistParticipantService, type StoryParticipantPin } from './story-artist-participant.service';
+import { STORY_CONTINUATION_PROMPT_VERSION } from './story-continuation-openai.schema';
 
 type CustomChoiceContext = {
   progress: {
@@ -475,7 +476,7 @@ export class StoryEconomicsService {
         generationProfileViewVersion: STORY_CONTINUATION_PROFILE_VIEW_VERSION } : {}),
       ...(participantSnapshot ? { participantArtist: participantSnapshot.pin } : {}),
       rateCard: { id: rateCard.id, version: rateCard.version },
-      promptVersion: 'story-continuation-v5',
+      promptVersion: STORY_CONTINUATION_PROMPT_VERSION,
       outputSchemaVersion: 'story-continuation-output-v1',
     };
     const contextFingerprint = createHash('sha256')

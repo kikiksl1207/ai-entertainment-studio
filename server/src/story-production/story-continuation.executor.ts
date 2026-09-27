@@ -19,6 +19,7 @@ import {
 } from './story-continuation-length.policy';
 import { createStoryContinuationTimingPolicy } from './story-continuation-timing.policy';
 import { StoryVisualGenerationService } from './story-visual-generation.service';
+import { STORY_CONTINUATION_PROMPT_VERSION } from './story-continuation-openai.schema';
 
 const CONTINUATION_TIMING = createStoryContinuationTimingPolicy();
 const PROVIDER_TIMEOUT_MS = CONTINUATION_TIMING.executorDeadlineMs;
@@ -113,7 +114,7 @@ export class StoryContinuationExecutor {
         beats: result.beats,
       }, lengthBounds);
       const participantName = approvedContext.participantArtist?.displayName?.trim().normalize('NFC');
-      if (participantName && !result.beats.some((beat) =>
+      if (claim.request.promptVersion === STORY_CONTINUATION_PROMPT_VERSION && participantName && !result.beats.some((beat) =>
         beat.content[claim.request.locale].normalize('NFC').includes(participantName))) {
         throw new StoryContinuationProviderError('participant_missing_from_scene', false);
       }

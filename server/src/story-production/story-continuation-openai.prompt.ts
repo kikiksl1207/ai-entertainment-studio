@@ -1,7 +1,7 @@
 import { STORY_PAYLOAD_LOCALES } from '../story-stage/story-locale-payload-contract';
 import { StoryContinuationProviderError, type StoryContinuationProviderRequest, type StoryContinuationProviderPreflight } from './story-continuation.provider';
 import { inRange, storyContinuationConfigFailure, type StoryContinuationOpenAiConfig } from './story-continuation-openai.config';
-import { STORY_CONTINUATION_PROMPT_VERSION, STORY_CONTINUATION_SCHEMA_VERSION, storyContinuationOutputSchema } from './story-continuation-openai.schema';
+import { LEGACY_STORY_CONTINUATION_PROMPT_VERSION, STORY_CONTINUATION_PROMPT_VERSION, STORY_CONTINUATION_SCHEMA_VERSION, storyContinuationOutputSchema } from './story-continuation-openai.schema';
 import { STORY_CONTINUATION_TOKEN_BUDGET_METHOD, storyContinuationInputTokenBudget } from './story-continuation-tokenizer';
 import { assertStoryContinuationLengthBounds, sourceStoryContinuationLengthBounds } from './story-continuation-length.policy';
 
@@ -29,7 +29,8 @@ function prepareRequest(request: StoryContinuationProviderRequest, config: Story
       request.rateCardId !== config.rateCardId || request.rateCardVersion !== config.rateCardVersion) {
     fail('provider_pin_mismatch');
   }
-  if (request.promptVersion !== STORY_CONTINUATION_PROMPT_VERSION || request.outputSchemaVersion !== STORY_CONTINUATION_SCHEMA_VERSION) {
+  if (![STORY_CONTINUATION_PROMPT_VERSION, LEGACY_STORY_CONTINUATION_PROMPT_VERSION].includes(request.promptVersion) ||
+      request.outputSchemaVersion !== STORY_CONTINUATION_SCHEMA_VERSION) {
     fail('provider_version_mismatch');
   }
   if (!(STORY_PAYLOAD_LOCALES as readonly string[]).includes(request.locale)) fail('provider_locale_invalid');
@@ -91,6 +92,9 @@ function prepareRequest(request: StoryContinuationProviderRequest, config: Story
       'Preserve the supplied approved author/style memories, narrative voice, world facts and relationship continuity.',
       'When an approved generationProfile is supplied, every section is a creator-approved production constraint. Preserve its writing style, scene scale, canon, timeline, narrative devices, branch behavior, visual direction, and recurring cast identity.',
       'When participantArtist is supplied, that selected artist character must participate naturally in the continuation. Preserve fixed_identity exactly; adapt only the presentation traits explicitly allowed by adaptable_presentation.',
+      ...(request.promptVersion === STORY_CONTINUATION_PROMPT_VERSION
+        ? ['When participantArtist is supplied, use its displayName literally at least once in a narrative beat so the character is identifiable in the scene.']
+        : []),
       'Use style memories as writing-pattern evidence; never copy their sentences verbatim.',
       'The selected choice must materially change events or relationships; do not erase its consequences.',
       'Do not force convergence to a canonical route. Rejoin only when explicitly established by approved context.',

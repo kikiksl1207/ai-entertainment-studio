@@ -164,6 +164,7 @@ describe('OpenAiStoryContinuationProvider (fake transport only)', () => {
   it('sends the selected artist as a fixed participant without leaking reference assets', async () => {
     const f = fixture();
     const req = request();
+    req.promptVersion = 'story-continuation-v6';
     req.approvedContext!.participantArtist = {
       artistId: 'artist-1',
       slug: 'seo-rin',
@@ -182,7 +183,14 @@ describe('OpenAiStoryContinuationProvider (fake transport only)', () => {
     const outbound = JSON.parse(body.input[0].content[0].text);
     expect(outbound.participantArtist).toEqual(req.approvedContext!.participantArtist);
     expect(body.instructions).toContain('must participate naturally');
+    expect(body.instructions).toContain('use its displayName literally at least once');
     expect(JSON.stringify(outbound)).not.toContain('referenceAssetIds');
+  });
+
+  it('keeps the pinned v5 participant instruction unchanged for queued requests', () => {
+    const req = request();
+    const body = buildStoryContinuationOpenAiRequest(req, config);
+    expect(body.instructions).not.toContain('use its displayName literally at least once');
   });
 
   it('counts serialized instructions/schema and framing, not only context length', async () => {
