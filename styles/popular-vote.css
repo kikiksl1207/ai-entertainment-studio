@@ -538,6 +538,24 @@
   cursor: default;
   opacity: 0.55;
 }
+.vote-monthly-card-empty {
+  min-height: 96px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  cursor: default;
+}
+.vote-monthly-card-empty:hover {
+  transform: none;
+  border-color: var(--line);
+}
+.vote-monthly-card-empty strong {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted);
+}
 .vote-monthly-media {
   aspect-ratio: 1/1;
   overflow: hidden;
