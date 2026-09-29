@@ -390,6 +390,11 @@
   line-height: 1.6;
 }
 
+.detail-profile-list .is-pending dd {
+  color: var(--muted);
+  font-weight: 600;
+}
+
 .detail-short-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

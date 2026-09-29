@@ -10,6 +10,39 @@ function detailHasValue(value) {
     !/^(?:-|—|N\/A|TBD)$/i.test(String(value).trim());
 }
 
+const DETAIL_PROFILE_EMPTY_COPY = {
+  ko: "공개된 프로필 정보가 없습니다.",
+  en: "No public profile information is available.",
+  ja: "公開されているプロフィール情報はありません。",
+  "zh-Hans": "暂无公开的个人资料。",
+  "zh-Hant": "暫無公開的個人資料。"
+};
+
+function detailProfileLocale() {
+  return window.luminaI18n?.getLocale?.() || "ko";
+}
+
+function localizedDetailProfile(artist) {
+  const locale = detailProfileLocale();
+  const catalog = window.LuminaStaticData?.artistProfileByLocale?.[artist.slug];
+  if (Array.isArray(catalog?.[locale])) return catalog[locale];
+  if (Array.isArray(catalog?.ko)) return catalog.ko;
+  return Object.entries(artist.profile || {}).map(([key, value]) => ({
+    key, label: key, value, status: "confirmed"
+  }));
+}
+
+function renderLocalizedDetailProfile(artist) {
+  const profile = document.getElementById("detailProfile");
+  if (!profile || !artist) return;
+  const locale = detailProfileLocale();
+  const entries = localizedDetailProfile(artist).filter((entry) =>
+    detailHasValue(entry?.label) && detailHasValue(entry?.value));
+  profile.innerHTML = entries.length
+    ? entries.map((entry) => `<div class="${entry.status === "pending" ? "is-pending" : ""}"><dt>${detailText(entry.label)}</dt><dd>${detailText(entry.value)}</dd></div>`).join("")
+    : `<p class="detail-profile-empty">${detailText(DETAIL_PROFILE_EMPTY_COPY[locale] || DETAIL_PROFILE_EMPTY_COPY.ko)}</p>`;
+}
+
 function bindDetailPortraitFallback(hero, artist) {
   const img = hero.querySelector(".detail-hero-image");
   if (!img) return;
@@ -355,14 +388,7 @@ function renderCharacterDetail() {
     }
   }
 
-  const profile = document.getElementById("detailProfile");
-  if (profile) {
-    const entries = Object.entries(artist.profile || {}).filter(([k, v]) =>
-      detailHasValue(k) && detailHasValue(v) && (typeof v === "string" || typeof v === "number"));
-    profile.innerHTML = entries.length
-      ? entries.map(([k, v]) => `<div><dt>${detailText(k)}</dt><dd>${detailText(v)}</dd></div>`).join("")
-      : `<p class="detail-profile-empty">공개된 프로필 정보가 없습니다.</p>`;
-  }
+  renderLocalizedDetailProfile(artist);
 
   const shortsRoot = document.getElementById("detailShorts");
   if (shortsRoot) {
@@ -452,4 +478,9 @@ function renderCharacterDetail() {
 
 window.renderCharacterDetail = renderCharacterDetail;
 window.bindArtistDetailFollow = bindArtistDetailFollow;
+window.addEventListener("lumina:localechange", () => {
+  const slug = new URLSearchParams(window.location.search).get("slug");
+  const artist = slug && typeof getCharacterBySlug === "function" ? getCharacterBySlug(slug) : null;
+  if (artist) renderLocalizedDetailProfile(artist);
+});
 })();

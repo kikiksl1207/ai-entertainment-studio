@@ -38,6 +38,12 @@ const runtime = `
   function feedEscapeHtml(value) { return value; }
   function isLoggedIn() { return false; }
   async function apiFetch() { return null; }
+  window.testLocale = 'ko';
+  window.luminaI18n = { getLocale: () => window.testLocale };
+  window.setTestLocale = function (locale) {
+    window.testLocale = locale;
+    window.dispatchEvent(new CustomEvent('lumina:localechange', { detail: { locale } }));
+  };
   document.body.classList.remove('is-booting');
 `;
 
@@ -65,6 +71,7 @@ async function openPage(routeName, width, artists, query = '') {
       '/styles/character-detail.css': 'styles/character-detail.css',
       '/pages/character-catalog.js': 'pages/character-catalog.js',
       '/pages/character-detail.js': 'pages/character-detail.js',
+      '/data/artist-profile-locales.js': 'data/artist-profile-locales.js',
       '/existing-cover.png': 'assets/characters/yoon-serin/cover.png',
     };
     if (url.pathname === '/app.js') return route.fulfill({ body: runtime, contentType: 'text/javascript' });
@@ -170,6 +177,21 @@ test('characters without a gallery keep only the profile section', async () => {
     assert.equal(await view.page.locator('#detailGallery').isVisible(), false);
     assert.equal(await view.page.locator('#detailProfile').isVisible(), true);
     assert.equal(await view.page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+    assert.deepEqual(view.errors, []);
+  } finally { await view.close(); }
+});
+
+test('detail profile switches field labels and values with the selected locale', async () => {
+  const localizedArtist = { ...artist, slug: 'yoon-serin' };
+  const view = await openPage('character-detail', 400, [localizedArtist], '?slug=yoon-serin');
+  try {
+    await view.page.evaluate(() => window.setTestLocale('en'));
+    assert.equal(await view.page.locator('#detailProfile dt').first().innerText(), 'Date of birth');
+    assert.match(await view.page.locator('#detailProfile').innerText(), /Main Visual\/Performance Center/);
+
+    await view.page.evaluate(() => window.setTestLocale('ja'));
+    assert.equal(await view.page.locator('#detailProfile dt').first().innerText(), '生年月日');
+    assert.match(await view.page.locator('#detailProfile').innerText(), /メインビジュアル\/パフォーマンスセンター/);
     assert.deepEqual(view.errors, []);
   } finally { await view.close(); }
 });
