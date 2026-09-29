@@ -1,18 +1,20 @@
 import { createHash } from 'crypto';
-import { existsSync, readdirSync } from 'fs';
+import { existsSync, readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
 import { PrismaClient } from '@prisma/client';
 import {
   CHAT_FEATURE_PRODUCT_POLICIES,
   LEGACY_CHAT_FEATURE_PRODUCT_POLICIES,
 } from '../src/chat/chat-feature-policy';
-import {
-  publicArtistCopyBySlug,
-  publicArtistCopyFor,
-} from '../src/public/artists/public-artist-copy';
-
 const prisma = new PrismaClient();
 const launchedAt = new Date('2026-04-27T00:00:00.000Z');
+type PublicCopyLocale = 'ko' | 'en' | 'ja' | 'zh-Hans' | 'zh-Hant';
+type PublicCopy = { displayName: string; tagline: string; summary: string; publicStory: string };
+const publicArtistCopyBySlug = JSON.parse(readFileSync(
+  join(__dirname, 'public-artist-copy-2026-09-29.json'),
+  'utf8',
+)) as Record<string, Record<PublicCopyLocale, PublicCopy>>;
+const publicArtistCopyFor = (slug: string) => publicArtistCopyBySlug[slug];
 const seoYuanPublicCopy = publicArtistCopyBySlug['seo-yuan'].ko;
 const kwonTaejunPublicCopy = publicArtistCopyBySlug['kwon-taejun'].ko;
 
@@ -478,6 +480,7 @@ async function main() {
     }
     const status = seedArtistStatus(artist.slug);
     const publicCopyByLocale = publicArtistCopyFor(artist.slug);
+    const primaryPublicCopy = publicCopyByLocale?.ko;
     const publicMetadata = {
       seed: true,
       ...(publicCopyByLocale ? { publicCopyByLocale } : {}),
@@ -486,14 +489,14 @@ async function main() {
     const row = await prisma.artist.upsert({
       where: { slug: artist.slug },
       update: {
-        displayName: artist.displayName,
+        displayName: primaryPublicCopy?.displayName ?? artist.displayName,
         status,
         sortOrder: artist.sortOrder,
         updatedAt: new Date(),
       },
       create: {
         slug: artist.slug,
-        displayName: artist.displayName,
+        displayName: primaryPublicCopy?.displayName ?? artist.displayName,
         status,
         sortOrder: artist.sortOrder,
         launchedAt,
@@ -507,19 +510,19 @@ async function main() {
     await prisma.artistPublicProfile.upsert({
       where: { artistId: row.id },
       update: {
-        tagline: artist.tagline,
-        summary: artist.summary,
+        tagline: primaryPublicCopy?.tagline ?? artist.tagline,
+        summary: primaryPublicCopy?.summary ?? artist.summary,
         personalityKeywords: [...artist.keywords],
-        publicStory: artist.story,
+        publicStory: primaryPublicCopy?.publicStory ?? artist.story,
         publicMetadata,
         updatedAt: new Date(),
       },
       create: {
         artistId: row.id,
-        tagline: artist.tagline,
-        summary: artist.summary,
+        tagline: primaryPublicCopy?.tagline ?? artist.tagline,
+        summary: primaryPublicCopy?.summary ?? artist.summary,
         personalityKeywords: [...artist.keywords],
-        publicStory: artist.story,
+        publicStory: primaryPublicCopy?.publicStory ?? artist.story,
         publicMetadata,
       },
     });

@@ -5,6 +5,8 @@ import { PrismaClient } from '@prisma/client';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const manifestPath = resolve(root, 'server/prisma/approved-public-artists-2026-09-27.json');
+const publicCopyPath = resolve(root, 'server/prisma/public-artist-copy-2026-09-29.json');
+const publicCopyBySlug = JSON.parse(readFileSync(publicCopyPath, 'utf8'));
 const imageKeyPattern = /^assets\/characters\/([a-z0-9-]+)\/[a-zA-Z0-9_./-]+\.(png|jpg|jpeg|webp)$/;
 
 export function loadApprovedArtists() {
@@ -19,6 +21,9 @@ export function loadApprovedArtists() {
       throw new Error(`Invalid or duplicate artist slug: ${artist.slug}`);
     }
     slugs.add(artist.slug);
+    if (!publicCopyBySlug[artist.slug]) {
+      throw new Error(`Missing localized public copy: ${artist.slug}`);
+    }
     if (!artist.displayName || !artist.tagline || !artist.summary || !artist.styleNotes || !artist.contentTone) {
       throw new Error(`Incomplete public profile: ${artist.slug}`);
     }
@@ -48,6 +53,8 @@ function imageMime(key) {
 }
 
 async function applyArtist(prisma, approved) {
+  const publicCopyByLocale = publicCopyBySlug[approved.slug];
+  const primaryPublicCopy = publicCopyByLocale.ko;
   await prisma.$transaction(async (db) => {
     const previous = await db.artist.findUnique({
       where: { slug: approved.slug }, include: { publicProfile: true },
@@ -66,7 +73,7 @@ async function applyArtist(prisma, approved) {
     const artist = await db.artist.upsert({
       where: { slug: approved.slug },
       update: {
-        displayName: approved.displayName,
+        displayName: primaryPublicCopy.displayName,
         status: previous?.status ?? 'draft',
         sortOrder: approved.sortOrder,
         launchedAt: previous?.launchedAt ?? new Date(),
@@ -74,7 +81,7 @@ async function applyArtist(prisma, approved) {
       },
       create: {
         slug: approved.slug,
-        displayName: approved.displayName,
+        displayName: primaryPublicCopy.displayName,
         status: 'draft',
         sortOrder: approved.sortOrder,
         launchedAt: new Date(),
@@ -85,24 +92,25 @@ async function applyArtist(prisma, approved) {
     const publicMetadata = {
       ...(oldMetadata && typeof oldMetadata === 'object' && !Array.isArray(oldMetadata) ? oldMetadata : {}),
       profileFacts: approved.profileFacts,
+      publicCopyByLocale,
       approvedRelease: 'approved-public-artists-2026-09-27',
     };
     await db.artistPublicProfile.upsert({
       where: { artistId: artist.id },
       update: {
-        tagline: approved.tagline,
-        summary: approved.summary,
+        tagline: primaryPublicCopy.tagline,
+        summary: primaryPublicCopy.summary,
         personalityKeywords: approved.personalityKeywords,
-        publicStory: approved.publicStory,
+        publicStory: primaryPublicCopy.publicStory,
         publicMetadata,
         updatedAt: new Date(),
       },
       create: {
         artistId: artist.id,
-        tagline: approved.tagline,
-        summary: approved.summary,
+        tagline: primaryPublicCopy.tagline,
+        summary: primaryPublicCopy.summary,
         personalityKeywords: approved.personalityKeywords,
-        publicStory: approved.publicStory,
+        publicStory: primaryPublicCopy.publicStory,
         publicMetadata,
       },
     });
@@ -164,7 +172,7 @@ async function applyArtist(prisma, approved) {
       const assetMetadata = {
         ...(oldAssetMetadata && typeof oldAssetMetadata === 'object' && !Array.isArray(oldAssetMetadata)
           ? oldAssetMetadata : {}),
-        title: `${approved.displayName} ${image.usageType}`,
+        title: `${primaryPublicCopy.displayName} ${image.usageType}`,
         approvedRelease: 'approved-public-artists-2026-09-27',
         lifecycle: { status: 'active', approvedBy: 'approved-public-artists-2026-09-27' },
         uploadIntent: { status: 'uploaded', source: 'git-tracked-approved-asset' },

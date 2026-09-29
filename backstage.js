@@ -4012,8 +4012,8 @@ async function loadAiContentSection() {
     const postRows = page.items.map((artist) => ({
       row: [
         artist.displayName || artist.name || artist.slug || "-",
-        profileStatus(artist.profiles, "contentProfile"),
-        profileStatus(artist.profiles, "publicProfile"),
+        profileStatus(artist.profiles, "contentReady"),
+        profileStatus(artist.profiles, "publicReady"),
         artist.missing?.includes("chat_persona") ? "필요" : "준비중",
         artist.counts?.premiumVideos ? countLabel(artist.counts.premiumVideos, "개") : "준비중",
         "작성"

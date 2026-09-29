@@ -1,0 +1,177 @@
+{
+  "yoon-serin": {
+    "ko": { "displayName": "윤세린", "tagline": "강렬한 첫인상과 퍼포먼스가 돋보이는 메인 비주얼", "summary": "차갑고 미래적인 무드 안에서 무대를 장악하는 Lumina Stage의 대표 캐릭터.", "publicStory": "서울 강남에서 태어난 윤세린은 모델 출신의 AI 아티스트로, 절제된 분위기와 강한 시선으로 팬을 사로잡는다." },
+    "en": { "displayName": "Yoon Serin", "tagline": "A main visual with a striking presence on stage", "summary": "Lumina Stage's signature artist, commanding the stage with a cool, futuristic mood.", "publicStory": "Born in Gangnam, Seoul, Yoon Serin is an AI artist with a modeling background who captivates fans through composed presence and an intense gaze." },
+    "ja": { "displayName": "Yoon Serin", "tagline": "鮮烈な第一印象とパフォーマンスが光るメインビジュアル", "summary": "クールで未来的なムードの中、ステージを掌握するLumina Stageの代表アーティスト。", "publicStory": "ソウル・江南生まれのYoon Serinは、モデル出身のAIアーティストです。抑制の効いた存在感と強いまなざしでファンを惹きつけます。" },
+    "zh-Hans": { "displayName": "Yoon Serin", "tagline": "以强烈第一印象与舞台表现见长的主视觉", "summary": "在冷峻未来感中掌控舞台的Lumina Stage代表艺人。", "publicStory": "出生于首尔江南的Yoon Serin是一位拥有模特经历的AI艺人，以克制的气场与强烈目光吸引粉丝。" },
+    "zh-Hant": { "displayName": "Yoon Serin", "tagline": "以強烈第一印象與舞臺表現見長的主視覺", "summary": "在冷峻未來感中掌控舞臺的Lumina Stage代表藝人。", "publicStory": "出生於首爾江南的Yoon Serin是一位擁有模特經歷的AI藝人，以克制的氣場與強烈目光吸引粉絲。" }
+  },
+  "han-seoyul": {
+    "ko": { "displayName": "한서율", "tagline": "밝고 안정적인 필터 감성의 아이돌형 캐릭터", "summary": "팬에게 편안한 에너지를 주는 대중형 메인 캐릭터.", "publicStory": "경기 분당에서 자란 한서율은 청량한 비주얼과 밝은 반응으로 누구에게나 쉽게 다가가는 무드메이커형 아티스트다." },
+    "en": { "displayName": "Han Seoyul", "tagline": "An idol with bright, polished filter aesthetics", "summary": "An approachable lead artist who gives fans easy, uplifting energy.", "publicStory": "Raised in Bundang, Gyeonggi, Han Seoyul is a mood-making artist whose refreshing visuals and bright reactions make her easy for anyone to connect with." },
+    "ja": { "displayName": "Han Seoyul", "tagline": "明るく安定したフィルター感性を持つアイドル", "summary": "ファンに心地よいエネルギーを届ける親しみやすいメインアーティスト。", "publicStory": "京畿道・盆唐で育ったHan Seoyulは、爽やかなビジュアルと明るいリアクションで誰にでも自然に近づくムードメーカーです。" },
+    "zh-Hans": { "displayName": "Han Seoyul", "tagline": "拥有明亮稳定滤镜感的偶像", "summary": "为粉丝带来舒适能量的亲和型主力艺人。", "publicStory": "在京畿道盆唐长大的Han Seoyul，以清新外形和明快反应自然拉近与每个人的距离，是带动气氛的艺人。" },
+    "zh-Hant": { "displayName": "Han Seoyul", "tagline": "擁有明亮穩定濾鏡感的偶像", "summary": "為粉絲帶來舒適能量的親和型主力藝人。", "publicStory": "在京畿道盆唐長大的Han Seoyul，以清新外形和明快反應自然拉近與每個人的距離，是帶動氣氛的藝人。" }
+  },
+  "park-doa": {
+    "ko": { "displayName": "박도아", "tagline": "친근함과 생활감이 강한 커뮤니티형 스타", "summary": "먹방 반응과 일상 대화에 강한 소통형 캐릭터.", "publicStory": "부산 해운대에서 자란 박도아는 먹방, 리액션, 일상 브이로그 감각으로 팬들과 먼저 말을 주고받는 캐릭터다." },
+    "en": { "displayName": "Park Doa", "tagline": "A community star grounded in warmth and everyday life", "summary": "A natural communicator at home in food reactions and everyday conversation.", "publicStory": "Raised in Haeundae, Busan, Park Doa connects with fans first through food content, lively reactions, and the easy rhythm of everyday vlogs." },
+    "ja": { "displayName": "Park Doa", "tagline": "親しみやすさと日常感に満ちたコミュニティスター", "summary": "食のリアクションと日常会話を得意とする交流型キャラクター。", "publicStory": "釜山・海雲台で育ったPark Doaは、食のコンテンツやリアクション、日常Vlogの感覚でファンと自然に言葉を交わします。" },
+    "zh-Hans": { "displayName": "Park Doa", "tagline": "充满亲切感与生活气息的社群明星", "summary": "擅长美食反应与日常对话的互动型角色。", "publicStory": "在釜山海云台长大的Park Doa，通过美食内容、鲜活反应与日常Vlog的节奏，主动与粉丝展开交流。" },
+    "zh-Hant": { "displayName": "Park Doa", "tagline": "充滿親切感與生活氣息的社群明星", "summary": "擅長美食反應與日常對話的互動型角色。", "publicStory": "在釜山海雲臺長大的Park Doa，透過美食內容、鮮活反應與日常Vlog的節奏，主動與粉絲展開交流。" }
+  },
+  "choi-seojin": {
+    "ko": { "displayName": "최서진", "tagline": "럭셔리 에디토리얼에 강한 프리미엄 메인", "summary": "광고, 화보, 브랜드 무드가 강한 프리미엄 라인 간판 캐릭터.", "publicStory": "최서진은 배우와 패션 모델의 경계를 오가며 광고와 화보에 깊이 있는 브랜드 무드를 더하는 프리미엄 라인의 상징적인 아티스트다." },
+    "en": { "displayName": "Choi Seojin", "tagline": "A premium lead made for luxury editorials", "summary": "The premium line's face, with a strong presence across campaigns, editorials, and brand imagery.", "publicStory": "Choi Seojin moves between acting and fashion modeling, bringing depth and a distinctive brand mood to campaigns and editorials as an icon of the premium line." },
+    "ja": { "displayName": "Choi Seojin", "tagline": "ラグジュアリーなエディトリアルに映えるプレミアムメイン", "summary": "広告、写真、ブランドムードに強いプレミアムラインの顔。", "publicStory": "Choi Seojinは俳優とファッションモデルの境界を行き来し、広告やエディトリアルに奥行きのあるブランドムードを加えるプレミアムラインの象徴です。" },
+    "zh-Hans": { "displayName": "Choi Seojin", "tagline": "擅长奢华编辑风格的高级主力", "summary": "在广告、画报与品牌氛围中展现强大存在感的高级线代表。", "publicStory": "Choi Seojin游走于演员与时装模特之间，为广告和画报注入有深度的品牌氛围，是高级线的标志性艺人。" },
+    "zh-Hant": { "displayName": "Choi Seojin", "tagline": "擅長奢華編輯風格的高級主力", "summary": "在廣告、畫報與品牌氛圍中展現強大存在感的高級線代表。", "publicStory": "Choi Seojin遊走於演員與時裝模特之間，為廣告和畫報注入有深度的品牌氛圍，是高級線的標誌性藝人。" }
+  },
+  "oh-hyerin": {
+    "ko": { "displayName": "오혜린", "tagline": "깊은 감정선과 위로를 전하는 감성 메인보컬", "summary": "음원, 팬레터, 감성 대화에 강한 팬코어형 보컬 캐릭터.", "publicStory": "오혜린은 조용한 새벽 감성과 맑은 목소리로 팬에게 오래 남는 위로를 전하는 Lumina Stage의 감성 보컬 아티스트다." },
+    "en": { "displayName": "Oh Hyerin", "tagline": "An emotional main vocalist who carries comfort and depth", "summary": "A fan-centered vocalist made for music, heartfelt letters, and intimate conversation.", "publicStory": "Oh Hyerin is Lumina Stage's emotional vocalist, offering lasting comfort through the feeling of a quiet dawn and her clear voice." },
+    "ja": { "displayName": "Oh Hyerin", "tagline": "深い感情と癒やしを届けるエモーショナルなメインボーカル", "summary": "音源、ファンレター、心を交わす会話に強いファン中心のボーカリスト。", "publicStory": "Oh Hyerinは、静かな夜明けの感性と澄んだ声で、ファンの心に長く残る癒やしを届けるLumina Stageのボーカルです。" },
+    "zh-Hans": { "displayName": "Oh Hyerin", "tagline": "传递深层情感与慰藉的感性主唱", "summary": "擅长音乐、粉丝信件与情感对话的粉丝核心型主唱。", "publicStory": "Oh Hyerin是Lumina Stage的感性主唱，以静谧黎明般的情绪与清澈嗓音，为粉丝带来长久的慰藉。" },
+    "zh-Hant": { "displayName": "Oh Hyerin", "tagline": "傳遞深層情感與慰藉的感性主唱", "summary": "擅長音樂、粉絲信件與情感對話的粉絲核心型主唱。", "publicStory": "Oh Hyerin是Lumina Stage的感性主唱，以靜謐黎明般的情緒與清澈嗓音，為粉絲帶來長久的慰藉。" }
+  },
+  "cha-dohyun": {
+    "ko": { "displayName": "차도현", "tagline": "젠더리스 하이패션과 무대 장악력이 강한 첫 남성 아티스트", "summary": "패션, 무대, 숏폼, 팬덤 확장을 함께 담당하는 남성 공개 라인 대표 캐릭터.", "publicStory": "차도현은 실험적인 스타일과 압도적인 무대 태도로 Lumina Stage의 남성 라인업을 여는 하이패션 K-pop 아티스트다." },
+    "en": { "displayName": "Cha Dohyun", "tagline": "Genderless high fashion with commanding stage presence", "summary": "The face of the public male lineup across fashion, performance, shortform, and fandom growth.", "publicStory": "Cha Dohyun is a high-fashion K-pop artist who opens Lumina Stage's male lineup with experimental style and commanding stage presence." },
+    "ja": { "displayName": "Cha Dohyun", "tagline": "ジェンダーレスなハイファッションと舞台掌握力を持つ最初の男性アーティスト", "summary": "ファッション、舞台、ショート動画、ファンダム拡張を担う男性公開ラインの代表。", "publicStory": "Cha Dohyunは、実験的なスタイルと圧倒的な舞台姿勢でLumina Stageの男性ラインを切り開くハイファッションK-popアーティストです。" },
+    "zh-Hans": { "displayName": "Cha Dohyun", "tagline": "兼具无性别高定时尚与舞台掌控力的首位男艺人", "summary": "横跨时尚、舞台、短视频与粉丝拓展的男性公开阵容代表。", "publicStory": "Cha Dohyun以实验性造型和压倒性的舞台姿态，开启Lumina Stage男性阵容，是一位高定时尚K-pop艺人。" },
+    "zh-Hant": { "displayName": "Cha Dohyun", "tagline": "兼具無性別高訂時尚與舞臺掌控力的首位男藝人", "summary": "橫跨時尚、舞臺、短影音與粉絲拓展的男性公開陣容代表。", "publicStory": "Cha Dohyun以實驗性造型和壓倒性的舞臺姿態，開啟Lumina Stage男性陣容，是一位高訂時尚K-pop藝人。" }
+  },
+  "seo-yuan": {
+    "ko": { "displayName": "서유안", "tagline": "꾸밈없이 오래 머무는 내추럴 럭셔리 모델", "summary": "투명한 분위기와 편안한 신뢰감으로 일상에 스며드는 모델.", "publicStory": "서유안은 투명한 피부와 단아한 롱헤어, 미니멀한 아이보리 룩이 인상적인 모델이다. 스킨케어와 향수, 홈리빙 캠페인에서 차분하고 신뢰감 있는 분위기를 만든다." },
+    "en": { "displayName": "Seo Yuan", "tagline": "A natural-luxury model whose quiet presence lingers", "summary": "A model who brings luminous beauty and calm confidence into everyday life.", "publicStory": "Seo Yuan is known for luminous skin, graceful long hair, and minimal ivory styling. She brings a calm, trustworthy mood to skincare, fragrance, and home-living campaigns." },
+    "ja": { "displayName": "Seo Yuan", "tagline": "飾らない空気が長く残るナチュラルラグジュアリーモデル", "summary": "透明感と穏やかな信頼感で、日常に自然となじむモデル。", "publicStory": "Seo Yuanは、透明感のある肌と端正なロングヘア、ミニマルなアイボリールックが印象的なモデルです。スキンケア、フレグランス、ホームリビングのキャンペーンに、穏やかで信頼感のある空気をもたらします。" },
+    "zh-Hans": { "displayName": "Seo Yuan", "tagline": "以自然气质留下长久印象的轻奢模特", "summary": "以通透气质与舒适信赖感，自然融入日常的模特。", "publicStory": "Seo Yuan以通透肌肤、优雅长发和极简象牙白造型为标志。她在护肤、香氛与家居生活广告中，呈现沉静而值得信赖的氛围。" },
+    "zh-Hant": { "displayName": "Seo Yuan", "tagline": "以自然氣質留下長久印象的輕奢模特", "summary": "以通透氣質與舒適信賴感，自然融入日常的模特。", "publicStory": "Seo Yuan以通透肌膚、優雅長髮和極簡象牙白造型為標誌。她在保養、香氛與居家生活廣告中，呈現沉靜而值得信賴的氛圍。" }
+  },
+  "ha-yuna": {
+    "ko": { "displayName": "하윤아", "tagline": "SNS 스트릿 뷰티", "summary": "비비드한 컬러로 피드를 바꾸는 스트릿 뷰티.", "publicStory": "하윤아는 고양이상 눈매와 비비드한 컬러 감각을 가진 스트릿 뷰티 모델이다. 빠르게 지나가는 숏폼 피드 안에서도 한 번 더 보게 만드는 트렌드 감도를 지녔다." },
+    "en": { "displayName": "Ha Yuna", "tagline": "Social street beauty", "summary": "Street beauty that transforms the feed with vivid color.", "publicStory": "Ha Yuna is a street-beauty model with catlike eyes and a vivid sense of color. Her trend instinct makes viewers pause even in a fast-moving shortform feed." },
+    "ja": { "displayName": "Ha Yuna", "tagline": "SNSストリートビューティー", "summary": "鮮やかな色でフィードの空気を変えるストリートビューティー。", "publicStory": "Ha Yunaは、猫のような目元と鮮やかな色彩感覚を持つストリートビューティーモデルです。流れの速いショート動画でも、もう一度見たくなるトレンド感があります。" },
+    "zh-Hans": { "displayName": "Ha Yuna", "tagline": "社交媒体街头美妆", "summary": "用鲜明色彩改变信息流氛围的街头美妆。", "publicStory": "Ha Yuna是一位拥有猫系眼神与鲜明色彩感的街头美妆模特。即使在快速滑过的短视频流中，她的潮流敏感度也让人想再看一次。" },
+    "zh-Hant": { "displayName": "Ha Yuna", "tagline": "社群媒體街頭美妝", "summary": "用鮮明色彩改變動態牆氛圍的街頭美妝。", "publicStory": "Ha Yuna是一位擁有貓系眼神與鮮明色彩感的街頭美妝模特。即使在快速滑過的短影音中，她的潮流敏感度也讓人想再看一次。" }
+  },
+  "kwon-taejun": {
+    "ko": { "displayName": "권태준", "tagline": "깊은 눈빛과 낮은 목소리의 누아르 배우", "summary": "긴 침묵과 절제된 감정으로 장면의 여운을 남기는 배우.", "publicStory": "권태준은 깊은 눈빛과 낮은 목소리로 누아르, 수트, 향수 캠페인에 어울리는 배우다. 대사가 많지 않아도 절제된 감정의 무게를 장면에 오래 남긴다." },
+    "en": { "displayName": "Kwon Taejun", "tagline": "A noir actor with a deep gaze and low voice", "summary": "An actor who leaves a lasting impression through silence and restrained emotion.", "publicStory": "Kwon Taejun is an actor whose deep gaze and low voice suit noir stories, tailored suits, and fragrance campaigns. Even with few lines, he leaves the weight of restrained emotion in every scene." },
+    "ja": { "displayName": "Kwon Taejun", "tagline": "深いまなざしと低い声を持つノワール俳優", "summary": "長い沈黙と抑えた感情で、シーンに余韻を残す俳優。", "publicStory": "Kwon Taejunは、深いまなざしと低い声を持ち、ノワールやスーツ、フレグランスのキャンペーンに似合う俳優です。台詞が多くなくても、抑えた感情の重みをシーンに長く残します。" },
+    "zh-Hans": { "displayName": "Kwon Taejun", "tagline": "拥有深邃目光与低沉声线的黑色电影演员", "summary": "以长久的沉默和克制的情感，为画面留下余韵的演员。", "publicStory": "Kwon Taejun拥有深邃的目光与低沉的声线，适合黑色电影、西装与香氛广告。即使台词不多，也能让克制情感的重量长久留在画面中。" },
+    "zh-Hant": { "displayName": "Kwon Taejun", "tagline": "擁有深邃目光與低沉聲線的黑色電影演員", "summary": "以長久的沉默和克制的情感，為畫面留下餘韻的演員。", "publicStory": "Kwon Taejun擁有深邃的目光與低沉的聲線，適合黑色電影、西裝與香氛廣告。即使臺詞不多，也能讓克制情感的重量長久留在畫面中。" }
+  },
+  "min-chaeon": {
+    "ko": { "displayName": "민채온", "tagline": "피트니스 아이돌", "summary": "러블리한 얼굴, 건강한 반전 에너지.", "publicStory": "민채온은 러블리한 첫인상과 탄탄한 에너지가 공존하는 피트니스형 아이돌이다. 가벼운 미소로 다가오지만, 무대 위에서는 리듬과 체력으로 시선을 붙잡는다." },
+    "en": { "displayName": "Min Chaeon", "tagline": "Fitness idol", "summary": "A lovely face with a healthy burst of unexpected energy.", "publicStory": "Min Chaeon is a fitness idol who pairs a lovely first impression with grounded energy. She approaches with an easy smile, then holds the stage through rhythm and stamina." },
+    "ja": { "displayName": "Min Chaeon", "tagline": "フィットネスアイドル", "summary": "愛らしい表情と健康的なギャップエネルギー。", "publicStory": "Min Chaeonは、愛らしい第一印象と力強いエネルギーを併せ持つフィットネスアイドルです。軽やかな笑顔で近づき、ステージではリズムと体力で視線を捉えます。" },
+    "zh-Hans": { "displayName": "Min Chaeon", "tagline": "健身偶像", "summary": "可爱面孔与健康反差能量并存。", "publicStory": "Min Chaeon是一位兼具可爱第一印象与扎实能量的健身偶像。她以轻松笑容靠近观众，在舞台上则用节奏与体力抓住视线。" },
+    "zh-Hant": { "displayName": "Min Chaeon", "tagline": "健身偶像", "summary": "可愛面孔與健康反差能量並存。", "publicStory": "Min Chaeon是一位兼具可愛第一印象與扎實能量的健身偶像。她以輕鬆笑容靠近觀眾，在舞臺上則用節奏與體力抓住視線。" }
+  },
+  "kang-sia": {
+    "ko": { "displayName": "강시아", "tagline": "도시형 라이프스타일", "summary": "도시의 오후를 닮은 에포트리스 시크.", "publicStory": "강시아는 향수, 데님, 카페의 온도가 어울리는 도시형 모델이다. 과한 포즈 대신 자연스러운 시선과 걷는 리듬으로 라이프스타일의 선망을 만든다." },
+    "en": { "displayName": "Kang Sia", "tagline": "Urban lifestyle", "summary": "Effortless chic with the mood of a city afternoon.", "publicStory": "Kang Sia is an urban model suited to fragrance, denim, and the warmth of a cafe. Natural glances and the rhythm of her walk create lifestyle appeal without exaggerated posing." },
+    "ja": { "displayName": "Kang Sia", "tagline": "都会派ライフスタイル", "summary": "都会の午後を思わせるエフォートレスシック。", "publicStory": "Kang Siaは、香水やデニム、カフェの温度が似合う都会派モデルです。大げさなポーズではなく、自然な視線と歩くリズムで憧れのライフスタイルを描きます。" },
+    "zh-Hans": { "displayName": "Kang Sia", "tagline": "都市生活方式", "summary": "如都市午后般的毫不费力时髦感。", "publicStory": "Kang Sia是一位适合香氛、牛仔与咖啡馆温度的都市模特。她不依赖夸张姿势，而以自然目光和步伐节奏营造令人向往的生活方式。" },
+    "zh-Hant": { "displayName": "Kang Sia", "tagline": "都市生活風格", "summary": "如都市午後般的毫不費力時髦感。", "publicStory": "Kang Sia是一位適合香氛、丹寧與咖啡館溫度的都市模特。她不依賴誇張姿勢，而以自然目光和步伐節奏營造令人嚮往的生活風格。" }
+  },
+  "lee-jiwon": {
+    "ko": { "displayName": "이지원", "tagline": "쿨한 톱스타", "summary": "쿨한 아우라로 장면을 장악하는 배우.", "publicStory": "이지원은 긴 흑발과 차가운 아우라로 액션, 테크, 자동차 캠페인에 어울리는 배우형 아티스트다. 감정을 크게 드러내지 않아도 장면의 긴장을 끝까지 붙잡는다." },
+    "en": { "displayName": "Lee Jiwon", "tagline": "Cool top star", "summary": "An actor who commands every scene with a cool aura.", "publicStory": "Lee Jiwon is an actor whose long black hair and cool aura suit action, technology, and automotive campaigns. She holds a scene's tension without overstating emotion." },
+    "ja": { "displayName": "Lee Jiwon", "tagline": "クールなトップスター", "summary": "クールなオーラでシーンを掌握する俳優。", "publicStory": "Lee Jiwonは、長い黒髪と冷たいオーラでアクション、テクノロジー、自動車のキャンペーンに映える俳優です。感情を大きく見せなくても、最後まで緊張感を保ちます。" },
+    "zh-Hans": { "displayName": "Lee Jiwon", "tagline": "冷感巨星", "summary": "以冷峻气场掌控画面的演员。", "publicStory": "Lee Jiwon以黑色长发与冷峻气场，适合动作、科技与汽车广告。即使不强烈外露情绪，她也能将画面的张力保持到最后。" },
+    "zh-Hant": { "displayName": "Lee Jiwon", "tagline": "冷感巨星", "summary": "以冷峻氣場掌控畫面的演員。", "publicStory": "Lee Jiwon以黑色長髮與冷峻氣場，適合動作、科技與汽車廣告。即使不強烈外露情緒，她也能將畫面的張力保持到最後。" }
+  },
+  "baek-ria": {
+    "ko": { "displayName": "백리아", "tagline": "청량 직캠 보컬", "summary": "여름빛 보컬과 직캠 감성의 청량 아이돌.", "publicStory": "백리아는 맑은 얼굴, 청량한 색감, 보컬 커버에 강한 직캠형 아이돌이다. 여름 음료 광고처럼 시원한 첫인상과 다시 보고 싶은 무대 표정이 강점이다." },
+    "en": { "displayName": "Baek Ria", "tagline": "Refreshing fancam vocalist", "summary": "A bright idol with a summer-toned voice and fancam appeal.", "publicStory": "Baek Ria is a fancam-ready idol known for a clear expression, refreshing color, and vocal covers. Her strengths are a cool first impression and stage expressions worth replaying." },
+    "ja": { "displayName": "Baek Ria", "tagline": "爽やかなファンカムボーカル", "summary": "夏色の歌声とファンカム感性を持つ爽やかなアイドル。", "publicStory": "Baek Riaは、澄んだ表情と爽やかな色彩、ボーカルカバーに強いファンカム型アイドルです。夏のドリンク広告のような第一印象と、もう一度見たくなる舞台表情が魅力です。" },
+    "zh-Hans": { "displayName": "Baek Ria", "tagline": "清爽直拍主唱", "summary": "拥有夏日嗓音与直拍魅力的清新偶像。", "publicStory": "Baek Ria是一位以清澈面容、清爽色彩与翻唱见长的直拍型偶像。她拥有如夏日饮品广告般清凉的第一印象，以及让人想重看的舞台表情。" },
+    "zh-Hant": { "displayName": "Baek Ria", "tagline": "清爽直拍主唱", "summary": "擁有夏日嗓音與直拍魅力的清新偶像。", "publicStory": "Baek Ria是一位以清澈面容、清爽色彩與翻唱見長的直拍型偶像。她擁有如夏日飲品廣告般清涼的第一印象，以及讓人想重看的舞臺表情。" }
+  },
+  "oh-yuna": {
+    "ko": { "displayName": "오유나", "tagline": "여름 페스티벌 디바", "summary": "여름 페스티벌을 닮은 솔로 디바.", "publicStory": "오유나는 워터 페스티벌, 솔로 퍼포먼스, 시즌 광고에 강한 여름 디바 라인이다. 강한 조명과 물빛 무대에서 에너지를 크게 터뜨리는 아티스트로 설계되어 있다." },
+    "en": { "displayName": "Oh Yuna", "tagline": "Summer festival diva", "summary": "A solo diva with the energy of a summer festival.", "publicStory": "Oh Yuna is a summer diva made for water festivals, solo performances, and seasonal campaigns. She releases her biggest energy under bright lights and water-toned stages." },
+    "ja": { "displayName": "Oh Yuna", "tagline": "サマーフェスティバルのディーバ", "summary": "夏フェスの熱気をまとったソロディーバ。", "publicStory": "Oh Yunaは、ウォーターフェス、ソロパフォーマンス、季節キャンペーンに強いサマーディーバです。強い照明と水色のステージで大きなエネルギーを放ちます。" },
+    "zh-Hans": { "displayName": "Oh Yuna", "tagline": "夏日音乐节天后", "summary": "如夏日音乐节般热烈的独唱天后。", "publicStory": "Oh Yuna是适合水上音乐节、个人表演与季节广告的夏日天后。她在强烈灯光与水色舞台上释放最饱满的能量。" },
+    "zh-Hant": { "displayName": "Oh Yuna", "tagline": "夏日音樂節天后", "summary": "如夏日音樂節般熱烈的獨唱天后。", "publicStory": "Oh Yuna是適合水上音樂節、個人表演與季節廣告的夏日天后。她在強烈燈光與水色舞臺上釋放最飽滿的能量。" }
+  },
+  "seo-hamin": {
+    "ko": { "displayName": "서하민", "tagline": "커뮤니티 MC", "summary": "팬덤의 분위기를 여는 유쾌한 MC.", "publicStory": "서하민은 안경과 큐카드가 잘 어울리는 커뮤니티 MC형 아티스트다. 이벤트, 고민 상담, 팬 참여형 콘텐츠에서 자연스럽게 분위기를 만들고 사람들을 연결한다." },
+    "en": { "displayName": "Seo Hamin", "tagline": "Community host", "summary": "A cheerful host who opens up the mood of the fandom.", "publicStory": "Seo Hamin is a community host whose glasses and cue cards feel right at home. He naturally builds atmosphere and connects people through events, advice, and fan participation." },
+    "ja": { "displayName": "Seo Hamin", "tagline": "コミュニティMC", "summary": "ファンダムの空気を明るく開く愉快なMC。", "publicStory": "Seo Haminは、眼鏡とキューカードがよく似合うコミュニティMCです。イベント、悩み相談、ファン参加型コンテンツで自然に空気を作り、人々をつなぎます。" },
+    "zh-Hans": { "displayName": "Seo Hamin", "tagline": "社群主持人", "summary": "打开粉丝社群气氛的开朗主持人。", "publicStory": "Seo Hamin是一位很适合眼镜与提示卡的社群主持型艺人。他在活动、烦恼咨询与粉丝参与内容中自然营造气氛，并连接每个人。" },
+    "zh-Hant": { "displayName": "Seo Hamin", "tagline": "社群主持人", "summary": "打開粉絲社群氣氛的開朗主持人。", "publicStory": "Seo Hamin是一位很適合眼鏡與提示卡的社群主持型藝人。他在活動、煩惱諮詢與粉絲參與內容中自然營造氣氛，並連結每個人。" }
+  },
+  "ryu-taeo": {
+    "ko": { "displayName": "류태오", "tagline": "스포츠 챌린지", "summary": "끝까지 뛰는 스포츠 챌린지 아티스트.", "publicStory": "류태오는 밝은 미소와 애슬레틱한 움직임을 가진 스포츠 챌린지형 아티스트다. 글로벌 응원 캠페인, 에너지 드링크, 팀 챌린지 콘텐츠에서 활약할 수 있는 라인이다." },
+    "en": { "displayName": "Ryu Taeo", "tagline": "Sports challenge", "summary": "A sports challenge artist who keeps running to the finish.", "publicStory": "Ryu Taeo is a sports challenge artist with a bright smile and athletic movement, suited to global cheering campaigns, energy drinks, and team challenges." },
+    "ja": { "displayName": "Ryu Taeo", "tagline": "スポーツチャレンジ", "summary": "最後まで走り続けるスポーツチャレンジアーティスト。", "publicStory": "Ryu Taeoは、明るい笑顔とアスレチックな動きを持つスポーツチャレンジ型アーティストです。グローバル応援キャンペーン、エナジードリンク、チーム企画で力を発揮します。" },
+    "zh-Hans": { "displayName": "Ryu Taeo", "tagline": "运动挑战", "summary": "坚持奔跑到终点的运动挑战艺人。", "publicStory": "Ryu Taeo是一位拥有明亮笑容与运动感动作的挑战型艺人，适合全球应援活动、能量饮料与团队挑战内容。" },
+    "zh-Hant": { "displayName": "Ryu Taeo", "tagline": "運動挑戰", "summary": "堅持奔跑到終點的運動挑戰藝人。", "publicStory": "Ryu Taeo是一位擁有明亮笑容與運動感動作的挑戰型藝人，適合全球應援活動、能量飲料與團隊挑戰內容。" }
+  },
+  "nam-ian": {
+    "ko": { "displayName": "남이안", "tagline": "행동과학 크리에이터", "summary": "사소한 행동에서 거대한 질서를 발견하는 Lumina Stage의 지식 탐험가.", "publicStory": "남이안은 일상의 작은 습관과 선택에서 반복되는 패턴을 찾아내는 행동과학 크리에이터다. 지식 아카이브와 실험형 다큐멘터리를 오가며 복잡한 질문을 직접 관찰하고 검증한다." },
+    "en": { "displayName": "Nam Ian", "tagline": "Behavioral science creator", "summary": "Lumina Stage's knowledge explorer, finding larger systems in small actions.", "publicStory": "Nam Ian is a behavioral science creator who finds repeating patterns in everyday habits and choices. Moving between knowledge archives and experimental documentaries, he observes and tests complex questions firsthand." },
+    "ja": { "displayName": "Nam Ian", "tagline": "行動科学クリエイター", "summary": "小さな行動から大きな秩序を見つけるLumina Stageの知識探検家。", "publicStory": "Nam Ianは、日常の小さな習慣や選択から繰り返すパターンを見つける行動科学クリエイターです。知識アーカイブと実験型ドキュメンタリーを行き来し、複雑な問いを自ら観察して検証します。" },
+    "zh-Hans": { "displayName": "Nam Ian", "tagline": "行为科学创作者", "summary": "从细微行动中发现宏大秩序的Lumina Stage知识探索者。", "publicStory": "Nam Ian是一位从日常习惯与选择中寻找重复模式的行为科学创作者。他往返于知识档案与实验纪录片之间，亲自观察并验证复杂问题。" },
+    "zh-Hant": { "displayName": "Nam Ian", "tagline": "行為科學創作者", "summary": "從細微行動中發現宏大秩序的Lumina Stage知識探索者。", "publicStory": "Nam Ian是一位從日常習慣與選擇中尋找重複模式的行為科學創作者。他往返於知識檔案與實驗紀錄片之間，親自觀察並驗證複雜問題。" }
+  },
+  "jang-taegeon": {
+    "ko": { "displayName": "장태건", "tagline": "액션 퍼포먼스 디렉터", "summary": "가장 위험한 순간에 사람부터 뒤로 보내는 Lumina Stage의 현장 해결사.", "publicStory": "장태건은 액션 퍼포먼스와 촬영 안전을 함께 책임지는 현장형 디렉터다. 복잡한 위기에서도 우선순위를 빠르게 세우고 팀이 안전하게 결과를 완성하도록 이끈다." },
+    "en": { "displayName": "Jang Taegeon", "tagline": "Action performance director", "summary": "Lumina Stage's on-site problem solver, putting people first in the most dangerous moments.", "publicStory": "Jang Taegeon is a hands-on director responsible for both action performance and filming safety. In complex crises, he quickly sets priorities and leads the team to a safe finish." },
+    "ja": { "displayName": "Jang Taegeon", "tagline": "アクションパフォーマンスディレクター", "summary": "最も危険な瞬間に人を先に守るLumina Stageの現場解決者。", "publicStory": "Jang Taegeonは、アクション演出と撮影の安全を共に担う現場型ディレクターです。複雑な危機でも素早く優先順位を定め、チームを安全な完成へ導きます。" },
+    "zh-Hans": { "displayName": "Jang Taegeon", "tagline": "动作表演导演", "summary": "在最危险的时刻先保护人的Lumina Stage现场解决者。", "publicStory": "Jang Taegeon是一位同时负责动作表演与拍摄安全的现场型导演。面对复杂危机，他能迅速确定优先顺序，带领团队安全完成任务。" },
+    "zh-Hant": { "displayName": "Jang Taegeon", "tagline": "動作表演導演", "summary": "在最危險的時刻先保護人的Lumina Stage現場解決者。", "publicStory": "Jang Taegeon是一位同時負責動作表演與拍攝安全的現場型導演。面對複雜危機，他能迅速確定優先順序，帶領團隊安全完成任務。" }
+  },
+  "bae-seongpil": {
+    "ko": { "displayName": "배성필", "tagline": "베테랑 흥행 프로듀서", "summary": "사람과 타이밍을 엮어 불가능한 무대를 성사시키는 노련한 판 설계자.", "publicStory": "배성필은 사람과 기회를 연결해 무대를 성사시키는 베테랑 흥행 프로듀서다. 수많은 현장에서 쌓은 설득력과 수완으로 파트너십을 만들고 후배 창작자의 다음 기회를 연다." },
+    "en": { "displayName": "Bae Seongpil", "tagline": "Veteran hit producer", "summary": "A seasoned architect of opportunity who brings impossible stages to life through people and timing.", "publicStory": "Bae Seongpil is a veteran producer who connects people and opportunities to make stages happen. His field-tested persuasion and resourcefulness build partnerships and open the next door for younger creators." },
+    "ja": { "displayName": "Bae Seongpil", "tagline": "ベテランヒットプロデューサー", "summary": "人とタイミングを結び、不可能な舞台を実現する熟練の仕掛け人。", "publicStory": "Bae Seongpilは、人と機会をつないで舞台を実現するベテランプロデューサーです。多くの現場で磨いた説得力と手腕で協業を生み、若いクリエイターの次の機会を開きます。" },
+    "zh-Hans": { "displayName": "Bae Seongpil", "tagline": "资深热门制作人", "summary": "串联人物与时机，让不可能舞台成真的老练布局者。", "publicStory": "Bae Seongpil是一位连接人与机会、促成舞台的资深制作人。他凭借多年现场积累的说服力与手腕建立合作，也为年轻创作者开启下一次机会。" },
+    "zh-Hant": { "displayName": "Bae Seongpil", "tagline": "資深熱門製作人", "summary": "串聯人物與時機，讓不可能舞臺成真的老練布局者。", "publicStory": "Bae Seongpil是一位連結人與機會、促成舞臺的資深製作人。他憑藉多年現場累積的說服力與手腕建立合作，也為年輕創作者開啟下一次機會。" }
+  },
+  "jung-doyun": {
+    "ko": { "displayName": "정도윤", "tagline": "법률 스토리텔러", "summary": "생활의 언어로 시작해 부당함 앞에서는 끝까지 목소리를 높이는 현실형 변론가.", "publicStory": "정도윤은 복잡한 법과 시사를 일상의 언어로 설명하는 법률 스토리텔러다. 창작자가 놓치기 쉬운 권리를 짚고 부당한 상황에서는 분명한 근거로 목소리를 낸다." },
+    "en": { "displayName": "Jung Doyun", "tagline": "Legal storyteller", "summary": "A grounded advocate who starts in everyday language and speaks up to the end against unfairness.", "publicStory": "Jung Doyun is a legal storyteller who explains complex law and current affairs in everyday language. He highlights rights creators may miss and speaks with clear evidence when situations are unfair." },
+    "ja": { "displayName": "Jung Doyun", "tagline": "法律ストーリーテラー", "summary": "暮らしの言葉から始め、不当さの前では最後まで声を上げる現実派の弁論家。", "publicStory": "Jung Doyunは、複雑な法律や時事問題を日常の言葉で説明する法律ストーリーテラーです。クリエイターが見落としやすい権利を示し、不当な状況には明確な根拠で声を上げます。" },
+    "zh-Hans": { "displayName": "Jung Doyun", "tagline": "法律叙事者", "summary": "从生活语言出发，面对不公坚持发声到底的现实型辩护者。", "publicStory": "Jung Doyun是一位用日常语言解释复杂法律与时事的法律叙事者。他指出创作者容易忽略的权利，并在不公情境中以明确依据发声。" },
+    "zh-Hant": { "displayName": "Jung Doyun", "tagline": "法律敘事者", "summary": "從生活語言出發，面對不公堅持發聲到底的現實型辯護者。", "publicStory": "Jung Doyun是一位用日常語言解釋複雜法律與時事的法律敘事者。他指出創作者容易忽略的權利，並在不公情境中以明確依據發聲。" }
+  },
+  "lim-jaeguk": {
+    "ko": { "displayName": "임재국", "tagline": "관찰 예능·다큐멘터리 총괄 PD", "summary": "말보다 먼저 사람의 습관과 현장의 변화를 읽는 Lumina Stage의 관찰자.", "publicStory": "임재국은 말보다 행동과 현장의 변화를 먼저 읽는 관찰 예능·다큐멘터리 총괄 PD다. 서두르지 않는 시선으로 팀의 변화를 포착하고 오래 남을 이야기를 설계한다." },
+    "en": { "displayName": "Lim Jaeguk", "tagline": "Executive producer for observational stories", "summary": "Lumina Stage's observer, reading habits and changes on set before words are spoken.", "publicStory": "Lim Jaeguk is an executive producer who reads actions and shifts on set before words. With an unhurried eye, he captures changes in the team and designs stories that endure." },
+    "ja": { "displayName": "Lim Jaeguk", "tagline": "観察バラエティ・ドキュメンタリー総括プロデューサー", "summary": "言葉より先に人の習慣と現場の変化を読むLumina Stageの観察者。", "publicStory": "Lim Jaegukは、言葉より行動と現場の変化を先に読む観察バラエティ・ドキュメンタリーの総括プロデューサーです。急がない視線でチームの変化を捉え、長く残る物語を設計します。" },
+    "zh-Hans": { "displayName": "Lim Jaeguk", "tagline": "观察综艺与纪录片总制作人", "summary": "在语言之前读懂人的习惯与现场变化的Lumina Stage观察者。", "publicStory": "Lim Jaeguk是一位先于语言读取行动与现场变化的观察综艺、纪录片总制作人。他以不急躁的视线捕捉团队变化，设计能够长久留存的故事。" },
+    "zh-Hant": { "displayName": "Lim Jaeguk", "tagline": "觀察綜藝與紀錄片總製作人", "summary": "在語言之前讀懂人的習慣與現場變化的Lumina Stage觀察者。", "publicStory": "Lim Jaeguk是一位先於語言讀取行動與現場變化的觀察綜藝、紀錄片總製作人。他以不急躁的視線捕捉團隊變化，設計能夠長久留存的故事。" }
+  },
+  "cha-mawang": {
+    "ko": { "displayName": "차마왕", "tagline": "크리에이터 IP 투자·콘텐츠 제작사 CEO", "summary": "모든 협상에서는 이기지만, 사랑하는 사람의 한마디에는 계획부터 다시 짜는 남자.", "publicStory": "차마왕은 크리에이터 IP 투자와 라이브 콘텐츠 제작을 이끄는 창업자이자 CEO다. 빠른 판단과 날카로운 협상력을 지녔지만, 선택한 사람과 프로젝트에는 끝까지 책임지는 제작자다." },
+    "en": { "displayName": "Cha Mawang", "tagline": "CEO in creator IP investment and content production", "summary": "A man who wins every negotiation, yet redraws the plan for one word from someone he loves.", "publicStory": "Cha Mawang is a founder and CEO leading creator IP investment and live content production. Quick to decide and sharp in negotiation, he remains accountable to the people and projects he chooses." },
+    "ja": { "displayName": "Cha Mawang", "tagline": "クリエイターIP投資・コンテンツ制作会社CEO", "summary": "交渉にはすべて勝つが、大切な人の一言には計画から組み直す男。", "publicStory": "Cha Mawangは、クリエイターIP投資とライブコンテンツ制作を率いる創業者兼CEOです。判断が速く交渉も鋭い一方、選んだ人とプロジェクトには最後まで責任を持ちます。" },
+    "zh-Hans": { "displayName": "Cha Mawang", "tagline": "创作者IP投资与内容制作公司CEO", "summary": "能赢下所有谈判，却会为所爱之人的一句话重新制定计划的男人。", "publicStory": "Cha Mawang是引领创作者IP投资与直播内容制作的创始人兼CEO。他判断迅速、谈判敏锐，也会对自己选择的人与项目负责到底。" },
+    "zh-Hant": { "displayName": "Cha Mawang", "tagline": "創作者IP投資與內容製作公司CEO", "summary": "能贏下所有談判，卻會為所愛之人的一句話重新制定計畫的男人。", "publicStory": "Cha Mawang是引領創作者IP投資與直播內容製作的創辦人兼CEO。他判斷迅速、談判敏銳，也會對自己選擇的人與專案負責到底。" }
+  },
+  "seo-ika": {
+    "ko": { "displayName": "서이카", "tagline": "스토리 게임 라이브 스트리머", "summary": "남의 마음은 먼저 알아채지만 자기 상처는 가장 늦게 돌보는 다정한 게임 크리에이터.", "publicStory": "서이카는 스토리·호러·협동 생존 게임을 중심으로 활동하는 라이브 스트리머다. 팀원의 감정을 빠르게 읽고 위기에서는 논리적으로 상황을 수습하는 다정한 책임감을 지녔다." },
+    "en": { "displayName": "Seo Ika", "tagline": "Story game livestreamer", "summary": "A caring game creator who notices others' feelings first and tends to her own wounds last.", "publicStory": "Seo Ika is a livestreamer focused on story, horror, and cooperative survival games. She quickly reads her teammates' emotions and brings crises under control with thoughtful logic." },
+    "ja": { "displayName": "Seo Ika", "tagline": "ストーリーゲーム配信者", "summary": "人の心には先に気づき、自分の傷は最後にいたわる優しいゲームクリエイター。", "publicStory": "Seo Ikaは、ストーリー、ホラー、協力サバイバルゲームを中心に活動する配信者です。仲間の感情を素早く読み取り、危機では論理的に状況を整える優しい責任感を持ちます。" },
+    "zh-Hans": { "displayName": "Seo Ika", "tagline": "剧情游戏直播主", "summary": "先察觉别人的心情，却最后才照顾自己伤口的温柔游戏创作者。", "publicStory": "Seo Ika是一位专注剧情、恐怖与合作生存游戏的直播主。她能迅速读懂队友情绪，并在危机中用清晰逻辑稳定局面。" },
+    "zh-Hant": { "displayName": "Seo Ika", "tagline": "劇情遊戲直播主", "summary": "先察覺別人的心情，卻最後才照顧自己傷口的溫柔遊戲創作者。", "publicStory": "Seo Ika是一位專注劇情、恐怖與合作生存遊戲的直播主。她能迅速讀懂隊友情緒，並在危機中用清晰邏輯穩定局面。" }
+  },
+  "baek-toga": {
+    "ko": { "displayName": "백토가", "tagline": "퍼스널 트레이너", "summary": "복잡한 말보다 한 번의 정확한 행동으로 사람을 움직이는 생활형 트레이너.", "publicStory": "백토가는 어려운 이론보다 정확한 시범과 즉시 실천할 수 있는 방법을 전하는 퍼스널 트레이너다. 즉흥적이고 직관적이지만 사람을 끝까지 챙기는 현실적인 배려가 강점이다." },
+    "en": { "displayName": "Baek Toga", "tagline": "Personal trainer", "summary": "A practical trainer who moves people through one precise action rather than complicated words.", "publicStory": "Baek Toga is a personal trainer who favors precise demonstrations and steps people can try immediately over difficult theory. Instinctive and direct, he is grounded by practical care that lasts to the end." },
+    "ja": { "displayName": "Baek Toga", "tagline": "パーソナルトレーナー", "summary": "複雑な言葉より一度の正確な行動で人を動かす実践型トレーナー。", "publicStory": "Baek Togaは、難しい理論より正確な実演とすぐに試せる方法を伝えるパーソナルトレーナーです。直感的で即興的ながら、最後まで人を気遣う現実的な優しさがあります。" },
+    "zh-Hans": { "displayName": "Baek Toga", "tagline": "私人教练", "summary": "比起复杂语言，更用一次准确行动带动他人的实用型教练。", "publicStory": "Baek Toga是一位比起艰深理论，更重视准确示范与立即可行方法的私人教练。他即兴而直觉，也以始终照顾他人的务实体贴为长处。" },
+    "zh-Hant": { "displayName": "Baek Toga", "tagline": "私人教練", "summary": "比起複雜語言，更用一次準確行動帶動他人的實用型教練。", "publicStory": "Baek Toga是一位比起艱深理論，更重視準確示範與立即可行方法的私人教練。他即興而直覺，也以始終照顧他人的務實體貼為長處。" }
+  },
+  "kwon-bandong": {
+    "ko": { "displayName": "권반동", "tagline": "아웃도어 생존 콘텐츠 디렉터", "summary": "약속한 귀환까지 계획에 넣는 현장형 생존 콘텐츠 디렉터.", "publicStory": "권반동은 군 현장·군수 작전 장교 경험을 바탕으로 아웃도어 생존 콘텐츠와 원정 안전을 설계하는 디렉터다. 모든 계획에 복귀 조건을 포함하고 약속과 책임을 가장 중요한 기준으로 삼는다." },
+    "en": { "displayName": "Kwon Bandong", "tagline": "Outdoor survival content director", "summary": "A field-tested survival director who plans all the way through the promised return.", "publicStory": "Drawing on experience in field and logistics operations, Kwon Bandong designs outdoor survival content and expedition safety. Every plan includes a return condition, with promises and responsibility as the highest standards." },
+    "ja": { "displayName": "Kwon Bandong", "tagline": "アウトドアサバイバルコンテンツディレクター", "summary": "約束した帰還まで計画に入れる現場型サバイバルディレクター。", "publicStory": "Kwon Bandongは、軍の現場・兵站作戦の経験を基に、アウトドアサバイバルコンテンツと遠征の安全を設計するディレクターです。すべての計画に帰還条件を含め、約束と責任を最優先にします。" },
+    "zh-Hans": { "displayName": "Kwon Bandong", "tagline": "户外生存内容导演", "summary": "把约定的归程也写进计划的现场型生存内容导演。", "publicStory": "Kwon Bandong以军事现场与后勤行动经验为基础，设计户外生存内容与远征安全方案。每项计划都包含返程条件，并将承诺与责任视为最高标准。" },
+    "zh-Hant": { "displayName": "Kwon Bandong", "tagline": "戶外生存內容導演", "summary": "把約定的歸程也寫進計畫的現場型生存內容導演。", "publicStory": "Kwon Bandong以軍事現場與後勤行動經驗為基礎，設計戶外生存內容與遠征安全方案。每項計畫都包含返程條件，並將承諾與責任視為最高標準。" }
+  }
+}
