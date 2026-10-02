@@ -286,7 +286,13 @@ test('public mobile navigation stays within the viewport in all five locales',
         }, locale);
         for (const path of paths) {
           await page.goto(new URL(path, base).href, { waitUntil: 'domcontentloaded', timeout: 30_000 });
-          await page.locator('body.is-ready').waitFor({ timeout: 15_000 });
+          try {
+            await page.locator('body.is-ready').waitFor({ timeout: 15_000 });
+          } catch (error) {
+            await mkdir(artifacts, { recursive: true });
+            await page.screenshot({ path: join(artifacts, `${path === '/' ? 'home' : path.slice(1)}-${locale}-not-ready.png`) });
+            throw new Error(`${path} ${locale} did not become ready: ${error.message}`, { cause: error });
+          }
           if (loadedContent[path]) await page.locator(loadedContent[path]).first().waitFor({ timeout: 20_000 });
           const layout = await page.evaluate(() => ({
             lang: document.documentElement.lang,
