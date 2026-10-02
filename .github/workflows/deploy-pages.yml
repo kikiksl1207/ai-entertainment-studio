@@ -28,8 +28,12 @@ jobs:
           node-version: '22'
 
       - name: Install locked QA dependencies
-        # Source checks need TypeScript, not lifecycle scripts or a running database.
+        # Install exact source-check dependencies without package lifecycle scripts.
         run: npm ci --prefix server --ignore-scripts --no-audit --no-fund
+
+      - name: Generate schema types for source contracts
+        # Produces client types only; no database connection, migration, or seed.
+        run: npm run prisma:generate --prefix server
 
       - name: Check public site contracts
         run: node scripts/run-static-site-tests.mjs
