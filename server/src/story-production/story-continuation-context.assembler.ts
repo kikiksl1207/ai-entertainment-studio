@@ -181,6 +181,11 @@ export class StoryContinuationContextAssembler {
         pinnedMemories.length !== memoryIds.length) {
       throw new StoryContinuationContextError('pinned_context_changed');
     }
+    // Do not silently rewrite an older job's pinned context before a paid call.
+    if (pinnedMemories.some((memory) => memory.memoryType === 'foreshadow' &&
+        !planningMemoryIdSet.has(memory.id))) {
+      throw new StoryContinuationContextError('pinned_context_changed');
+    }
     if (sourceKind === 'generated' &&
         (!Number.isInteger(progress.currentBeatPosition) ||
           progress.currentBeatPosition < 1 || progress.currentBeatPosition > 40)) {

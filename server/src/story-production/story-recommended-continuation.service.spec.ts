@@ -207,6 +207,31 @@ describe('recommended choice enqueue transaction', () => {
     expect(f.createContinuation.mock.calls[0][0].data.contextReferences.planningMemoryIds).toEqual(['skipped', 'future']);
   });
 
+  it('keeps a future payoff hinted in a reached part out of established route facts', async () => {
+    const f = fixture();
+    f.tx.storyScene.findMany.mockImplementation(async (query) => query.where?.sceneKey
+      ? [{ id: 'scene-id', sceneKey: 'part-1-main' }]
+      : [{ id: 'opening', title: { ko: '이전 장면' }, endingType: null }]);
+    f.tx.storyMemoryRecord.findMany.mockImplementation(memoryQuery([
+      { id: 'alive', memoryType: 'event', partKey: 'part-1', revision: 1,
+        content: { ko: '어머니는 살아 있으며 딸을 배웅한다.' } },
+      { id: 'hint', memoryType: 'foreshadow', partKey: 'part-1', revision: 1,
+        content: { ko: '원작 32부에서 어머니가 죽는다. 1부에 복선을 둔다.' } },
+      { id: 'style', memoryType: 'style', partKey: 'part-1', revision: 1,
+        content: { ko: '윤해원의 1인칭 감각 서술' } },
+    ]));
+    f.provider.preflight = jest.fn().mockResolvedValue({ supported: true, inputTokenUpperBound: 900 });
+
+    await f.service.requestRecommendedChoiceTx(f.tx as never, f.input);
+
+    expect(f.provider.preflight.mock.calls[0][0].approvedContext.memories).toEqual([
+      { memoryType: 'style', content: '윤해원의 1인칭 감각 서술' },
+      { memoryType: 'event', content: '어머니는 살아 있으며 딸을 배웅한다.' },
+      { memoryType: 'author_plan_foreshadow', content: '원작 32부에서 어머니가 죽는다. 1부에 복선을 둔다.' },
+    ]);
+    expect(f.createContinuation.mock.calls[0][0].data.contextReferences.planningMemoryIds).toEqual(['hint']);
+  });
+
   it('uses active choice events to retain reached facts beyond the bounded path summary', async () => {
     const f = fixture();
     f.input.part.position = 3;

@@ -497,8 +497,10 @@ export class StoryEconomicsService {
         retryable: false,
       });
     }
+    // A foreshadow's source part locates the hint, not the event it predicts.
     const planningMemoryIds = memory.filter((item) => item.memoryType !== 'style' &&
-      (typeof item.partKey !== 'string' || !reachedPartKeys.has(item.partKey))).map((item) => item.id);
+      (item.memoryType === 'foreshadow' || typeof item.partKey !== 'string' ||
+        !reachedPartKeys.has(item.partKey))).map((item) => item.id);
     const planningMemoryIdSet = new Set(planningMemoryIds);
     const memoryPins = continuationMemoryPins(memory);
     let sourceHash: string;

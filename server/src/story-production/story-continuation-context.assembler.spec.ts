@@ -191,6 +191,32 @@ describe('StoryContinuationContextAssembler', () => {
     }]);
   });
 
+  it.each([false, true])('reassembles a foreshadow only when explicitly pinned as an author plan: %s', async (planned) => {
+    const f = fixture();
+    const memories = [{ id: 'hint', memoryType: 'foreshadow', revision: 1,
+      content: { ko: '원작 후반에서 어머니가 죽는다. 초반에 복선을 둔다.' } }];
+    f.prisma.storyMemoryRecord.findMany.mockResolvedValue(memories);
+    const memoryPins = continuationMemoryPins(memories);
+    const references = f.continuation.contextReferences;
+    f.continuation.contextReferences = {
+      ...references, memoryPins,
+      executionFingerprint: continuationExecutionFingerprint({
+        contextFingerprint: f.continuation.contextFingerprint,
+        sourceHash: references.sourceHash, pathHash: references.pathHash, memoryPins,
+      }),
+    };
+    if (planned) Object.assign(f.continuation.contextReferences, { planningMemoryIds: ['hint'] });
+
+    if (!planned) {
+      await expect(f.assembler.assemble(claim)).rejects.toThrow('pinned_context_changed');
+      expect(f.prisma.storyBeat.findMany).not.toHaveBeenCalled();
+      return;
+    }
+    await expect(f.assembler.assemble(claim)).resolves.toMatchObject({ memories: [{
+      memoryType: 'author_plan_foreshadow', content: memories[0].content.ko,
+    }] });
+  });
+
   it('rejects a planning reference that was not pinned for this continuation', async () => {
     const f = fixture();
     Object.assign(f.continuation.contextReferences, { planningMemoryIds: ['different-memory'] });
