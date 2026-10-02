@@ -82,6 +82,8 @@ import { StoryInteractionApprovalController } from './story-interaction-approval
 import { StoryInteractionApprovalService } from './story-interaction-approval.service';
 import { StoryCanonicalReadController } from './story-canonical-read.controller';
 import { StoryCanonicalReadService } from './story-canonical-read.service';
+import { StoryAuthorBodyPreviewController } from './story-author-body-preview.controller';
+import { StoryAuthorBodyPreviewService } from './story-author-body-preview.service';
 
 @Module({
   imports: [ModerationModule, StoryUploadModule, CreatorStudioModule, UserAssetsModule],
@@ -95,6 +97,7 @@ import { StoryCanonicalReadService } from './story-canonical-read.service';
     StoryBranchVisualReviewListController,
     StoryInteractionApprovalController,
     StoryCanonicalReadController,
+    StoryAuthorBodyPreviewController,
     StoryAuthoredImportController,
     StoryProductionController,
     StoryProgressAdminController,
@@ -129,6 +132,7 @@ import { StoryCanonicalReadService } from './story-canonical-read.service';
     StoryBranchVisualReviewService,
     StoryInteractionApprovalService,
     StoryCanonicalReadService,
+    StoryAuthorBodyPreviewService,
     StoryAuthoredImportMultipartInterceptor,
     StoryProductionService,
     StoryProgressControlService,

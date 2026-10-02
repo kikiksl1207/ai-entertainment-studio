@@ -12,6 +12,7 @@
     "data/character-messages.js", "data/characters.js", "data/fan-engagement-copy.js", "data/lineup.js", "data/shortforms.js",
     "pages/business.js", "pages/character-catalog.js", "pages/character-chat.js", "pages/character-detail.js", "pages/charge.js",
     "pages/chat-rankings.js", "pages/content-rights-contract-ui.js", "pages/creator-analysis-review.js",
+    "pages/creator-body-preview.css", "pages/creator-body-preview.js",
     "pages/creator-branch-visual-review.css", "pages/creator-branch-visual-review.js", "pages/creator-content-rights.js",
     "pages/creator-story-choice-consent-review.css", "pages/creator-story-choice-consent-review.js", "pages/creator-story-finalize.js",
     "pages/creator-story-interactions.css", "pages/creator-story-interactions.js", "pages/creator-story-visual-booking.css",
