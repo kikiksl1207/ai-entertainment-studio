@@ -1,5 +1,7 @@
-export const STORY_CONTINUATION_PROMPT_VERSION = 'story-continuation-v6';
-export const LEGACY_STORY_CONTINUATION_PROMPT_VERSION = 'story-continuation-v5';
+export const STORY_CONTINUATION_PROMPT_VERSION = 'story-continuation-v8';
+export const PREVIOUS_STORY_CONTINUATION_PROMPT_VERSION = 'story-continuation-v7';
+export const LEGACY_STORY_CONTINUATION_PROMPT_VERSION = 'story-continuation-v6';
+export const OLDEST_STORY_CONTINUATION_PROMPT_VERSION = 'story-continuation-v5';
 export const STORY_CONTINUATION_SCHEMA_VERSION = 'story-continuation-output-v1';
 
 function object(properties: Record<string, unknown>) {

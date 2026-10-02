@@ -6,10 +6,13 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, type StoryAiContinuation } from '@prisma/client';
 import { createHash, randomUUID } from 'crypto';
+import { isUUID } from 'class-validator';
 import { PrismaService } from '../prisma/prisma.service';
 import { storyAiResultChecksum } from './story-ai-result-checksum';
+import { storyAiNarrativeChecksum, storyAiSiblingChoiceKey, storyAiSiblingContextKey,
+  type StoryAiSiblingSource } from './story-ai-sibling-outcome.policy';
 import { STORY_ROUTE_IDENTITY_VERSION } from './story-route-identity.policy';
 import { appendStoryRoute, storyRouteSharingHash, storyRouteSnapshot, storyRouteStepForContinuation } from './story-route-identity.store';
 import {
@@ -57,6 +60,7 @@ import {
   continuationHash,
   continuationExecutionFingerprint,
   continuationGenerationProfileSnapshot,
+  parseContinuationGenerationProfilePin,
   STORY_CONTINUATION_PROFILE_VIEW_VERSION,
   approvedContinuationMemoryText,
   continuationMemoryPins,
@@ -75,6 +79,7 @@ import {
 } from './story-reusable-result.policy';
 import { StoryArtistParticipantService, type StoryParticipantPin } from './story-artist-participant.service';
 import { STORY_CONTINUATION_PROMPT_VERSION } from './story-continuation-openai.schema';
+import { assembleContinuationRouteContinuity, STORY_CONTINUATION_ROUTE_VIEW_VERSION } from './story-continuation-route-continuity';
 
 type CustomChoiceContext = {
   progress: {
@@ -140,6 +145,15 @@ type RecommendedChoiceReplayScope = {
   locale: string;
 };
 
+class StoryAiSiblingNarrativeConflict extends ConflictException {
+  readonly code: string;
+
+  constructor(code: string) {
+    super(code);
+    this.code = code;
+  }
+}
+
 @Injectable()
 export class StoryEconomicsService {
   constructor(
@@ -175,6 +189,7 @@ export class StoryEconomicsService {
     if (
       input.choice.routeKind !== 'generation_required' ||
       input.choice.targetSceneId ||
+      input.choice.declaredRejoinSceneId ||
       input.choice.sceneId !== input.scene.id
     ) {
       throw new ConflictException('Choice is not eligible for generated continuation');
@@ -318,6 +333,13 @@ export class StoryEconomicsService {
 
     let generationProfilePin: StoryContinuationGenerationProfilePin | undefined;
     let approvedGenerationProfile: ReturnType<typeof continuationGenerationProfileSnapshot>['approved'] | undefined;
+    if (analysis?.pipeline === 'semantic_extraction_v1' && !latestGenerationProfile) {
+      throw new ForbiddenException({
+        code: 'STORY_GENERATION_PROFILE_APPROVAL_REQUIRED',
+        messageKey: 'story.progress.aiGeneration.profileApprovalRequired',
+        retryable: false,
+      });
+    }
     if (latestGenerationProfile && !usingLegacyReviewFallback) {
       if (
         latestGenerationProfile.manuscriptVersionId !== input.release.manuscriptVersionId ||
@@ -344,21 +366,97 @@ export class StoryEconomicsService {
     const participantSnapshot = this.storyParticipants
       ? await this.storyParticipants.pinnedContext(tx, input.progress.id)
       : null;
+    // A reader's binding id is audit evidence, not part of the shared character identity.
+    const participantSharingPin = participantSnapshot ? sharingParticipantPin(participantSnapshot.pin) : null;
 
+    // Preserve later authored events for planning, but label them as possible
+    // future references rather than facts already established on this route.
+    if (!Number.isInteger(input.part.position) || input.part.position < 1) {
+      throw new ForbiddenException({
+        code: 'STORY_AI_CONTEXT_PART_UNAVAILABLE',
+        messageKey: 'story.progress.aiGeneration.contextUnavailable',
+        retryable: false,
+      });
+    }
+    const priorParts = await tx.storyPart.findMany({
+      where: { workId: input.work.id, position: { lte: input.part.position }, status: 'published', fixtureSource: false },
+      select: { id: true },
+      orderBy: { position: 'asc' },
+    });
+    if (!priorParts.some((part) => part.id === input.part.id)) {
+      throw new ForbiddenException({
+        code: 'STORY_AI_CONTEXT_PART_UNAVAILABLE',
+        messageKey: 'story.progress.aiGeneration.contextUnavailable',
+        retryable: false,
+      });
+    }
     const boundedProgressPath = boundedPath(jsonRecordArray(input.progress.pathSummary));
-    const [memory, sourceBeats, semanticPath] = await Promise.all([
-      tx.storyMemoryRecord.findMany({
-        where: {
-          workId: input.work.id,
-          manuscriptVersionId: input.release.manuscriptVersionId,
-          status: 'approved',
-          ...(analysis ? { analysisJobId: analysis.id } : {}),
-          memoryType: { in: ['entity', 'event', 'foreshadow', 'branch', 'style'] },
-        },
-        orderBy: [{ memoryType: 'asc' }, { memoryKey: 'asc' }],
-        select: { id: true, memoryType: true, revision: true, content: true },
-        take: 50,
-      }),
+    if (input.sourceKind === 'generated' &&
+        (!Number.isInteger(input.progress.currentBeatPosition) ||
+          input.progress.currentBeatPosition < 1 || input.progress.currentBeatPosition > 40)) {
+      throw new ForbiddenException({
+        code: 'STORY_AI_CONTEXT_PART_UNAVAILABLE',
+        messageKey: 'story.progress.aiGeneration.contextUnavailable', retryable: false,
+      });
+    }
+    const activeCanonicalChoices = await tx.storyChoiceEvent.findMany({
+      where: { progressId: input.progress.id, invalidatedAt: null },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      select: { sceneId: true, targetSceneId: true },
+      take: 1024,
+    });
+    const reachedCanonicalSceneIds = new Set<string>();
+    if (input.sourceKind === 'canonical') reachedCanonicalSceneIds.add(input.scene.id);
+    for (const step of activeCanonicalChoices) {
+      for (const id of [step.targetSceneId, step.sceneId]) {
+        if (typeof id === 'string' && id) reachedCanonicalSceneIds.add(id);
+      }
+    }
+    const reachedScenes = reachedCanonicalSceneIds.size ? await tx.storyScene.findMany({
+      where: {
+        id: { in: [...reachedCanonicalSceneIds] },
+        partId: { in: priorParts.map((part) => part.id) },
+        sceneKey: { endsWith: '-main' }, fixtureSource: false,
+      },
+      select: { id: true, sceneKey: true },
+    }) : [];
+    const reachedPartKeys = new Set(reachedScenes.map((scene) => scene.sceneKey.slice(0, -5)).filter(Boolean));
+    const scenePartKeyById = new Map(reachedScenes.map((scene) => [scene.id, scene.sceneKey.slice(0, -5)]));
+    const reachedKeys = [...new Set([
+      ...[...reachedCanonicalSceneIds].map((id) => scenePartKeyById.get(id)).filter((key): key is string => Boolean(key)),
+      ...reachedPartKeys,
+    ])];
+    const recentReachedKeys = reachedKeys.slice(0, 16);
+    const recentKeyPriority = new Map(recentReachedKeys.map((key, index) => [key, index]));
+
+    const memoryScope = {
+      workId: input.work.id,
+      manuscriptVersionId: input.release.manuscriptVersionId,
+      status: 'approved',
+      ...(analysis ? { analysisJobId: analysis.id } : {}),
+    };
+    const nonStyleTypes = ['entity', 'event', 'foreshadow', 'branch'];
+    const memorySelect = { id: true, memoryType: true, partKey: true, revision: true, content: true } as const;
+    const [memoryGroups, sourceBeats, semanticPath] = await Promise.all([
+      Promise.all([
+        tx.storyMemoryRecord.findMany({
+          where: { ...memoryScope, memoryType: 'style' },
+          orderBy: [{ memoryKey: 'asc' }, { id: 'asc' }], select: memorySelect, take: 8,
+        }),
+        recentReachedKeys.length ? tx.storyMemoryRecord.findMany({
+          where: { ...memoryScope, memoryType: { in: nonStyleTypes }, partKey: { in: recentReachedKeys } },
+          orderBy: [{ partKey: 'desc' }, { memoryType: 'asc' }, { memoryKey: 'asc' }],
+          select: memorySelect, take: 128,
+        }) : Promise.resolve([]),
+        tx.storyMemoryRecord.findMany({
+          where: {
+            ...memoryScope, memoryType: { in: nonStyleTypes },
+            ...(reachedKeys.length ? { OR: [{ partKey: null }, { partKey: { notIn: reachedKeys } }] } : {}),
+          },
+          orderBy: [{ partKey: 'asc' }, { memoryType: 'asc' }, { memoryKey: 'asc' }],
+          select: memorySelect, take: 15,
+        }),
+      ]),
       input.sourceKind === 'canonical'
         ? tx.storyBeat.findMany({
             where: { sceneId: input.scene.id },
@@ -367,7 +465,7 @@ export class StoryEconomicsService {
             take: 41,
           })
         : tx.storyAiGeneratedBeat.findMany({
-            where: { sceneId: input.scene.id },
+            where: { sceneId: input.scene.id, position: { lte: input.progress.currentBeatPosition } },
             orderBy: [{ position: 'asc' }, { id: 'asc' }],
             select: { position: true, beatType: true, content: true },
             take: 41,
@@ -381,6 +479,17 @@ export class StoryEconomicsService {
         progressId: input.progress.id,
       }),
     ]);
+    const [styleRows, reachedRows, planningRows] = memoryGroups;
+    const recentReachedRows = reachedRows
+      .sort((left, right) => (recentKeyPriority.get(left.partKey || '') ?? 16) -
+        (recentKeyPriority.get(right.partKey || '') ?? 16))
+      .slice(0, 32)
+      .sort((left, right) => (recentKeyPriority.get(right.partKey || '') ?? 16) -
+        (recentKeyPriority.get(left.partKey || '') ?? 16));
+    const style = styleRows.length <= 3 ? styleRows : [
+      styleRows[0], styleRows[Math.floor((styleRows.length - 1) / 2)], styleRows[styleRows.length - 1],
+    ];
+    const memory = [...style, ...recentReachedRows, ...planningRows];
     if (sourceBeats.length < 1 || sourceBeats.length > 40) {
       throw new ForbiddenException({
         code: 'STORY_AI_CONTEXT_BUDGET_EXCEEDED',
@@ -388,6 +497,9 @@ export class StoryEconomicsService {
         retryable: false,
       });
     }
+    const planningMemoryIds = memory.filter((item) => item.memoryType !== 'style' &&
+      (typeof item.partKey !== 'string' || !reachedPartKeys.has(item.partKey))).map((item) => item.id);
+    const planningMemoryIdSet = new Set(planningMemoryIds);
     const memoryPins = continuationMemoryPins(memory);
     let sourceHash: string;
     let approvedContext: StoryContinuationApprovedContext;
@@ -412,7 +524,7 @@ export class StoryEconomicsService {
         },
         path: semanticPath,
         memories: memory.map((item) => ({
-          memoryType: item.memoryType,
+          memoryType: planningMemoryIdSet.has(item.id) ? `author_plan_${item.memoryType}` : item.memoryType,
           content: approvedContinuationMemoryText(item.content, locale),
         })),
         ...(approvedGenerationProfile
@@ -449,7 +561,27 @@ export class StoryEconomicsService {
     }
     const pathHash = continuationPathHash(semanticPath);
     const route = await storyRouteSnapshot(tx, input.progress);
+    let routeContinuity;
+    try {
+      routeContinuity = await assembleContinuationRouteContinuity(tx, {
+        routeNodeId: route.nodeId, progressId: input.progress.id, workId: input.work.id,
+        releaseId: input.release.id, userId: input.userId, locale,
+        pathSummary: input.progress.pathSummary,
+      });
+    } catch {
+      throw new ForbiddenException({
+        code: 'STORY_AI_CONTEXT_PART_UNAVAILABLE',
+        messageKey: 'story.progress.aiGeneration.contextUnavailable', retryable: false,
+      });
+    }
+    const routeContinuityHash = continuationHash(routeContinuity);
+    approvedContext.routeContinuity = routeContinuity;
     const sharingRouteHash = await storyRouteSharingHash(tx, input.progress);
+    const siblingSource: StoryAiSiblingSource = input.sourceKind === 'canonical'
+      ? { kind: 'canonical', sceneId: input.scene.id }
+      : typeof input.scene.sharedResultId === 'string'
+        ? { kind: 'shared', resultId: input.scene.sharedResultId }
+        : { kind: 'private', sceneId: input.scene.id };
     const context = {
       workId: input.work.id,
       releaseId: input.release.id,
@@ -462,8 +594,10 @@ export class StoryEconomicsService {
       recommendedChoiceId: input.sourceKind === 'canonical' ? input.choice.id : null,
       generatedChoiceId: input.sourceKind === 'generated' ? input.choice.id : null,
       semanticPath,
+      routeContinuity: { version: STORY_CONTINUATION_ROUTE_VIEW_VERSION, hash: routeContinuityHash },
       routeIdentity: { version: STORY_ROUTE_IDENTITY_VERSION, hash: route.hash },
       memory: memoryPins,
+      planningMemoryIds,
       analysis: analysis
         ? { id: analysis.id, version: analysis.analysisVersion }
         : null,
@@ -482,10 +616,36 @@ export class StoryEconomicsService {
     const contextFingerprint = createHash('sha256')
       .update(stableJson(context))
       .digest('hex');
+    const siblingContextKey = storyAiSiblingContextKey({
+      workId: input.work.id,
+      releaseId: input.release.id,
+      releaseChecksum: input.release.checksum,
+      manuscriptVersionId: input.release.manuscriptVersionId,
+      source: siblingSource,
+      route: sharingRouteHash
+        ? { kind: 'shared', hash: sharingRouteHash }
+        : { kind: 'private', nodeId: route.nodeId ?? input.progress.id },
+      locale,
+      promptVersion: context.promptVersion,
+      outputSchemaVersion: context.outputSchemaVersion,
+      approvedContext,
+      pins: {
+        memoryPins,
+        routeContinuityHash,
+        routeContinuityVersion: STORY_CONTINUATION_ROUTE_VIEW_VERSION,
+        planningMemoryIds,
+        analysis: analysis ? { id: analysis.id, version: analysis.analysisVersion } : null,
+        generationProfilePin: generationProfilePin ?? null,
+        participantPin: participantSharingPin,
+      },
+    });
+    const siblingChoiceKey = storyAiSiblingChoiceKey(siblingSource, input.choice);
     const executionFingerprint = continuationExecutionFingerprint({
       contextFingerprint,
       sourceHash,
       pathHash,
+      routeContinuityHash,
+      routeContinuityVersion: STORY_CONTINUATION_ROUTE_VIEW_VERSION,
       memoryPins,
       ...(generationProfilePin ? { generationProfilePin } : {}),
       ...(participantSnapshot ? { participantPin: participantSnapshot.pin } : {}),
@@ -496,12 +656,15 @@ export class StoryEconomicsService {
       manuscriptVersionId: input.release.manuscriptVersionId,
       sourceHash,
       pathHash,
+      routeContinuityHash,
+      routeContinuityVersion: STORY_CONTINUATION_ROUTE_VIEW_VERSION,
       routeIdentity: { version: STORY_ROUTE_IDENTITY_VERSION, hash: sharingRouteHash },
       memory: memoryPins.map(({ revision, contentHash }) => ({ revision, contentHash })),
+      planningMemoryPositions: planningMemoryIds.map((id) => memory.findIndex((item) => item.id === id)),
       analysisVersion: analysis.analysisVersion,
       ...(generationProfilePin ? { generationProfilePin,
         generationProfileViewVersion: STORY_CONTINUATION_PROFILE_VIEW_VERSION } : {}),
-      ...(participantSnapshot ? { participantPin: participantSnapshot.pin } : {}),
+      ...(participantSharingPin ? { participantPin: participantSharingPin } : {}),
       locale,
     });
     const reusableSource = input.sourceKind === 'generated' &&
@@ -618,7 +781,10 @@ export class StoryEconomicsService {
           reuseKey,
           sourceHash,
           pathHash,
+          routeContinuityHash,
           executionFingerprint,
+          siblingContextKey,
+          siblingChoiceKey,
           generationProfilePin,
           participantPin: participantSnapshot?.pin,
           sharedResult,
@@ -784,6 +950,8 @@ export class StoryEconomicsService {
         sourceProgressRevision: input.progress.progressRevision,
         sourceRouteNodeId: route.nodeId,
         sourceRouteHash: route.hash,
+        siblingContextKey,
+        siblingChoiceKey,
         checkpointSceneId: input.progress.checkpointSceneId,
         manuscriptVersionId: input.release.manuscriptVersionId,
         analysisJobId: analysis?.id,
@@ -800,8 +968,11 @@ export class StoryEconomicsService {
         outputSchemaVersion: context.outputSchemaVersion,
         contextReferences: {
           memoryPins,
+          planningMemoryIds,
           sourceHash,
           pathHash,
+          routeContinuityHash,
+          routeContinuityVersion: STORY_CONTINUATION_ROUTE_VIEW_VERSION,
           executionFingerprint,
           narrativeLength,
           ...(generationProfilePin ? { generationProfilePin,
@@ -1185,42 +1356,29 @@ export class StoryEconomicsService {
     if (expiresAt && expiresAt <= startsAt) {
       throw new BadRequestException('Consent period is invalid');
     }
-    const consent = await this.prisma.storyStyleProfileConsent.upsert({
-      where: { workId },
-      create: {
-        workId,
-        ownerUserId: userId,
-        manuscriptVersionId: manuscript.id,
-        status: 'active',
-        rightsConfirmed: true,
-        aiBranchAllowed: body.aiBranchAllowed,
-        translationAllowed: body.translationAllowed,
-        imageTransformationAllowed: body.imageTransformationAllowed,
-        allowedLocales: body.allowedLocales,
-        allowedRegions: body.allowedRegions,
-        startsAt,
-        expiresAt,
-        publicClaim: STORY_AI_PUBLIC_CLAIM,
-      },
-      update: {
-        manuscriptVersionId: manuscript.id,
-        status: 'active',
-        rightsConfirmed: true,
-        aiBranchAllowed: body.aiBranchAllowed,
-        translationAllowed: body.translationAllowed,
-        imageTransformationAllowed: body.imageTransformationAllowed,
-        allowedLocales: body.allowedLocales,
-        allowedRegions: body.allowedRegions,
-        startsAt,
-        expiresAt,
-        publicClaim: STORY_AI_PUBLIC_CLAIM,
-        revision: { increment: 1 },
-        withdrawnAt: null,
-        deletionRequestedAt: null,
-        deletedAt: null,
-        updatedAt: new Date(),
-      },
-    });
+    const data = {
+      manuscriptVersionId: manuscript.id,
+      status: 'active',
+      rightsConfirmed: true,
+      aiBranchAllowed: body.aiBranchAllowed,
+      translationAllowed: body.translationAllowed,
+      imageTransformationAllowed: body.imageTransformationAllowed,
+      allowedLocales: body.allowedLocales,
+      allowedRegions: body.allowedRegions,
+      startsAt,
+      expiresAt,
+      publicClaim: STORY_AI_PUBLIC_CLAIM,
+    };
+    const consent = await (existing
+      ? this.prisma.storyStyleProfileConsent.update({
+          where: { id: existing.id, workId, ownerUserId: userId,
+            revision: existing.revision, status: existing.status },
+          data: { ...data, revision: { increment: 1 }, withdrawnAt: null,
+            deletionRequestedAt: null, deletedAt: null, updatedAt: new Date() },
+        })
+      : this.prisma.storyStyleProfileConsent.create({
+          data: { workId, ownerUserId: userId, ...data },
+        })).catch((error: unknown) => this.rethrowStyleConsentWriteError(error, existing ? 'P2025' : 'P2002'));
     return this.consentProjection(consent);
   }
 
@@ -1248,35 +1406,46 @@ export class StoryEconomicsService {
       throw new BadRequestException('Style consent transition is not allowed');
     }
     const now = new Date();
-    const updated = await this.prisma.storyStyleProfileConsent.update({
-      where: { id: consent.id },
-      data: {
-        status: body.toStatus,
-        revision: { increment: 1 },
-        withdrawnAt: body.toStatus === 'withdrawn' ? now : consent.withdrawnAt,
-        deletionRequestedAt:
-          body.toStatus === 'deletion_pending' ? now : consent.deletionRequestedAt,
-        deletedAt: body.toStatus === 'deleted' ? now : null,
-        updatedAt: now,
-      },
-    });
-    if (body.toStatus === 'deleted') {
-      await this.prisma.storyMemoryRecord.updateMany({
-        where: { workId, memoryType: 'style' },
-        data: { status: 'deleted' },
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const changed = await tx.storyStyleProfileConsent.update({
+        where: { id: consent.id, workId, ownerUserId: userId,
+          revision: consent.revision, status: consent.status },
+        data: {
+          status: body.toStatus,
+          revision: { increment: 1 },
+          withdrawnAt: body.toStatus === 'withdrawn' ? now : consent.withdrawnAt,
+          deletionRequestedAt:
+            body.toStatus === 'deletion_pending' ? now : consent.deletionRequestedAt,
+          deletedAt: body.toStatus === 'deleted' ? now : null,
+          updatedAt: now,
+        },
+      }).catch((error: unknown) => this.rethrowStyleConsentWriteError(error, 'P2025'));
+      if (body.toStatus === 'deleted') {
+        await tx.storyMemoryRecord.updateMany({
+          where: { workId, memoryType: 'style' },
+          data: { status: 'deleted' },
+        });
+      }
+      await tx.auditEvent.create({
+        data: {
+          actorUserId: userId,
+          actorType: 'user',
+          action: `story_style_consent.${body.toStatus}`,
+          targetType: 'story_style_profile_consent',
+          targetId: consent.id,
+          metadata: { workId, beforeStatus: consent.status, afterStatus: body.toStatus },
+        },
       });
-    }
-    await this.prisma.auditEvent.create({
-      data: {
-        actorUserId: userId,
-        actorType: 'user',
-        action: `story_style_consent.${body.toStatus}`,
-        targetType: 'story_style_profile_consent',
-        targetId: consent.id,
-        metadata: { workId, beforeStatus: consent.status, afterStatus: body.toStatus },
-      },
+      return changed;
     });
     return this.consentProjection(updated);
+  }
+
+  private rethrowStyleConsentWriteError(error: unknown, conflictCode: 'P2002' | 'P2025'): never {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === conflictCode) {
+      throw new ConflictException('Style consent changed concurrently');
+    }
+    throw error;
   }
 
   async prepareCustomChoice(
@@ -1677,6 +1846,11 @@ export class StoryEconomicsService {
     ) {
       return { allowed: false as const, code: 'stale_worker_lease' };
     }
+    if (!continuation.siblingContextKey || !continuation.siblingChoiceKey ||
+        !/^[a-f0-9]{64}$/.test(continuation.siblingContextKey) ||
+        !/^[a-f0-9]{64}$/.test(continuation.siblingChoiceKey)) {
+      return { allowed: false as const, code: 'continuation_sibling_context_unavailable' };
+    }
     const now = new Date();
     const [work, release, capability, consent, rights, analysis, progress] = await Promise.all([
       this.prisma.storyWork.findUnique({ where: { id: continuation.workId } }),
@@ -1767,6 +1941,29 @@ export class StoryEconomicsService {
       : { allowed: false as const, code: 'generation_authorization_changed' };
   }
 
+  async continuationDispatchAuthorization(tx: Prisma.TransactionClient, claim: StoryContinuationClaim) {
+    const continuation = await tx.storyAiContinuation.findUnique({ where: { id: claim.continuationId } });
+    if (!continuation || continuation.status !== 'processing' ||
+        continuation.requestKind !== 'recommended_choice' || continuation.leaseToken !== claim.leaseToken ||
+        continuation.attemptCount !== claim.attemptCount ||
+        continuation.contextFingerprint !== claim.request.contextFingerprint) {
+      throw new ConflictException('Story AI continuation dispatch lease is stale');
+    }
+    await tx.$queryRaw(Prisma.sql`
+      SELECT id FROM story_works WHERE id = ${continuation.workId}::uuid FOR SHARE
+    `);
+    if (!continuation.analysisJobId || !continuation.manuscriptVersionId || !continuation.analysisVersion) return false;
+    const analysis = await tx.storyAnalysisJob.findFirst({
+      where: {
+        id: continuation.analysisJobId, workId: continuation.workId,
+        manuscriptVersionId: continuation.manuscriptVersionId,
+        analysisVersion: continuation.analysisVersion, status: 'completed',
+      },
+      select: { pipeline: true },
+    });
+    return Boolean(analysis && await this.continuationAuthorPinsActive(tx, continuation, analysis.pipeline));
+  }
+
   async settleClaimedContinuation(
     claim: StoryContinuationClaim,
     result: StoryContinuationProviderResult,
@@ -1803,17 +2000,31 @@ export class StoryEconomicsService {
     claim: StoryContinuationClaim,
     failureCode: string,
     status: 'failed' | 'timeout',
+    usage?: StoryContinuationProviderResult['usage'],
   ) {
+    let actualCostKrw: number | undefined;
+    if (usage) {
+      const continuation = await this.prisma.storyAiContinuation.findUnique({
+        where: { id: claim.continuationId },
+      });
+      if (!continuation) throw new NotFoundException('Story AI continuation not found');
+      const rateCard = await this.prisma.storyAiRateCard.findUnique({
+        where: { id: continuation.rateCardId },
+      });
+      if (!rateCard) throw new ConflictException('Story AI rate card is unavailable');
+      actualCostKrw = calculateStoryUsageCost(this.rateNumbers(rateCard), usage);
+    }
     return this.settleContinuation(
       null,
       claim.continuationId,
       {
         status,
         moderationDecision: 'reject',
-        inputTokens: 0,
-        outputTokens: 0,
-        cachedInputTokens: 0,
-        imageUnits: 0,
+        inputTokens: usage?.inputTokens ?? 0,
+        outputTokens: usage?.outputTokens ?? 0,
+        cachedInputTokens: usage?.cachedInputTokens ?? 0,
+        imageUnits: usage?.imageUnits ?? 0,
+        ...(actualCostKrw === undefined ? {} : { actualCostKrw }),
         failureCode: failureCode.slice(0, 80),
       },
       `worker:${claim.continuationId}:${claim.leaseToken}`,
@@ -1856,6 +2067,12 @@ export class StoryEconomicsService {
         continuation.leaseExpiresAt <= new Date()
       )) {
         throw new ConflictException('Story AI continuation lease is stale');
+      }
+      if (body.status === 'completed' && continuation.requestKind === 'recommended_choice') {
+        // Creator profile edits take this work lock before replacing approved settings.
+        await tx.$queryRaw(Prisma.sql`
+          SELECT id FROM story_works WHERE id = ${continuation.workId}::uuid FOR SHARE
+        `);
       }
       const [rateCard, allowance, progress, sourceScene, consent, release, capability, rightsVersion, work, analysis] = await Promise.all([
         tx.storyAiRateCard.findUnique({ where: { id: continuation.rateCardId } }),
@@ -1986,6 +2203,11 @@ export class StoryEconomicsService {
         finalStatus = 'failed';
         failureCode = 'generation_authorization_changed';
       }
+      if (finalStatus === 'completed' && continuation.requestKind === 'recommended_choice' &&
+          !await this.continuationAuthorPinsActive(tx, continuation, analysis?.pipeline)) {
+        finalStatus = 'failed';
+        failureCode = 'generation_authorization_changed';
+      }
       if (finalStatus === 'completed' && body.moderationDecision !== 'allow') {
         finalStatus = 'failed';
         failureCode = 'generated_output_moderation_rejected';
@@ -2026,6 +2248,10 @@ export class StoryEconomicsService {
           (progress.routeNodeId ?? null) !== (continuation.sourceRouteNodeId ?? null)
         ) {
           throw new ConflictException('Pending story progress changed concurrently');
+        }
+        if (continuation.requestKind === 'recommended_choice') {
+          await this.claimSiblingNarrative(tx, continuation.siblingContextKey,
+            continuation.siblingChoiceKey, body.resultTitle!, body.resultBeats!);
         }
         resultChecksum = storyAiResultChecksum({
           title: body.resultTitle,
@@ -2080,7 +2306,9 @@ export class StoryEconomicsService {
           {
             sourceSceneId: continuation.sourceSceneId,
             sourceGeneratedSceneId: continuation.sourceGeneratedSceneId,
+            readBeatPosition: progress.currentBeatPosition,
             choiceId: continuation.recommendedChoiceId ?? continuation.generatedChoiceId,
+            ...(continuation.customChoiceId ? { customChoiceId: continuation.customChoiceId } : {}),
             generatedSceneId: scene.id,
             provenance: 'ai_generated',
           },
@@ -2315,7 +2543,7 @@ export class StoryEconomicsService {
           targetId: continuation.id,
           metadata: {
             status: finalStatus,
-            failureCode: finalStatus === 'completed' ? null : body.failureCode ?? null,
+            failureCode: finalStatus === 'completed' ? null : failureCode,
             progressApplied: finalStatus === 'completed',
             allowanceConsumed: finalStatus === 'completed',
             rateCardVersion: rateCard.version,
@@ -2324,6 +2552,88 @@ export class StoryEconomicsService {
       });
       return this.settlementProjection(completed, false);
     });
+  }
+
+  private async continuationAuthorPinsActive(
+    tx: Prisma.TransactionClient,
+    continuation: StoryAiContinuation,
+    analysisPipeline?: string,
+  ) {
+    const references = jsonRecord(continuation.contextReferences);
+    const rawPins = references.memoryPins;
+    if (!Array.isArray(rawPins)) return false;
+    const pins = rawPins.map(jsonRecord);
+    if (pins.some(pin => typeof pin.id !== 'string' || !isUUID(pin.id) ||
+        !Number.isInteger(pin.revision) || Number(pin.revision) < 1 ||
+        typeof pin.contentHash !== 'string' || !/^[a-f0-9]{64}$/.test(pin.contentHash)) ||
+        new Set(pins.map(pin => pin.id)).size !== pins.length) return false;
+    let profilePin: StoryContinuationGenerationProfilePin | undefined;
+    try {
+      profilePin = parseContinuationGenerationProfilePin(
+        references.generationProfilePin as Prisma.JsonValue | undefined,
+      );
+    } catch {
+      return false;
+    }
+    if (!profilePin && analysisPipeline === 'semantic_extraction_v1') return false;
+    await tx.$queryRaw(Prisma.sql`
+      SELECT id FROM story_work_generation_profiles
+      WHERE work_id = ${continuation.workId}::uuid
+        AND manuscript_version_id = ${continuation.manuscriptVersionId}::uuid
+      ORDER BY profile_version DESC LIMIT 1 FOR SHARE
+    `);
+    const profile = await tx.storyWorkGenerationProfile.findFirst({
+      where: { workId: continuation.workId, manuscriptVersionId: continuation.manuscriptVersionId! },
+      orderBy: { profileVersion: 'desc' },
+    });
+    if (profilePin) {
+      if (references.generationProfileViewVersion !== STORY_CONTINUATION_PROFILE_VIEW_VERSION) return false;
+      if (!profile || profile.analysisJobId !== continuation.analysisJobId) return false;
+      try {
+        if (stableContinuationJson(continuationGenerationProfileSnapshot(profile).pin) !==
+            stableContinuationJson(profilePin)) return false;
+      } catch {
+        return false;
+      }
+    } else if (profile) {
+      // A legacy request may omit the new profile only during its first pending review.
+      if (profile.status !== 'needs_review') return false;
+      const [latestAnalysis, previouslyApproved] = await Promise.all([
+        tx.storyAnalysisJob.findFirst({
+          where: { workId: continuation.workId, manuscriptVersionId: continuation.manuscriptVersionId!, status: 'completed' },
+          orderBy: [{ analysisVersion: 'desc' }, { createdAt: 'desc' }],
+          select: { id: true, pipeline: true, analysisVersion: true },
+        }),
+        tx.storyWorkGenerationProfile.findFirst({
+          where: {
+            workId: continuation.workId, manuscriptVersionId: continuation.manuscriptVersionId!,
+            analysisJobId: profile.analysisJobId, status: 'approved',
+          },
+          select: { id: true },
+        }),
+      ]);
+      if (latestAnalysis?.pipeline !== 'semantic_extraction_v1' ||
+          latestAnalysis.id !== profile.analysisJobId ||
+          latestAnalysis.analysisVersion <= (continuation.analysisVersion ?? 0) || previouslyApproved) return false;
+    }
+    if (!pins.length) return true;
+    const ids = pins.map(pin => pin.id as string);
+    await tx.$queryRaw(Prisma.sql`
+      SELECT id FROM story_memory_records
+      WHERE work_id = ${continuation.workId}::uuid AND id IN (${Prisma.join(ids.map(id => Prisma.sql`${id}::uuid`))})
+      ORDER BY id FOR SHARE
+    `);
+    const memories = await tx.storyMemoryRecord.findMany({
+      where: {
+        id: { in: ids }, workId: continuation.workId,
+        manuscriptVersionId: continuation.manuscriptVersionId!,
+        analysisJobId: continuation.analysisJobId!, status: 'approved',
+      },
+      select: { id: true, revision: true, content: true },
+    });
+    const byId = new Map(continuationMemoryPins(memories).map(pin => [pin.id, pin]));
+    return byId.size === pins.length && pins.every(pin =>
+      stableContinuationJson(byId.get(pin.id as string)) === stableContinuationJson(pin));
   }
 
   async compensateContinuation(
@@ -2661,6 +2971,33 @@ export class StoryEconomicsService {
     );
   }
 
+  private async claimSiblingNarrative(
+    tx: Prisma.TransactionClient,
+    siblingContextKey: string | null,
+    siblingChoiceKey: string | null,
+    title: unknown,
+    beats: Array<{ beatType: string; content: unknown }>,
+  ) {
+    if (!siblingContextKey || !siblingChoiceKey ||
+        !/^[a-f0-9]{64}$/.test(siblingContextKey) || !/^[a-f0-9]{64}$/.test(siblingChoiceKey)) {
+      throw new StoryAiSiblingNarrativeConflict('continuation_sibling_context_unavailable');
+    }
+    const narrativeChecksum = storyAiNarrativeChecksum({ title, beats });
+    // Generated alternatives have no pinned creator-approved rejoin target. The unique
+    // claim serializes settlement and reuse without guessing diversity from choice labels.
+    const claimed = await tx.$queryRaw<Array<{ sibling_choice_key: string }>>`
+      INSERT INTO story_ai_sibling_narrative_claims
+        (sibling_context_key, narrative_checksum, sibling_choice_key)
+      VALUES (${siblingContextKey}, ${narrativeChecksum}, ${siblingChoiceKey})
+      ON CONFLICT (sibling_context_key, narrative_checksum)
+      DO UPDATE SET sibling_choice_key = story_ai_sibling_narrative_claims.sibling_choice_key
+      WHERE story_ai_sibling_narrative_claims.sibling_choice_key = EXCLUDED.sibling_choice_key
+      RETURNING sibling_choice_key`;
+    if (claimed.length !== 1 || claimed[0].sibling_choice_key !== siblingChoiceKey) {
+      throw new StoryAiSiblingNarrativeConflict('continuation_sibling_narrative_duplicate');
+    }
+  }
+
   private async applyReusableResultTx(
     tx: Prisma.TransactionClient,
     prepared: {
@@ -2677,11 +3014,14 @@ export class StoryEconomicsService {
       reuseKey: string;
       sourceHash: string;
       pathHash: string;
+      routeContinuityHash: string;
       executionFingerprint: string;
       generationProfilePin?: StoryContinuationGenerationProfilePin;
       participantPin?: StoryParticipantPin;
       sharedResult: any;
       route: { nodeId: string | null; hash: string | null };
+      siblingContextKey: string;
+      siblingChoiceKey: string;
     },
   ) {
     const { input, sharedResult } = prepared;
@@ -2712,6 +3052,8 @@ export class StoryEconomicsService {
     ) {
       throw new ConflictException('Approved shared story result is incomplete');
     }
+    await this.claimSiblingNarrative(tx, prepared.siblingContextKey, prepared.siblingChoiceKey,
+      sharedResult.title, beats);
     const now = new Date();
     const continuation = await tx.storyAiContinuation.create({
       data: {
@@ -2734,6 +3076,8 @@ export class StoryEconomicsService {
         sourceProgressRevision: input.progress.progressRevision,
         sourceRouteNodeId: prepared.route.nodeId,
         sourceRouteHash: prepared.route.hash,
+        siblingContextKey: prepared.siblingContextKey,
+        siblingChoiceKey: prepared.siblingChoiceKey,
         checkpointSceneId: input.progress.checkpointSceneId,
         manuscriptVersionId: input.release.manuscriptVersionId,
         analysisJobId: prepared.analysis.id,
@@ -2751,6 +3095,8 @@ export class StoryEconomicsService {
         contextReferences: {
           sourceHash: prepared.sourceHash,
           pathHash: prepared.pathHash,
+          routeContinuityHash: prepared.routeContinuityHash,
+          routeContinuityVersion: STORY_CONTINUATION_ROUTE_VIEW_VERSION,
           executionFingerprint: prepared.executionFingerprint,
           ...(prepared.generationProfilePin
             ? { generationProfilePin: prepared.generationProfilePin,
@@ -2817,6 +3163,7 @@ export class StoryEconomicsService {
       {
         sourceSceneId: input.sourceKind === 'canonical' ? input.scene.id : null,
         sourceGeneratedSceneId: input.sourceKind === 'generated' ? input.scene.id : null,
+        readBeatPosition: input.progress.currentBeatPosition,
         choiceId: input.choice.id,
         generatedSceneId: scene.id,
         provenance: 'ai_reused',
@@ -3070,6 +3417,11 @@ export function assertRecommendedContinuationOutput(
   if (body.ending && !/^ai-[a-z0-9][a-z0-9_-]{0,116}$/i.test(body.ending.endingKey.trim())) {
     throw new BadRequestException('Generated continuation ending key is invalid');
   }
+}
+
+function sharingParticipantPin(pin: StoryParticipantPin): Omit<StoryParticipantPin, 'id'> {
+  const { id: _bindingId, ...identity } = pin;
+  return identity;
 }
 
 export function sanitizeRecommendedVisualManifest(

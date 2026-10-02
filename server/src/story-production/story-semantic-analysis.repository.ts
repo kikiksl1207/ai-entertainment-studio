@@ -82,56 +82,9 @@ export class SemanticAnalysisRepository {
   }
 
   async enqueue(userId: string, manuscriptId: string, key: string | undefined, config: SemanticConfig, disabledReason?: string) {
-    if (!key?.trim() || key.trim().length < 8 || key.trim().length > 200)
-      throw new BadRequestException({ code: 'ANALYSIS_IDEMPOTENCY_REQUIRED' });
-    const idempotencyKey = `semantic:${sha256(`${userId}:${key.trim()}`)}`;
     try {
-      return await this.prisma.$transaction(async tx => {
-        // Serialize a caller's key across works as well as each work's version.
-        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${idempotencyKey},0))`;
-        const manuscript = await tx.storyManuscriptVersion.findFirst({
-          where: { id: manuscriptId, ownerUserId: userId },
-          select: { id: true, workId: true, ownerUserId: true, contentHash: true, locale: true },
-        });
-        if (!manuscript) throw new NotFoundException('Manuscript version not found');
-        const owned = await tx.$queryRaw<Array<{ id: string }>>`
-          SELECT id FROM story_works WHERE id=${manuscript.workId}::uuid
-            AND owner_user_id=${userId}::uuid FOR UPDATE
-        `;
-        if (!owned.length) throw new NotFoundException('Manuscript version not found');
-        await tx.$queryRaw`SELECT id FROM story_manuscript_versions WHERE id=${manuscriptId}::uuid FOR SHARE`;
-        const current = await tx.storyManuscriptVersion.findUniqueOrThrow({ where: { id: manuscriptId },
-          select: { workId: true, ownerUserId: true, contentHash: true, locale: true } });
-        if (current.workId !== manuscript.workId || current.ownerUserId !== userId || current.contentHash !== manuscript.contentHash || current.locale !== manuscript.locale)
-          throw new ConflictException({ code: 'ANALYSIS_SOURCE_CHANGED' });
-        const existing = await tx.storyAnalysisJob.findUnique({ where: { idempotencyKey } });
-        if (existing) {
-          if (existing.actorUserId !== userId || existing.workId !== manuscript.workId || existing.manuscriptVersionId !== manuscriptId)
-            throw new ConflictException({ code: 'ANALYSIS_IDEMPOTENCY_CONFLICT' });
-          return existing;
-        }
-        const prior = await tx.storyAnalysisJob.findFirst({ where: { manuscriptVersionId: manuscriptId, pipeline: SEMANTIC_PIPELINE } });
-        if (prior) {
-          if (prior.workId !== manuscript.workId || prior.actorUserId !== userId)
-            throw new NotFoundException('Analysis job not found');
-          throw new ConflictException({ code: 'ANALYSIS_VERSION_ALREADY_RESERVED', analysisJobId: prior.id,
-            details: { analysisJobId: prior.id } });
-        }
-        if (config.manuscriptAllowlist.length && !config.manuscriptAllowlist.includes(manuscriptId))
-          throw new ServiceUnavailableException({ code: 'SEMANTIC_ANALYSIS_UNAVAILABLE', reason: 'analysis_manuscript_not_in_pilot' });
-        if (disabledReason) throw new ServiceUnavailableException({ code: 'SEMANTIC_ANALYSIS_UNAVAILABLE', reason: disabledReason });
-        await this.assertRateCard(tx, config);
-        const latest = await tx.storyAnalysisJob.findFirst({ where: { manuscriptVersionId: manuscriptId },
-          orderBy: { analysisVersion: 'desc' }, select: { analysisVersion: true } });
-        const pins = semanticPins({ ...config, packingProfile: SEMANTIC_PACKING_PROFILE });
-        return tx.storyAnalysisJob.create({ data: {
-          workId: manuscript.workId, manuscriptVersionId: manuscriptId, actorUserId: userId,
-          analysisVersion: (latest?.analysisVersion ?? 0) + 1, idempotencyKey,
-          pipeline: SEMANTIC_PIPELINE, phase: 'initializing', status: 'queued',
-          sourceContentHash: manuscript.contentHash, sourceLocale: manuscript.locale, sourceDigest: manuscript.contentHash,
-          rateCardId: config.rateCardId, configPins: pins, configHash: semanticPinHash(pins),
-        } });
-      }, { timeout: 5000 });
+      return await this.prisma.$transaction(tx => this.enqueueInTransaction(tx, userId, manuscriptId, key, config, disabledReason),
+        { timeout: 5000 });
     } catch (error) {
       if (error instanceof BadRequestException || error instanceof ConflictException ||
         error instanceof NotFoundException || error instanceof ServiceUnavailableException) throw error;
@@ -141,6 +94,57 @@ export class SemanticAnalysisRepository {
       // Never forward Prisma messages that may embed source JSON or private keys.
       throw new ServiceUnavailableException({ code: 'ANALYSIS_QUEUE_RETRY' });
     }
+  }
+
+  async enqueueInTransaction(tx: Prisma.TransactionClient, userId: string, manuscriptId: string,
+    key: string | undefined, config: SemanticConfig, disabledReason?: string) {
+    if (!key?.trim() || key.trim().length < 8 || key.trim().length > 200)
+      throw new BadRequestException({ code: 'ANALYSIS_IDEMPOTENCY_REQUIRED' });
+    const idempotencyKey = `semantic:${sha256(`${userId}:${key.trim()}`)}`;
+    // Serialize a caller's key across works as well as each work's version.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${idempotencyKey},0))`;
+    const manuscript = await tx.storyManuscriptVersion.findFirst({
+      where: { id: manuscriptId, ownerUserId: userId },
+      select: { id: true, workId: true, ownerUserId: true, contentHash: true, locale: true },
+    });
+    if (!manuscript) throw new NotFoundException('Manuscript version not found');
+    const owned = await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT id FROM story_works WHERE id=${manuscript.workId}::uuid
+        AND owner_user_id=${userId}::uuid FOR UPDATE
+    `;
+    if (!owned.length) throw new NotFoundException('Manuscript version not found');
+    await tx.$queryRaw`SELECT id FROM story_manuscript_versions WHERE id=${manuscriptId}::uuid FOR SHARE`;
+    const current = await tx.storyManuscriptVersion.findUniqueOrThrow({ where: { id: manuscriptId },
+      select: { workId: true, ownerUserId: true, contentHash: true, locale: true } });
+    if (current.workId !== manuscript.workId || current.ownerUserId !== userId || current.contentHash !== manuscript.contentHash || current.locale !== manuscript.locale)
+      throw new ConflictException({ code: 'ANALYSIS_SOURCE_CHANGED' });
+    const existing = await tx.storyAnalysisJob.findUnique({ where: { idempotencyKey } });
+    if (existing) {
+      if (existing.actorUserId !== userId || existing.workId !== manuscript.workId || existing.manuscriptVersionId !== manuscriptId)
+        throw new ConflictException({ code: 'ANALYSIS_IDEMPOTENCY_CONFLICT' });
+      return existing;
+    }
+    const prior = await tx.storyAnalysisJob.findFirst({ where: { manuscriptVersionId: manuscriptId, pipeline: SEMANTIC_PIPELINE } });
+    if (prior) {
+      if (prior.workId !== manuscript.workId || prior.actorUserId !== userId)
+        throw new NotFoundException('Analysis job not found');
+      throw new ConflictException({ code: 'ANALYSIS_VERSION_ALREADY_RESERVED', analysisJobId: prior.id,
+        details: { analysisJobId: prior.id } });
+    }
+    if (config.manuscriptAllowlist.length && !config.manuscriptAllowlist.includes(manuscriptId))
+      throw new ServiceUnavailableException({ code: 'SEMANTIC_ANALYSIS_UNAVAILABLE', reason: 'analysis_manuscript_not_in_pilot' });
+    if (disabledReason) throw new ServiceUnavailableException({ code: 'SEMANTIC_ANALYSIS_UNAVAILABLE', reason: disabledReason });
+    await this.assertRateCard(tx, config);
+    const latest = await tx.storyAnalysisJob.findFirst({ where: { manuscriptVersionId: manuscriptId },
+      orderBy: { analysisVersion: 'desc' }, select: { analysisVersion: true } });
+    const pins = semanticPins({ ...config, packingProfile: SEMANTIC_PACKING_PROFILE });
+    return tx.storyAnalysisJob.create({ data: {
+      workId: manuscript.workId, manuscriptVersionId: manuscriptId, actorUserId: userId,
+      analysisVersion: (latest?.analysisVersion ?? 0) + 1, idempotencyKey,
+      pipeline: SEMANTIC_PIPELINE, phase: 'initializing', status: 'queued',
+      sourceContentHash: manuscript.contentHash, sourceLocale: manuscript.locale, sourceDigest: manuscript.contentHash,
+      rateCardId: config.rateCardId, configPins: pins, configHash: semanticPinHash(pins),
+    } });
   }
 
   async owned(userId: string, id: string) {

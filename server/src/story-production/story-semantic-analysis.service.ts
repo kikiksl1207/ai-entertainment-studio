@@ -1,11 +1,11 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, HttpException, Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { Prisma, type StoryAnalysisChunk, type StoryAnalysisJob } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
-import { randomUUID } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import { analyzeStructuredManuscript, deriveContinuityLedger, manuscriptContentHash, STORY_LOCALES, type ManuscriptPart } from './story-production.policy';
 import { SemanticAnalysisRepository } from './story-semantic-analysis.repository';
 import { SemanticAnalysisProvider, semanticPlainText } from './story-semantic-analysis.provider';
-import { assertSemanticJobPins, semanticCost, semanticReservation, type SemanticPins } from './story-semantic-analysis.config';
+import { assertSemanticJobPins, semanticCost, semanticPinHash, semanticReservation, type SemanticPins } from './story-semantic-analysis.config';
 import { nextSourceChunk, pieceFor, sha256, sourceParts } from './story-semantic-analysis.source';
 import { SEMANTIC_PIPELINE, STYLE_CATEGORIES, SemanticAnalysisError, type SemanticInput, type SemanticResult,
   type SourceCursor, type SourceRef, type SemanticUsage } from './story-semantic-analysis.types';
@@ -49,19 +49,152 @@ export class SemanticAnalysisService {
       readiness.enabled ? undefined : readiness.reason);
     return this.project(job);
   }
-  async get(userId: string, id: string, cursor?: string) {
+
+  async recoverProfile(userId: string, id: string, expectedSourceContentHash: string) {
+    if (!/^[a-f0-9]{64}$/.test(expectedSourceContentHash))
+      throw new BadRequestException({ code: 'ANALYSIS_RECOVERY_SOURCE_INVALID' });
+    try {
+      const owned = await this.repository.owned(userId, id);
+      return await this.db.$transaction(async tx => {
+        // Use the writer's normal work lock, then fence the failed job. This is
+        // local finalization only: no provider readiness, queueing or dispatch.
+        const work = await tx.$queryRaw<Array<{ id: string }>>`
+          SELECT id FROM story_works WHERE id=${owned.workId}::uuid
+            AND owner_user_id=${userId}::uuid FOR UPDATE
+        `;
+        if (!work.length) throw new NotFoundException('Analysis job not found');
+        const locked = await tx.$queryRaw<Array<{ leaseActive: boolean }>>`
+          SELECT (lease_token IS NOT NULL AND
+            (lease_expires_at IS NULL OR lease_expires_at>clock_timestamp())) AS "leaseActive"
+          FROM story_analysis_jobs WHERE id=${id}::uuid FOR UPDATE
+        `;
+        const job = await tx.storyAnalysisJob.findUniqueOrThrow({ where: { id } });
+        if (job.actorUserId !== userId || job.workId !== owned.workId)
+          throw new NotFoundException('Analysis job not found');
+        if (job.sourceContentHash !== expectedSourceContentHash)
+          throw new ConflictException({ code: 'ANALYSIS_RECOVERY_SOURCE_CHANGED' });
+        if (job.status === 'completed' && await tx.auditEvent.findFirst({
+          where: { actorUserId: userId, action: 'story_analysis.profile_recovered',
+            targetType: 'story_analysis_job', targetId: id }, select: { id: true },
+        })) return this.project(job);
+        if (!profileRecoveryCandidate(job) || locked[0]?.leaseActive !== false)
+          throw new ConflictException({ code: 'ANALYSIS_PROFILE_RECOVERY_UNAVAILABLE' });
+        const manuscript = await tx.storyManuscriptVersion.findFirst({
+          where: { id: job.manuscriptVersionId, ownerUserId: userId, workId: job.workId },
+        });
+        const latest = await tx.storyManuscriptVersion.findFirst({
+          where: { workId: job.workId, ownerUserId: userId },
+          orderBy: { version: 'desc' }, select: { id: true },
+        });
+        if (!manuscript || latest?.id !== manuscript.id || manuscript.locale !== job.sourceLocale ||
+            manuscript.contentHash !== job.sourceContentHash ||
+            streamedManuscriptHash(manuscript.structuredBody) !== job.sourceDigest ||
+            semanticPinHash(job.configPins as unknown as SemanticPins) !== job.configHash)
+          throw new ConflictException({ code: 'ANALYSIS_RECOVERY_SOURCE_CHANGED' });
+        const chunks = await tx.storyAnalysisChunk.aggregate({ where: { analysisJobId: id },
+          _count: { _all: true, dispatchStartedAt: true, completedAt: true, inputTokens: true,
+            outputTokens: true, cachedInputTokens: true, reasoningTokens: true, actualCostKrw: true },
+          _min: { ordinal: true }, _max: { ordinal: true },
+          _sum: { paragraphCount: true, inputTokenBudget: true, inputTokens: true, outputTokens: true, actualCostKrw: true },
+        });
+        const invalid = await tx.storyAnalysisChunk.findFirst({ where: { analysisJobId: id,
+          OR: [{ status: { not: 'completed' } }, { errorCode: { not: null } }] }, select: { id: true } });
+        const unfinished = await tx.storyContinuityEntry.count({ where: { analysisJobId: id,
+          entryType: { in: ['foreshadow', 'payoff'] }, ...(job.finalCursor ? { id: { gt: job.finalCursor } } : {}) } });
+        if (invalid || unfinished || Object.values(chunks._count).some(count => count !== job.plannedChunks) ||
+            chunks._min.ordinal !== 0 || chunks._max.ordinal !== job.plannedChunks - 1 ||
+            chunks._sum.paragraphCount !== job.totalParagraphs ||
+            chunks._sum.inputTokenBudget !== job.reservedInputTokens ||
+            (chunks._sum.inputTokens ?? Infinity) > job.reservedInputTokens ||
+            (chunks._sum.outputTokens ?? Infinity) > job.reservedOutputTokens ||
+            !chunks._sum.actualCostKrw?.equals(job.observedCostKrw) ||
+            job.observedCostKrw.gt(job.reservedCostKrw))
+          throw new ConflictException({ code: 'ANALYSIS_PROFILE_RECOVERY_UNAVAILABLE' });
+        const leaseToken = randomUUID();
+        const recovering = await tx.storyAnalysisJob.update({ where: { id }, data: {
+          status: 'running', leaseToken, leaseExpiresAt: new Date(Date.now() + 120000),
+        } });
+        await this.generationProfiles.createDraftAtCompletion(tx, recovering);
+        const continuityEntryCount = await tx.storyContinuityEntry.count({ where: { analysisJobId: id } });
+        const completed = await tx.storyAnalysisJob.update({ where: { id }, data: {
+          status: 'completed', phase: 'completed', errorCode: null, completedAt: new Date(),
+          leaseToken: null, leaseExpiresAt: null, actualCostKrw: job.observedCostKrw,
+          result: { ...jsonRecord(job.result), continuityEntryCount },
+        } });
+        await tx.auditEvent.create({ data: { actorUserId: userId, actorType: 'user',
+          action: 'story_analysis.profile_recovered', targetType: 'story_analysis_job', targetId: id,
+          beforeData: { status: job.status, errorCode: job.errorCode },
+          afterData: { status: completed.status, approval: 'not_approved' },
+          metadata: { workId: job.workId, manuscriptVersionId: job.manuscriptVersionId,
+            sourceContentHash: job.sourceContentHash, providerRequests: 0, mode: 'local_settings_only' },
+        } });
+        return this.project(completed);
+      }, { timeout: 10000 });
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      throw new ServiceUnavailableException({ code: 'ANALYSIS_PROFILE_RECOVERY_RETRY' });
+    }
+  }
+
+  async enqueueUploadedManuscript(userId: string, manuscriptId: string) {
+    const config = this.provider.config;
+    if (!config.autoEnqueueOnUpload || !config.enabled || !config.workerEnabled ||
+        (config.manuscriptAllowlist.length > 0 && !config.manuscriptAllowlist.includes(manuscriptId))) {
+      return { analysisStarted: false };
+    }
+    try {
+      const job = await this.enqueue(userId, manuscriptId, `manuscript-upload:${manuscriptId}`);
+      return { analysisStarted: true, analysisJobId: job.id };
+    } catch (error) {
+      if (error instanceof ConflictException) {
+        const response = error.getResponse();
+        const priorId = typeof response === 'object' && response !== null &&
+          'analysisJobId' in response ? response.analysisJobId : null;
+        if (typeof priorId === 'string') return { analysisStarted: true, analysisJobId: priorId };
+      }
+      this.logger.warn('Automatic manuscript analysis could not be queued; manuscript remains available for retry');
+      return { analysisStarted: false };
+    }
+  }
+
+  async enqueueUploadedManuscriptInTransaction(tx: Prisma.TransactionClient, userId: string, manuscriptId: string) {
+    const config = this.provider.config;
+    if (!config.autoEnqueueOnUpload || !config.enabled || !config.workerEnabled ||
+        (config.manuscriptAllowlist.length > 0 && !config.manuscriptAllowlist.includes(manuscriptId)) ||
+        !(await this.provider.readiness()).enabled) return { analysisStarted: false };
+    try {
+      const job = await this.repository.enqueueInTransaction(tx, userId, manuscriptId,
+        `manuscript-upload:${manuscriptId}`, config);
+      return { analysisStarted: true, analysisJobId: job.id };
+    } catch (error) {
+      if (error instanceof ConflictException) {
+        const response = error.getResponse();
+        const priorId = typeof response === 'object' && response !== null &&
+          'analysisJobId' in response ? response.analysisJobId : null;
+        if (typeof priorId === 'string') return { analysisStarted: true, analysisJobId: priorId };
+      }
+      // The manuscript transaction owns retry and error sanitization.
+      throw error;
+    }
+  }
+  async get(userId: string, id: string, cursor?: string, view?: 'semantic' | 'structural') {
     const job = await this.repository.owned(userId, id);
     const semantic = job.pipeline === SEMANTIC_PIPELINE;
-    const anchor = cursor ? await this.db.storyAnalysisEvidence.findFirst({ where: { id: cursor, analysisJobId: id },
+    const provenance = view === 'semantic' ? 'semantic_candidate' : undefined;
+    const anchor = cursor ? await this.db.storyAnalysisEvidence.findFirst({ where: { id: cursor, analysisJobId: id,
+      ...(provenance ? { provenance } : view === 'structural' ? { provenance: { in: ['structural_only', 'structural_legacy'] } } : {}) },
       select: { id: true, sequence: true } }) : null;
     if (cursor && (!anchor || (semantic && anchor.sequence === null))) throw new BadRequestException({ code: 'ANALYSIS_CURSOR_INVALID' });
+    const filter = provenance ? { provenance } : view === 'structural' ? { provenance: { in: ['structural_only', 'structural_legacy'] } } : {};
     const evidence = await this.db.storyAnalysisEvidence.findMany({
-      where: { analysisJobId: id, ...(anchor ? semantic ? { sequence: { gt: anchor.sequence! } } : { id: { gt: anchor.id } } : {}) },
+      where: { analysisJobId: id, ...filter, ...(anchor ? semantic ? { sequence: { gt: anchor.sequence! } } : { id: { gt: anchor.id } } : {}) },
       orderBy: semantic ? [{ sequence: 'asc' }, { id: 'asc' }] : { id: 'asc' }, take: 101,
     });
+    const totalCount = view ? await this.db.storyAnalysisEvidence.count({ where: { analysisJobId: id, ...filter } })
+      : safeCount(jsonRecord(job.result).evidenceCount);
     const page = evidence.slice(0, 100);
     return {
-      job: this.project(job), evidence: page.map(row => ({ id: row.id, evidenceType: row.evidenceType,
+      job: this.project(job), view: view ?? 'all', totalCount, evidence: page.map(row => ({ id: row.id, evidenceType: row.evidenceType,
         sourcePartKey: row.sourcePartKey, sourceParagraphIndex: row.sourceParagraphIndex,
         provenance: row.provenance, sourceLocale: job.sourceLocale, reviewRequired: true,
         ...(row.provenance === 'semantic_candidate' ? {
@@ -117,6 +250,7 @@ export class SemanticAnalysisService {
       styleCandidates: Object.fromEntries(Object.entries(jsonRecord(result.styleCounts))
         .filter(([key, count]) => STYLE_CATEGORIES.includes(key as never) && typeof count === 'number' && count >= 0 && Number.isSafeInteger(count))),
       approval: 'not_approved', memoryApproved: false,
+      profileRecovery: { available: profileRecoveryCandidate(job), mode: 'local_settings_only' },
       budget: { reservedInputTokens: job.reservedInputTokens, reservedOutputTokens: job.reservedOutputTokens,
         reservedCostKrw: job.reservedCostKrw?.toString() ?? null, actualCostKrw: job.actualCostKrw?.toString() ?? null,
         usageUnobserved: job.errorCode === 'provider_outcome_unknown' || result.usageUnobserved === true },
@@ -229,12 +363,12 @@ export class SemanticAnalysisService {
     if (intake.identityVersion !== undefined && ![1, 2, 3, 4].includes(intake.identityVersion as number))
       throw new SemanticAnalysisError('analysis_source_identity_unsupported');
     const expected = intake.identityVersion === 3 || intake.identityVersion === 4
-      ? manuscriptContentHash({ identityVersion: intake.identityVersion, locale: manuscript.locale, parts, sourceSha256: raw.sha256 })
-      : intake.identityVersion === 2 ? manuscriptContentHash({ identityVersion: 2, locale: manuscript.locale, parts })
-      : manuscriptContentHash({ parts });
+      ? streamedManuscriptHash({ identityVersion: intake.identityVersion, locale: manuscript.locale, parts, sourceSha256: raw.sha256 })
+      : intake.identityVersion === 2 ? streamedManuscriptHash({ identityVersion: 2, locale: manuscript.locale, parts })
+      : streamedManuscriptHash({ parts });
     if (expected !== manuscript.contentHash || (typeof raw.rawText === 'string' && sha256(raw.rawText) !== raw.sha256))
       throw new SemanticAnalysisError('analysis_source_checksum_invalid');
-    const digest = manuscriptContentHash(manuscript.structuredBody);
+    const digest = streamedManuscriptHash(manuscript.structuredBody);
     if (job.phase !== 'initializing' && digest !== job.sourceDigest) throw new SemanticAnalysisError('analysis_source_changed');
     this.cache = { jobId: job.id, parts, digest };
     return parts;
@@ -402,6 +536,13 @@ export class SemanticAnalysisService {
     });
   }
 }
+function profileRecoveryCandidate(job: StoryAnalysisJob) {
+  return job.pipeline === SEMANTIC_PIPELINE && job.status === 'failed' && job.phase === 'finalizing' &&
+    job.errorCode === 'analysis_profile_draft_unavailable' && job.totalParagraphs > 0 &&
+    job.completedParagraphs === job.totalParagraphs && job.plannedParagraphs === job.totalParagraphs &&
+    job.plannedChunks > 0 && job.completedChunks === job.plannedChunks &&
+    jsonRecord(job.result).usageUnobserved !== true;
+}
 function jsonRecord(value: unknown): Record<string, Prisma.JsonValue> {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, Prisma.JsonValue> : {};
 }
@@ -418,3 +559,38 @@ function citationProjection(value: unknown): Array<SourceRef & { quoteHash: stri
   });
 }
 function stableId(key: string) { const hash = sha256(key); return `${hash.slice(0,8)}-${hash.slice(8,12)}-${hash.slice(12,16)}-${hash.slice(16,20)}-${hash.slice(20,32)}`; }
+
+export function streamedManuscriptHash(value: unknown): string {
+  // Match manuscriptContentHash's sorted JSON bytes without retaining a full serialized manuscript.
+  const hash = createHash('sha256');
+  const write = (item: unknown): void => {
+    if (typeof item === 'string') {
+      hash.update('"');
+      for (let start = 0; start < item.length;) {
+        let end = Math.min(start + 4096, item.length);
+        if (end < item.length && item.charCodeAt(end - 1) >= 0xd800 && item.charCodeAt(end - 1) <= 0xdbff &&
+          item.charCodeAt(end) >= 0xdc00 && item.charCodeAt(end) <= 0xdfff) end--;
+        hash.update(JSON.stringify(item.slice(start, end)).slice(1, -1));
+        start = end;
+      }
+      hash.update('"');
+    } else if (Array.isArray(item)) {
+      hash.update('[');
+      item.forEach((entry, index) => { if (index) hash.update(','); write(entry); });
+      hash.update(']');
+    } else if (item && typeof item === 'object') {
+      hash.update('{');
+      Object.keys(item).sort().forEach((key, index) => {
+        if (index) hash.update(',');
+        write(key);
+        hash.update(':');
+        write((item as Record<string, unknown>)[key]);
+      });
+      hash.update('}');
+    } else {
+      hash.update(JSON.stringify(item) ?? 'undefined');
+    }
+  };
+  write(value);
+  return hash.digest('hex');
+}

@@ -30,39 +30,92 @@ class Element {
   }
 }
 
-function fixture({ missingJob = false, existingDraft = false, issues = [] } = {}) {
+function fixture({ missingJob = false, existingDraft = false, submittedOnly = false, issues = [], profileStatus = 'approved', wrongProfile = false,
+  summarylessProfile = false, failMaterializeOnce = false, failConsentResponseOnce = false,
+  failPreviewAfterSubmit = false,
+  failReadAfterMaterialize = false,
+  workerAvailable } = {}) {
   const ids = ['writerFinalEntry', 'writerFinalModal', 'writerFinalParts', 'writerFinalIssues', 'writerFinalWarningsLabel', 'writerFinalState',
-    'writerFinalEntryState', 'writerFinalPrepare', 'writerFinalOpen', 'writerFinalClose',
+    'writerFinalEntryState', 'writerFinalPrepare', 'writerFinalOpen', 'writerFinalClose', 'writerFinalStage',
+    'writerFinalSummary', 'writerFinalProposals', 'writerFinalProfileStatus', 'writerFinalSummaryReviewed',
+    'writerFinalProposalReviewed', 'writerFinalContinuityReviewed',
     'writerFinalCancel', 'writerFinalReviewed', 'writerFinalRights', 'writerFinalAi', 'writerFinalWarnings'];
   const elements = Object.fromEntries(ids.map(name => [name, new Element(name)]));
   const calls = [];
   const intervals = [];
-  let reviewState = 'analysis_ready'; let revision = 1; let ready = false;
-  let submitted = existingDraft; let consented = existingDraft; let materialized = existingDraft;
+  let reviewState = existingDraft || submittedOnly ? 'submitted' : 'analysis_ready'; let revision = 1; let ready = false;
+  let reviewOpen = existingDraft || submittedOnly;
+  let profileFingerprint = 'a'.repeat(64);
+  let submitted = existingDraft || submittedOnly; let consented = existingDraft; let materialized = existingDraft;
+  let failedSubmitReads = 0;
+  let failedMaterializeReads = 0;
+  let failNextPreview = false;
   let job = null;
   const scenes = [0, 1].map(index => ({ partKey: `p${index + 1}`, sceneId: `${index + 5}`.repeat(36).slice(0, 36),
     choiceCount: 1, originalLabel: `원래 길 ${index + 1}` }));
   const preview = () => ({ manuscriptVersionId: manuscriptId, manuscriptHash: 'a'.repeat(64),
-    analysisJobId: analysisId, issues, review: submitted ? { reviewId: id, state: 'submitted', revision } : null,
+    analysisJobId: analysisId, issues, review: reviewOpen ? { reviewId: id, state: reviewState, revision } : null,
     consent: consented ? { active: true, revision: 1 } : null,
     parts: [{ partKey: 'p1', title: '처음', endingExcerpt: '갈림길', nextPartTitle: '다음' },
       { partKey: 'p2', title: '다음', endingExcerpt: '결말', nextPartTitle: null }],
     releaseId: materialized ? releaseId : null, scenes: materialized ? scenes : [], ready,
-    choiceJob: materialized ? job : null });
+    choiceJob: materialized ? job : null,
+    ...(workerAvailable === undefined ? {} : { choiceWorkerAvailable: workerAvailable }) });
+  const sections = ['writing_style', 'scene_scale', 'canon', 'timeline', 'narrative_devices',
+    'branch_behavior', 'visual_direction', 'visual_cast'].map(key => ({ key, decision: 'accepted',
+    value: summarylessProfile && key === 'canon'
+      ? { observations: [{ detail: '작가가 승인한 등장인물 설정' }] }
+      : { summary: `${key} 실제 분석 내용` }, evidence: [{ summary: `${key} 원고 근거` }] }));
+  const settings = { schemaVersion: 'creator-generation-profile-v1', kind: 'story', sections };
+  const generationProfile = () => ({ workId: id, manuscript: { id: wrongProfile ? id : manuscriptId },
+    analysis: { id: analysisId }, profile: { status: profileStatus,
+      approvedFingerprint: profileFingerprint, approvedSettings: settings, draftSettings: settings } });
   const fetch = async (path, options = {}) => {
     calls.push({ path, ...options });
     let result;
-    if (path.endsWith(`/linear-draft/${manuscriptId}`)) result = preview();
-    else if (path.endsWith('/reviews')) result = { reviewId: id, state: reviewState, revision };
+    if (path.endsWith(`/linear-draft/${manuscriptId}`)) {
+      if (failedSubmitReads > 0 || failedMaterializeReads > 0 || failNextPreview) {
+        if (failedSubmitReads > 0) failedSubmitReads--;
+        if (failedMaterializeReads > 0) failedMaterializeReads--;
+        failNextPreview = false;
+        return { ok: false, status: 503, json: async () => ({ code: 'TEMPORARY_FAILURE' }) };
+      }
+      result = preview();
+    }
+    else if (path.endsWith('/generation-profile')) result = generationProfile();
+    else if (path.endsWith('/choice-review')) result = { releaseId, status: 'current', code: null,
+      canReset: false, expectedManuscriptHash: 'a'.repeat(64), expectedApprovedFingerprint: profileFingerprint,
+      expectedProfilePinHash: 'c'.repeat(64),
+      expectedReleaseChecksum: 'checksum', resetRequiredScenes: 0, preparedScenes: job?.completedParts || 0,
+      generationStarted: false };
+    else if (path.endsWith('/reviews')) { reviewOpen = true; result = { reviewId: id, state: reviewState, revision }; }
     else if (path.endsWith('/transition')) {
       reviewState = options.body.toState; revision++;
       result = { reviewId: id, state: reviewState, revision };
-    } else if (path.endsWith('/submit')) { submitted = true; result = { status: 'submitted' }; }
-    else if (path.endsWith('/style-consent')) { consented = true; result = { status: 'active' }; }
+    } else if (path.endsWith('/submit')) {
+      submitted = true; reviewState = 'submitted'; revision++;
+      if (failPreviewAfterSubmit) failedSubmitReads = 2;
+      result = { status: 'submitted' };
+    }
+    else if (path.endsWith('/style-consent')) {
+      consented = true;
+      if (failConsentResponseOnce) {
+        failConsentResponseOnce = false;
+        failNextPreview = true;
+        return { ok: false, status: 503, json: async () => ({ code: 'TEMPORARY_FAILURE' }) };
+      }
+      result = { status: 'active' };
+    }
     else if (path.endsWith('/materialize')) {
+      if (failMaterializeOnce) {
+        failMaterializeOnce = false;
+        failNextPreview = true;
+        return { ok: false, status: 503, json: async () => ({ code: 'TEMPORARY_FAILURE' }) };
+      }
       materialized = true;
       if (!missingJob) job = { status: 'queued', totalParts: 2, completedParts: 0, errorCode: null };
       options.body.originalRoutes.forEach((route, index) => { scenes[index].originalLabel = route.label; });
+      if (failReadAfterMaterialize) { failedMaterializeReads = 2; failReadAfterMaterialize = false; }
       result = { releaseId, scenes };
     }
     else if (path.endsWith('/retry-choices')) {
@@ -73,27 +126,50 @@ function fixture({ missingJob = false, existingDraft = false, issues = [] } = {}
     return { ok: true, json: async () => result };
   };
   const document = { getElementById: name => elements[name], createElement: () => new Element(), addEventListener() {} };
-  const window = { LuminaCreatorStudioApi: { fetch, isCurrent: () => true },
+  const window = { confirm: () => true, LuminaCreatorStudioApi: { fetch, isCurrent: () => true },
     LuminaCreatorAnalysis: { completed: () => ({ manuscriptVersionId: manuscriptId, workId: id,
       analysisJobId: analysisId, identity: { ownerId: id } }) }, addEventListener() {} };
   vm.runInNewContext(script, { window, document, setInterval: callback => { intervals.push(callback); return intervals.length; }, console });
   return { elements, calls, scenes,
     refresh: () => intervals[1](),
-    setJob: (status, completedParts = 0) => { job = { ...job, status, completedParts,
-      errorCode: status === 'failed' ? 'STUDIO_CHOICES_GENERATION_FAILED' : null }; if (status === 'completed') ready = true; } };
+    changeProfile: () => { profileFingerprint = 'b'.repeat(64); },
+    setReady: value => { ready = value; },
+    setJob: (status, completedParts = 0) => { job = { totalParts: 2, ...job, status, completedParts,
+      errorCode: status === 'failed' ? 'STUDIO_CHOICES_GENERATION_FAILED' : null };
+      scenes.forEach((scene, index) => { scene.choiceCount = index < completedParts ? 3 : 1; });
+      if (status === 'completed') ready = true; } };
+}
+
+function authorChecks(elements) {
+  for (const name of ['SummaryReviewed', 'ProposalReviewed', 'ContinuityReviewed', 'Reviewed', 'Rights', 'Ai'])
+    elements[`writerFinal${name}`].checked = true;
+}
+
+async function advanceToConfirmation(elements) {
+  authorChecks(elements);
+  for (let index = 0; index < 4; index++) await elements.writerFinalPrepare.fire('click');
 }
 
 test('Studio final review prepares exactly two AI alternatives only after explicit author checks', async () => {
   assert.match(html, /creator-story-finalize\.js/);
+  assert.match(html, /writerFinalSummary/);
+  assert.match(html, /writerFinalProposals/);
   const { elements, calls } = fixture();
   await elements.writerFinalOpen.fire('click');
   assert.equal(elements.writerFinalParts.querySelectorAll('input[data-part-key]').length, 2);
+  assert.match(elements.writerFinalSummary.children[0].children[1].textContent, /실제 분석 내용/);
+  assert.match(elements.writerFinalProposals.children[0].children[1].textContent, /실제 분석 내용/);
   await elements.writerFinalPrepare.fire('click');
   assert.equal(calls.filter(call => call.method === 'POST').length, 0);
   const inputs = elements.writerFinalParts.querySelectorAll('input[data-part-key]');
   inputs[0].value = '기록을 가지고 다음 장소로 간다';
   inputs[1].value = '원래 결말을 받아들인다';
-  for (const name of ['Reviewed', 'Rights', 'Ai', 'Warnings']) elements[`writerFinal${name}`].checked = true;
+  await advanceToConfirmation(elements);
+  assert.equal(calls.filter(call => call.path.endsWith('/transition')).length, 4);
+  assert.equal(calls.filter(call => call.path.endsWith('/transition')).at(-1).body.decisions.warningAcknowledged, false);
+  assert.equal(calls.some(call => call.path.endsWith('/submit')), false);
+  assert.equal(calls.some(call => call.path.endsWith('/materialize')), false);
+  assert.match(elements.writerFinalState.textContent, /다시 눌러/);
   await elements.writerFinalPrepare.fire('click');
   const materialize = calls.find(call => call.path.endsWith('/materialize'));
   assert.deepEqual(Array.from(materialize.body.originalRoutes, row => row.label),
@@ -106,8 +182,23 @@ test('Studio final review prepares exactly two AI alternatives only after explic
   assert.equal(calls.filter(call => call.path.endsWith('/prepare-choices')).length, 0);
   assert.ok(calls.findIndex(call => call.path.endsWith('/submit')) < calls.findIndex(call => call.path.endsWith('/materialize')));
   assert.equal(calls.some(call => call.path.endsWith('/finish')), false);
-  assert.match(elements.writerFinalState.textContent, /서버에서 AI 선택지를 준비/);
+  assert.match(elements.writerFinalState.textContent, /AI 선택지 준비가 대기 중/);
   assert.equal(elements.writerFinalPrepare.disabled, true);
+});
+
+test('an author may leave original choice wording empty for private AI preparation', async () => {
+  const { elements, calls } = fixture();
+  await elements.writerFinalOpen.fire('click');
+  const inputs = elements.writerFinalParts.querySelectorAll('input[data-part-key]');
+  assert.equal(inputs.every(input => input.required === false), true);
+  assert.match(elements.writerFinalParts.children[0].children[3].textContent, /선택 입력/);
+  await advanceToConfirmation(elements);
+  await elements.writerFinalPrepare.fire('click');
+  const materialize = calls.find(call => call.path.endsWith('/materialize'));
+  assert.deepEqual(Array.from(materialize.body.originalRoutes, route => route.label), ['', '']);
+  assert.equal(materialize.body.originalRoutesReviewed, true);
+  assert.equal(calls.some(call => call.path.endsWith('/style-consent')), true);
+  assert.match(elements.writerFinalState.textContent, /준비가 대기 중/);
 });
 
 test('failed background choice preparation stays private and can be retried without resubmitting consent', async () => {
@@ -116,7 +207,7 @@ test('failed background choice preparation stays private and can be retried with
   const labels = elements.writerFinalParts.querySelectorAll('input[data-part-key]');
   labels[0].value = '첫 기록을 따라간다';
   labels[1].value = '원작 결말을 향한다';
-  for (const name of ['Reviewed', 'Rights', 'Ai', 'Warnings']) elements[`writerFinal${name}`].checked = true;
+  await advanceToConfirmation(elements);
   await elements.writerFinalPrepare.fire('click');
   assert.equal(calls.some(call => call.path.endsWith('/finish')), false);
   setJob('failed', 1);
@@ -128,7 +219,7 @@ test('failed background choice preparation stays private and can be retried with
   assert.equal(calls.filter(call => call.path.endsWith('/submit')).length, 1);
   assert.equal(calls.filter(call => call.path.endsWith('/style-consent')).length, 1);
   assert.equal(calls.filter(call => call.path.endsWith('/retry-choices')).length, 1);
-  assert.match(elements.writerFinalState.textContent, /서버에서 AI 선택지를 준비/);
+  assert.match(elements.writerFinalState.textContent, /AI 선택지 준비가 대기 중/);
 });
 
 test('unresolved critical continuity finding blocks the author approval button', async () => {
@@ -139,19 +230,24 @@ test('unresolved critical continuity finding blocks the author approval button',
   assert.equal(calls.filter(call => call.method === 'POST').length, 0);
 });
 
-test('generic original-route labels are rejected before review or consent writes', async () => {
+test('generic original-route labels are rejected before proposal approval or consent writes', async () => {
   const { elements, calls } = fixture();
   await elements.writerFinalOpen.fire('click');
   const labels = elements.writerFinalParts.querySelectorAll('input[data-part-key]');
   labels[0].value = 'Continue';
   labels[1].value = '원래 결말을 받아들인다';
-  for (const name of ['Reviewed', 'Rights', 'Ai']) elements[`writerFinal${name}`].checked = true;
+  authorChecks(elements);
+  await elements.writerFinalPrepare.fire('click');
   await elements.writerFinalPrepare.fire('click');
   assert.match(elements.writerFinalState.textContent, /구체적인 선택/);
   assert.equal(labels[0].focused, true);
-  assert.equal(calls.some(call => call.method === 'POST' || call.method === 'PUT'), false);
+  assert.equal(calls.filter(call => call.path.endsWith('/transition')).length, 1);
+  assert.equal(calls.some(call => call.path.endsWith('/submit') || call.path.endsWith('/style-consent')), false);
 
   labels[0].value = '기록을 가지고 다음 장소로 간다';
+  for (let index = 0; index < 3; index++) await elements.writerFinalPrepare.fire('click');
+  assert.equal(calls.filter(call => call.path.endsWith('/transition')).length, 4);
+  assert.equal(calls.some(call => call.path.endsWith('/submit')), false);
   await elements.writerFinalPrepare.fire('click');
   assert.equal(calls.filter(call => call.path.endsWith('/materialize')).length, 1);
   assert.equal(elements.writerFinalPrepare.disabled, true);
@@ -170,7 +266,7 @@ test('materialization response alone does not claim queued work without a persis
   const labels = elements.writerFinalParts.querySelectorAll('input[data-part-key]');
   labels[0].value = '기록을 가지고 다음 장소로 간다';
   labels[1].value = '원래 결말을 받아들인다';
-  for (const name of ['Reviewed', 'Rights', 'Ai']) elements[`writerFinal${name}`].checked = true;
+  await advanceToConfirmation(elements);
   await elements.writerFinalPrepare.fire('click');
   assert.match(elements.writerFinalState.textContent, /서버의 선택지 준비 작업을 확인할 수 없습니다/);
   assert.doesNotMatch(elements.writerFinalState.textContent, /공개 전 운영 검토가 남아 있습니다/);
@@ -183,7 +279,7 @@ test('an open review updates from background progress to verified completion', a
   const labels = elements.writerFinalParts.querySelectorAll('input[data-part-key]');
   labels[0].value = '기록을 가지고 다음 장소로 간다';
   labels[1].value = '원래 결말을 받아들인다';
-  for (const name of ['Reviewed', 'Rights', 'Ai']) elements[`writerFinal${name}`].checked = true;
+  await advanceToConfirmation(elements);
   await elements.writerFinalPrepare.fire('click');
   setJob('processing', 1);
   await refresh();
@@ -202,5 +298,181 @@ test('a private candidate from before the worker deployment can queue its saved 
   for (const name of ['Reviewed', 'Rights', 'Ai']) elements[`writerFinal${name}`].checked = true;
   await elements.writerFinalPrepare.fire('click');
   assert.equal(calls.filter(call => call.path.endsWith('/materialize')).length, 1);
-  assert.match(elements.writerFinalState.textContent, /서버에서 AI 선택지를 준비/);
+  assert.match(elements.writerFinalState.textContent, /AI 선택지 준비가 대기 중/);
+});
+
+test('each server review transition needs its own author action and final submission is separate', async () => {
+  const { elements, calls } = fixture();
+  await elements.writerFinalOpen.fire('click');
+  const labels = elements.writerFinalParts.querySelectorAll('input[data-part-key]');
+  labels[0].value = '첫 기록을 따라간다';
+  labels[1].value = '원작 결말을 향한다';
+  elements.writerFinalSummaryReviewed.checked = true;
+  await elements.writerFinalPrepare.fire('click');
+  assert.deepEqual(Array.from(calls.filter(call => call.path.endsWith('/transition')), call => call.body.toState), ['summary_review']);
+  await elements.writerFinalPrepare.fire('click');
+  assert.equal(calls.filter(call => call.path.endsWith('/transition')).length, 1);
+  elements.writerFinalProposalReviewed.checked = true;
+  await elements.writerFinalPrepare.fire('click');
+  assert.equal(calls.filter(call => call.path.endsWith('/transition')).length, 2);
+  elements.writerFinalContinuityReviewed.checked = true;
+  await elements.writerFinalPrepare.fire('click');
+  assert.equal(calls.filter(call => call.path.endsWith('/transition')).length, 3);
+  for (const name of ['Reviewed', 'Rights', 'Ai']) elements[`writerFinal${name}`].checked = true;
+  await elements.writerFinalPrepare.fire('click');
+  assert.equal(calls.filter(call => call.path.endsWith('/transition')).length, 4);
+  assert.equal(calls.some(call => call.path.endsWith('/submit')), false);
+  await elements.writerFinalPrepare.fire('click');
+  assert.equal(calls.filter(call => call.path.endsWith('/submit')).length, 1);
+});
+
+test('unapproved or mismatched analysis proposals cannot be silently confirmed', async () => {
+  for (const options of [{ profileStatus: 'needs_review' }, { wrongProfile: true }]) {
+    const { elements, calls } = fixture(options);
+    await elements.writerFinalOpen.fire('click');
+    assert.equal(elements.writerFinalPrepare.disabled, true);
+    assert.equal(calls.some(call => call.path.endsWith('/transition')), false);
+    if (options.profileStatus) assert.match(elements.writerFinalProfileStatus.textContent, /승인되지 않은/);
+    else assert.match(elements.writerFinalState.textContent, /현재 원고의 생성 설정/);
+  }
+});
+
+test('an approved edited setting can be reviewed without a summary field', async () => {
+  const { elements } = fixture({ summarylessProfile: true });
+  await elements.writerFinalOpen.fire('click');
+  assert.equal(elements.writerFinalPrepare.disabled, false);
+  assert.match(elements.writerFinalSummary.children[2].children[1].textContent, /작가가 승인한 등장인물 설정/);
+});
+
+test('continuity warnings require a visible acknowledgement before final confirmation', async () => {
+  const { elements, calls } = fixture({ issues: [{ severity: 'warning', summary: '기존 인물 설정 확인 필요' }] });
+  await elements.writerFinalOpen.fire('click');
+  const labels = elements.writerFinalParts.querySelectorAll('input[data-part-key]');
+  labels[0].value = '기록을 가지고 다음 장소로 간다';
+  labels[1].value = '원작 결말을 향한다';
+  for (const name of ['SummaryReviewed', 'ProposalReviewed', 'ContinuityReviewed', 'Reviewed', 'Rights', 'Ai'])
+    elements[`writerFinal${name}`].checked = true;
+  for (let index = 0; index < 2; index++) await elements.writerFinalPrepare.fire('click');
+  await elements.writerFinalPrepare.fire('click');
+  assert.match(elements.writerFinalState.textContent, /설정 경고/);
+  assert.equal(calls.filter(call => call.path.endsWith('/transition')).length, 2);
+  elements.writerFinalWarnings.checked = true;
+  await elements.writerFinalPrepare.fire('click');
+  await elements.writerFinalPrepare.fire('click');
+  const finalTransition = calls.filter(call => call.path.endsWith('/transition')).at(-1);
+  assert.equal(finalTransition.body.toState, 'final_confirmation');
+  assert.equal(finalTransition.body.decisions.warningAcknowledged, true);
+  assert.equal(calls.some(call => call.path.endsWith('/submit')), false);
+});
+
+test('reopening an in-progress review resumes its server stage without skipping it', async () => {
+  const { elements, calls } = fixture();
+  await elements.writerFinalOpen.fire('click');
+  elements.writerFinalSummaryReviewed.checked = true;
+  await elements.writerFinalPrepare.fire('click');
+  elements.writerFinalClose.fire('click');
+  await elements.writerFinalOpen.fire('click');
+  assert.match(elements.writerFinalStage.textContent, /2\/5/);
+  assert.equal(elements.writerFinalProposalReviewed.checked, false);
+  await elements.writerFinalPrepare.fire('click');
+  assert.equal(calls.filter(call => call.path.endsWith('/transition')).length, 1);
+});
+
+test('submitted review resumes after both post-submit reads fail without posting submit twice', async () => {
+  const { elements, calls } = fixture({ failPreviewAfterSubmit: true });
+  await elements.writerFinalOpen.fire('click');
+  await advanceToConfirmation(elements);
+  await elements.writerFinalPrepare.fire('click');
+  assert.match(elements.writerFinalState.textContent, /요청을 완료하지 못했습니다/);
+  assert.equal(calls.filter(call => call.path.endsWith('/submit')).length, 1);
+  await elements.writerFinalPrepare.fire('click');
+  assert.equal(calls.filter(call => call.path.endsWith('/submit')).length, 1);
+  assert.equal(calls.filter(call => call.path.endsWith('/style-consent')).length, 1);
+  assert.equal(calls.filter(call => call.path.endsWith('/materialize')).length, 1);
+  assert.match(elements.writerFinalState.textContent, /준비가 대기 중/);
+});
+
+test('reopening a submitted-only snapshot shows a continuation action without resubmitting', async () => {
+  const { elements, calls } = fixture({ submittedOnly: true });
+  await elements.writerFinalOpen.fire('click');
+  assert.match(elements.writerFinalState.textContent, /원고 제출이 저장/);
+  assert.equal(elements.writerFinalPrepare.disabled, false);
+  for (const name of ['Reviewed', 'Rights', 'Ai']) elements[`writerFinal${name}`].checked = true;
+  await elements.writerFinalPrepare.fire('click');
+  assert.equal(calls.filter(call => call.path.endsWith('/submit')).length, 0);
+  assert.equal(calls.filter(call => call.path.endsWith('/style-consent')).length, 1);
+  assert.equal(calls.filter(call => call.path.endsWith('/materialize')).length, 1);
+});
+
+test('ambiguous consent response is reconciled before retrying materialization', async () => {
+  const { elements, calls } = fixture({ failConsentResponseOnce: true });
+  await elements.writerFinalOpen.fire('click');
+  await advanceToConfirmation(elements);
+  await elements.writerFinalPrepare.fire('click');
+  assert.match(elements.writerFinalState.textContent, /다시 열어 이어서/);
+  await elements.writerFinalPrepare.fire('click');
+  assert.equal(calls.filter(call => call.path.endsWith('/submit')).length, 1);
+  assert.equal(calls.filter(call => call.path.endsWith('/style-consent')).length, 1);
+  assert.equal(calls.filter(call => call.path.endsWith('/materialize')).length, 1);
+});
+
+test('a failed materialization retries without repeating submitted review or active consent', async () => {
+  const { elements, calls } = fixture({ failMaterializeOnce: true });
+  await elements.writerFinalOpen.fire('click');
+  await advanceToConfirmation(elements);
+  await elements.writerFinalPrepare.fire('click');
+  assert.match(elements.writerFinalState.textContent, /다시 열어 이어서/);
+  elements.writerFinalClose.fire('click');
+  await elements.writerFinalOpen.fire('click');
+  assert.match(elements.writerFinalState.textContent, /원고 제출이 저장/);
+  for (const name of ['Reviewed', 'Rights', 'Ai']) elements[`writerFinal${name}`].checked = true;
+  await elements.writerFinalPrepare.fire('click');
+  assert.equal(calls.filter(call => call.path.endsWith('/submit')).length, 1);
+  assert.equal(calls.filter(call => call.path.endsWith('/style-consent')).length, 1);
+  assert.equal(calls.filter(call => call.path.endsWith('/materialize')).length, 2);
+  assert.match(elements.writerFinalState.textContent, /준비가 대기 중/);
+});
+
+test('an ambiguous materialization response resumes the persisted job without duplicate work', async () => {
+  const { elements, calls } = fixture({ failReadAfterMaterialize: true });
+  await elements.writerFinalOpen.fire('click');
+  await advanceToConfirmation(elements);
+  await elements.writerFinalPrepare.fire('click');
+  assert.match(elements.writerFinalState.textContent, /다시 열어 이어서/);
+  await elements.writerFinalPrepare.fire('click');
+  assert.equal(calls.filter(call => call.path.endsWith('/submit')).length, 1);
+  assert.equal(calls.filter(call => call.path.endsWith('/style-consent')).length, 1);
+  assert.equal(calls.filter(call => call.path.endsWith('/materialize')).length, 1);
+  assert.match(elements.writerFinalState.textContent, /준비가 대기 중/);
+});
+
+test('queued work reports unavailable worker and never claims ready from release flag alone', async () => {
+  const { elements, setJob, setReady } = fixture({ existingDraft: true, workerAvailable: false });
+  setJob('queued');
+  await elements.writerFinalOpen.fire('click');
+  assert.match(elements.writerFinalState.textContent, /운영자 설정이 필요/);
+  setReady(true);
+  elements.writerFinalClose.fire('click');
+  await elements.writerFinalOpen.fire('click');
+  assert.doesNotMatch(elements.writerFinalState.textContent, /선택지 3개가 모두 준비/);
+  assert.doesNotMatch(elements.writerFinalStage.textContent, /준비 완료/);
+  setJob('completed', 2);
+  setReady(false);
+  elements.writerFinalClose.fire('click');
+  await elements.writerFinalOpen.fire('click');
+  assert.match(elements.writerFinalState.textContent, /최종 준비 상태가 확인되지/);
+  setReady(true);
+  elements.writerFinalClose.fire('click');
+  await elements.writerFinalOpen.fire('click');
+  assert.match(elements.writerFinalState.textContent, /선택지 3개가 모두 준비/);
+});
+
+test('a changed approved profile stops review writes until the author reloads', async () => {
+  const { elements, calls, changeProfile } = fixture();
+  await elements.writerFinalOpen.fire('click');
+  elements.writerFinalSummaryReviewed.checked = true;
+  changeProfile();
+  await elements.writerFinalPrepare.fire('click');
+  assert.match(elements.writerFinalState.textContent, /검토 내용이 변경/);
+  assert.equal(calls.some(call => call.path.endsWith('/reviews') || call.path.endsWith('/transition')), false);
 });

@@ -27,6 +27,8 @@ export type PreparedManuscript = {
   source: { kind: ManuscriptSourceKind; rawText: string; sha256: string; byteLength: number };
   paragraphCount: number;
   confirmedBoundaries?: Array<{ partKey: string; title: string; start: number; end: number }>;
+  confirmedPreface?: { start: number; end: number };
+  readerPartTexts?: ReadonlyMap<string, string>;
 };
 
 export function invalidManuscript(code = 'MANUSCRIPT_INVALID_DOCUMENT'): never {
@@ -145,7 +147,9 @@ export function preparePastedManuscript(buffer: Buffer, manifestText: unknown): 
   assertUniqueMembers(manifestText);
   let manifest: unknown;
   try { manifest = JSON.parse(manifestText); } catch { invalidManuscript('MANUSCRIPT_INVALID_BOUNDARIES'); }
-  exactObject(manifest, ['locale', 'confirmed', 'parts']);
+  exactObject(manifest, ['locale', 'confirmed', 'parts',
+    ...(manifest && typeof manifest === 'object' && !Array.isArray(manifest) &&
+      Object.prototype.hasOwnProperty.call(manifest, 'preface') ? ['preface'] : [])]);
   if (!STORY_LOCALES.includes(manifest.locale as never)) invalidManuscript('MANUSCRIPT_INVALID_LOCALE');
   if (manifest.confirmed !== true) invalidManuscript('MANUSCRIPT_BOUNDARIES_NOT_CONFIRMED');
   if (!Array.isArray(manifest.parts) || !manifest.parts.length) invalidManuscript('MANUSCRIPT_BOUNDARIES_REQUIRED');
@@ -153,7 +157,20 @@ export function preparePastedManuscript(buffer: Buffer, manifestText: unknown): 
   const keys = new Set<string>();
   const parts: ManuscriptPart[] = [];
   const confirmedBoundaries: NonNullable<PreparedManuscript['confirmedBoundaries']> = [];
-  let cursor = 0;
+  let confirmedPreface: PreparedManuscript['confirmedPreface'];
+  if (Object.prototype.hasOwnProperty.call(manifest, 'preface')) {
+    exactObject(manifest.preface, ['start', 'end']);
+    const { start, end } = manifest.preface;
+    if (start !== 0 || typeof end !== 'number' || !Number.isSafeInteger(end) ||
+        end <= 0 || end >= rawText.length || !rawText.slice(0, end).trim() ||
+        (rawText[end - 1] === '\r' && rawText[end] === '\n') ||
+        (rawText.charCodeAt(end - 1) >= 0xd800 && rawText.charCodeAt(end - 1) <= 0xdbff &&
+         rawText.charCodeAt(end) >= 0xdc00 && rawText.charCodeAt(end) <= 0xdfff)) {
+      invalidManuscript('MANUSCRIPT_INVALID_PREFACE');
+    }
+    confirmedPreface = { start: 0, end };
+  }
+  let cursor = confirmedPreface?.end ?? 0;
   let paragraphCount = 0;
   for (const boundary of manifest.parts) {
     exactObject(boundary, ['partKey', 'title', 'start', 'end']);
@@ -183,7 +200,7 @@ export function preparePastedManuscript(buffer: Buffer, manifestText: unknown): 
   }
   if (cursor !== rawText.length) invalidManuscript('MANUSCRIPT_INVALID_BOUNDARIES');
   return { ...prepareIdentity(buffer, rawText, manifest.locale as string, parts, paragraphCount, 'utf8_paste'),
-    confirmedBoundaries };
+    confirmedBoundaries, ...(confirmedPreface ? { confirmedPreface } : {}) };
 }
 
 function pastedParagraphs(text: string): ManuscriptPart['paragraphs'] {
@@ -244,6 +261,7 @@ export function storedManuscriptBody(input: PreparedManuscript) {
     format: 'story-manuscript-intake-v1', identityVersion: input.source.kind === 'utf8_paste' ? PASTED_MANUSCRIPT_IDENTITY_VERSION : 2,
     locale: input.locale, source: input.source,
     ...(input.confirmedBoundaries ? { confirmedBoundaries: input.confirmedBoundaries } : {}),
+    ...(input.confirmedPreface ? { confirmedPreface: input.confirmedPreface } : {}),
   } };
   within(Buffer.byteLength(JSON.stringify(body)), MANUSCRIPT_FILE_LIMITS.storedBytes);
   return body;

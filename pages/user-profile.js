@@ -65,7 +65,9 @@ const FEED_PROFILE_FIXTURE_HANDLE_RE = /^(fan|debut)\d+$/i;
 
 function userProfileUsesFollowFixture(params = new URLSearchParams(window.location.search || "")) {
   try {
-    return params.get("followfixture") === "1";
+    const h = window.location.hostname;
+    const isLocal = h === "localhost" || h === "127.0.0.1" || h === "" || h.endsWith(".local");
+    return isLocal && params.get("followfixture") === "1";
   } catch (_) {
     return false;
   }
@@ -1488,10 +1490,11 @@ const FOLLOW_LIST_FIXTURE = {
 };
 function followListUsesFixture() {
   try {
+    const h = window.location.hostname;
+    const isLocal = h === "localhost" || h === "127.0.0.1" || h === "" || h.endsWith(".local");
+    if (!isLocal) return false;
     if (_userProfileData?.fixture?.readOnly) return true;
     if (_userProfileData?.source === "feed-profile-fixture") return true;
-    const h = window.location.hostname;
-    if (h === "localhost" || h === "127.0.0.1" || h === "" || h.endsWith(".local")) return true;
     return /[?&]followfixture=1(?:&|$)/.test(window.location.search || "");
   } catch (_) { return false; }
 }

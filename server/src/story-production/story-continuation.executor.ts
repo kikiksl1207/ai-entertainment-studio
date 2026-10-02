@@ -4,9 +4,11 @@ import { StoryEconomicsService } from './story-economics.service';
 import {
   StoryContinuationProvider,
   StoryContinuationProviderError,
+  type StoryContinuationProviderResult,
 } from './story-continuation.provider';
 import {
   StoryContinuationQueueRepository,
+  StoryContinuationDispatchAuthorizationChanged,
 } from './story-continuation.repository';
 import { StoryContinuationContextAssembler } from './story-continuation-context.assembler';
 import { StoryContinuationContextError } from './story-continuation-context.assembler';
@@ -19,7 +21,8 @@ import {
 } from './story-continuation-length.policy';
 import { createStoryContinuationTimingPolicy } from './story-continuation-timing.policy';
 import { StoryVisualGenerationService } from './story-visual-generation.service';
-import { STORY_CONTINUATION_PROMPT_VERSION } from './story-continuation-openai.schema';
+import { PREVIOUS_STORY_CONTINUATION_PROMPT_VERSION, STORY_CONTINUATION_PROMPT_VERSION } from './story-continuation-openai.schema';
+import { assertStoryContinuationQuality } from './story-continuation-quality.policy';
 
 const CONTINUATION_TIMING = createStoryContinuationTimingPolicy();
 const PROVIDER_TIMEOUT_MS = CONTINUATION_TIMING.executorDeadlineMs;
@@ -57,6 +60,7 @@ export class StoryContinuationExecutor {
     if (!claim) return { status: 'idle' as const };
     let providerStarted = false;
     let fenceAttempted = false;
+    let measuredUsage: StoryContinuationProviderResult['usage'] | undefined;
     try {
       throwIfCancelled(signal);
       const authorization = await this.economics.continuationExecutionAuthorization(claim);
@@ -84,7 +88,8 @@ export class StoryContinuationExecutor {
       }
       throwIfCancelled(signal);
       fenceAttempted = true;
-      await this.queue.markDispatched(claim);
+      await this.queue.markDispatched(claim,
+        tx => this.economics.continuationDispatchAuthorization(tx, claim));
       if (signal?.aborted) throw new StoryContinuationProviderError('provider_outcome_unknown', false);
       providerStarted = true;
       const providerResult = await runWithAbortTimeout(
@@ -102,6 +107,7 @@ export class StoryContinuationExecutor {
         inputTokenLimit: claim.request.inputTokenLimit,
         outputTokenLimit: claim.request.outputTokenLimit,
       });
+      measuredUsage = sanitized.usage;
       const result = validateStoryContinuationProviderResult(
         normalizeLongStoryContinuationProse(sanitized, claim.request.locale), {
           locale: claim.request.locale,
@@ -113,8 +119,9 @@ export class StoryContinuationExecutor {
         locale: claim.request.locale,
         beats: result.beats,
       }, lengthBounds);
+      assertStoryContinuationQuality(result, approvedContext, claim.request.locale);
       const participantName = approvedContext.participantArtist?.displayName?.trim().normalize('NFC');
-      if (claim.request.promptVersion === STORY_CONTINUATION_PROMPT_VERSION && participantName && !result.beats.some((beat) =>
+      if ([STORY_CONTINUATION_PROMPT_VERSION, PREVIOUS_STORY_CONTINUATION_PROMPT_VERSION].includes(claim.request.promptVersion) && participantName && !result.beats.some((beat) =>
         beat.content[claim.request.locale].normalize('NFC').includes(participantName))) {
         throw new StoryContinuationProviderError('participant_missing_from_scene', false);
       }
@@ -129,7 +136,10 @@ export class StoryContinuationExecutor {
       if (moderation.decision !== 'allow') {
         throw new StoryContinuationProviderError('server_moderation_rejected', false);
       }
-      await this.economics.settleClaimedContinuation(claim, result);
+      const settlement = await this.economics.settleClaimedContinuation(claim, result);
+      if (settlement.status !== 'completed') {
+        return { status: 'failed' as const, continuationId: claim.continuationId };
+      }
       try {
         await this.visuals?.registerGeneratedContinuationPrompt(claim.continuationId, result);
       } catch {
@@ -142,7 +152,8 @@ export class StoryContinuationExecutor {
     } catch (error) {
       let providerError = normalizeProviderError(error);
       // A settlement/database error after generation must not replay a potentially paid call.
-      if (fenceAttempted && (!providerStarted || providerError.retryable) &&
+      if (fenceAttempted && !(error instanceof StoryContinuationDispatchAuthorizationChanged) &&
+          (!providerStarted || providerError.retryable) &&
           !(providerStarted && providerError.code === 'provider_rate_limited')) {
         providerError = new StoryContinuationProviderError('provider_outcome_unknown', false);
       }
@@ -159,6 +170,7 @@ export class StoryContinuationExecutor {
         claim,
         providerError.code,
         providerError.code === 'provider_timeout' ? 'timeout' : 'failed',
+        ...(measuredUsage ? [measuredUsage] : []),
       );
       return { status: 'failed' as const, continuationId: claim.continuationId };
     }
@@ -198,6 +210,9 @@ function throwIfCancelled(signal?: AbortSignal) {
 }
 
 function normalizeProviderError(error: unknown) {
+  if (error instanceof StoryContinuationDispatchAuthorizationChanged) {
+    return new StoryContinuationProviderError(error.code, false);
+  }
   if (error instanceof StoryContinuationContextError) {
     return new StoryContinuationProviderError(error.code, false);
   }
@@ -210,6 +225,10 @@ function normalizeProviderError(error: unknown) {
   const code = error && typeof error === 'object' && 'code' in error
     ? String(error.code)
     : '';
+  if (code === 'continuation_sibling_narrative_duplicate' ||
+      code === 'continuation_sibling_context_unavailable') {
+    return new StoryContinuationProviderError(code, false);
+  }
   const transientDatabaseCodes = new Set([
     'P1001', 'P1002', 'P1008', 'P1017', 'P2024', '40001', '40P01',
   ]);

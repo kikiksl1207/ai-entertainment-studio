@@ -197,6 +197,32 @@ postgres('Owned analysis discovery HTTP (isolated PG, providers disabled)', () =
     expect(await db.storyAnalysisJob.count({ where: { workId: work } })).toBe(before);
   });
 
+  it('paginates AI findings separately from structure for the owner only', async () => {
+    const structuralId = randomUUID(), semanticEvidenceId = randomUUID();
+    await db.storyAnalysisEvidence.createMany({ data: [
+      { id: structuralId, analysisJobId: semanticId, sequence: 0, provenance: 'structural_only',
+        evidenceType: 'scene', sourcePartKey: 'part-1', sourceParagraphIndex: 0, payload: {} },
+      { id: semanticEvidenceId, analysisJobId: semanticId, sequence: 1, provenance: 'semantic_candidate',
+        evidenceType: 'style', sourcePartKey: 'part-1', sourceParagraphIndex: 0,
+        payload: { title: 'Synthetic style finding', observation: 'A fictional observation for this isolated test.',
+          citations: [{ partIndex: 0, partKey: 'part-1', paragraphIndex: 0, start: 0, end: 4, quoteHash: 'a'.repeat(64) }] } },
+    ] });
+    try {
+      const findings = await call(`analyses/${semanticId}?view=semantic`);
+      expect(findings.status).toBe(200);
+      expect(findings.json).toMatchObject({ view: 'semantic', totalCount: 1, evidence: [{ id: semanticEvidenceId,
+        provenance: 'semantic_candidate', title: 'Synthetic style finding' }] });
+      const structure = await call(`analyses/${semanticId}?view=structural`);
+      expect(structure.json).toMatchObject({ view: 'structural', totalCount: 1,
+        evidence: [{ id: structuralId, provenance: 'structural_only' }] });
+      expect((await call(`analyses/${semanticId}?view=semantic&cursor=${structuralId}`)).status).toBe(400);
+      expect((await call(`analyses/${semanticId}?view=invalid`)).status).toBe(400);
+      expect((await call(`analyses/${semanticId}?view=semantic`, otherToken)).status).toBe(404);
+    } finally {
+      await db.storyAnalysisEvidence.deleteMany({ where: { id: { in: [structuralId, semanticEvidenceId] } } });
+    }
+  });
+
   it('returns empty analysis metadata without implicitly creating or resuming a job', async () => {
     const id = manuscripts[1].id;
     expect((await call(`manuscripts/${id}/analyses`)).json).toEqual({ manuscriptVersionId: id,

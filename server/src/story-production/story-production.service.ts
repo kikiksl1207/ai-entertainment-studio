@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
+import { isUUID } from 'class-validator';
 import {
   assertAtomicWalletDebitSucceeded,
   requireWalletMutationIdempotencyKey,
@@ -17,12 +18,14 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import {
   CreateManuscriptVersionDto,
+  CreateStoryDraftDto,
   DecideContinuityIssueDto,
   PurchaseStoryWorkDto,
   StartStoryProgressDto,
   StoryCatalogQueryDto,
   StoryLocaleQueryDto,
   UpdateBeatProgressDto,
+  UpdateStoryDraftMetadataDto,
 } from './dto/story-production.dto';
 import {
   boundedPath,
@@ -60,6 +63,7 @@ import {
   normalizeStoryHashtagKey,
   projectStoryHashtags,
 } from './story-hashtag.policy';
+import { UserAssetsService } from '../assets/user-assets.service';
 
 const STORY_ENTITLEMENT_TYPES = [
   'story_work',
@@ -68,6 +72,13 @@ const STORY_ENTITLEMENT_TYPES = [
   'story_author_ending',
 ];
 const CURRENCY = 'LUMINA';
+
+function draftCover(manifest: Prisma.JsonValue): { assetId: string; url: string } | null {
+  if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) return null;
+  const { assetId, url } = manifest as Prisma.JsonObject;
+  return typeof assetId === 'string' && isUUID(assetId) &&
+    url === `/api/v1/assets/public/${assetId}/display` ? { assetId, url } : null;
+}
 
 @Injectable()
 export class StoryProductionService {
@@ -80,7 +91,122 @@ export class StoryProductionService {
     @Optional() private readonly visualGeneration?: StoryVisualGenerationService,
     @Optional() private readonly publicBeta?: StoryPublicBetaPolicy,
     @Optional() private readonly storyParticipants?: StoryArtistParticipantService,
+    @Optional() private readonly userAssets?: UserAssetsService,
   ) {}
+
+  async createDraft(userId: string, body: CreateStoryDraftDto) {
+    const title = body.title?.normalize('NFC').trim();
+    if (!title || Array.from(title).length > 120 || /[\u0000-\u001f\u007f]/u.test(title)) {
+      throw new BadRequestException('Story title is invalid');
+    }
+    const slug = `draft-${body.requestId.toLowerCase()}`;
+    const existing = await this.prisma.storyWork.findUnique({ where: { slug } });
+    if (existing) {
+      if (existing.ownerUserId !== userId || existing.defaultLocale !== body.locale ||
+          (existing.title as Record<string, unknown>)?.[body.locale] !== title) {
+        throw new ConflictException('Story draft request already used');
+      }
+      return { workId: existing.id, slug: existing.slug, status: existing.status };
+    }
+    try {
+      const draft = await this.prisma.storyWork.create({ data: {
+        ownerUserId: userId,
+        slug,
+        status: 'draft',
+        defaultLocale: body.locale,
+        supportedLocales: [body.locale],
+        title: { [body.locale]: title },
+        summary: {},
+        fixtureSource: false,
+      } });
+      return { workId: draft.id, slug: draft.slug, status: draft.status };
+    } catch (error) {
+      if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2002') throw error;
+      const concurrent = await this.prisma.storyWork.findUnique({ where: { slug } });
+      if (!concurrent || concurrent.ownerUserId !== userId || concurrent.defaultLocale !== body.locale ||
+          (concurrent.title as Record<string, unknown>)?.[body.locale] !== title) {
+        throw new ConflictException('Story draft request already used');
+      }
+      return { workId: concurrent.id, slug: concurrent.slug, status: concurrent.status };
+    }
+  }
+
+  async updateDraftMetadata(userId: string, workId: string, body: UpdateStoryDraftMetadataDto) {
+    const authorDisplayName = this.draftMetadataText(body?.authorDisplayName, 80);
+    const summary = this.draftMetadataText(body?.summary, 600);
+    if (!isUUID(workId) || !isUUID(body?.coverAssetId)) {
+      throw new BadRequestException('Invalid story or cover asset id');
+    }
+    const work = await this.prisma.storyWork.findFirst({
+      where: { id: workId, ownerUserId: userId },
+      select: {
+        slug: true, status: true, activeReleaseId: true, publishedAt: true,
+        fixtureSource: true, defaultLocale: true, summary: true, releaseRevision: true,
+      },
+    });
+    if (!work) throw new NotFoundException('Story draft not found');
+    if (!work.slug.startsWith('draft-') || !isUUID(work.slug.slice(6)) ||
+        !['draft', 'release_ready'].includes(work.status) || work.activeReleaseId ||
+        work.publishedAt || work.fixtureSource) {
+      throw new ConflictException('Story draft metadata is no longer editable');
+    }
+    if (!this.userAssets) throw new ServiceUnavailableException('Asset service unavailable');
+    const { asset } = await this.userAssets.getAsset(userId, body.coverAssetId);
+    if (asset.id.toLowerCase() !== body.coverAssetId.toLowerCase() ||
+        asset.owner.userId !== userId || asset.assetType !== 'image' ||
+        asset.visibility !== 'public' || asset.uploadStatus !== 'uploaded' ||
+        !['s3', 'r2'].includes(asset.storageProvider) ||
+        asset.lifecycleStatus !== 'active') {
+      throw new BadRequestException('Cover asset is not an active public uploaded image');
+    }
+    const cover = { assetId: asset.id, url: `/api/v1/assets/public/${asset.id}/display` };
+    const previousSummary = work.summary && typeof work.summary === 'object' && !Array.isArray(work.summary)
+      ? work.summary as Prisma.JsonObject : {};
+    const current = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.storyWork.updateMany({
+        where: {
+          id: workId, ownerUserId: userId, slug: work.slug, status: work.status,
+          activeReleaseId: null, publishedAt: null, fixtureSource: false,
+          releaseRevision: work.releaseRevision,
+        },
+        data: {
+          authorDisplayName,
+          summary: { ...previousSummary, [work.defaultLocale]: summary } as Prisma.InputJsonValue,
+          coverManifest: cover,
+          releaseRevision: { increment: 1 },
+        },
+      });
+      if (updated.count !== 1) throw new ConflictException('Story draft changed; reload and retry');
+      return tx.storyWork.findFirstOrThrow({
+        where: { id: workId, ownerUserId: userId },
+        select: {
+          id: true, status: true, defaultLocale: true, summary: true,
+          authorDisplayName: true, coverManifest: true, releaseRevision: true,
+        },
+      });
+    });
+    const localizedSummary = current.summary && typeof current.summary === 'object' && !Array.isArray(current.summary)
+      ? (current.summary as Prisma.JsonObject)[current.defaultLocale] : null;
+    return {
+      workId: current.id,
+      status: current.status,
+      authorDisplayName: current.authorDisplayName,
+      summary: typeof localizedSummary === 'string' ? localizedSummary : null,
+      cover: draftCover(current.coverManifest),
+      releaseRevision: current.releaseRevision,
+    };
+  }
+
+  private draftMetadataText(value: unknown, maxLength: number): string {
+    if (typeof value !== 'string' || /[\p{Cc}\p{Cf}]/u.test(value)) {
+      throw new BadRequestException('Invalid story draft metadata');
+    }
+    const text = value.trim();
+    if (!text || text.length > maxLength) {
+      throw new BadRequestException('Invalid story draft metadata');
+    }
+    return text;
+  }
 
   async creatorCatalog(userId: string, query: StoryCatalogQueryDto) {
     const rows = await this.prisma.storyWork.findMany({
@@ -92,6 +218,8 @@ export class StoryProductionService {
         defaultLocale: true,
         title: true,
         summary: true,
+        authorDisplayName: true,
+        coverManifest: true,
         activeReleaseId: true,
         publishedAt: true,
         updatedAt: true,
@@ -109,9 +237,14 @@ export class StoryProductionService {
         slug: row.slug,
         title: projectLocalizedValue(row.title, query.locale, row.defaultLocale),
         summary: projectLocalizedValue(row.summary, query.locale, row.defaultLocale),
+        publicationSummary: projectLocalizedValue(row.summary, row.defaultLocale, row.defaultLocale),
+        defaultLocale: row.defaultLocale,
+        authorDisplayName: row.authorDisplayName,
+        cover: draftCover(row.coverManifest),
         publication: {
           status: row.status,
           published: row.status === 'published' && Boolean(row.activeReleaseId),
+          activeReleaseId: row.status === 'published' && row.activeReleaseId ? row.activeReleaseId : null,
           publishedAt: row.publishedAt,
         },
         permissions: creatorStorySelectionPermissions(),
@@ -134,7 +267,10 @@ export class StoryProductionService {
       this.prisma.storyWork.findMany({
       where: {
         ...publicWhere,
-        ...(searchQuery ? { searchText: { contains: searchQuery, mode: 'insensitive' as const } } : {}),
+        ...(searchQuery ? { OR: [
+          { searchText: { contains: searchQuery, mode: 'insensitive' as const } },
+          { authorDisplayName: { contains: searchQuery, mode: 'insensitive' as const } },
+        ] } : {}),
         ...(hashtagKey ? { hashtagKeys: { has: hashtagKey } } : {}),
       },
       select: {
@@ -201,7 +337,7 @@ export class StoryProductionService {
         (!row.activeReleaseId || !this.publicBeta || this.publicBeta.allows(
           row.id, row.activeReleaseId, activeReleasesById.get(row.activeReleaseId)!.checksum,
         ));
-    const safeRows = rows.filter(isSafeRow);
+    const rawPage = rows.slice(0, query.limit);
     const hashtagCounts = new Map<string, { key: string; label: string; count: number }>();
     hashtagRows.filter(isSafeRow).forEach((row) => {
       projectStoryHashtags(row.hashtagKeys, row.hashtagLabels, query.locale, 'ko').forEach((hashtag) => {
@@ -213,7 +349,7 @@ export class StoryProductionService {
         });
       });
     });
-    const page = safeRows.slice(0, query.limit);
+    const page = rawPage.filter(isSafeRow);
     const entitledIds = await this.entitledReferenceIds(
       userId,
       page.map((row) => row.id),
@@ -275,7 +411,7 @@ export class StoryProductionService {
           releaseCapability: capabilities?.get(row.id) ?? firstReleaseChoiceCapability(),
         };
       }),
-      nextCursor: safeRows.length > query.limit ? page.at(-1)?.id ?? null : null,
+      nextCursor: rows.length > query.limit ? rawPage.at(-1)?.id ?? null : null,
       filters: {
         hashtags: [...hashtagCounts.values()].sort((left, right) =>
           right.count - left.count || left.label.localeCompare(right.label, query.locale)),
@@ -732,7 +868,30 @@ export class StoryProductionService {
     if (!progress || (!progress.currentSceneId && !progress.currentGeneratedSceneId)) {
       throw new NotFoundException('Active story progress not found');
     }
-    if (progress.status !== 'active') {
+    let readableEnding = false;
+    if (progress.status === 'completed' && !progress.currentSceneId &&
+        progress.currentGeneratedSceneId && progress.activeReleaseId) {
+      const [work, ending] = await Promise.all([
+        this.prisma.storyWork.findFirst({
+          where: { id: progress.workId, status: 'published', activeReleaseId: progress.activeReleaseId },
+          select: { id: true },
+        }),
+        this.prisma.storyAiGeneratedScene.findFirst({
+          where: {
+            id: progress.currentGeneratedSceneId,
+            userId,
+            progressId: progress.id,
+            workId: progress.workId,
+            releaseId: progress.activeReleaseId,
+            status: 'ready',
+            endingType: 'ai_generated',
+          },
+          select: { id: true },
+        }),
+      ]);
+      readableEnding = Boolean(work && ending);
+    }
+    if (progress.status !== 'active' && !readableEnding) {
       throw new ConflictException('Story progress is not ready for beat updates');
     }
     if (progress.progressRevision !== body.expectedRevision) {
@@ -770,6 +929,10 @@ export class StoryProductionService {
         id: progress.id,
         userId,
         progressRevision: body.expectedRevision,
+        status: progress.status,
+        currentSceneId: progress.currentSceneId,
+        currentGeneratedSceneId: progress.currentGeneratedSceneId,
+        activeReleaseId: progress.activeReleaseId,
       },
       data: {
         currentBeatPosition: body.position,
@@ -912,7 +1075,7 @@ export class StoryProductionService {
       if (choice.routeKind === 'generation_required') {
         const fixedRouteKey = work.slug === FIXED_ROUTE_STORIES.monster.slug ? 'monster'
           : work.slug === FIXED_ROUTE_STORIES.rebellion.slug ? 'rebellion' : null;
-        if (fixedRouteKey) {
+        if (fixedRouteKey && sourceKind === 'canonical') {
           const preparation = await new StoryFixedRouteChoiceRefreshService(this.prisma)
             .status(fixedRouteKey, work.id, tx);
           const expectedKeys = preparation.publicChoiceSet === 'legacy'
@@ -997,6 +1160,7 @@ export class StoryProductionService {
           sceneId: progress.currentSceneId!,
           choiceId: choice.id,
           nextSceneId: target?.id ?? null,
+          readBeatPosition: progress.currentBeatPosition,
           explicitRejoin: Boolean(choice.declaredRejoinSceneId),
         },
       ]);
@@ -1282,12 +1446,18 @@ export class StoryProductionService {
   async createManuscriptVersion(userId: string, workId: string, body: CreateManuscriptVersionDto) {
     await this.assertOwner(userId, workId);
     return storeManuscriptVersion(this.prisma, userId, workId,
-      prepareValidatedJsonManuscript(body));
+      prepareValidatedJsonManuscript(body), this.semanticAnalysis ? (tx, manuscriptId) =>
+        this.semanticAnalysis!.enqueueUploadedManuscriptInTransaction(tx, userId, manuscriptId) : undefined);
   }
 
   async analyzeManuscript(userId: string, manuscriptId: string, idempotencyKey?: string) {
     if (!this.semanticAnalysis) throw new ServiceUnavailableException({ code: 'SEMANTIC_ANALYSIS_UNAVAILABLE' });
     return this.semanticAnalysis.enqueue(userId, manuscriptId, idempotencyKey);
+  }
+
+  recoverAnalysisProfile(userId: string, analysisId: string, expectedSourceContentHash: string) {
+    if (!this.semanticAnalysis) throw new ServiceUnavailableException({ code: 'SEMANTIC_ANALYSIS_UNAVAILABLE' });
+    return this.semanticAnalysis.recoverProfile(userId, analysisId, expectedSourceContentHash);
   }
 
   manuscriptVersions(userId: string, workId: string, query: StoryAnalysisDiscoveryQueryDto) {
@@ -1298,25 +1468,97 @@ export class StoryProductionService {
   async branchPreparationStatus(userId: string, manuscriptId: string) {
     const manuscript = await this.prisma.storyManuscriptVersion.findFirst({
       where: { id: manuscriptId, ownerUserId: userId },
-      select: { id: true, workId: true, version: true, locale: true },
+      select: { id: true, workId: true, version: true, locale: true, contentHash: true },
     });
     if (!manuscript) throw new NotFoundException('Manuscript version not found');
-    const jobs = await this.prisma.storyBranchPreparationJob.findMany({
-      where: { manuscriptVersionId: manuscript.id, workId: manuscript.workId, ownerUserId: userId },
-      orderBy: { partIndex: 'asc' },
-      select: { partIndex: true, expectedPartCount: true, partKey: true, status: true },
-      take: 1000,
-    });
+    const [jobs, latest] = await Promise.all([
+      this.prisma.storyBranchPreparationJob.findMany({
+        where: { manuscriptVersionId: manuscript.id, workId: manuscript.workId, ownerUserId: userId },
+        orderBy: { partIndex: 'asc' },
+        select: { partIndex: true, expectedPartCount: true, partKey: true, status: true },
+        take: 1001,
+      }),
+      this.prisma.storyManuscriptVersion.findFirst({
+        where: { workId: manuscript.workId, ownerUserId: userId },
+        orderBy: { version: 'desc' }, select: { version: true },
+      }),
+    ]);
     const complete = jobs.length > 0 && jobs.length === jobs[0].expectedPartCount &&
       jobs.every((job, index) => job.partIndex === index && job.expectedPartCount === jobs.length);
-    return {
+    const base = {
       manuscriptVersionId: manuscript.id,
       version: manuscript.version,
       locale: manuscript.locale,
-      status: jobs.length === 0 ? 'not_prepared' : !complete ? 'incomplete'
-        : jobs.every(job => job.status === 'awaiting_author_consent') ? 'awaiting_author_consent' : 'in_progress',
+      latestVersion: latest?.version ?? manuscript.version,
+      partStatusSource: 'upload_intent_rows',
       parts: jobs.map(job => ({ partIndex: job.partIndex, partKey: job.partKey, status: job.status })),
     };
+    if (latest && latest.version > manuscript.version) return { ...base, status: 'superseded' };
+    if (!jobs.length) return { ...base, status: 'not_prepared' };
+    if (!complete || jobs.some(job => job.status !== 'awaiting_author_consent')) {
+      return { ...base, status: 'incomplete' };
+    }
+    const analysis = await this.prisma.storyAnalysisJob.findFirst({
+      where: { workId: manuscript.workId, manuscriptVersionId: manuscript.id,
+        pipeline: 'semantic_extraction_v1', status: 'completed',
+        sourceContentHash: manuscript.contentHash, sourceLocale: manuscript.locale },
+      orderBy: { analysisVersion: 'desc' },
+      select: { id: true, totalParagraphs: true, completedParagraphs: true },
+    });
+    if (!analysis || analysis.totalParagraphs < 1 || analysis.completedParagraphs !== analysis.totalParagraphs) {
+      const latestAnalysis = await this.prisma.storyAnalysisJob.findFirst({
+        where: { workId: manuscript.workId, manuscriptVersionId: manuscript.id,
+          pipeline: 'semantic_extraction_v1' },
+        orderBy: { analysisVersion: 'desc' }, select: { status: true },
+      });
+      return { ...base, status: latestAnalysis?.status === 'failed' ? 'failed' : 'awaiting_analysis',
+        ...(latestAnalysis?.status === 'failed' ? { failureStage: 'analysis' } : {}) };
+    }
+
+    const review = await this.prisma.storyWriterReview.findFirst({
+      where: { workId: manuscript.workId, ownerUserId: userId, manuscriptVersionId: manuscript.id },
+      orderBy: { updatedAt: 'desc' }, select: { id: true, state: true, analysisJobId: true },
+    });
+    const submission = review?.state === 'submitted' && review.analysisJobId === analysis.id
+      ? await this.prisma.storyFinalSubmission.findUnique({ where: { reviewId: review.id },
+        select: { status: true, checksum: true, manuscriptVersionId: true } }) : null;
+    if (!submission || submission.status !== 'submitted' || submission.checksum !== manuscript.contentHash ||
+        submission.manuscriptVersionId !== manuscript.id) return { ...base, status: 'awaiting_review' };
+
+    const consent = await this.prisma.storyStyleProfileConsent.findUnique({ where: { workId: manuscript.workId },
+      select: { ownerUserId: true, manuscriptVersionId: true, status: true, rightsConfirmed: true,
+        aiBranchAllowed: true, allowedLocales: true, startsAt: true, expiresAt: true } });
+    const now = new Date();
+    if (!consent || consent.ownerUserId !== userId || consent.manuscriptVersionId !== manuscript.id ||
+        consent.status !== 'active' || !consent.rightsConfirmed || !consent.aiBranchAllowed ||
+        consent.startsAt > now || (consent.expiresAt && consent.expiresAt <= now) ||
+        !Array.isArray(consent.allowedLocales) || !consent.allowedLocales.includes(manuscript.locale)) {
+      return { ...base, status: 'awaiting_author_consent' };
+    }
+
+    const release = await this.prisma.storyRelease.findFirst({
+      where: { workId: manuscript.workId, manuscriptVersionId: manuscript.id,
+        status: { in: ['candidate', 'active'] } },
+      orderBy: { version: 'desc' }, select: { id: true, validationSummary: true },
+    });
+    if (!release) return { ...base, status: 'awaiting_materialization' };
+    const studioJob = await this.prisma.storyStudioChoiceJob.findUnique({ where: { releaseId: release.id },
+      select: { manuscriptVersionId: true, ownerUserId: true, workId: true, status: true,
+        totalParts: true, completedParts: true } });
+    if (!studioJob || studioJob.manuscriptVersionId !== manuscript.id || studioJob.ownerUserId !== userId ||
+        studioJob.workId !== manuscript.workId || studioJob.totalParts !== jobs.length ||
+        studioJob.completedParts < 0 || studioJob.completedParts > jobs.length) {
+      return { ...base, status: 'incomplete' };
+    }
+    const progress = { completedParts: studioJob.completedParts, totalParts: studioJob.totalParts };
+    if (studioJob.status === 'failed') return { ...base, ...progress, status: 'failed', failureStage: 'choice_preparation' };
+    if (studioJob.status === 'queued') return { ...base, ...progress, status: 'queued' };
+    if (studioJob.status === 'processing') return { ...base, ...progress, status: 'in_progress' };
+    if (studioJob.status === 'completed' && studioJob.completedParts === jobs.length &&
+        (release.validationSummary as Record<string, unknown> | null)?.ready === true) {
+      return { ...base, ...progress, status: 'prepared' };
+    }
+    return { ...base, ...progress, status: 'incomplete' };
   }
 
   analysisJobs(userId: string, manuscriptId: string, query: StoryAnalysisDiscoveryQueryDto) {
@@ -1324,9 +1566,9 @@ export class StoryProductionService {
     return this.semanticAnalysis.analyses(userId, manuscriptId, query);
   }
 
-  async analysis(userId: string, analysisId: string, cursor?: string) {
+  async analysis(userId: string, analysisId: string, cursor?: string, view?: 'semantic' | 'structural') {
     if (!this.semanticAnalysis) throw new ServiceUnavailableException({ code: 'SEMANTIC_ANALYSIS_UNAVAILABLE' });
-    return this.semanticAnalysis.get(userId, analysisId, cursor);
+    return this.semanticAnalysis.get(userId, analysisId, cursor, view);
   }
 
   async analysisCitation(userId: string, analysisId: string, evidenceId: string) {
@@ -1359,7 +1601,7 @@ export class StoryProductionService {
         publishGate: { blocked: false, unresolvedCriticalCount: 0, unresolvedWarningCount: 0 },
       };
     }
-    const [entries, issues, evidence, entryLinks, issueLinks, pathStates, decisions] = await Promise.all([
+    const [entries, issues, entryLinks, issueLinks, pathStates, decisions] = await Promise.all([
       this.prisma.storyContinuityEntry.findMany({ where: { workId, analysisJobId: analysis.id }, orderBy: [{ entryType: 'asc' }, { createdAt: 'asc' }] }),
       this.prisma.storyContinuityIssue.findMany({
         where: {
@@ -1370,12 +1612,16 @@ export class StoryProductionService {
         },
         orderBy: [{ severity: 'asc' }, { createdAt: 'asc' }],
       }),
-      this.prisma.storyAnalysisEvidence.findMany({ where: { analysisJobId: analysis.id }, select: { id: true, evidenceType: true, sourcePartKey: true, sourceParagraphIndex: true } }),
       this.prisma.storyContinuityEntryEvidence.findMany({ where: { analysisJobId: analysis.id }, select: { entryId: true, evidenceId: true } }),
       this.prisma.storyContinuityIssueEvidence.findMany({ where: { analysisJobId: analysis.id }, select: { issueId: true, evidenceId: true } }),
       this.prisma.storyContinuityPathState.findMany({ where: { workId, analysisJobId: analysis.id }, orderBy: [{ pathScope: 'asc' }, { createdAt: 'asc' }] }),
       this.prisma.storyContinuityDecisionAudit.findMany({ where: { workId, analysisJobId: analysis.id }, orderBy: [{ issueId: 'asc' }, { decisionRevision: 'asc' }] }),
     ]);
+    const linkedEvidenceIds = [...new Set([...entryLinks, ...issueLinks].map((link) => link.evidenceId))];
+    const evidence = linkedEvidenceIds.length ? await this.prisma.storyAnalysisEvidence.findMany({
+      where: { analysisJobId: analysis.id, id: { in: linkedEvidenceIds } },
+      select: { id: true, evidenceType: true, sourcePartKey: true, sourceParagraphIndex: true },
+    }) : [];
     const evidenceById = new Map(evidence.map((item) => [item.id, item]));
     const evidenceFor = (links: Array<{ evidenceId: string }>) => links
       .map((link) => evidenceById.get(link.evidenceId))
@@ -1513,6 +1759,10 @@ export class StoryProductionService {
       : null;
     if (!scene || !part || !work) throw new NotFoundException('Generated story scene not found');
     let visualManifest = projectStoredStorySceneVisualManifest(scene.visualManifest, scene.sceneKey);
+    if (!visualManifest && progress.activeReleaseId && this.visualGeneration?.sharedBranchManifest) {
+      const shared = await this.visualGeneration.sharedBranchManifest(work.id, progress.activeReleaseId, scene.sceneKey, scene.visualManifest);
+      if (shared) visualManifest = projectStoredStorySceneVisualManifest(shared, scene.sceneKey);
+    }
     if (!visualManifest) throw new NotFoundException('Generated story scene not found');
     const visualVariantKey = this.visualGeneration
       ? await this.visualGeneration.variantKeyForProgress(progress.id)
@@ -1531,10 +1781,10 @@ export class StoryProductionService {
       this.economics && progress.activeReleaseId
         ? this.economics.capabilityByRelease(progress.activeReleaseId)
         : null,
-      this.visualGeneration && progress.activeReleaseId
+      this.visualGeneration && progress.activeReleaseId && visualVariantKey !== null
         ? this.visualGeneration.readyVisuals(work.id, progress.activeReleaseId, [scene.sceneKey], visualVariantKey)
         : new Map<string, { sourceSceneKey: string; publicAssetPath: string }>(),
-      this.visualGeneration && progress.activeReleaseId
+      this.visualGeneration && progress.activeReleaseId && visualVariantKey !== null
         ? this.visualGeneration.promptKeys(work.id, progress.activeReleaseId, [scene.sceneKey])
         : new Set<string>(),
     ]);
@@ -1672,7 +1922,7 @@ export class StoryProductionService {
     const visualVariantKey = this.visualGeneration
       ? await this.visualGeneration.variantKeyForProgress(progress.id)
       : 'default';
-    const [readyVisuals, promptKeys] = this.visualGeneration && progress.activeReleaseId
+    const [readyVisuals, promptKeys] = this.visualGeneration && progress.activeReleaseId && visualVariantKey !== null
       ? await Promise.all([
           this.visualGeneration.readyVisuals(work.id, progress.activeReleaseId, visualKeys, visualVariantKey),
           this.visualGeneration.promptKeys(work.id, progress.activeReleaseId, visualKeys),
@@ -1734,12 +1984,13 @@ export class StoryProductionService {
         visualGenerationAvailable: promptKeys.has(scene.sceneKey) && !canonicalVisual,
         endingType: scene.endingType,
       },
-      choices: visibleChoices.filter((choice) => !choice.targetSceneId || nextById.has(choice.targetSceneId)).map((choice) => {
+      choices: visibleChoices.map((choice) => {
         const next = choice.targetSceneId ? nextById.get(choice.targetSceneId) : null;
         return {
           id: choice.id,
           label: projectLocalizedValue(choice.label, locale, work.defaultLocale),
           routeKind: choice.routeKind,
+          available: !choice.targetSceneId || Boolean(next),
           explicitRejoin: Boolean(choice.declaredRejoinSceneId),
           nextHint: next ? { title: projectLocalizedValue(next.title, locale, work.defaultLocale), visualManifest: next.visualManifest } : null,
         };

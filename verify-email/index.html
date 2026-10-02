@@ -3,9 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="referrer" content="no-referrer" />
     <title>이메일 인증 — Lumina Stage</title>
     <link rel="canonical" href="https://www.lumina-stage.com/verify-email" />
-    <script>(function(){if(window.history&&history.replaceState&&location.pathname.length>1&&location.pathname.charAt(location.pathname.length-1)==="/"){history.replaceState(null,"",location.pathname.slice(0,-1)+location.search+location.hash);}})();</script>
+    <script>(function(){var params=new URLSearchParams(location.search);window.__luminaVerifyToken=params.get("token")||"";params.delete("token");var path=location.pathname.length>1&&location.pathname.endsWith("/")?location.pathname.slice(0,-1):location.pathname;history.replaceState(null,"",path+(params.size?"?"+params.toString():"")+location.hash);})();</script>
     <link rel="stylesheet" href="/styles.css" />
     <meta name="description" content="Lumina Stage 이메일 인증 결과 페이지." />
     <meta name="robots" content="noindex, nofollow" />
@@ -73,6 +74,8 @@
        * 성공/실패/만료/이미 사용된 토큰 상태를 카드 카피로 구분 표시.
        * 보안: token 값을 콘솔/Notion/스토리지에 기록하지 않는다. */
       (function initVerifyEmail() {
+        const token = window.__luminaVerifyToken || "";
+        delete window.__luminaVerifyToken;
         const card = document.getElementById("verifyEmailCard");
         const kicker = document.getElementById("verifyEmailKicker");
         const title = document.getElementById("verifyEmailTitle");
@@ -99,40 +102,82 @@
           return SAFE_VERIFY_EMAIL_FIXTURES[key] || null;
         }
 
+        const VERIFY_COPY = {
+          "ko-KR": {
+            kicker: "이메일 인증", home: "홈으로",
+            checking: ["이메일 인증을 확인하는 중이에요", "메일에서 받은 인증 링크를 확인하고 있습니다. 잠시만 기다려주세요."],
+            success: ["이메일 인증이 완료됐어요", "이제 로그인하고 Lumina Stage의 모든 기능을 사용할 수 있어요.", "마이페이지로 이동"],
+            expired: ["인증 링크가 만료됐어요", "이메일 인증 링크는 일정 시간이 지나면 사용할 수 없어요. 마이페이지에서 인증 메일을 다시 보내주세요.", "마이페이지에서 재전송"],
+            used: ["이미 사용한 인증 링크예요", "이 인증 링크는 이미 사용됐어요. 그대로 로그인해 사용할 수 있어요.", "마이페이지로 이동"],
+            invalid: ["이 링크는 인증에 사용할 수 없어요", "메일에서 받은 인증 링크 전체를 다시 눌러주세요. 문제가 반복되면 마이페이지에서 인증 메일을 다시 보내주세요.", "마이페이지로 이동"],
+            error: ["인증 처리 중 문제가 생겼어요", "잠시 후 다시 시도해주세요. 같은 문제가 반복되면 마이페이지에서 인증 메일을 새로 받아주세요.", "마이페이지로 이동"]
+          },
+          "ja-JP": {
+            kicker: "メール認証", home: "ホームへ",
+            checking: ["認証リンクを確認しています", "メールに届いたリンクを確認しています。少々お待ちください。"],
+            success: ["メール認証が完了しました", "ログインして Lumina Stage のすべての機能をご利用いただけます。", "マイページへ"],
+            expired: ["認証リンクの有効期限が切れました", "マイページから認証メールを再送してください。", "マイページで再送"],
+            used: ["この認証リンクは使用済みです", "このリンクはすでに使用されています。ログインしてご利用ください。", "マイページへ"],
+            invalid: ["このリンクでは認証できません", "メールに届いたリンク全体を開き直してください。解決しない場合はマイページから再送してください。", "マイページへ"],
+            error: ["認証を処理できませんでした", "しばらくしてからお試しください。解決しない場合は認証メールを再送してください。", "マイページへ"]
+          },
+          "en-US": {
+            kicker: "Email verification", home: "Home",
+            checking: ["Checking your verification link", "Please wait while we check the link from your email."],
+            success: ["Email verified", "You can now log in and use all Lumina Stage features.", "Go to My Page"],
+            expired: ["Verification link expired", "Please resend the verification email from My Page.", "Resend from My Page"],
+            used: ["Verification link already used", "This link has already been used. You can log in and continue.", "Go to My Page"],
+            invalid: ["This link cannot verify your email", "Open the full link from your email again. If the issue continues, resend it from My Page.", "Go to My Page"],
+            error: ["We couldn't verify your email", "Please try again shortly. If the issue continues, resend the email from My Page.", "Go to My Page"]
+          },
+          "zh-CN": {
+            kicker: "邮箱验证", home: "返回首页",
+            checking: ["正在检查验证链接", "正在检查邮件中的验证链接，请稍候。"],
+            success: ["邮箱验证完成", "现在可以登录并使用 Lumina Stage 的全部功能。", "前往我的页面"],
+            expired: ["验证链接已过期", "请在我的页面重新发送验证邮件。", "在我的页面重新发送"],
+            used: ["验证链接已使用", "此链接已使用。您可以登录并继续使用。", "前往我的页面"],
+            invalid: ["此链接无法用于验证", "请重新打开邮件中的完整链接。如仍有问题，请在我的页面重新发送。", "前往我的页面"],
+            error: ["无法完成邮箱验证", "请稍后重试。如仍有问题，请在我的页面重新发送验证邮件。", "前往我的页面"]
+          },
+          "zh-Hant": {
+            kicker: "電子郵件驗證", home: "返回首頁",
+            checking: ["正在檢查驗證連結", "正在檢查郵件中的驗證連結，請稍候。"],
+            success: ["電子郵件驗證完成", "現在可以登入並使用 Lumina Stage 的所有功能。", "前往我的頁面"],
+            expired: ["驗證連結已過期", "請在我的頁面重新寄送驗證郵件。", "在我的頁面重新寄送"],
+            used: ["驗證連結已使用", "此連結已使用。您可以登入並繼續使用。", "前往我的頁面"],
+            invalid: ["此連結無法用於驗證", "請重新開啟郵件中的完整連結。如仍有問題，請在我的頁面重新寄送。", "前往我的頁面"],
+            error: ["無法完成電子郵件驗證", "請稍後再試。如仍有問題，請在我的頁面重新寄送驗證郵件。", "前往我的頁面"]
+          }
+        };
+
+        let currentState = "checking";
+        let currentPayload = null;
+
         function setState(state, payload) {
+          currentState = state;
+          currentPayload = payload;
           card.dataset.state = state;
           if (spinner) spinner.hidden = state !== "checking";
           if (actions) actions.hidden = state === "checking";
-          if (state === "success") {
-            if (kicker) kicker.textContent = "이메일 인증";
-            if (title) title.textContent = "이메일 인증이 완료됐어요";
-            if (body) body.textContent = payload?.message || "이제 로그인하고 Lumina Stage의 모든 기능을 사용할 수 있어요.";
-            if (primary) { primary.textContent = "마이페이지로 이동"; primary.href = "/mypage"; }
-          } else if (state === "expired") {
-            if (kicker) kicker.textContent = "이메일 인증";
-            if (title) title.textContent = "인증 링크가 만료됐어요";
-            if (body) body.textContent = "이메일 인증 링크는 일정 시간이 지나면 사용할 수 없어요. 마이페이지에서 인증 메일을 다시 보내주세요.";
-            if (primary) { primary.textContent = "마이페이지에서 재전송"; primary.href = "/mypage"; }
-          } else if (state === "used") {
-            if (kicker) kicker.textContent = "이메일 인증";
-            if (title) title.textContent = "이미 사용한 인증 링크예요";
-            if (body) body.textContent = "이 인증 링크는 이미 사용됐어요. 그대로 로그인해 사용할 수 있어요.";
-            if (primary) { primary.textContent = "마이페이지로 이동"; primary.href = "/mypage"; }
-          } else if (state === "invalid") {
-            if (kicker) kicker.textContent = "이메일 인증";
-            if (title) title.textContent = "이 링크는 인증에 사용할 수 없어요";
-            if (body) body.textContent = "메일에서 받은 인증 링크 전체를 다시 눌러주세요. 문제가 반복되면 마이페이지에서 인증 메일을 다시 보내주세요.";
-            if (primary) { primary.textContent = "마이페이지로 이동"; primary.href = "/mypage"; }
-          } else if (state === "error") {
-            if (kicker) kicker.textContent = "이메일 인증";
-            if (title) title.textContent = "인증 처리 중 문제가 생겼어요";
-            if (body) body.textContent = "잠시 후 다시 시도해주세요. 같은 문제가 반복되면 마이페이지에서 인증 메일을 새로 받아주세요.";
-            if (primary) { primary.textContent = "마이페이지로 이동"; primary.href = "/mypage"; }
-          }
+          const locale = window.luminaI18n?.getRegionalLocale?.() || localStorage.getItem("lumina_locale") || "ko-KR";
+          const copy = VERIFY_COPY[locale] || VERIFY_COPY["ko-KR"];
+          const lines = copy[state] || copy.error;
+          if (kicker) kicker.textContent = copy.kicker;
+          if (title) title.textContent = lines[0];
+          if (body) body.textContent = state === "success" && locale === "ko-KR" && payload?.message ? payload.message : lines[1];
+          if (primary) { primary.textContent = lines[2] || copy.success[2]; primary.href = "/mypage"; }
+          const home = actions?.querySelector('a[href="/"]');
+          if (home) home.textContent = copy.home;
         }
+
+        window.addEventListener("lumina:localechange", () => setState(currentState, currentPayload));
 
         function classifyError(err) {
           const status = err?.status;
+          const state = (err?.body?.details?.state || err?.body?.state || "").toString().toLowerCase();
+          if (state === "expired") return "expired";
+          if (state === "already_used" || state === "used") return "used";
+          if (state === "invalid") return "invalid";
           const code = (err?.body?.code || err?.body?.messageKey || err?.body?.error || "").toString().toLowerCase();
           if (status === 410 || code.includes("expired")) return "expired";
           if (status === 409 || code.includes("already") || code.includes("used")) return "used";
@@ -147,8 +192,6 @@
             setState(fixture.state, fixture);
             return;
           }
-          const params = new URLSearchParams(location.search);
-          const token = params.get("token") || "";
           if (!token) {
             setState("invalid");
             return;
@@ -183,6 +226,7 @@
           }
         }
 
+        setState("checking");
         if (document.readyState === "loading") {
           document.addEventListener("DOMContentLoaded", run);
         } else {

@@ -13,6 +13,7 @@ import {
   ReplaceStaleStoryVisualDto,
   RequestStoryVisualDto,
   SyncStoryVisualQueueDto,
+  ReprepareStoryVisualBookingDto,
 } from './dto/story-visual-generation.dto';
 import { StoryVisualGenerationService } from './story-visual-generation.service';
 
@@ -30,6 +31,17 @@ export class StoryVisualGenerationController {
   ) {
     return this.visuals.requestForProgress(user.id, progressId, body.sourceSceneKey);
   }
+
+  @Get('me/creator-studio/stories/:workId/visual-bookings')
+  bookingReview(@CurrentUser() user: AuthUser, @Param('workId') workId: string, @Query('afterId') afterId?: string) {
+    return this.visuals.bookingReview(workId, afterId, user.id);
+  }
+
+  @Post('me/creator-studio/stories/:workId/visual-bookings/reprepare')
+  @Throttle({ default: { limit: 6, ttl: 60_000 } })
+  reprepareBooking(@CurrentUser() user: AuthUser, @Param('workId') workId: string, @Body() body: ReprepareStoryVisualBookingDto) {
+    return this.visuals.reprepareBooking(user.id, workId, body, true);
+  }
 }
 
 @Controller('story-visual-assets')
@@ -39,6 +51,7 @@ export class StoryVisualAssetController {
   @Get(':assetId')
   async deliver(@Param('assetId') assetId: string, @Res() response: ServerResponse) {
     const delivery = await this.visuals.publicVisualAsset(assetId);
+    response.setHeader('cache-control', 'no-store');
     if (delivery.kind === 'redirect') {
       response.statusCode = 302;
       response.setHeader('location', delivery.url);
@@ -48,7 +61,6 @@ export class StoryVisualAssetController {
     response.statusCode = 200;
     response.setHeader('content-type', delivery.mimeType);
     response.setHeader('content-length', String(delivery.image.length));
-    response.setHeader('cache-control', 'public, max-age=31536000, immutable');
     response.end(delivery.image);
   }
 }
@@ -57,6 +69,19 @@ export class StoryVisualAssetController {
 @UseGuards(AdminAuthGuard, AdminPermissionGuard)
 export class StoryVisualGenerationAdminController {
   constructor(private readonly visuals: StoryVisualGenerationService) {}
+
+  @Get(':workId/booking-review')
+  @RequireAdminPermissions('*')
+  bookingReview(@Param('workId') workId: string, @Query('afterId') afterId?: string) {
+    return this.visuals.bookingReview(workId, afterId);
+  }
+
+  @Post(':workId/reprepare-booking')
+  @RequireAdminPermissions('*')
+  @Throttle({ default: { limit: 6, ttl: 60_000 } })
+  reprepareBooking(@CurrentUser() user: AuthUser, @Param('workId') workId: string, @Body() body: ReprepareStoryVisualBookingDto) {
+    return this.visuals.reprepareBooking(user.id, workId, body);
+  }
 
   @Post(':workId/prompts')
   @RequireAdminPermissions('*')

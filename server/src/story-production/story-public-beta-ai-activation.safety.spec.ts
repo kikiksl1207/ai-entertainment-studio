@@ -430,9 +430,9 @@ describe('fixed-route publication choice provenance', () => {
       updateMany: jest.fn().mockImplementation(async ({ data }) => { saved = data.planSnapshot; return { count: 1 }; }),
     } };
     const service = new StoryPublicationIntakeService(prisma as never, {} as never);
-    jest.spyOn(service as any, 'generateChoiceBatch').mockResolvedValue([{
+    jest.spyOn(service as any, 'choiceProvider').mockReturnValue({ generate: jest.fn().mockResolvedValue([{
       partKey: 'part-1', alternatives: ['카세트를 열어 목소리를 찾는다', '카세트를 숨기고 해주에게 간다'],
-    }]);
+    }]) });
 
     await (service as any).prepareApprovedChoices('admin', 'job');
     const stored = (service as any).readStoredPlan(saved);

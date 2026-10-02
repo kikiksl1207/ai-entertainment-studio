@@ -12,6 +12,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import { createHash, createHmac } from 'crypto';
+import { currentApprovedStoryVisual } from './story-approved-visual-context.policy';
 import { readFile } from 'fs/promises';
 import { resolve } from 'path';
 import * as sharp from 'sharp';
@@ -21,6 +22,7 @@ import type {
   RegisterStoryVisualAiBranchPromptDto,
   RegisterStoryVisualPromptsDto,
   ReplaceStaleStoryVisualDto,
+  ReprepareStoryVisualBookingDto,
 } from './dto/story-visual-generation.dto';
 import { StoryPublicBetaPolicy } from './story-public-beta.policy';
 import type { StoryContinuationProviderResult } from './story-continuation.provider';
@@ -31,8 +33,12 @@ import {
   parseContinuationGenerationProfilePin,
   stableContinuationJson,
 } from './story-continuation-context.policy';
-import { StoryVisualGenerationQueue } from './story-visual-generation.queue';
+import { StoryVisualGenerationQueue, type StoryVisualQueueCandidate } from './story-visual-generation.queue';
+import { parsedStoryVisualBooking, storyVisualBookingIdentity, storyVisualBookingMatches, type StoryVisualBookingIdentity } from './story-visual-booking.policy';
 import { StoryVisualGenerationWorker } from './story-visual-generation.worker';
+import { StoryStudioVisualReviewService } from './story-studio-visual-review.service';
+import { verifiedStoredBranchVisualNarrative } from './story-branch-visual-narrative.policy';
+import { StoryBranchVisualReviewService } from './story-branch-visual-review.service';
 import {
   StoryArtistParticipantService,
   type StoryParticipantVisualReference,
@@ -61,6 +67,11 @@ type StoryVisualVariant = {
   references: StoryParticipantVisualReference[];
 };
 
+type StoryVisualGenerationResult =
+  | { status: 'ready'; sourceSceneKey: string; publicAssetPath: string; reused: boolean }
+  | { status: 'unavailable'; reason: string }
+  | { status: 'failed' | 'processing'; sourceSceneKey: string; retryable?: boolean };
+
 type StoryWorkVisualReference = {
   image: Buffer;
   checksum: string;
@@ -86,7 +97,7 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
   private readonly queue: StoryVisualGenerationQueue;
   private readonly worker: StoryVisualGenerationWorker;
   private readonly visualBibleCache = new Map<string, StoryVisualBible>();
-  private readonly workVisualReferenceCache = new Map<string, StoryWorkVisualReference | null>();
+  private readonly workVisualReferenceInFlight = new Map<string, Promise<StoryWorkVisualReference | null>>();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -94,8 +105,10 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
     @Optional() private readonly publicBeta?: StoryPublicBetaPolicy,
     @Optional() private readonly storyParticipants?: StoryArtistParticipantService,
     @Optional() private readonly storage?: StoryUploadStorageService,
+    @Optional() private readonly visualReviews?: StoryStudioVisualReviewService,
+    @Optional() private readonly branchVisualReviews?: StoryBranchVisualReviewService,
   ) {
-    this.queue = new StoryVisualGenerationQueue(prisma, config);
+    this.queue = new StoryVisualGenerationQueue(prisma, config, (candidate, tx) => this.bookQueuedVisual(candidate, tx));
     this.worker = new StoryVisualGenerationWorker({ executeOne: signal => this.executeQueuedVisual(signal) }, config);
   }
 
@@ -117,44 +130,236 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
     sourceSceneKeys: string[],
     variantKey = DEFAULT_VISUAL_VARIANT.key,
   ) {
+    const ready = await this.readyBoundVisuals(workId, releaseId, sourceSceneKeys, variantKey);
+    if (!this.sharedBranchVisualReuseEnabled()) return ready;
+    const keys = [...new Set(sourceSceneKeys.filter(key => SOURCE_SCENE_KEY.test(key) && key.startsWith('ai-reuse-')))];
+    if (!keys.length) return ready;
+    const release = await this.prisma.storyRelease.findFirst({ where: { id: releaseId, workId, status: 'active' }, select: { checksum: true } });
+    if (!release) return ready;
+    for (const key of keys) {
+      if (ready.has(key)) continue;
+      try {
+        const origin = await this.sharedBranchVisualOrigin(workId, releaseId, release.checksum, key, variantKey);
+        if (!origin) continue;
+        const shared = (await this.readyBoundVisuals(workId, releaseId, [origin.sourceSceneKey], variantKey)).get(origin.sourceSceneKey);
+        if (!shared) continue;
+        const current = await this.sharedBranchVisualOrigin(workId, releaseId, release.checksum, key, variantKey);
+        if (current?.identity !== origin.identity) continue;
+        ready.set(key, { sourceSceneKey: key, publicAssetPath: shared.publicAssetPath });
+      } catch (error) {
+        if (!this.visualApprovalChanged(error)) throw error;
+      }
+    }
+    return ready;
+  }
+
+  private async readyBoundVisuals(
+    workId: string,
+    releaseId: string,
+    sourceSceneKeys: string[],
+    variantKey: string,
+  ) {
     const keys = [...new Set(sourceSceneKeys.filter(key => SOURCE_SCENE_KEY.test(key)))];
     if (!keys.length) return new Map<string, ReadyVisual>();
     const rows = await this.prisma.storyVisualGeneration.findMany({
       where: { workId, releaseId, sourceSceneKey: { in: keys }, variantKey, status: 'ready', assetId: { not: null } },
-      select: { sourceSceneKey: true, assetId: true },
+      select: { sourceSceneKey: true, assetId: true, releaseChecksum: true, promptSha256: true, bookingIdentity: true },
     });
-    const assets = await this.prisma.asset.findMany({
-      where: { id: { in: rows.map(row => row.assetId).filter((id): id is string => Boolean(id)) },
-        assetType: 'image', visibility: 'public', mimeType: 'image/webp', checksum: { not: null } },
-      select: { id: true, metadata: true },
+    if (!rows.length) return new Map<string, ReadyVisual>();
+    const [release, prompts, assets] = await Promise.all([
+      this.prisma.storyRelease.findFirst({
+        where: { id: releaseId, workId, status: 'active' }, select: { checksum: true },
+      }),
+      this.prisma.storyVisualPrompt.findMany({
+        where: { workId, releaseId, sourceSceneKey: { in: rows.map(row => row.sourceSceneKey) } },
+        select: { sourceSceneKey: true, releaseChecksum: true, promptSha256: true, promptText: true, sourceKind: true, sourceBindingSha256: true },
+      }),
+      this.prisma.asset.findMany({
+        where: { id: { in: rows.map(row => row.assetId).filter((id): id is string => Boolean(id)) },
+          assetType: 'image', visibility: 'public', mimeType: 'image/webp', checksum: { not: null } },
+        select: { id: true, metadata: true },
+      }),
+    ]);
+    if (!release) return new Map<string, ReadyVisual>();
+    const promptsByKey = new Map(prompts.map(prompt => [prompt.sourceSceneKey, prompt]));
+    const assetsById = new Map(assets.map(asset => [asset.id, asset]));
+    const candidates = rows.flatMap(row => {
+      const prompt = promptsByKey.get(row.sourceSceneKey);
+      const asset = row.assetId ? assetsById.get(row.assetId) : null;
+      return prompt && asset && row.releaseChecksum === release.checksum &&
+        prompt.releaseChecksum === release.checksum && row.promptSha256 === prompt.promptSha256
+        ? [{ row, prompt, asset }] : [];
     });
-    const activeAssetIds = new Set(assets.filter(asset => {
-      const metadata = this.record(asset.metadata);
-      const lifecycle = this.record(metadata.lifecycle);
-      return lifecycle.status !== 'archived';
-    }).map(asset => asset.id));
-    return new Map(rows.flatMap(row => row.assetId && activeAssetIds.has(row.assetId) ? [[row.sourceSceneKey, {
-      sourceSceneKey: row.sourceSceneKey,
-      publicAssetPath: this.publicAssetPath(row.assetId),
-    }] as const] : []));
+    if (!candidates.length) return new Map<string, ReadyVisual>();
+    let bible: StoryVisualBible;
+    try {
+      bible = await this.visualBible(workId, releaseId, release.checksum);
+    } catch (error) {
+      if (this.visualApprovalChanged(error)) return new Map<string, ReadyVisual>();
+      throw error;
+    }
+    let workReference: StoryWorkVisualReference | null;
+    try {
+      workReference = await this.approvedStoryCoverReference(workId);
+    } catch (error) {
+      this.logger.warn({ event: 'story_visual_cover_read_unavailable', workId, releaseId,
+        code: this.safeGenerationError(error) });
+      return new Map<string, ReadyVisual>();
+    }
+    const ready: Array<readonly [string, ReadyVisual]> = [];
+    const coverSourceFingerprint = candidates.some(item => item.row.bookingIdentity)
+      ? await this.currentCoverSourceFingerprint(workId) : null;
+    for (const { row, prompt, asset } of candidates) {
+      let review: Awaited<ReturnType<StoryVisualGenerationService['reviewedScenePrompt']>>;
+      try {
+        await this.assertPromptApprovalCurrent(this.prisma, workId, releaseId, prompt, bible);
+        review = await this.reviewedScenePrompt(this.prisma, workId, releaseId, release.checksum,
+          row.sourceSceneKey, prompt.promptText, bible);
+      } catch (error) {
+        if (this.visualApprovalChanged(error)) continue;
+        throw error;
+      }
+      const effective = this.composeEffectiveVisualPrompt(bible, workReference, review?.promptText ?? prompt.promptText, review);
+      effective.coverSourceFingerprint = coverSourceFingerprint;
+      const identity = this.assetIdentity(asset.metadata);
+      if (!this.visualBookingAssetCurrent(row.bookingIdentity, { ...prompt, workId, releaseId }, effective, identity)) continue;
+      if (this.visualIdentityCurrent(identity, effective, {
+        workId, releaseId, releaseChecksum: release.checksum, sourceSceneKey: row.sourceSceneKey,
+        variantKey, promptSha256: prompt.promptSha256,
+      })) ready.push([row.sourceSceneKey, {
+        sourceSceneKey: row.sourceSceneKey, publicAssetPath: this.publicAssetPath(asset.id),
+      }]);
+    }
+    return new Map(ready);
   }
 
-  async variantKeyForProgress(progressId: string) {
-    return (await this.visualVariantForProgress(progressId)).key;
+  async variantKeyForProgress(progressId: string): Promise<string | null> {
+    try {
+      const progress = await this.prisma.storyReaderProgress.findFirst({ where: { id: progressId },
+        select: { currentGeneratedSceneId: true } });
+      if (progress?.currentGeneratedSceneId) {
+        return (await this.visualVariantForGeneratedScene(progress.currentGeneratedSceneId, progressId)).key;
+      }
+      return (await this.visualVariantForProgress(progressId)).key;
+    } catch (error) {
+      const code = error instanceof ConflictException ? this.record(error.getResponse()).code : null;
+      // Reading may show unavailable artwork, but must never substitute a new identity.
+      if (this.visualApprovalChanged(error) || code === 'STORY_VISUAL_BRANCH_SOURCE_CHANGED' ||
+          code === 'STORY_PARTICIPANT_IDENTITY_CHANGED') return null;
+      throw error;
+    }
   }
 
   async publicVisualAsset(assetId: string) {
     if (!UUID_PATTERN.test(assetId)) throw new BadRequestException('assetId must be a UUID');
     const asset = await this.prisma.asset.findFirst({
-      where: { id: assetId, assetType: 'image', visibility: 'public', mimeType: 'image/webp' },
-      select: { id: true, storageProvider: true, mimeType: true, fileSizeBytes: true, checksum: true, metadata: true },
+      where: { id: assetId, assetType: 'image', visibility: 'public', mimeType: 'image/webp', checksum: { not: null } },
+      select: { id: true, storageProvider: true, storageKey: true, mimeType: true,
+        fileSizeBytes: true, checksum: true, metadata: true },
     });
     if (!asset) throw new NotFoundException('Story visual not found');
     const metadata = this.record(asset.metadata);
     const storyVisual = this.record(metadata.storyVisual);
-    if (!storyVisual.workId || !storyVisual.sourceSceneKey) throw new NotFoundException('Story visual not found');
+    const identity = this.assetIdentity(asset.metadata);
+    if (this.record(metadata.lifecycle).status !== 'active' ||
+        typeof identity.workId !== 'string' || !UUID_PATTERN.test(identity.workId) ||
+        typeof identity.releaseId !== 'string' || !UUID_PATTERN.test(identity.releaseId) ||
+        typeof identity.releaseChecksum !== 'string' || !identity.releaseChecksum ||
+        typeof identity.sourceSceneKey !== 'string' || !SOURCE_SCENE_KEY.test(identity.sourceSceneKey) ||
+        typeof identity.variantKey !== 'string' ||
+        (identity.variantKey !== DEFAULT_VISUAL_VARIANT.key &&
+          !/^artist:[a-f0-9]{64}$/.test(identity.variantKey)) ||
+        typeof identity.promptSha256 !== 'string' || !/^[a-f0-9]{64}$/.test(identity.promptSha256)) {
+      throw new NotFoundException('Story visual not found');
+    }
+    const participantFingerprint = identity.variantKey === DEFAULT_VISUAL_VARIANT.key
+      ? null : identity.variantKey.slice('artist:'.length);
+    if (identity.participantFingerprint !== participantFingerprint) {
+      throw new NotFoundException('Story visual not found');
+    }
+    const generation = await this.prisma.storyVisualGeneration.findUnique({
+      where: { workId_releaseId_sourceSceneKey_variantKey: {
+        workId: identity.workId, releaseId: identity.releaseId,
+        sourceSceneKey: identity.sourceSceneKey, variantKey: identity.variantKey,
+      } },
+      select: { status: true, assetId: true, releaseChecksum: true, promptSha256: true, checksumSha256: true, bookingIdentity: true },
+    });
+    if (generation?.status !== 'ready' || generation.assetId !== asset.id ||
+        generation.releaseChecksum !== identity.releaseChecksum ||
+        generation.promptSha256 !== identity.promptSha256 ||
+        generation.checksumSha256 !== asset.checksum) {
+      throw new NotFoundException('Story visual not found');
+    }
+    const [work, release, prompt] = await Promise.all([
+      this.prisma.storyWork.findFirst({
+        where: { id: identity.workId, status: 'published', fixtureSource: false,
+          activeReleaseId: identity.releaseId }, select: { id: true },
+      }),
+      this.prisma.storyRelease.findFirst({
+        where: { id: identity.releaseId, workId: identity.workId, status: 'active',
+          checksum: identity.releaseChecksum }, select: { id: true },
+      }),
+      this.prisma.storyVisualPrompt.findUnique({
+        where: { workId_releaseId_sourceSceneKey: {
+          workId: identity.workId, releaseId: identity.releaseId, sourceSceneKey: identity.sourceSceneKey,
+        } },
+        select: { releaseChecksum: true, promptSha256: true, promptText: true, sourceKind: true, sourceBindingSha256: true },
+      }),
+    ]);
+    if (!work || !release || !prompt || prompt.releaseChecksum !== identity.releaseChecksum ||
+        prompt.promptSha256 !== identity.promptSha256) {
+      throw new NotFoundException('Story visual not found');
+    }
+    if (participantFingerprint) {
+      if (!this.storyParticipants) throw new NotFoundException('Story visual not found');
+      const participant = await this.prisma.storyProgressArtistParticipant.findFirst({
+        where: { workId: identity.workId, participantFingerprint,
+          artist: { status: 'active' } },
+        select: { progressId: true },
+      });
+      if (!participant) throw new NotFoundException('Story visual not found');
+      try {
+        const current = await this.storyParticipants.visualReferences(participant.progressId);
+        if (!current || current.participantFingerprint !== identity.participantFingerprint ||
+            !current.references.length) {
+          throw new NotFoundException('Story visual not found');
+        }
+      } catch (error) {
+        if (error instanceof ConflictException || error instanceof NotFoundException) {
+          throw new NotFoundException('Story visual not found');
+        }
+        throw error;
+      }
+    }
+    let effective: Awaited<ReturnType<StoryVisualGenerationService['effectiveVisualPrompt']>>;
+    try {
+      effective = await this.effectiveVisualPrompt(identity.workId, identity.releaseId,
+        identity.releaseChecksum, prompt.promptText, identity.sourceSceneKey);
+      await this.assertPromptApprovalCurrent(this.prisma, identity.workId, identity.releaseId,
+        { ...prompt, sourceSceneKey: identity.sourceSceneKey }, effective.bible);
+    } catch (error) {
+      if (this.visualApprovalChanged(error)) throw new NotFoundException('Story visual not found');
+      throw error;
+    }
+    if (!this.visualIdentityCurrent(identity, effective, {
+      workId: identity.workId, releaseId: identity.releaseId,
+      releaseChecksum: identity.releaseChecksum, sourceSceneKey: identity.sourceSceneKey,
+      variantKey: identity.variantKey, promptSha256: identity.promptSha256,
+    })) throw new NotFoundException('Story visual not found');
+    if (!this.visualBookingAssetCurrent(generation.bookingIdentity, { ...prompt, workId: identity.workId,
+      releaseId: identity.releaseId, sourceSceneKey: identity.sourceSceneKey }, effective, identity)) throw new NotFoundException('Story visual not found');
     if (asset.storageProvider !== 'database') {
-      return { kind: 'redirect', url: `/api/v1/assets/public/${asset.id}/original` } as const;
+      const provider = asset.storageProvider;
+      const key = asset.storageKey;
+      const scenePath = [this.storageKeyPrefix(), 'story-visuals', identity.workId,
+        identity.releaseId, identity.sourceSceneKey].filter(Boolean).join('/') + '/';
+      if ((provider !== 's3' && provider !== 'r2') ||
+          provider !== this.config.get<string>('OBJECT_STORAGE_PROVIDER') ||
+          typeof key !== 'string' || !key.startsWith(scenePath) || !key.endsWith('.webp') ||
+          !/^[a-zA-Z0-9/_.-]+$/.test(key) || key.includes('..')) {
+        throw new NotFoundException('Story visual not found');
+      }
+      return { kind: 'redirect', url: this.presignedGetUrl(provider, key) } as const;
     }
     const inlineImage = this.record(storyVisual.inlineImage);
     if (inlineImage.encoding !== 'base64' || typeof inlineImage.data !== 'string' ||
@@ -171,14 +376,38 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
   async promptKeys(workId: string, releaseId: string, sourceSceneKeys: string[]) {
     const keys = [...new Set(sourceSceneKeys.filter(key => SOURCE_SCENE_KEY.test(key)))];
     if (!keys.length) return new Set<string>();
+    const work = await this.prisma.storyWork.findFirst({ where: { id: workId, status: 'published',
+      fixtureSource: false, activeReleaseId: releaseId }, select: { id: true, ownerUserId: true } });
+    const release = await this.prisma.storyRelease.findFirst({ where: { id: releaseId, workId, status: 'active' },
+      select: { manuscriptVersionId: true, checksum: true } });
+    if (!work || !release) return new Set<string>();
+    let approved: Awaited<ReturnType<typeof currentApprovedStoryVisual>>;
+    try { approved = await currentApprovedStoryVisual(this.prisma, work, release.manuscriptVersionId); }
+    catch (error) {
+      if (this.visualApprovalChanged(error)) return new Set<string>();
+      throw error;
+    }
     const rows = await this.prisma.storyVisualPrompt.findMany({
       where: { workId, releaseId, sourceSceneKey: { in: keys } },
-      select: { sourceSceneKey: true },
+      select: { sourceSceneKey: true, promptText: true, sourceKind: true },
     });
-    const present = new Set(rows.map(row => row.sourceSceneKey));
+    const present = new Set<string>();
+    for (const row of rows) {
+      try {
+        await this.assertPromptApprovalCurrent(this.prisma, workId, releaseId, row,
+          { approvalFingerprint: approved?.fingerprint, approvalIdentity: approved?.approvalIdentity });
+        await this.reviewedScenePrompt(this.prisma, workId, releaseId, release.checksum,
+          row.sourceSceneKey, row.promptText, { approvalFingerprint: approved?.fingerprint });
+        present.add(row.sourceSceneKey);
+      } catch (error) {
+        if (this.visualApprovalChanged(error)) continue;
+        throw error;
+      }
+    }
     for (const sourceSceneKey of keys) {
-      if (present.has(sourceSceneKey) || !sourceSceneKey.startsWith('ai-') ||
-          !UUID_PATTERN.test(sourceSceneKey.slice(3))) continue;
+      const continuationKey = sourceSceneKey.startsWith('ai-reuse-') ? sourceSceneKey.slice(9)
+        : sourceSceneKey.startsWith('ai-') ? sourceSceneKey.slice(3) : '';
+      if (present.has(sourceSceneKey) || !UUID_PATTERN.test(continuationKey)) continue;
       try {
         const scene = await this.prisma.storyAiGeneratedScene.findFirst({
           where: { workId, releaseId, sceneKey: sourceSceneKey, status: 'ready' },
@@ -188,9 +417,15 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
         await this.recoverGeneratedContinuationPrompt(scene.id);
         const prompt = await this.prisma.storyVisualPrompt.findUnique({
           where: { workId_releaseId_sourceSceneKey: { workId, releaseId, sourceSceneKey } },
-          select: { id: true },
+          select: { id: true, promptText: true, sourceKind: true },
         });
-        if (prompt) present.add(sourceSceneKey);
+        if (prompt) {
+          await this.assertPromptApprovalCurrent(this.prisma, workId, releaseId, { ...prompt, sourceSceneKey },
+            { approvalFingerprint: approved?.fingerprint, approvalIdentity: approved?.approvalIdentity });
+          await this.reviewedScenePrompt(this.prisma, workId, releaseId, release.checksum,
+            sourceSceneKey, prompt.promptText, { approvalFingerprint: approved?.fingerprint });
+          present.add(sourceSceneKey);
+        }
         else this.logger.warn({ event: 'story_visual_prompt_recovery_failed', workId, sourceSceneKey,
           code: 'PROMPT_STILL_MISSING' });
       } catch (error) {
@@ -272,7 +507,8 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
         }
       }
     }
-    const variant = await this.visualVariantForProgress(progressId);
+    const variant = generatedSceneId ? await this.visualVariantForGeneratedScene(generatedSceneId, progressId)
+      : await this.visualVariantForProgress(progressId);
     return this.generate(progress.workId, release.id, release.checksum, sourceSceneKey, undefined, false, variant);
   }
 
@@ -284,7 +520,7 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
     if (!scene) throw new NotFoundException('Generated story scene not found');
     const beats = await this.prisma.storyAiGeneratedBeat.findMany({
       where: { sceneId: scene.id }, orderBy: [{ position: 'asc' }, { id: 'asc' }],
-      select: { beatType: true, content: true },
+      select: { beatType: true, content: true }, take: 41,
     });
     return this.registerGeneratedContinuationPrompt(scene.continuationId, {
       title: scene.title as Record<string, string>,
@@ -316,7 +552,25 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
         message: 'Only an existing ready story visual can be replaced',
       });
     }
-    return this.generate(workId, release.id, release.checksum, input.sourceSceneKey, undefined, true);
+    const result = await this.generate(workId, release.id, release.checksum, input.sourceSceneKey, undefined, true);
+    if (result.status === 'ready') {
+      const currentWork = await this.prisma.storyWork.findFirst({
+        where: { id: workId, status: 'published', fixtureSource: false, activeReleaseId: release.id },
+        select: { id: true },
+      });
+      const currentRelease = currentWork ? await this.prisma.storyRelease.findFirst({
+        where: { id: release.id, workId, status: 'active', checksum: release.checksum },
+        select: { id: true },
+      }) : null;
+      if (!currentWork || !currentRelease) {
+        throw new ConflictException({
+          code: 'STORY_VISUAL_REPLACEMENT_SOURCE_CHANGED',
+          message: 'The published source changed before the replacement result was returned',
+        });
+      }
+    }
+    return { ...result, workId, releaseId: release.id, releaseChecksum: release.checksum,
+      sourceSceneKey: input.sourceSceneKey };
   }
 
   async replacementStatus(workId: string) {
@@ -353,9 +607,13 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
         } },
       });
       if (!prompt || prompt.releaseChecksum !== release.checksum) continue;
-      const effective = await this.effectiveVisualPrompt(workId, release.id, release.checksum, prompt.promptText);
+      const effective = await this.effectiveVisualPrompt(workId, release.id, release.checksum, prompt.promptText, row.sourceSceneKey);
       const identity = await this.readyAssetIdentity(row.assetId);
-      if (!this.visualIdentityCurrent(identity, effective)) {
+      if (!this.visualIdentityCurrent(identity, effective, {
+        workId, releaseId: release.id, releaseChecksum: release.checksum,
+        sourceSceneKey: row.sourceSceneKey, variantKey: DEFAULT_VISUAL_VARIANT.key,
+        promptSha256: prompt.promptSha256,
+      })) {
         stale.push({ sourceSceneKey: row.sourceSceneKey, assetId: row.assetId, updatedAt: row.updatedAt });
       }
     }
@@ -524,9 +782,14 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
     const continuation = await this.prisma.storyAiContinuation.findFirst({
       where: { id: continuationId, status: 'completed', resultGeneratedSceneId: { not: null } },
       select: {
+        id: true,
+        userId: true,
         workId: true,
         releaseId: true,
+        releaseChecksum: true,
         progressId: true,
+        sourcePartId: true,
+        locale: true,
         resultGeneratedSceneId: true,
         manuscriptVersionId: true,
         analysisJobId: true,
@@ -541,10 +804,25 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
       select: { checksum: true },
     });
     if (!release) return { created: false, reason: 'release_not_active' } as const;
-    const title = Object.values(result.title).find((value): value is string => typeof value === 'string') ?? '';
-    const prose = result.beats.flatMap(beat => Object.values(beat.content))
-      .filter((value): value is string => typeof value === 'string')
-      .join('\n');
+    if (continuation.releaseChecksum !== release.checksum) {
+      throw new ConflictException({ code: 'STORY_VISUAL_BRANCH_SOURCE_CHANGED' });
+    }
+    const scene = await this.prisma.storyAiGeneratedScene.findFirst({
+      where: { id: continuation.resultGeneratedSceneId, continuationId, workId: continuation.workId,
+        releaseId: continuation.releaseId, userId: continuation.userId, progressId: continuation.progressId,
+        sourcePartId: continuation.sourcePartId, status: 'ready' },
+      select: { id: true, sceneKey: true, title: true, resultChecksum: true },
+    });
+    if (!scene || ![`ai-${continuationId}`, `ai-reuse-${continuationId}`].includes(scene.sceneKey) ||
+        !/^[a-f0-9]{64}$/.test(scene.resultChecksum)) {
+      throw new ConflictException({ code: 'STORY_VISUAL_BRANCH_SOURCE_CHANGED' });
+    }
+    const storedBeats = await this.prisma.storyAiGeneratedBeat.findMany({
+      where: { sceneId: scene.id }, orderBy: [{ position: 'asc' }, { id: 'asc' }], take: 41,
+      select: { position: true, beatType: true, content: true },
+    });
+    // Provider arguments are not the source of truth after the continuation has been stored.
+    const { title, prose } = verifiedStoredBranchVisualNarrative(continuation.locale, scene.title, storedBeats, result);
     const excerpt = Array.from(prose).slice(0, 6_000).join('');
     const references = this.record(continuation.contextReferences);
     let visualProfile = '';
@@ -584,22 +862,27 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
         const sections = snapshot.approved.sections.filter((section) =>
           section.key === 'visual_direction' || section.key === 'visual_cast',
         );
-        visualProfile = Array.from(JSON.stringify({
+        visualProfile = JSON.stringify({
           schemaVersion: snapshot.approved.schemaVersion,
           sections,
-        })).slice(0, 12_000).join('');
+        });
+        if (visualProfile.length > 12_000) throw new Error('profile_changed');
       }
-      const participant = this.storyParticipants
-        ? await this.storyParticipants.pinnedContext(this.prisma, continuation.progressId)
-        : null;
+      const participant = references.participantPin === undefined || references.participantPin === null
+        ? null : await this.branchParticipantContext(this.prisma, continuation.progressId, references.participantPin);
       if (participant) {
-        participantProfile = Array.from(JSON.stringify(participant.approved)).slice(0, 12_000).join('');
+        participantProfile = JSON.stringify(participant.approved);
+        if (participantProfile.length > 12_000) throw new Error('profile_changed');
       }
     } catch (error) {
       this.logger.warn({ event: 'story_visual_profile_resolution_failed', continuationId,
         code: error instanceof Error && error.message === 'profile_missing' ? 'PROFILE_MISSING'
           : error instanceof Error && error.message === 'profile_changed' ? 'PROFILE_CHANGED'
             : 'PROFILE_LOOKUP_FAILED' });
+      if (!this.visualApprovalChanged(error) && !(error instanceof BadRequestException) &&
+          !(error instanceof Error && ['profile_missing', 'profile_changed', 'generation_profile_pin_invalid',
+            'generation_profile_not_approved', 'generation_profile_fingerprint_changed',
+            'generation_profile_context_too_large'].includes(error.message))) throw error;
       throw new ConflictException({
         code: 'STORY_VISUAL_PROFILE_CHANGED',
         message: 'The creator-approved visual profile changed before prompt registration',
@@ -624,6 +907,7 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
       `Scene title: ${title}`,
       `Scene text: ${excerpt}`,
     ].join('\n');
+    if (promptText.length > 32_000) throw new ConflictException({ code: 'STORY_VISUAL_PROFILE_CHANGED' });
     try {
       return await this.registerAiBranchPrompt(
         continuation.workId,
@@ -635,6 +919,23 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
         code: this.promptRegistrationErrorCode(error) });
       throw error;
     }
+  }
+
+  private async branchParticipantContext(db: PrismaService | Prisma.TransactionClient, progressId: string, expectedPin: unknown) {
+    let participant: Awaited<ReturnType<StoryArtistParticipantService['pinnedContext']>>;
+    try {
+      participant = this.storyParticipants ? await this.storyParticipants.pinnedContext(db, progressId) : null;
+    } catch (error) {
+      if (error instanceof ConflictException && this.record(error.getResponse()).code === 'STORY_PARTICIPANT_IDENTITY_CHANGED') {
+        throw new ConflictException({ code: 'STORY_VISUAL_PROFILE_CHANGED' });
+      }
+      throw error;
+    }
+    if (!participant?.approved.visualIdentityReady || !participant.pin.identityProfileId ||
+        stableContinuationJson(participant.pin) !== stableContinuationJson(expectedPin)) {
+      throw new ConflictException({ code: 'STORY_VISUAL_PROFILE_CHANGED' });
+    }
+    return participant;
   }
 
   private promptRegistrationErrorCode(error: unknown) {
@@ -657,6 +958,14 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
     return this.queue.sync(workId);
   }
 
+  async bookingReview(workId: string, afterId?: string, ownerUserId?: string) {
+    return this.queue.bookingReview(workId, afterId, ownerUserId);
+  }
+
+  async reprepareBooking(actorUserId: string, workId: string, input: ReprepareStoryVisualBookingDto, asOwner = false) {
+    return this.queue.reprepareBooking(actorUserId, workId, input, asOwner);
+  }
+
   async queueStatus(workId?: string) {
     return {
       worker: this.worker.readiness(),
@@ -670,7 +979,7 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
     if (!candidate) return { status: sync.limitReached ? 'limit_reached' : 'idle' } as const;
     if (signal?.aborted) return { status: 'failed' } as const;
     const result = await this.generate(candidate.workId, candidate.releaseId, candidate.releaseChecksum,
-      candidate.sourceSceneKey, signal);
+      candidate.sourceSceneKey, signal, false, DEFAULT_VISUAL_VARIANT, candidate.bookingIdentity);
     if (result.status === 'ready') return { status: 'completed' } as const;
     if (result.status === 'unavailable' && result.reason === 'generation_disabled') return { status: 'disabled' } as const;
     if (result.status === 'unavailable' && result.reason === 'beta_generation_limit_reached') {
@@ -687,22 +996,75 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
     signal?: AbortSignal,
     replaceStale = false,
     variant: StoryVisualVariant = DEFAULT_VISUAL_VARIANT,
-  ) {
+    queuedIdentity?: StoryVisualBookingIdentity,
+  ): Promise<StoryVisualGenerationResult> {
+    if (!queuedIdentity) {
+      const origin = await this.sharedBranchVisualOrigin(workId, releaseId, releaseChecksum, sourceSceneKey, variant.key, { repairMissingOrigin: true });
+      if (origin) {
+        // Exact shared clones use one canonical generation claim, not a reader-specific image job.
+        const result = await this.generate(workId, releaseId, releaseChecksum, origin.sourceSceneKey, signal, replaceStale, variant);
+        const current = await this.sharedBranchVisualOrigin(workId, releaseId, releaseChecksum, sourceSceneKey, variant.key);
+        if (current?.identity !== origin.identity) throw new ConflictException({ code: 'STORY_BRANCH_VISUAL_REVIEW_SOURCE_CHANGED' });
+        return { ...result, ...('sourceSceneKey' in result ? { sourceSceneKey } : {}) };
+      }
+    }
     const prompt = await this.prisma.storyVisualPrompt.findUnique({
       where: { workId_releaseId_sourceSceneKey: { workId, releaseId, sourceSceneKey } },
     });
     if (!prompt || prompt.releaseChecksum !== releaseChecksum) return { status: 'unavailable', reason: 'prompt_missing' } as const;
+    const binding = { workId, releaseId, releaseChecksum, sourceSceneKey, variantKey: variant.key,
+      promptSha256: prompt.promptSha256 };
     let existing = await this.ensureGeneration(prompt, variant.key);
     let effective: Awaited<ReturnType<StoryVisualGenerationService['effectiveVisualPrompt']>> | null = null;
     let replacedAssetId: string | null = null;
+    let previousReplacementErrorCode: string | null = null;
     let replacementFailureCode: string | null = null;
     let replacementClaimCode: string | null = null;
+    let claimStartedAt: Date | null = null;
+    let booking = existing.bookingIdentity ?? null;
+    const previousBooking = existing.bookingIdentity;
+    if ((booking || queuedIdentity) && existing.status !== 'ready' &&
+        (!await this.queue.allowsCandidate(binding, this.prisma, booking ?? queuedIdentity) ||
+          (this.publicBeta && !this.publicBeta.allows(workId, releaseId, releaseChecksum)))) {
+      return { status: 'unavailable', reason: 'visual_queue_scope_unavailable' } as const;
+    }
+    if ((booking || queuedIdentity) && existing.status !== 'ready') {
+      try {
+        effective = await this.effectiveVisualPrompt(workId, releaseId, releaseChecksum, prompt.promptText, sourceSceneKey);
+        const identity = storyVisualBookingMatches(booking, binding);
+        const expected = this.bookingBasis(prompt, effective);
+        if (!identity || identity.identitySha256 !== expected.identitySha256 ||
+            (queuedIdentity && identity.identitySha256 !== queuedIdentity.identitySha256)) throw new Error('STORY_VISUAL_BOOKING_CHANGED');
+      } catch (error) {
+        if (!this.visualApprovalChanged(error) && !(error instanceof Error &&
+            ['STORY_VISUAL_BOOKING_CHANGED', 'STORY_VISUAL_PROFILE_CHANGED', 'STORY_VISUAL_BIBLE_SOURCE_MISSING'].includes(error.message))) throw error;
+        const staleBefore = new Date(Date.now() - this.numberFromEnv('STORY_IMAGE_GENERATION_STALE_SECONDS', 180) * 1000);
+        await this.prisma.storyVisualGeneration.updateMany({ where: { id: existing.id,
+          bookingIdentity: { equals: existing.bookingIdentity ?? Prisma.DbNull },
+          OR: [{ status: { in: ['pending', 'failed'] } },
+            { status: 'generating', updatedAt: { lt: staleBefore }, startedAt: existing.startedAt }] },
+          data: { status: 'failed', lastErrorCode: 'STORY_VISUAL_BOOKING_CHANGED', startedAt: null, updatedAt: new Date() } });
+        return { status: 'unavailable', reason: 'visual_booking_changed' } as const;
+      }
+    }
     if (existing.status === 'ready' && existing.assetId) {
-      if (!replaceStale) return this.readyResult(sourceSceneKey, existing.assetId, true);
-      effective = await this.effectiveVisualPrompt(workId, releaseId, releaseChecksum, prompt.promptText);
+      effective = await this.effectiveVisualPrompt(workId, releaseId, releaseChecksum, prompt.promptText, sourceSceneKey);
+      await this.assertPromptApprovalCurrent(this.prisma, workId, releaseId, prompt, effective.bible);
       const identity = await this.readyAssetIdentity(existing.assetId);
+      effective = await this.effectiveVisualPrompt(workId, releaseId, releaseChecksum, prompt.promptText, sourceSceneKey);
+      await this.assertPromptApprovalCurrent(this.prisma, workId, releaseId, prompt, effective.bible);
       const requestedIdentity = this.requestedVisualIdentity(effective.quality);
-      if (this.visualIdentityCurrent(identity, effective)) {
+      if (queuedIdentity && storyVisualBookingMatches(existing.bookingIdentity, binding)?.identitySha256 !== queuedIdentity.identitySha256) {
+        return { status: 'unavailable', reason: 'visual_booking_changed' } as const;
+      }
+      const identityCurrent = existing.releaseChecksum === releaseChecksum &&
+        this.visualIdentityCurrent(identity, effective, binding) &&
+        this.visualBookingAssetCurrent(existing.bookingIdentity, prompt, effective, identity);
+      if (!replaceStale) {
+        return identityCurrent ? this.readyResult(sourceSceneKey, existing.assetId, true)
+          : { status: 'unavailable', reason: 'visual_identity_changed' } as const;
+      }
+      if (identityCurrent) {
         return this.readyResult(sourceSceneKey, existing.assetId, true);
       }
       const replacementIdentitySha256 = this.sha256Hex(JSON.stringify({
@@ -718,13 +1080,17 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
       if (existing.lastErrorCode === failureCode) {
         return { status: 'failed', sourceSceneKey, retryable: false } as const;
       }
-      if (existing.lastErrorCode === claimCode) {
+      if (existing.lastErrorCode?.startsWith('STALE_REPLACEMENT_IN_PROGRESS_')) {
         const staleBefore = new Date(Date.now() - this.numberFromEnv('STORY_IMAGE_GENERATION_STALE_SECONDS', 180) * 1000);
         if (existing.updatedAt >= staleBefore) return { status: 'processing', sourceSceneKey } as const;
+        const originalAsset = await this.prisma.asset.findFirst({ where: { id: existing.assetId }, select: { metadata: true } });
+        const originalBooking = parsedStoryVisualBooking(this.record(this.record(originalAsset?.metadata).storyVisual).bookingIdentity);
+        const expiredCode = existing.lastErrorCode.replace('STALE_REPLACEMENT_IN_PROGRESS_', 'STALE_REPLACEMENT_FAILED_');
         const expired = await this.prisma.storyVisualGeneration.updateMany({
           where: { id: existing.id, status: 'ready', assetId: existing.assetId,
-            lastErrorCode: claimCode, updatedAt: { lt: staleBefore } },
-          data: { lastErrorCode: failureCode, startedAt: null, updatedAt: new Date() },
+            lastErrorCode: existing.lastErrorCode, updatedAt: { lt: staleBefore } },
+          data: { lastErrorCode: expiredCode, startedAt: null, updatedAt: new Date(),
+            ...(previousBooking ? { bookingIdentity: originalBooking ?? Prisma.DbNull } : {}) },
         });
         return expired.count
           ? { status: 'failed', sourceSceneKey, retryable: false } as const
@@ -736,6 +1102,10 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
       if (await this.overBudget(workId, releaseId, false)) {
         return { status: 'unavailable', reason: 'beta_generation_limit_reached' } as const;
       }
+      await this.assertPromptApprovalCurrent(this.prisma, workId, releaseId, prompt, effective.bible);
+      previousReplacementErrorCode = existing.lastErrorCode;
+      booking = previousBooking ? this.bookingBasis(prompt, effective) : null;
+      claimStartedAt = new Date();
       const replacementClaim = await this.prisma.storyVisualGeneration.updateMany({
         where: {
           id: existing.id,
@@ -743,6 +1113,7 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
           assetId: existing.assetId,
           promptSha256: prompt.promptSha256,
           lastErrorCode: existing.lastErrorCode,
+          bookingIdentity: { equals: existing.bookingIdentity ?? Prisma.DbNull },
         },
         data: {
           provider: 'openai',
@@ -750,8 +1121,9 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
           quality: effective.quality,
           size: this.size(),
           lastErrorCode: claimCode,
-          startedAt: new Date(),
+          startedAt: claimStartedAt,
           updatedAt: new Date(),
+          ...(booking ? { bookingIdentity: booking } : {}),
         },
       });
       if (!replacementClaim.count) {
@@ -759,18 +1131,29 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
         if (current?.status === 'ready' && current.lastErrorCode === failureCode) {
           return { status: 'failed', sourceSceneKey, retryable: false } as const;
         }
-        if (current?.status === 'ready' && current.assetId) return this.readyResult(sourceSceneKey, current.assetId, true);
+        if (current?.status === 'ready' && current.assetId) {
+          const currentIdentity = await this.readyAssetIdentity(current.assetId);
+          effective = await this.effectiveVisualPrompt(workId, releaseId, releaseChecksum, prompt.promptText, sourceSceneKey);
+          await this.assertPromptApprovalCurrent(this.prisma, workId, releaseId, prompt, effective.bible);
+          return current.releaseChecksum === releaseChecksum &&
+            this.visualIdentityCurrent(currentIdentity, effective, binding) &&
+            this.visualBookingAssetCurrent(current.bookingIdentity, prompt, effective, currentIdentity)
+            ? this.readyResult(sourceSceneKey, current.assetId, true)
+            : { status: 'processing', sourceSceneKey } as const;
+        }
         return { status: current?.status === 'failed' ? 'failed' : 'processing', sourceSceneKey } as const;
       }
       replacedAssetId = existing.assetId;
       existing = { ...existing, status: 'generating',
-        lastErrorCode: claimCode, startedAt: new Date(), updatedAt: new Date() };
+        lastErrorCode: claimCode, startedAt: claimStartedAt, updatedAt: new Date() };
     }
-    if (!this.enabled()) return { status: 'unavailable', reason: 'generation_disabled' } as const;
-    const preflight = this.providerPreflight();
-    if (preflight) return { status: 'unavailable', reason: preflight } as const;
-    if (await this.overBudget(workId, releaseId, existing.status === 'generating')) {
-      return { status: 'unavailable', reason: 'beta_generation_limit_reached' } as const;
+    if (!replacedAssetId) {
+      if (!this.enabled()) return { status: 'unavailable', reason: 'generation_disabled' } as const;
+      const preflight = this.providerPreflight();
+      if (preflight) return { status: 'unavailable', reason: preflight } as const;
+      if (await this.overBudget(workId, releaseId, existing.status === 'generating')) {
+        return { status: 'unavailable', reason: 'beta_generation_limit_reached' } as const;
+      }
     }
     const staleBefore = new Date(Date.now() - this.numberFromEnv('STORY_IMAGE_GENERATION_STALE_SECONDS', 180) * 1000);
     if (existing.status === 'generating' && existing.attemptCount >= MAX_GENERATION_ATTEMPTS &&
@@ -782,11 +1165,14 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
       return { status: 'failed', sourceSceneKey, retryable: false } as const;
     }
     const storageRecovery = this.isStorageRecovery(existing);
-    effective ??= await this.effectiveVisualPrompt(workId, releaseId, releaseChecksum, prompt.promptText);
+    effective ??= await this.effectiveVisualPrompt(workId, releaseId, releaseChecksum, prompt.promptText, sourceSceneKey);
+    if (!replacedAssetId) await this.assertPromptApprovalCurrent(this.prisma, workId, releaseId, prompt, effective.bible);
+    claimStartedAt ??= new Date();
     const claimed = replacedAssetId ? { count: 1 } : await this.prisma.storyVisualGeneration.updateMany({
       where: {
         id: existing.id,
         promptSha256: prompt.promptSha256,
+        bookingIdentity: { equals: existing.bookingIdentity ?? Prisma.DbNull },
         attemptCount: storageRecovery ? MAX_GENERATION_ATTEMPTS : { lt: MAX_GENERATION_ATTEMPTS },
         OR: [
           { status: { in: ['pending', 'failed'] } },
@@ -801,24 +1187,55 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
         size: this.size(),
         ...(storageRecovery ? {} : { attemptCount: { increment: 1 } }),
         lastErrorCode: null,
-        startedAt: new Date(),
+        startedAt: claimStartedAt,
         updatedAt: new Date(),
       },
     });
     if (!claimed.count) {
       const current = await this.prisma.storyVisualGeneration.findUnique({ where: { id: existing.id } });
-      if (current?.status === 'ready' && current.assetId) return this.readyResult(sourceSceneKey, current.assetId, true);
+      if (current?.status === 'ready' && current.assetId) {
+        const currentIdentity = await this.readyAssetIdentity(current.assetId);
+        effective = await this.effectiveVisualPrompt(workId, releaseId, releaseChecksum, prompt.promptText, sourceSceneKey);
+        await this.assertPromptApprovalCurrent(this.prisma, workId, releaseId, prompt, effective.bible);
+        return current.releaseChecksum === releaseChecksum &&
+          this.visualIdentityCurrent(currentIdentity, effective, binding) &&
+          this.visualBookingAssetCurrent(current.bookingIdentity, prompt, effective, currentIdentity)
+          ? this.readyResult(sourceSceneKey, current.assetId, true)
+          : { status: 'unavailable', reason: 'visual_identity_changed' } as const;
+      }
       return { status: current?.status === 'failed' ? 'failed' : 'processing', sourceSceneKey } as const;
     }
 
+    let providerStarted = false;
     try {
+      await this.assertEffectiveVisualCurrent(workId, releaseId, releaseChecksum, prompt.promptText, effective, sourceSceneKey);
+      await this.assertPromptApprovalCurrent(this.prisma, workId, releaseId, prompt, effective.bible);
       const image = await this.generateImage(
         effective.prompt,
         variant.references,
         effective.quality,
         signal,
         effective.workReference,
+        Boolean(effective.bible.approvalFingerprint),
+        async (dispatch, requestSignal) => {
+          let response: Promise<Response> | undefined;
+          // Initiate dispatch under the approval lock, then wait for the provider outside it.
+          await this.prisma.$transaction(async tx => {
+            await this.assertLockedVisualCurrent(tx, workId, releaseId, releaseChecksum, sourceSceneKey, prompt, effective!);
+            await this.assertBookingUnchanged(tx, existing.id, booking);
+            await this.assertGenerationClaim(tx, existing.id, claimStartedAt!, replacedAssetId, replacementClaimCode);
+            await this.assertQueuedScopeCurrent(booking, binding, tx);
+            requestSignal.throwIfAborted();
+            response = dispatch();
+            providerStarted = true;
+            void response.catch(() => {});
+          }, { maxWait: 5000, timeout: 30000 });
+          if (!response) throw new Error('STORY_VISUAL_PROFILE_CHANGED');
+          return response;
+        },
       );
+      await this.assertEffectiveVisualCurrent(workId, releaseId, releaseChecksum, prompt.promptText, effective, sourceSceneKey);
+      await this.assertPromptApprovalCurrent(this.prisma, workId, releaseId, prompt, effective.bible);
       const checksumSha256 = this.sha256Hex(image);
       const storage = await this.uploadImage(
         workId,
@@ -830,6 +1247,10 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
         image,
       );
       const asset = await this.prisma.$transaction(async tx => {
+        await this.assertLockedVisualCurrent(tx, workId, releaseId, releaseChecksum, sourceSceneKey, prompt, effective!);
+        await this.assertBookingUnchanged(tx, existing.id, booking);
+        await this.assertGenerationClaim(tx, existing.id, claimStartedAt!, replacedAssetId, replacementClaimCode);
+        await this.assertQueuedScopeCurrent(booking, binding, tx);
         const inlineImage = storage.inlineBase64 ? {
           inlineImage: { encoding: 'base64', data: storage.inlineBase64 },
         } : {};
@@ -847,6 +1268,9 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
               participantFingerprint: variant.participantFingerprint, promptSha256: prompt.promptSha256,
               visualBibleVersion: effective!.bible.version, visualBibleFingerprint: effective!.bible.fingerprint,
               effectivePromptSha256: effective!.sha256,
+              ...(booking ? { bookingIdentity: booking, bookingIdentitySha256: storyVisualBookingMatches(booking, binding)!.identitySha256 } : {}),
+              ...(effective!.review ? { sceneGuidanceApproval: this.sceneReviewIdentity(effective!.review),
+                sceneGuidanceApprovalSha256: this.sha256Hex(JSON.stringify(this.sceneReviewIdentity(effective!.review))) } : {}),
               ...(effective!.workReference ? { workVisualReferenceChecksum: effective!.workReference.checksum } : {}),
               ...(replacedAssetId ? { replacesAssetId: replacedAssetId } : {}),
               provider: 'openai', model: this.model(), quality: effective!.quality, size: this.size(),
@@ -863,6 +1287,7 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
           status: 'ready', assetId: created.id, checksumSha256, lastErrorCode: null,
           completedAt: new Date(), updatedAt: new Date(),
         } });
+        await this.assertQueuedScopeCurrent(booking, binding, tx);
         return created;
       });
       this.logger.log({ event: 'story_visual_generated', workId, sourceSceneKey,
@@ -870,18 +1295,162 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
       return this.readyResult(sourceSceneKey, asset.id, false);
     } catch (error) {
       const code = signal?.aborted ? 'PROVIDER_OUTCOME_UNKNOWN' : this.safeGenerationError(error);
+      const pausedUnspent = code === 'STORY_VISUAL_QUEUE_SCOPE_UNAVAILABLE' && !providerStarted && !storageRecovery &&
+        !replacedAssetId && existing.status === 'pending' && existing.attemptCount === 0 &&
+        existing.provider == null && existing.model == null && existing.quality == null && existing.size == null && existing.assetId == null &&
+        existing.checksumSha256 == null && existing.completedAt == null && existing.startedAt == null;
       await this.prisma.storyVisualGeneration.updateMany({
         where: replacedAssetId && replacementClaimCode
-          ? { id: existing.id, status: 'ready', assetId: replacedAssetId, lastErrorCode: replacementClaimCode }
-          : { id: existing.id, status: 'generating' },
+          ? { id: existing.id, status: 'ready', assetId: replacedAssetId, lastErrorCode: replacementClaimCode, startedAt: claimStartedAt }
+          : { id: existing.id, status: 'generating', startedAt: claimStartedAt },
         data: replacedAssetId && replacementFailureCode
-          ? { status: 'ready', assetId: replacedAssetId, lastErrorCode: replacementFailureCode,
+          ? { status: 'ready', assetId: replacedAssetId,
+            lastErrorCode: providerStarted ? replacementFailureCode : previousReplacementErrorCode,
+            ...(previousBooking ? { bookingIdentity: previousBooking } : {}),
             startedAt: null, updatedAt: new Date() }
-          : { status: 'failed', lastErrorCode: code, startedAt: null, updatedAt: new Date() } });
+          : { status: pausedUnspent ? 'pending' : 'failed', lastErrorCode: pausedUnspent ? (existing.lastErrorCode ?? null) : code,
+            startedAt: null, updatedAt: new Date(),
+            ...(pausedUnspent ? { provider: null, model: null, quality: null, size: null } : {}),
+            ...(!providerStarted && !storageRecovery ? { attemptCount: { decrement: 1 } } : {}) } });
       this.logger.warn({ event: 'story_visual_generation_failed', workId, sourceSceneKey,
         promptSha256: prompt.promptSha256, code });
-      return { status: 'failed', sourceSceneKey, retryable: false } as const;
+      return { status: 'failed', sourceSceneKey, retryable: !providerStarted } as const;
     }
+  }
+
+  private bookingBasis(prompt: { workId: string; releaseId: string; releaseChecksum: string; sourceSceneKey: string;
+    promptSha256: string; sourceKind?: string; sourceBindingSha256?: string },
+    effective: ReturnType<StoryVisualGenerationService['composeEffectiveVisualPrompt']>) {
+    return storyVisualBookingIdentity({ workId: prompt.workId, releaseId: prompt.releaseId,
+      releaseChecksum: prompt.releaseChecksum, sourceSceneKey: prompt.sourceSceneKey, promptSha256: prompt.promptSha256,
+      variantKey: 'default', sourceKind: prompt.sourceKind ?? null, sourceBindingSha256: prompt.sourceBindingSha256 ?? null,
+      visualBibleVersion: effective.bible.version, visualBibleFingerprint: effective.bible.fingerprint,
+      authorApprovalIdentitySha256: effective.bible.approvalIdentity
+        ? this.sha256Hex(stableContinuationJson(effective.bible.approvalIdentity)) : null,
+      sceneGuidanceApprovalSha256: effective.review ? this.sha256Hex(stableContinuationJson(this.sceneReviewIdentity(effective.review))) : null,
+      coverSourceFingerprint: effective.coverSourceFingerprint, workVisualReferenceChecksum: effective.workReference?.checksum ?? null,
+      effectivePromptSha256: effective.sha256, ...this.requestedVisualIdentity(effective.quality) });
+  }
+
+  private visualBookingAssetCurrent(booking: unknown,
+    prompt: Parameters<StoryVisualGenerationService['bookingBasis']>[0],
+    effective: Parameters<StoryVisualGenerationService['bookingBasis']>[1],
+    asset: ReturnType<StoryVisualGenerationService['assetIdentity']>) {
+    if (booking == null) return asset.bookingIdentitySha256 === null;
+    const identity = storyVisualBookingMatches(booking, prompt);
+    return Boolean(identity && identity.identitySha256 === this.bookingBasis(prompt, effective).identitySha256 &&
+      asset.bookingIdentitySha256 === identity.identitySha256);
+  }
+
+  private async bookQueuedVisual(candidate: StoryVisualQueueCandidate, tx: Prisma.TransactionClient) {
+    await tx.$queryRaw(Prisma.sql`SELECT id FROM story_works WHERE id = ${candidate.workId}::uuid FOR SHARE`);
+    const prompt = await tx.storyVisualPrompt.findUnique({ where: { workId_releaseId_sourceSceneKey: {
+      workId: candidate.workId, releaseId: candidate.releaseId, sourceSceneKey: candidate.sourceSceneKey } } });
+    if (!prompt || prompt.releaseChecksum !== candidate.releaseChecksum || prompt.promptSha256 !== candidate.promptSha256) return null;
+    try {
+      if (this.publicBeta && !this.publicBeta.allows(candidate.workId, candidate.releaseId, candidate.releaseChecksum)) return null;
+      const effective = await this.effectiveVisualPrompt(candidate.workId, candidate.releaseId, candidate.releaseChecksum,
+        prompt.promptText, candidate.sourceSceneKey);
+      await this.assertLockedVisualCurrent(tx, candidate.workId, candidate.releaseId, candidate.releaseChecksum,
+        candidate.sourceSceneKey, prompt, effective);
+      return this.bookingBasis(prompt, effective);
+    } catch (error) {
+      if (this.visualApprovalChanged(error) || (error instanceof Error &&
+          ['STORY_VISUAL_PROFILE_CHANGED', 'STORY_VISUAL_BIBLE_SOURCE_MISSING'].includes(error.message))) return null;
+      throw error;
+    }
+  }
+
+  private sharedBranchVisualReuseEnabled() {
+    return this.config.get<string>('STORY_SHARED_BRANCH_VISUAL_REUSE_ENABLED') === 'true';
+  }
+
+  async sharedBranchManifest(workId: string, releaseId: string, sourceSceneKey: string, manifest: Prisma.JsonValue) {
+    if (!this.sharedBranchVisualReuseEnabled() || !sourceSceneKey.startsWith('ai-reuse-')) return null;
+    if (this.config.get<string>('STORY_BRANCH_VISUAL_REVIEW_ENABLED') !== 'true' || !this.branchVisualReviews) return null;
+    const release = await this.prisma.storyRelease.findFirst({ where: { id: releaseId, workId, status: 'active' }, select: { checksum: true } });
+    if (!release) return null;
+    try {
+      const origin = await this.branchVisualReviews.projectionForGeneratedSource(this.prisma, workId, releaseId, release.checksum, sourceSceneKey);
+      const stored = this.record(manifest);
+      // Approved snapshots stay immutable; only the reader-facing scene key is rebound.
+      return stored.sceneKey === origin.sceneKey &&
+        stableContinuationJson(manifest) === stableContinuationJson(origin.visualManifest)
+        ? { ...stored, sceneKey: sourceSceneKey } : null;
+    } catch (error) {
+      if (this.visualApprovalChanged(error)) return null;
+      throw error;
+    }
+  }
+
+  private async sharedBranchVisualOrigin(workId: string, releaseId: string, checksum: string, sourceSceneKey: string, variantKey: string,
+    options: { repairMissingOrigin?: boolean } = {}) {
+    if (!this.sharedBranchVisualReuseEnabled() || !sourceSceneKey.startsWith('ai-reuse-')) return null;
+    if (this.config.get<string>('STORY_BRANCH_VISUAL_REVIEW_ENABLED') !== 'true' || !this.branchVisualReviews) {
+      throw new ConflictException({ code: 'STORY_BRANCH_VISUAL_REVIEW_APPROVAL_REQUIRED' });
+    }
+    const existing = await this.prisma.storyVisualGeneration.findUnique({ where: {
+      workId_releaseId_sourceSceneKey_variantKey: { workId, releaseId, sourceSceneKey, variantKey } },
+    select: { status: true, attemptCount: true, bookingIdentity: true } });
+    // Never reinterpret an existing reservation or an attempted paid request.
+    if (existing && (existing.status === 'ready' || existing.status === 'generating' || existing.attemptCount > 0 || existing.bookingIdentity)) return null;
+    const scene = await this.prisma.storyAiGeneratedScene.findFirst({ where: { workId, releaseId, sceneKey: sourceSceneKey, status: 'ready' },
+      select: { sharedResultId: true, resultChecksum: true } });
+    if (!scene?.sharedResultId) throw new ConflictException({ code: 'STORY_BRANCH_VISUAL_REVIEW_SOURCE_CHANGED' });
+    const result = await this.prisma.storyAiReusableResult.findFirst({ where: { id: scene.sharedResultId, workId, releaseId,
+      releaseChecksum: checksum, resultChecksum: scene.resultChecksum, status: 'approved' },
+    select: { originGeneratedSceneId: true, resultChecksum: true } });
+    if (!result?.resultChecksum) throw new ConflictException({ code: 'STORY_BRANCH_VISUAL_REVIEW_SOURCE_CHANGED' });
+    const origin = result.originGeneratedSceneId ? await this.prisma.storyAiGeneratedScene.findFirst({ where: {
+      id: result.originGeneratedSceneId, workId, releaseId, status: 'ready', sharedResultId: scene.sharedResultId,
+      resultChecksum: result.resultChecksum }, select: { id: true, sceneKey: true, continuationId: true, visualManifest: true } }) : null;
+    if (!origin || origin.sceneKey !== `ai-${origin.continuationId}`) throw new ConflictException({ code: 'STORY_BRANCH_VISUAL_REVIEW_SOURCE_CHANGED' });
+    const prompts = await this.prisma.storyVisualPrompt.findMany({ where: { workId, releaseId,
+      sourceSceneKey: { in: [sourceSceneKey, origin.sceneKey] }, releaseChecksum: checksum, sourceKind: 'ai_branch' },
+    select: { sourceSceneKey: true, promptSha256: true } });
+    const targetPrompt = prompts.find(prompt => prompt.sourceSceneKey === sourceSceneKey);
+    let originPrompt = prompts.find(prompt => prompt.sourceSceneKey === origin.sceneKey);
+    if (!originPrompt && options.repairMissingOrigin) {
+      await this.recoverGeneratedContinuationPrompt(origin.id);
+      originPrompt = await this.prisma.storyVisualPrompt.findUnique({ where: {
+        workId_releaseId_sourceSceneKey: { workId, releaseId, sourceSceneKey: origin.sceneKey } },
+      select: { sourceSceneKey: true, promptSha256: true } }) ?? undefined;
+    }
+    if (!targetPrompt || !originPrompt) throw new ConflictException({ code: 'STORY_BRANCH_VISUAL_REVIEW_SOURCE_CHANGED' });
+    const targetReview = await this.branchVisualReviews.approvedForGeneratedSource(this.prisma, workId, releaseId,
+      checksum, sourceSceneKey, targetPrompt.promptSha256);
+    const originReview = await this.branchVisualReviews.approvedForGeneratedSource(this.prisma, workId, releaseId,
+      checksum, origin.sceneKey, originPrompt.promptSha256);
+    const sharedIdentity = (review: typeof targetReview) => stableContinuationJson({ batchId: review.batchId,
+      batchChecksum: review.batchChecksum, sourceChecksum: review.sourceChecksum, profilePinHash: review.profilePinHash,
+      manuscriptVersionId: review.manuscriptVersionId, manuscriptHash: review.manuscriptHash,
+      promptSha256: review.promptSha256, approvedByUserId: review.approvedByUserId, approvedAt: review.approvedAt });
+    const identity = sharedIdentity(targetReview);
+    if (identity !== sharedIdentity(originReview)) throw new ConflictException({ code: 'STORY_BRANCH_VISUAL_REVIEW_SOURCE_CHANGED' });
+    return { sourceSceneKey: origin.sceneKey, identity, visualManifest: origin.visualManifest };
+  }
+
+  private async assertBookingUnchanged(tx: Prisma.TransactionClient, id: string, expected: Prisma.JsonValue) {
+    const row = await tx.storyVisualGeneration.findUnique({ where: { id }, select: { bookingIdentity: true } });
+    if (!row || stableContinuationJson(row.bookingIdentity ?? null) !== stableContinuationJson(expected)) throw new Error('STORY_VISUAL_BOOKING_CHANGED');
+  }
+
+  private async assertQueuedScopeCurrent(booking: Prisma.JsonValue | null,
+    binding: Pick<StoryVisualQueueCandidate, 'workId' | 'releaseId' | 'releaseChecksum'>, tx: Prisma.TransactionClient) {
+    if (booking && (!await this.queue.allowsCandidate(binding, tx, booking) || (this.publicBeta &&
+        !this.publicBeta.allows(binding.workId, binding.releaseId, binding.releaseChecksum)))) {
+      throw new Error('STORY_VISUAL_QUEUE_SCOPE_UNAVAILABLE');
+    }
+  }
+
+  private async assertGenerationClaim(tx: Prisma.TransactionClient, id: string, startedAt: Date,
+    replacedAssetId: string | null, claimCode: string | null) {
+    await tx.$queryRaw(Prisma.sql`SELECT id FROM story_visual_generations WHERE id = ${id}::uuid FOR UPDATE`);
+    const row = await tx.storyVisualGeneration.findUnique({ where: { id },
+      select: { status: true, startedAt: true, assetId: true, lastErrorCode: true } });
+    if (!row || row.startedAt?.getTime() !== startedAt.getTime() || (replacedAssetId
+      ? row.status !== 'ready' || row.assetId !== replacedAssetId || row.lastErrorCode !== claimCode
+      : row.status !== 'generating')) throw new Error('STORY_VISUAL_CLAIM_LOST');
   }
 
   private async effectiveVisualPrompt(
@@ -889,15 +1458,121 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
     releaseId: string,
     releaseChecksum: string,
     scenePrompt: string,
+    sourceSceneKey?: string,
   ) {
+    const coverSourceFingerprint = await this.currentCoverSourceFingerprint(workId);
     const [bible, workReference] = await Promise.all([
       this.visualBible(workId, releaseId, releaseChecksum),
       this.approvedStoryCoverReference(workId),
     ]);
+    const review = await this.reviewedScenePrompt(this.prisma, workId, releaseId, releaseChecksum, sourceSceneKey, scenePrompt, bible);
+    if (coverSourceFingerprint !== await this.currentCoverSourceFingerprint(workId)) throw new Error('STORY_VISUAL_PROFILE_CHANGED');
+    return { ...this.composeEffectiveVisualPrompt(bible, workReference, review?.promptText ?? scenePrompt, review), coverSourceFingerprint };
+  }
+
+  private coverSourceFingerprint(work: { ownerUserId?: string | null; slug?: string; coverManifest?: Prisma.JsonValue } | null) {
+    return this.sha256Hex(stableContinuationJson({ ownerUserId: work?.ownerUserId ?? null,
+      slug: work?.slug ?? null, coverManifest: work?.coverManifest ?? null }));
+  }
+
+  private async currentCoverSourceFingerprint(workId: string) {
+    const work = await this.prisma.storyWork.findFirst({ where: { id: workId, fixtureSource: false },
+      select: { ownerUserId: true, slug: true, coverManifest: true } });
+    return this.coverSourceFingerprint(work);
+  }
+
+  private async assertEffectiveVisualCurrent(workId: string, releaseId: string, checksum: string,
+    promptText: string, expected: Awaited<ReturnType<StoryVisualGenerationService['effectiveVisualPrompt']>>, sourceSceneKey?: string) {
+    const bible = await this.visualBible(workId, releaseId, checksum);
+    if (bible.approvalFingerprint !== expected.bible.approvalFingerprint) throw new Error('STORY_VISUAL_PROFILE_CHANGED');
+    if (await this.currentCoverSourceFingerprint(workId) !== expected.coverSourceFingerprint) throw new Error('STORY_VISUAL_PROFILE_CHANGED');
+    if (bible.approvalFingerprint) {
+      const current = await this.effectiveVisualPrompt(workId, releaseId, checksum, promptText, sourceSceneKey);
+      if (current.sha256 !== expected.sha256) throw new Error('STORY_VISUAL_PROFILE_CHANGED');
+    }
+  }
+
+  private async reviewedScenePrompt(db: PrismaService | Prisma.TransactionClient, workId: string, releaseId: string,
+    checksum: string, sourceSceneKey: string | undefined, originalPrompt: string, bible: Pick<StoryVisualBible, 'approvalFingerprint'>) {
+    if (sourceSceneKey?.startsWith('ai-') && this.config.get<string>('STORY_BRANCH_VISUAL_REVIEW_ENABLED') === 'true') {
+      if (!this.branchVisualReviews) throw new ConflictException({ code: 'STORY_BRANCH_VISUAL_REVIEW_APPROVAL_REQUIRED' });
+      return this.branchVisualReviews.approvedForGeneratedSource(db, workId, releaseId, checksum, sourceSceneKey, this.sha256Hex(originalPrompt));
+    }
+    if (!bible.approvalFingerprint) return null;
+    if (!this.visualReviews || !sourceSceneKey) throw new ConflictException({ code: 'STUDIO_VISUAL_REVIEW_SOURCE_CHANGED' });
+    return this.visualReviews.approvedForPublishedSource(db, workId, releaseId, checksum, sourceSceneKey, this.sha256Hex(originalPrompt));
+  }
+
+  private sceneReviewIdentity(review: NonNullable<Awaited<ReturnType<StoryVisualGenerationService['reviewedScenePrompt']>>>) {
+    return { contract: 'story-visual-review-generation-v1', batchId: review.batchId, batchChecksum: review.batchChecksum,
+      profilePinHash: review.profilePinHash, manuscriptVersionId: review.manuscriptVersionId, manuscriptHash: review.manuscriptHash,
+      sourceChecksum: review.sourceChecksum, referenceIndex: review.referenceIndex, sourceSceneKey: review.sourceSceneKey,
+      originalPromptSha256: review.originalPromptSha256, promptSha256: review.promptSha256, bindingSha256: review.bindingSha256,
+      approvedAt: review.approvedAt, ...(review.partSelection ? { partSelection: review.partSelection } : {}) };
+  }
+
+  private async assertReviewedSceneCurrent(db: PrismaService | Prisma.TransactionClient, workId: string, releaseId: string,
+    checksum: string, sourceSceneKey: string, originalPrompt: string,
+    expected: Awaited<ReturnType<StoryVisualGenerationService['effectiveVisualPrompt']>>) {
+    const review = await this.reviewedScenePrompt(db, workId, releaseId, checksum, sourceSceneKey, originalPrompt, expected.bible);
+    if (JSON.stringify(review ? this.sceneReviewIdentity(review) : null) !==
+        JSON.stringify(expected.review ? this.sceneReviewIdentity(expected.review) : null)) {
+      throw new Error('STORY_VISUAL_PROFILE_CHANGED');
+    }
+  }
+
+  private async assertLockedVisualCurrent(tx: Prisma.TransactionClient, workId: string, releaseId: string, checksum: string,
+    sourceSceneKey: string, prompt: { promptText: string; sourceKind: string; sourceSceneKey: string },
+    expected: Awaited<ReturnType<StoryVisualGenerationService['effectiveVisualPrompt']>>) {
+    await tx.$queryRaw(Prisma.sql`SELECT id FROM story_works WHERE id = ${workId}::uuid FOR SHARE`);
+    await tx.$queryRaw(Prisma.sql`SELECT id FROM story_style_profile_consents WHERE work_id = ${workId}::uuid FOR SHARE`);
+    const work = await tx.storyWork.findFirst({ where: { id: workId, status: 'published', activeReleaseId: releaseId,
+      fixtureSource: false }, select: { id: true, ownerUserId: true, slug: true, coverManifest: true } });
+    const release = await tx.storyRelease.findFirst({ where: { id: releaseId, workId, checksum, status: 'active' },
+      select: { manuscriptVersionId: true } });
+    if (!work || !release || this.coverSourceFingerprint(work) !== expected.coverSourceFingerprint) throw new Error('STORY_VISUAL_PROFILE_CHANGED');
+    const current = await currentApprovedStoryVisual(tx, work, release.manuscriptVersionId);
+    if (current?.fingerprint !== expected.bible.approvalFingerprint) throw new Error('STORY_VISUAL_PROFILE_CHANGED');
+    await this.assertPromptApprovalCurrent(tx, workId, releaseId, prompt, expected.bible);
+    await this.assertReviewedSceneCurrent(tx, workId, releaseId, checksum, sourceSceneKey, prompt.promptText, expected);
+  }
+
+  private async assertPromptApprovalCurrent(db: PrismaService | Prisma.TransactionClient,
+    workId: string, releaseId: string, prompt: { sourceKind: string; sourceSceneKey: string },
+    bible: Pick<StoryVisualBible, 'approvalFingerprint' | 'approvalIdentity'>) {
+    if (prompt.sourceKind !== 'ai_branch') return;
+    const scene = await db.storyAiGeneratedScene.findFirst({ where: { workId, releaseId, sceneKey: prompt.sourceSceneKey, status: 'ready' },
+      select: { id: true, continuationId: true } });
+    const continuation = scene ? await db.storyAiContinuation.findFirst({ where: { id: scene.continuationId, workId, releaseId,
+      resultGeneratedSceneId: scene.id, status: 'completed' }, select: { contextReferences: true, progressId: true } }) : null;
+    if (!continuation) throw new ConflictException({ code: 'STORY_VISUAL_PROFILE_CHANGED' });
+    const references = this.record(continuation.contextReferences);
+    if (bible.approvalFingerprint) {
+      try {
+        const bound = parseContinuationGenerationProfilePin(references.generationProfilePin as Prisma.JsonValue);
+        const current = parseContinuationGenerationProfilePin(bible.approvalIdentity as Prisma.JsonValue);
+        if (!bound || !current || stableContinuationJson(bound) !== stableContinuationJson(current)) throw new Error('changed');
+      } catch {
+        throw new ConflictException({ code: 'STORY_VISUAL_PROFILE_CHANGED',
+          message: 'This branch image direction belongs to a different author approval' });
+      }
+    }
+    if (references.participantPin !== undefined && references.participantPin !== null) {
+      await this.branchParticipantContext(db, continuation.progressId, references.participantPin);
+    }
+  }
+
+  private composeEffectiveVisualPrompt(
+    bible: StoryVisualBible,
+    workReference: StoryWorkVisualReference | null,
+    scenePrompt: string,
+    review: Awaited<ReturnType<StoryVisualGenerationService['reviewedScenePrompt']>> = null,
+  ) {
     const prompt = composeStoryVisualPrompt(bible, scenePrompt);
     const quality = workReference ? this.fixedStoryQuality() : this.quality();
-    return { bible, prompt, workReference, quality,
-      sha256: this.sha256Hex(JSON.stringify([prompt, workReference?.checksum ?? null])) };
+    const identity = review ? this.sceneReviewIdentity(review) : null;
+    return { bible, prompt, workReference, quality, review, coverSourceFingerprint: null as string | null,
+      sha256: this.sha256Hex(JSON.stringify([prompt, workReference?.checksum ?? null, ...(identity ? [identity] : [])])) };
   }
 
   private requestedVisualIdentity(quality: string) {
@@ -912,10 +1587,19 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
 
   private visualIdentityCurrent(
     identity: Awaited<ReturnType<StoryVisualGenerationService['readyAssetIdentity']>>,
-    effective: Awaited<ReturnType<StoryVisualGenerationService['effectiveVisualPrompt']>>,
+    effective: ReturnType<StoryVisualGenerationService['composeEffectiveVisualPrompt']>,
+    binding: { workId: string; releaseId: string; releaseChecksum: string; sourceSceneKey: string;
+      variantKey: string; promptSha256: string },
   ) {
     const requested = this.requestedVisualIdentity(effective.quality);
-    return identity.effectivePromptSha256 === effective.sha256 &&
+    return identity.active &&
+      identity.workId === binding.workId && identity.releaseId === binding.releaseId &&
+      identity.releaseChecksum === binding.releaseChecksum && identity.sourceSceneKey === binding.sourceSceneKey &&
+      identity.variantKey === binding.variantKey && identity.promptSha256 === binding.promptSha256 &&
+      identity.participantFingerprint === (binding.variantKey.startsWith('artist:')
+        ? binding.variantKey.slice('artist:'.length) : null) &&
+      identity.effectivePromptSha256 === effective.sha256 &&
+      identity.sceneGuidanceApprovalSha256 === (effective.review ? this.sha256Hex(JSON.stringify(this.sceneReviewIdentity(effective.review))) : null) &&
       identity.visualBibleFingerprint === effective.bible.fingerprint &&
       identity.visualBibleVersion === effective.bible.version &&
       identity.provider === requested.provider &&
@@ -930,10 +1614,25 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
       where: { id: assetId, assetType: 'image', visibility: 'public', mimeType: 'image/webp' },
       select: { metadata: true },
     });
-    const storyVisual = this.record(this.record(asset?.metadata).storyVisual);
+    return this.assetIdentity(asset?.metadata);
+  }
+
+  private assetIdentity(metadata: unknown) {
+    const source = this.record(metadata);
+    const storyVisual = this.record(source.storyVisual);
     return {
+      active: source.lifecycle === undefined || this.record(source.lifecycle).status === 'active',
+      workId: storyVisual.workId,
+      releaseId: storyVisual.releaseId,
+      releaseChecksum: storyVisual.releaseChecksum,
+      sourceSceneKey: storyVisual.sourceSceneKey,
+      variantKey: storyVisual.variantKey,
+      participantFingerprint: storyVisual.participantFingerprint ?? null,
+      promptSha256: storyVisual.promptSha256,
       effectivePromptSha256: typeof storyVisual.effectivePromptSha256 === 'string'
         ? storyVisual.effectivePromptSha256 : null,
+      sceneGuidanceApprovalSha256: typeof storyVisual.sceneGuidanceApprovalSha256 === 'string'
+        ? storyVisual.sceneGuidanceApprovalSha256 : null,
       visualBibleFingerprint: typeof storyVisual.visualBibleFingerprint === 'string'
         ? storyVisual.visualBibleFingerprint : null,
       visualBibleVersion: typeof storyVisual.visualBibleVersion === 'string'
@@ -944,6 +1643,7 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
       size: typeof storyVisual.size === 'string' ? storyVisual.size : null,
       requestContractVersion: typeof storyVisual.requestContractVersion === 'string'
         ? storyVisual.requestContractVersion : null,
+      bookingIdentitySha256: typeof storyVisual.bookingIdentitySha256 === 'string' ? storyVisual.bookingIdentitySha256 : null,
     };
   }
 
@@ -962,7 +1662,7 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
         sourceSceneKey: prompt.sourceSceneKey, variantKey } },
     });
     if (existing) {
-      if (existing.promptSha256 !== prompt.promptSha256) {
+      if (existing.promptSha256 !== prompt.promptSha256 || existing.releaseChecksum !== prompt.releaseChecksum) {
         throw new ConflictException({ code: 'STORY_VISUAL_PROMPT_GENERATION_MISMATCH', message: 'Visual generation binding changed' });
       }
       return existing;
@@ -978,25 +1678,26 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
       } });
     } catch (error) {
       if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2002') throw error;
-      return this.prisma.storyVisualGeneration.findUniqueOrThrow({
+      const winner = await this.prisma.storyVisualGeneration.findUniqueOrThrow({
         where: { workId_releaseId_sourceSceneKey_variantKey: { workId: prompt.workId, releaseId: prompt.releaseId,
           sourceSceneKey: prompt.sourceSceneKey, variantKey } },
       });
+      if (winner.promptSha256 !== prompt.promptSha256 || winner.releaseChecksum !== prompt.releaseChecksum) {
+        throw new ConflictException({ code: 'STORY_VISUAL_PROMPT_GENERATION_MISMATCH', message: 'Visual generation binding changed' });
+      }
+      return winner;
     }
   }
 
   private async visualBible(workId: string, releaseId: string, releaseChecksum: string) {
-    const cacheKey = `${workId}:${releaseId}:${releaseChecksum}`;
-    const cached = this.visualBibleCache.get(cacheKey);
-    if (cached) return cached;
     const [work, release, canonicalPrompts] = await Promise.all([
       this.prisma.storyWork.findFirst({
-        where: { id: workId, fixtureSource: false },
-        select: { slug: true, title: true, summary: true },
+        where: { id: workId, fixtureSource: false, status: 'published', activeReleaseId: releaseId },
+        select: { id: true, ownerUserId: true, slug: true, title: true, summary: true },
       }),
       this.prisma.storyRelease.findFirst({
-        where: { id: releaseId, workId, checksum: releaseChecksum },
-        select: { localizedDisplaySnapshot: true, sceneAssetManifest: true },
+        where: { id: releaseId, workId, checksum: releaseChecksum, status: 'active' },
+        select: { manuscriptVersionId: true, localizedDisplaySnapshot: true, sceneAssetManifest: true },
       }),
       this.prisma.storyVisualPrompt.findMany({
         where: { workId, releaseId, releaseChecksum, sourceKind: { not: 'ai_branch' } },
@@ -1006,6 +1707,10 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
       }),
     ]);
     if (!work || !release) throw new Error('STORY_VISUAL_BIBLE_SOURCE_MISSING');
+    const approved = await currentApprovedStoryVisual(this.prisma, work, release.manuscriptVersionId);
+    const cacheKey = `${workId}:${releaseId}:${releaseChecksum}:${approved?.fingerprint ?? 'legacy'}`;
+    const cached = this.visualBibleCache.get(cacheKey);
+    if (cached) return cached;
     const parts = await this.prisma.storyPart.findMany({
       where: { workId, status: 'published', fixtureSource: false },
       orderBy: [{ position: 'asc' }, { id: 'asc' }],
@@ -1041,6 +1746,7 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
         ...scenes.map(scene => scene.title),
         ...beats.map(beat => beat.content),
       ],
+      approvedVisualSettings: approved,
     });
     if (this.visualBibleCache.size >= 100) this.visualBibleCache.delete(this.visualBibleCache.keys().next().value!);
     this.visualBibleCache.set(cacheKey, bible);
@@ -1078,24 +1784,52 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
     };
   }
 
+  private async visualVariantForGeneratedScene(generatedSceneId: string, progressId: string): Promise<StoryVisualVariant> {
+    const scene = await this.prisma.storyAiGeneratedScene.findFirst({ where: { id: generatedSceneId, progressId, status: 'ready' },
+      select: { id: true, continuationId: true, workId: true, releaseId: true, userId: true } });
+    const continuation = scene ? await this.prisma.storyAiContinuation.findFirst({ where: { id: scene.continuationId,
+      resultGeneratedSceneId: scene.id, progressId, workId: scene.workId, releaseId: scene.releaseId,
+      userId: scene.userId, status: 'completed' }, select: { contextReferences: true } }) : null;
+    if (!continuation) throw new ConflictException({ code: 'STORY_VISUAL_BRANCH_SOURCE_CHANGED' });
+    const expected = this.record(continuation.contextReferences).participantPin;
+    if (expected === undefined || expected === null) return DEFAULT_VISUAL_VARIANT;
+    const participant = await this.branchParticipantContext(this.prisma, progressId, expected);
+    const variant = await this.visualVariantForProgress(progressId);
+    if (variant.participantFingerprint !== participant.pin.participantFingerprint ||
+        variant.references.length !== participant.pin.referenceAssetIds.length ||
+        variant.references.some((reference, index) => reference.assetId !== participant.pin.referenceAssetIds[index] ||
+          reference.checksum !== participant.pin.referenceChecksums[index])) {
+      throw new ConflictException({ code: 'STORY_VISUAL_PROFILE_CHANGED' });
+    }
+    return variant;
+  }
+
   private async generateImage(
     prompt: string,
     references: StoryParticipantVisualReference[],
     quality: string,
     signal?: AbortSignal,
     workReference?: StoryWorkVisualReference | null,
+    reviewedVisual = false,
+    dispatchRequest?: (dispatch: () => Promise<Response>, signal: AbortSignal) => Promise<Response>,
   ) {
     const timeout = AbortSignal.timeout(this.numberFromEnv('STORY_IMAGE_GENERATION_TIMEOUT_MS', 120_000));
     const requestSignal = signal ? AbortSignal.any([signal, timeout]) : timeout;
-    const response = references.length || workReference
-      ? await this.generateImageFromReferences(prompt, references, quality, requestSignal, workReference)
-      : await fetch('https://api.openai.com/v1/images/generations', {
+    let response: Response;
+    if (references.length || workReference) {
+      response = await this.generateImageFromReferences(prompt, references, quality, requestSignal, workReference, reviewedVisual, dispatchRequest);
+    } else {
+      const request = {
           method: 'POST',
           headers: { authorization: `Bearer ${this.requiredEnv('OPENAI_API_KEY')}`, 'content-type': 'application/json' },
           body: JSON.stringify({ model: this.model(), prompt, n: 1, size: this.size(), quality,
             output_format: 'webp', output_compression: 86, moderation: 'auto' }),
           signal: requestSignal,
-        });
+      };
+      requestSignal.throwIfAborted();
+      const dispatch = () => fetch('https://api.openai.com/v1/images/generations', request);
+      response = await (dispatchRequest ? dispatchRequest(dispatch, requestSignal) : dispatch());
+    }
     if (!response.ok) throw new Error(await this.openAiErrorCode(response));
     const payload = await response.json() as { data?: Array<{ b64_json?: unknown }> };
     const encoded = payload.data?.[0]?.b64_json;
@@ -1112,6 +1846,8 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
     quality: string,
     signal: AbortSignal,
     workReference?: StoryWorkVisualReference | null,
+    reviewedVisual = false,
+    dispatchRequest?: (dispatch: () => Promise<Response>, signal: AbortSignal) => Promise<Response>,
   ) {
     const storage = this.storage;
     if (references.length && !storage) throw new Error('STORY_VISUAL_REFERENCE_STORAGE_UNAVAILABLE');
@@ -1122,7 +1858,8 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
       prompt,
       ...(workReference ? [
         'The first attached image is the approved published story cover and the master reference for this work.',
-        'Preserve its rendering medium, palette, recurring-character identity, age, face, hair, costume anchors, and overall world design. Do not copy its poster composition or any text.',
+        reviewedVisual ? 'For explicitly revised era, medium, palette, appearance, or costume, the current author-approved visual bible overrides this cover. Preserve only unchanged cover traits. Do not copy its poster composition or any text.'
+          : 'Preserve its rendering medium, palette, recurring-character identity, age, face, hair, costume anchors, and overall world design. Do not copy its poster composition or any text.',
       ] : []),
       ...(references.length ? [
         'The remaining attached images are approved identity references for the participating artist character.',
@@ -1151,25 +1888,46 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
       form.append('image[]', new Blob([Uint8Array.from(image)], { type: reference.mimeType }),
         `artist-reference-${index + 1}.${extension}`);
     }
-    return fetch('https://api.openai.com/v1/images/edits', {
+    const request = {
       method: 'POST',
       headers: { authorization: `Bearer ${this.requiredEnv('OPENAI_API_KEY')}` },
       body: form,
       signal,
-    });
+    };
+    signal.throwIfAborted();
+    const dispatch = () => fetch('https://api.openai.com/v1/images/edits', request);
+    return dispatchRequest ? dispatchRequest(dispatch, signal) : dispatch();
   }
 
   private async approvedStoryCoverReference(workId: string): Promise<StoryWorkVisualReference | null> {
-    if (this.workVisualReferenceCache.has(workId)) return this.workVisualReferenceCache.get(workId)!;
+    const inFlight = this.workVisualReferenceInFlight.get(workId);
+    if (inFlight) return inFlight;
+    const read = this.readApprovedStoryCoverReference(workId);
+    this.workVisualReferenceInFlight.set(workId, read);
+    try {
+      return await read;
+    } finally {
+      if (this.workVisualReferenceInFlight.get(workId) === read) {
+        this.workVisualReferenceInFlight.delete(workId);
+      }
+    }
+  }
+
+  private async readApprovedStoryCoverReference(workId: string): Promise<StoryWorkVisualReference | null> {
     const work = await this.prisma.storyWork.findFirst({
       where: { id: workId, fixtureSource: false },
-      select: { slug: true },
+      select: { slug: true, ownerUserId: true, coverManifest: true },
     });
-    const coverPath = APPROVED_STORY_COVERS.get(work?.slug ?? '');
-    if (!coverPath) {
-      this.workVisualReferenceCache.set(workId, null);
-      return null;
+    const manifest = this.record(work?.coverManifest);
+    if (manifest.assetId !== undefined) {
+      return this.readUploadedStoryCoverReference(manifest, work?.ownerUserId);
     }
+    const registeredPath = typeof manifest.publicAssetPath === 'string' ? manifest.publicAssetPath : '';
+    if (registeredPath && !this.localStoryCoverPath(registeredPath)) {
+      throw new Error('STORY_VISUAL_COVER_REFERENCE_UNSUPPORTED');
+    }
+    const coverPath = registeredPath || APPROVED_STORY_COVERS.get(work?.slug ?? '');
+    if (!coverPath) return null;
     const pathSegments = coverPath.split('/').filter(Boolean);
     const candidates = [resolve(process.cwd(), ...pathSegments), resolve(process.cwd(), '..', ...pathSegments)];
     let image: Buffer | null = null;
@@ -1181,23 +1939,82 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
         if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
       }
     }
-    if (!image || image.length < 1_024 || image.length > 16 * 1024 * 1024) {
+    if (!image) {
       throw new Error('STORY_VISUAL_COVER_REFERENCE_MISSING');
+    }
+    return this.validateStoryCoverReference(image,
+      coverPath.split('/').at(-1) || `${work?.slug}-cover.png`);
+  }
+
+  private async readUploadedStoryCoverReference(
+    manifest: Record<string, unknown>,
+    ownerUserId: string | null | undefined,
+  ): Promise<StoryWorkVisualReference> {
+    const assetId = typeof manifest.assetId === 'string' ? manifest.assetId : '';
+    if (!UUID_PATTERN.test(assetId) || manifest.url !== `/api/v1/assets/public/${assetId}/display`) {
+      throw new Error('STORY_VISUAL_COVER_REFERENCE_UNSUPPORTED');
+    }
+    const asset = await this.prisma.asset.findFirst({
+      where: { id: assetId, assetType: 'image', visibility: 'public' },
+      select: { id: true, storageProvider: true, storageKey: true, mimeType: true,
+        fileSizeBytes: true, checksum: true, metadata: true },
+    });
+    const metadata = this.record(asset?.metadata);
+    const upload = this.record(metadata.uploadIntent);
+    const lifecycle = this.record(metadata.lifecycle);
+    if (!asset || !ownerUserId || upload.createdByUserId !== ownerUserId ||
+        upload.status !== 'uploaded' || (lifecycle.status !== undefined && lifecycle.status !== 'active')) {
+      throw new Error('STORY_VISUAL_COVER_REFERENCE_UNAVAILABLE');
+    }
+    if (!this.storage) throw new Error('STORY_VISUAL_REFERENCE_STORAGE_UNAVAILABLE');
+    const display = this.record(this.record(metadata.derivatives).display);
+    const source = Object.keys(display).length ? display : asset;
+    const storageProvider = source.storageProvider;
+    const storageKey = source.storageKey;
+    const mimeType = source.mimeType;
+    const expectedBytes = Number(source.fileSizeBytes);
+    if ((storageProvider !== 's3' && storageProvider !== 'r2') ||
+        storageProvider !== asset.storageProvider || typeof storageKey !== 'string' ||
+        !['image/png', 'image/jpeg', 'image/webp'].includes(String(mimeType)) ||
+        !Number.isSafeInteger(expectedBytes) || expectedBytes < 1_024 || expectedBytes > 16 * 1024 * 1024) {
+      throw new Error('STORY_VISUAL_COVER_REFERENCE_INVALID');
+    }
+    const image = await this.storage.getObject({ storageProvider, storageKey, expectedBytes });
+    if (image.length !== expectedBytes || (source === asset && asset.checksum &&
+        this.sha256Hex(image) !== asset.checksum)) {
+      throw new Error('STORY_VISUAL_COVER_REFERENCE_CHANGED');
+    }
+    const extension = mimeType === 'image/png' ? 'png' : mimeType === 'image/jpeg' ? 'jpg' : 'webp';
+    return this.validateStoryCoverReference(image, `story-cover-${assetId}.${extension}`, String(mimeType));
+  }
+
+  private async validateStoryCoverReference(
+    image: Buffer,
+    filename: string,
+    expectedMimeType?: string,
+  ): Promise<StoryWorkVisualReference> {
+    if (image.length < 1_024 || image.length > 16 * 1024 * 1024) {
+      throw new Error('STORY_VISUAL_COVER_REFERENCE_INVALID');
     }
     const metadata = await sharp(image, { animated: false, failOn: 'error', limitInputPixels: 24_000_000 }).metadata();
     const mimeType = metadata.format === 'png' ? 'image/png'
       : metadata.format === 'jpeg' ? 'image/jpeg'
         : metadata.format === 'webp' ? 'image/webp' : null;
-    if (!mimeType || !metadata.width || !metadata.height || metadata.width < 512 || metadata.height < 288 ||
+    if (!mimeType || (expectedMimeType && mimeType !== expectedMimeType) ||
+        !metadata.width || !metadata.height || metadata.width < 512 || metadata.height < 288 ||
         (metadata.pages ?? 1) !== 1) throw new Error('STORY_VISUAL_COVER_REFERENCE_INVALID');
     const reference: StoryWorkVisualReference = {
       image,
       checksum: this.sha256Hex(image),
       mimeType,
-      filename: coverPath.split('/').at(-1) || `${work?.slug}-cover.png`,
+      filename,
     };
-    this.workVisualReferenceCache.set(workId, reference);
     return reference;
+  }
+
+  private localStoryCoverPath(path: string): boolean {
+    if (!/^\/assets\/story\/[a-zA-Z0-9._/-]+\.(?:png|jpe?g|webp)$/.test(path)) return false;
+    return path.slice('/assets/story/'.length).split('/').every(segment => segment !== '.' && segment !== '..');
   }
 
   private async validateAndSanitizeImage(image: Buffer) {
@@ -1320,9 +2137,20 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
     if (message.startsWith('OPENAI_')) return message.slice(0, 80);
     if (message.startsWith('OBJECT_STORAGE_')) return message.slice(0, 80);
     if (message === 'STORY_VISUAL_REFERENCE_CHANGED') return message;
+    if (message === 'STORY_VISUAL_PROFILE_CHANGED') return message;
+    if (message === 'STORY_VISUAL_BOOKING_CHANGED') return message;
+    if (message === 'STORY_VISUAL_QUEUE_SCOPE_UNAVAILABLE') return message;
+    if (message === 'STORY_VISUAL_CLAIM_LOST') return message;
+    if (error instanceof ConflictException && this.record(error.getResponse()).code === 'STORY_VISUAL_PROFILE_CHANGED') return 'STORY_VISUAL_PROFILE_CHANGED';
     if (message === 'STORY_VISUAL_REFERENCE_STORAGE_UNAVAILABLE') return message;
     if (message === 'TimeoutError' || message.includes('timeout')) return 'GENERATION_TIMEOUT';
     return 'GENERATION_FAILED';
+  }
+
+  private visualApprovalChanged(error: unknown) {
+    const code = error instanceof ConflictException ? this.record(error.getResponse()).code : null;
+    return code === 'STORY_VISUAL_PROFILE_CHANGED' || code === 'STORY_VISUAL_SOURCE_REFERENCE_CHANGED' ||
+      (typeof code === 'string' && (code.startsWith('STUDIO_VISUAL_REVIEW_') || code.startsWith('STORY_BRANCH_VISUAL_REVIEW_')));
   }
 
   private async openAiErrorCode(response: Response) {
@@ -1347,6 +2175,15 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
   }
 
   private presignedPutUrl(storageProvider: string, storageKey: string, mimeType: string) {
+    return this.presignedObjectUrl(storageProvider, storageKey, 'PUT', mimeType);
+  }
+
+  private presignedGetUrl(storageProvider: string, storageKey: string) {
+    return this.presignedObjectUrl(storageProvider, storageKey, 'GET');
+  }
+
+  private presignedObjectUrl(storageProvider: string, storageKey: string,
+    method: 'PUT' | 'GET', mimeType?: string) {
     const bucket = this.requiredEnv('OBJECT_STORAGE_BUCKET');
     const region = this.config.get<string>('OBJECT_STORAGE_REGION') || 'auto';
     const accessKeyId = this.requiredEnv('OBJECT_STORAGE_ACCESS_KEY_ID');
@@ -1356,17 +2193,18 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
     const scope = `${dateStamp}/${region}/s3/aws4_request`;
     const endpoint = this.objectStorageEndpoint(storageProvider, bucket, region);
     const url = new URL(this.joinUrlPath(endpoint, storageKey));
-    const signedHeaders = 'content-type;host';
+    const signedHeaders = method === 'PUT' ? 'content-type;host' : 'host';
     const query: Record<string, string> = {
       'X-Amz-Algorithm': 'AWS4-HMAC-SHA256',
       'X-Amz-Credential': `${accessKeyId}/${scope}`,
       'X-Amz-Date': amzDate,
-      'X-Amz-Expires': '900',
+      'X-Amz-Expires': method === 'PUT' ? '900' : '60',
       'X-Amz-SignedHeaders': signedHeaders,
     };
     const canonicalQuery = this.canonicalQueryString(query);
-    const canonicalRequest = ['PUT', this.canonicalUri(url.pathname), canonicalQuery,
-      `content-type:${mimeType}\nhost:${url.host}\n`, signedHeaders, 'UNSIGNED-PAYLOAD'].join('\n');
+    const headers = method === 'PUT' ? `content-type:${mimeType}\nhost:${url.host}\n` : `host:${url.host}\n`;
+    const canonicalRequest = [method, this.canonicalUri(url.pathname), canonicalQuery,
+      headers, signedHeaders, 'UNSIGNED-PAYLOAD'].join('\n');
     const stringToSign = ['AWS4-HMAC-SHA256', amzDate, scope, this.sha256Hex(canonicalRequest)].join('\n');
     const signature = createHmac('sha256', this.signingKey(secretAccessKey, dateStamp, region))
       .update(stringToSign).digest('hex');

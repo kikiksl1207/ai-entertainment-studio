@@ -1,0 +1,41 @@
+#writerVisualReferences,
+#writerVisualReferences * { box-sizing: border-box; min-width: 0; letter-spacing: 0; }
+#writerVisualReferences[hidden],
+#writerVisualReferences [hidden] { display: none !important; }
+#writerVisualReferences { border-top: 1px solid var(--line); padding: 16px 0; }
+#writerVisualReferences h3 { margin: 0 0 10px; font-size: 16px; }
+#writerVisualReferences h4 { margin: 0 0 8px; font-size: 14px; }
+#writerVisualReferences p { margin: 8px 0; overflow-wrap: anywhere; }
+#writerVisualReferencesNotice,
+#writerVisualReferencesPageNote { color: var(--muted); font-size: 13px; }
+#writerVisualReferencesSceneKey { color: var(--muted); font-size: 12px; }
+#writerVisualReferencesStatus:empty { display: none; }
+#writerVisualReferences button { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+#writerVisualReferencesViewer { margin-top: 14px; }
+#writerVisualReferences .visual-reference-toolbar { display: grid; gap: 6px; }
+#writerVisualReferences select {
+  display: block; width: 100%; max-width: 100%; height: 44px; padding: 8px;
+  color: var(--text, #f4f4f5); background: #202027; border: 1px solid var(--line, #56565f); border-radius: 4px;
+  font: inherit; text-overflow: ellipsis;
+}
+#writerVisualReferences .visual-reference-pager {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; align-items: center; margin: 12px 0;
+}
+#writerVisualReferences .visual-reference-pager span {
+  grid-column: 1 / -1; grid-row: 1; text-align: center; overflow-wrap: anywhere; font-size: 13px;
+}
+#writerVisualReferences .visual-reference-pager button { height: 52px; padding: 6px 10px; font-size: 13px; line-height: 1.3; }
+#writerVisualReferences .visual-reference-columns {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; padding-top: 14px; border-top: 1px solid var(--line);
+}
+#writerVisualReferences pre {
+  width: 100%; max-height: 380px; margin: 8px 0; padding: 4px 2px;
+  white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; overflow: auto;
+  font: inherit; font-size: 14px; line-height: 1.65; tab-size: 2;
+}
+#writerVisualReferences :focus-visible { outline: 2px solid var(--accent, #7bbcc0); outline-offset: 2px; }
+@media (max-width: 640px) {
+  #writerVisualReferences .visual-reference-columns { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  #writerVisualReferencesReaderColumn { border-top: 1px solid var(--line); padding-top: 14px; }
+  #writerVisualReferences pre { max-height: 320px; }
+}

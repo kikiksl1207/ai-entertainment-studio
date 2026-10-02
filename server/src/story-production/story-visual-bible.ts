@@ -1,6 +1,8 @@
 import { createHash } from 'crypto';
+import { type ApprovedStoryVisualSettings } from './story-approved-visual.policy';
 
 const VISUAL_BIBLE_VERSION = 'story-visual-bible-v5';
+const REVIEWED_VISUAL_BIBLE_VERSION = 'story-visual-bible-reviewed-v1';
 const MAX_BIBLE_CHARACTERS = 7_000;
 const MAX_EVIDENCE_ITEMS = 10;
 const MAX_EVIDENCE_CHARACTERS = 420;
@@ -13,6 +15,7 @@ type VisualBibleInput = {
   sceneAssetManifest?: unknown;
   canonicalPrompts: unknown[];
   canonicalStoryExcerpts?: unknown[];
+  approvedVisualSettings?: ApprovedStoryVisualSettings | null;
 };
 
 type StructuredVisualBible = {
@@ -24,9 +27,11 @@ type StructuredVisualBible = {
 };
 
 export type StoryVisualBible = {
-  version: typeof VISUAL_BIBLE_VERSION;
+  version: typeof VISUAL_BIBLE_VERSION | typeof REVIEWED_VISUAL_BIBLE_VERSION;
   fingerprint: string;
   privatePrompt: string;
+  approvalFingerprint?: string;
+  approvalIdentity?: unknown;
 };
 
 function record(value: unknown): Record<string, unknown> {
@@ -110,12 +115,18 @@ export function buildStoryVisualBible(input: VisualBibleInput): StoryVisualBible
   const koreanDisplay = record(display.ko);
   const title = localized(koreanDisplay.title) ?? localized(input.workTitle) ?? 'Untitled story';
   const summary = localized(koreanDisplay.summary) ?? localized(input.workSummary) ?? 'No summary supplied';
-  const configured = structuredBible(input.sceneAssetManifest);
+  const reviewed = input.approvedVisualSettings;
+  const imported = structuredBible(input.sceneAssetManifest);
+  const configured = reviewed ? {
+    ...(reviewed.replaceImportedDirection ? structuredBible({ visualBible: reviewed.direction }) : imported),
+    characters: reviewed.replaceImportedCast ? reviewed.characters.map(character => `${character.name}: ${character.appearance}`) : imported.characters,
+  } : imported;
   const interleavedEvidence = Array.from({
-    length: Math.max(input.canonicalPrompts.length, input.canonicalStoryExcerpts?.length ?? 0),
-  }).flatMap((_, index) => [input.canonicalPrompts[index], localized(input.canonicalStoryExcerpts?.[index])]);
+    length: Math.max(reviewed?.replaceImportedDirection || reviewed?.replaceImportedCast ? 0 : input.canonicalPrompts.length, input.canonicalStoryExcerpts?.length ?? 0),
+  }).flatMap((_, index) => [reviewed?.replaceImportedDirection || reviewed?.replaceImportedCast ? undefined : input.canonicalPrompts[index], localized(input.canonicalStoryExcerpts?.[index])]);
   const evidence = canonicalEvidence(interleavedEvidence);
-  const identitySeed = JSON.stringify({ title, summary, configured, evidence });
+  const identitySeed = JSON.stringify({ title, summary, configured, evidence,
+    ...(reviewed ? { approvedVisualSettings: reviewed } : {}) });
   const fingerprint = createHash('sha256').update(identitySeed).digest('hex').slice(0, 20);
   const characterLock = configured.characters.length
     ? configured.characters.map(item => `- ${item}`).join('\n')
@@ -135,7 +146,7 @@ export function buildStoryVisualBible(input: VisualBibleInput): StoryVisualBible
     ...configured.prohibited,
   ];
   const lines = [
-    `[PRIVATE VISUAL BIBLE ${VISUAL_BIBLE_VERSION}]`,
+    `[PRIVATE VISUAL BIBLE ${reviewed ? REVIEWED_VISUAL_BIBLE_VERSION : VISUAL_BIBLE_VERSION}]`,
     `Work visual identity: ${fingerprint}`,
     `Work title: ${title}`,
     `Work premise: ${summary}`,
@@ -144,13 +155,17 @@ export function buildStoryVisualBible(input: VisualBibleInput): StoryVisualBible
     configured.era ?? 'Infer the exact era, geography, mythology, social context, architecture, clothing, and technology only from the work identity and canonical evidence below. Keep that period and world consistent in every scene.',
     '',
     '[ART STYLE LOCK]',
-    configured.artStyle ?? 'Use one consistent premium cinematic illustrated-novel style: polished semi-realistic character rendering, coherent anatomy, expressive but restrained acting, detailed environments, filmic lighting, and a clean portrait 2:3 composition. Use a single conventional camera view with a clear focal subject. Do not switch rendering medium or visual genre between scenes.',
+    configured.artStyle ?? (reviewed ? 'No different art style has been specified by the author. Preserve the approved cover rendering medium if supplied; never replace it with a generic illustration default. Without a cover, infer one coherent rendering medium from the work and retain it across scenes.'
+      : 'Use one consistent premium cinematic illustrated-novel style: polished semi-realistic character rendering, coherent anatomy, expressive but restrained acting, detailed environments, filmic lighting, and a clean portrait 2:3 composition. Use a single conventional camera view with a clear focal subject. Do not switch rendering medium or visual genre between scenes.'),
     '',
     '[COLOR AND LIGHTING LOCK]',
-    configured.palette ?? 'Derive one restrained master palette from the canonical evidence. Reuse its skin tones, hair colors, costume colors, environmental materials, contrast, and saturation throughout the work. Scene lighting may change for time or mood, but character colors and the master palette must remain recognizable. Keep faces, gestures, and the immediate setting readable at ordinary web brightness; do not crush most of the frame into black.',
+    configured.palette ?? (reviewed ? 'No different palette has been specified by the author. Preserve the supplied approved cover palette and unchanged character colors. If no cover exists, infer one coherent palette from the canonical scene evidence and retain it. Keep faces and surroundings readable; lighting may change with scene time and mood.'
+      : 'Derive one restrained master palette from the canonical evidence. Reuse its skin tones, hair colors, costume colors, environmental materials, contrast, and saturation throughout the work. Scene lighting may change for time or mood, but character colors and the master palette must remain recognizable. Keep faces, gestures, and the immediate setting readable at ordinary web brightness; do not crush most of the frame into black.'),
     '',
     '[RECURRING CHARACTER APPEARANCE LOCK]',
     characterLock,
+    ...(reviewed ? ['', '[AUTHOR-APPROVED VISUAL NOTES]', reviewed.directionNotes, reviewed.castNotes,
+      'These settings replace older imported art directions. Character identity is a production constraint, not evidence that every character is present in the current scene.'] : []),
     '',
     '[PROHIBITED ELEMENTS]',
     ...prohibited.map(item => `- ${item}`),
@@ -165,9 +180,10 @@ export function buildStoryVisualBible(input: VisualBibleInput): StoryVisualBible
     ]),
   ];
   return {
-    version: VISUAL_BIBLE_VERSION,
+    version: reviewed ? REVIEWED_VISUAL_BIBLE_VERSION : VISUAL_BIBLE_VERSION,
     fingerprint,
-    privatePrompt: Array.from(lines.join('\n')).slice(0, MAX_BIBLE_CHARACTERS).join(''),
+    privatePrompt: Array.from(lines.join('\n')).slice(0, reviewed ? 32_000 : MAX_BIBLE_CHARACTERS).join(''),
+    ...(reviewed ? { approvalFingerprint: reviewed.fingerprint, approvalIdentity: reviewed.approvalIdentity } : {}),
   };
 }
 
@@ -177,7 +193,10 @@ export function composeStoryVisualPrompt(bible: StoryVisualBible, scenePrompt: s
     bible.privatePrompt,
     '',
     '[SCENE-SPECIFIC DIRECTION]',
-    'The scene reference may span many moments. Do not illustrate them all. Choose one decisive action matching the title and final consequence. Show one continuous physical location and moment in a detailed full-bleed 2:3 frame, with one focal character and at most two distinct supporters. Never a character-sheet layout, poster montage, isolated cutouts, duplicated faces, floating figures, or black void. Ground complete bodies in their surroundings; keep faces and environmental detail readable even in darkness. Match the approved cover\'s medium, palette, and recurring identities, not its poster layout. Prioritize natural anatomy. Ignore older 16:9 notes. Never render quoted story text.',
+    'The scene reference may span many moments. Do not illustrate them all. Choose one decisive action matching the title and final consequence. Show one continuous physical location and moment in a detailed full-bleed 2:3 frame, with one focal character and at most two distinct supporters. Never a character-sheet layout, poster montage, isolated cutouts, duplicated faces, floating figures, or black void. Ground complete bodies in their surroundings; keep faces and environmental detail readable even in darkness. ' +
+      (bible.approvalFingerprint ? 'The current author-approved visual bible takes precedence over the cover for explicitly revised traits; use the cover only for unchanged identity and presentation, never its poster layout. '
+        : 'Match the approved cover\'s medium, palette, and recurring identities, not its poster layout. ') +
+      'Prioritize natural anatomy. Ignore older 16:9 notes. Never render quoted story text.',
     boundedScene,
   ].join('\n');
 }

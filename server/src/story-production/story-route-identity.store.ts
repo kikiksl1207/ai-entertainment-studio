@@ -104,11 +104,14 @@ export async function restoreStoryActRoute(tx: Prisma.TransactionClient, progres
 }
 
 function narrativeReferences(input: Record<string, unknown>): Prisma.InputJsonObject {
-  const references: Record<string, string | boolean | null> = {};
-  for (const key of ['sceneId', 'sourceSceneId', 'sourceGeneratedSceneId', 'choiceId', 'nextSceneId', 'generatedSceneId']) {
+  const references: Record<string, string | number | boolean | null> = {};
+  for (const key of ['sceneId', 'sourceSceneId', 'sourceGeneratedSceneId', 'choiceId', 'customChoiceId', 'nextSceneId', 'generatedSceneId']) {
     if (typeof input[key] === 'string' || input[key] === null) references[key] = input[key] as string | null;
   }
   if (typeof input.explicitRejoin === 'boolean') references.explicitRejoin = input.explicitRejoin;
+  if (Number.isInteger(input.readBeatPosition) && Number(input.readBeatPosition) >= 0 && Number(input.readBeatPosition) <= 40) {
+    references.readBeatPosition = Number(input.readBeatPosition);
+  }
   if (input.provenance === 'ai_generated' || input.provenance === 'ai_reused') references.provenance = input.provenance;
   return references;
 }

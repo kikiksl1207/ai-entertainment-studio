@@ -271,6 +271,7 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+  align-self: start;
   min-width: 0;
   min-height: 360px;
   padding: 18px;
@@ -278,6 +279,11 @@
   border-radius: 20px;
   background: rgba(255, 255, 255, 0.05);
   box-shadow: var(--shadow);
+}
+
+#gallerySlider {
+  aspect-ratio: 3 / 4;
+  flex: none !important;
 }
 
 .detail-gallery-empty,
@@ -390,6 +396,11 @@
   line-height: 1.6;
 }
 
+.detail-profile-list .is-pending dd {
+  color: var(--muted);
+  font-weight: 600;
+}
+
 .detail-short-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -404,6 +415,13 @@
   background: rgba(255, 255, 255, 0.05);
   display: flex;
   flex-direction: column;
+  color: inherit;
+  text-decoration: none;
+}
+
+.detail-short-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
 }
 
 .detail-short-media {
@@ -498,6 +516,7 @@
   }
 
   .detail-hero-frame {
+    width: min(100%, 315px);
     border-radius: 12px;
   }
 

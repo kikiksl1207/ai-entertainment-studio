@@ -9,6 +9,7 @@
 
   var API_BASE = (window.LUMINA_API_BASE || "https://api.lumina-stage.com").replace(/\/$/, "");
   var responseCache = Object.create(null);
+  var hydrationVersion = 0;
 
   function pickField(el, entry) {
     if (!entry) return null;
@@ -109,6 +110,7 @@
   }
 
   async function hydrate(options) {
+    var version = ++hydrationVersion;
     var opts = options || {};
     var body = document.body || {};
     var pageKey = opts.pageKey || (body.dataset && body.dataset.cmsPageKey) || null;
@@ -132,19 +134,24 @@
       modelSlug = body.dataset.cmsModelSlug;
     }
 
+    var locale = normalizeLocale(opts.locale || document.documentElement.lang || "ko-KR");
     var url = buildUrl({
       pageKey: pageKey,
       characterSlug: characterSlug || undefined,
       modelSlug: modelSlug || undefined,
-      locale: opts.locale,
+      locale: locale,
     });
 
     var data;
     try {
       data = await fetchBootstrap(url);
     } catch (error) {
+      if (version !== hydrationVersion) return { applied: 0, status: "stale" };
       document.documentElement.setAttribute("data-cms-state", "fallback");
       return { applied: 0, status: error && error.statusText ? error.statusText : "fetch-error" };
+    }
+    if (version !== hydrationVersion || locale !== normalizeLocale(document.documentElement.lang)) {
+      return { applied: 0, status: "stale" };
     }
     var applied = applyContent(data && data.content);
     return { applied: applied, status: applied > 0 ? "applied" : "fallback" };
@@ -159,6 +166,10 @@
   }
 
   window.LuminaCms = { hydrate: hydrate, applyContent: applyContent };
+  window.addEventListener("lumina:localechange", function () {
+    hydrationVersion += 1;
+    autoHydrate();
+  });
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", autoHydrate);

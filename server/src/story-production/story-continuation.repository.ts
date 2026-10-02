@@ -13,10 +13,21 @@ export type StoryContinuationClaim = {
   request: StoryContinuationProviderRequest;
 };
 
+export class StoryContinuationDispatchAuthorizationChanged extends Error {
+  readonly code = 'generation_authorization_changed';
+
+  constructor() {
+    super('Story AI continuation dispatch authorization changed');
+  }
+}
+
 export abstract class StoryContinuationQueueRepository {
   abstract claimExpiredTerminal(workerId: string, leaseMs: number): Promise<StoryContinuationClaim | null>;
   abstract claimNext(workerId: string, leaseMs: number): Promise<StoryContinuationClaim | null>;
-  abstract markDispatched(claim: StoryContinuationClaim): Promise<void>;
+  abstract markDispatched(
+    claim: StoryContinuationClaim,
+    authorize: (tx: Prisma.TransactionClient) => Promise<boolean>,
+  ): Promise<void>;
   abstract releaseNotAcceptedForRetry(claim: StoryContinuationClaim, retryAt: Date): Promise<void>;
   abstract releaseForRetry(
     claim: StoryContinuationClaim,
@@ -153,16 +164,25 @@ export class PrismaStoryContinuationQueueRepository extends StoryContinuationQue
     }
   }
 
-  async markDispatched(claim: StoryContinuationClaim): Promise<void> {
-    // This autocommit CAS must resolve before any provider invocation. No transaction spans HTTP.
-    const updated = await this.prisma.$executeRaw(Prisma.sql`
-      UPDATE story_ai_continuations SET dispatch_started_at = clock_timestamp()
-      WHERE id = ${claim.continuationId}::uuid AND status = 'processing'
-        AND request_kind = 'recommended_choice'
-        AND lease_token = ${claim.leaseToken} AND attempt_count = ${claim.attemptCount}
-        AND lease_expires_at > clock_timestamp() AND dispatch_started_at IS NULL
-    `);
-    if (updated !== 1) throw new ConflictException('Story AI continuation dispatch lease is stale');
+  async markDispatched(
+    claim: StoryContinuationClaim,
+    authorize: (tx: Prisma.TransactionClient) => Promise<boolean>,
+  ): Promise<void> {
+    // Approval locks and the fence commit together, then release before any HTTP request.
+    const dispatched = await this.prisma.$transaction(async tx => {
+      if (!await authorize(tx)) return false;
+      const updated = await tx.$executeRaw(Prisma.sql`
+        UPDATE story_ai_continuations SET dispatch_started_at = clock_timestamp()
+        WHERE id = ${claim.continuationId}::uuid AND status = 'processing'
+          AND request_kind = 'recommended_choice'
+          AND lease_token = ${claim.leaseToken} AND attempt_count = ${claim.attemptCount}
+          AND lease_expires_at > clock_timestamp() AND dispatch_started_at IS NULL
+      `);
+      if (updated !== 1) throw new ConflictException('Story AI continuation dispatch lease is stale');
+      return true;
+    });
+    // Only a confirmed transaction with no fence may report a definite pre-provider rejection.
+    if (!dispatched) throw new StoryContinuationDispatchAuthorizationChanged();
   }
 
   async releaseNotAcceptedForRetry(claim: StoryContinuationClaim, retryAt: Date): Promise<void> {

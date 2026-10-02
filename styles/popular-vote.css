@@ -514,6 +514,21 @@
 .vote-monthly-picks-block {
   margin-top: 8px;
 }
+.vote-archive-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.vote-archive-heading label { margin-left: auto; }
+.vote-archive-heading select {
+  min-width: 96px;
+  padding: 8px 10px;
+  color: var(--ink);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
 .vote-monthly-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

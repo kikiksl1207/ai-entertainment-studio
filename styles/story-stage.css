@@ -70,7 +70,7 @@
 .story-detail-body { min-height: 0; max-height: calc(100dvh - 180px); overflow-y: auto; overscroll-behavior: contain; padding: 0 20px 20px; overflow-wrap: anywhere; }
 .story-detail-modal .story-detail-main { grid-template-columns: minmax(260px, 42%) minmax(0, 1fr); gap: 20px; border-top: 0; }
 .story-detail-modal .story-detail-main:not(:has(.story-detail-cover)) { grid-template-columns: minmax(0, 1fr); }
-.story-detail-modal .story-detail-cover { align-self: start; width: 100%; aspect-ratio: 16 / 9; min-height: 0; }
+.story-detail-modal .story-detail-cover { align-self: start; width: 100%; aspect-ratio: 4 / 3; min-height: 0; }
 .story-detail-modal .story-synopsis { white-space: pre-wrap; }
 .story-detail-modal .story-structure { padding: 14px 0; }
 .story-detail-actions { padding: 12px 20px max(16px, env(safe-area-inset-bottom)); border-top: 1px solid #35363b; background: #1b1c22; overflow: auto; max-height: 42dvh; }
@@ -222,14 +222,14 @@
 }
 
 .story-pack-cover {
-  aspect-ratio: 16 / 9;
+  aspect-ratio: 4 / 3;
 }
 
 .story-pack-cover img,
 .story-detail-cover img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
 }
 
 .story-pack-copy {
@@ -337,6 +337,30 @@
   cursor: pointer;
 }
 
+.story-player-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  min-width: 0;
+}
+
+.story-participant-chat-link {
+  max-width: 100%;
+  color: #dffb8f;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.5;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.story-participant-chat-link:focus-visible {
+  outline: 2px solid #dffb8f;
+  outline-offset: 4px;
+}
+
 .story-detail-main {
   display: grid;
   grid-template-columns: minmax(220px, 34%) minmax(0, 1fr);
@@ -413,12 +437,67 @@
   color: #f4f4f1;
 }
 
+.story-ending-read {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 24px 24px;
+}
+
+.story-player .story-ending-read .story-button {
+  width: 148px;
+  min-width: 0;
+  min-height: 44px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.story-ending-read .story-button:disabled {
+  color: rgba(244, 244, 241, 0.64);
+  cursor: default;
+}
+
+.story-canonical-read {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px 16px;
+  padding: 0 24px 24px;
+}
+
+.story-player .story-canonical-read .story-button {
+  width: auto;
+  max-width: 100%;
+  min-height: 44px;
+  min-width: 0;
+  font-weight: 500;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.story-canonical-read p {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #c5d6ce;
+  overflow-wrap: anywhere;
+}
+
+.story-canonical-read p:empty { display: none; }
+
 .story-action-status {
   min-height: 20px;
   margin: 0;
   color: #ffc2c2;
   font-size: 13px;
   line-height: 1.45;
+}
+
+.story-action-status [data-story-visual-retry] {
+  margin-inline-start: 8px;
+  padding: 5px 10px;
+  font-size: inherit;
 }
 
 .story-ai-notice {
@@ -533,7 +612,7 @@
   grid-column: 1;
   grid-row: 1;
   align-self: start;
-  width: min(100%, 760px);
+  width: min(100%, 600px);
   height: auto;
   min-height: 0;
   aspect-ratio: 16 / 9;
@@ -664,21 +743,22 @@
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
   background: #15161b;
+  font-family: system-ui, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif;
 }
 
 .story-player-copy p {
-  max-width: 42rem;
+  max-width: 34em;
   margin: 0;
-  color: #f4f4f1;
-  font-size: 17px;
+  color: #e9edf1;
+  font-size: 18px;
   font-weight: 400;
-  line-height: 1.82;
+  line-height: 1.78;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
 
 .story-player-copy p + p {
-  margin-top: 1.6em;
+  margin-top: 0.9em;
 }
 
 .story-reader-progress {
@@ -725,6 +805,7 @@
 }
 
 .story-reader-shell[data-visual-layout="portrait"] .story-beat-navigation {
+  grid-column: 1 / -1;
   grid-row: 1;
   width: 100%;
 }
@@ -801,7 +882,7 @@
 
 .story-choice-list {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
 }
 
@@ -813,10 +894,11 @@
   border-radius: 8px;
   background: #17191e;
   color: #f4f4f1;
-  font: inherit;
-  font-size: 13px;
-  font-weight: 800;
-  line-height: 1.4;
+  font-family: system-ui, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.55;
+  text-align: left;
   cursor: pointer;
   overflow-wrap: anywhere;
 }
@@ -903,6 +985,14 @@
   min-width: 20px;
   margin-right: 6px;
   color: #ffacd4;
+}
+
+.story-choice-list .story-choice-unavailable {
+  display: block;
+  margin-top: 4px;
+  color: rgba(244, 244, 241, 0.72);
+  font-size: 11px;
+  font-weight: 500;
 }
 
 .story-graph-choice-list {
@@ -1077,6 +1167,10 @@ button.story-graph-choice {
   outline-offset: -2px;
 }
 
+.story-player-copy:focus-visible {
+  outline-color: #8fa85d;
+}
+
 @media (min-width: 769px) and (max-width: 1120px) {
   .story-stage-page .header-inner {
     display: grid;
@@ -1207,7 +1301,7 @@ button.story-graph-choice {
   }
   .story-catalog { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .story-detail-main { grid-template-columns: 1fr; gap: 16px; }
-  .story-detail-cover { min-height: 220px; aspect-ratio: 16 / 9; }
+  .story-detail-cover { min-height: 220px; aspect-ratio: 4 / 3; }
   .story-player { gap: 14px; }
   .story-current-title { font-size: 20px; }
   .story-reader-shell[data-visual-layout="portrait"] .story-player-stage {
@@ -1217,7 +1311,7 @@ button.story-graph-choice {
     width: 100%;
     padding: 20px 18px;
   }
-  .story-player-copy p { font-size: 16px; line-height: 1.75; }
+  .story-player-copy p { font-size: 17px; line-height: 1.78; }
   .story-beat-navigation {
     position: relative;
     top: auto;
@@ -1246,7 +1340,7 @@ button.story-graph-choice {
 @media (max-width: 400px) {
   .story-catalog { grid-template-columns: 1fr; }
   .story-pack-open { grid-template-columns: minmax(0, 1fr); }
-  .story-pack-cover { height: auto; min-height: 0; aspect-ratio: 16 / 9; }
+  .story-pack-cover { height: auto; min-height: 0; aspect-ratio: 4 / 3; }
   .story-pack-copy p { -webkit-line-clamp: 2; }
   .story-detail-copy h2 { font-size: 23px; }
   .story-button { width: 100%; }

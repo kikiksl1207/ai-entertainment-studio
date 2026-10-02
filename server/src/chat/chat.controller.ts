@@ -34,6 +34,7 @@ type CreateFeatureOrderBody = {
 type GenerateChatMessageBody = {
   body?: string;
   chatFeatureOrderId?: string;
+  storyProgressId?: string;
 };
 
 type PreflightChatMessageBody = {
@@ -120,8 +121,12 @@ export class ChatController {
   }
 
   @Get('chat/sessions/:sessionId/messages')
-  getMessages(@CurrentUser() user: AuthUser, @Param('sessionId') sessionId: string) {
-    return this.chatService.getMessages(user.id, sessionId);
+  getMessages(
+    @CurrentUser() user: AuthUser,
+    @Param('sessionId') sessionId: string,
+    @Query('storyProgressId') storyProgressId?: string,
+  ) {
+    return this.chatService.getMessages(user.id, sessionId, storyProgressId);
   }
 
   @Post('chat/sessions/:sessionId/messages')
@@ -146,6 +151,7 @@ export class ChatController {
     return this.chatService.generateMessage(user.id, sessionId, {
       body: this.requireField(body?.body, 'body'),
       chatFeatureOrderId: body?.chatFeatureOrderId,
+      storyProgressId: body?.storyProgressId,
     });
   }
 

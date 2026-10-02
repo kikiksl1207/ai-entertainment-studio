@@ -16,7 +16,28 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  qa:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Check public site contracts
+        run: node scripts/run-static-site-tests.mjs
+
+      - name: Check publication artifact boundaries
+        run: node --test scripts/tests/build-public-site.test.mjs
+
+      - name: Build and verify public site artifact
+        run: node scripts/build-public-site.mjs
+
   deploy:
+    needs: qa
     runs-on: ubuntu-latest
     environment:
       name: github-pages
@@ -25,13 +46,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Build and verify public site artifact
+        run: node scripts/build-public-site.mjs
+
       - name: Configure Pages
         uses: actions/configure-pages@v5
 
       - name: Upload site artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: .
+          path: build/public-site
 
       - name: Deploy to GitHub Pages
         id: deployment

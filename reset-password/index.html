@@ -3,9 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="referrer" content="no-referrer" />
     <title>비밀번호 재설정 — Lumina Stage</title>
     <link rel="canonical" href="https://www.lumina-stage.com/reset-password" />
-    <script>(function(){if(window.history&&history.replaceState&&location.pathname.length>1&&location.pathname.charAt(location.pathname.length-1)==="/"){history.replaceState(null,"",location.pathname.slice(0,-1)+location.search+location.hash);}})();</script>
+    <script>(function(){var params=new URLSearchParams(location.search);window.__luminaResetToken=params.get("token")||"";params.delete("token");var path=location.pathname.length>1&&location.pathname.endsWith("/")?location.pathname.slice(0,-1):location.pathname;history.replaceState(null,"",path+(params.size?"?"+params.toString():"")+location.hash);})();</script>
     <link rel="stylesheet" href="/styles.css" />
     <meta name="description" content="Lumina Stage 비밀번호 재설정 페이지." />
     <meta name="robots" content="noindex, nofollow" />
@@ -91,6 +92,8 @@
        * 성공/실패/만료/이미 사용된 토큰 상태를 카드 카피로 구분 표시.
        * 보안: token / newPassword 값을 콘솔·Notion·스토리지에 기록하지 않는다. */
       (function initResetPassword() {
+        const token = window.__luminaResetToken || "";
+        delete window.__luminaResetToken;
         const card = document.getElementById("resetPwCard");
         const form = document.getElementById("resetPwForm");
         const newPwEl = document.getElementById("resetPwNew");
@@ -106,7 +109,6 @@
         if (!card || !form) return;
 
         const params = new URLSearchParams(location.search);
-        const token = params.get("token") || "";
         let safeResetFixtureMode = false;
 
         const SAFE_RESET_PASSWORD_FIXTURES = {
@@ -129,6 +131,9 @@
         }
 
         function t(key, fallback) {
+          const locale = window.luminaI18n?.getRegionalLocale?.() || localStorage.getItem("lumina_locale") || "ko-KR";
+          const local = RESET_LOCAL_COPY[locale]?.[key];
+          if (local) return local;
           try {
             const fn = window?.luminaI18n?.t;
             if (typeof fn === "function") {
@@ -139,7 +144,55 @@
           return fallback;
         }
 
-        const STATE_KICKER = "비밀번호 재설정";
+        const RESET_LOCAL_COPY = {
+          "ko-KR": {
+            kicker: "비밀번호 재설정", emailHint: "계정: ", inputError: "입력값을 확인해 주세요. 8자 이상 비밀번호가 필요해요.", passwordPlaceholder: "8자 이상", confirmPlaceholder: "다시 한 번 입력",
+            confirmEmpty: "두 비밀번호가 같은지 확인해 주세요.", confirmMatch: "두 비밀번호가 일치해요.", confirmMismatch: "두 비밀번호가 아직 일치하지 않아요.",
+            "used.title": "이미 사용한 재설정 링크예요", "used.body": "이 링크는 이미 사용됐어요. 새 비밀번호로 로그인하거나, 다시 재설정 메일을 받아 주세요.",
+            "error.title": "지금 처리하지 못했어요", "error.body": "잠시 뒤에 다시 시도해 주세요. 같은 문제가 반복되면 재설정 메일을 새로 받아 주세요.",
+            "inactive.title": "계정이 활성화되지 않은 상태예요", "inactive.body": "이 계정은 현재 비활성 상태라 비밀번호를 재설정할 수 없어요. 고객센터에 문의해 주세요."
+          },
+          "ja-JP": {
+            kicker: "パスワード再設定", emailHint: "アカウント: ", inputError: "入力内容をご確認ください。パスワードは8文字以上必要です。", passwordPlaceholder: "8文字以上", confirmPlaceholder: "もう一度入力",
+            confirmEmpty: "2つのパスワードが一致するかご確認ください。", confirmMatch: "パスワードが一致しています。", confirmMismatch: "パスワードがまだ一致していません。",
+            "used.title": "この再設定リンクは使用済みです", "used.body": "このリンクはすでに使用されています。新しいパスワードでログインするか、再設定メールを再送してください。",
+            "error.title": "現在処理できません", "error.body": "しばらくしてからお試しください。解決しない場合は再設定メールを再送してください。",
+            "inactive.title": "アカウントが有効ではありません", "inactive.body": "このアカウントは現在無効のため、パスワードを再設定できません。サポートにお問い合わせください。"
+          },
+          "en-US": {
+            kicker: "Reset password", emailHint: "Account: ", inputError: "Check your input. Your password must be at least 8 characters.", passwordPlaceholder: "8 or more characters", confirmPlaceholder: "Enter again",
+            confirmEmpty: "Make sure both passwords match.", confirmMatch: "Passwords match.", confirmMismatch: "Passwords do not match yet.",
+            "used.title": "This reset link was already used", "used.body": "This link has already been used. Log in with your new password or request another reset email.",
+            "error.title": "We couldn't process this request", "error.body": "Please try again shortly. If the issue continues, request another reset email.",
+            "inactive.title": "Account not active", "inactive.body": "This account is inactive, so its password cannot be reset. Please contact support."
+          },
+          "zh-CN": {
+            kicker: "重设密码", emailHint: "账户：", inputError: "请检查输入内容。密码至少需要 8 位。", passwordPlaceholder: "至少 8 位", confirmPlaceholder: "再次输入",
+            confirmEmpty: "请确认两次密码相同。", confirmMatch: "两次密码一致。", confirmMismatch: "两次密码尚不一致。",
+            "used.title": "此重设链接已使用", "used.body": "此链接已使用。请使用新密码登录，或重新申请重设邮件。",
+            "error.title": "暂时无法处理请求", "error.body": "请稍后重试。如仍有问题，请重新申请重设邮件。",
+            "inactive.title": "账户尚未启用", "inactive.body": "此账户目前未启用，无法重设密码。请联系客户支持。"
+          },
+          "zh-Hant": {
+            kicker: "重設密碼", emailHint: "帳戶：", inputError: "請檢查輸入內容。密碼至少需要 8 個字元。", passwordPlaceholder: "至少 8 個字元", confirmPlaceholder: "再次輸入",
+            confirmEmpty: "請確認兩次密碼相同。", confirmMatch: "兩次密碼一致。", confirmMismatch: "兩次密碼尚不一致。",
+            "used.title": "此重設連結已使用", "used.body": "此連結已使用。請使用新密碼登入，或重新申請重設郵件。",
+            "error.title": "暫時無法處理請求", "error.body": "請稍後再試。如仍有問題，請重新申請重設郵件。",
+            "inactive.title": "帳戶尚未啟用", "inactive.body": "此帳戶目前未啟用，無法重設密碼。請聯絡客戶支援。",
+            "resetPassword.form.title": "請設定新密碼", "resetPassword.form.body": "建議使用容易記住、但較難猜測的組合。",
+            "resetPassword.form.passwordLabel": "新密碼", "resetPassword.form.passwordHelper": "建議至少 8 個字元，混合英文字母、數字和符號。",
+            "resetPassword.form.confirmLabel": "再次輸入新密碼", "resetPassword.form.save": "儲存密碼", "resetPassword.form.saving": "儲存中",
+            "resetPassword.form.errorTooShort": "請輸入至少 8 個字元。", "resetPassword.form.errorMismatch": "兩次密碼不一致，請重新確認。",
+            "resetPassword.success.title": "新密碼已儲存", "resetPassword.success.body": "請使用新密碼登入。其他裝置上的工作階段已自動結束。",
+            "resetPassword.success.primary": "前往登入", "resetPassword.success.secondary": "返回首頁",
+            "resetPassword.expired.title": "此重設連結已過期", "resetPassword.expired.body": "基於安全考量，重設連結僅有效 1 小時。請重新申請郵件。",
+            "resetPassword.expired.primary": "重新寄送重設郵件", "resetPassword.invalid.title": "此重設連結無效",
+            "resetPassword.invalid.body": "請確認郵件中的連結。只有最新一封重設郵件中的連結有效。",
+            "resetPassword.invalid.primary": "重新寄送重設郵件", "resetPassword.invalid.secondary": "返回登入"
+          }
+        };
+
+        let currentPayload = null;
 
         function showError(message) {
           if (!errorEl) return;
@@ -154,8 +207,9 @@
         }
 
         function applyState(state, payload) {
+          currentPayload = payload || null;
           card.dataset.state = state;
-          if (kicker) kicker.textContent = STATE_KICKER;
+          if (kicker) kicker.textContent = t("kicker", "비밀번호 재설정");
           // #455 — 토큰 inspect 진행 중 로딩 상태
           if (state === "loading") {
             form.hidden = true;
@@ -171,11 +225,20 @@
             setI18nKey(body, "resetPassword.form.body");
             title.textContent = t("resetPassword.form.title", "새 비밀번호를 설정해 주세요");
             body.textContent = t("resetPassword.form.body", "기억하기 쉬우면서도 조금 복잡한 조합이 좋아요.");
+            const fields = form.querySelectorAll(".auth-confirm-field");
+            fields[0]?.querySelector("span")?.replaceChildren(t("resetPassword.form.passwordLabel", "새 비밀번호"));
+            fields[0]?.querySelector("small")?.replaceChildren(t("resetPassword.form.passwordHelper", "영문·숫자·특수문자를 섞어 8자 이상을 추천드려요."));
+            fields[1]?.querySelector("span")?.replaceChildren(t("resetPassword.form.confirmLabel", "새 비밀번호 다시 입력"));
+            if (newPwEl) newPwEl.placeholder = t("passwordPlaceholder", "8자 이상");
+            if (confirmEl) confirmEl.placeholder = t("confirmPlaceholder", "다시 한 번 입력");
+            if (submitBtn) submitBtn.textContent = t("resetPassword.form.save", "비밀번호 저장하기");
+            const confirmHint = document.getElementById("resetPwConfirmHint");
+            if (confirmHint && !confirmEl?.value) confirmHint.textContent = t("confirmEmpty", "두 비밀번호가 같은지 확인해 주세요.");
             // #455 — inspect 마스킹 이메일 힌트 표시 (있을 때만)
             const emailHintEl = document.getElementById("resetPwEmailHint");
             if (emailHintEl) {
               const m = payload?.maskedEmail;
-              if (m) { emailHintEl.textContent = "계정: " + m; emailHintEl.hidden = false; }
+              if (m) { emailHintEl.textContent = t("emailHint", "계정: ") + m; emailHintEl.hidden = false; }
               else { emailHintEl.hidden = true; }
             }
             return;
@@ -186,7 +249,7 @@
             setI18nKey(title, "resetPassword.success.title");
             setI18nKey(body, "resetPassword.success.body");
             title.textContent = t("resetPassword.success.title", "새 비밀번호가 저장됐어요");
-            body.textContent = payload?.message || t("resetPassword.success.body", "이제 새 비밀번호로 로그인해 주세요. 다른 기기에 로그인되어 있던 세션은 자동으로 정리됐어요.");
+            body.textContent = (window.luminaI18n?.getRegionalLocale?.() === "ko-KR" && payload?.message) || t("resetPassword.success.body", "이제 새 비밀번호로 로그인해 주세요. 다른 기기에 로그인되어 있던 세션은 자동으로 정리됐어요.");
             if (primary) { primary.textContent = t("resetPassword.success.primary", "로그인하러 가기"); primary.href = "/mypage"; }
             if (secondary) { secondary.textContent = t("resetPassword.success.secondary", "홈으로"); secondary.href = "/"; }
           } else if (state === "expired") {
@@ -194,42 +257,48 @@
             setI18nKey(body, "resetPassword.expired.body");
             title.textContent = t("resetPassword.expired.title", "이 재설정 링크는 시간이 지났어요");
             body.textContent = t("resetPassword.expired.body", "보안을 위해 재설정 링크는 1시간 동안만 열려 있어요. 다시 요청하면 새 메일이 발송돼요.");
-            if (primary) { primary.textContent = t("resetPassword.expired.primary", "재설정 메일 다시 받기"); primary.href = "/#login"; }
+            if (primary) { primary.textContent = t("resetPassword.expired.primary", "재설정 메일 다시 받기"); primary.href = "/#forgot"; }
             if (secondary) { secondary.textContent = t("resetPassword.success.secondary", "홈으로"); secondary.href = "/"; }
           } else if (state === "used") {
             setI18nKey(title, null);
             setI18nKey(body, null);
-            if (title) title.textContent = "이미 사용한 재설정 링크예요";
-            if (body) body.textContent = "이 링크는 이미 사용됐어요. 새 비밀번호로 로그인하거나, 다시 재설정 메일을 받아 주세요.";
+            if (title) title.textContent = t("used.title", "이미 사용한 재설정 링크예요");
+            if (body) body.textContent = t("used.body", "이 링크는 이미 사용됐어요. 새 비밀번호로 로그인하거나, 다시 재설정 메일을 받아 주세요.");
             if (primary) { primary.textContent = t("resetPassword.success.primary", "로그인하러 가기"); primary.href = "/mypage"; }
-            if (secondary) { secondary.textContent = t("resetPassword.invalid.primary", "재설정 메일 다시 받기"); secondary.href = "/#login"; }
+            if (secondary) { secondary.textContent = t("resetPassword.invalid.primary", "재설정 메일 다시 받기"); secondary.href = "/#forgot"; }
           } else if (state === "invalid") {
             setI18nKey(title, "resetPassword.invalid.title");
             setI18nKey(body, "resetPassword.invalid.body");
             if (title) title.textContent = t("resetPassword.invalid.title", "재설정 링크가 맞지 않아요");
             if (body) body.textContent = t("resetPassword.invalid.body", "메일에서 받은 링크가 맞는지 다시 한 번 확인해 주세요. 가장 최근에 받은 재설정 메일의 링크만 동작해요.");
-            if (primary) { primary.textContent = t("resetPassword.invalid.primary", "재설정 메일 다시 받기"); primary.href = "/#login"; }
+            if (primary) { primary.textContent = t("resetPassword.invalid.primary", "재설정 메일 다시 받기"); primary.href = "/#forgot"; }
             if (secondary) { secondary.textContent = t("resetPassword.invalid.secondary", "로그인 화면으로"); secondary.href = "/#login"; }
           } else if (state === "error") {
             setI18nKey(title, null);
             setI18nKey(body, null);
-            if (title) title.textContent = "지금 처리하지 못했어요";
-            if (body) body.textContent = "잠시 뒤에 다시 시도해 주세요. 같은 문제가 반복되면 재설정 메일을 새로 받아 주세요.";
-            if (primary) { primary.textContent = t("resetPassword.invalid.primary", "재설정 메일 다시 받기"); primary.href = "/#login"; }
+            if (title) title.textContent = t("error.title", "지금 처리하지 못했어요");
+            if (body) body.textContent = t("error.body", "잠시 뒤에 다시 시도해 주세요. 같은 문제가 반복되면 재설정 메일을 새로 받아 주세요.");
+            if (primary) { primary.textContent = t("resetPassword.invalid.primary", "재설정 메일 다시 받기"); primary.href = "/#forgot"; }
             if (secondary) { secondary.textContent = t("resetPassword.success.secondary", "홈으로"); secondary.href = "/"; }
           // #455 — user_not_active: 계정 비활성 상태
           } else if (state === "inactive") {
             setI18nKey(title, null);
             setI18nKey(body, null);
-            if (title) title.textContent = "계정이 활성화되지 않은 상태예요";
-            if (body) body.textContent = "이 계정은 현재 비활성 상태라 비밀번호를 재설정할 수 없어요. 고객센터에 문의해 주세요.";
-            if (primary) { primary.textContent = "홈으로"; primary.href = "/"; }
-            if (secondary) { secondary.textContent = "로그인 화면으로"; secondary.href = "/#login"; }
+            if (title) title.textContent = t("inactive.title", "계정이 활성화되지 않은 상태예요");
+            if (body) body.textContent = t("inactive.body", "이 계정은 현재 비활성 상태라 비밀번호를 재설정할 수 없어요. 고객센터에 문의해 주세요.");
+            if (primary) { primary.textContent = t("resetPassword.success.secondary", "홈으로"); primary.href = "/"; }
+            if (secondary) { secondary.textContent = t("resetPassword.invalid.secondary", "로그인 화면으로"); secondary.href = "/#login"; }
           }
         }
 
+        window.addEventListener("lumina:localechange", () => applyState(card.dataset.state, currentPayload));
+
         function classifyError(err) {
           const status = err?.status;
+          const state = (err?.body?.details?.state || err?.body?.state || "").toString().toLowerCase();
+          if (state === "expired") return "expired";
+          if (state === "already_used" || state === "used") return "used";
+          if (state === "invalid") return "invalid";
           const code = (err?.body?.error?.code || err?.body?.code || err?.body?.messageKey || err?.body?.error || "").toString().toLowerCase();
           if (status === 410 || (code.includes("expired") && !code.includes("invalid"))) return "expired";
           if (status === 409 || code.includes("already") || code.includes("used")) return "used";
@@ -257,7 +326,7 @@
         // 상태: valid→form(마스킹 이메일 힌트 포함) | expired→expired | already_used→used | user_not_active→inactive | 그 외→invalid
         applyState("loading");
         (async function inspectToken() {
-          if (typeof apiFetch !== "function") { applyState("invalid"); return; }
+          if (typeof apiFetch !== "function") { applyState("error"); return; }
           try {
             const data = await apiFetch("/api/v1/auth/password-resets/inspect", {
               method: "POST",
@@ -280,7 +349,7 @@
             const reason = classifyError(err);
             if (reason === "expired") applyState("expired");
             else if (reason === "used") applyState("used");
-            else applyState("invalid");
+            else applyState(reason === "invalid" ? "invalid" : "error");
           }
         }());
         }
@@ -323,7 +392,7 @@
             // 입력값(비밀번호 정책) 사유면 사용자 입력 다시 받기, 토큰 사유면 상태 전환
             const reason = classifyError(err);
             if (reason === "input") {
-              showError("입력값을 확인해 주세요. 8자 이상 비밀번호가 필요해요.");
+              showError(t("inputError", "입력값을 확인해 주세요. 8자 이상 비밀번호가 필요해요."));
               if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = t("resetPassword.form.save", "비밀번호 저장하기"); }
               return;
             }
@@ -342,12 +411,12 @@
             const hint = document.getElementById("resetPwConfirmHint");
             if (!hint) return;
             if (!confirmEl.value) {
-              hint.textContent = "두 비밀번호가 같은지 확인해 주세요.";
+              hint.textContent = t("confirmEmpty", "두 비밀번호가 같은지 확인해 주세요.");
               return;
             }
             hint.textContent = confirmEl.value === (newPwEl?.value || "")
-              ? "두 비밀번호가 일치해요."
-              : "두 비밀번호가 아직 일치하지 않아요.";
+              ? t("confirmMatch", "두 비밀번호가 일치해요.")
+              : t("confirmMismatch", "두 비밀번호가 아직 일치하지 않아요.");
           });
         }
       })();

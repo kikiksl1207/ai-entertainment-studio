@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { loadStoryServerContract } from './story-stage-server-contract.mjs';
 import { registerPurchaseTests } from './story-stage-purchase.test-support.mjs';
+import { registerArtistParticipantTests } from './story-stage-artist-participant.test-support.mjs';
 
 // Registered in the reader suite to share exactly one serial Chrome process.
 export function registerCatalogTests({ getBrowser, repo, artifacts, base, api }) {
@@ -31,7 +32,7 @@ export function registerCatalogTests({ getBrowser, repo, artifacts, base, api })
     const localized = (value) => ({ value, locale, fallback: false });
     return { id: workId, slug: 'private-local-story', title: localized(`QA ${locale} ${sentences[locale]}`),
       summary: localized(sentences[locale].repeat(options.long ? 120 : 3)), author: { displayName: '루미나' },
-      cover: { url: '/private-qa-cover.png' },
+      cover: { url: options.portraitCover ? '/portrait-qa-cover.webp' : '/private-qa-cover.png' },
       access: access({ ...options, auth: false }), releaseCapability: { ...cap }, replay: null, endingRecords: [],
       parts: [{ id: partId, position: 1, seasonKey: 'season-1', title: localized(sentences[locale]), access: access({ ...options, auth: false }) }] };
   }
@@ -79,7 +80,15 @@ export function registerCatalogTests({ getBrowser, repo, artifacts, base, api })
         if (r.method === 'GET' && r.path === '/api/v1/stories') {
           const first = detail(locale, options);
           const second = { ...detail(locale, { ...options, free: false }), id: otherId, slug: 'second-local-story' };
-          return route.fulfill({ json: { items: options.empty ? [] : [first, second].map(({ parts, replay, endingRecords, ...card }) => card), nextCursor: null } });
+          const extras = options.fullCatalog ? [
+            ['북유럽 신화: 로키의 선택', 'third-local-story'],
+            ['불타는 바다의 기록자', 'fourth-local-story'],
+            ['살인자는 죽은 자의 능력을 계승한다', 'fifth-local-story'],
+          ].map(([title, slug], index) => ({ ...detail(locale, options),
+            id: `55555555-5555-4555-8555-${String(index + 1).padStart(12, '0')}`,
+            slug, title: { value: title, locale, fallback: false },
+          })) : [];
+          return route.fulfill({ json: { items: options.empty ? [] : [first, second, ...extras].map(({ parts, replay, endingRecords, ...card }) => card), nextCursor: null } });
         }
         if (r.method === 'GET' && r.path === '/api/v1/stories/private-local-story') return route.fulfill({ json: detail(locale, options) });
         if (r.method === 'GET' && r.path === '/api/v1/stories/second-local-story') return route.fulfill({ json: { ...detail(locale, options), id: otherId, slug: 'second-local-story' } });
@@ -99,7 +108,8 @@ export function registerCatalogTests({ getBrowser, repo, artifacts, base, api })
       if (url.origin === base && req.method() === 'GET') {
         const files = { '/story-stage': ['story-stage/index.html', 'text/html'], '/styles.css': ['styles.css', 'text/css'],
           '/styles/story-stage.css': ['styles/story-stage.css', 'text/css'], '/pages/story-stage.js': ['pages/story-stage.js', 'text/javascript'],
-          '/private-qa-cover.png': ['assets/brand/lumina-stage-logo.png', 'image/png'] };
+          '/private-qa-cover.png': ['assets/brand/lumina-stage-logo.png', 'image/png'],
+          '/portrait-qa-cover.webp': ['assets/story/norse-myth-cover-portrait.webp', 'image/webp'] };
         const file = files[url.pathname];
         if (file) return route.fulfill({ body: await readFile(path.join(repo, file[0])), contentType: file[1] });
         if (url.pathname === '/app.js') {
@@ -135,6 +145,7 @@ export function registerCatalogTests({ getBrowser, repo, artifacts, base, api })
   }
 
   registerPurchaseTests({ fixture, owner, detail, progress, access, workId, otherId, progressId, artifacts, locales, gate, delay });
+  registerArtistParticipantTests({ fixture, workId, progressId, artifacts, locales, gate, delay });
 
   test('catalog: detail shows loading rather than an unavailable error before the response', async () => {
     const pending = gate();
@@ -172,6 +183,64 @@ export function registerCatalogTests({ getBrowser, repo, artifacts, base, api })
         assert.equal(layout.documentWidth <= layout.viewportWidth, true, JSON.stringify(layout));
         assert.equal(layout.linksFit && layout.cardsFit, true, JSON.stringify(layout));
         assert.equal(layout.columns, width <= 820 ? 2 : 3);
+      } finally { await f.close(); }
+    });
+  }
+
+  for (const width of [390, 400, 820, 900, 1024, 1100, 1280]) {
+    test(`catalog: five works and long titles stay within ${width}px`, async () => {
+      const f = await fixture({ locale: 'ko', width, fullCatalog: true });
+      try {
+        await f.page.waitForFunction(() => document.querySelectorAll('.story-pack-card').length === 5);
+        const layout = await f.page.evaluate(() => {
+          const cards = [...document.querySelectorAll('.story-pack-card')];
+          return { documentWidth: document.documentElement.scrollWidth, viewportWidth: innerWidth,
+            cardsFit: cards.every((card) => {
+              const box = card.getBoundingClientRect();
+              const title = card.querySelector('.story-pack-copy strong');
+              const cover = card.querySelector('.story-pack-cover');
+              return box.left >= 0 && box.right <= innerWidth &&
+                title && title.scrollHeight <= title.clientHeight + 1 &&
+                cover && cover.getBoundingClientRect().width <= box.width;
+            }) };
+        });
+        assert.equal(layout.documentWidth <= layout.viewportWidth && layout.cardsFit, true, JSON.stringify(layout));
+      } finally { await f.close(); }
+    });
+  }
+
+  for (const width of [390, 1280]) {
+    test(`catalog: portrait cover remains whole in card and detail at ${width}px`, async () => {
+      const f = await fixture({ locale: 'ko', width, portraitCover: true });
+      try {
+        const cardImage = f.page.locator('[data-pack-slug="private-local-story"] .story-pack-cover img');
+        await cardImage.waitFor();
+        await cardImage.evaluate((image) => image.decode());
+        const card = await cardImage.evaluate((image) => ({
+          loaded: image.complete && image.naturalWidth === 1024 && image.naturalHeight === 1536,
+          fit: getComputedStyle(image).objectFit,
+          ratio: image.parentElement.getBoundingClientRect().width / image.parentElement.getBoundingClientRect().height,
+          overflow: document.documentElement.scrollWidth > innerWidth,
+        }));
+        assert.equal(card.loaded && card.fit === 'contain' && Math.abs(card.ratio - 4 / 3) < 0.02 && !card.overflow,
+          true, JSON.stringify(card));
+        if (process.env.STORY_UI_DETAIL_CAPTURES !== '0') {
+          await f.page.screenshot({ path: path.join(artifacts, `portrait-cover-card-${width}.png`) });
+        }
+        await f.open();
+        const detailImage = f.page.locator('.story-detail-cover img');
+        await detailImage.evaluate((image) => image.decode());
+        const detail = await detailImage.evaluate((image) => ({
+          loaded: image.complete && image.naturalWidth === 1024 && image.naturalHeight === 1536,
+          fit: getComputedStyle(image).objectFit,
+          ratio: image.parentElement.getBoundingClientRect().width / image.parentElement.getBoundingClientRect().height,
+          overflow: document.documentElement.scrollWidth > innerWidth,
+        }));
+        assert.equal(detail.loaded && detail.fit === 'contain' && Math.abs(detail.ratio - 4 / 3) < 0.02 && !detail.overflow,
+          true, JSON.stringify(detail));
+        if (process.env.STORY_UI_DETAIL_CAPTURES !== '0') {
+          await f.page.screenshot({ path: path.join(artifacts, `portrait-cover-${width}.png`) });
+        }
       } finally { await f.close(); }
     });
   }

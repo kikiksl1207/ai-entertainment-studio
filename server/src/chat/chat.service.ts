@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   Logger,
   NotFoundException,
@@ -7,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { InputJsonValue } from '@prisma/client/runtime/client';
+import { isDeepStrictEqual } from 'node:util';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   ChatGenerationResult,
@@ -39,9 +41,24 @@ import {
   CHARACTER_CHAT_PREMIUM_TRANSITION_CTA_CONTRACT,
   PREMIUM_CHAT_SUPPORT_CONTRACT,
 } from './premium-chat-support-contract';
-import { activeStoryPathChoices, storyMemoryText, StoryChatMemoryContext } from './story-chat-memory';
+import { loadStoryChatMemoryContext, unverifiedStoryMemoryContext } from './story-chat-memory';
+import {
+  storyChatMemoryMarker,
+  storyChatMemoryMarkerMatches,
+  StoryChatMemoryMarker,
+} from './story-chat-memory-scope';
+import {
+  isStoryChatRouteScopeCurrent,
+  lockApprovedStoryChatIdentity,
+  loadStoryChatRouteScope,
+  storyChatRouteMarker,
+  storyChatRouteWhere,
+  StoryChatRouteScope,
+} from './story-chat-route-scope';
 
 const DEFAULT_CURRENCY = 'LUMINA';
+const RECENT_PROVIDER_MESSAGE_LIMIT = 20;
+const MAX_UNSCOPED_HISTORY_PAGES = 10;
 const UUID_V4_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const PREMIUM_ROOM_DEFAULT_TAKE = 20;
@@ -380,6 +397,7 @@ type ChatConversationListSessionRecord = {
     messageType: string;
     body: string | null;
     chatFeatureOrderId: string | null;
+    modelMetadata?: unknown;
     createdAt: Date;
   }>;
   _count: {
@@ -1545,15 +1563,41 @@ export class ChatService {
     return sessionId.replace(/[^0-9a-f]/gi, '').slice(-8) || 'default';
   }
 
-  async getMessages(userId: string, sessionId: string) {
+  async getMessages(userId: string, sessionId: string, storyProgressId?: string) {
     const session = await this.getOwnedSessionForOpeningGreeting(userId, sessionId);
+    if (storyProgressId !== undefined) {
+      if (typeof storyProgressId !== 'string' || !UUID_V4_PATTERN.test(storyProgressId)) {
+        throw new BadRequestException('storyProgressId must be a UUID v4');
+      }
+      const scope = await loadStoryChatRouteScope(this.prisma, {
+        userId, artistId: session.artist.id, progressId: storyProgressId,
+      });
+      if (!scope) throw this.storyChatRouteChangedException();
+      const marker = storyChatRouteMarker(scope);
+      const messages = await this.prisma.chatMessage.findMany({
+        where: {
+          chatSessionId: sessionId,
+          modelMetadata: { path: ['storyRouteScope'], equals: marker },
+        },
+        orderBy: { createdAt: 'asc' },
+      });
+      const current = await loadStoryChatRouteScope(this.prisma, {
+        userId, artistId: session.artist.id, progressId: storyProgressId,
+      });
+      if (!current || !isDeepStrictEqual(storyChatRouteMarker(current), marker)) {
+        throw this.storyChatRouteChangedException();
+      }
+      return messages;
+    }
 
     await this.ensureSessionOpeningGreeting(userId, session);
-
-    return this.prisma.chatMessage.findMany({
+    const messages = await this.prisma.chatMessage.findMany({
       where: { chatSessionId: sessionId },
       orderBy: { createdAt: 'asc' },
     });
+    return messages.filter((message) => !Object.prototype.hasOwnProperty.call(
+      this.recordOrEmpty(message.modelMetadata), 'storyRouteScope',
+    ));
   }
 
   async preflightMessage(
@@ -1980,6 +2024,7 @@ export class ChatService {
     input: {
       body: string;
       chatFeatureOrderId?: string;
+      storyProgressId?: string;
     },
   ) {
     const session = await this.getOwnedSessionForGeneration(userId, sessionId);
@@ -1989,6 +2034,40 @@ export class ChatService {
     const body = order
       ? this.normalizeGenerationBody(input.body)
       : this.normalizeBasicChatBody(input.body);
+    const existingGenerated = order?.messages.find(
+      (message: { senderType: string }) => message.senderType === 'artist',
+    );
+    if (existingGenerated && input.storyProgressId === undefined &&
+        Object.prototype.hasOwnProperty.call(
+          this.recordOrEmpty(existingGenerated.modelMetadata), 'storyRouteScope',
+        )) {
+      throw this.storyChatRouteChangedException();
+    }
+    let storyRouteScope: StoryChatRouteScope | null = null;
+    if (input.storyProgressId !== undefined) {
+      try {
+        if (typeof input.storyProgressId !== 'string' || !UUID_V4_PATTERN.test(input.storyProgressId)) {
+          throw new BadRequestException('storyProgressId must be a UUID v4');
+        }
+        storyRouteScope = await loadStoryChatRouteScope(this.prisma, {
+          userId, artistId: session.artist.id, progressId: input.storyProgressId,
+        });
+        if (!storyRouteScope) throw this.storyChatRouteChangedException();
+        if (existingGenerated &&
+            !isDeepStrictEqual(
+              this.recordOrEmpty(existingGenerated.modelMetadata).storyRouteScope,
+              storyChatRouteMarker(storyRouteScope),
+            )) {
+          throw this.storyChatRouteChangedException();
+        }
+      } catch (error) {
+        if (order && !existingGenerated) {
+          await this.failFeatureOrderAndRestoreLumina(userId, order.id, 'story_route_validation_failed');
+        }
+        if (error instanceof BadRequestException || error instanceof ConflictException) throw error;
+        throw new ServiceUnavailableException('Story chat route validation unavailable');
+      }
+    }
     const providerUserContext = await this.getProviderUserContext(userId);
 
     if (!order) {
@@ -2005,11 +2084,22 @@ export class ChatService {
       }
     }
 
-    const existingGenerated = order?.messages.find(
-      (message: { senderType: string }) => message.senderType === 'artist',
-    );
-
     if (order && existingGenerated) {
+      if (storyRouteScope) {
+        try {
+          if (!await isStoryChatRouteScopeCurrent(this.prisma, {
+            userId, artistId: session.artist.id, scope: storyRouteScope,
+          })) throw this.storyChatRouteChangedException();
+          const memory = await this.loadOptionalStoryMemory(userId, session.artist, storyRouteScope);
+          if (!storyChatMemoryMarkerMatches(
+            this.recordOrEmpty(existingGenerated.modelMetadata).storyMemoryScope,
+            storyChatMemoryMarker(memory),
+          )) throw this.storyChatMemoryChangedException();
+        } catch (error) {
+          if (error instanceof ConflictException) throw error;
+          throw new ServiceUnavailableException('Story chat route validation unavailable');
+        }
+      }
       return {
         generationStatus: 'completed',
         order: this.orderSummary(order),
@@ -2054,28 +2144,22 @@ export class ChatService {
       }
     }
 
-    const recentMessages = await this.prisma.chatMessage.findMany({
-      where: { chatSessionId: session.id },
-      take: 20,
-      orderBy: { createdAt: 'desc' },
-      select: {
-        senderType: true,
-        messageType: true,
-        body: true,
-      },
-    });
-    const runtimePersona = this.buildCharacterRuntimePersonaContext(session.artist);
-    runtimePersona.knowledgeContext = await this.loadApprovedArtistKnowledgeContext(
-      session.artist.id,
-    );
-    let storyMemoryContext: StoryChatMemoryContext = { source: 'active_story_route', items: [] };
     try {
-      storyMemoryContext = await this.loadCurrentStoryMemory(userId, session.artist.id);
-    } catch {
-      this.logger.warn('Current story memory lookup failed; continuing chat without story context');
-    }
+      const runtimePersona = this.buildCharacterRuntimePersonaContext(session.artist);
+      runtimePersona.knowledgeContext = await this.loadApprovedArtistKnowledgeContext(
+        session.artist.id,
+      );
+      const storyMemoryContext = await this.loadOptionalStoryMemory(userId, session.artist, storyRouteScope);
+      const memoryMarker = storyRouteScope ? storyChatMemoryMarker(storyMemoryContext) : null;
+      const recentMessages = await this.recentProviderMessages(session.id, storyRouteScope, memoryMarker);
 
-    try {
+      if (storyRouteScope) {
+        await this.assertStoryMemoryCurrent(userId, session.artist, storyRouteScope, memoryMarker!);
+        const current = await isStoryChatRouteScopeCurrent(this.prisma, {
+          userId, artistId: session.artist.id, scope: storyRouteScope,
+        });
+        if (!current) throw this.storyChatRouteChangedException();
+      }
       const generated = await this.llmProvider.generate({
         sessionId: session.id,
         userId,
@@ -2105,7 +2189,12 @@ export class ChatService {
           : null,
       });
 
-      return this.persistGeneratedMessage(userId, session.id, body, order?.id, generated);
+      if (storyRouteScope) {
+        await this.assertStoryMemoryCurrent(userId, session.artist, storyRouteScope, memoryMarker!);
+      }
+      return await this.persistGeneratedMessage(
+        userId, session.id, session.artist.id, body, order?.id, generated, storyRouteScope, memoryMarker,
+      );
     } catch (error) {
       if (order) {
         await this.failFeatureOrderAndRestoreLumina(
@@ -2117,6 +2206,8 @@ export class ChatService {
         );
       }
 
+      if (error instanceof ConflictException) throw error;
+
       if (error instanceof ChatLlmProviderNotConfiguredError) {
         throw this.providerUnavailableException(order?.chatFeatureProduct ?? null);
       }
@@ -2125,9 +2216,12 @@ export class ChatService {
         const fallback = await this.persistGeneratedMessage(
           userId,
           session.id,
+          session.artist.id,
           body,
           undefined,
           this.llmProvider.fallbackResult(error),
+          storyRouteScope,
+          storyRouteScope ? storyChatMemoryMarker(unverifiedStoryMemoryContext()) : null,
         );
 
         return {
@@ -2350,6 +2444,7 @@ export class ChatService {
           messageType: true,
           body: true,
           chatFeatureOrderId: true,
+          modelMetadata: true,
           createdAt: true,
         },
       },
@@ -2815,10 +2910,13 @@ export class ChatService {
 
   private presentConversationListItem(session: ChatConversationListSessionRecord) {
     const lastMessage = session.messages[0] ?? null;
-    const presentedLastMessage = lastMessage
-      ? this.presentConversationLastMessage(lastMessage)
+    const previewMessage = lastMessage && !Object.prototype.hasOwnProperty.call(
+      this.recordOrEmpty(lastMessage.modelMetadata), 'storyRouteScope',
+    ) ? lastMessage : null;
+    const presentedLastMessage = previewMessage
+      ? this.presentConversationLastMessage(previewMessage)
       : null;
-    const latestAt = lastMessage?.createdAt ?? session.updatedAt;
+    const latestAt = previewMessage?.createdAt ?? session.updatedAt;
 
     return {
       id: session.id,
@@ -2837,7 +2935,7 @@ export class ChatService {
         : null,
       messageCount: session._count.messages,
       lastMessage: presentedLastMessage,
-      lastMessageAt: lastMessage?.createdAt ?? null,
+      lastMessageAt: previewMessage?.createdAt ?? null,
       latestMessage: presentedLastMessage,
       latestAt,
       lastActivityAt: latestAt,
@@ -3004,90 +3102,6 @@ export class ChatService {
     return session;
   }
 
-  private async loadCurrentStoryMemory(userId: string, artistId: string): Promise<StoryChatMemoryContext> {
-    const empty: StoryChatMemoryContext = { source: 'active_story_route', items: [] };
-    const progresses = await this.prisma.storyReaderProgress.findMany({
-      where: {
-        userId,
-        status: { in: ['active', 'completed'] },
-        participantArtist: { is: { artistId, identityApprovedFingerprint: { not: null } } },
-      },
-      select: {
-        id: true, workId: true, activeReleaseId: true, pathSummary: true,
-        participantArtist: {
-          select: {
-            identityProfileId: true, identityProfileVersion: true,
-            identityReviewRevision: true, identitySourceFingerprint: true,
-            identityApprovedFingerprint: true,
-          },
-        },
-      },
-      orderBy: { updatedAt: 'desc' },
-      take: 1,
-    });
-    const routes = progresses.map((progress) => ({
-      progressId: progress.id,
-      workId: progress.workId,
-      releaseId: progress.activeReleaseId,
-      identity: progress.participantArtist,
-      choices: activeStoryPathChoices(progress.pathSummary),
-    })).filter((route) => route.choices.length);
-    if (!routes.length) return empty;
-
-    const route = routes[0];
-    const identity = route.identity;
-    if (!identity?.identityProfileId || !identity.identityProfileVersion ||
-        identity.identityReviewRevision == null || !identity.identitySourceFingerprint ||
-        !identity.identityApprovedFingerprint) return empty;
-    const approvedProfile = await this.prisma.artistStoryIdentityProfile.findFirst({
-      where: {
-        id: identity.identityProfileId,
-        artistId,
-        profileVersion: identity.identityProfileVersion,
-        reviewRevision: identity.identityReviewRevision,
-        sourceFingerprint: identity.identitySourceFingerprint,
-        approvedFingerprint: identity.identityApprovedFingerprint,
-        status: 'approved',
-      },
-      select: { id: true },
-    });
-    if (!approvedProfile) return empty;
-
-    const choiceIds = [...new Set(routes.flatMap((route) => route.choices.map((choice) => choice.choiceId)))];
-    const sceneIds = [...new Set(routes.flatMap((route) => route.choices.flatMap((choice) => choice.sceneId ? [choice.sceneId] : [])))];
-    const [works, choices, generatedChoices, scenes, generatedScenes] = await Promise.all([
-      this.prisma.storyWork.findMany({
-        where: { id: route.workId, status: 'published', fixtureSource: false },
-        select: { id: true, title: true },
-      }),
-      this.prisma.storyChoice.findMany({ where: { id: { in: choiceIds }, sceneId: { in: sceneIds } }, select: { id: true, sceneId: true, label: true } }),
-      this.prisma.storyAiGeneratedChoice.findMany({ where: { id: { in: choiceIds }, sceneId: { in: sceneIds } }, select: { id: true, sceneId: true, label: true } }),
-      this.prisma.storyScene.findMany({ where: { id: { in: sceneIds }, status: 'published', fixtureSource: false }, select: { id: true, partId: true, title: true } }),
-      route.releaseId
-        ? this.prisma.storyAiGeneratedScene.findMany({ where: { id: { in: sceneIds }, progressId: route.progressId, userId, workId: route.workId, releaseId: route.releaseId, status: 'ready' }, select: { id: true, title: true } })
-        : Promise.resolve([]),
-    ]);
-    const parts = scenes.length ? await this.prisma.storyPart.findMany({
-      where: { id: { in: scenes.map((scene) => scene.partId) }, workId: route.workId, status: 'published', fixtureSource: false },
-      select: { id: true },
-    }) : [];
-    const approvedPartIds = new Set(parts.map((part) => part.id));
-    const approvedScenes = scenes.filter((scene) => approvedPartIds.has(scene.partId));
-    const approvedSceneIds = new Set([...approvedScenes, ...generatedScenes].map((scene) => scene.id));
-    const workTitles = new Map(works.map((work) => [work.id, storyMemoryText(work.title, 80)]));
-    const choiceLabels = new Map([...choices, ...generatedChoices]
-      .filter((choice) => approvedSceneIds.has(choice.sceneId))
-      .map((choice) => [choice.id, { sceneId: choice.sceneId, label: storyMemoryText(choice.label, 120) }]));
-    const sceneTitles = new Map([...approvedScenes, ...generatedScenes].map((scene) => [scene.id, storyMemoryText(scene.title, 80)]));
-    const items = routes.flatMap((route) => route.choices.flatMap((choice) => {
-      const workTitle = workTitles.get(route.workId);
-      const selectedChoice = choiceLabels.get(choice.choiceId);
-      if (!workTitle || !choice.sceneId || !approvedSceneIds.has(choice.sceneId) ||
-          selectedChoice?.sceneId !== choice.sceneId || !selectedChoice.label) return [];
-      return [{ workTitle, sceneTitle: sceneTitles.get(choice.sceneId) || '', choiceLabel: selectedChoice.label }];
-    }));
-    return { source: 'active_story_route', items: items.slice(-6) };
-  }
 
   private async getFeatureOrderForGeneration(
     userId: string,
@@ -3124,6 +3138,112 @@ export class ChatService {
     }
 
     return order;
+  }
+
+  private storyChatRouteChangedException() {
+    return new ConflictException({
+      code: 'STORY_CHAT_ROUTE_CHANGED',
+      message: 'Story route is no longer current for this chat',
+      retryable: false,
+    });
+  }
+
+  private storyChatMemoryChangedException() {
+    return new ConflictException({
+      code: 'STORY_CHAT_MEMORY_CHANGED',
+      message: 'Story memory evidence changed; retry with the current evidence',
+      messageKey: 'chat.generation.failed',
+      retryable: true,
+    });
+  }
+
+  private async loadOptionalStoryMemory(
+    userId: string,
+    artist: { id: string; displayName: string },
+    scope: StoryChatRouteScope | null,
+  ) {
+    if (!scope) return unverifiedStoryMemoryContext();
+    // A failed lookup is not permission to reuse earlier memory-bearing answers.
+    return loadStoryChatMemoryContext(this.prisma, {
+      userId, artistId: artist.id, artistDisplayName: artist.displayName,
+      progressId: scope.progressId,
+    }).catch(() => {
+      this.logger.warn('Story chat memory lookup failed; continuing without shared memories');
+      return unverifiedStoryMemoryContext();
+    });
+  }
+
+  private async assertStoryMemoryCurrent(
+    userId: string,
+    artist: { id: string; displayName: string },
+    scope: StoryChatRouteScope,
+    expected: StoryChatMemoryMarker,
+  ) {
+    const current = await this.loadOptionalStoryMemory(userId, artist, scope);
+    if (!storyChatMemoryMarkerMatches(expected, storyChatMemoryMarker(current))) {
+      throw this.storyChatMemoryChangedException();
+    }
+  }
+
+  private loadLockedStoryMemory(
+    tx: Prisma.TransactionClient, userId: string, artistId: string, scope: StoryChatRouteScope,
+  ) {
+    return loadStoryChatMemoryContext(tx, {
+      userId, artistId, artistDisplayName: '', progressId: scope.progressId,
+    }, tx);
+  }
+
+  private async recentProviderMessages(
+    sessionId: string,
+    storyRouteScope: StoryChatRouteScope | null,
+    memoryMarker: StoryChatMemoryMarker | null = null,
+  ) {
+    if (storyRouteScope) {
+      if (!memoryMarker) return [];
+      const messages = await this.prisma.chatMessage.findMany({
+        where: {
+          chatSessionId: sessionId,
+          modelMetadata: { path: ['storyRouteScope'], equals: storyChatRouteMarker(storyRouteScope) },
+          AND: [{ modelMetadata: { path: ['storyMemoryScope'], equals: this.inputJson(memoryMarker) } }],
+        },
+        take: RECENT_PROVIDER_MESSAGE_LIMIT,
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        select: { senderType: true, messageType: true, body: true, modelMetadata: true },
+      });
+      return messages.filter((message) => storyChatMemoryMarkerMatches(
+        this.recordOrEmpty(message.modelMetadata).storyMemoryScope, memoryMarker,
+      )).map(({ senderType, messageType, body }) => ({ senderType, messageType, body }));
+    }
+
+    const messages: Array<{ senderType: string; messageType: string; body: string | null }> = [];
+    let cursor: string | undefined;
+    for (let pageIndex = 0;
+      pageIndex < MAX_UNSCOPED_HISTORY_PAGES && messages.length < RECENT_PROVIDER_MESSAGE_LIMIT;
+      pageIndex += 1) {
+      const page = await this.prisma.chatMessage.findMany({
+        where: { chatSessionId: sessionId },
+        take: RECENT_PROVIDER_MESSAGE_LIMIT,
+        ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        select: { id: true, senderType: true, messageType: true, body: true, modelMetadata: true },
+      });
+      for (const message of page) {
+        if (!Object.prototype.hasOwnProperty.call(
+          this.recordOrEmpty(message.modelMetadata), 'storyRouteScope',
+        )) {
+          messages.push({
+            senderType: message.senderType,
+            messageType: message.messageType,
+            body: message.body,
+          });
+          if (messages.length === RECENT_PROVIDER_MESSAGE_LIMIT) break;
+        }
+      }
+      if (page.length < RECENT_PROVIDER_MESSAGE_LIMIT ||
+          messages.length === RECENT_PROVIDER_MESSAGE_LIMIT) break;
+      cursor = page[page.length - 1].id;
+    }
+    return messages;
   }
 
   private async buildBasicChatPreflight(
@@ -3301,13 +3421,50 @@ export class ChatService {
   private async persistGeneratedMessage(
     userId: string,
     sessionId: string,
+    artistId: string,
     userMessageBody: string,
     chatFeatureOrderId: string | undefined,
     generated: ChatGenerationResult,
+    storyRouteScope: StoryChatRouteScope | null = null,
+    memoryMarker: StoryChatMemoryMarker | null = null,
   ) {
     const usageRecordedAt = new Date().toISOString();
+    const routeMarker = storyRouteScope ? storyChatRouteMarker(storyRouteScope) : null;
 
     return this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      if (storyRouteScope) {
+        // The conditional write serializes with story resets and beat/route revisions.
+        const current = await tx.storyReaderProgress.updateMany({
+          where: storyChatRouteWhere(storyRouteScope, userId, artistId),
+          data: { updatedAt: storyRouteScope.progressUpdatedAt },
+        });
+        if (current.count !== 1) throw this.storyChatRouteChangedException();
+        if (!memoryMarker || !storyChatMemoryMarkerMatches(memoryMarker, memoryMarker) ||
+          (memoryMarker.source === 'no_verified_interaction' && !storyChatMemoryMarkerMatches(
+            memoryMarker, storyChatMemoryMarker(unverifiedStoryMemoryContext()),
+          ))) throw this.storyChatMemoryChangedException();
+        if (memoryMarker.source === 'attributed_story_dialogue') {
+          const currentMemory = await this.loadLockedStoryMemory(tx, userId, artistId, storyRouteScope);
+          if (!storyChatMemoryMarkerMatches(memoryMarker, storyChatMemoryMarker(currentMemory))) {
+            throw this.storyChatMemoryChangedException();
+          }
+        }
+        if (!await lockApprovedStoryChatIdentity(tx, storyRouteScope, artistId)) {
+          throw this.storyChatRouteChangedException();
+        }
+        if (chatFeatureOrderId) {
+          const activeOrder = await tx.chatFeatureOrder.updateMany({
+            where: {
+              id: chatFeatureOrderId, userId, chatSessionId: sessionId,
+              status: 'completed', messages: { none: { senderType: 'artist' } },
+            },
+            data: { updatedAt: new Date() },
+          });
+          if (activeOrder.count !== 1) {
+            throw new ConflictException('Chat feature order is no longer available');
+          }
+        }
+      }
       const userMessage = await tx.chatMessage.create({
         data: {
           chatSessionId: sessionId,
@@ -3315,6 +3472,9 @@ export class ChatService {
           messageType: 'text',
           body: userMessageBody,
           chatFeatureOrderId,
+          ...(routeMarker ? { modelMetadata: this.inputJson({
+            storyRouteScope: routeMarker, storyMemoryScope: memoryMarker,
+          }) } : {}),
         },
       });
       const aiMessage = await tx.chatMessage.create({
@@ -3336,6 +3496,7 @@ export class ChatService {
               serviceDayTimeZone: KOREA_SERVICE_DAY_TIME_ZONE,
               countedForDailyLimit: !chatFeatureOrderId,
             },
+            ...(routeMarker ? { storyRouteScope: routeMarker, storyMemoryScope: memoryMarker } : {}),
           }),
           safetyMetadata: this.inputJson(generated.safetyMetadata),
         },
@@ -3353,7 +3514,7 @@ export class ChatService {
         message: aiMessage,
         usage: generated.usage,
       };
-    });
+    }, storyRouteScope ? { timeout: 10000 } : undefined);
   }
 
   private async failFeatureOrderAndRestoreLumina(
@@ -3371,11 +3532,28 @@ export class ChatService {
         return order;
       }
 
+      const lockedOrder = await tx.chatFeatureOrder.updateMany({
+        where: {
+          id: order.id,
+          userId,
+          status: 'completed',
+        },
+        data: { updatedAt: new Date() },
+      });
+      if (lockedOrder.count !== 1) return order;
+
+      const generatedMessage = await tx.chatMessage.findFirst({
+        where: { chatFeatureOrderId: order.id, senderType: 'artist' },
+        select: { id: true },
+      });
+      if (generatedMessage) return order;
+
       const failedOrderUpdate = await tx.chatFeatureOrder.updateMany({
         where: {
           id: order.id,
           userId,
-          status: { not: GENERATION_FAILURE_POLICY.orderFailureStatus },
+          status: 'completed',
+          messages: { none: { senderType: 'artist' } },
         },
         data: {
           status: GENERATION_FAILURE_POLICY.orderFailureStatus,

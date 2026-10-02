@@ -8,6 +8,8 @@ const databaseUrl = process.env.STORY_PROVIDER_TEST_DATABASE_URL;
 const describePostgres = databaseUrl ? describe : describe.skip;
 
 describePostgres('durable provider dispatch fence: real PostgreSQL workers', () => {
+  // These FK-incomplete fixtures test only lease/fence behavior, not author authorization.
+  const leaseOnlyGuard = async () => true;
   let dbA: PrismaClient;
   let dbB: PrismaClient;
   let a: PrismaStoryContinuationQueueRepository;
@@ -66,9 +68,13 @@ describePostgres('durable provider dispatch fence: real PostgreSQL workers', () 
     const generate = jest.fn().mockRejectedValue(new StoryContinuationProviderError('provider_outcome_unknown', false));
     const provider = { readiness: async () => ({ enabled: true }), generate };
     const economics = { continuationExecutionAuthorization: async () => ({ allowed: true }),
+      continuationDispatchAuthorization: leaseOnlyGuard,
       failClaimedContinuation: jest.fn(fail), settleClaimedContinuation: jest.fn() };
     return { generate, economics, runner: new StoryContinuationExecutor(queue, provider as never, economics as never,
-      { assemble: async () => ({}) } as never, {} as never) };
+      { assemble: async () => ({
+        sourceScene: { title: 'Synthetic source', beats: [{ beatType: 'paragraph', content: 'Synthetic source scene.' }] },
+        selectedChoice: { label: 'Choose another route' }, path: [], memories: [],
+      }) } as never, {} as never) };
   }
 
   it('atomically allows only one cross-worker claim and one dispatch CAS', async () => {
@@ -76,7 +82,7 @@ describePostgres('durable provider dispatch fence: real PostgreSQL workers', () 
     const claims = await Promise.all([a.claimNext('a', 60_000), b.claimNext('b', 60_000)]);
     expect(claims.filter(Boolean)).toHaveLength(1);
     const claim = claims.find(Boolean)!;
-    const marked = await Promise.allSettled([a.markDispatched(claim), b.markDispatched(claim)]);
+    const marked = await Promise.allSettled([a.markDispatched(claim, leaseOnlyGuard), b.markDispatched(claim, leaseOnlyGuard)]);
     expect(marked.filter((value) => value.status === 'fulfilled')).toHaveLength(1);
     expect((await dbB.storyAiContinuation.findUniqueOrThrow({ where: { id: claim.continuationId } })).dispatchStartedAt).not.toBeNull();
   });
@@ -84,14 +90,14 @@ describePostgres('durable provider dispatch fence: real PostgreSQL workers', () 
   it('never reclaims a dispatched expired lease for generation, even below max attempts', async () => {
     const id = await seed();
     const claim = (await a.claimNext('a', 60_000))!;
-    await a.markDispatched(claim); await expire(id);
+    await a.markDispatched(claim, leaseOnlyGuard); await expire(id);
     expect(await b.claimNext('b', 60_000)).toBeNull();
     const recovered = (await b.claimExpiredTerminal('b', 60_000))!;
     expect(recovered.dispatchStartedAt).toBeInstanceOf(Date);
     expect(recovered.attemptCount).toBe(1);
-    await expect(a.markDispatched(claim)).rejects.toThrow();
+    await expect(a.markDispatched(claim, leaseOnlyGuard)).rejects.toThrow();
     await expect(a.releaseNotAcceptedForRetry(claim, new Date())).rejects.toThrow();
-    await expect(b.markDispatched(recovered)).rejects.toThrow();
+    await expect(b.markDispatched(recovered, leaseOnlyGuard)).rejects.toThrow();
     expect(await a.claimExpiredTerminal('a', 60_000)).toBeNull();
   });
 
@@ -103,31 +109,31 @@ describePostgres('durable provider dispatch fence: real PostgreSQL workers', () 
     const replacement = (await b.claimNext('b', 60_000))!;
     expect(replacement.attemptCount).toBe(2);
     expect(replacement.leaseToken).not.toBe(claim.leaseToken);
-    await expect(a.markDispatched(claim)).rejects.toThrow();
-    await b.markDispatched(replacement);
+    await expect(a.markDispatched(claim, leaseOnlyGuard)).rejects.toThrow();
+    await b.markDispatched(replacement, leaseOnlyGuard);
   });
 
   it('generic retry cannot clear a fence; explicit 429 releases and clears atomically', async () => {
     await seed();
     const claim = (await a.claimNext('a', 60_000))!;
-    await a.markDispatched(claim);
+    await a.markDispatched(claim, leaseOnlyGuard);
     await expect(a.releaseForRetry(claim, 'provider_cancelled', new Date())).rejects.toThrow();
     await a.releaseNotAcceptedForRetry(claim, new Date());
     const row = await dbB.storyAiContinuation.findUniqueOrThrow({ where: { id: claim.continuationId } });
     expect(row).toMatchObject({ status: 'retry_wait', dispatchStartedAt: null, leaseToken: null, lastErrorCode: 'provider_rate_limited' });
     const next = (await b.claimNext('b', 60_000))!;
     await expect(a.releaseNotAcceptedForRetry(claim, new Date())).rejects.toThrow();
-    await b.markDispatched(next);
+    await b.markDispatched(next, leaseOnlyGuard);
   });
 
   it('expired current lease cannot mark dispatch or clear a fence, even before another worker claims', async () => {
     const id = await seed();
     const claim = (await a.claimNext('a', 60_000))!;
     await expire(id);
-    await expect(a.markDispatched(claim)).rejects.toThrow();
+    await expect(a.markDispatched(claim, leaseOnlyGuard)).rejects.toThrow();
     await expect(a.releaseForRetry(claim, 'provider_cancelled', new Date())).rejects.toThrow();
     const next = (await b.claimNext('b', 60_000))!;
-    await b.markDispatched(next); await expire(id);
+    await b.markDispatched(next, leaseOnlyGuard); await expire(id);
     await expect(b.releaseNotAcceptedForRetry(next, new Date())).rejects.toThrow();
   });
 

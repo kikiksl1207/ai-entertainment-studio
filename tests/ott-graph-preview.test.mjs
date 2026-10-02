@@ -55,6 +55,18 @@ test('end-screen mode reveals choices only near the clip end and routes all thre
   }
 });
 
+test('media metadata selects portrait or landscape player layout', async () => {
+  for (const [videoSize, expected] of [
+    [{ width: 720, height: 1280 }, 'portrait'],
+    [{ width: 1920, height: 1080 }, 'landscape']
+  ]) {
+    const page = browser({ search: `?manifestId=${ids.manifest}&endScreen=1`, videoSize });
+    await flush();
+    await page.play();
+    assert.equal(page.elements.previewPlayer.getAttribute('data-video-orientation'), expected);
+  }
+});
+
 test('preview entry honors its pinned locale, then explicitly selects a separate locale pin', async () => {
   const server = graphServer();
   const page = browser({ server, locale: 'en', search: `?previewId=${server.pinId('ja')}` });

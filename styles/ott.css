@@ -10,9 +10,8 @@
 .ott-poster-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 280px)); gap: 22px; }
 .ott-poster-card { display: block; width: 100%; min-width: 0; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .ott-poster-card:only-child { grid-column: 1 / -1; justify-self: center; max-width: 280px; }
-.ott-poster-media { display: block; aspect-ratio: 2 / 3; overflow: hidden; border: 1px solid rgba(255,255,255,.18); border-radius: 6px; background: #14232b; }
-.ott-poster-media img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: 66% center; transition: transform .2s ease; }
-.ott-poster-card[data-ott-demo="joker"] .ott-poster-media img { object-position: center; }
+.ott-poster-media { display: block; aspect-ratio: 16 / 9; overflow: hidden; border: 1px solid rgba(255,255,255,.18); border-radius: 6px; background: #14232b; }
+.ott-poster-media img { display: block; width: 100%; height: 100%; object-fit: contain; transition: transform .2s ease; }
 .ott-poster-card:hover .ott-poster-media, .ott-poster-card:focus-visible .ott-poster-media { border-color: #6ed6c2; }
 .ott-poster-card:hover img { transform: scale(1.03); }
 .ott-poster-card:focus-visible { outline: 2px solid #6ed6c2; outline-offset: 5px; border-radius: 4px; }
@@ -33,10 +32,14 @@
 .ott-player-stage { display: flex; justify-content: center; align-items: center; max-width: 960px; margin-inline: auto; background: #050607; }
 .ott-video-wrap { position: relative; width: 100%; aspect-ratio: 16 / 9; background: #000; }
 .ott-video-wrap video { display: block; width: 100%; height: 100%; object-fit: contain; }
-.ott-player-controls[hidden], .ott-fullscreen-exit[hidden] { display: none; }
+.ott-caption-display[hidden] { display: none; }
+.ott-caption-display { position: absolute; z-index: 2; inset: auto 5% 60px; max-height: calc(100% - 76px); overflow-y: auto; padding: 5px 9px; border-radius: 4px; background: rgba(0,0,0,.82); color: #fff; font-size: 16px; line-height: 1.45; text-align: center; white-space: pre-line; overflow-wrap: anywhere; pointer-events: none; }
+.ott-player-controls[hidden], .ott-fullscreen-exit[hidden], .ott-player-controls button[hidden] { display: none; }
 .ott-player-controls { position: absolute; z-index: 2; inset: auto 0 0; display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 8px 12px; background: rgba(0,0,0,.78); }
 .ott-player-controls button { display: grid; flex: none; place-items: center; width: 34px; height: 34px; padding: 6px; border: 0; border-radius: 4px; background: transparent; color: #fff; cursor: pointer; }
 .ott-player-controls button:hover, .ott-player-controls button:focus-visible { background: rgba(255,255,255,.18); }
+.ott-player-controls #ottToggleCaptions { padding: 0; font-size: 11px; font-weight: 800; letter-spacing: 0; }
+.ott-player-controls #ottToggleCaptions[data-active="true"] { background: rgba(110,214,194,.22); color: #baf5e9; }
 .ott-player-controls svg { width: 20px; height: 20px; }
 .ott-player-controls .ott-icon-pause, .ott-player-controls .ott-icon-muted { display: none; }
 #ottTogglePlayback[data-playing="true"] .ott-icon-play, #ottToggleMute[data-muted="true"] .ott-icon-volume { display: none; }
@@ -53,13 +56,19 @@
 .ott-choice-overlay, .ott-video-error { position: absolute; z-index: 3; inset: 0; display: flex; align-items: flex-end; justify-content: center; padding: 20px; background: rgba(2, 5, 8, .62); }
 .ott-choice-content { width: min(100%, 560px); margin-bottom: 12px; }
 .ott-choice-content > p { margin: 0 0 14px; color: #fff; font-size: 18px; font-weight: 700; line-height: 1.45; text-shadow: 0 1px 8px #000; }
+.ott-choice-content > p[hidden] { display: none; }
+.ott-choice-content > .ott-choice-unavailable { margin-top: 12px; font-size: 14px; font-weight: 400; }
 .ott-choice-list { display: grid; gap: 9px; }
+.ott-choice-list[hidden] { display: none; }
 .ott-choice-list button { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 55px; padding: 10px 14px; border: 1px solid rgba(255,255,255,.65); border-radius: 5px; background: rgba(13, 19, 24, .94); color: #fff; font: inherit; font-size: 15px; font-weight: 700; text-align: left; cursor: pointer; }
 .ott-choice-list button:hover:not(:disabled), .ott-choice-list button:focus-visible { border-color: #6ed6c2; background: #19312e; }
 .ott-choice-list button:disabled { opacity: .55; cursor: not-allowed; }
 .ott-choice-list button[hidden] { display: none; }
 .ott-choice-list button span:first-child { display: grid; flex: none; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: #6ed6c2; color: #0b1515; font-size: 12px; }
-.ott-restart { margin-top: 12px; padding: 8px 0; border: 0; background: transparent; color: #fff; font: inherit; text-decoration: underline; cursor: pointer; }
+.ott-choice-list button span:last-child { min-width: 0; overflow-wrap: anywhere; }
+.ott-choice-content > .ott-public-ending { margin-top: 12px; font-size: 15px; font-weight: 400; }
+.ott-restart, .ott-choice-back { margin-top: 12px; padding: 8px 0; border: 0; background: transparent; color: #fff; font: inherit; text-decoration: underline; cursor: pointer; }
+.ott-choice-back { margin-left: 18px; }
 .ott-video-error { flex-direction: column; align-items: center; justify-content: center; gap: 12px; text-align: center; }
 .ott-video-error button { border: 1px solid #6ed6c2; border-radius: 4px; padding: 10px 14px; background: #19312e; color: #fff; font: inherit; cursor: pointer; }
 .ott-catalog { padding-top: 48px; padding-bottom: 100px; }
@@ -83,6 +92,9 @@
 .ott-card p { margin: 0; color: #aeb8c5; line-height: 1.55; }
 .ott-card-meta { display: flex; justify-content: space-between; gap: 12px; margin-top: 18px; color: #75d5c5; font-size: 12px; }
 .ott-detail-button { display: inline-block; margin-top: 18px; border: 1px solid #75d5c5; border-radius: 4px; padding: 9px 13px; background: transparent; color: #f7f8fb; font: inherit; font-weight: 700; text-decoration: none; }
+.ott-detail-button[type="button"] { cursor: pointer; }
+.ott-detail-button[type="button"]:disabled { opacity: .55; cursor: wait; }
+.ott-watch-status { color: #f1b4aa; }
 .ott-boundary { margin-top: 14px; color: #c5ccd7 !important; font-size: 13px; }
 .ott-detail-view .ott-intro, .ott-detail-view .ott-browse, .ott-detail-view .ott-demo, .ott-detail-view .ott-section-heading { display: none; }
 .ott-detail { max-width: 1120px; }
@@ -93,6 +105,8 @@
 .ott-detail-copy > p { line-height: 1.75; color: #d6dce4; }
 .ott-detail-copy .ott-detail-creator { color: #75d5c5; font-size: 14px; }
 @media (max-width: 768px) {
+  .ott-choice-overlay { align-items: safe flex-end; overflow-y: auto; }
+  .ott-demo { scroll-margin-top: 140px; }
   .ott-intro { padding-top: 24px; padding-bottom: 22px; }
   .ott-intro h1 { font-size: 30px; }
   .ott-browse { padding-top: 4px; padding-bottom: 64px; }
@@ -115,9 +129,11 @@
 }
 @media (max-width: 410px) {
   .ott-player-controls { gap: 4px; padding: 6px; }
+  .ott-caption-display { bottom: 60px; font-size: 13px; }
   .ott-player-controls button { width: 30px; height: 30px; padding: 5px; }
   .ott-time { min-width: 70px; font-size: 11px; }
-  .ott-choice-overlay { align-items: center; padding: 8px; }
+  .ott-choice-overlay { align-items: safe center; padding: 8px; }
+  .ott-choice-overlay { overflow-y: auto; }
   .ott-choice-content { margin-bottom: 0; }
   .ott-choice-content > p { margin-bottom: 6px; font-size: 13px; }
   .ott-choice-list { gap: 5px; }

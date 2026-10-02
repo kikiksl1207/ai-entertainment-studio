@@ -150,6 +150,19 @@ export class OttMediaService {
     }); } catch (error) { await opened?.close(); throw error; }
   }
 
+  async deliverPinnedPublic(ownerId: string, fileId: string, versionId: string, checksum: string) {
+    let opened: StoredObject | undefined;
+    try {
+      return await this.repository.withUpload(uuid(ownerId), uuid(fileId), async (upload) => {
+        this.assertConfirmed(upload);
+        if (upload.versionId !== uuid(versionId) || upload.verified!.sha256 !== checksum) fail('TOKEN_INVALID');
+        opened = await this.storage.open(upload.id);
+        this.assertConfirmedObject(upload, opened);
+        return opened;
+      });
+    } catch (error) { await opened?.close(); throw error; }
+  }
+
   private assertConfirmed(upload: Upload) {
     if (upload.status !== 'confirmed' || !upload.verified || !upload.confirmationHash || !upload.subtitles) fail('NOT_READY');
     const media = upload.verified;

@@ -130,6 +130,7 @@ test('public discovery works at desktop and mobile widths and captures verified 
           await page.evaluate((nextLocale) => window.luminaI18n.setLocale(nextLocale), locale);
           assert.equal(await page.locator('#ottTitle').innerText(), title);
           assert.equal(await page.title(), `${title} | Lumina Stage`);
+          assert.equal(await page.evaluate(() => document.documentElement.lang), locale);
           assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
         }
         await page.evaluate(() => window.luminaI18n.setLocale('ko-KR'));
@@ -172,7 +173,8 @@ test('public discovery works at desktop and mobile widths and captures verified 
         const bounds = element.getBoundingClientRect();
         const image = element.querySelector('img');
         return image.complete && image.naturalWidth > 0 && bounds.width >= 140 && bounds.width <= 300 &&
-          Math.abs(bounds.width / bounds.height - 2 / 3) < .02;
+          Math.abs(bounds.width / bounds.height - 16 / 9) < .02 &&
+          getComputedStyle(image).objectFit === 'contain';
       }), true);
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
       await page.screenshot({ path: join(artifacts, `ott-browse-${width}.png`), fullPage: false });
@@ -184,6 +186,29 @@ test('public discovery works at desktop and mobile widths and captures verified 
       assert.equal(await page.locator('video').evaluate((video) => video.videoWidth === 1280 && video.videoHeight === 720), true);
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
       await page.screenshot({ path: join(artifacts, `ott-${width}.png`), fullPage: false });
+      await page.locator('#ottDemoVideo').evaluate((element) => {
+        element.currentTime = element.duration - 2.5;
+        element.dispatchEvent(new Event('timeupdate'));
+      });
+      await page.locator('#ottChoiceOverlay').waitFor({ state: 'visible' });
+      assert.equal(await page.locator('[data-ott-branch]:visible').count(), 3);
+      assert.equal(await page.locator('#ottDemoVideo').evaluate((element) => element.ended), false);
+      await page.screenshot({ path: join(artifacts, `ott-choice-inline-${width}.png`), fullPage: false });
+      for (const choiceLocale of ['en-US', 'ja-JP', 'zh-CN', 'zh-Hant', 'ko-KR']) {
+        await page.evaluate((nextLocale) => window.luminaI18n.setLocale(nextLocale), choiceLocale);
+        assert.equal(await page.evaluate(() => {
+          const overlay = document.getElementById('ottChoiceOverlay').getBoundingClientRect();
+          const buttons = [...document.querySelectorAll('#ottChoiceOverlay button:not([hidden])')];
+          return document.documentElement.scrollWidth <= innerWidth && buttons.every((button) => {
+            const bounds = button.getBoundingClientRect();
+            return bounds.left >= overlay.left && bounds.right <= overlay.right &&
+              bounds.top >= overlay.top && bounds.bottom <= overlay.bottom;
+          });
+        }), true, `${width}px ${choiceLocale} choice bounds`);
+      }
+      await page.locator('[data-ott-branch="embrace"]').focus();
+      await page.keyboard.press('Enter');
+      await page.waitForFunction(() => document.getElementById('ottDemoVideo').currentSrc.endsWith('/02-branch-embrace-original.mp4'));
       await page.locator('#ottBackToList').click();
       assert.equal(await page.locator('#ottOpenDemo').isVisible(), true);
       assert.equal(await page.locator('#ottDemo').isVisible(), false);
@@ -225,7 +250,14 @@ test('public discovery works at desktop and mobile widths and captures verified 
       return choice.top >= 0 && choice.bottom <= innerHeight;
     }), true);
     await page.screenshot({ path: join(artifacts, 'ott-choice-fullscreen-400.png'), fullPage: false });
-    await page.locator('[data-ott-branch="hesitate"]').click();
+    await page.locator('#ottFullscreenExit').focus();
+    await page.keyboard.press('Shift+Tab');
+    assert.equal(await page.evaluate(() => document.querySelector('.ott-video-wrap').contains(document.activeElement)), true);
+    await page.locator('#ottRestart').focus();
+    await page.keyboard.press('Tab');
+    assert.equal(await page.evaluate(() => document.querySelector('.ott-video-wrap').contains(document.activeElement)), true);
+    await page.locator('[data-ott-branch="hesitate"]').focus();
+    await page.keyboard.press('Enter');
     await page.waitForFunction(() => {
       const element = document.getElementById('ottDemoVideo');
       return element.currentSrc.endsWith('/04-branch-daughter-resists-final.mp4') && Math.abs(element.duration - 22.933991) < .1;
@@ -244,6 +276,8 @@ test('public discovery works at desktop and mobile widths and captures verified 
     await page.locator('#ottChoiceOverlay').waitFor({ state: 'visible', timeout: 20000 });
     assert.equal(await page.locator('[data-ott-branch="ignore"]').isEnabled(), true);
     await page.locator('#ottFullscreenExit').click();
+    await page.waitForFunction(() => document.fullscreenElement === null &&
+      !document.querySelector('.ott-video-wrap').classList.contains('is-pseudo-fullscreen'));
     assert.equal(await page.evaluate(() => document.fullscreenElement === null && !document.querySelector('.ott-video-wrap').classList.contains('is-pseudo-fullscreen')), true);
     if (await page.evaluate(() => window.__ottOrientation.locks.length)) {
       await page.waitForFunction(() => window.__ottOrientation.unlocks > 0);
@@ -257,13 +291,27 @@ test('public discovery works at desktop and mobile widths and captures verified 
     await page.waitForFunction(() => !document.querySelector('[data-ott-branch="ignore"]').disabled);
     assert.equal(await page.locator('[data-ott-branch="ignore"]').isEnabled(), true);
     assert.equal(await page.locator('[data-ott-branch="hesitate"]').isEnabled(), true);
-    await page.route('**/04-branch-daughter-resists-final.mp4', (route) => route.fulfill({ status: 200, contentType: 'video/mp4', body: '' }));
+    await page.route('**/04-branch-daughter-resists-final.mp4', (route) => route.fulfill({
+      status: 200, contentType: 'video/mp4', headers: { 'content-length': '0' }, body: '',
+    }));
     await page.reload({ waitUntil: 'networkidle' });
     await page.locator('#ottOpenDemo').click();
     await page.waitForFunction(() => !document.querySelector('[data-ott-branch="ignore"]').disabled);
     assert.equal(await page.locator('[data-ott-branch="ignore"]').isEnabled(), true);
     assert.equal(await page.locator('[data-ott-branch="hesitate"]').isDisabled(), true);
     assert.match(await page.locator('[data-ott-branch="hesitate"]').innerText(), /아직 선택할 수 없습니다/);
+    await page.locator('#ottDemoVideo').evaluate((video) => video.dispatchEvent(new Event('ended')));
+    await page.locator('#ottChoiceOverlay').waitFor({ state: 'visible' });
+    await page.locator('[data-ott-branch="ignore"]').focus();
+    await page.keyboard.press('Tab');
+    const keyboardState = await page.evaluate(() => ({ active: document.activeElement?.outerHTML,
+      withinOverlay: document.getElementById('ottChoiceOverlay').contains(document.activeElement),
+      restartHidden: document.getElementById('ottRestart').hidden,
+      hesitateDisabled: document.querySelector('[data-ott-branch="hesitate"]').disabled }));
+    assert.equal(keyboardState.hesitateDisabled, true);
+    assert.equal(keyboardState.restartHidden, false);
+    assert.equal(keyboardState.withinOverlay, true, JSON.stringify(keyboardState));
+    assert.doesNotMatch(keyboardState.active || '', /data-ott-branch="hesitate"/);
     await page.close();
 
     const fallbackPage = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
@@ -283,6 +331,12 @@ test('public discovery works at desktop and mobile widths and captures verified 
     await fallbackPage.locator('#ottChoiceOverlay').waitFor({ state: 'visible' });
     assert.equal(await fallbackPage.locator('[data-ott-branch="embrace"]').isVisible(), true);
     await fallbackPage.screenshot({ path: join(artifacts, 'ott-choice-fallback-390.png'), fullPage: false });
+    await fallbackPage.locator('#ottFullscreenExit').focus();
+    await fallbackPage.keyboard.press('Shift+Tab');
+    assert.equal(await fallbackPage.evaluate(() => document.querySelector('.ott-video-wrap').contains(document.activeElement)), true);
+    await fallbackPage.locator('#ottRestart').focus();
+    await fallbackPage.keyboard.press('Tab');
+    assert.equal(await fallbackPage.evaluate(() => document.querySelector('.ott-video-wrap').contains(document.activeElement)), true);
     await fallbackPage.setViewportSize({ width: 844, height: 390 });
     assert.equal(await fallbackPage.locator('[data-ott-branch="hesitate"]').evaluate((element) => {
       const bounds = element.getBoundingClientRect();
@@ -295,6 +349,7 @@ test('public discovery works at desktop and mobile widths and captures verified 
       const bounds = element.getBoundingClientRect();
       return bounds.top >= 0 && bounds.bottom <= innerHeight;
     }), true);
+    await fallbackPage.screenshot({ path: join(artifacts, 'ott-choice-landscape-568.png'), fullPage: false });
     await fallbackPage.locator('[data-ott-branch="embrace"]').click();
     await fallbackPage.waitForFunction(() => document.getElementById('ottDemoVideo').currentSrc.endsWith('/02-branch-embrace-original.mp4'));
     await fallbackPage.locator('#ottToggleFullscreen').click();
@@ -353,6 +408,128 @@ test('approved title poster opens a detail view without exposing private playbac
       await page.locator('.ott-back').click();
       await page.locator('.ott-card-art img').first().waitFor();
       await page.close();
+    }
+  } finally {
+    await browser?.close();
+    server.closeAllConnections?.();
+    await new Promise((resolve) => server.close(resolve));
+    server.unref();
+  }
+});
+
+test('public video captions follow clip and language, with no CC control for missing files', async () => {
+  await mkdir(artifacts, { recursive: true });
+  const server = staticServer();
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  let browser;
+  try {
+    browser = await chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE
+      ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE } : {}) });
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    const captionRequests = [];
+    await page.route(catalogApi, emptyCatalog);
+    await page.route('**/assets/ott/mothers-choice/subtitles/*.vtt', (route) => {
+      const name = new URL(route.request().url()).pathname.split('/').at(-1);
+      captionRequests.push(name);
+      if (name.endsWith('.ja.vtt')) return route.fulfill({ status: 404 });
+      return route.fulfill({ status: 200, contentType: 'text/vtt',
+        body: 'WEBVTT\n\n00:00:00.000 --> 00:00:30.000\nCaption test\n' });
+    });
+    await page.addInitScript(() => {
+      sessionStorage.setItem('ls_splashed', '1');
+      localStorage.setItem('lumina_locale', 'ko-KR');
+    });
+    await page.goto(`${base}/ott`, { waitUntil: 'domcontentloaded' });
+    await page.locator('#ottOpenDemo').click();
+    const cc = page.locator('#ottToggleCaptions');
+    await cc.waitFor({ state: 'visible' });
+    await page.waitForFunction(() => document.getElementById('ottDemoVideo').duration > 0);
+    await page.locator('#ottCaptionDisplay').waitFor({ state: 'visible' });
+    assert.equal(await page.evaluate(() => document.getElementById('ottCaptionDisplay').getBoundingClientRect().bottom <=
+      document.getElementById('ottPlayerControls').getBoundingClientRect().top), true);
+    assert.equal(await page.locator('.ott-intro').isVisible(), false);
+    assert.equal(await page.evaluate(() => document.getElementById('ottBackToList').getBoundingClientRect().top >=
+      document.querySelector('.site-header').getBoundingClientRect().bottom), true);
+    await page.screenshot({ path: join(artifacts, 'ott-captions-390.png'), fullPage: false });
+    assert.equal(await page.evaluate(() => {
+      const controls = document.getElementById('ottPlayerControls').getBoundingClientRect();
+      return [...document.querySelectorAll('#ottPlayerControls button:not([hidden])')].every((button) => {
+        const bounds = button.getBoundingClientRect();
+        return bounds.left >= controls.left && bounds.right <= controls.right;
+      });
+    }), true);
+    assert.deepEqual(await page.locator('#ottDemoVideo track').evaluateAll((tracks) => tracks.map((track) => track.srclang)), ['ko']);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    assert.equal(await cc.getAttribute('aria-label'), '자막 끄기');
+    await cc.click();
+    assert.equal(await page.locator('#ottCaptionDisplay').isVisible(), false);
+    await page.evaluate(() => window.luminaI18n.setLocale('en-US'));
+    await page.waitForFunction(() => document.querySelector('#ottDemoVideo track')?.srclang === 'en');
+    assert.equal(await page.locator('#ottDemoVideo track').evaluate((track) => track.track.mode), 'hidden');
+    assert.equal(await page.locator('#ottCaptionDisplay').isVisible(), false);
+    assert.equal(await cc.getAttribute('aria-label'), 'Turn captions on');
+    await cc.click();
+    await page.locator('#ottCaptionDisplay').waitFor({ state: 'visible' });
+    assert.equal(await page.locator('#ottCaptionDisplay').innerText(), 'Caption test');
+    await page.locator('#ottDemoVideo').evaluate((video) => {
+      video.currentTime = video.duration - 2.5;
+      video.dispatchEvent(new Event('timeupdate'));
+    });
+    await page.locator('#ottChoiceOverlay').waitFor({ state: 'visible' });
+    await page.locator('[data-ott-branch="embrace"]').click();
+    await page.waitForFunction(() => document.querySelector('#ottDemoVideo track')?.srclang === 'en');
+    assert.equal(await cc.isVisible(), true);
+    assert.equal(captionRequests.includes('embrace.en.vtt'), true);
+    for (const [nextLocale, code] of [['zh-CN', 'zh-Hans'], ['zh-Hant', 'zh-Hant']]) {
+      await page.evaluate((value) => window.luminaI18n.setLocale(value), nextLocale);
+      await page.waitForFunction((expected) => document.querySelector('#ottDemoVideo track')?.srclang === expected, code);
+      assert.equal(captionRequests.includes(`embrace.${code}.vtt`), true);
+    }
+    await page.evaluate(() => window.luminaI18n.setLocale('ja-JP'));
+    await cc.waitFor({ state: 'hidden' });
+    assert.equal(await page.locator('#ottDemoVideo track').count(), 0);
+    await page.locator('#ottBackToList').click();
+    assert.equal(await page.locator('.ott-intro').isVisible(), true);
+    await page.close();
+    for (const width of [400, 1280]) {
+      const screen = await browser.newPage({ viewport: { width, height: width === 400 ? 844 : 800 } });
+      await screen.route(catalogApi, emptyCatalog);
+      await screen.route('**/assets/ott/mothers-choice/subtitles/common.ko.vtt', (route) => route.fulfill({
+        status: 200, contentType: 'text/vtt', body: 'WEBVTT\n\n00:00:00.000 --> 00:00:30.000\nCaption test\n',
+      }));
+      await screen.addInitScript(() => {
+        sessionStorage.setItem('ls_splashed', '1');
+        localStorage.setItem('lumina_locale', 'ko-KR');
+      });
+      await screen.goto(`${base}/ott`, { waitUntil: 'domcontentloaded' });
+      await screen.locator('#ottOpenDemo').click();
+      await screen.locator('#ottCaptionDisplay').waitFor({ state: 'visible' });
+      assert.equal(await screen.evaluate(() => {
+        const caption = document.getElementById('ottCaptionDisplay').getBoundingClientRect();
+        const controls = document.getElementById('ottPlayerControls').getBoundingClientRect();
+        const video = document.querySelector('.ott-video-wrap').getBoundingClientRect();
+        return caption.bottom <= controls.top && caption.left >= video.left && caption.right <= video.right &&
+          document.documentElement.scrollWidth <= innerWidth;
+      }), true, `${width}px caption bounds`);
+      if (width === 400) {
+        await screen.locator('#ottToggleFullscreen').click();
+        await screen.waitForFunction(() => document.fullscreenElement?.classList.contains('ott-video-wrap') ||
+          document.querySelector('.ott-video-wrap').classList.contains('is-pseudo-fullscreen'));
+        assert.equal(await screen.locator('#ottCaptionDisplay').isVisible(), true);
+        assert.equal(await screen.evaluate(() => document.getElementById('ottCaptionDisplay').getBoundingClientRect().bottom <=
+          document.getElementById('ottPlayerControls').getBoundingClientRect().top), true);
+        await screen.locator('#ottToggleFullscreen').click();
+      }
+      await screen.screenshot({ path: join(artifacts, `ott-captions-${width}.png`), fullPage: false });
+      if (width === 1280) {
+        await screen.locator('#ottDemoVideo').evaluate((video) => video.dispatchEvent(new Event('error')));
+        assert.equal(await screen.locator('#ottCaptionDisplay').isVisible(), false);
+        assert.equal(await screen.evaluate(() => document.activeElement?.id), 'ottVideoRetry');
+        await screen.locator('#ottVideoRetry').click();
+        await screen.locator('#ottCaptionDisplay').waitFor({ state: 'visible' });
+      }
+      await screen.close();
     }
   } finally {
     await browser?.close();

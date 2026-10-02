@@ -2,7 +2,6 @@
   const apiBase = (window.LUMINA_API_BASE || "https://api.lumina-stage.com").replace(/\/$/, "");
   const authKey = "lumina_auth";
   const authStorageKeys = ["lumina_auth", "lumina.session"];
-  const studioHandoffKey = "lumina_creator_studio_handoff";
   const shell = document.getElementById("studioShell");
   const gate = document.getElementById("studioAccessGate");
   const kicker = document.getElementById("studioGateKicker");
@@ -14,11 +13,19 @@
   let studioModalConfirmHandler = null;
   let studioToastTimer = null;
   let storyIntakeRequestKey = null;
+  let storyIntakeSubmitting = false;
   let writerFileRead = 0;
   let writerCatalogRequest = 0;
+  let writerDraftRequestId = null;
+  let writerDraftOwnerId = null;
+  let writerDraftCreating = false;
+  let writerWorks = [];
+  let writerMetadataSaving = false;
+  let writerPendingCover = null;
   const writerMaxBytes = 16 * 1024 * 1024;
   const writerMaxManifestBytes = 128 * 1024;
   let writerParts = [];
+  let writerAutoParts = false;
   let writerBoundariesReviewed = false;
   let writerReview = null;
   let writerFeedback = null;
@@ -28,6 +35,12 @@
   let writerUiLocaleEpoch = 0;
   let studioAuthMarker = null;
   let studioAuthEpoch = 0;
+  let studioRefresh = null;
+  let studioRefreshSource = null;
+  let studioCompletedRefresh = null;
+  let studioVerification = 0;
+  let studioVerificationController = null;
+  let studioAccessIdentity = null;
   let artistIdentityResponse = null;
   let artistIdentityBusy = false;
   let artistIdentityRequestEpoch = 0;
@@ -109,28 +122,44 @@
         authStorageKeys.forEach(key => localStorage.removeItem(key));
       }
     } catch (_) {}
+    if (!auth) {
+      if (typeof window.dispatchEvent === "function") window.dispatchEvent(new Event("lumina:authchange"));
+      else studioAccountChanged();
+    }
   }
 
   function normalizeAuth(auth) {
     if (!auth || typeof auth !== "object") return null;
     const accessToken = auth.accessToken || auth.access_token || auth.token || auth.tokens?.accessToken || auth.tokens?.access_token || null;
     const refreshToken = auth.refreshToken || auth.refresh_token || auth.tokens?.refreshToken || auth.tokens?.refresh_token || null;
+    const user = auth.user || auth.viewer || null;
     return {
       ...auth,
       accessToken,
       refreshToken,
-      user: auth.user || auth.viewer || null
+      user: user && !user.id && user.userId ? { ...user, id: user.userId } : user
     };
   }
 
   function sameStudioAuth(left, right) {
+    if (!left || !right) return left === right;
     return Boolean(left && right && left.accessToken === right.accessToken && left.refreshToken === right.refreshToken &&
       (left.user?.id || left.user?.email) === (right.user?.id || right.user?.email));
   }
 
   function studioIdentity() {
     const auth = readAuth();
-    if (!sameStudioAuth(studioAuthMarker, auth)) studioAuthEpoch++;
+    if (!sameStudioAuth(studioAuthMarker, auth)) {
+      const sharedRotation = auth && studioAuthMarker &&
+        (auth.user?.id || auth.user?.email) === (studioAuthMarker.user?.id || studioAuthMarker.user?.email) &&
+        typeof window.authRequestSession === "function" && typeof window.authRequestSessionCurrent === "function" &&
+        window.authRequestSessionCurrent(window.authRequestSession(studioAuthMarker));
+      if (sharedRotation) studioCompletedRefresh = { source: studioAuthMarker, auth };
+      else {
+        studioAuthEpoch++;
+        studioCompletedRefresh = null;
+      }
+    }
     studioAuthMarker = auth;
     return { ownerId: auth?.user?.id || auth?.user?.email || null, epoch: studioAuthEpoch };
   }
@@ -140,65 +169,73 @@
     return Boolean(identity?.ownerId && current.ownerId === identity.ownerId && current.epoch === identity.epoch);
   }
 
-  function readStudioHandoff() {
-    try {
-      const raw = sessionStorage.getItem(studioHandoffKey);
-      if (!raw) return null;
-      const handoff = JSON.parse(raw);
-      const recent = Date.now() - Number(handoff.savedAt || 0) < 5 * 60 * 1000;
-      const auth = readAuth();
-      const hasToken = Boolean(auth?.accessToken || auth?.refreshToken);
-      const authEmail = auth?.user?.email || "";
-      const sameUser = !handoff.viewerEmail || Boolean(authEmail && handoff.viewerEmail === authEmail);
-      const hasFullBootstrap = Array.isArray(handoff.data?.artists);
-      return recent && hasToken && sameUser && hasFullBootstrap && handoff.data?.access?.enabled === true ? handoff.data : null;
-    } catch (_) {
-      return null;
-    }
-  }
-
-  async function refreshStudioAuthOnce() {
-    const auth = readAuth();
+  async function refreshStudioAuthOnce(auth = readAuth()) {
+    if (studioCompletedRefresh && sameStudioAuth(auth, studioCompletedRefresh.source) &&
+      sameStudioAuth(readAuth(), studioCompletedRefresh.auth)) return studioCompletedRefresh.auth;
+    if (!sameStudioAuth(auth, readAuth())) return null;
     const refreshToken = auth?.refreshToken;
     if (!refreshToken) return null;
+    if (studioRefresh && sameStudioAuth(auth, studioRefreshSource)) return studioRefresh;
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 12000);
-    try {
-      const res = await fetch(apiBase + "/api/v1/auth/refresh", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ refreshToken }),
-        signal: controller.signal
-      });
-      if (!sameStudioAuth(auth, readAuth())) return null;
-      if (!res.ok) {
-        writeAuth(null);
+    if (typeof window.refreshAuthOnce === "function" && typeof window.authRequestSessionCurrent === "function" &&
+      typeof window.authRequestSession === "function" && typeof API_BASE === "string" && API_BASE === apiBase) {
+      const refreshed = normalizeAuth(await window.refreshAuthOnce(auth));
+      if (!refreshed || !sameStudioAuth(refreshed, readAuth()) ||
+        (refreshed.user?.id || refreshed.user?.email) !== (auth.user?.id || auth.user?.email)) return null;
+      studioAuthMarker = refreshed;
+      studioCompletedRefresh = { source: auth, auth: refreshed };
+      return refreshed;
+    }
+
+    const operation = (async () => {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 12000);
+      try {
+        const res = await fetch(apiBase + "/api/v1/auth/refresh", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ refreshToken }),
+          signal: controller.signal
+        });
+        if (!sameStudioAuth(auth, readAuth())) return null;
+        if (!res.ok) {
+          writeAuth(null);
+          return null;
+        }
+        const data = await res.json().catch(() => null);
+        if (!sameStudioAuth(auth, readAuth())) return null;
+        const accessToken = data?.accessToken || data?.tokens?.accessToken || data?.access_token;
+        const nextRefreshToken = data?.refreshToken || data?.tokens?.refreshToken || data?.refresh_token || refreshToken;
+        if (!accessToken) {
+          writeAuth(null);
+          return null;
+        }
+        const nextAuth = normalizeAuth({
+          ...auth,
+          ...data,
+          accessToken,
+          refreshToken: nextRefreshToken,
+          user: data?.user || auth.user
+        });
+        if ((nextAuth.user?.id || nextAuth.user?.email) !== (auth.user?.id || auth.user?.email)) return null;
+        writeAuth(nextAuth);
+        studioAuthMarker = nextAuth;
+        studioCompletedRefresh = { source: auth, auth: nextAuth };
+        return nextAuth;
+      } catch (_) {
         return null;
+      } finally {
+        clearTimeout(timeoutId);
       }
-      const data = await res.json().catch(() => null);
-      if (!sameStudioAuth(auth, readAuth())) return null;
-      const accessToken = data?.accessToken || data?.tokens?.accessToken || data?.access_token;
-      const nextRefreshToken = data?.refreshToken || data?.tokens?.refreshToken || data?.refresh_token || refreshToken;
-      if (!accessToken) {
-        writeAuth(null);
-        return null;
+    })();
+    studioRefresh = operation;
+    studioRefreshSource = auth;
+    try { return await operation; }
+    finally {
+      if (studioRefresh === operation) {
+        studioRefresh = null;
+        studioRefreshSource = null;
       }
-      const nextAuth = normalizeAuth({
-        ...auth,
-        ...data,
-        accessToken,
-        refreshToken: nextRefreshToken,
-        user: data?.user || auth.user
-      });
-      if ((nextAuth.user?.id || nextAuth.user?.email) !== (auth.user?.id || auth.user?.email)) return null;
-      writeAuth(nextAuth);
-      studioAuthMarker = nextAuth;
-      return nextAuth;
-    } catch (_) {
-      return null;
-    } finally {
-      clearTimeout(timeoutId);
     }
   }
 
@@ -225,36 +262,40 @@
     }
   }
 
-  async function fetchStudioBootstrap(token, signal) {
+  async function fetchStudioBootstrap(signal, identity) {
     return fetchCreatorStudioApi("/api/v1/me/creator-studio", {
-      token,
-      signal
+      signal,
+      identity
     });
   }
 
   async function fetchCreatorStudioApi(path, options = {}) {
-    if (options.identity && !currentStudioIdentity(options.identity)) throw new DOMException("Context changed", "AbortError");
+    const identity = options.identity || studioIdentity();
+    if (!currentStudioIdentity(identity)) throw new DOMException("Context changed", "AbortError");
     let auth = readAuth();
     if (!options.token && !auth?.accessToken && auth?.refreshToken) {
-      auth = await refreshStudioAuthOnce();
+      auth = await refreshStudioAuthOnce(auth);
     }
-    if (options.identity && !currentStudioIdentity(options.identity)) throw new DOMException("Context changed", "AbortError");
+    if (!currentStudioIdentity(identity)) throw new DOMException("Context changed", "AbortError");
     const token = options.token || auth?.accessToken;
+    if (!token || token !== readAuth()?.accessToken) throw new DOMException("Context changed", "AbortError");
     const headers = { ...(options.headers || {}) };
-    if (token) headers.Authorization = "Bearer " + token;
-    if (options.body) headers["Content-Type"] = "application/json";
+    headers.Authorization = "Bearer " + token;
+    if (options.body && !options.formData) headers["Content-Type"] = "application/json";
     let res = await fetch(apiBase + path, {
       method: options.method || "GET",
       headers,
-      body: options.body ? JSON.stringify(options.body) : undefined,
+      body: options.formData || (options.body ? JSON.stringify(options.body) : undefined),
       signal: options.signal
     });
-    if (options.identity && !currentStudioIdentity(options.identity)) throw new DOMException("Context changed", "AbortError");
+    if (!currentStudioIdentity(identity)) throw new DOMException("Context changed", "AbortError");
     if (res.status === 401 && !options._retried) {
-      const refreshed = await refreshStudioAuthOnce();
+      const refreshed = await refreshStudioAuthOnce(auth);
+      if (!currentStudioIdentity(identity)) throw new DOMException("Context changed", "AbortError");
       if (refreshed?.accessToken) {
         res = await fetchCreatorStudioApi(path, {
           ...options,
+          identity,
           token: refreshed.accessToken,
           _retried: true
         });
@@ -277,49 +318,26 @@
   };
 
   async function fetchStoryIntake(formData, idempotencyKey, options = {}) {
-    let auth = readAuth();
-    if (!options.token && !auth?.accessToken && auth?.refreshToken) {
-      auth = await refreshStudioAuthOnce();
-    }
-    const token = options.token || auth?.accessToken;
-    const headers = { "Idempotency-Key": idempotencyKey };
-    if (token) headers.Authorization = "Bearer " + token;
-    let res = await fetch(apiBase + "/api/v1/story-upload/intake", {
+    return fetchCreatorStudioApi("/api/v1/story-upload/intake", {
+      ...options,
       method: "POST",
-      headers,
-      body: formData
+      headers: { "Idempotency-Key": idempotencyKey },
+      formData
     });
-    if (res.status === 401 && !options._retried) {
-      const refreshed = await refreshStudioAuthOnce();
-      if (refreshed?.accessToken) {
-        res = await fetchStoryIntake(formData, idempotencyKey, {
-          ...options,
-          token: refreshed.accessToken,
-          _retried: true
-        });
-      }
-    }
-    return res;
   }
 
   async function fetchWriterPaste(workId, formData, options = {}) {
     if (!currentStudioIdentity(options.identity)) return null;
-    let auth = readAuth();
-    if (!options.token && !auth?.accessToken && auth?.refreshToken) auth = await refreshStudioAuthOnce();
-    if (!currentStudioIdentity(options.identity)) return null;
-    const token = options.token || auth?.accessToken;
-    if (!token) return null;
-    const res = await fetch(apiBase + "/api/v1/me/creator-studio/stories/" + encodeURIComponent(workId) + "/manuscripts/paste", {
-      method: "POST",
-      headers: { Authorization: "Bearer " + token },
-      body: formData
-    });
-    if (!currentStudioIdentity(options.identity)) return null;
-    if (res.status === 401 && !options._retried) {
-      const refreshed = await refreshStudioAuthOnce();
-      if (refreshed?.accessToken) return fetchWriterPaste(workId, formData, { ...options, token: refreshed.accessToken, _retried: true });
+    try {
+      return await fetchCreatorStudioApi("/api/v1/me/creator-studio/stories/" + encodeURIComponent(workId) + "/manuscripts/paste", {
+        ...options,
+        method: "POST",
+        formData
+      });
+    } catch (error) {
+      if (error?.name === "AbortError") return null;
+      throw error;
     }
-    return res;
   }
 
   function authEmail() {
@@ -389,6 +407,7 @@
   function openStudioShellPending() {
     if (gate) gate.hidden = false;
     if (shell) shell.hidden = true;
+    if (actions) actions.hidden = true;
     setGateChecking();
     markStudioReady();
   }
@@ -1039,20 +1058,21 @@
   }
 
   async function loadSettlementConversions() {
+    const identity = studioIdentity();
     const token = readAuth()?.accessToken;
     const rows = document.getElementById("studioSettlementConversionRows");
     if (!token || !rows) return;
     rows.innerHTML = '<tr><td colspan="5">접수된 정산금 충전 신청을 불러오는 중입니다.</td></tr>';
     try {
       const params = new URLSearchParams({ period: currentPeriod(), status: "requested" });
-      const res = await fetch(apiBase + "/api/v1/me/creator-studio/settlement-conversions?" + params, {
-        headers: { Authorization: "Bearer " + token }
-      });
+      const res = await fetchCreatorStudioApi("/api/v1/me/creator-studio/settlement-conversions?" + params, { identity });
       if (!res.ok) throw new Error("load failed");
       const data = await res.json().catch(() => null);
+      if (!currentStudioIdentity(identity)) return;
       const items = Array.isArray(data) ? data : data?.items || data?.requests || [];
       renderSettlementConversions(items);
     } catch (_) {
+      if (!currentStudioIdentity(identity)) return;
       rows.innerHTML = '<tr><td colspan="5">신청 목록을 불러오지 못했습니다. 잠시 후 다시 확인해주세요.</td></tr>';
     }
   }
@@ -1269,6 +1289,7 @@
   }
 
   async function loadKnowledgeUrls() {
+    const identity = studioIdentity();
     const auth = readAuth();
     const rows = document.getElementById("knowledgeUrlRows");
     if ((!auth?.accessToken && !auth?.refreshToken) || !rows) return;
@@ -1281,7 +1302,7 @@
       const params = new URLSearchParams();
       const artistSel = document.getElementById("knowledgeUrlArtistSelect");
       if (artistSel?.value) params.set("artistId", artistSel.value);
-      const res = await fetchCreatorStudioApi("/api/v1/me/creator-studio/knowledge-urls?" + params);
+      const res = await fetchCreatorStudioApi("/api/v1/me/creator-studio/knowledge-urls?" + params, { identity });
       // #460 — API 미개방(404/501)과 권한 없음(403) 구분
       if (res.status === 403) {
         rows.innerHTML = '<tr><td colspan="6">이 기능 사용 권한이 없어요. 운영팀 안내 후 이용할 수 있습니다.</td></tr>';
@@ -1299,11 +1320,13 @@
       }
       if (!res.ok) throw new Error("load failed");
       const data = await res.json().catch(() => null);
+      if (!currentStudioIdentity(identity)) return;
       const items = Array.isArray(data) ? data : (data?.items || data?.urls || []);
       setKnowledgeSubmitLocked(false);
       setKnowledgeUrlState("", "");
       renderKnowledgeUrls(items);
     } catch (_) {
+      if (!currentStudioIdentity(identity)) return;
       if (rows) rows.innerHTML = '<tr><td colspan="6">목록을 불러오지 못했습니다. 잠시 후 다시 확인해주세요.</td></tr>';
     }
   }
@@ -1426,11 +1449,21 @@
       return { error: "partMismatch", values: { count: writerParts.length, expected: expectedRaw } };
     }
     const parts = [];
+    const prefaceEnd = writerParts[0]?.prefaceEnd;
+    const separatePreface = Boolean(document.getElementById("writerManuscriptSeparatePreface")?.checked && prefaceEnd);
+    if (separatePreface && (!Number.isSafeInteger(prefaceEnd) || prefaceEnd <= 0 || prefaceEnd >= body.length ||
+        !body.slice(0, prefaceEnd).trim() ||
+        (body[prefaceEnd - 1] === "\r" && body[prefaceEnd] === "\n") ||
+        (body.charCodeAt(prefaceEnd - 1) >= 0xd800 && body.charCodeAt(prefaceEnd - 1) <= 0xdbff))) {
+      return { error: "invalidBoundary" };
+    }
     for (let index = 0; index < writerParts.length; index++) {
-      const { offset: start, title } = writerParts[index];
+      const { offset, title } = writerParts[index];
+      const start = index === 0 && separatePreface ? prefaceEnd : offset;
       const end = writerParts[index + 1]?.offset ?? body.length;
       if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) ||
-          start !== (parts[index - 1]?.end ?? 0) || end <= start || end > body.length ||
+          start !== (parts[index - 1]?.end ?? (separatePreface ? prefaceEnd : 0)) ||
+          end <= start || end > body.length ||
           (start > 0 && body[start - 1] === "\r" && body[start] === "\n") ||
           (start > 0 && body.charCodeAt(start - 1) >= 0xd800 && body.charCodeAt(start - 1) <= 0xdbff)) {
         return { error: "invalidBoundary" };
@@ -1439,7 +1472,8 @@
       if (title.includes("\0") || !writerWellFormed(title)) return { error: "invalidUnicode" };
       parts.push({ partKey: "part-" + (index + 1), title, start, end });
     }
-    const manifest = { locale, confirmed: true, parts };
+    const manifest = { locale, confirmed: true,
+      ...(separatePreface ? { preface: { start: 0, end: prefaceEnd } } : {}), parts };
     if (new TextEncoder().encode(JSON.stringify(manifest)).byteLength > writerMaxManifestBytes) {
       return { error: "tooLarge" };
     }
@@ -1517,6 +1551,19 @@
     const root = document.getElementById("writerManuscriptParts");
     const body = document.getElementById("writerManuscriptBody");
     if (!root || !body) return;
+    const preface = document.getElementById("writerManuscriptPreface");
+    const prefaceChoice = document.getElementById("writerManuscriptPrefaceChoice");
+    const separatePreface = Boolean(document.getElementById("writerManuscriptSeparatePreface")?.checked &&
+      writerParts[0]?.prefaceEnd);
+    const hasPreface = Boolean(writerParts[0]?.prefaceEnd &&
+      body.value.slice(0, writerParts[0].prefaceEnd).trim());
+    if (prefaceChoice) prefaceChoice.hidden = !hasPreface;
+    if (preface) {
+      preface.hidden = !hasPreface;
+      const key = separatePreface ? "prefaceExcluded" : "prefaceIncluded";
+      preface.dataset.i18n = "writerManuscript." + key;
+      preface.textContent = writerText(key);
+    }
     root.replaceChildren();
     writerParts.forEach((part, index) => {
       const end = writerParts[index + 1]?.offset ?? body.value.length;
@@ -1530,9 +1577,10 @@
       view.type = "button";
       view.className = "secondary-action";
       view.textContent = writerText("viewPart");
+      const previewStart = index === 0 && separatePreface ? part.prefaceEnd : part.offset;
       view.addEventListener("click", () => {
         body.focus();
-        body.setSelectionRange(part.offset, end);
+        body.setSelectionRange(previewStart, end);
       });
       header.append(label, view);
       if (index > 0) {
@@ -1542,6 +1590,7 @@
         remove.textContent = writerText("removePart");
         remove.addEventListener("click", () => {
           writerParts.splice(index, 1);
+          writerAutoParts = false;
           invalidateWriterReview();
           renderWriterParts();
           writerSourceChanged();
@@ -1557,24 +1606,75 @@
       input.value = part.title;
       input.addEventListener("input", () => {
         part.title = input.value;
+        writerAutoParts = false;
         invalidateWriterReview();
         writerSourceChanged();
       });
       title.append(titleLabel, input);
       const preview = document.createElement("pre");
       preview.className = "writer-manuscript-part-preview";
-      const excerpt = body.value.slice(part.offset, Math.min(end, part.offset + 300));
-      preview.textContent = excerpt + (end - part.offset > 300 ? "…" : "");
+      const excerpt = body.value.slice(previewStart, Math.min(end, previewStart + 300));
+      preview.textContent = excerpt + (end - previewStart > 300 ? "…" : "");
       section.append(header, title, preview);
       root.append(section);
     });
   }
 
+  function suggestedWriterParts(value) {
+    const headings = [];
+    const lineBreak = /\r\n|\n|\r/g;
+    const heading = /^\uFEFF?(?:#{1,3}[ \t]*)?(?:(Part|Side|외전)[ \t]+([0-9]{1,4})[ \t]*[.·:：-][ \t]*|(?:제[ \t]*)?([0-9]{1,4})[ \t]*(?:화|장|편)[ \t]*(?:[.·:：-][ \t]*)?)(.+?)[ \t]*$/iu;
+    let start = 0;
+    function checkLine(end) {
+      const match = value.slice(start, end).match(heading);
+      if (match && match[4].trim() && Number(match[2] || match[3]) >= 1 &&
+          Number(match[2] || match[3]) <= 1000) {
+        headings.push({ offset: start, kind: match[1]?.toLowerCase() || "chapter",
+          number: Number(match[2] || match[3]), title: match[4].trim() });
+      }
+    }
+    for (const line of value.matchAll(lineBreak)) {
+      checkLine(line.index);
+      start = line.index + line[0].length;
+      if (headings.length > 1000) return null;
+    }
+    checkLine(value.length);
+    if (!headings.length || headings.length > 1000 || headings[0].number !== 1) return null;
+    for (let index = 1; index < headings.length; index++) {
+      const previous = headings[index - 1];
+      const current = headings[index];
+      if (current.kind === previous.kind && current.number !== previous.number + 1) return null;
+      if (current.kind !== previous.kind && current.number !== 1) return null;
+    }
+    return headings.map((part, index) => ({ offset: index === 0 ? 0 : part.offset,
+      title: part.title.slice(0, 240), ...(index === 0 && part.offset > 0 ? { prefaceEnd: part.offset } : {}) }));
+  }
+
   function writerBodyEdited() {
     ++writerFileRead;
+    const separatePreface = document.getElementById("writerManuscriptSeparatePreface");
+    if (separatePreface) separatePreface.checked = false;
+    if (!writerAutoParts && writerParts[0]?.prefaceEnd) delete writerParts[0].prefaceEnd;
     const value = document.getElementById("writerManuscriptBody")?.value || "";
-    if (!value) writerParts = [];
-    else if (!writerParts.length) writerParts = [{ offset: 0, title: "" }];
+    if (!value) { writerParts = []; writerAutoParts = false; }
+    else if (writerAutoParts || !writerParts.length) {
+      const suggested = suggestedWriterParts(value);
+      writerParts = suggested || [{ offset: 0, title: "" }];
+      writerAutoParts = Boolean(suggested);
+    }
+    invalidateWriterReview();
+    renderWriterParts();
+    writerSourceChanged();
+  }
+
+  function autoWriterParts() {
+    const value = document.getElementById("writerManuscriptBody")?.value || "";
+    const suggested = suggestedWriterParts(value);
+    if (!suggested) return writerState("autoNotFound", "danger");
+    const separatePreface = document.getElementById("writerManuscriptSeparatePreface");
+    if (separatePreface) separatePreface.checked = false;
+    writerParts = suggested;
+    writerAutoParts = true;
     invalidateWriterReview();
     renderWriterParts();
     writerSourceChanged();
@@ -1592,6 +1692,7 @@
     }
     writerParts.push({ offset, title: "" });
     writerParts.sort((a, b) => a.offset - b.offset);
+    writerAutoParts = false;
     invalidateWriterReview();
     renderWriterParts();
     writerSourceChanged();
@@ -1646,7 +1747,9 @@
             receipt?.received?.sourceKind !== "utf8_paste" ||
             receipt.received.byteLength !== review.bytes.byteLength ||
             receipt.received.parts !== review.manifest.parts.length ||
-            receipt.analysisStarted !== false || typeof receipt.idempotentReplay !== "boolean") {
+            typeof receipt.analysisStarted !== "boolean" ||
+            (receipt.analysisStarted && !/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(receipt.analysisJobId || "")) ||
+            typeof receipt.idempotentReplay !== "boolean") {
           writerFeedback = { key: "invalidReceipt", tone: "danger" };
         } else {
           writerReceipt = Object.freeze({ id: receipt.manuscript.id, workId: review.workId,
@@ -1660,24 +1763,197 @@
             values: { version: receipt.manuscript.version, count: receipt.received.parts,
               bytes: receipt.received.byteLength.toLocaleString() }
           };
-          window.LuminaCreatorAnalysis?.receive?.(writerReceipt, { fromSubmit: true });
+          window.LuminaCreatorAnalysis?.receive?.(writerReceipt, {
+            fromSubmit: !receipt.analysisStarted,
+            existingAnalysisId: receipt.analysisStarted ? receipt.analysisJobId : null
+          });
         }
       }
     } catch (_) {
       if (writerMatchesReview(review)) writerFeedback = { key: "requestFailed", tone: "danger" };
     } finally {
+      if (!currentStudioIdentity(review.identity)) return;
       setWriterSubmitting(false);
       if (writerMatchesReview(review)) writerSourceChanged();
     }
   }
 
-  async function loadWriterWorks() {
+  function selectedWriterWork() {
+    const workId = document.getElementById("writerManuscriptWork")?.value;
+    return writerWorks.find(item => item.workId === workId) || null;
+  }
+
+  function renderWriterMetadata() {
+    const panel = document.getElementById("writerDraftMetadata");
+    const work = selectedWriterWork();
+    const editable = Boolean(work && /^draft-[0-9a-f-]{36}$/i.test(work.slug || "") &&
+      !work.publication?.published && ["draft", "release_ready"].includes(work.publication?.status));
+    if (!panel) return;
+    panel.hidden = !editable;
+    if (!editable) return;
+    const author = document.getElementById("writerMetadataAuthor");
+    const summary = document.getElementById("writerMetadataSummary");
+    const status = document.getElementById("writerMetadataState");
+    if (author) author.value = work.authorDisplayName || "";
+    if (summary) summary.value = work.publicationSummary?.value || "";
+    if (status) status.textContent = writerText(work.cover?.assetId ? "coverReady" : "coverRequired");
+  }
+
+  async function saveWriterMetadata() {
+    if (writerMetadataSaving || writerSubmitting) return;
+    const work = selectedWriterWork();
+    const identity = studioIdentity();
+    const status = document.getElementById("writerMetadataState");
+    const button = document.getElementById("writerMetadataSave");
+    const authorInput = document.getElementById("writerMetadataAuthor");
+    const summaryInput = document.getElementById("writerMetadataSummary");
+    const coverInput = document.getElementById("writerMetadataCover");
+    if (!work || !/^draft-[0-9a-f-]{36}$/i.test(work.slug || "") ||
+        work.publication?.published || !["draft", "release_ready"].includes(work.publication?.status) ||
+        !identity.ownerId) return;
+    const authorDisplayName = authorInput?.value.normalize("NFC").trim() || "";
+    const summary = summaryInput?.value.normalize("NFC").trim() || "";
+    const file = coverInput?.files?.[0] || null;
+    if (!authorDisplayName || Array.from(authorDisplayName).length > 80 ||
+        !summary || Array.from(summary).length > 600 || /[\p{Cc}\p{Cf}]/u.test(authorDisplayName + summary)) {
+      if (status) status.textContent = writerText("metadataRequired");
+      return;
+    }
+    if (file && (!/^(image\/png|image\/jpeg|image\/webp)$/i.test(file.type) ||
+        !file.size || file.size > 20 * 1024 * 1024)) {
+      if (status) status.textContent = writerText("coverInvalid");
+      return;
+    }
+    const previousCoverId = work.cover?.assetId || "";
+    if (!file && !previousCoverId) {
+      if (status) status.textContent = writerText("coverRequired");
+      return;
+    }
+    writerMetadataSaving = true;
+    if (button) button.disabled = true;
+    if (status) status.textContent = writerText("metadataSaving");
+    try {
+      let coverAssetId = previousCoverId;
+      if (file) {
+        if (writerPendingCover?.ownerId === identity.ownerId &&
+            writerPendingCover.workId === work.workId && writerPendingCover.file === file) {
+          coverAssetId = writerPendingCover.assetId;
+        } else {
+          const intentResponse = await fetchCreatorStudioApi("/api/v1/me/assets/upload-intents", {
+            method: "POST", identity, body: {
+              fileName: file.name, mimeType: file.type, fileSizeBytes: file.size,
+            },
+          });
+          if (!intentResponse.ok) throw new Error("intent");
+          const intent = await intentResponse.json();
+          if (!currentStudioIdentity(identity) || selectedWriterWork()?.workId !== work.workId) return;
+          if (!/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(intent?.asset?.id || "") ||
+              intent?.upload?.mode !== "direct_upload_ready" || !intent.upload.url) {
+            if (status) status.textContent = writerText("coverUploadUnavailable");
+            return;
+          }
+          const uploaded = await fetch(intent.upload.url, {
+            method: intent.upload.method || "PUT", headers: intent.upload.requiredHeaders || {}, body: file,
+          });
+          if (!uploaded.ok) throw new Error("upload");
+          const confirmedResponse = await fetchCreatorStudioApi(
+            `/api/v1/me/assets/${encodeURIComponent(intent.asset.id)}/confirm-upload`,
+            { method: "POST", identity, body: {} },
+          );
+          if (!confirmedResponse.ok) throw new Error("confirm");
+          const confirmed = await confirmedResponse.json();
+          if (!currentStudioIdentity(identity) || selectedWriterWork()?.workId !== work.workId) return;
+          const confirmedAsset = confirmed?.asset || confirmed;
+          if (confirmedAsset?.id !== intent.asset.id || confirmedAsset.uploadStatus !== "uploaded") {
+            throw new Error("confirm");
+          }
+          coverAssetId = intent.asset.id;
+          writerPendingCover = { ownerId: identity.ownerId, workId: work.workId, file, assetId: coverAssetId };
+        }
+      }
+      if (!currentStudioIdentity(identity) || selectedWriterWork()?.workId !== work.workId) return;
+      const response = await fetchCreatorStudioApi(
+        `/api/v1/me/creator-studio/stories/${encodeURIComponent(work.workId)}/metadata`,
+        { method: "PATCH", identity, body: { authorDisplayName, summary, coverAssetId } },
+      );
+      if (!response.ok) throw new Error("metadata");
+      if (!currentStudioIdentity(identity) || selectedWriterWork()?.workId !== work.workId) return;
+      writerPendingCover = null;
+      if (coverInput) coverInput.value = "";
+      const selected = await loadWriterWorks(work.workId);
+      if (!currentStudioIdentity(identity)) return;
+      if (status) status.textContent = writerText(selected ? "metadataSaved" : "draftRefreshFailed");
+    } catch (_) {
+      if (currentStudioIdentity(identity) && status) status.textContent = writerText("metadataFailed");
+    } finally {
+      if (!currentStudioIdentity(identity)) return;
+      writerMetadataSaving = false;
+      if (button) button.disabled = false;
+    }
+  }
+
+  async function createWriterDraft() {
+    if (writerDraftCreating) return;
+    const titleInput = document.getElementById("writerDraftTitle");
+    const button = document.getElementById("writerDraftCreate");
+    const status = document.getElementById("writerDraftState");
+    const title = titleInput?.value.normalize("NFC").trim() || "";
+    const locale = document.getElementById("writerManuscriptLocale")?.value || "ko";
+    if (!title || Array.from(title).length > 120) {
+      if (status) status.textContent = writerText("draftTitleRequired");
+      titleInput?.focus();
+      return;
+    }
+    if (!globalThis.crypto?.randomUUID) {
+      if (status) status.textContent = writerText("draftFailed");
+      return;
+    }
+    const identity = studioIdentity();
+    if (!identity.ownerId) {
+      if (status) status.textContent = writerText("authRequired");
+      return;
+    }
+    if (writerDraftOwnerId !== identity.ownerId) writerDraftRequestId = null;
+    writerDraftOwnerId = identity.ownerId;
+    writerDraftRequestId ||= globalThis.crypto.randomUUID();
+    const requestId = writerDraftRequestId;
+    writerDraftCreating = true;
+    if (button) button.disabled = true;
+    if (titleInput) titleInput.disabled = true;
+    if (status) status.textContent = writerText("draftCreating");
+    try {
+      const response = await fetchCreatorStudioApi("/api/v1/me/creator-studio/stories", {
+        method: "POST", body: { requestId, title, locale }, identity
+      });
+      if (!currentStudioIdentity(identity)) return;
+      if (!response.ok) throw new Error("draft");
+      const result = await response.json();
+      if (!currentStudioIdentity(identity)) return;
+      if (!/^[0-9a-f-]{36}$/i.test(result?.workId || "")) throw new Error("draft");
+      const selected = await loadWriterWorks(result.workId);
+      if (!currentStudioIdentity(identity)) return;
+      if (selected) {
+        writerDraftRequestId = null;
+        if (titleInput) titleInput.value = "";
+        if (status) status.textContent = writerText("draftCreated");
+      } else if (status) status.textContent = writerText("draftRefreshFailed");
+    } catch (_) {
+      if (currentStudioIdentity(identity) && status) status.textContent = writerText("draftFailed");
+    } finally {
+      if (!currentStudioIdentity(identity)) return;
+      writerDraftCreating = false;
+      if (button) button.disabled = false;
+      if (titleInput) titleInput.disabled = false;
+    }
+  }
+
+  async function loadWriterWorks(preferredWorkId = "") {
     const select = document.getElementById("writerManuscriptWork");
     if (!select || writerSubmitting) return;
     invalidateWriterReview(false);
     const request = ++writerCatalogRequest;
     const identity = studioIdentity();
-    const previous = select.value;
+    const previous = preferredWorkId || select.value;
     select.disabled = true;
     select.replaceChildren(new Option(writerText("loading"), ""));
     writerState("loading", "");
@@ -1692,24 +1968,29 @@
         if (!response.ok) throw new Error("catalog");
         const page = await response.json();
         if (!Array.isArray(page?.items)) throw new Error("catalog");
-        works.push(...page.items.filter(item => item?.permissions?.createManuscript === true && item.workId));
+      works.push(...page.items.filter(item => item?.permissions?.createManuscript === true && item.workId));
         cursor = page.nextCursor || null;
         if (cursor && seen.has(cursor)) throw new Error("catalog");
         if (cursor) seen.add(cursor);
         if (works.length > 1000) throw new Error("catalog");
       } while (cursor);
       if (request !== writerCatalogRequest || !currentStudioIdentity(identity)) return;
+      writerWorks = works;
       select.replaceChildren(new Option(writerText("chooseWork"), ""));
       works.forEach(item => select.add(new Option(item.title?.value || item.slug || item.workId, item.workId)));
       select.disabled = !works.length;
       if (works.some(item => item.workId === previous)) select.value = previous;
       writerState(works.length ? "chooseWork" : "noWorks", works.length ? "" : "danger");
       if (select.value) writerSourceChanged();
+      renderWriterMetadata();
       window.LuminaCreatorAnalysis?.contextChanged?.();
+      return Boolean(select.value);
     } catch (_) {
       if (request !== writerCatalogRequest || !currentStudioIdentity(identity)) return;
+      writerWorks = [];
       select.replaceChildren(new Option(writerText("catalogFailed"), ""));
       writerState("catalogFailed", "danger");
+      return false;
     }
   }
 
@@ -1733,6 +2014,7 @@
         return writerState("lineEndings", "danger");
       }
       writerParts = [];
+      writerAutoParts = false;
       writerBodyEdited();
     } catch (_) {
       writerState("invalidUtf8", "danger");
@@ -1766,6 +2048,7 @@
   }
 
   function setStoryIntakeSubmitting(submitting) {
+    storyIntakeSubmitting = submitting;
     const button = document.getElementById("storyIntakeSubmit");
     if (!button) return;
     button.disabled = submitting;
@@ -1843,6 +2126,8 @@
 
   async function submitStoryIntake(event) {
     event.preventDefault();
+    if (storyIntakeSubmitting) return;
+    if (shell?.hidden) return setStoryIntakeState("state.authRequired", "danger");
     const titleInput = document.getElementById("storyIntakeTitle");
     const localeSelect = document.getElementById("storyIntakeLocale");
     const sourceSelect = document.getElementById("storyIntakeSourceClass");
@@ -1882,6 +2167,7 @@
       setStoryIntakeState("state.authRequired", "danger");
       return;
     }
+    const identity = studioIdentity();
 
     const formData = new FormData();
     formData.append("title", title);
@@ -1897,7 +2183,8 @@
     setStoryIntakeState("state.submitting", "");
 
     try {
-      const res = await fetchStoryIntake(formData, storyIntakeRequestKey);
+      const res = await fetchStoryIntake(formData, storyIntakeRequestKey, { identity });
+      if (!currentStudioIdentity(identity)) return;
       if (res.status === 401) {
         setStoryIntakeState("state.authRequired", "danger");
         return;
@@ -1919,6 +2206,7 @@
         return;
       }
       const receipt = await res.json().catch(() => null);
+      if (!currentStudioIdentity(identity)) return;
       if (receipt?.status !== "received") {
         setStoryIntakeState("state.failed", "danger");
         return;
@@ -1929,9 +2217,10 @@
       document.getElementById("storyIntakeForm")?.reset();
       syncStoryIntakeRightsField();
     } catch (_) {
+      if (!currentStudioIdentity(identity)) return;
       setStoryIntakeState("state.network", "danger");
     } finally {
-      setStoryIntakeSubmitting(false);
+      if (currentStudioIdentity(identity)) setStoryIntakeSubmitting(false);
     }
   }
 
@@ -1996,6 +2285,7 @@
   }
 
   async function loadAiContentRequests() {
+    const identity = studioIdentity();
     const auth = readAuth();
     const rows = document.getElementById("studioImageRequestRows");
     if (!rows) return;
@@ -2005,7 +2295,7 @@
     }
     rows.innerHTML = '<tr><td colspan="6">요청 이력을 불러오는 중입니다.</td></tr>';
     try {
-      const res = await fetchCreatorStudioApi("/api/v1/me/creator-studio/ai-content-requests");
+      const res = await fetchCreatorStudioApi("/api/v1/me/creator-studio/ai-content-requests", { identity });
       // #545 — 404/501 = provider 미연결·기능 미개방. fail-closed, 사용자 오류 아님.
       if (res.status === 404 || res.status === 501) {
         rows.innerHTML = '<tr><td colspan="6">이미지 요청 기능은 운영팀 안내 후 이용할 수 있어요.</td></tr>';
@@ -2017,9 +2307,11 @@
       }
       if (!res.ok) throw new Error("load failed");
       const data = await res.json().catch(() => null);
+      if (!currentStudioIdentity(identity)) return;
       const items = Array.isArray(data) ? data : (data?.items || data?.requests || []);
       renderAiContentRequests(items);
     } catch (_) {
+      if (!currentStudioIdentity(identity)) return;
       if (rows) rows.innerHTML = '<tr><td colspan="6">이력을 불러오지 못했습니다. 잠시 후 다시 확인해주세요.</td></tr>';
     }
   }
@@ -2172,13 +2464,25 @@
   document.getElementById("studioProfileSaveButton")?.addEventListener("click", saveProfileEditor);
   document.getElementById("storyIntakeForm")?.addEventListener("submit", submitStoryIntake);
   document.getElementById("writerManuscriptFile")?.addEventListener("change", readWriterTextFile);
+  document.getElementById("writerDraftCreate")?.addEventListener("click", createWriterDraft);
+  document.getElementById("writerMetadataSave")?.addEventListener("click", saveWriterMetadata);
+  document.getElementById("writerMetadataCover")?.addEventListener("change", () => { writerPendingCover = null; });
+  document.getElementById("writerDraftTitle")?.addEventListener("input", () => { writerDraftRequestId = null; });
   document.getElementById("writerManuscriptBody")?.addEventListener("input", writerBodyEdited);
   document.getElementById("writerManuscriptWork")?.addEventListener("change", () => {
+    writerPendingCover = null;
+    const cover = document.getElementById("writerMetadataCover");
+    if (cover) cover.value = "";
+    renderWriterMetadata();
     invalidateWriterReview();
     writerSourceChanged();
     window.LuminaCreatorAnalysis?.contextChanged?.();
   });
   document.getElementById("writerManuscriptLocale")?.addEventListener("change", () => {
+    writerDraftRequestId = null;
+    writerPendingCover = null;
+    const cover = document.getElementById("writerMetadataCover");
+    if (cover) cover.value = "";
     invalidateWriterReview();
     loadWriterWorks();
   });
@@ -2187,6 +2491,12 @@
     writerSourceChanged();
   });
   document.getElementById("writerManuscriptAddPart")?.addEventListener("click", addWriterPart);
+  document.getElementById("writerManuscriptAutoParts")?.addEventListener("click", autoWriterParts);
+  document.getElementById("writerManuscriptSeparatePreface")?.addEventListener("change", () => {
+    invalidateWriterReview();
+    renderWriterParts();
+    writerSourceChanged();
+  });
   document.getElementById("writerManuscriptReview")?.addEventListener("click", reviewWriterParts);
   document.getElementById("writerManuscriptConfirm")?.addEventListener("change", syncWriterSubmit);
   document.getElementById("writerManuscriptSubmit")?.addEventListener("click", submitWriterManuscript);
@@ -2275,43 +2585,35 @@
   if (initialSection) setActiveSection(initialSection);
 
   async function verify() {
-    const handoff = readStudioHandoff();
-    if (handoff) {
-      allow(handoff);
-      return;
-    }
-
+    const ticket = ++studioVerification;
+    studioVerificationController?.abort();
+    const controller = new AbortController();
+    studioVerificationController = controller;
+    const identity = studioIdentity();
+    studioAccessIdentity = identity;
+    const active = () => ticket === studioVerification && currentStudioIdentity(identity);
     openStudioShellPending();
     let completed = false;
     const softTimeoutId = setTimeout(() => {
-      if (!completed && body) {
+      if (!completed && active() && body) {
         body.textContent = "권한 확인 응답을 기다리고 있습니다. 계속 멈춰 있으면 아래 다시 확인을 눌러 주세요.";
         showGateActions();
       }
     }, 4000);
     const hardTimeoutId = setTimeout(() => {
-      if (!completed) {
-        completed = true;
+      if (!completed && active()) {
         showToast("스튜디오 권한 확인이 지연되고 있어요. 잠시 후 다시 확인해 주세요.");
       }
     }, 8000);
-    const auth = readAuth();
-    if (!auth?.accessToken && !auth?.refreshToken) {
-      completed = true;
-      clearTimeout(hardTimeoutId);
-      deny("로그인 후 승인된 크리에이터 계정으로만 접근할 수 있습니다.");
-      return;
-    }
-    const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 12000);
     try {
-      let res = await fetchStudioBootstrap(auth.accessToken, controller.signal);
-      if (res.status === 401) {
-        const refreshed = await refreshStudioAuthOnce();
-        if (refreshed?.accessToken) {
-          res = await fetchStudioBootstrap(refreshed.accessToken, controller.signal);
-        }
+      const auth = readAuth();
+      if (!identity.ownerId || (!auth?.accessToken && !auth?.refreshToken)) {
+        deny("로그인 후 승인된 크리에이터 계정으로만 접근할 수 있습니다.");
+        return;
       }
+      const res = await fetchStudioBootstrap(controller.signal, identity);
+      if (!active()) throw new DOMException("Context changed", "AbortError");
       if (!res.ok) {
         if (res.status === 401) {
           deny("로그인 시간이 만료됐어요. 다시 로그인한 뒤 스튜디오를 열어 주세요.");
@@ -2319,20 +2621,24 @@
         return;
       }
       const data = await res.json();
-      if (data?.access?.enabled === true) {
-        completed = true;
-        clearTimeout(hardTimeoutId);
+      if (!active()) throw new DOMException("Context changed", "AbortError");
+      if (data?.viewer?.userId && data.viewer.userId !== readAuth()?.user?.id) {
+        deny("현재 계정의 권한 정보를 확인하지 못했어요. 다시 확인해 주세요.");
+        return;
+      }
+      if (data?.access?.enabled === true && Array.isArray(data.artists)) {
         allow(data);
         return;
       }
       // #190 — access.enabled !== true 면 fail-closed (이전엔 toast만 보이고 shell이 열려 권한 우회됨)
-      completed = true;
-      clearTimeout(hardTimeoutId);
       deny("스튜디오 접근 권한이 없어요. 운영팀 승인 후 다시 시도해 주세요.");
       return;
     } catch (error) {
-      completed = true;
-      clearTimeout(hardTimeoutId);
+      if (ticket !== studioVerification) return;
+      if (!currentStudioIdentity(identity)) {
+        deny("로그인 상태가 변경됐어요. 현재 계정으로 다시 확인해 주세요.");
+        return;
+      }
       // #190 — 에러 시에도 fail-closed (이전엔 toast만 보이고 shell이 열려 권한 우회됨)
       deny(error?.name === "AbortError"
         ? "스튜디오 권한 확인이 지연됐어요. 잠시 후 다시 시도해 주세요."
@@ -2342,8 +2648,57 @@
       clearTimeout(softTimeoutId);
       clearTimeout(timeoutId);
       clearTimeout(hardTimeoutId);
+      if (studioVerificationController === controller) studioVerificationController = null;
     }
   }
 
+  function studioAccountChanged(event) {
+    if (event?.type === "storage" && event.key && !authStorageKeys.includes(event.key)) return;
+    if (!studioAccessIdentity || currentStudioIdentity(studioAccessIdentity)) return;
+    studioAccessIdentity = studioIdentity();
+    ++studioVerification;
+    studioVerificationController?.abort();
+    studioVerificationController = null;
+    studioArtists = [];
+    artistIdentityRequestEpoch++;
+    artistIdentityResponse = null;
+    writerCatalogRequest++;
+    writerWorks = [];
+    writerPendingCover = null;
+    writerDraftRequestId = null;
+    writerDraftOwnerId = null;
+    writerDraftCreating = false;
+    writerMetadataSaving = false;
+    setWriterSubmitting(false);
+    setStoryIntakeSubmitting(false);
+    shell?.querySelectorAll("input, textarea, select").forEach(control => {
+      if (control.tagName === "SELECT") control.selectedIndex = 0;
+      else if (["checkbox", "radio"].includes(control.type)) control.checked = false;
+      else control.value = control.type === "file" ? "" : (control.defaultValue || "");
+    });
+    storyIntakeRequestKey = null;
+    hydrateStudio({ artists: [], summary: {} });
+    renderSettlement({});
+    renderSettlementConversions([]);
+    renderKnowledgeUrls([]);
+    renderAiContentRequests([]);
+    ["studioAccountEmail", "studioMetricLumina", "studioMetricLuminaSub", "studioPayoutGrossLumina",
+      "studioPayoutEligibleLumina", "studioPayoutGrossKrw", "studioPayoutTaxKrw", "studioPayoutNetKrw",
+      "studioPayoutSampleBadge", "studioPayoutSampleNote", "studioPayoutCurrencyLabel", "studioPayoutFxLabel"].forEach(id => text(id, ""));
+    const intakeReceipt = document.getElementById("storyIntakeReceipt");
+    if (intakeReceipt) intakeReceipt.hidden = true;
+    clearWriterManuscript();
+    const work = document.getElementById("writerManuscriptWork");
+    if (work) { work.innerHTML = ""; work.disabled = true; }
+    renderWriterMetadata();
+    closeStudioModal();
+    closeArtistIdentityModal();
+    window.LuminaCreatorAnalysis?.contextChanged?.();
+    deny("로그인 상태가 변경됐어요. 현재 계정으로 다시 확인해 주세요.");
+  }
+
+  window.addEventListener("storage", studioAccountChanged);
+  window.addEventListener("lumina:authchange", studioAccountChanged);
+  window.addEventListener("focus", studioAccountChanged);
   verify();
 })();

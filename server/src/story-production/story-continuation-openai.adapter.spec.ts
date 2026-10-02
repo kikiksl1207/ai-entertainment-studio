@@ -1,6 +1,12 @@
 import { OpenAiStoryContinuationProvider, type StoryContinuationFetch } from './story-continuation-openai.adapter';
+import { readFileSync } from 'fs';
+import { CREATOR_GENERATION_PROFILE_SCHEMA, STORY_PROFILE_SECTION_KEYS, creatorGenerationProfileFingerprint, normalizeCreatorGenerationProfile } from '../generation-profile/creator-generation-profile.policy';
+import { continuationGenerationProfileSnapshot } from './story-continuation-context.policy';
+import { fixedRouteSuggestedChoices } from './story-fixed-route-markdown.policy';
 import { readStoryContinuationOpenAiConfig, type StoryContinuationOpenAiConfig } from './story-continuation-openai.config';
 import { buildStoryContinuationOpenAiRequest, preflightStoryContinuationOpenAiRequest } from './story-continuation-openai.prompt';
+import { STORY_CONTINUATION_PROMPT_VERSION } from './story-continuation-openai.schema';
+import { STORY_CONTINUATION_ROUTE_VIEW_VERSION } from './story-continuation-route-continuity';
 import { storyContinuationInputTokenBudget } from './story-continuation-tokenizer';
 import { DisabledStoryContinuationProvider, type StoryContinuationProviderRequest } from './story-continuation.provider';
 
@@ -73,6 +79,106 @@ describe('OpenAiStoryContinuationProvider (fake transport only)', () => {
     expect(JSON.stringify(await f.provider.preflight(request()))).not.toContain(config.apiKey);
     expect(f.transport).not.toHaveBeenCalled();
   });
+
+  it('projects bounded route evidence and preserves the existing provider input limit', () => {
+    const source = request();
+    source.promptVersion = STORY_CONTINUATION_PROMPT_VERSION;
+    source.approvedContext!.routeContinuity = {
+      version: STORY_CONTINUATION_ROUTE_VIEW_VERSION,
+      actions: [{ step: 1, choiceLabel: 'Keep the promise' }],
+      readEvidence: [{ step: 1, text: 'The gate opened after the promise.' }],
+    };
+    const body = buildStoryContinuationOpenAiRequest(source, config);
+    expect(JSON.stringify(body)).toContain('The gate opened after the promise.');
+    expect(preflightStoryContinuationOpenAiRequest({ ...source, inputTokenLimit: 1 }, config))
+      .toMatchObject({ supported: false, reason: 'provider_input_bound_exceeded' });
+  });
+
+  (process.env.STORY_QA_MANUSCRIPT_PATH ? it : it.skip)(
+    'preflights all 32 supplied parts with a projected approved profile, route and memories', () => {
+      const raw = readFileSync(process.env.STORY_QA_MANUSCRIPT_PATH!, 'utf8');
+      const headings = [...raw.matchAll(/^# (?:Part|외전) [0-9]{1,2}\. (.+?)\r?$/gm)];
+      expect(headings).toHaveLength(32);
+      const bodies = headings.map((heading, index) => raw
+        .slice(heading.index! + heading[0].length, headings[index + 1]?.index ?? raw.length)
+        .replace(/^# 외전\s*$/gm, '').trim());
+      const profileSummaries = [
+        '윤해원의 일인칭 감각과 기억을 따라가며 설명보다 행동과 대화로 감정을 드러낸다.',
+        '한 파트의 장면 호흡과 사건의 밀도를 유지하고 선택의 결과를 충분히 전개한다.',
+        '해명도, 붉은 카세트, 지워진 이름과 기억의 규칙을 이미 드러난 사실과 맞춘다.',
+        '원작 후반의 사건은 참고 가능한 미래 재료이며 독자 경로에서 일어난 일로 단정하지 않는다.',
+        '소리와 파형, 손등을 세 번 두드리는 동작을 관계의 변화에 맞게 절제해 사용한다.',
+        '선택이 사건이나 관계를 바꾸게 하고 원작 경로로 강제로 합류시키지 않는다.',
+        '현대 한국의 해안과 섬, 비와 카세트의 구체적인 감각을 유지한다.',
+        '윤해원, 윤해주, 누리의 정체성과 관계를 장면마다 일관되게 유지한다.',
+      ];
+      const settings = normalizeCreatorGenerationProfile('story', {
+        schemaVersion: CREATOR_GENERATION_PROFILE_SCHEMA,
+        kind: 'story',
+        sections: STORY_PROFILE_SECTION_KEYS.map((key, sectionIndex) => ({
+          key, decision: 'accepted', evidence: [],
+          value: {
+            summary: profileSummaries[sectionIndex],
+            observations: [0, 8, 16, 24].map((offset) => {
+              const partIndex = (sectionIndex + offset) % bodies.length;
+              return { title: headings[partIndex][1], detail: bodies[partIndex].slice(0, 180) };
+            }),
+            ...(key === 'writing_style' ? {
+              categories: [0, 6, 12].map((partIndex) => ({
+                category: headings[partIndex][1], observations: [bodies[partIndex].slice(0, 120)],
+              })),
+            } : {}),
+          },
+        })),
+      });
+      const sourceFingerprint = 'a'.repeat(64);
+      const { approved: generationProfile } = continuationGenerationProfileSnapshot({
+        id: 'offline-monster-profile', status: 'approved', profileVersion: 1, reviewRevision: 1,
+        sourceFingerprint, approvedSettings: settings,
+        approvedFingerprint: creatorGenerationProfileFingerprint(sourceFingerprint, settings),
+      } as never);
+      expect(generationProfile.sections).toHaveLength(8);
+      const publicConfig = { ...config, model: 'gpt-5.4-mini-2026-03-17', maxOutputTokens: 32_768 };
+      const failures: Array<{ part: string; reason?: string; inputTokens?: number }> = [];
+      for (const [index, heading] of headings.entries()) {
+        const source = request();
+        source.locale = 'ko';
+        source.model = publicConfig.model;
+        source.promptVersion = STORY_CONTINUATION_PROMPT_VERSION;
+        source.inputTokenLimit = 32_768;
+        source.outputTokenLimit = 32_768;
+        const pathStart = Math.max(0, index - 12);
+        source.approvedContext = {
+          sourceScene: { title: heading[1], beats: [{ beatType: 'paragraph', content: bodies[index] }] },
+          selectedChoice: {
+            label: fixedRouteSuggestedChoices('monster', heading[1], index + 1, index === 31 ? null : 'next')[1].label,
+          },
+          path: Array.from({ length: index - pathStart }, (_, offset) => {
+            const previous = pathStart + offset;
+            return {
+              sourceTitle: headings[previous][1], choiceLabel: '원작의 흐름대로 다음 장으로 간다',
+              targetTitle: headings[previous + 1][1], explicitRejoin: false, endingType: null,
+            };
+          }),
+          memories: [
+            ...[0, 11, 24].map((partIndex) => ({ memoryType: 'style', content: bodies[partIndex].slice(0, 400) })),
+            ...Array.from({ length: index - pathStart }, (_, offset) => ({
+              memoryType: 'event', content: bodies[pathStart + offset].slice(0, 280),
+            })),
+            ...bodies.slice(index + 1, index + 4).map((body) => ({
+              memoryType: 'author_plan_foreshadow', content: body.slice(0, 200),
+            })),
+          ],
+          generationProfile,
+        };
+        const preflight = preflightStoryContinuationOpenAiRequest(source, publicConfig);
+        if (!preflight.supported || preflight.inputTokenUpperBound === undefined ||
+            preflight.inputTokenUpperBound > 32_768) {
+          failures.push({ part: heading[0], reason: preflight.reason, inputTokens: preflight.inputTokenUpperBound });
+        }
+      }
+      expect(failures).toEqual([]);
+    }, 60_000);
 
   it.each([
     { provider: 'other' }, { model: 'gpt-4.1' }, { apiKey: '' }, { rateCardId: '' }, { rateCardVersion: '' },
@@ -161,6 +267,30 @@ describe('OpenAiStoryContinuationProvider (fake transport only)', () => {
     expect(body.instructions).toContain('creator-approved production constraint');
   });
 
+  it('preserves author-plan source locations without treating them as current route history', async () => {
+    const f = fixture();
+    const req = request();
+    req.approvedContext!.generationProfile = {
+      schemaVersion: 'creator-generation-profile-v1',
+      sections: [{ key: 'timeline', value: {
+        summary: 'The mother dies in the original final part.',
+        referenceScope: 'author_plan_not_route_history',
+        observations: [{ title: 'Original ending', detail: 'A later original-route death.',
+          sourceRef: 'analysis:11111111-1111-4111-8111-111111111111',
+          sourcePartKey: 'PART-32', sourceParagraphIndex: 17,
+          referenceScope: 'author_plan_not_route_history' }],
+      } }],
+    };
+
+    await f.provider.generate(req, new AbortController().signal);
+    const body = JSON.parse(f.transport.mock.calls[0][1].body as string);
+    const outbound = JSON.parse(body.input[0].content[0].text);
+    expect(outbound.generationProfile).toEqual(req.approvedContext!.generationProfile);
+    expect(body.instructions).toContain('do not prove the reader reached that event');
+    expect(body.instructions).toContain('do not import future deaths');
+    expect(body.instructions).toContain('source locations must never be guessed');
+  });
+
   it('sends the selected artist as a fixed participant without leaking reference assets', async () => {
     const f = fixture();
     const req = request();
@@ -191,6 +321,19 @@ describe('OpenAiStoryContinuationProvider (fake transport only)', () => {
     const req = request();
     const body = buildStoryContinuationOpenAiRequest(req, config);
     expect(body.instructions).not.toContain('use its displayName literally at least once');
+  });
+
+  it('treats unplaced work-wide timeline notes as possible future material only for new requests', () => {
+    const req = request();
+    req.promptVersion = 'story-continuation-v7';
+    const current = buildStoryContinuationOpenAiRequest(req, config);
+    expect(current.instructions).toContain('not proof those events happened on this reader route');
+    expect(current.instructions).toContain('follow the route-scoped evidence');
+    expect(current.instructions).toContain('use its displayName literally at least once');
+
+    const queued = buildStoryContinuationOpenAiRequest({ ...req, promptVersion: 'story-continuation-v6' }, config);
+    expect(queued.instructions).not.toContain('not proof those events happened on this reader route');
+    expect(queued.instructions).toContain('use its displayName literally at least once');
   });
 
   it('counts serialized instructions/schema and framing, not only context length', async () => {

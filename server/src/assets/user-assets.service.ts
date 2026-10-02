@@ -271,46 +271,40 @@ export class UserAssetsService {
   }
 
   async archiveAsset(userId: string, assetId: string, input: UserAssetBody) {
-    const asset = await this.findUserAsset(userId, assetId);
-    const usage = await this.assetUsage(asset.id, userId);
+    if (!UUID_PATTERN.test(assetId)) throw new BadRequestException('assetId must be a UUID');
     const force = this.optionalBoolean(input, 'force') ?? false;
-
-    if (!force && usage.blockingReasons.length > 0) {
-      throw new BadRequestException({
-        code: 'ASSET_IN_USE',
-        message: 'Asset is still in use',
-        details: {
-          blockingReasons: usage.blockingReasons,
-          usage,
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM assets WHERE id = ${assetId}::uuid FOR UPDATE`;
+      const asset = await this.findUserAsset(userId, assetId, tx);
+      const usage = await this.assetUsage(asset.id, userId, tx);
+      if (usage.publishedStoryCoverWorkIds.length > 0 || (!force && usage.blockingReasons.length > 0)) {
+        throw new BadRequestException({
+          code: 'ASSET_IN_USE',
+          message: 'Asset is still in use',
+          details: { blockingReasons: usage.blockingReasons, usage },
+        });
+      }
+      const metadata = this.metadataObject(asset.metadata);
+      const archivedAt = new Date().toISOString();
+      const archivedAsset = await tx.asset.update({
+        where: { id: asset.id },
+        data: {
+          metadata: this.toJson({
+            ...metadata,
+            lifecycle: {
+              ...this.metadataObject(metadata.lifecycle),
+              status: 'archived',
+              archivedByUserId: userId,
+              archivedAt,
+              archiveReason: this.optionalString(input, 'reason') ?? null,
+              forced: force,
+            },
+          }),
+          updatedAt: new Date(),
         },
       });
-    }
-
-    const metadata = this.metadataObject(asset.metadata);
-    const archivedAt = new Date().toISOString();
-    const archivedAsset = await this.prisma.asset.update({
-      where: { id: asset.id },
-      data: {
-        metadata: this.toJson({
-          ...metadata,
-          lifecycle: {
-            ...this.metadataObject(metadata.lifecycle),
-            status: 'archived',
-            archivedByUserId: userId,
-            archivedAt,
-            archiveReason: this.optionalString(input, 'reason') ?? null,
-            forced: force,
-          },
-        }),
-        updatedAt: new Date(),
-      },
-    });
-
-    return {
-      asset: this.presentAsset(archivedAsset),
-      usage,
-      message: 'Asset archived',
-    };
+      return { asset: this.presentAsset(archivedAsset), usage, message: 'Asset archived' };
+    }, { timeout: 15_000 });
   }
 
   async restoreAsset(userId: string, assetId: string) {
@@ -403,6 +397,7 @@ export class UserAssetsService {
       id: asset.id,
       assetType: asset.assetType,
       visibility: asset.visibility,
+      storageProvider: asset.storageProvider,
       mimeType: asset.mimeType,
       fileSizeBytes: asset.fileSizeBytes?.toString() ?? null,
       width: asset.width,
@@ -1265,6 +1260,9 @@ export class UserAssetsService {
     }
 
     const metadata = this.metadataObject(asset.metadata);
+    if (Object.prototype.hasOwnProperty.call(metadata, 'storyVisual')) {
+      return false;
+    }
     const uploadIntent = this.metadataObject(metadata.uploadIntent);
     const lifecycle = this.metadataObject(metadata.lifecycle);
     const uploadStatus =
@@ -1505,12 +1503,12 @@ export class UserAssetsService {
     return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
   }
 
-  private async findUserAsset(userId: string, assetId: string) {
+  private async findUserAsset(userId: string, assetId: string, db: Prisma.TransactionClient = this.prisma) {
     if (!UUID_PATTERN.test(assetId)) {
       throw new BadRequestException('assetId must be a UUID');
     }
 
-    const asset = await this.prisma.asset.findFirst({
+    const asset = await db.asset.findFirst({
       where: {
         id: assetId,
         ...this.userAssetOwnerWhere(userId),
@@ -1533,24 +1531,26 @@ export class UserAssetsService {
     };
   }
 
-  private async assetUsage(assetId: string, userId: string) {
+  private async assetUsage(assetId: string, userId: string, db: Prisma.TransactionClient = this.prisma) {
     const [
       avatarProfile,
       coverProfile,
       feedLinks,
+      storyCoverWorks,
+      publishedStoryCover,
       creatorReferenceRequests,
       creatorResultRequests,
     ] =
       await Promise.all([
-        this.prisma.userProfile.findFirst({
+        db.userProfile.findFirst({
           where: { userId, avatarAssetId: assetId },
           select: { userId: true },
         }),
-        this.prisma.userProfile.findFirst({
+        db.userProfile.findFirst({
           where: { userId, coverAssetId: assetId },
           select: { userId: true },
         }),
-        this.prisma.communityPostAsset.findMany({
+        db.communityPostAsset.findMany({
           where: {
             assetId,
             post: {
@@ -1562,12 +1562,22 @@ export class UserAssetsService {
           select: { postId: true },
           take: 20,
         }),
-        this.prisma.creatorImageRequest.findMany({
+        db.storyWork.findMany({
+          where: { ownerUserId: userId, coverManifest: { path: ['assetId'], equals: assetId } },
+          select: { id: true, status: true, activeReleaseId: true },
+          take: 20,
+        }),
+        db.storyWork.findFirst({
+          where: { ownerUserId: userId, coverManifest: { path: ['assetId'], equals: assetId },
+            status: 'published', activeReleaseId: { not: null } },
+          select: { id: true },
+        }),
+        db.creatorImageRequest.findMany({
           where: { requesterUserId: userId },
           select: { id: true, referenceAssetIds: true },
           take: 100,
         }),
-        this.prisma.creatorImageRequest.findMany({
+        db.creatorImageRequest.findMany({
           where: { requesterUserId: userId },
           select: { id: true, resultAssetIds: true },
           take: 100,
@@ -1586,6 +1596,7 @@ export class UserAssetsService {
       ...(avatarProfile ? ['avatar'] : []),
       ...(coverProfile ? ['profile_cover'] : []),
       ...(feedLinks.length ? ['published_feed_post'] : []),
+      ...(storyCoverWorks.length || publishedStoryCover ? ['story_cover'] : []),
       ...(referenceRequestIds.length ? ['creator_image_reference'] : []),
       ...(resultRequestIds.length ? ['creator_image_result'] : []),
     ];
@@ -1594,6 +1605,8 @@ export class UserAssetsService {
       avatar: Boolean(avatarProfile),
       profileCover: Boolean(coverProfile),
       feedPostIds: feedLinks.map((link) => link.postId),
+      storyCoverWorkIds: storyCoverWorks.map((work) => work.id),
+      publishedStoryCoverWorkIds: publishedStoryCover ? [publishedStoryCover.id] : [],
       creatorImageReferenceRequestIds: referenceRequestIds,
       creatorImageResultRequestIds: resultRequestIds,
       blockingReasons,

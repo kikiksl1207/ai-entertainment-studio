@@ -15,14 +15,14 @@
     <meta property="og:type" content="website" />
     <meta property="og:title" content="루미나 픽 — Lumina Stage" />
     <meta property="og:description" content="이달의 픽, 응원 레이스, 명예의 전당까지. 루미나 픽에서 팬의 선택으로 아티스트의 다음 무대를 밝혀주세요." />
-    <meta property="og:image" content="/assets/characters/yoon-serin/cover.png" />
+    <meta property="og:image" content="/assets/brand/lumina-stage-logo.png" />
     <meta property="og:url" content="https://www.lumina-stage.com/lumina-pick" />
     <meta property="og:site_name" content="Lumina Stage" />
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="루미나 픽 — Lumina Stage" />
     <meta name="twitter:description" content="이달의 픽, 응원 레이스, 명예의 전당까지. 팬의 선택이 다음 무대를 만듭니다." />
-    <meta name="twitter:image" content="/assets/characters/yoon-serin/cover.png" />
+    <meta name="twitter:image" content="/assets/brand/lumina-stage-logo.png" />
     <!-- Google tag (gtag.js) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-1L7TCBQ0N4"></script>
     <script>
@@ -65,25 +65,25 @@
         <div class="shell page-hero-grid">
           <div class="page-hero-copy">
             <p class="eyebrow">Lumina Pick</p>
-            <h1 data-cms-key="lumina-pick.hero.title">루미나 픽</h1>
-            <p data-cms-key="lumina-pick.hero.body">
+            <h1 data-cms-key="lumina-pick.hero.title" data-i18n="pick.hero.title">루미나 픽</h1>
+            <p data-cms-key="lumina-pick.hero.body" data-i18n="pick.hero.body">
               팬의 선택이 이달의 주인공을 만듭니다.
               오늘 마음이 닿은 아티스트에게 한 표를 보내고,
               다음 무대의 스포트라이트를 함께 밝혀주세요.
             </p>
-            <p class="hero-side-note" style="margin-top:8px;font-size:13px;color:rgba(220,210,240,0.55);">프리미엄챗 소통/후원 활동은 <a class="text-link" href="/chat-rankings">소통·후원 랭킹</a>에서 별도로 집계돼요.</p>
+            <p class="hero-side-note" style="margin-top:8px;font-size:13px;color:rgba(220,210,240,0.55);"><span data-i18n="pick.hero.note.before">프리미엄챗 소통/후원 활동은 </span><a class="text-link" href="/chat-rankings" data-i18n="pick.hero.note.link">소통·후원 랭킹</a><span data-i18n="pick.hero.note.after">에서 별도로 집계돼요.</span></p>
           </div>
           <aside class="page-hero-panel">
             <div>
-              <span>이번 달</span>
+              <span data-i18n="pick.hero.thisMonth">이번 달</span>
               <strong id="heroLeaderName">집계 중</strong>
             </div>
             <div>
-              <span>진행 중 캠페인</span>
+              <span data-i18n="pick.hero.campaign">진행 중 캠페인</span>
               <strong id="heroCampaignLabel">응원 레이스</strong>
             </div>
             <div>
-              <span>오늘의 무료 응원</span>
+              <span data-i18n="pick.hero.freeSupport">오늘의 무료 응원</span>
               <strong id="heroQuotaLabel">오늘의 한 표</strong>
             </div>
           </aside>
@@ -94,65 +94,69 @@
       <section class="content-section vote-tabs-section">
         <div class="shell">
           <div class="vote-tabs" id="voteTabs" role="tablist">
-            <button class="vote-tab-btn is-active" data-tab="main-pick" role="tab" aria-selected="true">
+            <button class="vote-tab-btn is-active" id="voteTabMainPick" data-tab="main-pick" role="tab" aria-selected="true" aria-controls="tabMainPick" tabindex="0">
               <span class="vote-tab-en">Monthly Pick</span>
-              <span class="vote-tab-ko">이달의 픽</span>
+              <span class="vote-tab-ko" data-i18n="pick.tab.monthly">이달의 픽</span>
             </button>
-            <button class="vote-tab-btn" data-tab="debut-race" role="tab" aria-selected="false">
+            <button class="vote-tab-btn" id="voteTabDebutRace" data-tab="debut-race" role="tab" aria-selected="false" aria-controls="tabDebutRace" tabindex="-1">
               <span class="vote-tab-en">Cheer Race</span>
-              <span class="vote-tab-ko">응원 레이스</span>
+              <span class="vote-tab-ko" data-i18n="pick.tab.race">응원 레이스</span>
             </button>
-            <button class="vote-tab-btn" data-tab="hall-of-fame" role="tab" aria-selected="false">
+            <button class="vote-tab-btn" id="voteTabHallOfFame" data-tab="hall-of-fame" role="tab" aria-selected="false" aria-controls="tabHallOfFame" tabindex="-1">
               <span class="vote-tab-en">Hall of Fame</span>
-              <span class="vote-tab-ko">명예의 전당</span>
+              <span class="vote-tab-ko" data-i18n="pick.tab.hall">명예의 전당</span>
             </button>
           </div>
         </div>
       </section>
 
       <!-- 탭 컨텐츠: Main Pick -->
-      <section class="content-section vote-tab-content is-active" id="tabMainPick" role="tabpanel">
+      <section class="content-section vote-tab-content is-active" id="tabMainPick" role="tabpanel" aria-labelledby="voteTabMainPick">
         <div class="shell">
           <div class="section-heading">
             <div>
               <p class="eyebrow">Monthly Pick</p>
-              <h2>이달의 픽</h2>
-              <p>이번 달 가장 많은 선택을 받은 아티스트가 주인공이 됩니다. 월간 픽의 이름은 명예의 전당에 오래 남습니다.</p>
+              <h2 data-i18n="pick.tab.monthly">이달의 픽</h2>
+              <p data-i18n="pick.monthly.body">이번 달 가장 많은 선택을 받은 아티스트가 주인공이 됩니다. 월간 픽의 이름은 명예의 전당에 오래 남습니다.</p>
             </div>
           </div>
-          <div id="mainPickLeader" class="vote-leader-card-wrap"></div>
+          <div id="mainPickLeader" class="vote-leader-card-wrap"><div class="vote-empty" data-i18n="pick.status.loading">불러오는 중…</div></div>
           <div id="mainPickRankings" class="vote-rankings-list"></div>
         </div>
       </section>
 
       <!-- 탭 컨텐츠: Debut Race -->
-      <section class="content-section vote-tab-content" id="tabDebutRace" role="tabpanel" hidden>
+      <section class="content-section vote-tab-content" id="tabDebutRace" role="tabpanel" aria-labelledby="voteTabDebutRace" hidden>
         <div class="shell">
           <div class="section-heading">
             <div>
               <p class="eyebrow">Cheer Race</p>
-              <h2>오늘의 한 표가 무대를 바꿉니다</h2>
-              <p>아티스트마다 다른 이유로 이 무대에 서 있습니다. 마음이 움직인 이름에게 오늘의 응원을 보내주세요.</p>
+              <h2 data-i18n="pick.race.title">오늘의 한 표가 무대를 바꿉니다</h2>
+              <p data-i18n="pick.race.body">아티스트마다 다른 이유로 이 무대에 서 있습니다. 마음이 움직인 이름에게 오늘의 응원을 보내주세요.</p>
             </div>
           </div>
-          <div id="debutRaceGrid" class="vote-debut-grid"></div>
+          <div id="debutRaceGrid" class="vote-debut-grid"><div class="vote-empty" data-i18n="pick.status.loading">불러오는 중…</div></div>
         </div>
       </section>
 
       <!-- 탭 컨텐츠: Hall of Fame -->
-      <section class="content-section vote-tab-content" id="tabHallOfFame" role="tabpanel" hidden>
+      <section class="content-section vote-tab-content" id="tabHallOfFame" role="tabpanel" aria-labelledby="voteTabHallOfFame" hidden>
         <div class="shell">
           <div class="section-heading">
             <div>
               <p class="eyebrow">Hall of Fame</p>
-              <h2>명예의 전당</h2>
-              <p>월간 픽과 연간 챔피언이 기록되는 공간입니다. 팬이 만든 순간은 이곳에서 다시 빛납니다.</p>
+              <h2 data-i18n="pick.tab.hall">명예의 전당</h2>
+              <p data-i18n="pick.hall.body">월간 픽과 연간 챔피언이 기록되는 공간입니다. 팬이 만든 순간은 이곳에서 다시 빛납니다.</p>
             </div>
           </div>
           <div id="yearChampion" class="vote-year-champion"></div>
           <div class="vote-monthly-picks-block">
-            <h3 class="vote-section-subtitle">월간 픽 아카이브</h3>
-            <div id="monthlyPicksGrid" class="vote-monthly-grid"></div>
+            <div class="vote-archive-heading">
+              <h3 class="vote-section-subtitle" data-i18n="pick.archive.title">월간 픽 아카이브</h3>
+              <label for="voteArchiveYear" data-i18n="pick.archive.year">연도</label>
+              <select id="voteArchiveYear" aria-label="아카이브 연도" data-i18n-aria="pick.archive.yearAria"></select>
+            </div>
+            <div id="monthlyPicksGrid" class="vote-monthly-grid"><div class="vote-empty" data-i18n="pick.status.loading">불러오는 중…</div></div>
           </div>
         </div>
       </section>
@@ -162,7 +166,7 @@
       <div class="shell footer-inner">
         <div>
           <strong>Lumina Stage</strong>
-          <p>아티스트와 팬이 만나는 공간입니다. 매일 응원으로 무대를 함께 만드세요.</p>
+          <p data-i18n="pick.footer.body">아티스트와 팬이 만나는 공간입니다. 매일 응원으로 무대를 함께 만드세요.</p>
         </div>
         <div class="footer-links">
           <a href="/characters" data-i18n="footer.artistRoster">아티스트 라인업</a>
@@ -171,7 +175,7 @@
           <a href="/refund-policy" data-i18n="footer.refund">환불 정책</a>
 
           <a href="/business" data-i18n="footer.businessInquiry" data-i18n-attr="title:footer.businessInquiry.helper" title="브랜드 협업, IP 제휴, 제작 문의는 Lumina Stage 비즈니스 채널로 연결됩니다.">Business Inquiry</a>
-          <a href="/business#partner-inquiry" title="사업 제휴, 전략 파트너, 투자 관련 문의를 확인합니다.">사업·투자 문의</a>
+          <a href="/business#partner-inquiry" data-i18n="footer.partnerInquiry" data-i18n-attr="title:footer.partnerInquiry.helper" title="사업 제휴, 전략 파트너, 투자 관련 문의를 확인합니다.">사업·투자 문의</a>
         </div>
       </div>
     </footer>
@@ -179,7 +183,7 @@
     <script src="/data/character-messages.js"></script>
     <script src="/data/lineup.js"></script>
     <script src="/data/characters.js"></script>
-    <script src="/pages/popular-vote.js"></script>
+    <script src="/pages/popular-vote.js?v=pick-response-scope-20261001"></script>
     <script src="/cms-bootstrap.js"></script>
     <script src="/app.js"></script>
     <!-- ── 모바일 하단 탭바 (768px 이하 노출, #017 — 2026-05-02) ── -->

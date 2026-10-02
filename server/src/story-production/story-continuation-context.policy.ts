@@ -4,6 +4,7 @@ import {
   CREATOR_GENERATION_PROFILE_SCHEMA,
   creatorGenerationProfileFingerprint,
   normalizeCreatorGenerationProfile,
+  type CreatorGenerationProfileEvidence,
 } from '../generation-profile/creator-generation-profile.policy';
 import type { StoryParticipantPin } from './story-artist-participant.service';
 
@@ -48,7 +49,7 @@ export type StoryContinuationSemanticPathStep = {
 };
 
 const MAX_SEMANTIC_PATH_STEPS = 12;
-export const STORY_CONTINUATION_PROFILE_VIEW_VERSION = 'story-profile-prompt-v2';
+export const STORY_CONTINUATION_PROFILE_VIEW_VERSION = 'story-profile-prompt-v3';
 const MAX_PROFILE_VIEW_BYTES = 16_384;
 const PROFILE_VIEW_LIMITS = [
   { summary: 240, detail: 160, title: 80, categoryExample: 120 },
@@ -213,6 +214,8 @@ export function continuationExecutionFingerprint(input: {
   contextFingerprint: string;
   sourceHash: string;
   pathHash: string;
+  routeContinuityHash?: string;
+  routeContinuityVersion?: string;
   memoryPins: StoryContinuationMemoryPin[];
   generationProfilePin?: StoryContinuationGenerationProfilePin;
   participantPin?: StoryParticipantPin;
@@ -245,7 +248,8 @@ export function continuationGenerationProfileSnapshot(profile: ApprovedStoryGene
     const approved: StoryContinuationApprovedGenerationProfile = {
       schemaVersion: CREATOR_GENERATION_PROFILE_SCHEMA,
       sections: sections.map((section) => ({
-        key: section.key, value: continuationProfileValue(section.key, section.value, limits),
+        key: section.key,
+        value: continuationProfileValue(section.key, section.value, section.evidence, limits),
       })),
     };
     if (Buffer.byteLength(JSON.stringify(approved), 'utf8') <= MAX_PROFILE_VIEW_BYTES) {
@@ -258,13 +262,18 @@ export function continuationGenerationProfileSnapshot(profile: ApprovedStoryGene
 function continuationProfileValue(
   key: string,
   value: Record<string, unknown>,
+  evidence: CreatorGenerationProfileEvidence[],
   limits: typeof PROFILE_VIEW_LIMITS[number],
 ) {
   const projected: Record<string, unknown> = {};
   for (const [field, item] of Object.entries(value)) {
-    if (field === 'observations' || field === 'categories') continue;
+    if (['observations', 'categories', 'referenceScope'].includes(field)) continue;
     projected[field] = field === 'summary' ? profileText(item, limits.summary) : item;
   }
+  // The author's complete manuscript is a reference, never this reader's history.
+  // Even an earlier canonical event may not have happened on a divergent route.
+  projected.referenceScope = key === 'writing_style' || key === 'scene_scale' || key === 'branch_behavior'
+    ? 'production_constraint' : 'author_plan_not_route_history';
   if (Array.isArray(value.observations)) {
     const limit = key === 'writing_style' ? 4
       : ['canon', 'timeline', 'narrative_devices'].includes(key) ? 2 : 1;
@@ -273,7 +282,13 @@ function continuationProfileValue(
         if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return [];
         const row = raw as Record<string, unknown>;
         const detail = profileText(row.detail, limits.detail);
-        return detail ? [{ title: profileText(row.title, limits.title), detail }] : [];
+        if (!detail) return [];
+        const source = profileObservationSource(row.sourceRef, evidence);
+        return [{
+          title: profileText(row.title, limits.title), detail,
+          referenceScope: key === 'writing_style' ? 'writing_pattern' : 'author_plan_not_route_history',
+          ...(source ? source : {}),
+        }];
       });
     if (observations.length) projected.observations = observations;
   }
@@ -289,6 +304,17 @@ function continuationProfileValue(
     if (categories.length) projected.categories = categories;
   }
   return projected;
+}
+
+function profileObservationSource(value: unknown, evidence: CreatorGenerationProfileEvidence[]) {
+  if (typeof value !== 'string' || !/^analysis:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)) return null;
+  const locations = evidence.flatMap((item) => {
+    if (item.sourceType !== 'manuscript' || !item.sourceRef.startsWith(`${value}:`)) return [];
+    const location = item.sourceRef.slice(value.length + 1).match(/^([A-Za-z0-9][A-Za-z0-9_-]{0,63}):(\d{1,9})$/);
+    return location ? [{ sourcePartKey: location[1], sourceParagraphIndex: Number(location[2]) }] : [];
+  });
+  const unique = new Map(locations.map((location) => [JSON.stringify(location), location]));
+  return { sourceRef: value, ...(unique.size === 1 ? [...unique.values()][0] : {}) };
 }
 
 function spreadProfileItems(items: unknown[], limit: number) {

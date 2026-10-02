@@ -18,6 +18,7 @@ export async function requireManuscriptOwner(
 
 export async function storeManuscriptVersion(
   prisma: PrismaService, userId: string, workId: string, input: PreparedManuscript,
+  onStored?: (tx: Prisma.TransactionClient, manuscriptId: string) => Promise<{ analysisStarted: boolean; analysisJobId?: string }>,
 ) {
   const structuredBody = storedManuscriptBody(input);
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -65,6 +66,7 @@ export async function storeManuscriptVersion(
             })),
           });
         }
+        const analysis = await onStored?.(tx, row.id);
         return {
           manuscript: { id: row.id, workId: row.workId, version: row.version, locale: row.locale,
             contentHash: row.contentHash, createdAt: row.createdAt },
@@ -73,6 +75,7 @@ export async function storeManuscriptVersion(
             sourceKind: input.source.kind, parts: input.parts.length, paragraphs: input.paragraphCount },
           rawSource: legacy ? 'legacy_projection_only' : existing ? 'existing_version_unchanged' : 'stored_with_version',
           analysisStarted: false,
+          ...analysis,
         };
       }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, maxWait: 2000, timeout: 10000 });
     } catch (error) {

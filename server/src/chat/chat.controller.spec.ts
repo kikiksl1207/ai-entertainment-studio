@@ -86,3 +86,24 @@ describe('ChatController premium chat fail-closed routes', () => {
     );
   });
 });
+
+describe('ChatController story route handoff', () => {
+  it('forwards the selected route when reading chat history', () => {
+    const chat = { getMessages: jest.fn().mockResolvedValue([]) };
+    const controller = new ChatController(chat as never);
+    controller.getMessages({ id: 'reader-id' } as never, 'session-id', 'progress-id');
+    expect(chat.getMessages).toHaveBeenCalledWith('reader-id', 'session-id', 'progress-id');
+  });
+
+  it('forwards an optional progress ID only to generated character chat', () => {
+    const chat = { generateMessage: jest.fn().mockResolvedValue({ generationStatus: 'completed' }) };
+    const controller = new ChatController(chat as never);
+    const user = { id: 'reader-id' };
+    controller.generateMessage(user as never, 'session-id', {
+      body: '지난 장면 기억나?', storyProgressId: 'progress-id',
+    });
+    expect(chat.generateMessage).toHaveBeenCalledWith('reader-id', 'session-id', {
+      body: '지난 장면 기억나?', chatFeatureOrderId: undefined, storyProgressId: 'progress-id',
+    });
+  });
+});

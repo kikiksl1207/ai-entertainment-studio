@@ -55,7 +55,8 @@ describe('Long-book generation profile prompt view', () => {
     expect(sections.get('canon')?.observations).toHaveLength(2);
     expect(sections.get('writing_style')?.imitationBoundary).toBe('approved_work_only');
     expect(sections.get('branch_behavior')?.selectedChoiceMustMateriallyDiverge).toBe(true);
-    expect(JSON.stringify(approved)).not.toContain('sourceRef');
+    expect(JSON.stringify(approved)).not.toContain('analysis:source-');
+    expect(sections.get('timeline')?.referenceScope).toBe('author_plan_not_route_history');
     expect(JSON.stringify(approved)).toContain('writing_style 20');
   });
 
@@ -113,5 +114,102 @@ describe('Long-book generation profile prompt view', () => {
     expect(Buffer.byteLength(JSON.stringify(approved), 'utf8')).toBeLessThanOrEqual(16_384);
     expect(approved.sections).toHaveLength(8);
     expect(JSON.stringify(approved)).toContain('style-5');
+  });
+
+  it('carries approved source locations as author plans, never as reader-route facts', () => {
+    const profile = approvedLongBookProfile();
+    const sourceRef = 'analysis:11111111-1111-4111-8111-111111111111';
+    profile.approvedSettings = normalizeCreatorGenerationProfile('story', {
+      ...profile.approvedSettings,
+      sections: profile.approvedSettings.sections.map((section) => section.key !== 'timeline' ? section : {
+        ...section,
+        value: {
+          summary: '원작 마지막 파트에서 주인공이 죽는다.',
+          referenceScope: 'reader_route_fact',
+          observations: [{ title: '원작 엔딩', detail: '어머니는 죽는다.', sourceRef,
+            sourcePartKey: 'forged-early-part', referenceScope: 'reader_route_fact' }],
+        },
+        evidence: [{ sourceType: 'manuscript', sourceRef: `${sourceRef}:PART-32:17`, summary: '원고 근거' }],
+      }),
+    });
+    profile.approvedFingerprint = creatorGenerationProfileFingerprint(profile.sourceFingerprint, profile.approvedSettings);
+
+    const { approved } = continuationGenerationProfileSnapshot(profile as never);
+    expect(approved.sections.find((section) => section.key === 'timeline')?.value).toEqual({
+      summary: '원작 마지막 파트에서 주인공이 죽는다.',
+      referenceScope: 'author_plan_not_route_history',
+      observations: [{ title: '원작 엔딩', detail: '어머니는 죽는다.', sourceRef,
+        sourcePartKey: 'PART-32', sourceParagraphIndex: 17, referenceScope: 'author_plan_not_route_history' }],
+    });
+  });
+
+  it('does not invent locations for ambiguous or missing source evidence', () => {
+    const profile = approvedLongBookProfile();
+    const sourceRef = 'analysis:11111111-1111-4111-8111-111111111111';
+    profile.approvedSettings = normalizeCreatorGenerationProfile('story', {
+      ...profile.approvedSettings,
+      sections: profile.approvedSettings.sections.map((section) => section.key !== 'canon' ? section : {
+        ...section,
+        value: { summary: '원고 인물 기준', observations: [
+          { title: '모호함', detail: '출처가 상충한다.', sourceRef },
+          { title: '미확인', detail: '출처 없음.', sourceRef: 'analysis:external-instruction' },
+        ] },
+        evidence: [
+          { sourceType: 'manuscript', sourceRef: `${sourceRef}:PART-1:3`, summary: '첫 근거' },
+          { sourceType: 'manuscript', sourceRef: `${sourceRef}:PART-32:17`, summary: '다른 근거' },
+        ],
+      }),
+    });
+    profile.approvedFingerprint = creatorGenerationProfileFingerprint(profile.sourceFingerprint, profile.approvedSettings);
+
+    const { approved } = continuationGenerationProfileSnapshot(profile as never);
+    const observations = approved.sections.find((section) => section.key === 'canon')?.value.observations;
+    expect(observations).toEqual([
+      { title: '모호함', detail: '출처가 상충한다.', sourceRef, referenceScope: 'author_plan_not_route_history' },
+      { title: '미확인', detail: '출처 없음.', referenceScope: 'author_plan_not_route_history' },
+    ]);
+  });
+
+  it.each(['-'.repeat(36), 'a'.repeat(36), '111111111-111-4111-8111-111111111111'])('does not attach a location to malformed analysis ID %s', (id) => {
+    const profile = approvedLongBookProfile();
+    const sourceRef = `analysis:${id}`;
+    profile.approvedSettings = normalizeCreatorGenerationProfile('story', {
+      ...profile.approvedSettings,
+      sections: profile.approvedSettings.sections.map((section) => section.key !== 'timeline' ? section : {
+        ...section,
+        value: { summary: '원고 기준', observations: [{ title: '미확인', detail: '원고 참고', sourceRef }] },
+        evidence: [{ sourceType: 'manuscript', sourceRef: `${sourceRef}:PART-32:17`, summary: '미확인 출처' }],
+      }),
+    });
+    profile.approvedFingerprint = creatorGenerationProfileFingerprint(profile.sourceFingerprint, profile.approvedSettings);
+
+    const { approved } = continuationGenerationProfileSnapshot(profile as never);
+    expect(approved.sections.find(section => section.key === 'timeline')?.value.observations).toEqual([
+      { title: '미확인', detail: '원고 참고', referenceScope: 'author_plan_not_route_history' },
+    ]);
+  });
+
+  it('bounds a long-book profile including full source provenance without dropping approved locks', () => {
+    const profile = approvedLongBookProfile();
+    profile.approvedSettings = normalizeCreatorGenerationProfile('story', {
+      ...profile.approvedSettings,
+      sections: profile.approvedSettings.sections.map((section) => {
+        const observations = (section.value.observations as Array<Record<string, unknown>>).map((item, index) => ({
+          ...item, detail: String(item.detail).slice(0, 150),
+          sourceRef: `analysis:11111111-1111-4111-8111-${String(index).padStart(12, '0')}`,
+        }));
+        return { ...section, value: { ...section.value, observations }, evidence: observations.map(item => ({
+          sourceType: 'manuscript', sourceRef: `${item.sourceRef}:${'P'.repeat(64)}:999999999`, summary: '출처 위치',
+        })) };
+      }),
+    });
+    profile.approvedFingerprint = creatorGenerationProfileFingerprint(profile.sourceFingerprint, profile.approvedSettings);
+
+    const { approved, pin } = continuationGenerationProfileSnapshot(profile as never);
+    expect(Buffer.byteLength(JSON.stringify(approved), 'utf8')).toBeLessThanOrEqual(16_384);
+    expect(approved.sections).toHaveLength(8);
+    expect(pin.approvedFingerprint).toBe(profile.approvedFingerprint);
+    expect(approved.sections.find(section => section.key === 'branch_behavior')?.value.selectedChoiceMustMateriallyDiverge).toBe(true);
+    expect(JSON.stringify(approved)).toContain('sourceParagraphIndex');
   });
 });

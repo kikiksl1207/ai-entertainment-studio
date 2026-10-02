@@ -1,0 +1,43 @@
+#writerChoiceConsentReview,
+#writerChoiceConsentReview * { box-sizing: border-box; min-width: 0; letter-spacing: 0; }
+#writerChoiceConsentReview {
+  width: 100%; max-width: 100%; margin: 20px 0; padding: 16px 0 0;
+  border-top: 1px solid var(--line, #56565f);
+}
+#writerChoiceConsentReview[hidden] { display: none !important; }
+#writerChoiceConsentReview h3,
+#writerChoiceConsentReview h4,
+#writerChoiceConsentReview p { overflow-wrap: anywhere; white-space: normal; }
+#writerChoiceConsentTitle { margin: 0 0 8px; font-size: 16px; line-height: 1.5; }
+#writerChoiceConsentNotice,
+#writerChoiceConsentCount,
+#writerChoiceConsentStatus { margin: 8px 0; font-size: 13px; line-height: 1.6; }
+#writerChoiceConsentCount { color: var(--muted, #b3b3be); }
+#writerChoiceConsentStatus { min-height: 21px; }
+#writerChoiceConsentStatus.is-danger { color: var(--danger, #efaaaa); }
+#writerChoiceConsentScenes {
+  max-height: 28rem; margin: 12px 0; padding: 0 12px 0 0; overflow-y: auto;
+  scrollbar-gutter: stable; list-style: none; overscroll-behavior: contain;
+}
+#writerChoiceConsentScenes > li { padding: 12px 0; border-bottom: 1px solid var(--line, #56565f); }
+#writerChoiceConsentScenes h4 { margin: 0 0 8px; font-size: 14px; line-height: 1.6; }
+#writerChoiceConsentScenes ol { margin: 0; padding-left: 28px; list-style: decimal; }
+#writerChoiceConsentScenes ol > li { padding: 4px 0 6px 4px; font-size: 14px; line-height: 1.6; overflow-wrap: anywhere; }
+#writerChoiceConsentReview .writer-choice-consent-label { display: block; white-space: pre-wrap; overflow-wrap: anywhere; }
+#writerChoiceConsentReview .writer-choice-consent-route { display: block; color: var(--muted, #b3b3be); font-size: 12px; }
+#writerChoiceConsentReview .writer-choice-consent-check { display: flex; align-items: flex-start; gap: 8px; margin: 14px 0; }
+#writerChoiceConsentReview .writer-choice-consent-check input {
+  flex: 0 0 18px; width: 18px; height: 18px; margin: 3px 0 0; accent-color: var(--accent, #7bbcc0);
+}
+#writerChoiceConsentReview .writer-choice-consent-check span { font-size: 14px; line-height: 1.6; overflow-wrap: anywhere; }
+#writerChoiceConsentActions { display: flex; flex-wrap: wrap; gap: 10px; }
+#writerChoiceConsentApprove {
+  max-width: 100%; min-height: 44px; height: auto; padding: 10px 16px;
+  font: inherit; font-size: 14px; line-height: 1.5; white-space: normal; overflow-wrap: anywhere;
+}
+#writerChoiceConsentReview :disabled { opacity: .6; }
+#writerChoiceConsentReview :focus-visible { outline: 2px solid var(--accent, #7bbcc0); outline-offset: 2px; }
+@media (max-width: 640px) {
+  #writerChoiceConsentActions { display: grid; grid-template-columns: minmax(0, 1fr); }
+  #writerChoiceConsentScenes { padding-right: 4px; }
+}

@@ -353,41 +353,49 @@ export class FanEngagementService {
 
   async getMySummary(userId: string, query: FanEngagementQuery) {
     const locale = this.locale(query.locale);
-    const [ledger, participations, achievements, titles] = await Promise.all([
-      this.prisma.fanEngagementPointLedger.findMany({
-        where: { userId },
+    const now = new Date();
+    const today = this.kstDateBucket(now);
+    const [ledger, pointTotals, participationTotals, achievements, titles] = await this.prisma.$transaction(async tx => Promise.all([
+      tx.fanEngagementPointLedger.findMany({
+        where: { userId, createdAt: { lte: now } },
         orderBy: { createdAt: 'desc' },
         take: 20,
       }),
-      this.prisma.fanMissionParticipation.findMany({
-        where: { userId },
-        orderBy: { createdAt: 'desc' },
-        take: 100,
+      tx.fanEngagementPointLedger.groupBy({
+        by: ['direction'], where: { userId, createdAt: { lte: now } }, _sum: { points: true },
       }),
-      this.prisma.userFanAchievement.findMany({
+      // Calendar-day islands count accepted activity without loading the user's full history into Node.
+      tx.$queryRaw<Array<{ completedTodayCount: bigint; currentStreakDays: bigint; totalAcceptedCount: bigint }>>`
+        WITH accepted AS (
+          SELECT (created_at AT TIME ZONE 'Asia/Seoul')::date AS day
+          FROM fan_mission_participations
+          WHERE user_id = ${userId}::uuid AND status = 'accepted' AND created_at <= ${now}
+        ), days AS (SELECT DISTINCT day FROM accepted),
+        ranked AS (SELECT day, day + (row_number() OVER (ORDER BY day DESC))::int AS island FROM days),
+        latest AS (SELECT day, island FROM ranked ORDER BY day DESC LIMIT 1)
+        SELECT
+          (SELECT count(*) FROM accepted WHERE day = ${today}::date) AS "completedTodayCount",
+          (SELECT count(*) FROM ranked, latest
+           WHERE ranked.island = latest.island AND latest.day >= ${today}::date - 1) AS "currentStreakDays",
+          (SELECT count(*) FROM accepted) AS "totalAcceptedCount"
+      `,
+      tx.userFanAchievement.findMany({
         where: { userId },
         include: { achievement: true },
         orderBy: { createdAt: 'desc' },
       }),
-      this.prisma.userFanTitle.findMany({
+      tx.userFanTitle.findMany({
         where: { userId },
         include: { title: true },
         orderBy: [{ equipped: 'desc' }, { createdAt: 'desc' }],
       }),
-    ]);
-    const balance = ledger.reduce((sum, row) => {
-      if (row.direction === 'spend') {
-        return sum - row.points;
-      }
-      return sum + row.points;
-    }, 0);
-    const lifetimeEarned = ledger
-      .filter((row) => row.direction === 'earn')
-      .reduce((sum, row) => sum + row.points, 0);
-    const today = this.resetBucketForPolicy('daily', new Date());
+    ]), { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
+    const balance = pointTotals.reduce((sum, row) => sum + (row.direction === 'spend' ? -1 : 1) * (row._sum.points ?? 0), 0);
+    const lifetimeEarned = pointTotals.find(row => row.direction === 'earn')?._sum.points ?? 0;
+    const participation = participationTotals[0];
 
     return {
-      generatedAt: new Date().toISOString(),
+      generatedAt: now.toISOString(),
       locale,
       points: {
         balance,
@@ -398,11 +406,9 @@ export class FanEngagementService {
         luminaConvertible: false,
       },
       participationSummary: {
-        completedTodayCount: participations.filter(
-          (row) => row.resetBucket === today && row.status === 'accepted',
-        ).length,
-        currentStreakDays: 0,
-        totalAcceptedCount: participations.filter((row) => row.status === 'accepted').length,
+        completedTodayCount: Number(participation.completedTodayCount),
+        currentStreakDays: Number(participation.currentStreakDays),
+        totalAcceptedCount: Number(participation.totalAcceptedCount),
       },
       achievements: achievements.map((row) => ({
         code: row.achievement.code,

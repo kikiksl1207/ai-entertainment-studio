@@ -266,7 +266,7 @@ describe('CreatorStudioService artist knowledge URLs', () => {
       expect.objectContaining({
         data: expect.objectContaining({
           actorUserId: userId,
-          actorType: 'creator',
+          actorType: 'user',
           action: 'creator_studio.artist_knowledge_url.create',
           targetType: 'artist_knowledge_url',
           targetId: row.id,
@@ -413,7 +413,7 @@ describe('CreatorStudioService artist knowledge URLs', () => {
     expect(prisma.auditEvent.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          actorType: 'creator',
+          actorType: 'user',
           action: 'creator_studio.artist_knowledge_url.update',
           metadata: expect.objectContaining({
             statusTransition: { from: 'approved', to: 'pending' },

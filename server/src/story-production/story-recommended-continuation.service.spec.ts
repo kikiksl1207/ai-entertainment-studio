@@ -1,10 +1,26 @@
 import { ForbiddenException } from '@nestjs/common';
 import { Decimal } from '@prisma/client/runtime/library';
 import { StoryEconomicsService } from './story-economics.service';
+import { STORY_CONTINUATION_PROMPT_VERSION } from './story-continuation-openai.schema';
 import {
   creatorGenerationProfileFingerprint,
   normalizeCreatorGenerationProfile,
 } from '../generation-profile/creator-generation-profile.policy';
+
+function memoryQuery(rows: Array<{ id: string; memoryType: string; partKey: string | null; revision: number; content: unknown }>) {
+  return async ({ where, take }: { where: {
+    memoryType: string | { in: string[] };
+    partKey?: { in: string[] };
+    OR?: Array<{ partKey: null | { notIn: string[] } }>;
+  }; take: number }) => rows.filter((row) => {
+    const types = typeof where.memoryType === 'string' ? [where.memoryType] : where.memoryType.in;
+    if (!types.includes(row.memoryType)) return false;
+    if (where.partKey?.in && !where.partKey.in.includes(row.partKey ?? '')) return false;
+    const excluded = where.OR?.find((entry) => entry.partKey && typeof entry.partKey === 'object')?.partKey;
+    return !excluded || typeof excluded !== 'object' || row.partKey === null ||
+      !excluded.notIn.includes(row.partKey);
+  }).slice(0, take);
+}
 
 function fixture(includedAiRouteCount = 2) {
   const now = new Date();
@@ -47,9 +63,14 @@ function fixture(includedAiRouteCount = 2) {
     storyStyleProfileConsent: { findFirst: jest.fn().mockResolvedValue(consent) },
     storyAnalysisJob: { findFirst: jest.fn().mockResolvedValue({ id: 'analysis-id', analysisVersion: 7 }) },
     contentRightsContract: { findFirst: jest.fn().mockResolvedValue({ id: 'rights-contract-id', versions: [rights] }) },
-    storyMemoryRecord: { findMany: jest.fn().mockResolvedValue([{ id: 'memory-id', memoryType: 'event', revision: 1, content: { summary: 'bounded' } }]) },
+    storyMemoryRecord: { findMany: jest.fn(memoryQuery([
+      { id: 'memory-id', memoryType: 'event', partKey: 'part-1', revision: 1, content: { summary: 'bounded' } },
+    ])) },
+    storyPart: { findMany: jest.fn().mockResolvedValue([{ id: 'part-id' }]) },
     storyChoiceEvent: { findMany: jest.fn().mockResolvedValue([{ id: 'event-id', sceneId: 'prior', choiceId: 'prior-choice', targetSceneId: 'scene-id' }]) },
-    storyScene: { findMany: jest.fn().mockResolvedValue([{ id: 'opening', title: { ko: '이전 장면' }, endingType: null }]) },
+    storyScene: { findMany: jest.fn().mockImplementation(async (query) => query.where?.sceneKey
+      ? [{ sceneKey: 'part-1-main' }]
+      : [{ id: 'opening', title: { ko: '이전 장면' }, endingType: null }]) },
     storyChoice: { findMany: jest.fn().mockResolvedValue([{
       id: 'choice-a', sceneId: 'opening', label: { ko: '이전 선택' }, targetEndingKey: null, declaredRejoinSceneId: null,
     }]) },
@@ -81,7 +102,7 @@ function fixture(includedAiRouteCount = 2) {
       capabilityRevision: 4, progressRevision: 9, checkpointSceneId: 'scene-id',
       pathSummary: [{ sceneId: 'opening', choiceId: 'choice-a' }],
     },
-    work: { id: 'work-id' }, part: { id: 'part-id' },
+    work: { id: 'work-id' }, part: { id: 'part-id', position: 1 },
     scene: { id: 'scene-id', title: { ko: '장면' } },
     release: {
       id: 'release-id', workId: 'work-id', version: 1,
@@ -134,6 +155,157 @@ describe('recommended choice enqueue transaction', () => {
     }));
     expect(f.provider.preflight.mock.calls[0][0].operationId)
       .toBe(f.createContinuation.mock.calls[0][0].data.id);
+  });
+
+  it('does not treat an authored rejoin declaration as permission for generated alternatives', async () => {
+    const f = fixture();
+    Object.assign(f.input.choice, { declaredRejoinSceneId: 'authored-rejoin-scene' });
+    await expect(f.service.requestRecommendedChoiceTx(f.tx as never, f.input))
+      .rejects.toThrow('Choice is not eligible for generated continuation');
+    expect(f.provider.readiness).not.toHaveBeenCalled();
+    expect(f.createContinuation).not.toHaveBeenCalled();
+  });
+
+  it('treats skipped author-route parts as plans, not reached facts', async () => {
+    const f = fixture();
+    f.input.part.position = 3;
+    f.tx.storyChoiceEvent.findMany.mockResolvedValue([{ sceneId: 'opening', targetSceneId: 'scene-id' }]);
+    f.tx.storyPart.findMany.mockResolvedValue([{ id: 'part-1-id' }, { id: 'part-2-id' }, { id: 'part-id' }]);
+    f.tx.storyScene.findMany.mockImplementation(async (query) => query.where?.sceneKey
+      ? [{ id: 'opening', sceneKey: 'part-1-main' }, { id: 'scene-id', sceneKey: 'part-3-main' }]
+      : [{ id: 'opening', title: { ko: '이전 장면' }, endingType: null }]);
+    f.tx.storyMemoryRecord.findMany.mockImplementation(memoryQuery([
+      { id: 'past', memoryType: 'event', partKey: 'part-1', revision: 1, content: { ko: '지난 사건' } },
+      { id: 'skipped', memoryType: 'event', partKey: 'part-2', revision: 1, content: { ko: '가지 않은 길의 사건' } },
+      { id: 'current', memoryType: 'event', partKey: 'part-3', revision: 1, content: { ko: '현재 사건' } },
+      { id: 'future', memoryType: 'foreshadow', partKey: 'part-4', revision: 1, content: { ko: '아직 모를 비밀' } },
+      { id: 'style', memoryType: 'style', partKey: 'part-4', revision: 1, content: { ko: '절제된 문장' } },
+    ]));
+    f.provider.preflight = jest.fn().mockResolvedValue({ supported: true, inputTokenUpperBound: 900 });
+    await f.service.requestRecommendedChoiceTx(f.tx as never, f.input);
+    const request = f.provider.preflight.mock.calls[0][0];
+    expect(request.approvedContext.memories).toEqual([
+      { memoryType: 'style', content: '절제된 문장' },
+      { memoryType: 'event', content: '지난 사건' },
+      { memoryType: 'event', content: '현재 사건' },
+      { memoryType: 'author_plan_event', content: '가지 않은 길의 사건' },
+      { memoryType: 'author_plan_foreshadow', content: '아직 모를 비밀' },
+    ]);
+    expect(f.tx.storyPart.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ position: { lte: 3 } }),
+    }));
+    expect(f.tx.storyScene.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ id: { in: ['scene-id', 'opening'] } }),
+    }));
+    expect(f.tx.storyMemoryRecord.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ memoryType: 'style' }),
+    }));
+    expect(f.createContinuation.mock.calls[0][0].data.contextReferences.memoryPins)
+      .toEqual(expect.arrayContaining([expect.objectContaining({ id: 'past' }),
+        expect.objectContaining({ id: 'skipped' }), expect.objectContaining({ id: 'future' }),
+        expect.objectContaining({ id: 'style' })]));
+    expect(f.createContinuation.mock.calls[0][0].data.contextReferences.planningMemoryIds).toEqual(['skipped', 'future']);
+  });
+
+  it('uses active choice events to retain reached facts beyond the bounded path summary', async () => {
+    const f = fixture();
+    f.input.part.position = 3;
+    f.input.progress.pathSummary = [];
+    f.tx.storyChoiceEvent.findMany.mockResolvedValue([{ sceneId: 'old-scene', targetSceneId: null }]);
+    f.tx.storyPart.findMany.mockResolvedValue([{ id: 'part-1-id' }, { id: 'part-2-id' }, { id: 'part-id' }]);
+    f.tx.storyScene.findMany.mockImplementation(async (query) => query.where?.sceneKey
+      ? [{ id: 'old-scene', sceneKey: 'part-1-main' }, { id: 'scene-id', sceneKey: 'part-3-main' }]
+      : []);
+    f.tx.storyMemoryRecord.findMany.mockImplementation(memoryQuery([
+      { id: 'old', memoryType: 'event', partKey: 'part-1', revision: 1, content: { ko: '오래전에 겪은 사건' } },
+      { id: 'skipped', memoryType: 'event', partKey: 'part-2', revision: 1, content: { ko: '건너뛴 사건' } },
+    ]));
+    f.provider.preflight = jest.fn().mockResolvedValue({ supported: true, inputTokenUpperBound: 900 });
+
+    await f.service.requestRecommendedChoiceTx(f.tx as never, f.input);
+
+    expect(f.tx.storyChoiceEvent.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { progressId: 'progress-id', invalidatedAt: null },
+    }));
+    expect(f.provider.preflight.mock.calls[0][0].approvedContext.memories).toEqual([
+      { memoryType: 'event', content: '오래전에 겪은 사건' },
+      { memoryType: 'author_plan_event', content: '건너뛴 사건' },
+    ]);
+  });
+
+  it('prioritizes recently visited part memories on a long reader route', async () => {
+    const f = fixture();
+    f.input.part.position = 20;
+    f.tx.storyPart.findMany.mockResolvedValue(Array.from({ length: 20 }, (_, index) => ({
+      id: index === 19 ? 'part-id' : `part-${index + 1}-id`,
+    })));
+    f.tx.storyChoiceEvent.findMany.mockResolvedValue(Array.from({ length: 19 }, (_, index) => ({
+      sceneId: `scene-${19 - index}`,
+      targetSceneId: null,
+    })));
+    f.tx.storyScene.findMany.mockImplementation(async (query) => query.where?.sceneKey
+      ? [
+          { id: 'scene-id', sceneKey: 'part-20-main' },
+          ...Array.from({ length: 19 }, (_, index) => ({
+            id: `scene-${index + 1}`, sceneKey: `part-${index + 1}-main`,
+          })),
+        ]
+      : [{ id: 'opening', title: { ko: '이전 장면' }, endingType: null }]);
+    f.tx.storyMemoryRecord.findMany.mockImplementation(memoryQuery(Array.from({ length: 20 }, (_, index) => ({
+      id: `event-${index + 1}`, memoryType: 'event', partKey: `part-${index + 1}`,
+      revision: 1, content: { ko: `지난 사건 ${index + 1}` },
+    }))));
+    f.provider.preflight = jest.fn().mockResolvedValue({ supported: true, inputTokenUpperBound: 900 });
+
+    await f.service.requestRecommendedChoiceTx(f.tx as never, f.input);
+
+    const reachedQuery = f.tx.storyMemoryRecord.findMany.mock.calls.find(([query]) => query.where?.partKey?.in);
+    const queriedKeys = reachedQuery?.[0].where.partKey?.in ?? [];
+    expect(queriedKeys).toContain('part-20');
+    expect(queriedKeys).not.toContain('part-1');
+    const memories = f.provider.preflight.mock.calls[0][0].approvedContext.memories;
+    expect(memories).toContainEqual({ memoryType: 'event', content: '지난 사건 20' });
+    expect(memories).not.toContainEqual({ memoryType: 'author_plan_event', content: '지난 사건 1' });
+  });
+
+  it('reserves author-style samples even when a long work has many event memories', async () => {
+    const f = fixture();
+    const styles = Array.from({ length: 8 }, (_, index) => ({
+      id: `style-${index + 1}`, memoryType: 'style', partKey: `part-${index + 1}`,
+      revision: 1, content: { ko: `문체 표본 ${index + 1}` },
+    }));
+    const events = Array.from({ length: 60 }, (_, index) => ({
+      id: `event-${index + 1}`, memoryType: 'event', partKey: `part-${index + 2}`,
+      revision: 1, content: { ko: `원작 사건 ${index + 1}` },
+    }));
+    f.tx.storyMemoryRecord.findMany.mockImplementation(memoryQuery([...events, ...styles]));
+    f.provider.preflight = jest.fn().mockResolvedValue({ supported: true, inputTokenUpperBound: 900 });
+
+    await f.service.requestRecommendedChoiceTx(f.tx as never, f.input);
+
+    const memories = f.provider.preflight.mock.calls[0][0].approvedContext.memories;
+    expect(memories.filter((memory: { memoryType: string }) => memory.memoryType === 'style'))
+      .toEqual([
+        { memoryType: 'style', content: '문체 표본 1' },
+        { memoryType: 'style', content: '문체 표본 4' },
+        { memoryType: 'style', content: '문체 표본 8' },
+      ]);
+    expect(memories.length).toBeLessThanOrEqual(50);
+  });
+
+  it('fails closed before reservation when the source part order cannot be verified', async () => {
+    const missingPosition = fixture();
+    (missingPosition.input.part as { position?: number }).position = undefined;
+    await expect(missingPosition.service.requestRecommendedChoiceTx(missingPosition.tx as never, missingPosition.input))
+      .rejects.toMatchObject({ response: { code: 'STORY_AI_CONTEXT_PART_UNAVAILABLE' } });
+    expect(missingPosition.tx.storyPart.findMany).not.toHaveBeenCalled();
+    expect(missingPosition.createContinuation).not.toHaveBeenCalled();
+
+    const missingCurrentPart = fixture();
+    missingCurrentPart.tx.storyPart.findMany.mockResolvedValue([{ id: 'different-part' }]);
+    await expect(missingCurrentPart.service.requestRecommendedChoiceTx(missingCurrentPart.tx as never, missingCurrentPart.input))
+      .rejects.toMatchObject({ response: { code: 'STORY_AI_CONTEXT_PART_UNAVAILABLE' } });
+    expect(missingCurrentPart.createContinuation).not.toHaveBeenCalled();
   });
 
   it('keeps caller idempotency data out of the provider operation identifier', async () => {
@@ -190,7 +362,7 @@ describe('recommended choice enqueue transaction', () => {
       recommendedChoiceId: 'choice-b', sourcePartId: 'part-id', sourceSceneId: 'scene-id',
       manuscriptVersionId: 'manuscript-id', analysisJobId: 'analysis-id', analysisVersion: 7,
       rightsContractId: 'rights-contract-id', rightsContractVersionId: 'rights-version-id',
-      styleConsentRevision: 3, promptVersion: 'story-continuation-v6',
+      styleConsentRevision: 3, promptVersion: STORY_CONTINUATION_PROMPT_VERSION,
       outputSchemaVersion: 'story-continuation-output-v1',
     });
     expect(data.contextFingerprint).toMatch(/^[a-f0-9]{64}$/);
@@ -215,12 +387,12 @@ describe('recommended choice enqueue transaction', () => {
       id: 'profile-id', profileVersion: 2, reviewRevision: 4,
       approvedFingerprint: profile.approvedFingerprint,
     });
-    expect(data.contextReferences.generationProfileViewVersion).toBe('story-profile-prompt-v2');
+    expect(data.contextReferences.generationProfileViewVersion).toBe('story-profile-prompt-v3');
     expect(f.provider.preflight).toHaveBeenCalledWith(expect.objectContaining({
       approvedContext: expect.objectContaining({
         generationProfile: expect.objectContaining({
           sections: expect.arrayContaining([
-            { key: 'writing_style', value: { summary: 'writing_style approved' } },
+            { key: 'writing_style', value: { summary: 'writing_style approved', referenceScope: 'production_constraint' } },
           ]),
         }),
       }),
@@ -238,6 +410,22 @@ describe('recommended choice enqueue transaction', () => {
     });
     await expect(f.service.requestRecommendedChoiceTx(f.tx as never, f.input))
       .rejects.toMatchObject({ response: { code: 'STORY_GENERATION_PROFILE_APPROVAL_REQUIRED' } });
+    expect(f.tx.storyAiAllowanceBucket.upsert).not.toHaveBeenCalled();
+    expect(f.createContinuation).not.toHaveBeenCalled();
+  });
+
+  it('blocks a completed semantic analysis when its creator profile is missing', async () => {
+    const f = fixture();
+    Object.assign(f.tx, {
+      storyWorkGenerationProfile: { findFirst: jest.fn().mockResolvedValue(null) },
+    });
+    f.tx.storyAnalysisJob.findFirst.mockResolvedValue({
+      id: 'semantic-id', pipeline: 'semantic_extraction_v1', analysisVersion: 8,
+    });
+
+    await expect(f.service.requestRecommendedChoiceTx(f.tx as never, f.input)).rejects.toMatchObject({
+      response: { code: 'STORY_GENERATION_PROFILE_APPROVAL_REQUIRED' },
+    });
     expect(f.tx.storyAiAllowanceBucket.upsert).not.toHaveBeenCalled();
     expect(f.createContinuation).not.toHaveBeenCalled();
   });
@@ -459,9 +647,9 @@ describe('recommended choice enqueue transaction', () => {
 
   it('rejects oversized approved context instead of clamping the estimate before enqueue', async () => {
     const f = fixture();
-    f.tx.storyMemoryRecord.findMany.mockResolvedValue([{
-      id: 'memory-id', memoryType: 'event', revision: 1, content: { summary: '다'.repeat(5000) },
-    }]);
+    f.tx.storyMemoryRecord.findMany.mockImplementation(memoryQuery([{
+      id: 'memory-id', memoryType: 'event', partKey: 'part-1', revision: 1, content: { summary: '다'.repeat(5000) },
+    }]));
     await expect(f.service.requestRecommendedChoiceTx(f.tx as never, f.input))
       .rejects.toMatchObject({ response: { code: 'STORY_AI_CONTEXT_BUDGET_EXCEEDED' } });
     expect(f.tx.storyAiAllowanceBucket.upsert).not.toHaveBeenCalled();
@@ -498,6 +686,18 @@ describe('recommended choice enqueue transaction', () => {
 });
 
 describe('recommended continuation execution pins', () => {
+  it('rejects an unversioned sibling context before any paid provider call', async () => {
+    const prisma = { storyAiContinuation: { findUnique: jest.fn().mockResolvedValue({
+      status: 'processing', leaseToken: 'lease-token', requestKind: 'recommended_choice',
+      siblingContextKey: null, siblingChoiceKey: null,
+    }) } };
+    const service = new StoryEconomicsService(prisma as never);
+    await expect(service.continuationExecutionAuthorization({
+      continuationId: 'continuation-id', leaseToken: 'lease-token',
+      attemptCount: 1, maxAttempts: 3, request: {} as never,
+    })).resolves.toEqual({ allowed: false, code: 'continuation_sibling_context_unavailable' });
+  });
+
   it('fails closed before provider execution when nullable analysis, rights, or manuscript pins are absent', async () => {
     const now = new Date();
     const continuation = {
@@ -507,6 +707,7 @@ describe('recommended continuation execution pins', () => {
       capabilityRevision: 2, styleConsentRevision: 3, locale: 'ko',
       manuscriptVersionId: null, analysisJobId: null, analysisVersion: null,
       rightsContractId: null, rightsContractVersionId: null, releaseChecksum: 'checksum',
+      siblingContextKey: 'a'.repeat(64), siblingChoiceKey: 'b'.repeat(64),
     };
     const prisma = {
       storyAiContinuation: { findUnique: jest.fn().mockResolvedValue(continuation) },

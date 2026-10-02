@@ -6,5 +6,6 @@ import { ArtistIdentityAnalysisProvider } from '../generation-profile/artist-ide
 @Module({
   controllers: [CreatorStudioController],
   providers: [CreatorStudioService, ArtistIdentityAnalysisProvider],
+  exports: [CreatorStudioService],
 })
 export class CreatorStudioModule {}

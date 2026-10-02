@@ -582,6 +582,10 @@ function loadGoogleSDK() {
     script.onload = () => resolve();
     script.onerror = () => reject(new Error("Google SDK 로드 실패"));
     document.head.appendChild(script);
+  }).catch(err => {
+    googleSdkPromise = null;
+    document.getElementById("googleGsiSdk")?.remove();
+    throw err;
   });
   return googleSdkPromise;
 }
@@ -1228,6 +1232,13 @@ function renderLoadingRow(targetId, label = "데이터를 불러오는 중입니
   if (!target) return;
   const colSpan = tableMeta[targetId]?.labels?.length || 5;
   target.innerHTML = `<tr><td colspan="${colSpan}">${label}</td></tr>`;
+}
+
+function renderErrorRow(targetId, label) {
+  const target = document.getElementById(targetId);
+  if (!target) return;
+  const colSpan = tableMeta[targetId]?.labels?.length || 5;
+  target.innerHTML = `<tr><td colspan="${colSpan}"><span role="alert">${escapeHtml(label)}</span></td></tr>`;
 }
 
 function renderFallbackNote(targetId, label = "현재 데이터를 불러오지 못해 샘플 데이터를 유지합니다.") {
@@ -3194,20 +3205,20 @@ function renderBackstageTables() {
   renderRows("adminRequestRows", backstageRows.adminRequests, 3);
   renderRows("overviewQueueRows", backstageRows.overviewQueue, 3);
   renderRows("riskRows", backstageRows.risk, 3);
-  renderRows("userRows", backstageRows.users, 9);
-  renderRows("userRiskRows", backstageRows.userRisks, 3);
+  renderLoadingRow("userRows");
+  renderLoadingRow("userRiskRows");
   renderRows("creatorRows", backstageRows.creators, 7);
   renderRows("creatorImageRequestRows", backstageRows.creatorImageRequests, 5);
   renderLoadingRow("artistKnowledgeUrlRows", "자료 URL 심사 큐는 운영자 권한 확인 후 불러옵니다.");
   renderRows("aiCreatorRows", backstageRows.aiCreators, 5);
-  renderRows("aiAssetRows", backstageRows.aiAssets, -1);
-  renderRows("aiPostRows", backstageRows.aiPosts, -1);
-  renderRows("moderationRows", backstageRows.moderation, 3);
-  renderRows("moderationReportRows", backstageRows.moderationReports, 4);
+  renderLoadingRow("aiAssetRows", "AI 콘텐츠 탭에서 운영 현황을 불러옵니다.");
+  renderLoadingRow("aiPostRows", "AI 콘텐츠 탭에서 운영 현황을 불러옵니다.");
+  renderLoadingRow("moderationRows");
+  renderLoadingRow("moderationReportRows");
   renderRows("contentAnomalyRows", backstageRows.contentAnomalies, 3);
   renderRows("reportCancelRows", backstageRows.reportCancels, 3);
-  renderRows("feedSearchRows", backstageRows.feedSearches, -1);
-  renderRows("feedBlockedTermRows", backstageRows.feedBlockedTerms, 3);
+  renderLoadingRow("feedSearchRows");
+  renderLoadingRow("feedBlockedTermRows");
   renderLoadingRow("fanMissionRows", "팬 미션 탭에서 목록을 불러옵니다.");
   renderLoadingRow("fanMissionPublicRows", "팬 미션 탭에서 public 목록을 확인합니다.");
   renderRows("studioSettlementRows", backstageRows.studioSettlement, 7);
@@ -3431,18 +3442,21 @@ function renderLaunchReadiness(readiness) {
   const categories = normalizeReadinessCategories(readiness);
   const score = Number(overall.score ?? readiness?.score ?? 0);
   const belowTargets = overall.belowTargetCategories || categories.filter((item) => item.score < 80).map((item) => item.label);
+  const blockingCategories = categories.filter((item) => item.blockers.length > 0).map((item) => item.label);
   launchReadinessScore.textContent = Number.isFinite(score) && score > 0 ? `${Math.round(score)}점` : "확인 중";
-  launchReadinessAlert.classList.toggle("is-clear", belowTargets.length === 0);
-  launchReadinessAlert.textContent = belowTargets.length
-    ? `80점 미만 확인 필요: ${belowTargets.join(", ")}. 최종 판정 전 운영자가 우선 점검할 항목입니다.`
-    : "80점 미만 카테고리는 없습니다. 단, 실제 오픈 판단은 운영/결제/콘텐츠 QA 확인 후 진행합니다.";
+  launchReadinessAlert.classList.toggle("is-clear", belowTargets.length === 0 && blockingCategories.length === 0);
+  launchReadinessAlert.textContent = blockingCategories.length
+    ? `출시 차단 항목: ${blockingCategories.join(", ")}. 점수와 별개로 해결이 필요합니다.${belowTargets.length ? ` 80점 미만: ${belowTargets.join(", ")}.` : ""}`
+    : belowTargets.length
+      ? `80점 미만 확인 필요: ${belowTargets.join(", ")}. 최종 판정 전 운영자가 우선 점검할 항목입니다.`
+      : "80점 미만 카테고리는 없습니다. 단, 실제 오픈 판단은 운영/결제/콘텐츠 QA 확인 후 진행합니다.";
 
   if (!categories.length) return;
   launchReadinessGrid.innerHTML = categories.map((item) => {
     const blockers = item.blockers.length ? item.blockers.slice(0, 2).join(" / ") : "즉시 차단 이슈 없음";
     const nextActions = item.nextActions.length ? item.nextActions.slice(0, 2).join(" / ") : "일일 QA 유지";
     const metricText = Object.entries(item.metrics || {}).slice(0, 2).map(([key, value]) => `${key}: ${formatCount(value)}`).join(" / ") || "지표 확인 중";
-    return `<article class="readiness-card${item.score < 80 ? " is-low" : ""}">
+    return `<article class="readiness-card${item.score < 80 || item.blockers.length ? " is-low" : ""}">
       <strong>${escapeHtml(item.label)}</strong>
       <p>${formatCount(item.score)}점 · ${escapeHtml(item.status)}</p>
       <dl>
@@ -3700,7 +3714,7 @@ function slotStatus(slot, primaryOnly = false) {
 }
 
 function profileStatus(profiles = {}, key) {
-  return profiles[key] ? "완료" : "누락";
+  return profiles[key] ? "문구 있음" : "미등록";
 }
 
 function missingSummary(missing = []) {
@@ -3782,32 +3796,78 @@ async function loadAdminsSection() {
   }
 }
 
+function renderUsersStatus(state, message = "") {
+  const section = document.getElementById("users");
+  if (!section) return;
+  let status = section.querySelector("[data-users-status]");
+  if (!status) {
+    status = document.createElement("p");
+    status.className = "section-note";
+    status.dataset.usersStatus = "";
+    status.setAttribute("role", "status");
+    status.setAttribute("aria-live", "polite");
+    section.querySelector(".section-title")?.after(status);
+  }
+  const total = Number.isSafeInteger(state.totalAccounts) ? `${formatCount(state.totalAccounts)}개` : "확인 불가";
+  const filtered = Number.isSafeInteger(state.filteredAccounts) ? `${formatCount(state.filteredAccounts)}개` : "확인 불가";
+  status.textContent = `전체 가입 계정 ${total} · 테스트 계정 포함, 계정 분류 정보 없음 · 탈퇴 계정 포함 · 검색 결과 ${filtered} · 현재 ${formatCount(state.rows.length)}개 표시${message ? ` · ${message}` : ""}`;
+  if (state.error) {
+    const retry = document.createElement("button");
+    retry.type = "button";
+    retry.className = "secondary-action";
+    retry.dataset.usersRetry = "";
+    retry.textContent = "다시 시도";
+    status.append(" ", retry);
+    if (state.rows.length) {
+      const reload = document.createElement("button");
+      reload.type = "button";
+      reload.className = "secondary-action";
+      reload.dataset.usersReload = "";
+      reload.textContent = "목록 새로고침";
+      status.append(" ", reload);
+    }
+  }
+}
+
 async function loadUsersSection() {
-  sectionState.users = { cursor: null, hasMore: false, rows: [], riskRows: [] };
+  sectionState.users = { cursor: null, hasMore: false, rows: [], riskRows: [], search: readSectionSearch("users") };
   renderLoadingRow("userRows");
   renderLoadingRow("userRiskRows");
+  renderUsersStatus(sectionState.users, "불러오는 중");
+  setLoadMore("users", false);
   await loadUsersPage(false);
 }
 
 async function loadUsersPage(append = true) {
   const state = sectionState.users;
-  const search = readSectionSearch("users");
+  if (state.loading || (append && (!state.hasMore || !state.cursor))) return;
+  state.loading = true;
+  state.error = false;
+  const search = state.search || "";
   const query = new URLSearchParams({ take: "20" });
-  if (search) query.set(search.includes("@") ? "email" : "query", search);
+  if (search) query.set("query", search);
   if (append && state.cursor) query.set("cursor", state.cursor);
   try {
-    const page = normalizePage(await backstageFetch(adminApiPath(`/backstage/operations/users-overview?${query}`), { auth: true }));
+    const response = await backstageFetch(adminApiPath(`/backstage/operations/users-overview?${query}`), { auth: true });
+    const page = normalizePage(response);
+    if (state !== sectionState.users) return;
+    if (!Array.isArray(response?.items)) throw new Error("Invalid user list response");
+    if (page.hasMore && (!page.items.length || !page.nextCursor || (append && page.nextCursor === state.cursor))) {
+      throw new Error("Invalid user list cursor");
+    }
+    state.totalAccounts = response.totalAccounts ?? response.summary?.totalAccounts;
+    state.filteredAccounts = response.filteredAccounts ?? response.summary?.filteredAccounts;
     const rows = page.items.map((user) => ({
       row: [
         user.displayName || user.publicHandle || user.nickname || user.userId?.slice?.(0, 8) || user.id?.slice?.(0, 8) || "-",
         user.email || "-",
-        user.loginType || user.loginTypes?.join(", ") || user.socialProvider || user.loginProvider || user.provider || "Email",
+        user.loginType || user.loginTypes?.join(", ") || user.socialProvider || user.loginProvider || user.provider || "-",
         `${formatCount(user.walletBalanceLumina || user.wallet?.balanceLumina || 0)}L`,
         krw(user.paidAmountKrw || 0),
         `${formatCount(user.openReportCount || 0)} / ${formatCount(user.reportCount || 0)}`,
         formatCount(user.sanctionCount || 0),
         `${formatCount(user.followingArtistCount || 0)} / ${formatCount(user.followerCount || 0)}`,
-        formatDate(user.lastSeenAt || user.lastLoginAt || user.updatedAt || user.createdAt),
+        formatDate(user.lastSeenAt || user.lastLoginAt),
         localizeWorkflowStatus(user.status),
         user.status === "suspended" ? "복구 요청" : "7일 정지"
       ],
@@ -3818,10 +3878,10 @@ async function loadUsersPage(append = true) {
       .map((user) => ({
         row: [
           user.displayName || user.publicHandle || user.email || user.userId?.slice?.(0, 8) || "-",
-          user.latestReportReason || user.recentAction || "운영 확인",
+          user.latestReportReason || user.recentAction?.action || user.recentAction || "운영 확인",
           `${formatCount(user.openReportCount || 0)} / ${formatCount(user.reportCount || 0)}`,
           localizeWorkflowStatus(user.status),
-          user.recentAction || (Number(user.sanctionCount || 0) > 0 ? `제재 ${formatCount(user.sanctionCount)}회` : "확인 필요"),
+          user.recentAction?.action || user.recentAction || (Number(user.sanctionCount || 0) > 0 ? `제재 ${formatCount(user.sanctionCount)}회` : "확인 필요"),
           Number(user.openReportCount || 0) > 0 ? "신고 보기" : "상세"
         ],
         meta: { userId: user.userId || user.id, status: user.status }
@@ -3835,11 +3895,24 @@ async function loadUsersPage(append = true) {
     else renderLoadingRow("userRows", "표시할 유저가 없습니다.");
     if (state.riskRows?.length) renderRows("userRiskRows", state.riskRows, 3);
     else renderLoadingRow("userRiskRows", "신고/제재 유저가 없습니다.");
-  } catch {
-    renderBackstageTables();
+    renderUsersStatus(state);
+  } catch (error) {
+    if (state !== sectionState.users) return;
+    state.error = true;
+    const status = backstageErrorStatus(error);
+    const message = status === 401 ? "운영자 세션이 만료됐습니다. 다시 로그인해 주세요."
+      : status === 403 ? "회원 조회 권한이 없습니다. 관리자 권한을 확인해 주세요."
+        : status === 400 && append ? "목록이 변경됐습니다. 목록 새로고침 후 다시 조회해 주세요."
+          : append ? "추가 회원 목록을 불러오지 못했습니다. 기존 목록을 유지합니다."
+            : "회원 목록을 불러오지 못했습니다.";
     setLoadMore("users", false);
-    renderFallbackNote("userRows");
-    renderFallbackNote("userRiskRows");
+    if (!state.rows.length) {
+      renderErrorRow("userRows", message);
+      renderErrorRow("userRiskRows", "신고/제재 회원을 불러오지 못했습니다.");
+    }
+    renderUsersStatus(state, message);
+  } finally {
+    if (state === sectionState.users) state.loading = false;
   }
 }
 
@@ -3990,8 +4063,31 @@ async function loadAiContentSection() {
   renderLoadingRow("aiAssetRows");
   renderLoadingRow("aiPostRows");
   try {
-    const page = normalizePage(await backstageFetch(adminApiPath("/backstage/operations/ai-content-health?take=20"), { auth: true }));
-    const assetRows = page.items.map((artist) => ({
+    const artists = [];
+    const seenCursors = new Set();
+    let cursor = null;
+    let complete = false;
+    for (let pageIndex = 0; pageIndex < 100; pageIndex += 1) {
+      const query = `take=20${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`;
+      const response = await backstageFetch(adminApiPath(`/backstage/operations/ai-content-health?${query}`), { auth: true });
+      if (!Array.isArray(response?.items) || typeof response.hasMore !== "boolean") {
+        throw new Error("AI 콘텐츠 목록 응답 형식이 올바르지 않습니다.");
+      }
+      const page = normalizePage(response);
+      artists.push(...page.items);
+      if (!page.hasMore) {
+        complete = true;
+        break;
+      }
+      const nextCursor = page.nextCursor;
+      if (!page.items.length || typeof nextCursor !== "string" || !nextCursor.trim() || seenCursors.has(nextCursor)) {
+        throw new Error("AI 콘텐츠 목록의 페이지 커서가 올바르지 않습니다.");
+      }
+      seenCursors.add(nextCursor);
+      cursor = nextCursor;
+    }
+    if (!complete) throw new Error("AI 콘텐츠 목록의 페이지 제한을 초과했습니다.");
+    const assetRows = artists.map((artist) => ({
       row: [
         artist.displayName || artist.name || artist.slug || "-",
         slotStatus(artist.slots?.cover, true),
@@ -4009,12 +4105,12 @@ async function loadAiContentSection() {
         thumbAssetId: artist.slots?.thumbnail?.assetId
       }
     }));
-    const postRows = page.items.map((artist) => ({
+    const postRows = artists.map((artist) => ({
       row: [
         artist.displayName || artist.name || artist.slug || "-",
-        profileStatus(artist.profiles, "contentProfile"),
-        profileStatus(artist.profiles, "publicProfile"),
-        artist.missing?.includes("chat_persona") ? "필요" : "준비중",
+        profileStatus(artist.profiles, "contentReady"),
+        profileStatus(artist.profiles, "publicReady"),
+        artist.missing?.includes("chat_persona") ? "미등록" : "페르소나 있음",
         artist.counts?.premiumVideos ? countLabel(artist.counts.premiumVideos, "개") : "준비중",
         "작성"
       ],
@@ -4024,69 +4120,124 @@ async function loadAiContentSection() {
     else renderLoadingRow("aiAssetRows", "표시할 AI 에셋 상태가 없습니다.");
     if (postRows.length) renderRows("aiPostRows", postRows, -1);
     else renderLoadingRow("aiPostRows", "표시할 AI 콘텐츠 상태가 없습니다.");
-  } catch {
-    renderRows("aiAssetRows", backstageRows.aiAssets, -1);
-    renderRows("aiPostRows", backstageRows.aiPosts, -1);
-    renderFallbackNote("aiAssetRows");
-    renderFallbackNote("aiPostRows");
+  } catch (error) {
+    const message = backstageUserFacingError(error, "AI 콘텐츠 현황을 불러오지 못했습니다. 다시 시도해 주세요.");
+    renderErrorRow("aiAssetRows", message);
+    renderErrorRow("aiPostRows", message);
+    console.warn("[Backstage] AI 콘텐츠 현황 조회 실패:", error);
   }
 }
 
-async function loadModerationSection() {
-  renderLoadingRow("feedSearchRows");
-  renderLoadingRow("feedBlockedTermRows");
-  renderLoadingRow("moderationRows");
-  renderLoadingRow("moderationReportRows");
-  try {
-    const [posts, reportsPage, searchAnalytics, blockedTerms] = await Promise.all([
-      backstageFetch(adminApiPath("/community/posts?status=published&minReports=1&sort=reports&take=20"), { auth: true }).catch(() => null),
-      backstageFetch(adminApiPath("/community/reports?take=20"), { auth: true }).catch(() => null),
-      backstageFetch(adminApiPath("/backstage/operations/feed-search-analytics?language=all&type=all&window=1h&take=20"), { auth: true }).catch(() => null),
-      backstageFetch(adminApiPath("/backstage/operations/feed-search-blocked-terms?status=active&language=all&type=all&take=20"), { auth: true }).catch(() => null)
-    ]);
-    const searchRows = feedSearchAnalyticsItems(searchAnalytics)
-      .map(feedSearchEntryFromItem);
-    const blockedRows = normalizePage(blockedTerms).items
-      .map(feedBlockedTermEntryFromItem);
-    const rows = (Array.isArray(posts) ? posts : posts?.items || posts?.posts || []).map((post) => ({
-      row: [
-        post.id?.slice?.(0, 8) || "-",
-        post.authorUser?.email || post.artist?.name || post.artist?.displayName || "-",
-        `신고 ${formatCount(post.reportCount)}건`,
-        post.status || "-",
-        post.status === "hidden" ? "복구" : "숨김"
-      ],
-      meta: { postId: post.id, authorUserId: post.authorUserId, status: post.status }
-    }));
-    const reportRows = normalizePage(reportsPage).items.map((report) => ({
-      row: [
-        report.id?.slice?.(0, 8) || "-",
-        `${localizeReportTarget(report.targetType)} / ${report.targetId?.slice?.(0, 8) || "-"}`,
-        reportReporter(report),
-        localizeReportReason(report.reason),
-        localizeReportStatus(report.status),
-        report.detail || report.metadata?.adminNote || "-",
-        report.status === "resolved" || report.status === "archived" ? "상세" : "검토"
-      ],
-      meta: { reportId: report.id, postId: report.postId, targetId: report.targetId, status: report.status }
-    }));
-    if (rows.length) renderRows("moderationRows", rows, 3);
-    else renderLoadingRow("moderationRows", "확인 필요한 콘텐츠가 없습니다.");
-    if (reportRows.length) renderRows("moderationReportRows", reportRows, 4);
-    else renderLoadingRow("moderationReportRows", "접수된 범용 신고가 없습니다.");
-    if (searchRows.length) renderRows("feedSearchRows", searchRows, -1);
-    else renderLoadingRow("feedSearchRows", "최근 피드 검색어 분석 데이터가 없습니다.");
-    renderFeedSearchSummary(searchAnalytics, searchRows);
-    if (blockedRows.length) renderRows("feedBlockedTermRows", blockedRows, 3);
-    else renderLoadingRow("feedBlockedTermRows", "공개 탐색에서 제외 중인 검색어가 없습니다.");
-  } catch {
-    renderBackstageTables();
-    renderFeedSearchSummary(null, backstageRows.feedSearches.map(feedSearchEntryFromItem));
-    renderFallbackNote("feedSearchRows");
-    renderFallbackNote("feedBlockedTermRows");
-    renderFallbackNote("moderationRows");
-    renderFallbackNote("moderationReportRows");
+let moderationReadGeneration = 0;
+
+function moderationReadContext() {
+  const auth = getBackstageAuth();
+  const user = auth?.user;
+  const userId = user?.id || user?.userId || user?.email || user?.username || user?.adminUser?.id;
+  if (!userId || (!auth?.accessToken && !auth?.refreshToken) ||
+      dashboardView?.classList.contains("is-hidden") || !canAccessBackstageSection("moderation")) return null;
+  return JSON.stringify([
+    userId, auth.accessToken || null, auth.refreshToken || null,
+    user.adminUser?.id || null, user.adminUser?.status || null,
+    currentAdminRoleName(), currentAdminPermissions().slice().sort()
+  ]);
+}
+
+function isCurrentModerationRead(read) {
+  return read.generation === moderationReadGeneration && read.context !== null &&
+    read.context === moderationReadContext();
+}
+
+function moderationResponseItems(data, keys, identityKeys) {
+  const key = data && keys.find((name) => Object.prototype.hasOwnProperty.call(data, name));
+  const items = Array.isArray(data) ? data : key ? data[key] : null;
+  if (!Array.isArray(items) || items.some((item) => !item || typeof item !== "object" ||
+      Array.isArray(item) || !identityKeys.some((name) => typeof item[name] === "string" && item[name].trim()))) {
+    throw new Error("Invalid moderation list response");
   }
+  return items;
+}
+
+async function loadModerationSection() {
+  const read = { generation: ++moderationReadGeneration, context: moderationReadContext() };
+  const regions = [
+    {
+      targetId: "moderationRows", path: "/community/posts?status=published&minReports=1&sort=reports&take=20",
+      keys: ["items", "posts"], identityKeys: ["id"], statusIndex: 3,
+      empty: "확인 필요한 콘텐츠가 없습니다.", error: "콘텐츠 목록을 불러오지 못했습니다. 다시 시도해 주세요.",
+      entry: (post) => ({
+        row: [
+          post.id?.slice?.(0, 8) || "-",
+          post.author?.email || post.author?.profile?.displayName || post.artist?.name || post.artist?.displayName || "-",
+          `신고 ${formatCount(post.reportCount)}건`,
+          post.status || "-",
+          post.status === "hidden" ? "복구" : "숨김"
+        ],
+        meta: { postId: post.id, authorUserId: post.authorUserId, status: post.status }
+      })
+    },
+    {
+      targetId: "moderationReportRows", path: "/community/reports?take=20",
+      keys: ["items"], identityKeys: ["id"], statusIndex: 4,
+      empty: "접수된 범용 신고가 없습니다.", error: "신고 목록을 불러오지 못했습니다. 다시 시도해 주세요.",
+      entry: (report) => {
+        if (typeof report.postId !== "string" || !report.postId.trim() ||
+            !["submitted", "reviewing", "resolved", "dismissed"].includes(report.status)) {
+          throw new Error("Invalid community report response");
+        }
+        return {
+          row: [
+            report.id?.slice?.(0, 8) || "-",
+            `${localizeReportTarget("feed_post")} / ${report.postId.slice(0, 8)}`,
+            reportReporter(report),
+            localizeReportReason(report.reason),
+            localizeReportStatus(report.status),
+            report.detail || report.metadata?.adminNote || "-",
+            report.status === "resolved" || report.status === "dismissed" ? "상세" : "검토"
+          ],
+          meta: { reportId: report.id, postId: report.postId, targetId: report.postId, status: report.status }
+        };
+      }
+    },
+    {
+      targetId: "feedSearchRows",
+      path: "/backstage/operations/feed-search-analytics?language=all&type=all&window=1h&take=20",
+      keys: ["items", "keywords", "topKeywords", "terms", "searches"],
+      identityKeys: ["keyword", "query", "term", "normalizedKeyword"], statusIndex: -1,
+      empty: "최근 피드 검색어 분석 데이터가 없습니다.", error: "검색어 분석을 불러오지 못했습니다. 다시 시도해 주세요.",
+      entry: feedSearchEntryFromItem
+    },
+    {
+      targetId: "feedBlockedTermRows",
+      path: "/backstage/operations/feed-search-blocked-terms?status=active&language=all&type=all&take=20",
+      keys: ["items"], identityKeys: ["id", "termId"], statusIndex: 3,
+      empty: "공개 탐색에서 제외 중인 검색어가 없습니다.", error: "검색어 숨김 목록을 불러오지 못했습니다. 다시 시도해 주세요.",
+      entry: feedBlockedTermEntryFromItem
+    }
+  ];
+  const summary = document.getElementById("feedSearchSummary");
+  if (summary) summary.textContent = "";
+  if (read.context === null) {
+    regions.forEach((region) => renderErrorRow(region.targetId, "운영자 세션과 조회 권한을 확인해 주세요."));
+    return;
+  }
+  regions.forEach((region) => renderLoadingRow(region.targetId));
+  // Settle and render each region independently; every completion must still belong to this viewer and read.
+  await Promise.all(regions.map(async (region) => {
+    try {
+      const data = await backstageFetch(adminApiPath(region.path), { auth: true });
+      if (!isCurrentModerationRead(read)) return;
+      const rows = moderationResponseItems(data, region.keys, region.identityKeys).map(region.entry);
+      if (rows.length) renderRows(region.targetId, rows, region.statusIndex);
+      else renderLoadingRow(region.targetId, region.empty);
+      if (region.targetId === "feedSearchRows") renderFeedSearchSummary(data, rows);
+    } catch (error) {
+      if (!isCurrentModerationRead(read)) return;
+      const message = backstageUserFacingError(error, region.error);
+      renderErrorRow(region.targetId, message);
+      if (region.targetId === "feedSearchRows" && summary) summary.textContent = message;
+    }
+  }));
 }
 
 function fanMissionStatusLabel(status) {
@@ -4579,6 +4730,15 @@ document.querySelectorAll(".sidebar-nav a").forEach((link) => {
 });
 
 document.addEventListener("click", (event) => {
+  if (event.target.closest("[data-users-retry]")) {
+    if (sectionState.users.cursor) loadUsersPage(true);
+    else loadUsersSection();
+    return;
+  }
+  if (event.target.closest("[data-users-reload]")) {
+    loadUsersSection();
+    return;
+  }
   const detailButton = event.target.closest("[data-detail]");
   if (detailButton) {
     selectDetailButton(detailButton);
@@ -4610,6 +4770,12 @@ document.addEventListener("click", (event) => {
   }
 
   const quickButton = event.target.closest(".text-action");
+  if (quickButton?.matches("[data-users-show-all]")) {
+    const searchInput = document.querySelector("#users .search-box input");
+    if (searchInput) searchInput.value = "";
+    loadUsersSection();
+    return;
+  }
   if (quickButton && quickButton.id !== "detailCloseButton") {
     openQuickAction(quickButton);
     return;

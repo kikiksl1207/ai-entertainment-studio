@@ -2,6 +2,7 @@ import { ConflictException } from '@nestjs/common';
 import { StoryContinuationContextAssembler } from './story-continuation-context.assembler';
 import {
   continuationExecutionFingerprint,
+  continuationHash,
   continuationGenerationProfileSnapshot,
   continuationMemoryPins,
   continuationPathHash,
@@ -14,6 +15,8 @@ import {
 } from '../generation-profile/creator-generation-profile.policy';
 import { StoryContinuationClaim } from './story-continuation.repository';
 import { sourceStoryContinuationLengthBounds } from './story-continuation-length.policy';
+import { STORY_CONTINUATION_ROUTE_VIEW_VERSION } from './story-continuation-route-continuity';
+import { STORY_CONTINUATION_PROMPT_VERSION } from './story-continuation-openai.schema';
 
 const claim: StoryContinuationClaim = {
   continuationId: 'continuation-id', leaseToken: 'lease-token',
@@ -155,6 +158,45 @@ describe('StoryContinuationContextAssembler', () => {
     }]);
   });
 
+  it('reassembles approved memories in their pinned order, independent of database ordering', async () => {
+    const f = fixture();
+    const ordered = [
+      { id: 'style-id', memoryType: 'style', revision: 1, content: { ko: '작가의 문체' } },
+      { id: 'event-id', memoryType: 'event', revision: 1, content: { ko: '지나온 사건' } },
+    ];
+    f.prisma.storyMemoryRecord.findMany.mockResolvedValue([...ordered].reverse());
+    const memoryPins = continuationMemoryPins(ordered);
+    const references = f.continuation.contextReferences;
+    f.continuation.contextReferences = {
+      ...references,
+      memoryPins,
+      executionFingerprint: continuationExecutionFingerprint({
+        contextFingerprint: f.continuation.contextFingerprint,
+        sourceHash: references.sourceHash,
+        pathHash: references.pathHash,
+        memoryPins,
+      }),
+    };
+
+    const context = await f.assembler.assemble(claim);
+    expect(context.memories.map((memory) => memory.memoryType)).toEqual(['style', 'event']);
+  });
+
+  it('keeps an author-route plan explicitly separate from established reader facts', async () => {
+    const f = fixture();
+    Object.assign(f.continuation.contextReferences, { planningMemoryIds: ['memory-id'] });
+    const context = await f.assembler.assemble(claim);
+    expect(context.memories).toEqual([{
+      memoryType: 'author_plan_event', content: '{"summary":"승인된 최소 기억"}',
+    }]);
+  });
+
+  it('rejects a planning reference that was not pinned for this continuation', async () => {
+    const f = fixture();
+    Object.assign(f.continuation.contextReferences, { planningMemoryIds: ['different-memory'] });
+    await expect(f.assembler.assemble(claim)).rejects.toThrow('pinned_context_changed');
+  });
+
   it('rejects a progress that no longer matches the pinned reader path', async () => {
     const f = fixture(false);
     await expect(f.assembler.assemble(claim)).rejects.toBeInstanceOf(ConflictException);
@@ -166,6 +208,77 @@ describe('StoryContinuationContextAssembler', () => {
       { position: 1, beatType: 'paragraph', content: { ko: '변경된 본문' } },
     ]);
     await expect(f.assembler.assemble(claim)).rejects.toThrow('pinned_context_changed');
+  });
+
+  it('pins and revalidates the exact route continuity view before dispatch', async () => {
+    const f = fixture();
+    const view = { version: STORY_CONTINUATION_ROUTE_VIEW_VERSION, actions: [], readEvidence: [] };
+    const routeContinuityHash = continuationHash(view);
+    Object.assign(f.continuation.contextReferences, {
+      routeContinuityVersion: STORY_CONTINUATION_ROUTE_VIEW_VERSION,
+      routeContinuityHash,
+      executionFingerprint: continuationExecutionFingerprint({
+        contextFingerprint: f.continuation.contextFingerprint,
+        sourceHash: f.continuation.contextReferences.sourceHash,
+        pathHash: f.continuation.contextReferences.pathHash,
+        routeContinuityHash,
+        routeContinuityVersion: STORY_CONTINUATION_ROUTE_VIEW_VERSION,
+        memoryPins: f.continuation.contextReferences.memoryPins,
+      }),
+    });
+    await expect(f.assembler.assemble(claim)).resolves.toMatchObject({ routeContinuity: view });
+    Object.assign(f.continuation.contextReferences, { routeContinuityHash: 'stale' });
+    await expect(f.assembler.assemble(claim)).rejects.toThrow('pinned_context_changed');
+  });
+
+  it('rejects a new-version continuation that lacks its route continuity pin', async () => {
+    const f = fixture();
+    Object.assign(f.continuation, { promptVersion: STORY_CONTINUATION_PROMPT_VERSION });
+    await expect(f.assembler.assemble(claim)).rejects.toThrow('pinned_context_changed');
+  });
+
+  it('passes only read beats from the current generated source scene', async () => {
+    const f = fixture();
+    const generatedBeats = [
+      { position: 1, beatType: 'paragraph', content: { ko: '읽은 시작' } },
+      { position: 2, beatType: 'paragraph', content: { ko: '읽은 사건' } },
+      { position: 3, beatType: 'paragraph', content: { ko: '아직 읽지 않은 반전' } },
+    ];
+    Object.assign(f.continuation, {
+      sourceSceneId: null, sourceGeneratedSceneId: 'scene-id',
+      recommendedChoiceId: null, generatedChoiceId: 'choice-b',
+    });
+    f.prisma.storyReaderProgress.findFirst.mockResolvedValue({
+      pathSummary: [{ sceneId: 'prior', choiceId: 'choice-a' }], currentBeatPosition: 2,
+    });
+    Object.assign(f.prisma.storyAiGeneratedScene, { findFirst: jest.fn().mockResolvedValue({
+      id: 'scene-id', title: { ko: '생성된 장면' },
+    }) });
+    Object.assign(f.prisma, {
+      storyAiGeneratedBeat: { findMany: jest.fn().mockImplementation(async ({ where }) =>
+        generatedBeats.filter((beat) => beat.position <= where.position.lte)) },
+    });
+    Object.assign(f.prisma.storyAiGeneratedChoice, { findFirst: jest.fn().mockResolvedValue({
+      id: 'choice-b', label: { ko: '다른 길' },
+    }) });
+    const sourceHash = continuationSourceHash({
+      kind: 'generated', locale: 'ko', title: { ko: '생성된 장면' },
+      beats: generatedBeats.slice(0, 2), choiceLabel: { ko: '다른 길' },
+    });
+    Object.assign(f.continuation.contextReferences, {
+      sourceHash,
+      executionFingerprint: continuationExecutionFingerprint({
+        contextFingerprint: f.continuation.contextFingerprint, sourceHash,
+        pathHash: f.continuation.contextReferences.pathHash,
+        memoryPins: f.continuation.contextReferences.memoryPins,
+      }),
+    });
+    const context = await f.assembler.assemble(claim);
+    expect(context.sourceScene.beats.map((beat) => beat.content)).toEqual(['읽은 시작', '읽은 사건']);
+    expect(JSON.stringify(context)).not.toContain('아직 읽지 않은 반전');
+    expect((f.prisma as any).storyAiGeneratedBeat.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { sceneId: 'scene-id', position: { lte: 2 } },
+    }));
   });
 
   it('rejects a changed semantic choice path before provider transmission', async () => {
@@ -215,8 +328,8 @@ describe('StoryContinuationContextAssembler', () => {
       generationProfile: {
         schemaVersion: 'creator-generation-profile-v1',
         sections: expect.arrayContaining([
-          { key: 'writing_style', value: { summary: 'writing_style lock' } },
-          { key: 'visual_cast', value: { summary: 'visual_cast lock' } },
+          { key: 'writing_style', value: { summary: 'writing_style lock', referenceScope: 'production_constraint' } },
+          { key: 'visual_cast', value: { summary: 'visual_cast lock', referenceScope: 'author_plan_not_route_history' } },
         ]),
       },
     });
@@ -249,6 +362,8 @@ describe('StoryContinuationContextAssembler', () => {
       id: 'profile-id', profileVersion: 1, reviewRevision: 1,
       sourceFingerprint: 'a'.repeat(64), approvedFingerprint: 'b'.repeat(64),
     };
+    (f.continuation.contextReferences as Record<string, unknown>).generationProfileViewVersion = 'story-profile-prompt-v2';
     await expect(f.assembler.assemble(claim)).rejects.toThrow('pinned_context_changed');
+    expect(f.prisma.storyWorkGenerationProfile.findFirst).not.toHaveBeenCalled();
   });
 });

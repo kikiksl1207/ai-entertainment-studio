@@ -192,7 +192,7 @@ describe('StoryProductionService', () => {
     expect(prisma.storyReaderProgress.create).not.toHaveBeenCalled();
   });
 
-  it('returns only authenticated owner works as title-centered selector items', async () => {
+  it('creator catalog returns only authenticated owner non-fixture works as title-centered selector items', async () => {
     prisma.storyWork.findMany.mockResolvedValue([
       {
         id: '00000000-0000-0000-0000-000000000001',
@@ -217,6 +217,12 @@ describe('StoryProductionService', () => {
         workId: '00000000-0000-0000-0000-000000000001',
         slug: 'owner-story',
         title: expect.objectContaining({ value: 'Owner story' }),
+        publication: {
+          status: 'reviewing',
+          published: false,
+          activeReleaseId: null,
+          publishedAt: null,
+        },
         permissions: expect.objectContaining({
           createManuscript: true,
           publish: false,
@@ -229,8 +235,82 @@ describe('StoryProductionService', () => {
           ownerUserId: '00000000-0000-0000-0000-000000000099',
           fixtureSource: false,
         },
+        select: expect.objectContaining({ activeReleaseId: true }),
       }),
     );
+  });
+
+  it.each([
+    ['published', 'release-1', true, 'release-1'],
+    ['published', null, false, null],
+    ['draft', null, false, null],
+    ['draft', 'release-1', false, null],
+    ['reviewing', 'release-1', false, null],
+    ['release_ready', 'release-1', false, null],
+    ['archived', 'release-1', false, null],
+  ] as const)(
+    'creator catalog links publication.activeReleaseId for %s with stored release %s',
+    async (status, activeReleaseId, published, expectedReleaseId) => {
+      const publishedAt = new Date('2026-07-18T00:00:00.000Z');
+      prisma.storyWork.findMany.mockResolvedValue([
+        {
+          id: 'owner-work',
+          slug: 'owner-story',
+          status,
+          defaultLocale: 'ko',
+          title: { ko: 'Owner story' },
+          summary: { ko: 'Summary' },
+          activeReleaseId,
+          publishedAt,
+          updatedAt: publishedAt,
+        },
+      ]);
+
+      const result = await service.creatorCatalog('owner-1', new StoryCatalogQueryDto());
+
+      expect(result.items[0].publication).toEqual({
+        status,
+        published,
+        activeReleaseId: expectedReleaseId,
+        publishedAt,
+      });
+    },
+  );
+
+  it('creator catalog keeps release IDs attached to their owner works and excludes fixtures', async () => {
+    const updatedAt = new Date('2026-07-18T00:00:00.000Z');
+    const work = {
+      ownerUserId: 'owner-1',
+      fixtureSource: false,
+      status: 'published',
+      defaultLocale: 'ko',
+      title: { ko: 'Owner story' },
+      summary: { ko: 'Summary' },
+      publishedAt: updatedAt,
+      updatedAt,
+    };
+    const works = [
+      { ...work, id: 'work-1', slug: 'owner-first', activeReleaseId: 'release-1' },
+      { ...work, id: 'work-2', slug: 'owner-second', activeReleaseId: 'release-2' },
+      { ...work, id: 'fixture-work', slug: 'fixture-story', activeReleaseId: 'fixture-release', fixtureSource: true },
+      { ...work, id: 'other-work', slug: 'other-story', activeReleaseId: 'other-release', ownerUserId: 'owner-2' },
+    ];
+    prisma.storyWork.findMany.mockImplementation(({ where }) => Promise.resolve(
+      works.filter((row) => row.ownerUserId === where.ownerUserId && row.fixtureSource === where.fixtureSource),
+    ));
+
+    const result = await service.creatorCatalog('owner-1', new StoryCatalogQueryDto());
+
+    expect(prisma.storyWork.findMany).toHaveBeenCalledTimes(1);
+    expect(prisma.storyWork.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { ownerUserId: 'owner-1', fixtureSource: false },
+      select: expect.objectContaining({ activeReleaseId: true }),
+    }));
+    expect(result.items.map((item) => ({ workId: item.workId, publication: item.publication }))).toEqual([
+      { workId: 'work-1', publication: { status: 'published', published: true, activeReleaseId: 'release-1', publishedAt: updatedAt } },
+      { workId: 'work-2', publication: { status: 'published', published: true, activeReleaseId: 'release-2', publishedAt: updatedAt } },
+    ]);
+    expect(prisma.storyRelease.findMany).not.toHaveBeenCalled();
   });
 
   it('excludes production rows whose public manifest still points at a fixture', async () => {
@@ -368,6 +448,39 @@ describe('StoryProductionService', () => {
     expect(result.filters.hashtags).toEqual([]);
   });
 
+  it('continues past an unlisted row to public stories beyond the first raw page', async () => {
+    const releaseId = '00000000-0000-0000-0000-000000000031';
+    const works = Array.from({ length: 14 }, (_, index) => ({
+      id: `00000000-0000-0000-0000-${String(index + 1).padStart(12, '0')}`,
+      slug: `catalog-story-${index + 1}`,
+      defaultLocale: 'ko',
+      title: { ko: `Story ${index + 1}` },
+      summary: { ko: 'Summary' },
+      coverManifest: index === 1
+        ? { url: '/public/story/unlisted.webp', catalogVisibility: 'unlisted' }
+        : { url: `/public/story/${index + 1}.webp` },
+      priceLumina: new Decimal(0),
+      fixtureSource: false,
+      publishedAt: new Date(Date.UTC(2026, 0, 14 - index)),
+      activeReleaseId: releaseId,
+    }));
+    prisma.storyWork.findMany.mockImplementation(({ take, cursor, skip }) => {
+      if (!take) return Promise.resolve(works);
+      const start = cursor ? works.findIndex((work) => work.id === cursor.id) + skip : 0;
+      return Promise.resolve(works.slice(start, start + take));
+    });
+    prisma.storyRelease.findMany.mockResolvedValue([{ id: releaseId }]);
+
+    const first = await service.catalog(undefined, new StoryCatalogQueryDto());
+    expect(first.items.map((item) => item.id)).toEqual(works.slice(0, 12).filter((work) => work !== works[1]).map((work) => work.id));
+    expect(first.nextCursor).toBe(works[11].id);
+
+    const second = await service.catalog(undefined, Object.assign(new StoryCatalogQueryDto(), { cursor: first.nextCursor }));
+    expect(second.items.map((item) => item.id)).toEqual(works.slice(12).map((work) => work.id));
+    expect(second.nextCursor).toBeNull();
+    expect(prisma.storyWork.findMany.mock.calls.filter(([options]) => options.take).map(([options]) => options.take)).toEqual([13, 13]);
+  });
+
   it('lists the approved adult public-test story with its rating and hashtag', async () => {
     const workId = '00000000-0000-0000-0000-000000000021';
     const releaseId = '00000000-0000-0000-0000-000000000031';
@@ -428,7 +541,10 @@ describe('StoryProductionService', () => {
     const result = await service.catalog(undefined, query);
 
     expect(prisma.storyWork.findMany.mock.calls[0][0].where).toEqual(expect.objectContaining({
-      searchText: { contains: 'romance', mode: 'insensitive' },
+      OR: [
+        { searchText: { contains: 'romance', mode: 'insensitive' } },
+        { authorDisplayName: { contains: 'romance', mode: 'insensitive' } },
+      ],
       hashtagKeys: { has: 'romance' },
     }));
     expect(result.items[0].hashtags).toEqual([
@@ -932,5 +1048,17 @@ describe('StoryProductionService', () => {
     expect(prisma.storyChoice.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { sceneId: 'scene-1', position: { gt: 0 } }, take: 4 }),
     );
+
+    prisma.storyChoice.findMany.mockResolvedValue([
+      { id: 'choice-1', label: { en: 'Continue' }, targetSceneId: 'scene-2', routeKind: 'branch' },
+      { id: 'choice-2', label: { en: 'Other path' }, targetSceneId: 'unpublished-scene', routeKind: 'branch' },
+      { id: 'choice-3', label: { en: 'New route' }, targetSceneId: null, routeKind: 'generation_required' },
+    ]);
+    const incomplete = await service.currentProgress('reader-1', 'progress-1', 'en');
+    expect(incomplete.choices).toMatchObject([
+      { id: 'choice-1', available: true },
+      { id: 'choice-2', available: false, nextHint: null },
+      { id: 'choice-3', available: true, nextHint: null },
+    ]);
   });
 });

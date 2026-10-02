@@ -190,6 +190,25 @@ describe('OTT owner intake contract (explicit storage/probe/persistence doubles)
     await expect(service.createIntent(owner, version, 'intent-key-1', EXPECTED)).rejects.toMatchObject(code('NOT_READY'));
     await expect(service.revoke(owner, file, { revoked: false })).rejects.toMatchObject(code('INVALID'));
   });
+
+  it('rechecks public pin identity, revocation, and actual bytes on delivery', async () => {
+    await confirm();
+    const upload = repo.uploads.get(file)!;
+    const opened = await service.deliverPinnedPublic(owner, file, version, upload.verified!.sha256);
+    expect(opened.sizeBytes).toBe(SAMPLE.length);
+    await opened.close();
+    await expect(service.deliverPinnedPublic(owner, file, randomUUID(), upload.verified!.sha256))
+      .rejects.toMatchObject(code('TOKEN_INVALID'));
+    await expect(service.deliverPinnedPublic(owner, file, version, 'b'.repeat(64)))
+      .rejects.toMatchObject(code('TOKEN_INVALID'));
+    storage.bytes.set(file, Buffer.alloc(SAMPLE.length));
+    await expect(service.deliverPinnedPublic(owner, file, version, upload.verified!.sha256))
+      .rejects.toMatchObject(code('OBJECT_MISMATCH'));
+    storage.bytes.set(file, SAMPLE);
+    await service.revoke(owner, file, {});
+    await expect(service.deliverPinnedPublic(owner, file, version, upload.verified!.sha256))
+      .rejects.toMatchObject(code('NOT_READY'));
+  });
 });
 
 function failTest(): never { throw new Error('expected OTT exception'); }

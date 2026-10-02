@@ -1,0 +1,93 @@
+.story-visual-booking {
+  min-width: 0;
+  margin-block: 20px;
+  padding-block: 18px;
+  border-block: 1px solid var(--line, #e5e7eb);
+  color: var(--text, #111827);
+  font: 13px/1.6 Inter, Pretendard, "Noto Sans KR", system-ui, sans-serif;
+  letter-spacing: 0;
+  overflow-wrap: anywhere;
+}
+.story-visual-booking * { box-sizing: border-box; min-width: 0; letter-spacing: 0; }
+.story-visual-booking [hidden] { display: none; }
+.booking-header, .booking-target-controls, .booking-pagination, .booking-dialog-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.booking-header { justify-content: space-between; }
+.booking-header h3 { margin: 0; font-size: 16px; }
+.booking-policy { margin-block: 10px; color: var(--muted, #6b7280); }
+.booking-target-controls { align-items: end; }
+.booking-target-controls > label { display: grid; flex: 1 1 280px; gap: 6px; }
+.booking-target-controls select {
+  width: 100%;
+  max-width: 100%;
+  min-height: 42px;
+  padding: 8px;
+  border: 1px solid var(--line-strong, #d1d5db);
+  border-radius: 4px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+}
+.story-visual-booking button {
+  flex: 0 1 auto;
+  max-width: 100%;
+  min-height: 40px;
+  margin: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--line-strong, #d1d5db);
+  border-radius: 4px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.story-visual-booking .primary-action { background: #047857; border-color: #047857; color: #fff; }
+.story-visual-booking button:disabled, .story-visual-booking select:disabled { opacity: 0.5; cursor: not-allowed; }
+.story-visual-booking :is(button, select, input, summary):focus-visible { outline: 2px solid #2563eb; outline-offset: 3px; }
+.booking-binding { display: grid; gap: 6px; margin-block: 12px; }
+.booking-binding > div { display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 8px; }
+.booking-binding dt { color: var(--muted, #6b7280); }
+.booking-binding dd { margin: 0; overflow-wrap: anywhere; }
+.booking-state { min-height: 24px; margin-block: 12px; color: #047857; }
+.booking-state.is-error { color: var(--danger, #dc2626); }
+.booking-items { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.booking-item { padding: 12px; border: 1px solid var(--line, #e5e7eb); border-radius: 4px; background: #fff; }
+.booking-item-selector, .booking-approval > label { display: flex; align-items: start; gap: 9px; }
+.booking-item-selector span { display: grid; gap: 2px; }
+.booking-item-selector strong { font-size: 13px; overflow-wrap: anywhere; }
+.booking-item-selector small { color: var(--muted, #6b7280); }
+.story-visual-booking input { flex: 0 0 16px; width: 16px; height: 16px; margin: 4px 0 0; accent-color: #047857; }
+.booking-item p { margin-block: 8px; }
+.booking-item summary { cursor: pointer; color: var(--muted, #6b7280); }
+.booking-pagination { justify-content: center; margin-block: 14px; }
+.booking-pagination span { min-width: 64px; text-align: center; font-variant-numeric: tabular-nums; }
+.booking-approval { display: grid; gap: 12px; padding-block: 14px; border-top: 1px solid var(--line, #e5e7eb); }
+.booking-approval > button { justify-self: start; }
+.booking-dialog {
+  width: min(520px, calc(100% - 28px));
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+  padding: 20px;
+  border: 1px solid var(--line-strong, #d1d5db);
+  border-radius: 6px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+  overflow-wrap: anywhere;
+}
+.booking-dialog::backdrop { background: rgb(17 24 39 / 45%); }
+.booking-dialog h4 { margin: 0; font-size: 16px; }
+.booking-dialog-actions { justify-content: end; margin-top: 16px; }
+@media (max-width: 600px) {
+  .booking-header { align-items: start; }
+  .booking-binding > div { grid-template-columns: minmax(0, 1fr); gap: 1px; }
+  .booking-target-controls > button, .booking-approval > button { width: 100%; }
+  .booking-dialog-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

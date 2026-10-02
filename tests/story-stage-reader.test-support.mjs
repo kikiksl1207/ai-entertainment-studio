@@ -19,6 +19,7 @@ export function registerReaderTests({ fixture, projection, sessionId, workId, ar
     const value = projection(options.completed ? 0 : 3, options.locale || 'en');
     value.currentBeatPosition = options.position ?? 0;
     value.scene.id = options.generated ? 'generated-reader-scene' : 'canonical-reader-scene';
+    value.scene.isGenerated = Boolean(options.isGenerated);
     value.scene.beats = (options.positions || [1, 2, 3]).map((position, i) => ({ position,
       content: options.long ? `${i + 1}\n\n${(paragraphs[options.locale || 'ko'] + '\n\n').repeat(48)}END ${i + 1}` :
         ['FIRST.text', 'MIDDLE text\nSecond paragraph.', 'LAST text', 'FOURTH text', 'FIFTH text', 'SIXTH text'][i] }));
@@ -51,6 +52,42 @@ export function registerReaderTests({ fixture, projection, sessionId, workId, ar
       headerBottom: document.querySelector('.site-header').getBoundingClientRect().bottom,
     }));
     assert.ok(bounds.top >= bounds.headerBottom + 8 && bounds.top <= bounds.headerBottom + 20, JSON.stringify(bounds));
+  }
+
+  const resetVersionCopy = {
+    ko: '원고가 업데이트되어 이전 버전의 막으로 돌아갈 수 없습니다.',
+    en: 'The manuscript has been updated. Acts from the previous version are unavailable.',
+    ja: '原稿が更新されたため、以前の版の幕には戻れません。',
+    'zh-Hans': '原稿已更新，无法返回旧版本的幕。',
+    'zh-Hant': '原稿已更新，無法返回舊版本的幕。',
+  };
+  for (const locale of locales) for (const width of [390, 1280]) {
+    test(`reader: reset version changed preserves full restart (${locale}/${width})`, async () => {
+      const f = await reader({ locale, width, position: 3, hook: async request => {
+        if (request.path.endsWith('/reset-preview') && request.query.target === 'act') return { status: 409,
+          body: { success: false, error: { code: 'STORY_RESET_VERSION_MISMATCH',
+            message: 'INTERNAL_DIAGNOSTIC_DO_NOT_RENDER', details: { retryable: false } } } };
+      } });
+      try {
+        await f.ready();
+        await f.page.locator('[data-story-reset-preview="act"]').click();
+        await f.page.waitForFunction(expected => document.querySelector('[data-story-action-status]')?.textContent === expected,
+          resetVersionCopy[locale]);
+        assert.equal(await f.page.locator('.story-reset-dialog').count(), 0);
+        assert.equal(f.requests.filter(r => r.method === 'POST' && r.path.endsWith('/reset')).length, 0);
+        assert(!await f.page.locator('#storyStageRoot').textContent().then(text => text.includes('INTERNAL_DIAGNOSTIC_DO_NOT_RENDER')));
+        assert(await f.page.locator('[data-story-reset-preview="full"]').isEnabled());
+        const fits = await f.page.locator('[data-story-action-status]').evaluate(node => node.scrollWidth <= node.clientWidth + 1);
+        assert(fits, 'Localized failure must fit the existing status region');
+        await f.page.screenshot({ path: path.join(artifacts, `reset-version-${locale}-${width}.png`), fullPage: true });
+        await f.page.locator('[data-story-reset-preview="full"]').click();
+        await f.page.locator('.story-reset-dialog').waitFor();
+        assert.equal(f.requests.filter(r => r.method === 'POST' && r.path.endsWith('/reset')).length, 0);
+        await f.page.locator('[data-story-reset-cancel]').click();
+        assert.equal(await f.page.locator('.story-reset-dialog').count(), 0);
+        assert.equal(f.errors.length, 0);
+      } finally { await f.close(); }
+    });
   }
 
   for (const options of [{ name: 'canonical sentinel', positions: [1, 2, 3] }, { name: 'canonical resumed', positions: [1, 2, 3], position: 2 }, { name: 'generated zero-based', positions: [0, 1, 2], generated: true }]) {
@@ -91,6 +128,73 @@ export function registerReaderTests({ fixture, projection, sessionId, workId, ar
       } finally { await f.close(); }
     });
   }
+
+  test('reader: only a ready, pinned participant links chat to this exact story progress', async () => {
+    const value = current();
+    value.participantArtist = { artistId: '22222222-2222-4222-8222-222222222222', slug: 'seo-ika',
+      displayName: '서이카', visualIdentityReady: true };
+    const f = await reader({ current: value });
+    try {
+      await f.ready();
+      assert.equal(await f.page.locator('.story-participant-chat-link').getAttribute('href'),
+        `/character-chat?slug=seo-ika&storyProgressId=${sessionId}`);
+      assert.equal(await f.page.locator('.story-participant-chat-link').innerText(), 'Chat with your story companion');
+      const link = f.page.locator('.story-participant-chat-link');
+      assert.equal(await link.evaluate(el => el.scrollWidth <= el.clientWidth), true);
+    } finally { await f.close(); }
+    const pending = current();
+    pending.participantArtist = { ...value.participantArtist, visualIdentityReady: false };
+    const unavailable = await reader({ current: pending });
+    try {
+      await unavailable.ready();
+      assert.equal(await unavailable.page.locator('.story-participant-chat-link').count(), 0);
+    } finally { await unavailable.close(); }
+  });
+
+  test('reader: a one-page generated scene checkpoints its visible beat before the next choice', async () => {
+    const f = await reader({ generated: true, isGenerated: true, positions: [1, 2] });
+    try {
+      await f.ready();
+      assert.equal(await f.page.locator('[data-choice-id]:enabled').count(), 3,
+        await f.page.locator('#storyStageRoot').innerText());
+      await f.page.locator('[data-choice-id="choice-1"]').click();
+      await f.page.waitForFunction(() => document.querySelector('.story-player-copy p')?.textContent === 'distinct-route-1');
+      const posts = f.requests.filter(request => request.method === 'POST');
+      assert.deepEqual(posts.map(request => request.path.split('/').at(-1)), ['beat', 'choice-1']);
+      assert.deepEqual(posts[0].body, { position: 2, expectedRevision: 3 });
+      assert.equal(posts[1].body.expectedRevision, 10);
+    } finally { await f.close(); }
+  });
+
+  test('reader: a rejected generated beat checkpoint never submits the choice', async () => {
+    const f = await reader({ generated: true, isGenerated: true, positions: [1, 2], hook: (request) => {
+      if (request.method === 'POST' && request.path.endsWith('/beat')) {
+        return { status: 409, body: { code: 'STORY_PROGRESS_STALE_REVISION' } };
+      }
+    } });
+    try {
+      await f.ready();
+      await f.page.locator('[data-choice-id="choice-1"]').click();
+      await f.page.waitForFunction(() => document.querySelector('#storyStageRoot')?.getAttribute('aria-busy') !== 'true');
+      assert.deepEqual(f.requests.filter(request => request.method === 'POST')
+        .map(request => request.path.split('/').at(-1)), ['beat']);
+    } finally { await f.close(); }
+  });
+
+  test('reader: a generated beat projection from another route never submits the choice', async () => {
+    const f = await reader({ generated: true, isGenerated: true, positions: [1, 2], hook: (request, context) => {
+      if (request.method !== 'POST' || !request.path.endsWith('/beat')) return null;
+      return { body: { ...context.current, currentBeatPosition: request.body.position,
+        revision: context.current.revision + 7, storyVersion: 'different-route-version' } };
+    } });
+    try {
+      await f.ready();
+      await f.page.locator('[data-choice-id="choice-1"]').click();
+      await f.page.waitForFunction(() => document.querySelector('#storyStageRoot')?.getAttribute('aria-busy') !== 'true');
+      assert.deepEqual(f.requests.filter(request => request.method === 'POST')
+        .map(request => request.path.split('/').at(-1)), ['beat']);
+    } finally { await f.close(); }
+  });
 
   test('reader: six short pages render as three longer scenes and save only scene boundaries', async () => {
     const f = await reader({ positions: [1, 2, 3, 4, 5, 6] });
@@ -147,6 +251,149 @@ export function registerReaderTests({ fixture, projection, sessionId, workId, ar
       assert.deepEqual(contract.writes, []);
     } finally { await completed.close(); }
   });
+
+  for (const { locale, width } of [{ locale: 'ko', width: 390 }, { locale: 'en', width: 400 },
+    { locale: 'ja', width: 1280 }, { locale: 'zh-Hans', width: 390 }, { locale: 'zh-Hant', width: 400 }]) {
+    test(`reader generated ending: ${locale} ${width}px saves navigation without reopening choices`, async () => {
+      const value = current({ completed: true, generated: true, isGenerated: true, locale });
+      value.scene.endingType = 'ai_generated';
+      value.scene.beats = Array.from({ length: 6 }, (_, index) => ({ position: index + 1,
+        content: `${paragraphs[locale]} ${index + 1}.` }));
+      const f = await reader({ locale, width, current: value });
+      try {
+        await f.ready();
+        await turn(f, 'next', '2 / 3');
+        await turn(f, 'next', '3 / 3');
+        assert.deepEqual(beatPosts(f).map(request => request.body.position), [4, 6]);
+        assert.deepEqual(beatPosts(f).map(request => request.body.expectedRevision), [3, 10]);
+        assert.equal(await f.page.locator('[data-choice-id]').count(), 0);
+        assert.equal(await f.page.locator('.story-ending-label').count(), 1);
+        await f.page.reload(); await f.ready();
+        assert.equal(await f.page.locator('[data-story-beat-counter]').textContent(), '3 / 3');
+        await turn(f, 'previous', '2 / 3');
+        assert.deepEqual(beatPosts(f).map(request => request.body.position), [4, 6, 4]);
+        const layout = await f.page.evaluate(() => ({
+          width: innerWidth, scroll: document.documentElement.scrollWidth,
+          buttons: [...document.querySelectorAll('[data-story-beat]')].map(button => {
+            const rect = button.getBoundingClientRect();
+            return { left: rect.left, right: rect.right, width: rect.width };
+          }),
+        }));
+        assert.ok(layout.scroll <= layout.width, JSON.stringify(layout));
+        assert.ok(layout.buttons.every(button => button.left >= 0 && button.right <= layout.width && button.width >= 44), JSON.stringify(layout));
+        await f.page.screenshot({ path: path.join(artifacts, `generated-ending-${locale}-${width}.png`), fullPage: true });
+      } finally { await f.close(); }
+    });
+  }
+
+  function readyEnding(locale = 'en') {
+    const value = current({ completed: true, generated: true, isGenerated: true, locale, positions: [1], long: true, visual: true });
+    value.scene.beats[0].content += '.';
+    value.scene.deliveryState = 'ready';
+    value.scene.endingType = 'ai_generated';
+    return value;
+  }
+
+  for (const { locale, width } of [{ locale: 'ko', width: 390 }, { locale: 'en', width: 400 },
+    { locale: 'ja', width: 1280 }, { locale: 'zh-Hans', width: 390 }, { locale: 'zh-Hant', width: 400 }]) {
+    test(`reader ending acknowledgement: ${locale} ${width}px single page saves only on explicit click`, async () => {
+      const value = readyEnding(locale);
+      const f = await reader({ locale, width, current: value });
+      try {
+        await f.ready();
+        const button = f.page.locator('[data-story-ending-read]');
+        await button.waitFor();
+        assert.equal(await button.isDisabled(), false);
+        assert.equal(await f.page.locator('[data-story-beat], [data-choice-id]').count(), 0);
+        assert.equal(beatPosts(f).length, 0);
+        await button.scrollIntoViewIfNeeded();
+        const before = await f.page.evaluate(() => scrollY);
+        const metrics = await button.evaluate(element => {
+          const bounds = element.getBoundingClientRect();
+          const prose = document.querySelector('.story-player-copy').getBoundingClientRect();
+          return { width: bounds.width, height: bounds.height, left: bounds.left, right: bounds.right,
+            top: bounds.top, proseBottom: prose.bottom, overflow: document.documentElement.scrollWidth > innerWidth,
+            textFits: element.scrollWidth <= element.clientWidth };
+        });
+        assert.ok(metrics.width >= 44 && metrics.height >= 44 && metrics.left >= 0 && metrics.right <= width, JSON.stringify(metrics));
+        assert.ok(metrics.top >= metrics.proseBottom && !metrics.overflow && metrics.textFits, JSON.stringify(metrics));
+        await f.page.screenshot({ path: path.join(artifacts, `ending-read-ack-${locale}-${width}.png`) });
+        await button.click();
+        await f.page.waitForFunction(() => document.querySelector('[data-story-ending-read]')?.disabled && document.querySelector('#storyStageRoot')?.getAttribute('aria-busy') === 'false');
+        assert.equal(await button.evaluate(element => element.getBoundingClientRect().width), metrics.width, 'Saved label must not resize the button');
+        assert.deepEqual(beatPosts(f).map(request => request.body), [{ position: 1, expectedRevision: 3 }]);
+        assert.ok(Math.abs(await f.page.evaluate(() => scrollY) - before) <= 2, 'Acknowledgement must not jump to the page start');
+        await button.dispatchEvent('click');
+        assert.equal(beatPosts(f).length, 1);
+        await f.page.reload(); await f.ready();
+        assert.equal(await button.isDisabled(), true);
+        assert.equal(await f.page.locator('.story-ending-label').count(), 1);
+        assert.equal(await f.page.locator('[data-choice-id]').count(), 0);
+        assert.equal(beatPosts(f).length, 1);
+        assert.ok(f.requests.filter(request => request.method === 'POST').every(request => request.path.endsWith('/beat')));
+      } finally { await f.close(); }
+    });
+  }
+
+  test('reader ending acknowledgement: pending click blocks duplicate and reset writes', async () => {
+    const g = gate();
+    const f = await reader({ current: readyEnding(), hook: async request => { if (request.path.endsWith('/beat')) await g.promise; } });
+    try {
+      await f.ready();
+      const button = f.page.locator('[data-story-ending-read]');
+      await button.click();
+      await f.page.waitForFunction(() => document.querySelector('#storyStageRoot')?.getAttribute('aria-busy') === 'true');
+      await button.dispatchEvent('click');
+      await f.page.locator('[data-story-reset-preview="full"]').dispatchEvent('click');
+      assert.equal(await button.isDisabled(), true);
+      g.release();
+      await f.page.waitForFunction(() => document.querySelector('#storyStageRoot')?.getAttribute('aria-busy') === 'false');
+      assert.equal(f.requests.filter(request => request.method === 'POST').length, 1);
+      assert.equal(await button.isDisabled(), true);
+    } finally { g.release(); await f.close(); }
+  });
+
+  test('reader ending acknowledgement: a hidden unfinished tail cannot be marked fully read', async () => {
+    const value = readyEnding();
+    value.scene.beats[0].content = 'The final letter was opened. Unfinished hidden tail';
+    const f = await reader({ current: value });
+    try {
+      await f.ready();
+      assert.equal(await f.page.locator('.story-player-copy p').textContent(), 'The final letter was opened.');
+      assert.equal(await f.page.locator('[data-story-ending-read]').count(), 0);
+      await f.page.evaluate(() => {
+        const button = document.createElement('button');
+        button.dataset.storyEndingRead = '';
+        document.querySelector('#storyStageRoot').append(button);
+        button.click(); button.remove();
+      });
+      assert.equal(beatPosts(f).length, 0);
+    } finally { await f.close(); }
+  });
+
+  for (const outcome of ['lost committed', 'forbidden']) {
+    test(`reader ending acknowledgement: ${outcome} never replays a write`, async () => {
+      const f = await reader({ current: readyEnding(), hook: async (request, context) => {
+        if (!request.path.endsWith('/beat')) return;
+        if (outcome === 'forbidden') return { status: 403, body: { error: { code: 'PRIVATE_INTERNAL', message: 'PRIVATE_SECRET' } } };
+        context.setCurrent({ ...context.current, revision: 10, currentBeatPosition: 1 });
+        return { abort: true };
+      } });
+      try {
+        await f.ready();
+        await f.page.locator('[data-story-ending-read]').click();
+        await f.page.waitForFunction(() => document.querySelector('#storyStageRoot')?.getAttribute('aria-busy') === 'false');
+        assert.equal(beatPosts(f).length, 1);
+        assert.equal(f.requests.filter(request => request.method === 'POST').length, 1);
+        assert.doesNotMatch(await f.page.locator('#storyStageRoot').innerText(), /PRIVATE_INTERNAL|PRIVATE_SECRET/);
+        if (outcome === 'lost committed') {
+          assert.ok(f.requests.filter(request => request.path.endsWith('/current-scene')).length >= 2);
+          assert.equal(await f.page.locator('[data-story-ending-read]').isDisabled(), true);
+          assert.equal(await f.page.locator('[data-choice-id]').count(), 0);
+        } else assert.equal(await f.page.locator('[data-story-ending-read], .story-player').count(), 0);
+      } finally { await f.close(); }
+    });
+  }
 
   for (const invalid of ['duplicate positions', 'unknown position', 'active ending without choices', 'completed with choices']) {
     test(`reader: ${invalid} is a surfaced contract error`, async () => {
@@ -308,6 +555,37 @@ export function registerReaderTests({ fixture, projection, sessionId, workId, ar
     });
   }
 
+  for (const width of [320, 360, 390, 1280]) {
+    test(`reader typography: Korean prose and choices remain legible at ${width}px`, async () => {
+      const value = current({ locale: 'ko', position: 3, visual: true });
+      value.scene.beats[2].content = '창가에 놓인 편지를 다시 펼쳤다. 접힌 자국 사이로 오래전 적어 둔 이름이 보였다.\n\n그 이름을 읽자 지난밤의 대화가 떠올랐다. 지금 문을 열면 모든 것이 달라질 수 있었다.';
+      const f = await reader({ locale: 'ko', width, current: value });
+      try {
+        await f.ready();
+        const typography = await f.page.evaluate(() => {
+          const prose = getComputedStyle(document.querySelector('.story-player-copy p'));
+          const choice = getComputedStyle(document.querySelector('.story-choice-list button'));
+          return { proseSize: parseFloat(prose.fontSize), proseLineHeight: parseFloat(prose.lineHeight),
+            proseFamily: prose.fontFamily, proseWidth: prose.maxWidth, choiceSize: parseFloat(choice.fontSize),
+            choiceWeight: Number(choice.fontWeight), choiceFamily: choice.fontFamily,
+            horizontalOverflow: document.documentElement.scrollWidth > innerWidth };
+        });
+        assert.equal(typography.proseSize, width <= 680 ? 17 : 18);
+        assert.ok(typography.proseLineHeight / typography.proseSize >= 1.75);
+        assert.match(typography.proseFamily, /^system-ui/);
+        assert.equal(typography.choiceSize, 15);
+        assert.equal(typography.choiceWeight, 500);
+        assert.match(typography.choiceFamily, /^system-ui/);
+        assert.equal(typography.horizontalOverflow, false);
+        await f.page.locator('.story-player-copy').evaluate((element) => {
+          const headerHeight = document.querySelector('.site-header').getBoundingClientRect().height;
+          scrollTo({ top: element.getBoundingClientRect().top + scrollY - headerHeight - 12, behavior: 'instant' });
+        });
+        await f.page.screenshot({ path: path.join(artifacts, `ko-${width}-typography.png`) });
+      } finally { await f.close(); }
+    });
+  }
+
   for (const { locale, width } of [{ locale: 'ko', width: 390 }, { locale: 'en', width: 900 }, { locale: 'ja', width: 1280 }]) {
     for (const titled of [false, true]) {
       test(`reader header clearance: ${locale} ${width} ${titled ? 'titled' : 'untitled'} scene`, async () => {
@@ -350,7 +628,7 @@ export function registerReaderTests({ fixture, projection, sessionId, workId, ar
         await f.ready();
         const region = f.page.locator('[data-story-scene-focus]');
         assert.equal(await f.page.locator('[data-story-beat="next"]').isDisabled(), false);
-        assert.equal(await region.locator('p').textContent(), value.scene.beats[0].content);
+        assert.equal((await region.locator('p').allTextContents()).join('\n\n'), value.scene.beats[0].content);
         const geometry = await f.page.evaluate(() => {
           const stage = document.querySelector('.story-player-stage'); const region = document.querySelector('[data-story-scene-focus]'); const nav = document.querySelector('.story-beat-navigation');
           const narrativeStyle = getComputedStyle(region.querySelector('p'));
@@ -388,7 +666,7 @@ export function registerReaderTests({ fixture, projection, sessionId, workId, ar
         await f.page.keyboard.press('ArrowRight');
         await f.page.waitForFunction(() => document.querySelector('[data-story-beat-counter]')?.textContent === '2 / 3' && document.querySelector('#storyStageRoot')?.getAttribute('aria-busy') !== 'true');
         await turn(f, 'next', '3 / 3');
-        assert.equal(await region.locator('p').textContent(), value.scene.beats[2].content);
+        assert.equal((await region.locator('p').allTextContents()).join('\n\n'), value.scene.beats[2].content);
         assert.equal(await f.page.locator('[data-choice-id]').count(), 3);
         await region.evaluate((el) => el.scrollIntoView({ block: 'end', behavior: 'instant' }));
         await f.page.locator('[data-choice-id]').first().waitFor();
@@ -433,5 +711,46 @@ export function registerReaderTests({ fixture, projection, sessionId, workId, ar
       assert.ok(layout.stageRatio > 0.65 && layout.stageRatio < 0.68, JSON.stringify(layout));
       assert.equal(layout.sideBySide && !layout.horizontalOverflow, true, JSON.stringify(layout));
     } finally { await f.close(); }
+  });
+
+  test('reader visual: portrait art, prose, and three choices stay reachable on mobile', async () => {
+    for (const width of [320, 820]) {
+      const value = current({ locale: 'ko', position: 3, visual: true });
+      value.scene.visualManifest.background.publicAssetPath = '/local-reader-portrait.webp';
+      value.scene.beats[2].content = `${paragraphs.ko}\n\n${paragraphs.ko}`;
+      value.choices.forEach((choice) => { choice.label = Array(3).fill(paragraphs.ko).join(' '); });
+      const f = await reader({ locale: 'ko', width, current: value });
+      try {
+        await f.ready();
+        await f.page.waitForFunction(() => document.querySelector('.story-reader-shell')?.dataset.visualLayout === 'portrait');
+        const layout = await f.page.evaluate(() => {
+          const bounds = (selector) => document.querySelector(selector).getBoundingClientRect();
+          const stage = bounds('.story-player-stage');
+          const copy = bounds('.story-player-copy');
+          const choices = bounds('.story-choice-panel');
+          const navigation = bounds('.story-beat-navigation');
+          const image = document.querySelector('.story-player-background');
+          return { stageRatio: stage.width / stage.height, imageRatio: image.naturalWidth / image.naturalHeight,
+            imageVisible: image.offsetWidth > 0 && image.offsetHeight > 0,
+            ordered: stage.bottom <= copy.top + 1 && copy.bottom <= choices.top + 1 && choices.bottom <= navigation.top + 1,
+            horizontalOverflow: document.documentElement.scrollWidth > innerWidth,
+            proseClipped: document.querySelector('.story-player-copy').scrollHeight > document.querySelector('.story-player-copy').clientHeight };
+        });
+        assert.ok(Math.abs(layout.stageRatio - layout.imageRatio) < 0.02, JSON.stringify({ width, ...layout }));
+        assert.equal(layout.imageVisible && layout.ordered && !layout.horizontalOverflow && !layout.proseClipped, true, JSON.stringify({ width, ...layout }));
+        assert.deepEqual(await f.page.locator('.story-player-copy p').allTextContents(), [paragraphs.ko, paragraphs.ko]);
+        assert.equal(await f.page.locator('[data-choice-id]:enabled').count(), 3);
+        for (const choice of await f.page.locator('[data-choice-id]').all()) {
+          await choice.evaluate((element) => element.scrollIntoView({ block: 'center', behavior: 'instant' }));
+          assert.equal(await choice.evaluate((element) => {
+            const rect = element.getBoundingClientRect();
+            return element.scrollHeight <= element.clientHeight &&
+              element.contains(document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2));
+          }), true, `${width}px choice text or hit target is clipped`);
+        }
+        await f.page.evaluate(() => scrollTo({ top: 0, behavior: 'instant' }));
+        await f.page.screenshot({ path: path.join(artifacts, `ko-${width}-portrait-reader.png`), fullPage: true });
+      } finally { await f.close(); }
+    }
   });
 }

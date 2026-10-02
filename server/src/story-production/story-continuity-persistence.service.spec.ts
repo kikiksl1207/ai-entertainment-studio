@@ -15,7 +15,7 @@ describe('StoryProductionService continuity persistence', () => {
     const semantic = { get: jest.fn().mockResolvedValue({ job: { status: 'running' }, evidence: [], hasMore: true }) };
     const service = new StoryProductionService({} as never, undefined, undefined, undefined, semantic as never);
     expect(await service.analysis('owner-1', 'analysis-1', 'cursor-1')).toMatchObject({ hasMore: true });
-    expect(semantic.get).toHaveBeenCalledWith('owner-1', 'analysis-1', 'cursor-1');
+    expect(semantic.get).toHaveBeenCalledWith('owner-1', 'analysis-1', 'cursor-1', undefined);
     await expect(new StoryProductionService({} as never).analyzeManuscript('owner-1', 'manuscript-1', 'analysis-key-123'))
       .rejects.toMatchObject({ status: 503 });
   });
@@ -110,6 +110,7 @@ describe('StoryProductionService continuity persistence', () => {
     expect(prisma.storyContinuityIssue.findMany).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({ pathScope: 'author_original', pathKey: 'author_original' }),
     }));
+    expect(prisma.storyAnalysisEvidence.findMany).not.toHaveBeenCalled();
     expect(result.issues).toEqual([expect.objectContaining({ id: 'author-warning' })]);
     expect(result.decisionHistory).toEqual([]);
     expect(result.pathStates).toEqual({
@@ -119,5 +120,29 @@ describe('StoryProductionService continuity persistence', () => {
     expect(result.publishGate).toEqual({
       blocked: false, unresolvedCriticalCount: 0, unresolvedWarningCount: 1,
     });
+  });
+
+  it('loads only evidence linked to continuity entries or issues', async () => {
+    const prisma = {
+      storyWork: { findFirst: jest.fn().mockResolvedValue({ id: 'work-1' }) },
+      storyManuscriptVersion: { findFirst: jest.fn().mockResolvedValue({ id: 'manuscript-1', version: 1 }) },
+      storyAnalysisJob: { findFirst: jest.fn().mockResolvedValue({ id: 'analysis-1', analysisVersion: 1 }) },
+      storyContinuityEntry: { findMany: jest.fn().mockResolvedValue([{ id: 'entry-1', analysisVersion: 1,
+        entryType: 'foreshadow', ledgerKey: 'foreshadow:letter', label: 'Letter' }]) },
+      storyContinuityIssue: { findMany: jest.fn().mockResolvedValue([]) },
+      storyContinuityEntryEvidence: { findMany: jest.fn().mockResolvedValue([{ entryId: 'entry-1', evidenceId: 'linked-1' }]) },
+      storyContinuityIssueEvidence: { findMany: jest.fn().mockResolvedValue([{ issueId: 'issue-1', evidenceId: 'linked-1' }]) },
+      storyAnalysisEvidence: { findMany: jest.fn().mockResolvedValue([{ id: 'linked-1', evidenceType: 'foreshadow',
+        sourcePartKey: 'part-1', sourceParagraphIndex: 0 }]) },
+      storyContinuityPathState: { findMany: jest.fn().mockResolvedValue([]) },
+      storyContinuityDecisionAudit: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+    const result = await new StoryProductionService(prisma as never).continuity('owner-1', 'work-1');
+    expect(prisma.storyAnalysisEvidence.findMany).toHaveBeenCalledWith({
+      where: { analysisJobId: 'analysis-1', id: { in: ['linked-1'] } },
+      select: { id: true, evidenceType: true, sourcePartKey: true, sourceParagraphIndex: true },
+    });
+    expect(result.entries[0].evidence).toEqual([{ id: 'linked-1', evidenceType: 'foreshadow',
+      sourcePartKey: 'part-1', sourceParagraphIndex: 0 }]);
   });
 });

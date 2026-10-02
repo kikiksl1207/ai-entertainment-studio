@@ -28,4 +28,25 @@ describe('ArtistsService public image URLs', () => {
     expect(url('assets/characters/yoon-serin/../private.png', 'local'))
       .toBe('https://private-bucket.example/assets/characters/yoon-serin/../private.png');
   });
+
+  it('projects the same confirmed fandom flag in public list and detail records without a database write', () => {
+    const artist = {
+      slug: 'min-chaeon', status: 'active', artistAssets: [],
+      publicProfile: { publicMetadata: {
+        approvedRelease: 'approved-public-artists-2026-09-27',
+        profileFacts: { '팬덤명': 'Chaeon Fit' },
+      } },
+    };
+    const project = (service as unknown as {
+      toPublicArtist: (artist: unknown, options: { includeContentProfile: boolean }) => {
+        profile: { publicMetadata: { profileFacts: Record<string, unknown> } };
+      };
+    }).toPublicArtist.bind(service);
+    for (const includeContentProfile of [false, true]) {
+      expect(project(artist, { includeContentProfile }).profile.publicMetadata.profileFacts).toEqual({
+        '팬덤명': 'Chaeon Fit', fandomNameStatus: 'approved', fandomNameCandidate: 'Chaeon Fit',
+      });
+    }
+    expect(artist.publicProfile.publicMetadata.profileFacts).toEqual({ '팬덤명': 'Chaeon Fit' });
+  });
 });

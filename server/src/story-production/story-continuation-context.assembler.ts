@@ -6,6 +6,7 @@ import { storyRouteSnapshot } from './story-route-identity.store';
 import {
   assembleContinuationSemanticPath,
   continuationExecutionFingerprint,
+  continuationHash,
   continuationGenerationProfileSnapshot,
   approvedContinuationMemoryText,
   continuationMemoryPins,
@@ -21,6 +22,9 @@ import {
 import { StoryArtistParticipantService, type StoryApprovedParticipant } from './story-artist-participant.service';
 import { authoredPartContinuationLengthBounds } from './story-continuation-author-length.store';
 import { sourceStoryContinuationLengthBounds, type StoryContinuationLengthBounds } from './story-continuation-length.policy';
+import { assembleContinuationRouteContinuity, STORY_CONTINUATION_ROUTE_VIEW_VERSION,
+  type StoryContinuationRouteContinuity } from './story-continuation-route-continuity';
+import { STORY_CONTINUATION_PROMPT_VERSION } from './story-continuation-openai.schema';
 
 export class StoryContinuationContextError extends ConflictException {
   constructor(readonly code: string) {
@@ -35,6 +39,7 @@ export type StoryContinuationApprovedContext = {
   };
   selectedChoice: { label: string };
   path: StoryContinuationSemanticPathStep[];
+  routeContinuity?: StoryContinuationRouteContinuity;
   memories: Array<{ memoryType: string; content: string }>;
   narrativeLength?: StoryContinuationLengthBounds;
   generationProfile?: ReturnType<typeof continuationGenerationProfileSnapshot>['approved'];
@@ -58,6 +63,13 @@ export class StoryContinuationContextAssembler {
     const references = record(continuation.contextReferences);
     const memoryPins = memoryPinArray(references.memoryPins);
     const memoryIds = memoryPins.map((pin) => pin.id);
+    const planningMemoryIds = references.planningMemoryIds === undefined
+      ? [] : stringArray(references.planningMemoryIds);
+    if (!planningMemoryIds || new Set(planningMemoryIds).size !== planningMemoryIds.length ||
+        planningMemoryIds.some((id) => !memoryIds.includes(id))) {
+      throw new StoryContinuationContextError('pinned_context_changed');
+    }
+    const planningMemoryIdSet = new Set(planningMemoryIds);
     let generationProfilePin;
     try {
       generationProfilePin = parseContinuationGenerationProfilePin(references.generationProfilePin);
@@ -160,7 +172,18 @@ export class StoryContinuationContextAssembler {
         : Promise.resolve(null),
     ]);
     const scene = canonicalScene ?? generatedScene;
-    if (!progress || !part || !scene || memories.length !== memoryIds.length) {
+    const memoryById = new Map(memories.map((memory) => [memory.id, memory]));
+    const pinnedMemories = memoryPins.flatMap((pin) => {
+      const memory = memoryById.get(pin.id);
+      return memory ? [memory] : [];
+    });
+    if (!progress || !part || !scene || memories.length !== memoryIds.length ||
+        pinnedMemories.length !== memoryIds.length) {
+      throw new StoryContinuationContextError('pinned_context_changed');
+    }
+    if (sourceKind === 'generated' &&
+        (!Number.isInteger(progress.currentBeatPosition) ||
+          progress.currentBeatPosition < 1 || progress.currentBeatPosition > 40)) {
       throw new StoryContinuationContextError('pinned_context_changed');
     }
     let approvedGenerationProfile;
@@ -200,7 +223,8 @@ export class StoryContinuationContextAssembler {
         ])
       : await Promise.all([
           this.prisma.storyAiGeneratedBeat.findMany({
-            where: { sceneId: continuation.sourceGeneratedSceneId! },
+            where: { sceneId: continuation.sourceGeneratedSceneId!,
+              position: { lte: progress.currentBeatPosition } },
             orderBy: [{ position: 'asc' }, { id: 'asc' }],
             select: { position: true, beatType: true, content: true },
             take: 41,
@@ -217,7 +241,7 @@ export class StoryContinuationContextAssembler {
     if (!choice || sourceBeats.length < 1 || sourceBeats.length > 40) {
       throw new StoryContinuationContextError('pinned_context_changed');
     }
-    const currentMemoryPins = continuationMemoryPins(memories);
+    const currentMemoryPins = continuationMemoryPins(pinnedMemories);
     const sourceHash = continuationSourceHash({
       kind: sourceKind,
       locale: continuation.locale,
@@ -253,10 +277,34 @@ export class StoryContinuationContextAssembler {
       throw new StoryContinuationContextError('pinned_context_changed');
     }
     const pathHash = continuationPathHash(semanticPath);
+    if ((continuation.promptVersion === STORY_CONTINUATION_PROMPT_VERSION &&
+        references.routeContinuityVersion === undefined) ||
+        (references.routeContinuityHash !== undefined && references.routeContinuityVersion === undefined)) {
+      throw new StoryContinuationContextError('pinned_context_changed');
+    }
+    let routeContinuity: StoryContinuationRouteContinuity | undefined;
+    let routeContinuityHash: string | undefined;
+    if (references.routeContinuityVersion !== undefined) {
+      if (references.routeContinuityVersion !== STORY_CONTINUATION_ROUTE_VIEW_VERSION) {
+        throw new StoryContinuationContextError('pinned_context_changed');
+      }
+      try {
+        routeContinuity = await assembleContinuationRouteContinuity(this.prisma, {
+          routeNodeId: route.nodeId, progressId: continuation.progressId,
+          workId: continuation.workId, releaseId: continuation.releaseId,
+          userId: continuation.userId, locale: continuation.locale,
+          pathSummary: progress.pathSummary,
+        });
+        routeContinuityHash = continuationHash(routeContinuity);
+      } catch {
+        throw new StoryContinuationContextError('pinned_context_changed');
+      }
+    }
     const executionFingerprint = continuationExecutionFingerprint({
       contextFingerprint: continuation.contextFingerprint,
       sourceHash,
       pathHash,
+      ...(routeContinuityHash ? { routeContinuityHash, routeContinuityVersion: STORY_CONTINUATION_ROUTE_VIEW_VERSION } : {}),
       memoryPins: currentMemoryPins,
       ...(generationProfilePin ? { generationProfilePin } : {}),
       ...(participantSnapshot ? { participantPin: participantSnapshot.pin } : {}),
@@ -265,6 +313,7 @@ export class StoryContinuationContextAssembler {
       stableContinuationJson(currentMemoryPins) !== stableContinuationJson(memoryPins) ||
       references.sourceHash !== sourceHash ||
       references.pathHash !== pathHash ||
+      (routeContinuityHash && references.routeContinuityHash !== routeContinuityHash) ||
       references.executionFingerprint !== executionFingerprint
     ) {
       throw new StoryContinuationContextError('pinned_context_changed');
@@ -283,8 +332,10 @@ export class StoryContinuationContextAssembler {
           label: localizedContinuationText(choice.label, continuation.locale),
         },
         path: semanticPath,
-        memories: memories.map((memory) => ({
-          memoryType: memory.memoryType,
+        ...(routeContinuity ? { routeContinuity } : {}),
+        memories: pinnedMemories.map((memory) => ({
+          memoryType: planningMemoryIdSet.has(memory.id)
+            ? `author_plan_${memory.memoryType}` : memory.memoryType,
           content: approvedContinuationMemoryText(memory.content, continuation.locale),
         })),
         narrativeLength,
@@ -320,4 +371,9 @@ function memoryPinArray(value: Prisma.JsonValue | undefined): StoryContinuationM
       ? [{ id: pin.id, revision: Number(pin.revision), contentHash: pin.contentHash }]
       : [];
   });
+}
+
+function stringArray(value: Prisma.JsonValue): string[] | null {
+  return Array.isArray(value) && value.every((item) => typeof item === 'string' && item.length > 0)
+    ? value as string[] : null;
 }

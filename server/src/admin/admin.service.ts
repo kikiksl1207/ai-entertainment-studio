@@ -221,7 +221,7 @@ const WALLET_ADJUSTMENT_REASONS = new Set([
   'qa_test',
   'manual_correction',
 ]);
-const WALLET_ADJUSTMENT_PLACEHOLDER_NOTES = new Set(['백스?�이지 ?�영 처리']);
+const WALLET_ADJUSTMENT_PLACEHOLDER_NOTES = new Set(['백스?�이지 ?�영 처리']);
 
 @Injectable()
 export class AdminService {
@@ -4833,6 +4833,8 @@ export class AdminService {
     const sortOrder = this.number(input, 'sortOrder', 0);
 
     const result = await this.prisma.$transaction(async (tx) => {
+      // Match creator identity's parent-first order before attachment writes.
+      await tx.$queryRaw`SELECT id FROM artists WHERE id = ${artistId}::uuid FOR UPDATE`;
       if (isPrimary) {
         await tx.artistAsset.updateMany({
           where: { artistId, usageType },
@@ -4840,7 +4842,7 @@ export class AdminService {
         });
       }
 
-      return tx.artistAsset.upsert({
+      const linked = await tx.artistAsset.upsert({
         where: {
           artistId_assetId_usageType: {
             artistId,
@@ -4861,16 +4863,15 @@ export class AdminService {
         },
         include: { asset: true },
       });
+      const result = { ...linked, asset: { ...linked.asset,
+        fileSizeBytes: linked.asset.fileSizeBytes?.toString() ?? null } };
+      await tx.auditEvent.create({ data: {
+        actorUserId: user.id, actorType: 'admin', action: 'artist_asset.link',
+        targetType: 'artist', targetId: artistId, beforeData: Prisma.JsonNull,
+        afterData: this.toJson(result), metadata: this.toJson({}),
+      } });
+      return result;
     });
-
-    await this.recordAudit(
-      user,
-      'artist_asset.link',
-      'artist',
-      artistId,
-      null,
-      result,
-    );
     return result;
   }
 
@@ -5621,12 +5622,13 @@ export class AdminService {
   }
 
   async updateCommunityReport(user: AuthUser, reportId: string, input: AdminPayload) {
-    const before = await this.prisma.communityReport.findUnique({
+    if (!this.isUuid(reportId)) throw new BadRequestException('reportId must be a UUID');
+    const target = await this.prisma.communityReport.findUnique({
       where: { id: reportId },
-      include: this.communityReportInclude(),
+      select: { postId: true },
     });
 
-    if (!before) {
+    if (!target) {
       throw new NotFoundException('Community report not found');
     }
 
@@ -5638,13 +5640,23 @@ export class AdminService {
           : 'resolved'
         : this.communityReportStatus(input, 'status');
     const now = new Date();
-    const report = await this.prisma.$transaction(async (tx) => {
-      const updatedReport = await tx.communityReport.update({
+    return this.prisma.$transaction(async (tx) => {
+      // Match report submission's post-first ordering and read current moderation data under the lock.
+      await tx.$queryRaw`SELECT id FROM community_posts WHERE id = ${target.postId}::uuid FOR UPDATE`;
+      await tx.$queryRaw`SELECT id FROM community_reports WHERE id = ${reportId}::uuid FOR UPDATE`;
+      const before = await tx.communityReport.findUnique({ where: { id: reportId }, include: this.communityReportInclude() });
+      if (!before || before.postId !== target.postId) throw new NotFoundException('Community report not found');
+      const currentMetadata = this.metadataObject(before.metadata);
+      const metadata = input.metadata === undefined ? undefined : this.toJson({
+        ...this.metadataObject(input.metadata),
+        reportRequestKey: currentMetadata.reportRequestKey ?? null,
+      });
+      await tx.communityReport.update({
         where: { id: reportId },
         data: this.clean({
           status,
           detail: this.optionalString(input, 'detail'),
-          metadata: this.optionalJson(input, 'metadata'),
+          metadata,
           updatedAt: now,
         }),
         include: this.communityReportInclude(),
@@ -5689,24 +5701,21 @@ export class AdminService {
         });
       }
 
-      return updatedReport;
+      const report = await tx.communityReport.findUniqueOrThrow({ where: { id: reportId }, include: this.communityReportInclude() });
+      await tx.auditEvent.create({ data: {
+        actorUserId: user.id, actorType: 'admin', action: 'community_report.update',
+        targetType: 'community_report', targetId: report.id,
+        beforeData: this.toJson(this.communityReportAuditSnapshot(before)),
+        afterData: this.toJson(this.communityReportAuditSnapshot(report)),
+        metadata: this.toJson({
+          ...this.communityModerationAuditMetadata(input), action,
+          reason: null, reasonPresent: Boolean(this.optionalString(input, 'reason')),
+          resolveMatchingReports: this.boolean(input, 'resolveMatchingReports', false),
+          rawReportDetailStored: false,
+        }),
+      } });
+      return report;
     });
-
-    await this.recordAudit(
-      user,
-      'community_report.update',
-      'community_report',
-      report.id,
-      before,
-      report,
-      {
-        note: this.optionalString(input, 'note'),
-        action,
-        resolveMatchingReports: this.boolean(input, 'resolveMatchingReports', false),
-      },
-    );
-
-    return report;
   }
 
   async hideCommunityPost(user: AuthUser, postId: string, input: AdminPayload) {
@@ -5795,7 +5804,7 @@ export class AdminService {
       this.throwArtistKnowledgeBadRequest(
         'ARTIST_KNOWLEDGE_URL_INVALID_ID',
         'artistKnowledgeUrl.error.invalidId',
-        '?�료 URL ?�청 ?�보�??�인??주세??',
+        '?�료 URL ?�청 ?�보�??�인??주세??',
         { field: 'artistId' },
       );
     }
@@ -5807,7 +5816,7 @@ export class AdminService {
       this.throwArtistKnowledgeBadRequest(
         'ARTIST_KNOWLEDGE_URL_STATUS_INVALID',
         'artistKnowledgeUrl.error.statusInvalid',
-        '?�료 URL ?�태 ?�터�??�인??주세??',
+        '?�료 URL ?�태 ?�터�??�인??주세??',
         { supportedStatuses: ARTIST_URL_KNOWLEDGE_STATUSES },
       );
     }
@@ -5866,7 +5875,7 @@ export class AdminService {
       this.throwArtistKnowledgeBadRequest(
         'ARTIST_KNOWLEDGE_URL_AUDIT_ACTION_INVALID',
         'artistKnowledgeUrl.error.auditActionInvalid',
-        '?�?�� URL 媛먯�???��??꾪꽣???뺤씤??二쇱�??',
+        '?�?�� URL 媛먯�???��??꾪꽣???뺤씤??二쇱�??',
         { supportedActions },
       );
     }
@@ -5875,7 +5884,7 @@ export class AdminService {
       this.throwArtistKnowledgeBadRequest(
         'ARTIST_KNOWLEDGE_URL_INVALID_ID',
         'artistKnowledgeUrl.error.invalidId',
-        '?�?�� URL ?붿껌 ?뺣낫???뺤씤??二쇱�??',
+        '?�?�� URL ?붿껌 ?뺣낫???뺤씤??二쇱�??',
         { field: 'targetId' },
       );
     }
@@ -5884,7 +5893,7 @@ export class AdminService {
       this.throwArtistKnowledgeBadRequest(
         'ARTIST_KNOWLEDGE_URL_INVALID_ID',
         'artistKnowledgeUrl.error.invalidId',
-        '?�?�� URL ?붿껌 ?뺣낫???뺤씤??二쇱�??',
+        '?�?�� URL ?붿껌 ?뺣낫???뺤씤??二쇱�??',
         { field: 'artistId' },
       );
     }
@@ -5979,7 +5988,7 @@ export class AdminService {
     if (existing.status === 'archived') {
       throw new ConflictException({
         code: 'ARTIST_KNOWLEDGE_URL_ARCHIVED',
-        message: '보�????�료 URL?� ?�인?????�습?�다.',
+        message: '보�????�료 URL?� ?�인?????�습?�다.',
         messageKey: 'artistKnowledgeUrl.error.archived',
       });
     }
@@ -5992,7 +6001,7 @@ export class AdminService {
       this.throwArtistKnowledgeBadRequest(
         'ARTIST_KNOWLEDGE_URL_SUMMARY_REQUIRED',
         'artistKnowledgeUrl.error.summaryRequired',
-        '?�인?�려�??�약 ?�명???�요?�니??',
+        '?�인?�려�??�약 ?�명???�요?�니??',
       );
     }
 
@@ -6061,7 +6070,7 @@ export class AdminService {
       this.throwArtistKnowledgeBadRequest(
         'ARTIST_KNOWLEDGE_URL_REJECTION_REASON_REQUIRED',
         'artistKnowledgeUrl.error.rejectionReasonRequired',
-        '반려?�려�??�유�??�력??주세??',
+        '반려?�려�??�유�??�력??주세??',
       );
     }
     const existing = await this.prisma.artistKnowledgeUrl.findUnique({
@@ -6075,7 +6084,7 @@ export class AdminService {
     if (existing.status === 'archived') {
       throw new ConflictException({
         code: 'ARTIST_KNOWLEDGE_URL_ARCHIVED',
-        message: '보�????�료 URL?� 반려?????�습?�다.',
+        message: '보�????�료 URL?� 반려?????�습?�다.',
         messageKey: 'artistKnowledgeUrl.error.archived',
       });
     }
@@ -6345,7 +6354,7 @@ export class AdminService {
       this.throwArtistKnowledgeBadRequest(
         'ARTIST_KNOWLEDGE_URL_INVALID_ID',
         'artistKnowledgeUrl.error.invalidId',
-        '?�료 URL ?�청 ?�보�??�인??주세??',
+        '?�료 URL ?�청 ?�보�??�인??주세??',
         { field },
       );
     }
@@ -6354,7 +6363,7 @@ export class AdminService {
   private throwArtistKnowledgeNotFound(): never {
     throw new NotFoundException({
       code: 'ARTIST_KNOWLEDGE_URL_NOT_FOUND',
-      message: '?�료 URL??찾을 ???�습?�다.',
+      message: '?�료 URL??찾을 ???�습?�다.',
       messageKey: 'artistKnowledgeUrl.error.notFound',
     });
   }
@@ -6509,19 +6518,19 @@ export class AdminService {
 
   private aiContentNextAction(key: string) {
     const labels: Record<string, string> = {
-      public_profile: '?�티?�트 공개 ?�개/?�그?�인??보강?�니??',
-      visual_profile: '비주???�워???�는 ?��????�트�?보강?�니??',
-      content_profile: '콘텐�??�앤매너 ?�는 ?�영 ?�트�?보강?�니??',
-      cover_asset: '커버/?�어�??�롯 ?��?지�??�결?�니??',
-      thumbnail_asset: '?�네???�로???�롯 ?��?지�??�결?�니??',
-      gallery_assets: '갤러�??�롯 ?��?지�?1???�상 ?�결?�니??',
-      shortforms: '공개 ?�는 준�?�??�폼??1�??�상 ?�록?�니??',
-      chat_persona: '캐릭?�챗??persona 초안??준비합?�다.',
+      public_profile: '?�티?�트 공개 ?�개/?�그?�인??보강?�니??',
+      visual_profile: '비주???�워???�는 ?��????�트�?보강?�니??',
+      content_profile: '콘텐�??�앤매너 ?�는 ?�영 ?�트�?보강?�니??',
+      cover_asset: '커버/?�어�??�롯 ?��?지�??�결?�니??',
+      thumbnail_asset: '?�네???�로???�롯 ?��?지�??�결?�니??',
+      gallery_assets: '갤러�??�롯 ?��?지�?1???�상 ?�결?�니??',
+      shortforms: '공개 ?�는 준�?�??�폼??1�??�상 ?�록?�니??',
+      chat_persona: '캐릭?�챗??persona 초안??준비합?�다.',
     };
 
     return {
       key,
-      label: labels[key] ?? '?�영?��? ?�태�??�인?�니??',
+      label: labels[key] ?? '?�영?��? ?�태�??�인?�니??',
     };
   }
 
@@ -6916,7 +6925,7 @@ export class AdminService {
     return {
       generatedAt: new Date(),
       target: {
-        label: '1�??�픈 최소 조건',
+        label: '1�??�픈 최소 조건',
         minimumCategoryScore: 80,
         minimumOverallScore: 80,
       },
@@ -8557,6 +8566,20 @@ export class AdminService {
         include: this.communityPostInclude(),
       },
     } satisfies Prisma.CommunityReportInclude;
+  }
+
+  private communityReportAuditSnapshot(report: unknown) {
+    const row = this.metadataObject(report);
+    const post = this.communityPostAuditSnapshot(row.post);
+    return {
+      id: this.stringOrNull(row.id), postId: this.stringOrNull(row.postId),
+      reporterUserId: this.stringOrNull(row.reporterUserId), reason: this.stringOrNull(row.reason),
+      status: this.stringOrNull(row.status),
+      detailPresent: typeof row.detail === 'string' && row.detail.length > 0,
+      detailLength: typeof row.detail === 'string' ? row.detail.length : 0,
+      post: { ...post, moderation: { ...post.moderation, reason: null, reasonPresent: Boolean(post.moderation.reason) } },
+      rawReportDetailStored: false,
+    };
   }
 
   private communityPostAuditSnapshot(post: unknown) {

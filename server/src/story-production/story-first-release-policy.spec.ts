@@ -192,6 +192,7 @@ function releaseSwitchResetFixture(price: number) {
     ...f.prisma,
     storyScene: { ...f.prisma.storyScene, findUnique: jest.fn().mockResolvedValue(f.scene) },
     storyChoiceEvent: { ...f.prisma.storyChoiceEvent, count: jest.fn().mockResolvedValue(1), updateMany: invalidateEvents },
+    storyCanonicalReadReceipt: { updateMany: jest.fn() },
     storyResetQuotaBucket: {
       ...f.prisma.storyResetQuotaBucket, findUnique: jest.fn().mockResolvedValue(bucket), upsert: quotaUpsert, updateMany: quotaUpdate,
     },
@@ -535,8 +536,28 @@ describe('First public release suggested choices', () => {
     expectNoWrites(f);
   });
 
+  it('keeps authored prose and choices readable without substituting an invalid artist image', async () => {
+    const f = fixture();
+    f.prisma.storyBeat.findMany.mockResolvedValue([{ id: 'original-beat', position: 1,
+      beatType: 'paragraph', content: { en: 'Original authored prose' } }] as never);
+    const visualGeneration = {
+      variantKeyForProgress: jest.fn().mockResolvedValue(null),
+      readyVisuals: jest.fn(), promptKeys: jest.fn(),
+    };
+    const production = new StoryProductionService(f.prisma as never, f.economics,
+      f.continuationProvider as never, f.legalActivation as never, undefined, visualGeneration as never);
+    await expect(production.currentProgress('reader', 'progress', 'en')).resolves.toMatchObject({
+      scene: { id: 'scene', beats: [{ content: { value: 'Original authored prose', locale: 'en' } }] },
+      choices: [{ id: 'choice-1' }, { id: 'choice-2' }, { id: 'choice-3' }],
+    });
+    expect(visualGeneration.readyVisuals).not.toHaveBeenCalled();
+    expect(visualGeneration.promptKeys).not.toHaveBeenCalled();
+    expectNoWrites(f);
+  });
+
   it('projects and enqueues only the current reader progress overlay', async () => {
     const f = fixture();
+    f.work.slug = FIXED_ROUTE_STORIES.monster.slug;
     Object.assign(f.progress, { currentSceneId: null, currentGeneratedSceneId: 'generated-scene' });
     const generatedScene = {
       id: 'generated-scene', continuationId: 'prior-continuation', userId: 'reader',
@@ -577,9 +598,16 @@ describe('First public release suggested choices', () => {
     });
     const receipt = { continuationId: 'next-continuation', status: 'queued' };
     const enqueue = jest.spyOn(f.economics, 'requestRecommendedChoiceTx').mockResolvedValue(receipt as never);
-    await expect(production.selectChoice(
-      'reader', 'progress', generatedChoice.id, 3, 'en', 'generated-choice-key',
-    )).resolves.toEqual(receipt);
+    const readiness = jest.spyOn(StoryFixedRouteChoiceRefreshService.prototype, 'status')
+      .mockRejectedValue(new Error('fixed-route preparation applies only to authored scenes'));
+    try {
+      await expect(production.selectChoice(
+        'reader', 'progress', generatedChoice.id, 3, 'en', 'generated-choice-key',
+      )).resolves.toEqual(receipt);
+      expect(readiness).not.toHaveBeenCalled();
+    } finally {
+      readiness.mockRestore();
+    }
     expect(enqueue).toHaveBeenCalledWith(f.prisma, expect.objectContaining({
       sourceKind: 'generated', scene: expect.objectContaining({ id: generatedScene.id }),
       choice: expect.objectContaining({ id: generatedChoice.id }),
@@ -762,6 +790,7 @@ describe('Release capability and regression contract', () => {
       return { count: 1 };
     });
     const eventsUpdate = jest.fn();
+    const readsUpdate = jest.fn();
     const resetCreate = jest.fn().mockImplementation(async ({ data }) => {
       const command = { ...data, id: `reset-${bucket.usedCount}`, status: 'completed' };
       commands.set(data.idempotencyKey, command);
@@ -771,6 +800,7 @@ describe('Release capability and regression contract', () => {
       ...f.prisma,
       storyScene: { ...f.prisma.storyScene, findUnique: jest.fn().mockResolvedValue(f.scene), findMany: jest.fn().mockResolvedValue([f.scene]) },
       storyChoiceEvent: { ...f.prisma.storyChoiceEvent, count: jest.fn().mockResolvedValue(2), updateMany: eventsUpdate },
+      storyCanonicalReadReceipt: { updateMany: readsUpdate },
       storyResetQuotaBucket: {
         ...f.prisma.storyResetQuotaBucket,
         findUnique: jest.fn().mockResolvedValue(bucket),
@@ -795,6 +825,10 @@ describe('Release capability and regression contract', () => {
     await expect(controls.executeReset('reader', 'progress', body, 'reset-key-exhausted')).rejects.toMatchObject({ response: { code: 'STORY_RESET_QUOTA_EXHAUSTED' } });
     expect(resetCreate).toHaveBeenCalledTimes(limit);
     expect(eventsUpdate).toHaveBeenCalledTimes(limit);
+    expect(readsUpdate).toHaveBeenCalledTimes(limit);
+    expect(readsUpdate).toHaveBeenLastCalledWith({ where: { progressId: 'progress', userId: 'reader', invalidatedAt: null,
+      ...(target === 'act' ? { actNumber: { gte: 1 } } : {}) },
+      data: { invalidatedAt: expect.any(Date), resetCommandId: `reset-${limit}` } });
     expect(f.mutations.checkpointCreate).toHaveBeenLastCalledWith({ data: expect.objectContaining({ visitedEndingKeys: ['known-ending'] }) });
     expect(f.mutations.progressUpdate).toHaveBeenLastCalledWith(expect.objectContaining({ data: expect.objectContaining({
       routeNodeId: 'reset-route-root', pathSummary: [], seenSceneIds: ['scene'],

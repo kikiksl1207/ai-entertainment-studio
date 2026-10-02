@@ -1,5 +1,5 @@
 import {
-  CallHandler, CanActivate, Controller, ExecutionContext, HttpException, Injectable,
+  CallHandler, CanActivate, Controller, ExecutionContext, HttpException, Injectable, Optional,
   Param, Post, Req, UploadedFile, UseGuards, UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -14,6 +14,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { StoryUploadFile } from '../story-upload/story-upload.types';
 import { invalidManuscript, MANUSCRIPT_FILE_LIMITS, prepareManuscript, preparePastedManuscript } from './story-manuscript-file.policy';
 import { requireManuscriptOwner, storeManuscriptVersion } from './story-manuscript-version.store';
+import { SemanticAnalysisService } from './story-semantic-analysis.service';
 
 type FileRequest = Readable & {
   headers: Record<string, string | string[] | undefined>;
@@ -162,7 +163,14 @@ export class StoryManuscriptPasteMultipartInterceptor extends StoryManuscriptMul
 
 @Controller('me/creator-studio/stories/:workId/manuscripts')
 export class StoryManuscriptFileController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService,
+    @Optional() private readonly semanticAnalysis?: SemanticAnalysisService) {}
+
+  private async storeAndQueue(userId: string, workId: string, prepared: ReturnType<typeof prepareManuscript>) {
+    return storeManuscriptVersion(this.prisma, userId, workId, prepared,
+      this.semanticAnalysis ? (tx, manuscriptId) =>
+        this.semanticAnalysis!.enqueueUploadedManuscriptInTransaction(tx, userId, manuscriptId) : undefined);
+  }
 
   @Post('file')
   @UseGuards(JwtAuthGuard, StoryManuscriptOwnerGuard)
@@ -174,7 +182,7 @@ export class StoryManuscriptFileController {
     if (!file || file.fieldname !== 'manuscript' || !/\.json$/i.test(file.originalname) ||
         !['application/json', 'text/plain', 'application/octet-stream'].includes(file.mimetype) ||
         !Buffer.isBuffer(file.buffer) || file.size !== file.buffer.length) invalidManuscript('MANUSCRIPT_INVALID_FILE');
-    return storeManuscriptVersion(this.prisma, user.id, workId, prepareManuscript(file.buffer));
+    return this.storeAndQueue(user.id, workId, prepareManuscript(file.buffer));
   }
 
   @Post('paste')
@@ -186,7 +194,7 @@ export class StoryManuscriptFileController {
     if (!file || file.fieldname !== 'manuscript' || !['text/plain', 'application/octet-stream'].includes(file.mimetype) ||
         !Buffer.isBuffer(file.buffer) || file.size !== file.buffer.length ||
         !request.body || Object.keys(request.body).length !== 1) invalidManuscript('MANUSCRIPT_INVALID_FILE');
-    return storeManuscriptVersion(this.prisma, user.id, workId,
+    return this.storeAndQueue(user.id, workId,
       preparePastedManuscript(file.buffer, request.body.manifest));
   }
 }

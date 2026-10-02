@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  ForbiddenException,
   Get,
   Header,
   Headers,
@@ -23,6 +24,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from '../auth/guards/optional-jwt-auth.guard';
 import {
   AdjustStoryResetQuotaDto,
+  CreateStoryDraftDto,
   CreateManuscriptVersionDto,
   ConfirmStoryCheckpointDto,
   DecideContinuityIssueDto,
@@ -37,10 +39,11 @@ import {
   StoryResetPreviewQueryDto,
   SubmitCustomStoryChoiceDto,
   UpdateBeatProgressDto,
+  UpdateStoryDraftMetadataDto,
 } from './dto/story-production.dto';
 import { StoryProgressControlService } from './story-progress-control.service';
 import { StoryProductionService } from './story-production.service';
-import { StoryAnalysisPageDto } from './dto/story-semantic-analysis.dto';
+import { RecoverStoryAnalysisProfileDto, StoryAnalysisPageDto } from './dto/story-semantic-analysis.dto';
 import { StoryAnalysisDiscoveryQueryDto } from './dto/story-analysis-discovery.dto';
 import {
   ApproveCreatorGenerationProfileDto,
@@ -48,6 +51,7 @@ import {
 } from '../generation-profile/dto/creator-generation-profile.dto';
 import { StoryGenerationProfileService } from './story-generation-profile.service';
 import { StoryArtistParticipantService } from './story-artist-participant.service';
+import { CreatorStudioService } from '../creator-studio/creator-studio.service';
 
 type OptionalAuthRequest = { user?: AuthUser };
 
@@ -58,6 +62,7 @@ export class StoryProductionController {
     private readonly progressControls: StoryProgressControlService,
     @Optional() private readonly generationProfiles?: StoryGenerationProfileService,
     @Optional() private readonly storyParticipants?: StoryArtistParticipantService,
+    @Optional() private readonly creatorStudio?: CreatorStudioService,
   ) {}
 
   @Get('stories')
@@ -68,11 +73,33 @@ export class StoryProductionController {
 
   @Get('me/creator-studio/stories')
   @UseGuards(JwtAuthGuard)
+  @Header('Cache-Control', 'private, no-store')
   creatorCatalog(
     @CurrentUser() user: AuthUser,
     @Query() query: StoryCatalogQueryDto,
   ) {
     return this.stories.creatorCatalog(user.id, query);
+  }
+
+  @Post('me/creator-studio/stories')
+  @UseGuards(JwtAuthGuard)
+  async createDraft(@CurrentUser() user: AuthUser, @Body() body: CreateStoryDraftDto) {
+    const studio = await this.creatorStudio?.getStudio(user);
+    if (studio?.access?.enabled !== true) throw new ForbiddenException('Creator Studio access required');
+    return this.stories.createDraft(user.id, body);
+  }
+
+  @Patch('me/creator-studio/stories/:workId/metadata')
+  @UseGuards(JwtAuthGuard)
+  @Header('Cache-Control', 'private, no-store')
+  async updateDraftMetadata(
+    @CurrentUser() user: AuthUser,
+    @Param('workId', ParseUUIDPipe) workId: string,
+    @Body() body: UpdateStoryDraftMetadataDto,
+  ) {
+    const studio = await this.creatorStudio?.getStudio(user);
+    if (studio?.access?.enabled !== true) throw new ForbiddenException('Creator Studio access required');
+    return this.stories.updateDraftMetadata(user.id, workId, body);
   }
 
   @Get('me/stories/:workId/access')
@@ -110,7 +137,7 @@ export class StoryProductionController {
   @UseGuards(JwtAuthGuard)
   startProgress(
     @CurrentUser() user: AuthUser,
-    @Param('workId') workId: string,
+    @Param('workId', ParseUUIDPipe) workId: string,
     @Body() body: StartStoryProgressDto,
   ) {
     return this.stories.startProgress(user.id, workId, body);
@@ -118,6 +145,7 @@ export class StoryProductionController {
 
   @Get('me/stories/:workId/artist-candidates')
   @UseGuards(JwtAuthGuard)
+  @Header('Cache-Control', 'private, no-store')
   artistCandidates(
     @CurrentUser() user: AuthUser,
     @Param('workId', ParseUUIDPipe) workId: string,
@@ -340,6 +368,17 @@ export class StoryProductionController {
     return this.stories.analyzeManuscript(user.id, manuscriptId, idempotencyKey);
   }
 
+  @Post('me/creator-studio/analyses/:analysisId/recover-profile')
+  @UseGuards(JwtAuthGuard)
+  @Header('Cache-Control', 'private, no-store')
+  recoverAnalysisProfile(
+    @CurrentUser() user: AuthUser,
+    @Param('analysisId', ParseUUIDPipe) analysisId: string,
+    @Body() body: RecoverStoryAnalysisProfileDto,
+  ) {
+    return this.stories.recoverAnalysisProfile(user.id, analysisId, body.expectedSourceContentHash);
+  }
+
   @Get('me/creator-studio/analyses/:analysisId')
   @UseGuards(JwtAuthGuard)
   analysis(
@@ -347,7 +386,7 @@ export class StoryProductionController {
     @Param('analysisId') analysisId: string,
     @Query() query: StoryAnalysisPageDto,
   ) {
-    return this.stories.analysis(user.id, analysisId, query.cursor);
+    return this.stories.analysis(user.id, analysisId, query.cursor, query.view);
   }
 
   @Get('me/creator-studio/analyses/:analysisId/evidence/:evidenceId/source')

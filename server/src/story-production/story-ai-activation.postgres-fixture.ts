@@ -28,8 +28,12 @@ export async function activationFixture(db: PrismaClient, activate = true, reuse
   const manuscript = await db.storyManuscriptVersion.create({ data: {
     workId: work.id, ownerUserId: owner.id, version: 1, locale: 'ko', contentHash: 'a'.repeat(64), structuredBody: {},
   } });
-  const part = await db.storyPart.create({ data: { workId: work.id, position: 1, title: {} } });
-  const scene = await db.storyScene.create({ data: { partId: part.id, sceneKey: 'source', position: 1, title: { ko: 'Source scene' } } });
+  const part = await db.storyPart.create({ data: {
+    workId: work.id, position: 1, title: {}, status: 'published', publishedAt: new Date(0),
+  } });
+  const scene = await db.storyScene.create({ data: {
+    partId: part.id, sceneKey: 'source', position: 1, title: { ko: 'Source scene' }, status: 'published',
+  } });
   await db.storyBeat.create({ data: { sceneId: scene.id, position: 1, beatType: 'paragraph', content: { ko: 'Synthetic public source.' } } });
   const choice = await db.storyChoice.create({ data: {
     sceneId: scene.id, choiceKey: 'branch-b', position: 1, label: { ko: 'Explore another path' }, routeKind: 'generation_required',

@@ -1,14 +1,20 @@
-import { randomUUID } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import { prepareManuscript, preparePastedManuscript, storedManuscriptBody } from './story-manuscript-file.policy';
 import { linearPartPlan, splitStudioLinearBeats, StoryStudioLinearService } from './story-studio-linear.service';
+import { readerPartText } from './story-studio-reader-text.policy';
+import { publicationReaderProjection } from './story-publication-reader-projection.policy';
+import { publicationVisualSceneBindings } from './story-publication-visual-binding.policy';
+import { releaseChecksum } from './story-lifecycle.policy';
 
-function fixture() {
+function fixture(options: { withPreface?: boolean } = {}) {
   const ids = { owner: randomUUID(), work: randomUUID(), manuscript: randomUUID(), analysis: randomUUID(),
     review: randomUUID(), release: randomUUID(), consent: randomUUID() };
-  const raw = '첫 파트 원고.\n\n두 번째 파트 원고.';
+  const preface = options.withPreface ? '작품 소개와 제작 메모.\n\n' : '';
+  const raw = preface + '첫 파트 원고.\n\n두 번째 파트 원고.';
   const split = raw.indexOf('두 번째');
   const prepared = preparePastedManuscript(Buffer.from(raw), JSON.stringify({ locale: 'ko', confirmed: true,
-    parts: [{ partKey: 'part-a', title: '첫 파트', start: 0, end: split },
+    ...(options.withPreface ? { preface: { start: 0, end: preface.length } } : {}),
+    parts: [{ partKey: 'part-a', title: '첫 파트', start: preface.length, end: split },
       { partKey: 'part-b', title: '둘째 파트', start: split, end: raw.length }] }));
   const manuscript = { id: ids.manuscript, workId: ids.work, ownerUserId: ids.owner,
     locale: 'ko', contentHash: prepared.contentHash, structuredBody: storedManuscriptBody(prepared) };
@@ -22,7 +28,10 @@ function fixture() {
   const partRows: any[] = []; const sceneRows: any[] = []; const beatRows: any[] = []; const choiceRows: any[] = [];
   let storedRelease: any = null;
   let choiceJob: any = null;
+  const visualPrompts: any[] = [];
   const db: any = {
+    storyVisualPrompt: { findMany: jest.fn(async () => visualPrompts), createMany: jest.fn(async ({ data }) => {
+      visualPrompts.push(...data); return { count: data.length }; }) },
     storyWork: { findFirst: jest.fn().mockResolvedValue(work) },
     storyManuscriptVersion: { findFirst: jest.fn().mockResolvedValue(manuscript) },
     storyAnalysisJob: { findFirst: jest.fn().mockResolvedValue({ id: ids.analysis, status: 'completed',
@@ -41,10 +50,10 @@ function fixture() {
     storyPart: { count: jest.fn().mockResolvedValue(0), createMany: jest.fn(async ({ data }) => {
       partRows.push(...data); return { count: data.length }; }), findMany: jest.fn(async () => partRows) },
     storyScene: { createMany: jest.fn(async ({ data }) => { sceneRows.push(...data); return { count: data.length }; }),
-      findFirst: jest.fn(async ({ where }) => sceneRows.find(row => row.partId === where.partId)) },
+      findMany: jest.fn(async ({ where }) => sceneRows.filter(row => where.partId.in.includes(row.partId))) },
     storyBeat: { createMany: jest.fn(async ({ data }) => { beatRows.push(...data); return { count: data.length }; }) },
     storyChoice: { createMany: jest.fn(async ({ data }) => { choiceRows.push(...data); return { count: data.length }; }),
-      findMany: jest.fn(async ({ where }) => choiceRows.filter(row => row.sceneId === where.sceneId)) },
+      findMany: jest.fn(async ({ where }) => choiceRows.filter(row => where.sceneId.in.includes(row.sceneId))) },
     storyStudioChoiceJob: { findUnique: jest.fn(async () => choiceJob),
       create: jest.fn(async ({ data }) => { choiceJob = { ...data, status: 'queued', completedParts: 0 }; return choiceJob; }),
       upsert: jest.fn(async ({ create }) => { choiceJob ??= { ...create, status: 'queued', completedParts: 0 }; return choiceJob; }) },
@@ -60,10 +69,17 @@ function fixture() {
       { partKey: 'part-b', label: '원작의 결말을 맞이한다' },
     ] };
   return { ids, prepared, manuscript, work, consent, release, db, service, body,
-    partRows, sceneRows, beatRows, choiceRows, choiceGate };
+    partRows, sceneRows, beatRows, choiceRows, choiceGate, visualPrompts };
 }
 
 describe('generic Studio linear manuscript materialization', () => {
+  it('keeps source intact but removes only a matching reviewed chapter heading from reader prose', () => {
+    const source = '# Part 01. 지워진 목소리\r\n\r\n테이프가 숨을 쉬었다.\r\n';
+    expect(readerPartText(source, '지워진 목소리')).toBe('테이프가 숨을 쉬었다.\r\n');
+    expect(readerPartText(source, '다른 제목')).toBe(source);
+    expect(readerPartText('첫 문장.\n\n다음 문장.', '첫 문장')).toBe('첫 문장.\n\n다음 문장.');
+    expect(readerPartText('# 제1화 첫 문\n본문', '첫 문')).toBe('본문');
+  });
   it('preserves long original prose while ending pages at natural whitespace', () => {
     const text = '권이현은 복도로 나갔다. 다음 기록을 확인했다.\n\n'.repeat(240);
     const beats = splitStudioLinearBeats(text);
@@ -91,6 +107,17 @@ describe('generic Studio linear manuscript materialization', () => {
       releaseId: result.releaseId, totalParts: 2 }) });
   });
 
+  it('revalidates stored preface boundaries without putting the preface into reader scenes', async () => {
+    const f = fixture({ withPreface: true });
+    const result = await f.service.materialize(f.ids.owner, f.ids.work, f.body);
+    expect(result.scenes).toHaveLength(2);
+    expect(f.prepared.source.rawText).toMatch(/^작품 소개와 제작 메모\./);
+    expect(f.prepared.confirmedPreface).toEqual({ start: 0,
+      end: '작품 소개와 제작 메모.\n\n'.length });
+    expect(f.beatRows.filter(row => row.sceneId === f.sceneRows[0].id)
+      .map(row => row.content.ko).join('')).toBe('첫 파트 원고.\n\n');
+  });
+
   it('rejects missing review, consent, changed source and unconfirmed routes without creating scenes', async () => {
     const f = fixture();
     f.db.storyFinalSubmission.findUnique.mockResolvedValueOnce(null);
@@ -108,7 +135,7 @@ describe('generic Studio linear manuscript materialization', () => {
     expect(f.db.storyScene.createMany).not.toHaveBeenCalled();
   });
 
-  it('requires explicit, ordered original labels, even for a long manuscript', () => {
+  it('requires ordered original routes and rejects generic labels, even for a long manuscript', () => {
     const f = fixture();
     const routes = f.body.originalRoutes;
     expect(() => linearPartPlan(f.prepared, routes.slice().reverse())).toThrow();
@@ -118,6 +145,21 @@ describe('generic Studio linear manuscript materialization', () => {
       paragraphs: [{ kind: 'paragraph' as const, text: `본문 ${index + 1}` }] })) };
     expect(linearPartPlan(long, long.parts.map(part => ({ partKey: part.partKey,
       label: `${part.title}의 원작 전개를 따른다` })))).toHaveLength(265);
+  });
+
+  it('keeps an unlabelled original route private for AI preparation without changing its target', async () => {
+    const f = fixture();
+    const body = { ...f.body, originalRoutes: f.body.originalRoutes.map(route => ({
+      partKey: route.partKey, label: '',
+    })) };
+    const result = await f.service.materialize(f.ids.owner, f.ids.work, body);
+    expect(result.scenes.map(scene => scene.originalLabel)).toEqual([null, null]);
+    expect(f.choiceRows.map(choice => choice.label)).toEqual([{ ko: null }, { ko: null }]);
+    expect(f.choiceRows[0].targetSceneId).toBe(f.sceneRows[1].id);
+    expect(f.choiceRows[1].targetEndingKey).toBe('author_main');
+    expect(f.db.storyRelease.create).toHaveBeenCalledWith({ data: expect.objectContaining({
+      validationSummary: expect.objectContaining({ ready: false }),
+    }) });
   });
 
   it('does not mark a release ready until every choice proof passes', async () => {
@@ -139,10 +181,177 @@ describe('generic Studio linear manuscript materialization', () => {
     expect(replay).toMatchObject({ releaseId: first.releaseId, idempotentReplay: true });
     expect(f.db.storyPart.createMany).toHaveBeenCalledTimes(1);
     expect(f.db.storyChoice.createMany).toHaveBeenCalledTimes(1);
+    expect(f.db.storyVisualPrompt.createMany).toHaveBeenCalledTimes(1);
     expect(f.db.storyStudioChoiceJob.upsert).toHaveBeenCalledTimes(1);
+    expect(f.db.storyScene.findMany).toHaveBeenCalledTimes(1);
+    expect(f.db.storyChoice.findMany).toHaveBeenCalledTimes(1);
     await expect(f.service.materialize(f.ids.owner, f.ids.work, { ...f.body,
       originalRoutes: [{ ...f.body.originalRoutes[0], label: '다른 길을 간다' }, f.body.originalRoutes[1]] }))
       .rejects.toMatchObject({ response: { code: 'STUDIO_LINEAR_EXISTING_RELEASE_CONFLICT' } });
+  });
+
+  it('prepares one immutable prose-bound image direction per part without generating images', async () => {
+    const f = fixture({ withPreface: true });
+    await f.service.materialize(f.ids.owner, f.ids.work, f.body);
+    expect(f.visualPrompts.map(row => row.sourceSceneKey)).toEqual(['part-a-main', 'part-b-main']);
+    expect(f.visualPrompts.every(row => row.sourceKind === 'studio_reviewed' && row.promptSha256.length === 64 && row.sourceBindingSha256.length === 64)).toBe(true);
+    expect(f.visualPrompts[0].promptText).toContain('첫 파트 원고.');
+    expect(f.visualPrompts[0].promptText).not.toContain('제작 메모');
+    f.visualPrompts[0].promptText += 'changed';
+    await expect(f.service.materialize(f.ids.owner, f.ids.work, f.body)).rejects.toMatchObject({
+      response: { code: 'STUDIO_LINEAR_VISUAL_SOURCE_CHANGED' } });
+    expect(f.db.storyPart.createMany).toHaveBeenCalledTimes(1);
+  });
+
+  it('previews a materialized draft with one scene and choice query for all parts', async () => {
+    const f = fixture();
+    await f.service.materialize(f.ids.owner, f.ids.work, f.body);
+    const preview = await f.service.preview(f.ids.owner, f.ids.work, f.ids.manuscript);
+    expect(preview.choiceWorkerAvailable).toBe(false);
+    expect(preview.scenes.map(scene => scene.originalLabel)).toEqual(f.body.originalRoutes.map(route => route.label));
+    expect(f.db.storyScene.findMany).toHaveBeenCalledTimes(1);
+    expect(f.db.storyChoice.findMany).toHaveBeenCalledTimes(1);
+  });
+
+  it('offers private proposed guides for ordinary manuscripts without inventing imported originals or writes', async () => {
+    const f = fixture({ withPreface: true }), original = JSON.stringify(f.manuscript.structuredBody);
+    const preview = await f.service.preview(f.ids.owner, f.ids.work, f.ids.manuscript);
+    expect(preview.importedVisualReferences).toMatchObject({ guidanceOrigin: 'manuscript_proposal',
+      approvalState: 'reference_only', requiresSceneReview: true, mappingState: 'exact_source_segments',
+      totalReferences: 2, mappedReferences: 2, items: [{ sourceSceneKey: 'part-a-main' }, { sourceSceneKey: 'part-b-main' }] });
+    const query = { expectedManuscriptHash: f.manuscript.contentHash, expectedSourceChecksum: preview.importedVisualReferences.checksum,
+      offset: 0, textOffset: 0 };
+    expect(await f.service.visualReferencePage(f.ids.owner, f.ids.work, f.ids.manuscript, query))
+      .toMatchObject({ guidanceOrigin: 'manuscript_proposal', totalReferences: 2 });
+    const detail = await f.service.visualReferenceDetail(f.ids.owner, f.ids.work, f.ids.manuscript, 0, query);
+    expect(detail).toMatchObject({ guidanceOrigin: 'manuscript_proposal', reader: { partKey: 'part-a', text: '첫 파트 원고.\n\n' } });
+    expect(detail.promptText).not.toContain('제작 메모');
+    expect(JSON.stringify(f.manuscript.structuredBody)).toBe(original);
+    expect(f.db.storyVisualPrompt.createMany).not.toHaveBeenCalled(); expect(f.db.storyRelease.create).not.toHaveBeenCalled();
+    expect(f.db.auditEvent.create).not.toHaveBeenCalled();
+    await expect(f.service.visualReferenceDetail(f.ids.owner, f.ids.work, f.ids.manuscript, 0,
+      { ...query, expectedSourceChecksum: 'f'.repeat(64) })).rejects.toMatchObject({ response: { code: 'STUDIO_VISUAL_REFERENCE_SOURCE_CHANGED' } });
+  });
+
+  function addImportedVisualReference(f: ReturnType<typeof fixture>, mapped: boolean) {
+    const promptText = 'PRIVATE ORIGINAL REFERENCE. Review the actual scene before reuse.';
+    const prompts = [{ sourceSceneKey: 'arbitrary-image-key', promptText,
+      promptSha256: createHash('sha256').update(promptText).digest('hex') }];
+    const parts = f.prepared.parts.map((part, index) => ({ partKey: part.partKey, title: part.title,
+      beats: [{ text: part.paragraphs.map(row => row.text).join(''),
+        sourceSceneKey: index ? 'different-image-key' : 'arbitrary-image-key' }] }));
+    const projection = publicationReaderProjection(f.prepared.contentHash, f.prepared.parts, parts);
+    const reference = { contract: 'publication-visual-source-v1', approvalState: 'reference_only',
+      sourceBindingSha256: 'a'.repeat(64), prompts,
+      ...(mapped ? { sceneBindings: publicationVisualSceneBindings(f.prepared.contentHash, f.prepared.parts, projection,
+        parts, prompts) } : {}) };
+    Object.assign(f.manuscript.structuredBody, { publicationReaderProjection: projection,
+      publicationVisualSource: { ...reference, checksum: releaseChecksum(reference) } });
+  }
+
+  it.each([true, false])('previews imported visual references as private unapproved data, mapped=%s', async mapped => {
+    const f = fixture(); addImportedVisualReference(f, mapped);
+    const result = await f.service.preview(f.ids.owner, f.ids.work, f.ids.manuscript);
+    expect(result.importedVisualReferences).toMatchObject({ approvalState: 'reference_only', requiresSceneReview: true,
+      manuscriptHash: f.prepared.contentHash, totalReferences: 1, mappedReferences: mapped ? 1 : 0,
+      mappingState: mapped ? 'exact_source_segments' : 'unmapped_legacy', truncated: false,
+      items: [{ sourceSceneKey: 'arbitrary-image-key', promptExcerpt: expect.stringContaining('PRIVATE ORIGINAL') }] });
+    const item = result.importedVisualReferences!.items[0];
+    if (mapped) expect(item.binding).toMatchObject({ partKey: 'part-a', segmentIndexes: [0] });
+    else expect(item).not.toHaveProperty('binding');
+    expect(f.db.storyVisualPrompt.createMany).not.toHaveBeenCalled();
+    expect(f.db.storyRelease.create).not.toHaveBeenCalled();
+    expect(f.db.storyStudioChoiceJob.create).not.toHaveBeenCalled();
+    expect(f.db.auditEvent.create).not.toHaveBeenCalled();
+  });
+
+  it('does not expose retained image references to another owner', async () => {
+    const f = fixture(); addImportedVisualReference(f, true);
+    f.db.storyWork.findFirst.mockResolvedValue(null);
+    await expect(f.service.preview(randomUUID(), f.ids.work, f.ids.manuscript)).rejects.toBeDefined();
+    expect(f.db.storyWork.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ id: f.ids.work, ownerUserId: expect.any(String) }) }));
+    expect(f.db.storyManuscriptVersion.findFirst).not.toHaveBeenCalled();
+  });
+
+  it.each([true, false])('reads paginated original references without analysis, approval or provider writes, mapped=%s', async mapped => {
+    const f = fixture(); addImportedVisualReference(f, mapped);
+    const query = { expectedManuscriptHash: f.manuscript.contentHash,
+      expectedSourceChecksum: (f.manuscript.structuredBody as any).publicationVisualSource.checksum, offset: 0 };
+    const page = await f.service.visualReferencePage(f.ids.owner, f.ids.work, f.ids.manuscript, query);
+    expect(page).toMatchObject({ workId: f.ids.work, manuscriptVersionId: f.ids.manuscript,
+      approvalState: 'reference_only', items: [{ referenceIndex: 0, sourceSceneKey: 'arbitrary-image-key' }] });
+    const detail = await f.service.visualReferenceDetail(f.ids.owner, f.ids.work, f.ids.manuscript, 0, { ...query, textOffset: 0 });
+    expect(detail.promptText).toContain('PRIVATE ORIGINAL');
+    if (mapped) expect(detail.reader).toMatchObject({ partKey: 'part-a', text: '첫 파트 원고.\n\n' });
+    else expect(detail.reader).toBeNull();
+    expect(f.db.storyManuscriptVersion.findFirst).toHaveBeenCalledWith({ where: {
+      id: f.ids.manuscript, workId: f.ids.work, ownerUserId: f.ids.owner } });
+    expect(f.db.storyAnalysisJob.findFirst).not.toHaveBeenCalled();
+    expect(f.db.$transaction).not.toHaveBeenCalled();
+    expect(f.db.storyVisualPrompt.createMany).not.toHaveBeenCalled();
+    expect(f.db.storyRelease.create).not.toHaveBeenCalled();
+    expect(f.db.storyStudioChoiceJob.create).not.toHaveBeenCalled();
+    expect(f.db.auditEvent.create).not.toHaveBeenCalled();
+  });
+
+  it('protects original-reference page/detail reads from wrong owner, missing manuscript and changed upload', async () => {
+    const f = fixture(); addImportedVisualReference(f, true);
+    const query = { expectedManuscriptHash: f.manuscript.contentHash,
+      expectedSourceChecksum: (f.manuscript.structuredBody as any).publicationVisualSource.checksum, offset: 0, textOffset: 0 };
+    f.db.storyWork.findFirst.mockResolvedValueOnce(null);
+    await expect(f.service.visualReferencePage(randomUUID(), f.ids.work, f.ids.manuscript, query)).rejects.toBeDefined();
+    expect(f.db.storyManuscriptVersion.findFirst).not.toHaveBeenCalled();
+    f.db.storyManuscriptVersion.findFirst.mockResolvedValueOnce(null);
+    await expect(f.service.visualReferenceDetail(f.ids.owner, f.ids.work, f.ids.manuscript, 0, query)).rejects.toBeDefined();
+    const corrupt = structuredClone(f.manuscript.structuredBody) as any;
+    corrupt.intake.source.rawText += '변경';
+    f.db.storyManuscriptVersion.findFirst.mockResolvedValueOnce({ ...f.manuscript, structuredBody: corrupt });
+    await expect(f.service.visualReferencePage(f.ids.owner, f.ids.work, f.ids.manuscript, query))
+      .rejects.toMatchObject({ response: { code: 'STUDIO_LINEAR_SOURCE_CHANGED' } });
+    await expect(f.service.visualReferenceDetail(f.ids.owner, 'invalid', f.ids.manuscript, 0, query)).rejects.toBeDefined();
+    expect(f.db.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('reports private choice-worker availability without exposing its key', async () => {
+    const f = fixture();
+    const previous = { nodeEnv: process.env.NODE_ENV,
+      enabled: process.env.STORY_STUDIO_CHOICE_WORKER_ENABLED,
+      key: process.env.OPENAI_API_KEY,
+      continuationKey: process.env.STORY_CONTINUATION_OPENAI_API_KEY };
+    try {
+      process.env.NODE_ENV = 'production';
+      process.env.STORY_STUDIO_CHOICE_WORKER_ENABLED = 'true';
+      process.env.OPENAI_API_KEY = 'local-test-only';
+      delete process.env.STORY_CONTINUATION_OPENAI_API_KEY;
+      const available = await f.service.preview(f.ids.owner, f.ids.work, f.ids.manuscript);
+      expect(available.choiceWorkerAvailable).toBe(true);
+      expect(JSON.stringify(available)).not.toContain('local-test-only');
+      process.env.STORY_STUDIO_CHOICE_WORKER_ENABLED = 'false';
+      expect((await f.service.preview(f.ids.owner, f.ids.work, f.ids.manuscript)).choiceWorkerAvailable).toBe(false);
+    } finally {
+      process.env.NODE_ENV = previous.nodeEnv;
+      for (const [key, value] of [
+        ['STORY_STUDIO_CHOICE_WORKER_ENABLED', previous.enabled],
+        ['OPENAI_API_KEY', previous.key],
+        ['STORY_CONTINUATION_OPENAI_API_KEY', previous.continuationKey],
+      ] as const) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
+  });
+
+  it('does not silently preview a duplicate draft scene or a missing original scene', async () => {
+    const f = fixture();
+    await f.service.materialize(f.ids.owner, f.ids.work, f.body);
+    f.sceneRows.push({ ...f.sceneRows[0], id: randomUUID() });
+    await expect(f.service.preview(f.ids.owner, f.ids.work, f.ids.manuscript))
+      .rejects.toMatchObject({ response: { code: 'STUDIO_LINEAR_EXISTING_GRAPH_CHANGED' } });
+    f.sceneRows.pop();
+    f.sceneRows.pop();
+    await expect(f.service.preview(f.ids.owner, f.ids.work, f.ids.manuscript))
+      .rejects.toMatchObject({ response: { code: 'STUDIO_LINEAR_EXISTING_GRAPH_CHANGED' } });
   });
 
   it('rejects stored text that no longer matches its original upload hash', async () => {

@@ -37,7 +37,28 @@ const runtime = `
   function mediaStyle() { return ''; }
   function feedEscapeHtml(value) { return value; }
   function isLoggedIn() { return false; }
-  async function apiFetch() { return null; }
+  function publicArtistsFromApi(records) {
+    return records.filter(record => record.status === 'active')
+      .map(record => window.testArtists.find(artist => artist.slug === record.slug));
+  }
+  async function apiFetch(path) {
+    if (window.testApiFailure) throw new Error('Public API unavailable');
+    const records = window.testArtists.map(artist => ({ ...artist, id: 'test-' + artist.slug,
+      status: artist.status === 'public' ? 'active' : artist.status }));
+    if (path === '/api/v1/artists') return records;
+    if (path.startsWith('/api/v1/artists/')) {
+      const record = records.find(artist => path.endsWith('/' + encodeURIComponent(artist.slug)));
+      if (!record) throw Object.assign(new Error('Not found'), { status: 404 });
+      return record;
+    }
+    return null;
+  }
+  window.testLocale = 'ko';
+  window.luminaI18n = { getLocale: () => window.testLocale };
+  window.setTestLocale = function (locale) {
+    window.testLocale = locale;
+    window.dispatchEvent(new CustomEvent('lumina:localechange', { detail: { locale } }));
+  };
   document.body.classList.remove('is-booting');
 `;
 
@@ -51,9 +72,10 @@ before(async () => {
 });
 after(async () => browser?.close());
 
-async function openPage(routeName, width, artists, query = '') {
+async function openPage(routeName, width, artists, query = '', apiFailure = false) {
   const context = await browser.newContext({ viewport: { width, height: 844 }, serviceWorkers: 'block' });
   await context.addInitScript((value) => { window.testArtists = value; }, artists);
+  await context.addInitScript(value => { window.testApiFailure = value; }, apiFailure);
   await context.route('**/*', async route => {
     const url = new URL(route.request().url());
     if (url.origin !== origin) return route.abort();
@@ -65,6 +87,7 @@ async function openPage(routeName, width, artists, query = '') {
       '/styles/character-detail.css': 'styles/character-detail.css',
       '/pages/character-catalog.js': 'pages/character-catalog.js',
       '/pages/character-detail.js': 'pages/character-detail.js',
+      '/data/artist-profile-locales.js': 'data/artist-profile-locales.js',
       '/existing-cover.png': 'assets/characters/yoon-serin/cover.png',
     };
     if (url.pathname === '/app.js') return route.fulfill({ body: runtime, contentType: 'text/javascript' });
@@ -84,6 +107,11 @@ async function openPage(routeName, width, artists, query = '') {
   await page.evaluate(routeName === 'characters'
     ? 'bindCharacterFilters(); renderCharacterCatalog("all", new URLSearchParams(location.search).get("tag") || "")'
     : 'renderCharacterDetail()');
+  await page.waitForFunction(() => {
+    const state = document.getElementById('characterCatalog')?.dataset.publicArtistsState ||
+      document.getElementById('detailHero')?.dataset.publicArtistState;
+    return state && state !== 'loading';
+  });
   return { page, errors, close: () => context.close() };
 }
 
@@ -101,6 +129,27 @@ test('catalog omits empty fields, falls back to cover, and preserves detail rout
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
     assert.deepEqual(view.errors, []);
   } finally { await view.close(); }
+});
+
+test('public API failure retries without exposing seeded catalog cards or stale detail profiles', async () => {
+  for (const [routeName, query, rootId, readySelector] of [
+    ['characters', '', 'characterCatalog', '.catalog-card'],
+    ['character-detail', '?slug=test-artist', 'detailHero', '#detailIntro h1'],
+  ]) {
+    const view = await openPage(routeName, 390, [artist], query, true);
+    try {
+      const { page } = view;
+      assert.match(await page.locator(`#${rootId}`).innerText(), /불러오지 못했습니다/);
+      assert.equal(await page.locator(readySelector).count(), 0);
+      if (routeName === 'character-detail') assert.equal(await page.locator('#detailChatSection').isVisible(), false);
+      await page.evaluate(() => { window.testApiFailure = false; });
+      await page.locator('[data-artist-retry]').click();
+      await page.locator(readySelector).waitFor();
+      assert.match(await page.locator(readySelector).innerText(), /테스트 아티스트/);
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+      assert.deepEqual(view.errors, []);
+    } finally { await view.close(); }
+  }
 });
 
 test('empty filtered catalog keeps the filter note and reset navigation', async () => {
@@ -170,6 +219,67 @@ test('characters without a gallery keep only the profile section', async () => {
     assert.equal(await view.page.locator('#detailGallery').isVisible(), false);
     assert.equal(await view.page.locator('#detailProfile').isVisible(), true);
     assert.equal(await view.page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+    assert.deepEqual(view.errors, []);
+  } finally { await view.close(); }
+});
+
+test('published artist category and tier render as text in detail metadata', async () => {
+  const malicious = { ...artist, type: '<img src=x onerror=alert(1)>',
+    tier: '<svg onload=alert(1)>' };
+  const view = await openPage('character-detail', 390, [malicious], '?slug=test-artist');
+  try {
+    const meta = view.page.locator('#detailMeta');
+    assert.match(await meta.innerText(), /<img src=x onerror=alert\(1\)>/);
+    assert.match(await meta.innerText(), /<svg onload=alert\(1\)>/);
+    assert.equal(await meta.locator('img, svg[onload]').count(), 0);
+    assert.deepEqual(view.errors, []);
+  } finally { await view.close(); }
+});
+
+test('detail profile switches confirmed facts with the selected locale', async () => {
+  const localizedArtist = { ...artist, slug: 'yoon-serin', profile: {
+    '생년월일': '2001년 3월 14일 (만 25세)',
+    '포지션': '메인 비주얼 / 퍼포먼스 센터',
+    '팬덤명': 'Serinist'
+  } };
+  const view = await openPage('character-detail', 400, [localizedArtist], '?slug=yoon-serin');
+  try {
+    await view.page.evaluate(() => window.setTestLocale('en'));
+    assert.equal(await view.page.locator('#detailProfile dt').first().innerText(), 'Date of birth');
+    assert.match(await view.page.locator('#detailProfile').innerText(), /Main Visual\/Performance Center/);
+    assert.doesNotMatch(await view.page.locator('#detailProfile').innerText(), /Serinist/);
+    await view.page.evaluate(() => window.setTestLocale('ja'));
+    assert.equal(await view.page.locator('#detailProfile dt').first().innerText(), '生年月日');
+    for (const locale of ['ko', 'en', 'ja', 'zh-Hans', 'zh-Hant']) {
+      await view.page.evaluate((next) => window.setTestLocale(next), locale);
+      assert.ok((await view.page.locator('#detailProfile dt').first().innerText()).length > 0, locale);
+      assert.equal(await view.page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, locale);
+    }
+    assert.deepEqual(view.errors, []);
+  } finally { await view.close(); }
+});
+
+test('approved fandom name can appear after public profile approval', async () => {
+  const approved = { ...artist, slug: 'yoon-serin', fandomNameApproved: true,
+    profile: { '팬덤명': 'Serinist' } };
+  const view = await openPage('character-detail', 390, [approved], '?slug=yoon-serin');
+  try {
+    assert.match(await view.page.locator('#detailProfile').innerText(), /Serinist/);
+    assert.deepEqual(view.errors, []);
+  } finally { await view.close(); }
+});
+
+test('detail profile does not replace changed or disputed source facts with stale translations', async () => {
+  const updated = { ...artist, slug: 'han-seoyul', profile: {
+    '생년월일': '2000년 1월 1일', '신체': '180cm', '포지션': '새 포지션'
+  } };
+  const view = await openPage('character-detail', 390, [updated], '?slug=han-seoyul');
+  try {
+    await view.page.evaluate(() => window.setTestLocale('en'));
+    const profile = await view.page.locator('#detailProfile').innerText();
+    assert.doesNotMatch(profile, /2000|180cm/);
+    assert.match(profile, /새 포지션/);
+    assert.equal(await view.page.locator('#detailProfile .is-pending').count(), 2);
     assert.deepEqual(view.errors, []);
   } finally { await view.close(); }
 });

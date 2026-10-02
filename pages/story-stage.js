@@ -59,6 +59,8 @@
       participantVisualPending: "캐릭터 이미지 기준 준비 중",
       participantClear: "선택 해제",
       participantLocked: "이 진행 기록에 고정된 아티스트예요.",
+      participantSelectionLocked: "이 진행 기록에서는 아티스트 선택을 변경할 수 없어요.",
+      participantChat: "함께한 아티스트와 대화",
       start: "스토리 시작",
       continue: "이어보기",
       starting: "시작하는 중입니다.",
@@ -68,6 +70,8 @@
       sceneFailed: "장면을 불러오지 못했습니다.",
       sceneNoVisual: "이 장면은 본문 중심으로 이어집니다.",
       sceneImageGenerating: "장면 이미지를 준비하고 있습니다.",
+      sceneImageUnavailable: "그림을 불러오지 못했습니다. 본문은 계속 읽을 수 있어요.",
+      sceneImageRetry: "그림 다시 시도",
       pairedPreparing: "다음 장면의 글과 그림을 함께 준비하고 있어요.",
       pairedDetail: "둘 다 준비된 뒤 한 번에 보여드릴게요.",
       pairedFailed: "장면 그림을 준비하지 못했습니다. 본문은 아직 공개하지 않았어요.",
@@ -148,6 +152,8 @@
       participantVisualPending: "Character image setup pending",
       participantClear: "Clear selection",
       participantLocked: "This artist is fixed to this story progress.",
+      participantSelectionLocked: "Artist selection cannot be changed for this story progress.",
+      participantChat: "Chat with your story companion",
       start: "Start story",
       continue: "Continue",
       starting: "Starting story.",
@@ -157,6 +163,8 @@
       sceneFailed: "The scene could not be loaded.",
       sceneNoVisual: "This scene continues as text.",
       sceneImageGenerating: "Preparing the scene image.",
+      sceneImageUnavailable: "Artwork is unavailable. You can keep reading the story.",
+      sceneImageRetry: "Retry artwork",
       pairedPreparing: "Preparing the next scene's story and artwork together.",
       pairedDetail: "The scene appears only after both are ready.",
       pairedFailed: "The artwork could not be prepared. The story text remains hidden.",
@@ -237,6 +245,8 @@
       participantVisualPending: "キャラクター画像設定準備中",
       participantClear: "選択解除",
       participantLocked: "このストーリー進行に固定されたアーティストです。",
+      participantSelectionLocked: "このストーリー進行ではアーティストの選択を変更できません。",
+      participantChat: "一緒に旅したアーティストと話す",
       start: "ストーリー開始",
       continue: "続きから",
       starting: "ストーリーを開始しています。",
@@ -246,6 +256,8 @@
       sceneFailed: "シーンを読み込めませんでした。",
       sceneNoVisual: "このシーンは本文を中心に続きます。",
       sceneImageGenerating: "シーン画像を準備しています。",
+      sceneImageUnavailable: "画像を読み込めませんでした。本文はそのまま読めます。",
+      sceneImageRetry: "画像を再試行",
       pairedPreparing: "次のシーンの文章と画像を一緒に準備しています。",
       pairedDetail: "両方の準備が完了してから同時に表示します。",
       pairedFailed: "シーン画像を準備できませんでした。本文はまだ公開されていません。",
@@ -326,6 +338,8 @@
       participantVisualPending: "角色图片设定准备中",
       participantClear: "取消选择",
       participantLocked: "该艺人已固定到本次故事进度。",
+      participantSelectionLocked: "本次故事进度无法更改艺人选择。",
+      participantChat: "与同行艺人聊天",
       start: "开始故事",
       continue: "继续阅读",
       starting: "正在开始故事。",
@@ -335,6 +349,8 @@
       sceneFailed: "无法加载场景。",
       sceneNoVisual: "本场景将以正文继续。",
       sceneImageGenerating: "正在准备场景图片。",
+      sceneImageUnavailable: "无法加载图片，仍可继续阅读正文。",
+      sceneImageRetry: "重试图片",
       pairedPreparing: "正在同时准备下一个场景的故事与图片。",
       pairedDetail: "两者都准备完成后会一起显示。",
       pairedFailed: "场景图片准备失败，正文尚未公开。",
@@ -415,6 +431,8 @@
       participantVisualPending: "角色圖片設定準備中",
       participantClear: "取消選擇",
       participantLocked: "該藝人已固定到本次故事進度。",
+      participantSelectionLocked: "本次故事進度無法變更藝人選擇。",
+      participantChat: "與同行藝人聊天",
       start: "開始故事",
       continue: "繼續閱讀",
       starting: "正在開始故事。",
@@ -424,6 +442,8 @@
       sceneFailed: "無法載入場景。",
       sceneNoVisual: "本場景將以正文繼續。",
       sceneImageGenerating: "正在準備場景圖片。",
+      sceneImageUnavailable: "無法載入圖片，仍可繼續閱讀正文。",
+      sceneImageRetry: "重試圖片",
       pairedPreparing: "正在同時準備下一個場景的故事與圖片。",
       pairedDetail: "兩者都準備完成後會一起顯示。",
       pairedFailed: "場景圖片準備失敗，正文尚未公開。",
@@ -478,9 +498,11 @@
       resetApply: "초기화하기",
       resetComplete: "새 시작 위치로 이동했습니다.",
       sceneUnavailable: "지금은 이 장면을 이어갈 수 없습니다. 나중에 다시 방문해 주세요.",
+      choiceNotReady: "이 장면의 선택지가 아직 준비되지 않았어요. 잠시 후 다시 확인해 주세요.",
       accessRequired: "이 작품의 이용 권한을 확인해 주세요.",
       progressChanged: "진행 기록이 변경되었습니다. 현재 장면을 확인해 주세요.",
       resetFailed: "초기화를 확인하지 못했습니다. 진행 기록을 다시 불러와 주세요.",
+      resetVersionChanged: "원고가 업데이트되어 이전 버전의 막으로 돌아갈 수 없습니다.",
       resetSummary: "선택 기록 {count}개가 초기화됩니다. 발견한 엔딩은 유지됩니다.",
       resetDestination: "{act}막 시작",
       remainingAfter: "초기화 후 남은 횟수",
@@ -502,9 +524,11 @@
       resetApply: "Reset progress",
       resetComplete: "You are back at the new starting point.",
       sceneUnavailable: "This scene is unavailable right now. Please come back later.",
+      choiceNotReady: "This scene's choices are not ready yet. Please check back later.",
       accessRequired: "Please check your access to this story.",
       progressChanged: "Your progress has changed. Please check the current scene.",
       resetFailed: "The reset could not be confirmed. Please reload your progress.",
+      resetVersionChanged: "The manuscript has been updated. Acts from the previous version are unavailable.",
       resetSummary: "{count} choice records will be cleared. Your discovered endings will be kept.",
       resetDestination: "Start of act {act}",
       remainingAfter: "Resets remaining afterward",
@@ -526,9 +550,11 @@
       resetApply: "リセットする",
       resetComplete: "新しい開始位置に移動しました。",
       sceneUnavailable: "現在このシーンを続けることはできません。時間をおいてお戻りください。",
+      choiceNotReady: "このシーンの選択肢はまだ準備中です。時間をおいてご確認ください。",
       accessRequired: "この作品の利用権をご確認ください。",
       progressChanged: "進行記録が変更されました。現在のシーンをご確認ください。",
       resetFailed: "リセットを確認できませんでした。進行記録を再読み込みしてください。",
+      resetVersionChanged: "原稿が更新されたため、以前の版の幕には戻れません。",
       resetSummary: "選択記録が{count}件リセットされます。発見したエンディングは保持されます。",
       resetDestination: "第{act}幕の開始地点",
       remainingAfter: "リセット後の残り回数",
@@ -550,9 +576,11 @@
       resetApply: "重置进度",
       resetComplete: "已回到新的开始位置。",
       sceneUnavailable: "暂时无法继续此场景，请过一段时间再来。",
+      choiceNotReady: "此场景的选项尚未准备好，请稍后再查看。",
       accessRequired: "请确认你对此作品的访问权限。",
       progressChanged: "阅读进度已更改，请确认当前场景。",
       resetFailed: "无法确认重置结果，请重新加载进度。",
+      resetVersionChanged: "原稿已更新，无法返回旧版本的幕。",
       resetSummary: "将重置{count}条选择记录。已发现的结局会保留。",
       resetDestination: "第{act}幕起点",
       remainingAfter: "重置后的剩余次数",
@@ -574,9 +602,11 @@
       resetApply: "重設進度",
       resetComplete: "已回到新的開始位置。",
       sceneUnavailable: "暫時無法繼續此場景，請過一段時間再來。",
+      choiceNotReady: "此場景的選項尚未準備好，請稍後再查看。",
       accessRequired: "請確認你對此作品的存取權限。",
       progressChanged: "閱讀進度已變更，請確認目前場景。",
       resetFailed: "無法確認重設結果，請重新載入進度。",
+      resetVersionChanged: "原稿已更新，無法返回舊版本的幕。",
       resetSummary: "將重設{count}筆選擇記錄。已發現的結局會保留。",
       resetDestination: "第{act}幕起點",
       remainingAfter: "重設後的剩餘次數",
@@ -628,7 +658,9 @@
     readerAccess: null,
     readerState: null,
     detailPending: false,
+    detailStartOperation: null,
     readerIdentity: "",
+    authIdentity: readerIdentity(),
     purchaseConfirming: false,
     purchaseNotice: "",
     dialog: null,
@@ -644,7 +676,10 @@
     completedBeat: null,
     readingScroll: null,
     beatNotice: "",
+    canonicalRead: null,
+    canonicalReadOperation: null,
     visualRequestKey: "",
+    visualRetry: null,
     pairedVisualSceneKey: "",
     pairedVisualStatus: "idle",
     pairedVisualStartedAt: 0,
@@ -653,16 +688,19 @@
     participantSearchResults: [],
     participantQuery: "",
     participantStatus: "idle",
+    participantSearchGeneration: 0,
+    participantNotice: "",
     selectedParticipantArtistId: "",
+    selectedParticipantArtist: null,
     participantLocked: false,
   };
 
   const READER_COPY = {
-    ko: { previous: "이전 장면", next: "다음 장면", page: "{current} / {total} 장면", text: "이야기 본문", saving: "읽는 위치를 저장하고 있습니다.", unconfirmed: "읽는 위치를 확인하지 못해 최신 진행 상황을 다시 불러왔습니다." },
-    en: { previous: "Previous scene", next: "Next scene", page: "Scene {current} of {total}", text: "Story text", saving: "Saving reading position.", unconfirmed: "The reading position could not be confirmed. The latest progress has been reloaded." },
-    ja: { previous: "前のシーン", next: "次のシーン", page: "{total}シーン中{current}シーン", text: "物語の本文", saving: "読んでいる位置を保存しています。", unconfirmed: "読んでいる位置を確認できなかったため、最新の進行状況を再読み込みしました。" },
-    "zh-Hans": { previous: "上一场景", next: "下一场景", page: "第 {current} 个场景，共 {total} 个", text: "故事正文", saving: "正在保存阅读位置。", unconfirmed: "无法确认阅读位置，已重新加载最新进度。" },
-    "zh-Hant": { previous: "上一場景", next: "下一場景", page: "第 {current} 個場景，共 {total} 個", text: "故事正文", saving: "正在儲存閱讀位置。", unconfirmed: "無法確認閱讀位置，已重新載入最新進度。" },
+    ko: { previous: "이전 장면", next: "다음 장면", page: "{current} / {total} 장면", text: "이야기 본문", confirmRead: "읽기 완료", readSaved: "읽기 완료됨", saving: "읽는 위치를 저장하고 있습니다.", unconfirmed: "읽는 위치를 확인하지 못해 최신 진행 상황을 다시 불러왔습니다." },
+    en: { previous: "Previous scene", next: "Next scene", page: "Scene {current} of {total}", text: "Story text", confirmRead: "Mark as read", readSaved: "Read", saving: "Saving reading position.", unconfirmed: "The reading position could not be confirmed. The latest progress has been reloaded." },
+    ja: { previous: "前のシーン", next: "次のシーン", page: "{total}シーン中{current}シーン", text: "物語の本文", confirmRead: "読了する", readSaved: "読了済み", saving: "読んでいる位置を保存しています。", unconfirmed: "読んでいる位置を確認できなかったため、最新の進行状況を再読み込みしました。" },
+    "zh-Hans": { previous: "上一场景", next: "下一场景", page: "第 {current} 个场景，共 {total} 个", text: "故事正文", confirmRead: "标记为已读", readSaved: "已读", saving: "正在保存阅读位置。", unconfirmed: "无法确认阅读位置，已重新加载最新进度。" },
+    "zh-Hant": { previous: "上一場景", next: "下一場景", page: "第 {current} 個場景，共 {total} 個", text: "故事正文", confirmRead: "標記為已讀", readSaved: "已讀", saving: "正在儲存閱讀位置。", unconfirmed: "無法確認閱讀位置，已重新載入最新進度。" },
   };
 
   function readerTr(key) {
@@ -773,8 +811,9 @@
         headers,
         body: options.body ? JSON.stringify(options.body) : undefined,
         signal: options.signal,
+        cache: options.cache,
       });
-      if (response.status === 401 && options.auth && typeof window.apiFetch === "function") {
+      if (response.status === 401 && options.auth && options._retried !== true && typeof window.apiFetch === "function") {
         return window.apiFetch(path, { ...options, signal: undefined, throwOnError: true });
       }
       if (!response.ok) {
@@ -1088,7 +1127,7 @@
   function detailAction() {
     if (state.detailStatus !== "ready") return "unavailable";
     if (!signedIn()) return state.pack?.access?.actions?.authenticationRequired === true ? "sign_in" : "unavailable";
-    if (state.readerIdentity !== readerIdentity()) return "unavailable";
+    if (!readerIdentity() || state.readerIdentity !== readerIdentity()) return "unavailable";
     const owner = state.readerAccess;
     const access = owner?.access;
     if (!access || access.actions?.authenticationRequired !== false || !priceText(access)) return "unavailable";
@@ -1125,7 +1164,7 @@
       ? visualAssetUrl(value.thumbnail.publicUrl)
       : "";
     return {
-      artistId: value.artistId,
+      artistId: safeGraphId(value.artistId),
       slug: typeof value.slug === "string" ? value.slug : "",
       displayName: value.displayName.trim(),
       source: typeof value.source === "string" ? value.source : "search",
@@ -1134,35 +1173,76 @@
     };
   }
 
+  function resetParticipantPicker() {
+    ++state.participantSearchGeneration;
+    state.participantCandidates = [];
+    state.participantSearchResults = [];
+    state.participantQuery = "";
+    state.participantStatus = "idle";
+    state.participantNotice = "";
+    state.selectedParticipantArtistId = "";
+    state.selectedParticipantArtist = null;
+    state.participantLocked = false;
+  }
+
+  function applyParticipantPayload(payload, search = false) {
+    if (!payload || !Array.isArray(payload.engaged) || !Array.isArray(payload.searchResults) ||
+        typeof payload.selectionLocked !== "boolean" ||
+        (payload.selectedArtistId !== null && !safeGraphId(payload.selectedArtistId)) ||
+        (payload.selectedArtistId !== null && payload.selectionLocked !== true)) throw new Error("Invalid artist candidates");
+    const fixed = participantCandidate(state.readerState?.participantArtist);
+    state.participantCandidates = payload.engaged.filter((item) => participantCandidate(item));
+    state.participantSearchResults = search ? payload.searchResults.filter((item) => participantCandidate(item)) : [];
+    state.participantLocked = payload.selectionLocked || Boolean(fixed);
+    // Only the progress projection supplies a fixed artist, not candidate metadata.
+    if (state.participantLocked) {
+      state.selectedParticipantArtistId = fixed?.artistId || "";
+      state.selectedParticipantArtist = fixed;
+      state.participantNotice = "";
+    } else {
+      const updated = [...state.participantCandidates, ...state.participantSearchResults]
+        .map(participantCandidate).reverse().find((item) => item?.artistId === state.selectedParticipantArtistId);
+      if (updated) state.selectedParticipantArtist = updated;
+    }
+    state.participantStatus = "ready";
+  }
+
   function participantItems() {
     const fixed = participantCandidate(state.readerState?.participantArtist);
     if (fixed) return [fixed];
     const items = [...state.participantCandidates, ...state.participantSearchResults]
       .map(participantCandidate).filter(Boolean);
+    if (state.selectedParticipantArtist?.artistId === state.selectedParticipantArtistId &&
+        !items.some((item) => item.artistId === state.selectedParticipantArtistId)) items.unshift(state.selectedParticipantArtist);
     return [...new Map(items.map((item) => [item.artistId, item])).values()];
   }
 
   function renderParticipantPicker(action) {
     const fixed = participantCandidate(state.readerState?.participantArtist);
     if (!fixed && action !== "start") return "";
+    const locked = state.participantLocked || Boolean(fixed);
+    if (locked && !fixed) return `<section class="story-participant-picker" aria-labelledby="storyParticipantTitle">
+      <div class="story-participant-heading"><div>
+        <h3 id="storyParticipantTitle">${escapeHtml(tr("participantTitle"))}</h3>
+        <p role="status">${escapeHtml(tr("participantSelectionLocked"))}</p></div></div></section>`;
     const items = fixed ? [fixed] : participantItems();
     const selectedId = fixed?.artistId || state.selectedParticipantArtistId;
     return `<section class="story-participant-picker" aria-labelledby="storyParticipantTitle">
       <div class="story-participant-heading">
         <div><h3 id="storyParticipantTitle">${escapeHtml(tr("participantTitle"))}</h3>
           <p>${escapeHtml(fixed ? tr("participantLocked") : tr("participantHelp"))}</p></div>
-        ${selectedId && !fixed ? `<button type="button" class="story-participant-clear" data-story-artist-clear>${escapeHtml(tr("participantClear"))}</button>` : ""}
+        ${selectedId && !locked ? `<button type="button" class="story-participant-clear" data-story-artist-clear ${state.detailPending ? "disabled" : ""}>${escapeHtml(tr("participantClear"))}</button>` : ""}
       </div>
-      ${!fixed ? `<form class="story-participant-search" data-story-artist-search-form role="search">
+      ${!locked ? `<form class="story-participant-search" data-story-artist-search-form role="search">
         <label class="story-sr-only" for="storyArtistSearch">${escapeHtml(tr("participantSearch"))}</label>
-        <input id="storyArtistSearch" type="search" maxlength="80" value="${escapeHtml(state.participantQuery)}" placeholder="${escapeHtml(tr("participantSearchPlaceholder"))}" data-story-artist-search />
-        <button type="submit" class="story-button story-button-secondary" data-story-artist-search-submit>${escapeHtml(tr("participantSearchButton"))}</button>
+        <input id="storyArtistSearch" type="search" maxlength="80" value="${escapeHtml(state.participantQuery)}" placeholder="${escapeHtml(tr("participantSearchPlaceholder"))}" data-story-artist-search ${state.detailPending ? "disabled" : ""} />
+        <button type="submit" class="story-button story-button-secondary" data-story-artist-search-submit ${state.detailPending ? "disabled" : ""}>${escapeHtml(tr("participantSearchButton"))}</button>
       </form>` : ""}
       ${state.participantStatus === "error" ? `<p class="story-participant-empty" role="alert">${escapeHtml(tr("participantSearchError"))}</p>` : ""}
       <div class="story-participant-list" role="list">
         ${items.length ? items.map((item) => {
           const selected = item.artistId === selectedId;
-          const unavailable = !fixed && !item.visualIdentityReady;
+          const unavailable = !fixed && (!item.visualIdentityReady || locked || state.detailPending);
           return `<button type="button" class="story-participant-item${selected ? " is-selected" : ""}${unavailable ? " is-unavailable" : ""}" data-story-artist-id="${escapeHtml(item.artistId)}" aria-pressed="${selected}" ${fixed || unavailable ? "disabled" : ""} role="listitem">
             <span class="story-participant-thumb">${item.thumbnail ? `<img src="${escapeHtml(item.thumbnail)}" alt="" />` : `<span aria-hidden="true">${escapeHtml(item.displayName.slice(0, 1))}</span>`}</span>
             <span class="story-participant-copy"><strong>${escapeHtml(item.displayName)}</strong>
@@ -1213,7 +1293,7 @@
           ${renderParticipantPicker(action)}` : ""}
       </div>
       <footer class="story-detail-actions" aria-busy="${state.detailPending || purchaseBusy}" data-story-detail-state="${escapeHtml(state.detailStatus)}">
-        <p id="storyPurchaseStatus" data-story-detail-status role="status">${escapeHtml(state.detailStatus === "loading" || state.detailStatus === "access-loading" ? tr("loading") : state.detailStatus === "error" ? accessTr("detailUnavailable") : state.detailStatus === "access-error" ? state.detailError : action === "sign_in" ? tr("loginRequired") : purchaseStatus || (action === "unavailable" ? controlTr("sceneUnavailable") : ""))}</p>
+        <p id="storyPurchaseStatus" data-story-detail-status role="status">${escapeHtml(state.detailStatus === "loading" || state.detailStatus === "access-loading" ? tr("loading") : state.detailStatus === "error" ? accessTr("detailUnavailable") : state.detailStatus === "access-error" ? state.detailError : action === "sign_in" ? tr("loginRequired") : tr(state.participantNotice) || purchaseStatus || (action === "unavailable" ? controlTr("sceneUnavailable") : ""))}</p>
         ${action === "purchase" && quote && (state.purchaseConfirming || operation) ? `<p class="story-purchase-price" data-story-purchase-price>${escapeHtml(quote.priceLumina)} LUMINA</p>` : ""}
         <div>${action === "start" || action === "continue" ? `<button class="story-button story-button-primary" data-story-start ${state.detailPending || purchaseBusy ? "disabled" : ""}>${escapeHtml(state.detailPending ? tr("starting") : tr(action))}</button>` : action === "purchase" ? `<button class="story-button story-button-primary" ${operation ? "data-story-purchase-retry" : state.purchaseConfirming ? "data-story-purchase-confirm" : "data-story-purchase"} ${purchaseDisabled ? "disabled" : ""} aria-describedby="storyPurchaseStatus">${escapeHtml(operation ? purchaseTr("retry") : state.purchaseConfirming ? purchaseTr("confirm").replace("{price}", quote?.priceLumina || "") : accessTr("purchase"))}</button>${state.purchaseConfirming && !operation ? `<button class="story-button story-button-secondary" data-story-purchase-cancel>${escapeHtml(purchaseTr("cancel"))}</button>` : ""}` : ""}
         ${detailRetryVisible(operation) ? `<button class="story-button story-button-secondary" data-story-detail-retry ${state.detailPending || purchaseBusy ? "disabled" : ""}>${escapeHtml(operation ? purchaseTr("check") : tr("retry"))}</button>` : ""}</div>
@@ -1260,12 +1340,7 @@
     state.pack = null;
     state.readerAccess = null;
     state.readerState = null;
-    state.participantCandidates = [];
-    state.participantSearchResults = [];
-    state.participantQuery = "";
-    state.participantStatus = "idle";
-    state.selectedParticipantArtistId = "";
-    state.participantLocked = false;
+    resetParticipantPicker();
     state.purchaseConfirming = false;
     state.purchaseNotice = "";
     document.body.classList.remove("story-detail-open");
@@ -1310,10 +1385,56 @@
   async function ensureReadingVisual(reading, visual) {
     const sourceSceneKey = readingVisualKey(reading);
     const scopedKey = `${state.sessionId}:${sourceSceneKey}`;
-    if (visual.ready || !sourceSceneKey || !signedIn() || state.visualRequestKey === scopedKey) return;
+    if (visual.ready || !sourceSceneKey || !signedIn()) return;
+    if (state.visualRetry?.key !== scopedKey) state.visualRetry = {
+      key: scopedKey, startedAt: Date.now(), failures: 0, scheduled: false,
+      processing: false, polling: false, blocked: false,
+    };
+    const retry = state.visualRetry;
+    if (retry.blocked || retry.scheduled || retry.polling || state.visualRequestKey === scopedKey) return;
     const sessionId = state.sessionId;
     const identity = readerIdentity();
     const readingKey = reading.key;
+    const current = () => sessionId === state.sessionId && identity === readerIdentity() &&
+      readingKey === readableBeats()?.key && state.visualRetry === retry;
+    const block = () => {
+      retry.blocked = true;
+      if (current()) renderScene();
+    };
+    const schedule = () => {
+      if (Date.now() - retry.startedAt >= 180000) return block();
+      retry.scheduled = true;
+      setTimeout(() => {
+        retry.scheduled = false;
+        if (current() && !retry.blocked) pollVisual();
+      }, 12000);
+    };
+    const pollVisual = async () => {
+      if (!current() || retry.polling) return;
+      retry.polling = true;
+      try {
+        const payload = await request(`/api/v1/story-sessions/${encodeURIComponent(sessionId)}/current-scene?locale=${encodeURIComponent(state.locale)}`, { auth: true });
+        if (!current()) return;
+        if (payload?.progressId !== sessionId || payload.revision !== state.progress?.revision) return block();
+        const beat = payload.scene?.beats?.find((item) => item.visualContext?.sourceSceneKey === sourceSceneKey);
+        const background = beat?.visualContext?.manifest?.background || payload.scene?.visualManifest?.background;
+        if (background?.state === "ready" && (beat?.visualContext?.assetReadiness === "ready" || !beat)) {
+          state.visualRetry = null;
+          await loadScene({ restorePending: false, preserveCanonicalRead: true });
+        } else {
+          retry.failures = 0;
+          schedule();
+        }
+      } catch (error) {
+        if (!current()) return;
+        retry.failures += 1;
+        if ([400, 401, 403, 404, 409, 429].includes(error?.status) || retry.failures >= 2) block();
+        else schedule();
+      } finally {
+        retry.polling = false;
+      }
+    };
+    if (retry.processing) return schedule();
     state.visualRequestKey = scopedKey;
     actionStatus(tr("sceneImageGenerating"));
     try {
@@ -1322,19 +1443,22 @@
         auth: true,
         body: { sourceSceneKey },
       });
-      if (sessionId !== state.sessionId || identity !== readerIdentity() || readingKey !== readableBeats()?.key) return;
-      if (result?.status === "ready") await loadScene({ restorePending: false });
-      else if (result?.status === "processing") setTimeout(() => {
-        if (state.visualRequestKey === scopedKey) state.visualRequestKey = "";
-        const currentReading = readableBeats();
-        if (currentReading?.key === readingKey) ensureReadingVisual(currentReading, readingVisual(currentReading));
-      }, 5000);
-    } catch (_) {
-      setTimeout(() => {
-        if (state.visualRequestKey === scopedKey) state.visualRequestKey = "";
-        const currentReading = readableBeats();
-        if (currentReading?.key === readingKey) ensureReadingVisual(currentReading, readingVisual(currentReading));
-      }, 5000);
+      if (!current()) return;
+      if (result?.status === "ready") {
+        state.visualRetry = null;
+        await loadScene({ restorePending: false, preserveCanonicalRead: true });
+      } else if (result?.status === "processing") {
+        retry.processing = true;
+        schedule();
+      }
+      else block();
+    } catch (error) {
+      if (!current()) return;
+      if ([400, 401, 403, 404, 409, 429].includes(error?.status)) block();
+      else {
+        retry.processing = true;
+        schedule();
+      }
     } finally {
       if (state.visualRequestKey === scopedKey) state.visualRequestKey = "";
     }
@@ -1394,17 +1518,42 @@
       ? value.slice(0, completeEnd).trimEnd() : value;
   }
 
+  function generatedReaderCuts(beats, maxPages) {
+    const boundaries = beats.flatMap((beat, index) =>
+      index < beats.length - 1 && readerSentenceEnds(beat.text) ? [index + 1] : []);
+    for (let pages = Math.min(maxPages, Math.floor(beats.length / 2)); pages > 1; pages--) {
+      let best = null;
+      const visit = (start, cuts) => {
+        if (cuts.length === pages - 1) {
+          if (beats.length - start < 2) return;
+          const sizes = [...cuts, beats.length].map((end, index) => end - (cuts[index - 1] || 0));
+          const score = sizes.reduce((total, size) => total + (size - beats.length / pages) ** 2, 0);
+          if (!best || score < best.score) best = { cuts, score };
+          return;
+        }
+        for (const cut of boundaries) {
+          if (cut - start < 2 || beats.length - cut < 2 * (pages - cuts.length - 1)) continue;
+          visit(cut, [...cuts, cut]);
+        }
+      };
+      visit(0, []);
+      if (best) return best.cuts;
+    }
+    return [];
+  }
+
   function groupReaderBeats(beats, generated = false) {
+    if (!beats.length) return [];
     if (generated) beats = beats.map((beat) => ({ ...beat, text: normalizeGeneratedReaderText(beat.text) }));
-    if (beats.length <= 3 && !generated) return beats.map((beat) => ({ ...beat, positions: [beat.position], segments: [String(beat.text || "")] }));
-    const sceneCount = Math.min(3, Math.ceil(beats.length / 2));
+    if (beats.length <= 3 && !generated) return beats.map((beat) => ({ ...beat, positions: [beat.position], segments: [String(beat.text || "")], canonicalMembers: [beat.canonicalMember] }));
+    const targetCount = Math.min(3, Math.ceil(beats.length / 2));
+    const cuts = generated
+      ? generatedReaderCuts(beats, targetCount)
+      : Array.from({ length: targetCount - 1 }, (_, index) => Math.ceil((index + 1) * beats.length / targetCount));
+    const sceneCount = cuts.length + 1;
     let start = 0;
     return Array.from({ length: sceneCount }, (_, index) => {
-      let end = index === sceneCount - 1 ? beats.length : Math.ceil((index + 1) * beats.length / sceneCount);
-      if (generated) {
-        const latest = beats.length - (sceneCount - index - 1);
-        while (end < latest && !readerSentenceEnds(beats[end - 1].text)) end++;
-      }
+      const end = cuts[index] ?? beats.length;
       const members = beats.slice(start, end);
       start = end;
       const visualBeat = members.find((beat) => beat.visualContext?.assetReadiness === "ready") ||
@@ -1416,13 +1565,20 @@
         if (generated && segments.length && !readerSentenceEnds(segments.at(-1))) segments[segments.length - 1] += text;
         else segments.push(text);
       }
-      if (generated && index === sceneCount - 1) segments[segments.length - 1] = finishGeneratedReaderTail(segments.at(-1));
+      let trimmedTail = false;
+      if (generated && index === sceneCount - 1) {
+        const originalTail = segments.at(-1);
+        segments[segments.length - 1] = finishGeneratedReaderTail(originalTail);
+        trimmedTail = segments.at(-1) !== originalTail.trimEnd();
+      }
       return {
         position: members.at(-1).position,
         positions: members.map((beat) => beat.position),
         segments,
+        trimmedTail,
         text: segments.join("\n\n"),
         visualContext: visualBeat.visualContext,
+        canonicalMembers: generated ? [] : members.map((beat) => beat.canonicalMember),
       };
     });
   }
@@ -1430,7 +1586,7 @@
   function readableBeats() {
     const source = state.scene?.beats;
     if (source != null && !Array.isArray(source)) return null;
-    const rawBeats = source?.length ? source.map((beat) => ({ position: beat?.position, visualContext: beat?.visualContext,
+    const rawBeats = source?.length ? source.map((beat) => ({ position: beat?.position, visualContext: beat?.visualContext, canonicalMember: beat,
       text: beatContent(beat?.content) || beatContent(beat?.text) || beatContent(beat?.body) }))
       : [{ position: 0, text: beatContent(state.scene?.sceneText) || beatContent(state.scene?.body) || beatContent(state.scene?.content) }];
     if (rawBeats.some((beat) => !Number.isSafeInteger(beat.position) || beat.position < 0) ||
@@ -1439,7 +1595,7 @@
     const generated = state.scene?.isGenerated === true || state.scene?.deliveryState === "ready";
     const beats = groupReaderBeats(rawBeats, generated);
     const scope = readerScope();
-    const position = state.progress?.status === "completed" && state.completedBeat?.scope === scope
+    const position = state.progress?.status === "completed" && state.scene?.isGenerated !== true && state.completedBeat?.scope === scope
       ? state.completedBeat.position : state.progress?.currentBeatPosition ?? 0;
     let index = beats.findIndex((beat) => beat.positions.includes(position));
     // Canonical releases can start at 1 while new progress still stores the sentinel 0.
@@ -1499,7 +1655,10 @@
           if (background) {
             stage.dataset.visualStatus = "missing";
             stage.closest(".story-player").dataset.hasBackground = "false";
-            fallback.hidden = false;
+            const shell = stage.closest(".story-reader-shell");
+            shell.classList.add("story-reader-shell-text-only");
+            shell.dataset.hasVisual = "false";
+            stage.remove();
           }
         }
       };
@@ -1518,9 +1677,138 @@
     setBusy(false);
   }
 
+  const CANONICAL_READ_COPY = {
+    ko: { confirm: "이 페이지 읽기 완료", saved: "읽기 확인 저장됨", saving: "읽기 확인을 저장하고 있습니다.", retry: "읽기 확인 다시 저장", unknown: "일부 확인을 저장하지 못했습니다. 같은 요청으로 다시 확인해 주세요.", changed: "원문이나 진행 기준이 변경되었습니다. 최신 페이지를 다시 열어 주세요.", unavailable: "읽기 확인을 저장할 수 없습니다.", refresh: "최신 페이지 확인" },
+    en: { confirm: "Mark this page as read", saved: "Read confirmation saved", saving: "Saving read confirmation.", retry: "Retry read confirmation", unknown: "Some confirmations could not be verified. Retry the same request.", changed: "The source or progress has changed. Open the latest page.", unavailable: "Read confirmation is unavailable.", refresh: "Check latest page" },
+    ja: { confirm: "このページを読了", saved: "読了確認を保存しました", saving: "読了確認を保存しています。", retry: "読了確認を再保存", unknown: "一部の確認を保存できませんでした。同じリクエストで再確認してください。", changed: "原文または進行状況が変わりました。最新ページを開いてください。", unavailable: "読了確認を保存できません。", refresh: "最新ページを確認" },
+    "zh-Hans": { confirm: "本页阅读完成", saved: "阅读确认已保存", saving: "正在保存阅读确认。", retry: "重试阅读确认", unknown: "部分确认未能核实。请重试同一请求。", changed: "原文或进度已更改。请打开最新页面。", unavailable: "无法保存阅读确认。", refresh: "查看最新页面" },
+    "zh-Hant": { confirm: "本頁閱讀完成", saved: "閱讀確認已儲存", saving: "正在儲存閱讀確認。", retry: "重試閱讀確認", unknown: "部分確認未能核實。請重試同一請求。", changed: "原文或進度已變更。請開啟最新頁面。", unavailable: "無法儲存閱讀確認。", refresh: "查看最新頁面" },
+  };
+
+  function canonicalReadTr(key) {
+    return CANONICAL_READ_COPY[state.locale]?.[key] || CANONICAL_READ_COPY.en[key] || "";
+  }
+
+  function canonicalReadTarget(reading = readableBeats()) {
+    if (!reading || state.sceneIdentity !== readerIdentity()) return null;
+    return window.LuminaCanonicalRead?.target({ userId: readerIdentity(), sceneIdentity: state.sceneIdentity,
+      progressId: state.sessionId, workId: state.workId, locale: state.locale, progress: state.progress,
+      scene: state.scene, members: reading.beats[reading.index].canonicalMembers });
+  }
+
+  function cancelCanonicalRead() {
+    const operation = state.canonicalReadOperation;
+    state.canonicalRead = null;
+    if (!operation) return;
+    operation.controller.abort();
+    state.canonicalReadOperation = null;
+    if (operation.number === state.operation) {
+      ++state.operation;
+      setBusy(false);
+    }
+  }
+
+  function canonicalReadDisplayed(target) {
+    if (canonicalReadTarget()?.key !== target.key) return false;
+    const article = root.querySelector("[data-story-scene-focus]");
+    if (!article?.isConnected || !root.contains(article) || article.closest("[hidden], [inert]")) return false;
+    const expected = target.members.flatMap((member) => member.text.split(/\n\s*\n/u).filter(Boolean));
+    const actual = Array.from(article.querySelectorAll("p"), (paragraph) => paragraph.textContent);
+    return expected.length === actual.length && expected.every((text, index) => text === actual[index]);
+  }
+
+  async function confirmCanonicalRead() {
+    const target = canonicalReadTarget();
+    if (!target || state.busy || aiRequestOpen() || state.resetPreview || !canonicalReadDisplayed(target)) return;
+    let journal = state.canonicalRead;
+    if (journal?.key !== target.key) journal = state.canonicalRead = { key: target.key, entries: new Map(), status: "idle", pageScope: null };
+    if (["saved", "changed", "unavailable"].includes(journal.status)) return;
+    const number = beginOperation();
+    const controller = new AbortController();
+    const operation = { number, controller, epoch: state.epoch };
+    state.canonicalReadOperation = operation;
+    const current = () => state.canonicalReadOperation === operation && operation.number === state.operation &&
+      operation.epoch === state.epoch && state.canonicalRead === journal && canonicalReadDisplayed(target);
+    const timer = setTimeout(() => controller.abort(), 45000);
+    const policy = window.LuminaCanonicalRead;
+    journal.status = "saving";
+    const status = root.querySelector("[data-story-canonical-read-status]");
+    if (status) status.textContent = canonicalReadTr("saving");
+    try {
+      // Preflight every displayed source before writing any member of this page.
+      for (const member of target.members) {
+        const textHash = await policy.hashText(member.text, window.crypto).catch(() => { throw { status: 400 }; });
+        if (!current() || controller.signal.aborted) return;
+        const path = progressPath(`/canonical-read/${encodeURIComponent(member.id)}`);
+        const preview = await request(`${path}?locale=${encodeURIComponent(target.locale)}`,
+          { auth: true, signal: controller.signal, _retried: true, cache: "no-store" });
+        if (!current() || controller.signal.aborted) return;
+        if (!policy.previewMatches(preview, target, member, textHash)) throw { status: 409 };
+        const scope = policy.pageScope(preview);
+        if (!scope || (journal.pageScope && journal.pageScope !== scope)) throw { status: 409 };
+        journal.pageScope = scope;
+        const previous = journal.entries.get(member.id);
+        if (previous && previous.preview.scopeChecksum !== preview.scopeChecksum) throw { status: 409 };
+        if (!previous) {
+          const key = window.crypto?.randomUUID?.();
+          if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(key || "")) throw { status: 400 };
+          journal.entries.set(member.id, { preview, path, key, receipt: null });
+        }
+      }
+      for (const member of target.members) {
+        if (!current() || controller.signal.aborted) return;
+        const entry = journal.entries.get(member.id);
+        if (entry.receipt) continue;
+        const receipt = await request(`${entry.path}/confirm`, { method: "POST", auth: true, signal: controller.signal, _retried: true, cache: "no-store",
+          body: { locale: target.locale, expectedRevision: target.revision, expectedScopeChecksum: entry.preview.scopeChecksum,
+            expectedSourceTextHash: entry.preview.sourceTextHash, idempotencyKey: entry.key, displayedAndRead: true } });
+        if (!current() || controller.signal.aborted) return;
+        if (!policy.receiptMatches(receipt, entry.preview)) throw new Error("Unconfirmed canonical read receipt");
+        entry.receipt = receipt;
+      }
+      if (current()) journal.status = "saved";
+    } catch (error) {
+      if (!current()) return;
+      if (error?.status === 401 || error?.status === 403) {
+        cancelCanonicalRead();
+        blockScene(errorCopy(error));
+        return;
+      }
+      journal.status = error?.status === 409 ? "changed" : [400, 404].includes(error?.status) ? "unavailable" : "unknown";
+    } finally {
+      clearTimeout(timer);
+      if (state.canonicalReadOperation === operation) {
+        if (journal.status === "saving") journal.status = "unknown";
+        state.canonicalReadOperation = null;
+        await finishOperation(number);
+        if (operation.epoch === state.epoch && state.canonicalRead === journal && canonicalReadTarget()?.key === target.key) renderScene();
+      }
+    }
+  }
+
   function focusBeatStart() {
     root.querySelector("[data-story-scene-focus]")?.focus({ preventScroll: true });
     root.querySelector(".story-current-title, .story-reader-shell")?.scrollIntoView({ block: "start", behavior: "instant" });
+  }
+
+  function endingReadTarget(reading = readableBeats()) {
+    if (!reading || state.progress?.status !== "completed" || state.scene?.isGenerated !== true ||
+        state.scene.deliveryState !== "ready" || state.scene.endingType !== "ai_generated" ||
+        typeof state.scene.id !== "string" || !state.scene.id || state.progress.scene?.id !== state.scene.id || !readerIdentity() ||
+        state.sceneIdentity !== readerIdentity() || !Array.isArray(state.choices) || state.choices.length ||
+        !Number.isSafeInteger(state.progress.revision) || state.progress.revision < 1 ||
+        !Number.isSafeInteger(state.progress.currentBeatPosition) || state.progress.currentBeatPosition < 0 ||
+        reading.index !== reading.beats.length - 1) return null;
+    const target = reading.beats[reading.index];
+    return target?.position > 0 && !target.trimmedTail && target.text.trim() ? target : null;
+  }
+
+  async function confirmEndingRead() {
+    const reading = readableBeats();
+    const target = endingReadTarget(reading);
+    if (!target || state.busy || aiRequestOpen() || state.resetPreview ||
+        state.progress.currentBeatPosition >= target.position) return;
+    await saveReaderBeat(reading, target, { confirmRead: true });
   }
 
   async function turnBeat(direction) {
@@ -1529,24 +1817,30 @@
         state.sceneIdentity !== readerIdentity() || !["active", "completed"].includes(state.progress?.status)) return;
     const target = reading.beats[reading.index + direction];
     if (!target) return;
-    if (state.progress.status === "completed") {
+    if (state.progress.status === "completed" && state.scene?.isGenerated !== true) {
       state.completedBeat = { scope: reading.scope, position: target.position };
       renderScene();
       focusBeatStart();
       return;
     }
+    await saveReaderBeat(reading, target);
+  }
+
+  async function saveReaderBeat(reading, target, { confirmRead = false } = {}) {
     const epoch = state.epoch;
     const sessionId = state.sessionId;
     const identity = readerIdentity();
     const locale = state.locale;
     const revision = state.progress.revision;
+    const status = state.progress.status;
     if (!Number.isSafeInteger(revision) || revision < 1) return;
     const operation = beginOperation();
     const pending = { controller: new AbortController() };
     state.beatOperation = pending;
     state.beatNotice = "";
     const current = () => state.beatOperation === pending && operation === state.operation && currentRequest(epoch, sessionId) &&
-      identity === readerIdentity() && locale === state.locale && reading.scope === readerScope();
+      identity === readerIdentity() && locale === state.locale && reading.scope === readerScope() &&
+      state.progress?.revision === revision && state.progress?.status === status;
     actionStatus(readerTr("saving"));
     const timer = setTimeout(() => pending.controller.abort(), 15000);
     try {
@@ -1557,11 +1851,15 @@
       if (!current()) return;
       if (payload?.progressId !== sessionId || !Number.isSafeInteger(payload.revision) || payload.revision <= revision ||
           payload.currentBeatPosition !== target.position || readerScope(payload) !== reading.scope ||
-          !Array.isArray(payload.choices) || payload.choices.length > 3 || payload.status !== "active") throw new Error("Invalid beat projection");
+          !Array.isArray(payload.choices) || payload.choices.length > 3 || payload.status !== status ||
+          (status === "completed" && (payload.choices.length || payload.scene?.isGenerated !== true)) ||
+          (confirmRead && (payload.scene?.deliveryState !== "ready" || payload.scene?.endingType !== "ai_generated"))) throw new Error("Invalid beat projection");
       state.minimumRevision = Math.max(state.minimumRevision, payload.revision);
       state.progress = payload;
       state.scene = payload.scene;
       state.choices = payload.choices;
+      state.completedBeat = null;
+      if (confirmRead) state.beatNotice = readerTr("readSaved");
     } catch (error) {
       if (!current()) return;
       if (error?.status === 401 || error?.status === 403) return blockScene(errorCopy(error));
@@ -1577,7 +1875,8 @@
         await finishOperation(operation);
         if (operation === state.operation && identity === readerIdentity() && sessionId === state.sessionId && locale === state.locale && state.scene) {
           renderScene();
-          focusBeatStart();
+          if (confirmRead) root.querySelector("[data-story-scene-focus]")?.focus({ preventScroll: true });
+          else focusBeatStart();
         }
       }
     }
@@ -1709,11 +2008,21 @@
     if (!reading || (isEnding && state.choices.length) || (state.progress?.status === "active" && !state.choices.length && (scene?.ending || scene?.isEnding || scene?.endingType))) return blockScene(controlTr("sceneUnavailable"));
     const visual = readingVisual(reading);
     const { background, characters } = visual;
-    const visualPending = Boolean(readingVisualKey(reading));
+    const visualKey = readingVisualKey(reading);
+    const visualBlocked = Boolean(visualKey && state.visualRetry?.key === `${state.sessionId}:${visualKey}` && state.visualRetry.blocked);
+    const visualPending = Boolean(visualKey && !visualBlocked);
     const showVisualStage = Boolean(background);
     const sceneTitle = textValue(scene?.title);
+    const participant = participantCandidate(state.progress?.participantArtist);
+    const participantChat = participant?.visualIdentityReady && participant.slug &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(state.sessionId)
+      ? `/character-chat?slug=${encodeURIComponent(participant.slug)}&storyProgressId=${encodeURIComponent(state.sessionId)}` : "";
     const lastBeat = reading.index === reading.beats.length - 1;
     const navigationBlocked = state.busy || aiRequestOpen() || !["active", "completed"].includes(state.progress?.status);
+    const endingRead = endingReadTarget(reading);
+    const endingReadSaved = endingRead && state.progress.currentBeatPosition >= endingRead.position;
+    const canonicalRead = canonicalReadTarget(reading);
+    const canonicalStatus = canonicalRead && state.canonicalRead?.key === canonicalRead.key ? state.canonicalRead.status : "idle";
     rememberReadingScroll();
     const restoreFocus = document.activeElement?.matches("[data-story-scene-focus]");
     const customChoice = customChoiceCapability(scene);
@@ -1725,7 +2034,8 @@
         <div class="story-choice-list">
           ${fixedChoices.map((choice, index) => {
             const label = textValue(choice.label) || textValue(choice.choiceBody) || textValue(choice.body) || String(index + 1);
-            return `<button type="button" data-choice-id="${escapeHtml(choice.id || choice.choiceId || "")}" ${state.progress?.status === "active" && Number.isInteger(state.progress?.revision) && !aiRequestOpen() ? "" : "disabled"} aria-label="${escapeHtml(label)}"><span aria-hidden="true">${index + 1}</span>${escapeHtml(label)}</button>`;
+            const unavailable = choice.available === false;
+            return `<button type="button" data-choice-id="${escapeHtml(choice.id || choice.choiceId || "")}" ${state.progress?.status === "active" && Number.isInteger(state.progress?.revision) && !aiRequestOpen() && !unavailable ? "" : "disabled"} aria-label="${escapeHtml(unavailable ? `${label}. ${controlTr("customUnavailable")}` : label)}"><span aria-hidden="true">${index + 1}</span>${escapeHtml(label)}${unavailable ? `<small class="story-choice-unavailable">${escapeHtml(controlTr("customUnavailable"))}</small>` : ""}</button>`;
           }).join("")}
           ${customChoice ? `<button type="button" data-story-custom-choice>${escapeHtml(controlTr("other"))}</button>` : ""}
         </div>
@@ -1738,7 +2048,10 @@
       </div>` : "";
     root.innerHTML = `
       <section class="story-player" data-has-background="false" data-has-choices="${showChoices ? "true" : "false"}">
-        <a class="story-back" href="/story-stage">← ${escapeHtml(tr("backToStories"))}</a>
+        <div class="story-player-topline">
+          <a class="story-back" href="/story-stage">← ${escapeHtml(tr("backToStories"))}</a>
+          ${participantChat ? `<a class="story-participant-chat-link" href="${escapeHtml(participantChat)}">${escapeHtml(tr("participantChat"))}</a>` : ""}
+        </div>
         ${sceneTitle ? `<h1 class="story-current-title">${escapeHtml(sceneTitle)}</h1>` : ""}
         ${!scene && isEnding ? `<div class="story-completed" tabindex="-1" data-story-scene-focus>
           <span class="story-ending-label">${escapeHtml(tr("ending"))}</span>
@@ -1761,8 +2074,16 @@
             </div>` : ""}
             <article class="story-player-copy" tabindex="0" aria-label="${escapeHtml(readerTr("text"))}" data-story-scene-focus data-reading-key="${escapeHtml(reading.key)}">
               ${isEnding ? `<span class="story-ending-label">${escapeHtml(tr("ending"))}</span>` : ""}
-              ${reading.beats[reading.index].segments.flatMap((segment) => String(segment).split(/\n\s*\n/u).filter(Boolean)).map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`).join("")}
+              ${reading.beats[reading.index].segments.flatMap((segment) => String(segment).split(/\n\s*\n/u).filter(Boolean)).map((paragraph) => `<p>${escapeHtml(paragraph).replace(/\r/g, "&#13;")}</p>`).join("")}
             </article>
+            ${endingRead ? `<div class="story-ending-read">
+              <button type="button" class="story-button story-button-secondary" data-story-ending-read ${navigationBlocked || state.resetPreview || endingReadSaved ? "disabled" : ""}>${escapeHtml(readerTr(endingReadSaved ? "readSaved" : "confirmRead"))}</button>
+            </div>` : ""}
+            ${canonicalRead ? `<div class="story-canonical-read">
+              <button type="button" class="story-button story-button-secondary" data-story-canonical-read ${navigationBlocked || state.resetPreview || ["saved", "changed", "unavailable"].includes(canonicalStatus) ? "disabled" : ""}>${escapeHtml(canonicalReadTr(canonicalStatus === "saved" ? "saved" : canonicalStatus === "unknown" ? "retry" : "confirm"))}</button>
+              <p data-story-canonical-read-status role="status">${escapeHtml(canonicalStatus === "idle" ? "" : canonicalReadTr(canonicalStatus))}</p>
+              ${["changed", "unavailable"].includes(canonicalStatus) ? `<button type="button" class="story-button story-button-secondary" data-story-canonical-read-refresh ${navigationBlocked ? "disabled" : ""}>${escapeHtml(canonicalReadTr("refresh"))}</button>` : ""}
+            </div>` : ""}
             ${choicePanel}
           </div>
           ${reading.beats.length > 1 ? `<nav class="story-beat-navigation" aria-label="${escapeHtml(readerTr("page").replace("{current}", reading.index + 1).replace("{total}", reading.beats.length))}">
@@ -1771,7 +2092,10 @@
           </nav>` : ""}
         </div>`}
         ${renderAiNotice()}
-        <p class="story-action-status" data-story-action-status aria-live="polite">${escapeHtml(state.beatNotice || (state.progress?.status !== "active" && !isEnding && !aiRequestOpen() ? controlTr("sceneUnavailable") : ""))}</p>
+        <p class="story-action-status" data-story-action-status aria-live="polite">${visualBlocked
+          ? `${escapeHtml(tr("sceneImageUnavailable"))} <button type="button" class="story-button story-button-secondary" data-story-visual-retry>${escapeHtml(tr("sceneImageRetry"))}</button>`
+          : escapeHtml(state.beatNotice || (visualPending ? tr("sceneImageGenerating") : "") ||
+            (state.progress?.status !== "active" && !isEnding && !aiRequestOpen() ? controlTr("sceneUnavailable") : ""))}</p>
         ${renderResetControls(state.progress)}
       </section>`;
     bindReadingImages(reading, visual);
@@ -1826,10 +2150,12 @@
     if (errorCode(error) === "STORY_CUSTOM_CHOICE_DEFERRED") return controlTr("customUnavailable");
     if (error?.status === 403) return controlTr("accessRequired");
     if (errorCode(error) === "STORY_PROGRESS_STALE_REVISION") return controlTr("progressChanged");
+    if (errorCode(error) === "STORY_RESET_VERSION_MISMATCH") return controlTr("resetVersionChanged");
     return controlTr(fallback);
   }
 
   function blockScene(message, retry = false) {
+    cancelCanonicalRead();
     state.scene = null;
     state.choices = [];
     state.controls = null;
@@ -2128,12 +2454,7 @@
     state.pack = null;
     state.readerAccess = null;
     state.readerState = null;
-    state.participantCandidates = [];
-    state.participantSearchResults = [];
-    state.participantQuery = "";
-    state.participantStatus = "idle";
-    state.selectedParticipantArtistId = "";
-    state.participantLocked = false;
+    resetParticipantPicker();
     renderPack();
     try {
       // Public detail never opts into the shared helper's auth/refresh flow.
@@ -2158,20 +2479,32 @@
       if (owner?.workId !== workId || owner.slug !== slug || !owner.access) throw new Error("Invalid access");
       let progress = null;
       let participantPayload = null;
+      let participantError = false;
       if (owner.access.accessible === true) {
         [progress, participantPayload] = await Promise.all([
           request(`/api/v1/me/stories/${encodeURIComponent(workId)}/progress-state`, { auth: true }),
-          request(`/api/v1/me/stories/${encodeURIComponent(workId)}/artist-candidates?take=20`, { auth: true }),
+          request(`/api/v1/me/stories/${encodeURIComponent(workId)}/artist-candidates?take=20`, { auth: true }).catch((error) => {
+            if (error?.status === 401 || error?.status === 403) throw error;
+            participantError = true;
+            return null;
+          }),
         ]);
         if (!current()) return;
       }
       state.readerAccess = owner;
       state.readerState = progress;
-      state.participantCandidates = Array.isArray(participantPayload?.engaged) ? participantPayload.engaged : [];
-      state.participantSearchResults = [];
-      state.participantStatus = "ready";
-      state.participantLocked = participantPayload?.selectionLocked === true || Boolean(progress?.participantArtist);
-      state.selectedParticipantArtistId = safeGraphId(progress?.participantArtist?.artistId || participantPayload?.selectedArtistId);
+      const fixed = participantCandidate(progress?.participantArtist);
+      state.participantLocked = Boolean(fixed);
+      state.selectedParticipantArtistId = fixed?.artistId || "";
+      state.selectedParticipantArtist = fixed;
+      if (owner.access.accessible === true) {
+        try {
+          if (participantError) throw new Error("Artist candidates unavailable");
+          applyParticipantPayload(participantPayload);
+        } catch (_) {
+          state.participantStatus = "error";
+        }
+      }
       state.detailStatus = "ready";
       const operation = pendingPurchase(workId);
       if (owner.access.accessible === true && ["free", "entitled"].includes(owner.access.status) && operation && !operation.pending && !operation.blocked) {
@@ -2189,7 +2522,8 @@
   async function searchParticipantArtists() {
     const workId = safeGraphId(state.pack?.id);
     const query = state.participantQuery.trim();
-    if (!workId || state.participantLocked || detailAction() !== "start") return;
+    if (!workId || state.detailPending || state.participantLocked || detailAction() !== "start") return;
+    const generation = ++state.participantSearchGeneration;
     if (!query) {
       state.participantSearchResults = [];
       state.participantStatus = "ready";
@@ -2197,15 +2531,28 @@
       return;
     }
     const epoch = state.epoch;
+    const identity = readerIdentity();
+    const locale = state.locale;
+    const current = () => generation === state.participantSearchGeneration && epoch === state.epoch &&
+      workId === state.pack?.id && identity === readerIdentity() && locale === state.locale &&
+      query === state.participantQuery.trim() && !state.detailPending;
     state.participantStatus = "loading";
     renderPack();
     try {
       const payload = await request(`/api/v1/me/stories/${encodeURIComponent(workId)}/artist-candidates?q=${encodeURIComponent(query)}&take=20`, { auth: true });
-      if (epoch !== state.epoch || workId !== state.pack?.id) return;
-      state.participantSearchResults = Array.isArray(payload?.searchResults) ? payload.searchResults : [];
-      state.participantStatus = "ready";
-    } catch (_) {
-      if (epoch !== state.epoch || workId !== state.pack?.id) return;
+      if (!current()) return;
+      applyParticipantPayload(payload, true);
+    } catch (error) {
+      if (!current()) return;
+      if (error?.status === 401 || error?.status === 403) {
+        resetParticipantPicker();
+        state.readerAccess = null;
+        state.readerState = null;
+        state.detailStatus = "access-error";
+        state.detailError = error.status === 401 ? tr("loginRequired") : accessTr("accessFailed");
+        renderPack();
+        return;
+      }
       state.participantSearchResults = [];
       state.participantStatus = "error";
     }
@@ -2277,7 +2624,18 @@
     const epoch = state.epoch;
     const locale = state.locale;
     const identity = readerIdentity();
+    const selected = participantItems().find((item) => item.artistId === state.selectedParticipantArtistId);
+    if (state.selectedParticipantArtistId && !state.participantLocked && !selected?.visualIdentityReady) {
+      state.participantNotice = "participantNotReady";
+      renderPack();
+      return;
+    }
+    const operation = {};
+    state.detailStartOperation = operation;
     state.detailPending = true;
+    state.participantNotice = "";
+    ++state.participantSearchGeneration;
+    if (state.participantStatus === "loading") state.participantStatus = "ready";
     renderPack();
     try {
       const payload = await request(`/api/v1/stories/${encodeURIComponent(workId)}/progress`, {
@@ -2293,22 +2651,39 @@
       });
       const sessionId = safeGraphId(payload?.progressId);
       if (!sessionId || !Number.isInteger(payload.revision) || payload.revision < 1 || !Array.isArray(payload.choices) || payload.choices.length > 3) throw new Error("Invalid progress");
-      if (epoch !== state.epoch || locale !== state.locale || !signedIn() || identity !== readerIdentity()) return;
+      if (epoch !== state.epoch || locale !== state.locale || !signedIn() || identity !== readerIdentity() || state.detailStartOperation !== operation) return;
       location.href = `/story-stage?sessionId=${encodeURIComponent(sessionId)}&workId=${encodeURIComponent(workId)}`;
     } catch (error) {
-      if (epoch !== state.epoch || identity !== readerIdentity()) return;
+      if (epoch !== state.epoch || locale !== state.locale || identity !== readerIdentity() || state.detailStartOperation !== operation) return;
+      const code = error?.body?.error?.code || error?.body?.code;
+      if (error?.status !== 401 && error?.status !== 403 && !state.participantLocked &&
+          detailAction() === "start" && code === "STORY_PARTICIPANT_IDENTITY_NOT_READY") {
+        state.participantNotice = "participantNotReady";
+        const markPending = (item) => safeGraphId(item.artistId) === state.selectedParticipantArtistId ? { ...item, visualIdentityReady: false } : item;
+        state.participantCandidates = state.participantCandidates.map(markPending);
+        state.participantSearchResults = state.participantSearchResults.map(markPending);
+        if (state.selectedParticipantArtist) state.selectedParticipantArtist = markPending(state.selectedParticipantArtist);
+        return;
+      }
       state.detailStatus = "access-error";
       state.readerAccess = null;
-      const code = error?.body?.error?.code || error?.body?.code;
+      state.readerState = null;
+      resetParticipantPicker();
       state.detailError = error?.status === 401 ? tr("loginRequired")
         : code === "STORY_PARTICIPANT_IDENTITY_NOT_READY" ? tr("participantNotReady") : tr("startFailed");
     } finally {
-      state.detailPending = false;
-      renderPack();
+      if (state.detailStartOperation === operation) {
+        state.detailStartOperation = null;
+        state.detailPending = false;
+        renderPack();
+      }
     }
   }
 
   async function loadScene(options = {}) {
+    const canonicalRead = options.preserveCanonicalRead === true ? state.canonicalRead : null;
+    if (canonicalRead?.status === "saving") canonicalRead.status = "unknown";
+    cancelCanonicalRead();
     cancelAiPolling();
     const restorePending = options.restorePending !== false;
     const epoch = ++state.epoch;
@@ -2331,12 +2706,14 @@
       if (payload.choices.length > 3) return blockScene(controlTr("sceneUnavailable"));
       state.minimumRevision = payload.revision;
       state.scene = payload?.scene || null;
+      if (state.scene?.isGenerated === true) state.completedBeat = null;
       state.choices = payload.choices;
       state.progress = payload;
       state.customChoiceOpen = false;
       const controls = await readControls(payload, sessionId, state.workId).catch(() => null);
       if (!current()) return;
       state.controls = controls;
+      if (canonicalRead && canonicalReadTarget()?.key === canonicalRead.key) state.canonicalRead = canonicalRead;
       renderScene();
       if (restorePending) restoreAiOperation();
       root.querySelector("[data-story-scene-focus]")?.focus({ preventScroll: true });
@@ -2418,10 +2795,52 @@
     }
   }
 
+  async function checkpointGeneratedChoice(reading, choiceId) {
+    if (!state.scene?.isGenerated) return true;
+    const lastPosition = reading.beats.at(-1)?.position;
+    if (!Number.isInteger(lastPosition) || state.progress.currentBeatPosition >= lastPosition) return true;
+    const epoch = state.epoch;
+    const sessionId = state.sessionId;
+    const sceneId = state.scene.id;
+    const locale = state.locale;
+    const revision = state.progress.revision;
+    const operation = beginOperation();
+    actionStatus(readerTr("saving"));
+    try {
+      const payload = await request(`${progressPath("/beat")}?locale=${encodeURIComponent(locale)}`, {
+        method: "POST", auth: true, body: { position: lastPosition, expectedRevision: revision },
+      });
+      if (!currentRequest(epoch, sessionId) || locale !== state.locale || sceneId !== state.scene?.id) return false;
+      if (payload?.progressId !== sessionId || payload.scene?.id !== sceneId ||
+          payload.currentBeatPosition !== lastPosition || readerScope(payload) !== reading.scope ||
+          !Number.isSafeInteger(payload.revision) ||
+          payload.revision <= revision || payload.status !== "active" || !Array.isArray(payload.choices) ||
+          payload.choices.length > 3) throw new Error("Invalid beat projection");
+      state.minimumRevision = Math.max(state.minimumRevision, payload.revision);
+      state.progress = payload;
+      state.scene = payload.scene;
+      state.choices = payload.choices;
+      return state.choices.some(choice => (choice.id || choice.choiceId) === choiceId && choice.available !== false);
+    } catch (error) {
+      if (!currentRequest(epoch, sessionId)) return false;
+      if (error?.status === 401 || error?.status === 403) blockScene(errorCopy(error));
+      else {
+        await loadScene({ restorePending: false });
+        actionStatus(errorCode(error) === "STORY_PROGRESS_STALE_REVISION" ? controlTr("progressChanged") : readerTr("unconfirmed"));
+      }
+      return false;
+    } finally {
+      await finishOperation(operation);
+    }
+  }
+
   async function submitChoice(choiceId) {
     const reading = readableBeats();
     if (!reading || reading.index !== reading.beats.length - 1 || state.sceneIdentity !== readerIdentity()) return;
-    if (state.busy || aiRequestOpen() || state.resetPreview || state.progress?.status !== "active" || !choiceId || !state.scene?.id || !Number.isInteger(state.progress?.revision) || state.choices.length > 3 || !state.choices.some((choice) => (choice.id || choice.choiceId) === choiceId)) return;
+    if (state.busy || aiRequestOpen() || state.resetPreview || state.progress?.status !== "active" || !choiceId || !state.scene?.id || !Number.isInteger(state.progress?.revision) || state.choices.length > 3 || !state.choices.some((choice) => (choice.id || choice.choiceId) === choiceId && choice.available !== false)) return;
+    if (!await checkpointGeneratedChoice(reading, choiceId)) return;
+    if (state.busy || aiRequestOpen() || state.progress?.status !== "active" ||
+        !state.choices.some(choice => (choice.id || choice.choiceId) === choiceId && choice.available !== false)) return;
     const epoch = state.epoch;
     const sessionId = state.sessionId;
     const revision = state.progress.revision;
@@ -2474,9 +2893,11 @@
         removeAiOperation(pending);
         blockScene(errorCopy(error));
       } else if (error?.status >= 400 && error?.status < 500) {
+        console.warn("[Story] choice rejected", { status: error.status, code: errorCode(error) || "UNKNOWN" });
         removeAiOperation(pending);
         await loadScene({ restorePending: false });
-        actionStatus(errorCode(error) === "STORY_PROGRESS_STALE_REVISION" ? controlTr("progressChanged") : tr("choiceFailed"));
+        actionStatus(errorCode(error) === "STORY_PROGRESS_STALE_REVISION" ? controlTr("progressChanged")
+          : errorCode(error) === "STORY_AI_CHOICES_NOT_READY" ? controlTr("choiceNotReady") : tr("choiceFailed"));
       } else {
         // The request may have committed. Keep its exact key and require explicit recovery.
         await loadScene({ restorePending: false });
@@ -2650,18 +3071,32 @@
       return;
     }
     const artistButton = event.target.closest("[data-story-artist-id]");
-    if (artistButton && !state.participantLocked && detailAction() === "start") {
-      state.selectedParticipantArtistId = safeGraphId(artistButton.dataset.storyArtistId);
+    if (artistButton && !state.detailPending && !state.participantLocked && detailAction() === "start") {
+      const artist = participantItems().find((item) => item.artistId === safeGraphId(artistButton.dataset.storyArtistId));
+      if (!artist?.visualIdentityReady) return;
+      state.selectedParticipantArtistId = artist.artistId;
+      state.selectedParticipantArtist = artist;
+      state.participantNotice = "";
       return renderPack();
     }
-    if (event.target.closest("[data-story-artist-clear]") && !state.participantLocked) {
+    if (event.target.closest("[data-story-artist-clear]") && !state.detailPending && !state.participantLocked && detailAction() === "start") {
       state.selectedParticipantArtistId = "";
+      state.selectedParticipantArtist = null;
+      state.participantNotice = "";
       return renderPack();
     }
     const startButton = event.target.closest("[data-story-start]");
     if (startButton) return startStory();
+    if (event.target.closest("[data-story-canonical-read]")) return confirmCanonicalRead();
+    if (event.target.closest("[data-story-canonical-read-refresh]")) return loadScene();
+    if (event.target.closest("[data-story-ending-read]")) return confirmEndingRead();
     const beatButton = event.target.closest("[data-story-beat]");
     if (beatButton) return turnBeat(beatButton.dataset.storyBeat === "previous" ? -1 : 1);
+    if (event.target.closest("[data-story-visual-retry]")) {
+      state.visualRetry = null;
+      state.visualRequestKey = "";
+      return renderScene();
+    }
     if (event.target.closest("[data-story-ai-recover]")) return recoverAiOperation();
     if (event.target.closest("[data-story-paired-retry]")) {
       state.pairedVisualStatus = "idle";
@@ -2692,7 +3127,15 @@
       return;
     }
     if (event.target.matches("[data-story-artist-search]")) {
+      if (state.detailPending || state.participantLocked || detailAction() !== "start") return;
       state.participantQuery = event.target.value.slice(0, 80);
+      ++state.participantSearchGeneration;
+      if (state.participantStatus === "loading") state.participantStatus = "ready";
+      if (!state.participantQuery.trim()) {
+        state.participantSearchResults = [];
+        state.participantStatus = "ready";
+        renderPack();
+      }
     }
   });
 
@@ -2768,6 +3211,12 @@
     if (nextLocale === state.locale) return;
     state.locale = nextLocale;
     updateHeading();
+    if (state.canonicalReadOperation) {
+      cancelCanonicalRead();
+      state.localeDirty = false;
+      return loadScene();
+    }
+    state.canonicalRead = null;
     if (state.beatOperation) {
       cancelBeatNavigation();
       state.localeDirty = false;
@@ -2787,6 +3236,12 @@
   });
 
   window.addEventListener("lumina:auth-expired", () => {
+    state.authIdentity = readerIdentity();
+    if (state.detailStartOperation) {
+      state.detailStartOperation = null;
+      state.detailPending = false;
+    }
+    resetParticipantPicker();
     cancelAiPolling();
     cancelBeatNavigation();
     if (state.sessionId) {
@@ -2805,8 +3260,17 @@
     renderPack();
   });
 
-  window.addEventListener("storage", (event) => {
-    if (event.key !== "lumina_auth" && event.key !== null) return;
+  function refreshStoryAccount(force = false) {
+    const identity = readerIdentity();
+    if (!force && identity === state.authIdentity) return;
+    state.authIdentity = identity;
+    if (state.detailStartOperation) {
+      state.detailStartOperation = null;
+      state.detailPending = false;
+    }
+    resetParticipantPicker();
+    state.readerAccess = null;
+    state.readerState = null;
     if (state.sessionId) {
       cancelBeatNavigation();
       cancelAiPolling();
@@ -2822,10 +3286,17 @@
       if (signedIn()) return loadScene();
       return;
     }
-    if (state.detailSlug) loadPack(state.detailSlug);
+    if (state.detailSlug) return loadPack(state.detailSlug);
+  }
+
+  window.addEventListener("lumina:authchange", () => refreshStoryAccount());
+  window.addEventListener("storage", (event) => {
+    if (event.key !== "lumina_auth" && event.key !== null) return;
+    return refreshStoryAccount(true);
   });
 
   window.addEventListener("popstate", () => {
+    cancelCanonicalRead();
     if (state.dialog) dismissPack();
     cancelBeatNavigation();
     cancelAiPolling();
@@ -2854,6 +3325,7 @@
 
   window.addEventListener("pagehide", cancelAiPolling);
   window.addEventListener("pagehide", cancelBeatNavigation);
+  window.addEventListener("pagehide", cancelCanonicalRead);
 
   updateHeading();
   if (state.sessionId) loadScene();

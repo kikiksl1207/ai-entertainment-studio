@@ -1470,7 +1470,13 @@ export class CommunityService {
     const searchType = this.searchType(query.type, search);
     const language = this.searchLanguage(query.language ?? query.locale, search);
     const normalizedKeyword = this.normalizeSearchKeyword(search, searchType);
-    const where = this.feedSearchWhere(normalizedKeyword, searchType);
+    const blockedUserIds = context.userId
+      ? await this.getBlockedRelationshipUserIds(context.userId)
+      : [];
+    const where = {
+      ...this.feedSearchWhere(normalizedKeyword, searchType),
+      ...(blockedUserIds.length ? { authorUserId: { notIn: blockedUserIds } } : {}),
+    };
     const posts = await this.prisma.communityPost.findMany({
       where,
       take,
@@ -2036,7 +2042,7 @@ export class CommunityService {
   }
 
   async getPost(postId: string, viewerUserId?: string | null) {
-    const post = await this.findVisiblePostWithInclude(postId);
+    const post = await this.findVisiblePostWithInclude(postId, viewerUserId);
 
     return {
       post: await this.toPostView(post, viewerUserId),
@@ -2494,18 +2500,46 @@ export class CommunityService {
   }
 
   async reportPost(userId: string, postId: string, input: CommunityBody) {
-    await this.findVisiblePost(postId);
+    await this.assertActiveUser(userId);
+    if (!UUID_PATTERN.test(postId)) {
+      throw new BadRequestException('postId must be a UUID');
+    }
     const reason = this.reportReason(input.reason);
     const detail = this.optionalText(input, 'detail', 500);
+    const requestKey = this.optionalStringValue(input.requestKey);
+    if (input.requestKey !== undefined && (!requestKey || !UUID_PATTERN.test(requestKey))) {
+      throw new BadRequestException('requestKey must be a UUID');
+    }
 
     return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM users WHERE id = ${userId}::uuid FOR SHARE`;
+      const reporter = await tx.user.findFirst({ where: { id: userId, status: 'active', deletedAt: null }, select: { id: true } });
+      if (!reporter) throw new NotFoundException('User not found');
+      // Serialize report deduplication with the post's visibility and report counter.
+      await tx.$queryRaw`SELECT id FROM community_posts WHERE id = ${postId}::uuid FOR UPDATE`;
+      const post = await tx.communityPost.findFirst({
+        where: { id: postId, status: 'published', visibility: 'public', deletedAt: null, ...this.publicFeedCleanupGuardWhere() },
+        select: { id: true },
+      });
+      if (!post) throw new NotFoundException('Post not found');
+      const existing = await tx.communityReport.findFirst({
+        where: {
+          postId, reporterUserId: userId,
+          OR: [
+            { reason, status: { in: ['submitted', 'reviewing'] } },
+            ...(requestKey ? [{ metadata: { path: ['reportRequestKey'], equals: requestKey } }] : []),
+          ],
+        },
+        orderBy: { createdAt: 'asc' },
+      });
+      if (existing) return { report: existing, alreadySubmitted: true };
       const report = await tx.communityReport.create({
         data: {
           postId,
           reporterUserId: userId,
           reason,
           detail,
-          metadata: this.toJson(this.object(input, 'metadata') ?? {}),
+          metadata: this.toJson({ ...this.object(input, 'metadata'), reportRequestKey: requestKey ?? null }),
         },
       });
 
@@ -2514,7 +2548,7 @@ export class CommunityService {
         data: { reportCount: { increment: 1 }, updatedAt: new Date() },
       });
 
-      return { report };
+      return { report, alreadySubmitted: false };
     });
   }
 
@@ -5434,16 +5468,20 @@ export class CommunityService {
     return post;
   }
 
-  private async findVisiblePostWithInclude(postId: string) {
+  private async findVisiblePostWithInclude(postId: string, viewerUserId?: string | null) {
     if (!UUID_PATTERN.test(postId)) {
       throw new BadRequestException('postId must be a UUID');
     }
 
+    const blockedUserIds = viewerUserId
+      ? await this.getBlockedRelationshipUserIds(viewerUserId)
+      : [];
     const post = await this.prisma.communityPost.findFirst({
       where: {
         id: postId,
         status: 'published',
         deletedAt: null,
+        ...(blockedUserIds.length ? { authorUserId: { notIn: blockedUserIds } } : {}),
       },
       include: this.postInclude(),
     });

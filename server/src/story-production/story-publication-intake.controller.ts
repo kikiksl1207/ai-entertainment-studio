@@ -4,7 +4,9 @@ import {
   Get,
   Headers,
   Param,
+  ParseUUIDPipe,
   Post,
+  Query,
   UploadedFile,
   UploadedFiles,
   UseGuards,
@@ -22,7 +24,7 @@ import {
   StoryUploadFile,
   StoryUploadFileFields,
 } from '../story-upload/story-upload.types';
-import { ActivatePublishedStoryAiDto, PromoteStoryUploadDto } from './dto/story-publication-intake.dto';
+import { ActivatePublishedStoryAiDto, PromoteStoryUploadDto, PublishedStoryChoiceTargetDto, ReviewPublishedChoiceBatchDto } from './dto/story-publication-intake.dto';
 import { StoryPublicBetaAiActivationService } from './story-public-beta-ai-activation.service';
 import { StoryPublicationIntakeService } from './story-publication-intake.service';
 
@@ -43,20 +45,44 @@ export class StoryPublicationIntakeController {
 
   @Get('published/:storyKey/ai-status')
   @RequireAdminPermissions('*')
-  aiStatus(@Param('storyKey') storyKey: string) {
-    return this.aiActivation.status(storyKey);
+  aiStatus(@Param('storyKey') storyKey: string, @Query() query: PublishedStoryChoiceTargetDto = {}) {
+    return this.aiActivation.status(storyKey, this.choiceTarget(query));
+  }
+
+  @Get('published/:storyKey/choice-coverage')
+  @RequireAdminPermissions('*')
+  choiceCoverage(@Param('storyKey') storyKey: string, @Query() query: PublishedStoryChoiceTargetDto = {}) {
+    return this.aiActivation.choiceCoverage(storyKey, this.choiceTarget(query));
   }
 
   @Get('published/inheritor/choice-status')
   @RequireAdminPermissions('*')
-  inheritorChoiceStatus() {
-    return this.publication.publishedInheritorChoiceStatus();
+  inheritorChoiceStatus(@Query() query: PublishedStoryChoiceTargetDto = {}) {
+    return this.publication.publishedInheritorChoiceStatus(this.choiceTarget(query));
   }
 
   @Post('published/inheritor/prepare-choices')
   @RequireAdminPermissions('*')
-  prepareInheritorChoices(@CurrentUser() user: AuthUser) {
-    return this.publication.preparePublishedInheritorChoices(user.id);
+  prepareInheritorChoices(
+    @CurrentUser() user: AuthUser,
+    @Body() body: PublishedStoryChoiceTargetDto = {},
+  ) {
+    return this.publication.preparePublishedInheritorChoices(user.id, this.choiceTarget(body));
+  }
+
+  private choiceTarget(target: PublishedStoryChoiceTargetDto) {
+    return target.workId === undefined && target.releaseId === undefined ? undefined
+      : { workId: target.workId!, releaseId: target.releaseId! };
+  }
+
+  @Post('published/inheritor/choice-batches/:batchId/review')
+  @RequireAdminPermissions('*')
+  reviewInheritorChoiceBatch(
+    @CurrentUser() user: AuthUser,
+    @Param('batchId', new ParseUUIDPipe()) batchId: string,
+    @Body() body: ReviewPublishedChoiceBatchDto,
+  ) {
+    return this.publication.reviewPublishedInheritorChoiceBatch(user.id, batchId, body);
   }
 
   @Post('published/:storyKey/activate-ai')

@@ -766,6 +766,35 @@
   letter-spacing: 0;
 }
 
+.dm-send-feedback {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: -6px 14px 10px;
+  min-height: 18px;
+  color: rgba(220, 210, 240, 0.72);
+  font-size: 12px;
+  text-align: center;
+}
+
+.dm-send-feedback p { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.dm-send-feedback [data-state="error"] { color: #ffabbc; }
+.dm-send-feedback [data-state="success"] { color: #9fe1bd; }
+.dm-send-feedback button {
+  border: 0;
+  padding: 2px 4px;
+  background: transparent;
+  color: #e2c9ff;
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.dm-send-feedback button[hidden] { display: none; }
+
 .sr-only {
   position: absolute;
   width: 1px;
@@ -2608,6 +2637,31 @@ select.dm-field-input option {
   }
 }
 
+@media (max-width: 767px) {
+  .page-character-chat:has(#chatRoomShell:not([hidden])) {
+    padding-bottom: 80px;
+  }
+
+  .page-character-chat #chatRoomShell {
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+  }
+
+  .page-character-chat #chatRoomShell .dm-stage {
+    overflow-y: visible;
+  }
+
+  .page-character-chat #chatRoomShell .dm-dock {
+    position: fixed;
+    inset: auto 0 0;
+    width: 100%;
+    max-width: 720px;
+    margin: 0 auto;
+    z-index: 30;
+  }
+}
+
 /* #958 — 모바일 카톡형 image bubble: 아티스트(좌)/유저(우) 정렬 + 선택 캡션을 한 대화 단위로 */
 .dm-bubble-artist.dm-bubble-image .dm-bubble-img { margin-right: auto; }
 .dm-bubble-user.dm-bubble-image .dm-bubble-img { margin-left: auto; }
@@ -2636,60 +2690,6 @@ select.dm-field-input option {
   .dm-bubble-image .dm-bubble-caption { max-width: 72vw; }
   /* 모바일에서 이미지가 큰 카드/갤러리처럼 화면을 꽉 채우지 않도록 높이 상한 */
   .dm-bubble-image .dm-bubble-img { max-height: 320px; }
-}
-
-/* #922 — 방 상태 표시 안내 (샘플 matrix): 6개 상태를 항상 보이게 */
-.premium-chat-hub-state-matrix {
-  margin-top: 14px;
-  padding: 12px 14px;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(180, 150, 255, 0.12);
-  border-radius: 12px;
-}
-.premium-chat-hub-state-matrix-head h3 {
-  margin: 0;
-  font-size: 13.5px;
-  font-weight: 700;
-  color: rgba(245, 240, 255, 0.9);
-}
-.premium-chat-hub-state-matrix-head p {
-  margin: 3px 0 10px;
-  font-size: 11.5px;
-  color: rgba(220, 210, 240, 0.5);
-  line-height: 1.5;
-}
-.premium-chat-hub-state-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-}
-.premium-chat-hub-state-row {
-  display: grid;
-  grid-template-columns: 92px minmax(0, 1fr);
-  align-items: center;
-  gap: 10px;
-}
-.premium-chat-hub-state-row .premium-chat-hub-room-badge {
-  justify-self: start;
-}
-.premium-chat-hub-state-desc {
-  font-size: 12px;
-  color: rgba(225, 218, 245, 0.66);
-  line-height: 1.45;
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-@media (max-width: 480px) {
-  .premium-chat-hub-state-row {
-    grid-template-columns: 84px minmax(0, 1fr);
-    gap: 8px;
-  }
-  .premium-chat-hub-state-desc {
-    font-size: 11.5px;
-  }
 }
 
 /* #1091 — AI 콘텐츠 요청 no-provider empty state 안내 */

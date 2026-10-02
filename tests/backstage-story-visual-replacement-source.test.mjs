@@ -7,18 +7,20 @@ const css = await readFile(new URL('../backstage-story-publication.css', import.
 
 test('backstage replaces stale visuals sequentially and reports completion', () => {
   assert.match(source, /visualIdentityManaged: true/g);
-  assert.match(source, /\/admin\/api\/v1\/story-visuals\/\$\{encodeURIComponent\(work\.id\)\}\/replacement-status/);
-  assert.match(source, /\/admin\/api\/v1\/story-visuals\/\$\{encodeURIComponent\(work\.id\)\}\/replace-stale/);
+  assert.match(source, /\/admin\/api\/v1\/story-visuals\/\$\{encodeURIComponent\(source\.workId\)\}\/replacement-status/);
+  assert.match(source, /\/admin\/api\/v1\/story-visuals\/\$\{encodeURIComponent\(snapshot\.workId\)\}\/replace-stale/);
   assert.match(source, /for \(const item of items\)/);
-  assert.match(source, /장면 그림 \$\{completed\}장을 새 기준으로 모두 교체/);
+  assert.match(source, /장면 그림 \$\{completed\}장을 새 기준으로 교체/);
   assert.match(source, /표지와 같은 화풍·인물 기준/);
   assert.doesNotMatch(source, /Promise\.all\([^)]*replace-stale/);
 });
 
 test('visual replacement controls stay inside the publication card on desktop and mobile', () => {
   assert.match(css, /\.story-fixed-release-controls \{\s*display: grid;/);
+  assert.match(css, /\.story-publication-controls \{\s*display: grid;/);
   assert.match(css, /\.story-visual-replace-button \{[^}]*width: 100%;[^}]*min-height: 38px;/);
-  assert.match(css, /\.story-ai-activation,\s*\.story-fixed-release-controls \{ grid-column: 1 \/ -1; \}/);
+  assert.match(css, /\.story-publication-controls \{ grid-column: 1 \/ -1; \}/);
+  assert.match(css, /\.story-publication-controls \{ grid-column: auto; \}/);
 });
 
 test('backstage can review and replace one stale image for the fifth work', () => {

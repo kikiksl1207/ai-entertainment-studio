@@ -1,15 +1,24 @@
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'crypto';
-import { lstat, mkdir, mkdtemp, readdir, rm, symlink, writeFile } from 'fs/promises';
+import { BigIntStats } from 'fs';
+import { FileHandle, lstat, mkdir, mkdtemp, readdir, rename, rm, symlink, writeFile } from 'fs/promises';
 import { join, resolve } from 'path';
 import { Readable } from 'stream';
 import { PrivateLocalOttStorage, sha256 } from './ott-media.storage';
 import { EXPECTED, SAMPLE } from './ott-media.test-doubles';
 
+class CountingStorage extends PrivateLocalOttStorage {
+  fullReads = 0;
+  protected async hashOpenedFile(file: FileHandle, info: BigIntStats, identity: string) {
+    this.fullReads++;
+    return super.hashOpenedFile(file, info, identity);
+  }
+}
+
 describe('private-local storage, real tiny files on explicitly configured E temp', () => {
   let root: string;
   let config: Record<string, string>;
-  let storage: PrivateLocalOttStorage;
+  let storage: CountingStorage;
   beforeEach(async () => {
     const parent = process.env.TEMP!;
     if (!parent || !/^E:[/\\]/i.test(parent)) throw new Error('E-only TEMP required');
@@ -17,7 +26,7 @@ describe('private-local storage, real tiny files on explicitly configured E temp
     root = await mkdtemp(join(parent, 'ott-test-'));
     config = { OTT_MEDIA_STORAGE_MODE: 'private_local', OTT_MEDIA_LOCAL_ROOT: root,
       OTT_MEDIA_PUBLIC_ROOTS: '[]', OTT_MEDIA_LOCAL_PRIVATE_CONFIRMED: 'true' };
-    storage = new PrivateLocalOttStorage(new ConfigService(config));
+    storage = new CountingStorage(new ConfigService(config));
   });
   afterEach(async () => {
     const allowed = resolve(process.env.TEMP!);
@@ -35,6 +44,65 @@ describe('private-local storage, real tiny files on explicitly configured E temp
     expect(Buffer.concat(chunks)).toEqual(SAMPLE.subarray(0, 8));
     await media.close();
     expect(await readdir(root)).toEqual([`${id}.mp4`]);
+  });
+
+  it('reuses one full-file verification across repeated range opens', async () => {
+    const id = randomUUID();
+    await storage.put(id, Readable.from([SAMPLE]), EXPECTED);
+    for (let request = 0; request < 4; request++) {
+      const media = await storage.open(id);
+      expect(media.sha256).toBe(EXPECTED.sha256);
+      const chunks: Buffer[] = [];
+      for await (const chunk of media.stream(request, request + 3)) chunks.push(chunk);
+      expect(Buffer.concat(chunks)).toEqual(SAMPLE.subarray(request, request + 4));
+      await media.close();
+    }
+    expect(storage.fullReads).toBe(1);
+  });
+
+  it('rehashes an unchanged file after the verification window expires', async () => {
+    const id = randomUUID();
+    await storage.put(id, Readable.from([SAMPLE]), EXPECTED);
+    const first = await storage.open(id);
+    await first.close();
+    const now = Date.now();
+    const clock = jest.spyOn(Date, 'now').mockReturnValue(now + 5 * 60_000 + 1);
+    try {
+      const second = await storage.open(id);
+      expect(second.sha256).toBe(EXPECTED.sha256);
+      await second.close();
+      expect(storage.fullReads).toBe(2);
+    } finally { clock.mockRestore(); }
+  });
+
+  it('rehashes changed bytes and a replaced inode rather than trusting the cached checksum', async () => {
+    const id = randomUUID();
+    const path = join(root, `${id}.mp4`);
+    await storage.put(id, Readable.from([SAMPLE]), EXPECTED);
+    const first = await storage.open(id);
+    await first.close();
+    const changed = Buffer.alloc(SAMPLE.length, 1);
+    await writeFile(path, changed);
+    const second = await storage.open(id);
+    expect(second.sha256).toBe(sha256(changed));
+    await second.close();
+    await writeFile(join(root, 'replacement.pending'), SAMPLE);
+    await rename(join(root, 'replacement.pending'), path);
+    const third = await storage.open(id);
+    expect(third.sha256).toBe(EXPECTED.sha256);
+    await third.close();
+    expect(storage.fullReads).toBe(3);
+  });
+
+  it('bounds remembered verifications even when many distinct files are opened', async () => {
+    for (let i = 0; i < 129; i++) {
+      const id = randomUUID();
+      await writeFile(join(root, `${id}.mp4`), SAMPLE);
+      const media = await storage.open(id);
+      await media.close();
+    }
+    const cache = (storage as unknown as { verifiedFiles: Map<string, unknown> }).verifiedFiles;
+    expect(cache.size).toBe(128);
   });
 
   it('permits identical retry without replacing the original inode', async () => {

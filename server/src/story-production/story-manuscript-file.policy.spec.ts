@@ -1,4 +1,5 @@
 import { HttpException } from '@nestjs/common';
+import { readFileSync } from 'fs';
 import { MANUSCRIPT_FILE_LIMITS, PASTED_MANUSCRIPT_IDENTITY_VERSION, prepareManuscript, preparePastedManuscript, storedManuscriptBody } from './story-manuscript-file.policy';
 import { manuscriptContentHash } from './story-production.policy';
 
@@ -81,6 +82,85 @@ describe('confirmed raw paste', () => {
     expect(input.source.kind).toBe('utf8_paste');
     expect(input.parts).toHaveLength(2);
     expect(JSON.stringify({ sourceKind: input.source.kind, parts: input.parts.length })).not.toContain('Dialogue');
+  });
+
+  (process.env.STORY_QA_MANUSCRIPT_PATH ? it : it.skip)(
+    'accepts the supplied 32-part final manuscript and preserves the exact source', () => {
+      const raw = readFileSync(process.env.STORY_QA_MANUSCRIPT_PATH!, 'utf8');
+      const headings = [...raw.matchAll(/^# (?:Part|외전) [0-9]{1,2}\. (.+?)\r?$/gm)];
+      expect(headings).toHaveLength(32);
+      const parts = headings.map((heading, index) => ({
+        partKey: `part-${index + 1}`, title: heading[1],
+        start: index === 0 ? 0 : heading.index,
+        end: headings[index + 1]?.index ?? raw.length,
+      }));
+      const parsed = preparePastedManuscript(Buffer.from(raw), JSON.stringify({
+        locale: 'ko', confirmed: true, parts,
+      }));
+      expect(parsed.parts).toHaveLength(32);
+      expect(parsed.parts.map(part => part.paragraphs.map(row => row.text).join('')).join('')).toBe(raw);
+      expect(storedManuscriptBody(parsed).intake.source.rawText).toBe(raw);
+      const reviewed = preparePastedManuscript(Buffer.from(raw), JSON.stringify({
+        locale: 'ko', confirmed: true, preface: { start: 0, end: headings[0].index! },
+        parts: headings.map((heading, index) => ({
+          partKey: `part-${index + 1}`, title: heading[1], start: heading.index!,
+          end: headings[index + 1]?.index ?? raw.length,
+        })),
+      }));
+      expect(reviewed.parts).toHaveLength(32);
+      expect(reviewed.parts[0].paragraphs.map(row => row.text).join('')).toBe(raw.slice(headings[0].index!, headings[1].index!));
+      expect(reviewed.source.rawText).toBe(raw);
+    }, 30_000);
+
+  it('keeps a reviewed preface in source bytes but outside reader parts', () => {
+    const raw = '작품 소개\r\n메모\r\n\r\n# Part 01. 첫 장\r\n본문\r\n# Part 02. 둘째 장\r\n결말';
+    const first = raw.indexOf('# Part 01');
+    const second = raw.indexOf('# Part 02');
+    const parsed = preparePastedManuscript(Buffer.from(raw), JSON.stringify({ locale: 'ko',
+      confirmed: true, preface: { start: 0, end: first }, parts: [
+        { partKey: 'part-1', title: '첫 장', start: first, end: second },
+        { partKey: 'part-2', title: '둘째 장', start: second, end: raw.length },
+      ] }));
+    expect(parsed.parts[0].paragraphs.map(row => row.text).join('')).toBe(raw.slice(first, second));
+    expect(parsed.confirmedPreface).toEqual({ start: 0, end: first });
+    expect(raw.slice(0, first) + parsed.parts.map(part => part.paragraphs.map(row => row.text).join('')).join('')).toBe(raw);
+    expect(storedManuscriptBody(parsed).intake.confirmedPreface).toEqual({ start: 0, end: first });
+    expect(storedManuscriptBody(parsed).intake.source.rawText).toBe(raw);
+    expect(() => preparePastedManuscript(Buffer.from(raw), JSON.stringify({ locale: 'ko',
+      confirmed: true, preface: { start: 0, end: first + 1 }, parts: [
+        { partKey: 'part-1', title: '첫 장', start: first, end: raw.length },
+      ] }))).toThrow();
+  });
+
+  (process.env.STORY_QA_LONG_MANUSCRIPT_PATH ? it : it.skip)(
+    'accepts the supplied 265-part three-digit final manuscript without changing source text', () => {
+      const raw = readFileSync(process.env.STORY_QA_LONG_MANUSCRIPT_PATH!, 'utf8');
+      const headings = [...raw.matchAll(/^# Part [0-9]{3}\. (.+?)\r?$/gm)];
+      expect(headings).toHaveLength(265);
+      const parsed = preparePastedManuscript(Buffer.from(raw), JSON.stringify({
+        locale: 'ko', confirmed: true, parts: headings.map((heading, index) => ({
+          partKey: `part-${index + 1}`, title: heading[1],
+          start: index === 0 ? 0 : heading.index!,
+          end: headings[index + 1]?.index ?? raw.length,
+        })),
+      }));
+      expect(parsed.parts).toHaveLength(265);
+      expect(parsed.parts.map(part => part.paragraphs.map(row => row.text).join('')).join('')).toBe(raw);
+      expect(storedManuscriptBody(parsed).intake.source.rawText).toBe(raw);
+    }, 60_000);
+
+  it('keeps a UTF-8 BOM and CRLF part offsets from the writer paste screen', () => {
+    const source = '\uFEFF제1화 첫 문\r\n본문\r\n\r\n제2화 둘째 문\r\n본문';
+    const second = source.indexOf('제2화');
+    const parsed = preparePastedManuscript(Buffer.from(source), JSON.stringify({
+      locale: 'ko', confirmed: true, parts: [
+        { partKey: 'part-1', title: '첫 문', start: 0, end: second },
+        { partKey: 'part-2', title: '둘째 문', start: second, end: source.length },
+      ],
+    }));
+    expect(parsed.parts).toHaveLength(2);
+    expect(parsed.parts.map(part => part.paragraphs.map(row => row.text).join('')).join('')).toBe(source);
+    expect(storedManuscriptBody(parsed).intake.source.rawText).toBe(source);
   });
 
   it('chunks long parts on valid Unicode boundaries and keeps the full source', () => {

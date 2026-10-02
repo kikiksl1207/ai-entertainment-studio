@@ -13,7 +13,7 @@ export type SemanticPins = {
   packingProfile?: typeof SEMANTIC_PACKING_PROFILE;
 };
 export type SemanticConfig = SemanticPins & {
-  enabled: boolean; workerEnabled: boolean; apiKey: string; timeoutMs: number;
+  enabled: boolean; workerEnabled: boolean; autoEnqueueOnUpload: boolean; apiKey: string; timeoutMs: number;
   manuscriptAllowlist: string[];
 };
 export function semanticConfig(env: NodeJS.ProcessEnv = process.env): SemanticConfig {
@@ -21,6 +21,7 @@ export function semanticConfig(env: NodeJS.ProcessEnv = process.env): SemanticCo
   return {
     packingProfile: SEMANTIC_PACKING_PROFILE,
     enabled: get('ENABLED') === 'true', workerEnabled: get('WORKER_ENABLED') === 'true',
+    autoEnqueueOnUpload: get('AUTO_ENQUEUE_ON_UPLOAD') === 'true',
     manuscriptAllowlist: get('MANUSCRIPT_ID_ALLOWLIST').split(',').map(id => id.trim()).filter(Boolean),
     apiKey: get('API_KEY') || env.OPENAI_API_KEY || '', provider: get('PROVIDER'), model: get('MODEL'),
     rateCardId: get('RATE_CARD_ID'), rateCardVersion: get('RATE_CARD_VERSION'),

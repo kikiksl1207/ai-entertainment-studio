@@ -81,9 +81,144 @@ let _luminaFeedSearchTimer = null;
 
 let _luminaFeedSearchSeq = 0;
 
+let _feedListLoadSeq = 0;
+let _feedDetailLoadSeq = 0;
+let _feedBlockPending = false;
+let _feedBlockWriteOwner = "";
+
 let _feedDetailOpen = false;
 
 let _feedSurface = "posts";
+
+const FEED_DISCOVERY_REFRESH_MS = 5 * 60 * 1000;
+const FEED_DISCOVERY_SEARCH_REFRESH_MS = 60 * 1000;
+let _feedDiscoveryFlight = null;
+let _feedDiscoverySeq = 0;
+let _feedDiscoveryLastAttemptAt = null;
+let _feedDiscoveryLastLocale = "";
+let _feedDiscoveryRefreshBound = false;
+
+function feedViewerKey() {
+  const auth = typeof getAuth === "function" ? getAuth() : null;
+  return auth?.accessToken ? String(auth.user?.id || auth.user?.userId || auth.accessToken) : "";
+}
+
+function invalidateFeedReads() {
+  _feedListLoadSeq += 1;
+  _luminaFeedSearchSeq += 1;
+  _feedDetailLoadSeq += 1;
+  clearTimeout(_luminaFeedSearchTimer);
+}
+
+function feedReadsBlockedForViewer() {
+  return !!_feedBlockWriteOwner && _feedBlockWriteOwner === feedViewerKey();
+}
+
+function closeProtectedFeedDetails() {
+  window.closeFeedPostDetail?.({ pushHistory: false });
+  window.closeFeedThreadModal?.();
+  window.closeFeedCommentModal?.();
+}
+
+function buildFeedBlockButton(post, authorName, isMine) {
+  if (isMine || !(post.authorUserId || post.authorPublicHandle)) return "";
+  return '<button class="feed-action-btn feed-block-btn" type="button" data-feed-block="1" ' +
+    'data-feed-block-user-id="' + feedEscapeHtml(post.authorUserId || "") + '" ' +
+    'data-feed-block-handle="' + feedEscapeHtml(post.authorPublicHandle || "") + '" ' +
+    'data-feed-block-name="' + feedEscapeHtml(authorName) + '" ' +
+    'aria-label="' + feedEscapeHtml(feedT("feed.block.action")) + '" ' +
+    'title="' + feedEscapeHtml(feedT("feed.block.action")) + '" ' +
+    'data-i18n-aria="feed.block.action" data-i18n-attr="title:feed.block.action">' +
+    '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M6 6l12 12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>' +
+    '<span class="feed-action-btn-label" data-i18n="feed.block.label">' + feedEscapeHtml(feedT("feed.block.label")) + '</span></button>';
+}
+
+function feedBlockTarget(button) {
+  const userId = String(button.getAttribute("data-feed-block-user-id") || "").trim();
+  const handle = String(button.getAttribute("data-feed-block-handle") || "").trim();
+  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (userId) return uuid.test(userId) ? { userId, endpoint: `/api/v1/users/${encodeURIComponent(userId)}/block` } : null;
+  if (!handle || handle.length > 80) return null;
+  return { handle, endpoint: `/api/v1/users/handle/${encodeURIComponent(handle)}/block` };
+}
+
+async function submitFeedUserBlock(button) {
+  if (_feedBlockPending || button.disabled) return;
+  const owner = feedViewerKey();
+  if (!owner) {
+    if (typeof openAuthModal === "function") openAuthModal("login", { returnTo: { href: window.location.pathname + window.location.search } });
+    else window.alert(feedT("feed.block.login"));
+    return;
+  }
+  if (_luminaFeedSource === "preview_fixture" || _luminaFeedSource === "samples" || _luminaFeedSource === "inline") {
+    window.alert(feedT("feed.block.preview"));
+    return;
+  }
+  const target = feedBlockTarget(button);
+  if (!target) {
+    window.alert(feedT("feed.block.invalidTarget"));
+    return;
+  }
+  const user = typeof getAuth === "function" ? getAuth()?.user : null;
+  if ((target.userId && target.userId.toLowerCase() === String(user?.id || user?.userId || "").toLowerCase()) ||
+      (target.handle && target.handle === user?.publicHandle)) {
+    window.alert(feedT("feed.block.self"));
+    return;
+  }
+  const name = button.getAttribute("data-feed-block-name") || feedT("feed.block.defaultName");
+  if (!window.confirm(feedText("feed.block.confirm", { name }))) return;
+  if (owner !== feedViewerKey()) return;
+  _feedBlockPending = true;
+  _feedBlockWriteOwner = owner;
+  button.disabled = true;
+  button.setAttribute("aria-busy", "true");
+  invalidateFeedReads();
+  _luminaFeedItems = [];
+  _luminaFeedSource = "error";
+  closeProtectedFeedDetails();
+  renderLuminaFeed();
+  try {
+    const result = await apiFetch(target.endpoint, { method: "POST", auth: true, throwOnError: true, body: {} });
+    if (owner !== feedViewerKey()) return;
+    const blocked = result?.block?.user;
+    if (result?.block?.status !== "active" || typeof blocked?.id !== "string" ||
+        (target.userId && blocked.id.toLowerCase() !== target.userId.toLowerCase()) ||
+        (target.handle && blocked.publicHandle !== target.handle)) throw new Error("invalid block response");
+    // Old list/search/detail responses must not restore content filtered by the new block.
+    invalidateFeedReads();
+    _luminaFeedItems = [];
+    closeProtectedFeedDetails();
+    _feedBlockWriteOwner = "";
+    renderLuminaFeed();
+    if (_luminaFeedQuery) await executeLuminaFeedSearch(_luminaFeedQuery);
+    else await loadLuminaFeedData(_luminaFeedScope);
+    if (owner !== feedViewerKey()) return;
+    renderLuminaFeed();
+    window.alert(feedT(_luminaFeedSource === "error" || _luminaFeedSource === "following_error"
+      ? "feed.block.refreshError" : "feed.block.success"));
+  } catch (error) {
+    if (owner !== feedViewerKey()) return;
+    invalidateFeedReads();
+    _luminaFeedItems = [];
+    _luminaFeedSource = "error";
+    closeProtectedFeedDetails();
+    renderLuminaFeed();
+    const message = error?.status === 401 ? feedT("feed.block.expired")
+      : error?.status === 429 ? feedT("feed.block.rateLimited") : feedT("feed.block.error");
+    window.alert(message);
+  } finally {
+    if (_feedBlockWriteOwner === owner) _feedBlockWriteOwner = "";
+    _feedBlockPending = false;
+    button.disabled = false;
+    button.removeAttribute("aria-busy");
+  }
+}
+
+function feedResponseItems(response) {
+  const items = Array.isArray(response) ? response : (response?.items ?? response?.posts);
+  if (!Array.isArray(items)) throw new Error("invalid feed response");
+  return items.map(normalizeFeedPost);
+}
 
 function isFeedFixtureAuthorHandle(handle) {
   return /^(fan|debut)\d+$/i.test(String(handle || "").trim());
@@ -92,8 +227,10 @@ function isFeedFixtureAuthorHandle(handle) {
 function feedShouldPreserveFollowFixture(handle) {
   if (!isFeedFixtureAuthorHandle(handle)) return false;
   try {
+    var host = window.location.hostname;
+    if (!(host === "localhost" || host === "127.0.0.1" || host === "" || host.endsWith(".local"))) return false;
     var params = new URLSearchParams(window.location.search || "");
-    return params.get("feedfixture") === "1" || params.get("followfixture") === "1";
+    return _luminaFeedSource === "preview_fixture" || params.get("followfixture") === "1";
   } catch (_) {
     return false;
   }
@@ -152,12 +289,18 @@ function buildFeedFollowButton(post, artist, isMineByViewer) {
   );
 }
 
+function feedReportAvailable() {
+  return ["operations", "me_all", "following", "search"].includes(_luminaFeedSource);
+}
+
 function buildFeedReportButton(postId) {
+  const enabled = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(postId || "")
+    && feedReportAvailable();
   return (
     '<button class="feed-action-btn feed-report-btn" type="button" ' +
-      'data-feed-report="' + feedEscapeHtml(postId || "") + '" disabled aria-disabled="true" ' +
-      'aria-label="이 글 신고 (준비 중)" title="이 글 신고 (준비 중)" ' +
-      'data-i18n-aria="feed.report.soon" data-i18n-attr="title:feed.report.soon">' +
+      'data-feed-report="' + feedEscapeHtml(postId || "") + '" ' + (enabled ? '' : 'disabled aria-disabled="true" ') +
+      'data-i18n-aria="' + (enabled ? 'feed.report.title' : 'feed.report.soon') + '" ' +
+      'data-i18n-attr="title:' + (enabled ? 'feed.report.title' : 'feed.report.soon') + '">' +
       '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V4h10l-1.5 3L15 10H7" stroke="currentColor" fill="none" stroke-width="1.6" stroke-linejoin="round"/></svg>' +
       '<span class="feed-action-btn-label" data-i18n="feed.report.label">신고</span>' +
     '</button>'
@@ -175,6 +318,10 @@ function feedT(key, fallback) {
     if (value && value !== key) return value;
   }
   return fallback || key;
+}
+
+function feedText(key, values = {}) {
+  return feedT(key).replace(/\{(\w+)\}/g, (_, name) => String(values[name] ?? ""));
 }
 
 function feedNormalizeAssetUrl(url) {
@@ -377,21 +524,14 @@ function feedAuthorTypeLabel(authorTypeEnum) {
   })[authorTypeEnum] || "팬";
 }
 
-/* ── 데이터 로더: 운영 API → samples → inline 3단 fallback (#022) ── */
-// #1274 — ?feedfixture=1 플래그면 (live/배포 포함) 샘플 피드를 강제 노출해 카드 밀도·타래·리포스트·
-// 공유·다중 이미지·작성자 프로필/팔로워·차단 진입점을 read-only로 확인할 수 있게 한다.
-// 플래그가 없으면 일반 사용자/실서비스 피드에는 전혀 영향이 없고, post/follow/block mutation도 없다.
-function feedFixtureForced() {
-  try { return /[?&]feedfixture=1(?:&|$)/.test(window.location.search || ""); }
-  catch (_) { return false; }
-}
+/* ── 데이터 로더: 운영 API와 로컬 미리보기 fallback ── */
 async function loadLuminaFeedData(scope = "all") {
   _luminaFeedScope = scope;
-  if (feedFixtureForced() && Array.isArray(luminaFeedSamplePosts) && luminaFeedSamplePosts.length) {
-    _luminaFeedItems = luminaFeedSamplePosts.map(enrichSampleFeedAuthor).map(normalizeFeedPost);
-    _luminaFeedSource = "fixture_flag";
-    return;
-  }
+  if (feedReadsBlockedForViewer()) return;
+  const seq = ++_feedListLoadSeq;
+  _luminaFeedSearchSeq += 1;
+  const owner = feedViewerKey();
+  const current = () => seq === _feedListLoadSeq && owner === feedViewerKey() && !feedReadsBlockedForViewer();
   if (scope === "following") {
     if (typeof isLoggedIn === "function" && !isLoggedIn()) {
       _luminaFeedItems = [];
@@ -399,14 +539,14 @@ async function loadLuminaFeedData(scope = "all") {
       return;
     }
     try {
-      const res = await apiFetch("/api/v1/me/lumina-feed?mode=following&take=20", { auth: true });
-      const items = Array.isArray(res) ? res : (res?.items || res?.posts || []);
-      _luminaFeedItems = Array.isArray(items) ? items.map(normalizeFeedPost) : [];
+      const res = await apiFetch("/api/v1/me/lumina-feed?mode=following&take=20", { auth: true, throwOnError: true });
+      if (!current()) return;
+      _luminaFeedItems = feedResponseItems(res);
       _luminaFeedSource = "following";
       console.info(`[Lumina] 팔로잉 피드 로드 ${_luminaFeedItems.length}건`);
       return;
     } catch (err) {
-      console.warn("[Lumina] /me/lumina-feed 실패:", err);
+      if (!current()) return;
       _luminaFeedItems = [];
       _luminaFeedSource = "following_error";
       return;
@@ -418,31 +558,28 @@ async function loadLuminaFeedData(scope = "all") {
   const isAuth = typeof isLoggedIn === "function" && isLoggedIn();
   if (isAuth) {
     try {
-      const res = await apiFetch("/api/v1/me/lumina-feed?mode=all&take=30", { auth: true });
-      const items = Array.isArray(res) ? res : (res?.items || res?.posts || []);
-      if (Array.isArray(items) && items.length > 0) {
-        _luminaFeedItems = items.map(normalizeFeedPost);
-        _luminaFeedSource = "me_all";
-        console.info(`[Lumina] 루미나 피드 (로그인) 운영 API 로드 ${items.length}건`);
-        return;
-      }
+      const res = await apiFetch("/api/v1/me/lumina-feed?mode=all&take=30", { auth: true, throwOnError: true });
+      if (!current()) return;
+      _luminaFeedItems = feedResponseItems(res);
+      _luminaFeedSource = "me_all";
+      return;
     } catch (err) {
-      console.warn("[Lumina] /me/lumina-feed?mode=all 실패, 공개 endpoint 시도:", err);
+      if (!current()) return;
+      _luminaFeedItems = [];
+      _luminaFeedSource = "error";
+      return;
     }
   }
 
   // 1. 운영 API 시도 — 실제 사용자 글 (DB 기반, 비로그인용 공개 endpoint)
   try {
-    const res = await apiFetch("/api/v1/lumina-feed?mode=all&take=30");
-    const items = Array.isArray(res) ? res : (res?.items || res?.posts || []);
-    if (Array.isArray(items) && items.length > 0) {
-      _luminaFeedItems = items.map(normalizeFeedPost);
-      _luminaFeedSource = "operations";
-      console.info(`[Lumina] 루미나 피드 운영 API 로드 ${items.length}건`);
-      return;
-    }
+    const res = await apiFetch("/api/v1/lumina-feed?mode=all&take=30", { throwOnError: true });
+    if (!current()) return;
+    _luminaFeedItems = feedResponseItems(res);
+    _luminaFeedSource = "operations";
+    return;
   } catch (err) {
-    console.warn("[Lumina] /lumina-feed 실패:", err && err.status);
+    if (!current()) return;
   }
 
   // #379 — 운영 API 실패 시 실서비스 피드처럼 노출되지 않게 한다.
@@ -488,14 +625,14 @@ function renderLuminaFeed() {
   if (visibleList.length === 0) {
     // #379 — 운영 API 실패 케이스(error)는 sample fallback 대신 명확한 안내로 분리한다.
     const emptyMsg = _luminaFeedSource === "error" || _luminaFeedSource === "following_error"
-      ? "피드 소식을 불러오지 못했어요. 잠시 후 다시 시도해 주세요."
+      ? feedT("feed.empty.error")
       : _luminaFeedSource === "following_guest"
-      ? "로그인하면 응원과 후기를 직접 남길 수 있어요. 팔로우한 아티스트의 소식도 이곳에 모입니다."
+      ? feedT("feed.empty.followingGuest")
       : query
-        ? "검색 결과가 없어요. 다른 이름이나 문장으로 다시 찾아볼까요?"
+        ? feedT("feed.empty.search")
       : (_luminaFeedFilter === "all" || _luminaFeedFilter === "following")
-        ? "아직 올라온 피드가 없어요. 첫 응원 글을 남기거나 팔로우한 아티스트의 소식을 기다려 주세요."
-        : "이 분류의 글이 아직 없어요. 다른 탭도 둘러봐 주세요.";
+        ? feedT("feed.empty.all")
+        : feedT("feed.empty.filter");
     root.innerHTML = `<div class="feed-empty">${emptyMsg}</div>`;
     return;
   }
@@ -668,15 +805,7 @@ function renderLuminaFeed() {
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 9l5-5m0 0v4m0-4h-4M10 15l-5 5m0 0v-4m0 4h4" stroke="currentColor" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M19 4l-7 7M5 20l7-7" stroke="currentColor" fill="none" stroke-width="1.6" stroke-linecap="round"/></svg>
               <span class="feed-action-btn-label">공유</span>
             </button>
-            ${(!isMineByViewer && (post.authorPublicHandle || post.authorUserId))
-              ? `<button class="feed-action-btn feed-block-btn" type="button"
-                    data-feed-block="${feedEscapeHtml(post.authorPublicHandle || String(post.authorUserId))}"
-                    data-feed-block-name="${feedEscapeHtml(authorName)}"
-                    aria-label="이 사용자 차단" title="이 사용자 차단">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M6 6l12 12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-              <span class="feed-action-btn-label">차단</span>
-            </button>`
-              : ""}
+            ${buildFeedBlockButton(post, authorName, isMineByViewer)}
             ${(!isMineByViewer && (post.authorPublicHandle || post.authorUserId))
               ? buildFeedReportButton(post.id || "")
               : ""}
@@ -735,7 +864,7 @@ function initLuminaFeedSidebar() {
   const nameEl = document.getElementById("feedSideName");
   const avatarEl = document.getElementById("feedSideAvatar");
   if (profileLink) profileLink.href = profileUrl;
-  if (nameEl) nameEl.textContent = me?.displayName || me?.email?.split("@")[0] || "내 프로필";
+  if (nameEl) nameEl.textContent = me?.displayName || me?.email?.split("@")[0] || feedT("feed.side.myProfile");
   if (avatarEl) {
     const initial = (me?.displayName || me?.email || "?").charAt(0);
     if (me?.avatarUrl) {
@@ -782,26 +911,32 @@ function bindLuminaFeedSearch() {
 }
 
 async function executeLuminaFeedSearch(query) {
+  if (feedReadsBlockedForViewer()) return;
   const q = String(query || "").trim();
   const seq = ++_luminaFeedSearchSeq;
+  const owner = feedViewerKey();
   if (!q) {
     await loadLuminaFeedData(_luminaFeedScope);
-    if (seq === _luminaFeedSearchSeq) renderLuminaFeed();
+    renderLuminaFeed();
     return;
   }
+  _feedListLoadSeq += 1;
   const type = q.startsWith("#") ? "hashtag" : "text";
   const language = feedLocaleToLanguage();
   try {
     const res = await apiFetch(`/api/v1/lumina-feed/search?q=${encodeURIComponent(q)}&type=${encodeURIComponent(type)}&language=${encodeURIComponent(language)}&take=30`, {
-      auth: typeof isLoggedIn === "function" && isLoggedIn()
+      auth: typeof isLoggedIn === "function" && isLoggedIn(), throwOnError: true
     });
-    if (seq !== _luminaFeedSearchSeq) return;
-    const items = Array.isArray(res) ? res : (res?.items || res?.posts || []);
-    _luminaFeedItems = Array.isArray(items) ? items.map(normalizeFeedPost) : [];
+    if (seq !== _luminaFeedSearchSeq || owner !== feedViewerKey()) return;
+    _luminaFeedItems = feedResponseItems(res);
     _luminaFeedSource = "search";
     renderLuminaFeed();
+    refreshLuminaFeedDiscoveryIfDue(FEED_DISCOVERY_SEARCH_REFRESH_MS);
   } catch (err) {
-    console.warn("[Lumina feed search] 실패, 로컬 필터 유지:", err?.status, err?.message);
+    if (seq !== _luminaFeedSearchSeq || owner !== feedViewerKey()) return;
+    _luminaFeedItems = [];
+    _luminaFeedSource = "error";
+    renderLuminaFeed();
   }
 }
 
@@ -830,48 +965,99 @@ function renderFeedTrendButtons(root, items, emptyText) {
     const keyword = item.keyword || item.normalizedKeyword || "";
     if (!keyword) return "";
     const count = item.searchCount ?? item.postCount ?? "";
+    const rank = Number(item.rank);
     return `<button class="feed-trend-item" type="button" data-feed-search-keyword="${feedEscapeHtml(keyword)}">
-      <span class="feed-trend-rank">${Number(item.rank || idx + 1)}</span>
+      <span class="feed-trend-rank">${Number.isInteger(rank) && rank > 0 ? rank : idx + 1}</span>
       <span class="feed-trend-keyword">${feedEscapeHtml(keyword)}</span>
-      ${count !== "" ? `<small>${Number(count).toLocaleString("ko-KR")}</small>` : ""}
+      ${count !== "" && Number.isFinite(Number(count)) ? `<small>${Number(count).toLocaleString(_currentLocale || "ko-KR")}</small>` : ""}
     </button>`;
   }).join("");
 }
 
-async function initLuminaFeedDiscovery() {
+function renderFeedDiscoveryStatus(root, phase, allLanguages = false) {
+  if (!root) return;
+  root.dataset.state = phase;
+  root.setAttribute("aria-busy", phase === "loading" ? "true" : "false");
+  const status = document.getElementById(root.id === "feedTrendList" ? "feedTrendStatus" : "feedHashtagStatus");
+  if (!status) return;
+  if (phase !== "ready") {
+    status.textContent = phase === "loading" ? feedT("feed.discovery.loading") : "";
+    return;
+  }
+  const time = new Intl.DateTimeFormat(_currentLocale || "ko-KR", { hour: "2-digit", minute: "2-digit" }).format(new Date());
+  status.textContent = (allLanguages ? feedT("feed.discovery.allLanguages") + " · " : "")
+    + feedText("feed.discovery.checkedAt", { time });
+}
+
+function feedDiscoveryItems(response, alternateKey) {
+  const items = Array.isArray(response) ? response : response?.items ?? response?.[alternateKey];
+  if (!Array.isArray(items)) throw new Error("Invalid discovery response");
+  return items;
+}
+
+function refreshLuminaFeedDiscoveryIfDue(minAge = FEED_DISCOVERY_REFRESH_MS) {
+  if (document.hidden) return;
+  if (_feedDiscoveryLastLocale === String(_currentLocale || "ko-KR") && _feedDiscoveryLastAttemptAt !== null
+      && Date.now() - _feedDiscoveryLastAttemptAt < minAge) return _feedDiscoveryFlight?.promise;
+  return initLuminaFeedDiscovery();
+}
+
+function bindFeedDiscoveryRefresh() {
+  if (_feedDiscoveryRefreshBound) return;
+  _feedDiscoveryRefreshBound = true;
+  if (typeof window.setInterval === "function") {
+    window.setInterval(() => refreshLuminaFeedDiscoveryIfDue(), FEED_DISCOVERY_REFRESH_MS);
+  }
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) refreshLuminaFeedDiscoveryIfDue();
+  });
+}
+
+function initLuminaFeedDiscovery() {
   const trendRoot = document.getElementById("feedTrendList");
   const hashtagRoot = document.getElementById("feedHashtagList");
   if (!trendRoot && !hashtagRoot) return;
+  const locale = String(_currentLocale || "ko-KR");
+  if (_feedDiscoveryFlight?.locale === locale) return _feedDiscoveryFlight.promise;
   bindFeedDiscoveryClicks();
+  bindFeedDiscoveryRefresh();
   const language = feedLocaleToLanguage();
   const localeLabel = document.getElementById("feedTrendLocaleLabel");
-  if (localeLabel) {
-    localeLabel.textContent = ({ ko: "한국어", ja: "日本語", en: "English", zh: "中文" })[language] || "전체";
-  }
-  try {
-    let res = await apiFetch(`/api/v1/lumina-feed/trending-searches?language=${encodeURIComponent(language)}&type=all&window=1h&take=10`);
-    let items = Array.isArray(res) ? res : (res?.items || res?.keywords || []);
-    if ((!items || items.length === 0) && language !== "all") {
-      res = await apiFetch("/api/v1/lumina-feed/trending-searches?language=all&type=all&window=1h&take=10");
-      items = Array.isArray(res) ? res : (res?.items || res?.keywords || []);
+  if (localeLabel) localeLabel.textContent = feedT("feed.discovery.locale");
+  const seq = ++_feedDiscoverySeq;
+  const flight = { locale, promise: null };
+  _feedDiscoveryFlight = flight;
+  _feedDiscoveryLastAttemptAt = Date.now();
+  _feedDiscoveryLastLocale = locale;
+  const current = () => seq === _feedDiscoverySeq && locale === String(_currentLocale || "ko-KR");
+  async function load(root, endpoint, alternateKey, emptyKey, errorKey) {
+    if (!root) return;
+    renderFeedTrendButtons(root, [], feedT("feed.discovery.loading"));
+    renderFeedDiscoveryStatus(root, "loading");
+    try {
+      const path = `/api/v1/lumina-feed/${endpoint}`;
+      let items = feedDiscoveryItems(await apiFetch(`${path}&language=${encodeURIComponent(language)}`, { throwOnError: true }), alternateKey);
+      if (!current()) return;
+      const allLanguages = items.length === 0 && language !== "all";
+      if (allLanguages) {
+        items = feedDiscoveryItems(await apiFetch(`${path}&language=all`, { throwOnError: true }), alternateKey);
+        if (!current()) return;
+      }
+      renderFeedTrendButtons(root, items, feedT(emptyKey));
+      renderFeedDiscoveryStatus(root, "ready", allLanguages);
+    } catch (_) {
+      if (!current()) return;
+      renderFeedTrendButtons(root, [], feedT(errorKey));
+      renderFeedDiscoveryStatus(root, "error");
     }
-    renderFeedTrendButtons(trendRoot, items, "아직 급상승 검색어가 없어요.");
-  } catch (err) {
-    console.warn("[Lumina feed trends] 실패:", err?.status, err?.message);
-    renderFeedTrendButtons(trendRoot, [], "급상승 검색어를 불러오지 못했어요.");
   }
-  try {
-    let res = await apiFetch(`/api/v1/lumina-feed/hashtags?language=${encodeURIComponent(language)}&window=24h&take=12`);
-    let items = Array.isArray(res) ? res : (res?.items || res?.hashtags || []);
-    if ((!items || items.length === 0) && language !== "all") {
-      res = await apiFetch("/api/v1/lumina-feed/hashtags?language=all&window=24h&take=12");
-      items = Array.isArray(res) ? res : (res?.items || res?.hashtags || []);
-    }
-    renderFeedTrendButtons(hashtagRoot, items, "아직 발견된 해시태그가 없어요.");
-  } catch (err) {
-    console.warn("[Lumina feed hashtags] 실패:", err?.status, err?.message);
-    renderFeedTrendButtons(hashtagRoot, [], "해시태그를 불러오지 못했어요.");
-  }
+  flight.promise = Promise.all([
+    load(trendRoot, "trending-searches?type=all&window=1h&take=10", "keywords", "feed.discovery.trendsEmpty", "feed.discovery.trendsError"),
+    load(hashtagRoot, "hashtags?window=24h&take=12", "hashtags", "feed.discovery.hashtagsEmpty", "feed.discovery.hashtagsError")
+  ]).finally(() => {
+    if (_feedDiscoveryFlight === flight) _feedDiscoveryFlight = null;
+  });
+  return flight.promise;
 }
 
 /* #145 — 피드 카드 팔로우 토글 (차모 spec)
@@ -1060,10 +1246,10 @@ function formatFeedUploadSize(bytes = 0) {
 
 function validateFeedComposeImage(file) {
   if (!FEED_ALLOWED_IMAGE_MIMES.includes(file.type)) {
-    return `${FEED_ALLOWED_IMAGE_LABEL} 파일만 첨부할 수 있어요.`;
+    return feedText("feed.upload.invalidType", { types: FEED_ALLOWED_IMAGE_LABEL });
   }
   if (file.size > FEED_COMPOSE_MAX_IMAGE_BYTES) {
-    return `이미지가 너무 큽니다. ${FEED_COMPOSE_MAX_IMAGE_MB}MB 이하 이미지를 올려주세요.`;
+    return feedText("feed.upload.tooLarge", { max: FEED_COMPOSE_MAX_IMAGE_MB });
   }
   return "";
 }
@@ -1089,73 +1275,76 @@ function feedAssetDisplayUrl(asset = {}, fallback = "") {
 function feedUploadErrorMessage(err, stage) {
   const msg = err?.body?.message || err?.message || "";
   const effectiveStage = stage || err?.stage || "";
-  if (err?.status === 401) return "로그인이 만료됐어요. 다시 로그인해주세요.";
+  if (err?.status === 401) return feedT("feed.upload.authExpired");
   if (/too large|payload|entity too large|file size|20MB/i.test(msg)) {
-    return `이미지가 너무 큽니다. ${FEED_COMPOSE_MAX_IMAGE_MB}MB 이하 이미지를 올려주세요.`;
+    return feedText("feed.upload.tooLarge", { max: FEED_COMPOSE_MAX_IMAGE_MB });
   }
   if (/unsupported|mime|file type|content-type/i.test(msg)) {
-    return `지원하지 않는 파일 형식이에요. ${FEED_ALLOWED_IMAGE_LABEL} 파일로 다시 올려주세요.`;
+    return feedText("feed.upload.unsupported", { types: FEED_ALLOWED_IMAGE_LABEL });
   }
   if (/offline|failed to fetch|network/i.test(msg) || (typeof navigator !== "undefined" && navigator.onLine === false)) {
-    return "인터넷 연결을 확인한 뒤 다시 시도해주세요.";
+    return feedT("feed.upload.network");
   }
   if (effectiveStage === "intent") {
-    return "업로드 준비에 실패했어요. 잠시 후 다시 시도해주세요.";
+    return feedT("feed.upload.intentError");
   }
   if (effectiveStage === "direct-upload") {
-    return "이미지 저장소 업로드에 실패했어요. 다시 시도해주세요.";
+    return feedT("feed.upload.directError");
   }
   if (effectiveStage === "confirm") {
-    return "업로드는 됐는데 확인 단계에서 실패했어요. 다시 시도해주세요.";
+    return feedT("feed.upload.confirmError");
   }
-  return "이미지를 업로드하지 못했어요. 잠시 후 다시 시도해주세요.";
+  return feedT("feed.upload.error");
 }
 
 function feedUploadShortLabel(stage) {
-  if (stage === "intent") return "준비 실패";
-  if (stage === "direct-upload") return "업로드 실패";
-  if (stage === "confirm") return "확인 실패";
-  return "업로드 실패";
+  if (stage === "intent") return feedT("feed.upload.intentShort");
+  if (stage === "confirm") return feedT("feed.upload.confirmShort");
+  return feedT("feed.upload.failedShort");
 }
 
 /* 피드 게시 실패 문구 매핑 — 비로그인/권한/네트워크/validation/용량/속도/서버 분기 */
-function feedComposeSubmitErrorMessage(err) {
+function feedComposeSubmitErrorKey(err) {
   const msg = err?.body?.message || err?.message || "";
   const status = err?.status;
   if (typeof navigator !== "undefined" && navigator.onLine === false) {
-    return "인터넷 연결을 확인한 뒤 다시 시도해주세요. 작성한 내용은 그대로 남아 있어요.";
+    return "feed.compose.error.offline";
   }
   if (status === 401) {
-    return "로그인이 만료됐어요. 다시 로그인하면 작성한 내용을 그대로 올릴 수 있어요.";
+    return "feed.compose.error.authExpired";
   }
   if (status === 403) {
-    return "지금은 이 글을 게시할 수 없어요. 권한 확인 후 다시 시도해주세요.";
+    return "feed.compose.error.forbidden";
   }
   if (status === 413 || /payload too large|entity too large|too large/i.test(msg)) {
-    return "내용 또는 첨부 파일이 너무 커요. 글자나 이미지를 줄인 뒤 다시 시도해주세요.";
+    return "feed.compose.error.tooLarge";
   }
   if (status === 429) {
-    return "너무 자주 게시하고 있어요. 잠시 후 다시 시도해주세요.";
+    return "feed.compose.error.rateLimit";
   }
   if (typeof status === "number" && status >= 500) {
-    return "서버 연결이 일시적으로 불안정해요. 잠시 후 다시 시도해주세요.";
+    return "feed.compose.error.server";
   }
   if (/too long/i.test(msg)) {
-    return `본문은 ${FEED_COMPOSE_MAX_BODY}자 이하로 작성해주세요.`;
+    return "feed.compose.error.bodyLimit";
   }
   if (/too short|empty|required/i.test(msg)) {
-    return "내용을 더 입력하거나 이미지를 추가해주세요.";
+    return "feed.compose.error.empty";
   }
   if (/policy violation|forbidden|profanity|disallowed|invalid/i.test(msg)) {
-    return "정책에 맞지 않는 표현이 있어요. 내용을 수정한 뒤 다시 시도해주세요.";
+    return "feed.compose.error.policy";
   }
   if (status === 400 || /validation|invalid body/i.test(msg)) {
-    return "내용을 다시 확인해 주세요. 일부 입력이 올바르지 않아요.";
+    return "feed.compose.error.validation";
   }
   if (/failed to fetch|network|timeout/i.test(msg)) {
-    return "네트워크가 불안정해요. 연결을 확인한 뒤 다시 시도해주세요.";
+    return "feed.compose.error.network";
   }
-  return "게시하지 못했어요. 잠시 후 다시 시도해주세요. 작성한 내용은 그대로 남아 있어요.";
+  return "feed.compose.error.generic";
+}
+
+function feedComposeSubmitErrorMessage(err) {
+  return feedText(feedComposeSubmitErrorKey(err), { max: FEED_COMPOSE_MAX_BODY });
 }
 
 function releaseFeedComposeAssetPreview(asset) {
@@ -1235,10 +1424,10 @@ function bindFeedComposeOnce() {
   const attachBtn = composeRoot.querySelector(".feed-compose-attach-btn");
   const attachLabel = attachBtn?.querySelector("span");
   if (attachBtn) {
-    attachBtn.title = `이미지 첨부 (${FEED_ALLOWED_IMAGE_LABEL}, 장당 ${FEED_COMPOSE_MAX_IMAGE_MB}MB 이하)`;
-    attachBtn.setAttribute("aria-label", `이미지 첨부. ${FEED_ALLOWED_IMAGE_LABEL}, 장당 ${FEED_COMPOSE_MAX_IMAGE_MB}MB 이하`);
+    attachBtn.title = feedText("feed.compose.attachDetails", { types: FEED_ALLOWED_IMAGE_LABEL, max: FEED_COMPOSE_MAX_IMAGE_MB });
+    attachBtn.setAttribute("aria-label", feedText("feed.compose.attachDetails", { types: FEED_ALLOWED_IMAGE_LABEL, max: FEED_COMPOSE_MAX_IMAGE_MB }));
   }
-  if (attachLabel) attachLabel.textContent = `이미지 · ${FEED_COMPOSE_MAX_IMAGE_MB}MB 이하`;
+  if (attachLabel) attachLabel.textContent = feedText("feed.compose.attachLabel", { max: FEED_COMPOSE_MAX_IMAGE_MB });
 
   // 글자수 + 제출 가능 여부
   const updateState = () => {
@@ -1253,9 +1442,9 @@ function bindFeedComposeOnce() {
       else if (len >= warnThreshold) state = "warn";
       counter.dataset.state = state;
       if (state === "danger") {
-        counter.setAttribute("title", `${effectiveMax}자까지 작성할 수 있어요. 더 쓰려면 줄여주세요.`);
+        counter.setAttribute("title", feedText("feed.compose.counterLimit", { max: effectiveMax }));
       } else if (state === "warn") {
-        counter.setAttribute("title", `${effectiveMax - len}자 남았어요.`);
+        counter.setAttribute("title", feedText("feed.compose.counterRemaining", { count: effectiveMax - len }));
       } else {
         counter.removeAttribute("title");
       }
@@ -1271,7 +1460,7 @@ function bindFeedComposeOnce() {
     const messageEl = document.getElementById("feedComposeMessage");
     if (overLimit && !_feedComposeThreadMode) {
       setFeedComposeMessage(
-        `${FEED_COMPOSE_MAX_BODY}자까지 입력할 수 있어요. 현재 글을 줄여주세요.`,
+        feedText("feed.compose.overLimit", { max: FEED_COMPOSE_MAX_BODY }),
         "warn",
         "thread-over-limit"
       );
@@ -1296,13 +1485,13 @@ function bindFeedComposeOnce() {
     if (files.length === 0) return;
 
     if (feedComposeHasPendingUpload()) {
-      setFeedComposeMessage("업로드 중인 이미지가 있어요. 잠시 후 다시 시도해주세요.", "warn");
+      setFeedComposeMessage(feedT("feed.compose.uploadPending"), "warn");
       return;
     }
 
     const remaining = FEED_COMPOSE_MAX_IMAGES - _feedComposeAssets.length;
     if (remaining <= 0) {
-      setFeedComposeMessage(`이미지는 최대 ${FEED_COMPOSE_MAX_IMAGES}장까지 첨부할 수 있어요.`, "warn");
+      setFeedComposeMessage(feedText("feed.compose.imageLimit", { max: FEED_COMPOSE_MAX_IMAGES }), "warn");
       return;
     }
 
@@ -1320,15 +1509,15 @@ function bindFeedComposeOnce() {
       dedupedAll.push(file);
     }
     if (duplicateCount > 0 && dedupedAll.length === 0) {
-      setFeedComposeMessage("이미 추가된 이미지예요.", "warn");
+      setFeedComposeMessage(feedT("feed.compose.duplicateImage"), "warn");
       return;
     }
 
     const accepted = dedupedAll.slice(0, remaining);
     if (duplicateCount > 0) {
-      setFeedComposeMessage(`중복된 ${duplicateCount}장은 빼고 ${accepted.length}장을 추가할게요.`, "info");
+      setFeedComposeMessage(feedText("feed.compose.duplicatesSkipped", { duplicate: duplicateCount, added: accepted.length }), "info");
     } else if (files.length > accepted.length) {
-      setFeedComposeMessage(`이미지는 최대 ${FEED_COMPOSE_MAX_IMAGES}장까지 첨부할 수 있어요. ${accepted.length}장만 추가했어요.`, "warn");
+      setFeedComposeMessage(feedText("feed.compose.imagesTrimmed", { max: FEED_COMPOSE_MAX_IMAGES, added: accepted.length }), "warn");
     }
 
     for (const file of accepted) {
@@ -1346,30 +1535,30 @@ function bindFeedComposeOnce() {
   submitBtn?.addEventListener("click", async () => {
     if (submitBtn.disabled) return;
     if (!isLoggedIn?.()) {
-      setFeedComposeMessage("로그인 후 작성할 수 있어요.", "warn");
+      setFeedComposeMessage(feedT("feed.compose.loginRequired"), "warn");
       return;
     }
     const rawBody = textarea?.value || "";
     const body = rawBody.trim();
     if (feedComposeHasPendingUpload()) {
-      setFeedComposeMessage("이미지 업로드가 끝난 뒤에 게시할 수 있어요.", "warn");
+      setFeedComposeMessage(feedT("feed.compose.waitForUpload"), "warn");
       return;
     }
     if (rawBody.length > FEED_COMPOSE_MAX_BODY) {
-      setFeedComposeMessage(`본문은 ${FEED_COMPOSE_MAX_BODY}자 이하로 작성해주세요. (현재 ${rawBody.length}자)`, "warn");
+      setFeedComposeMessage(feedText("feed.compose.bodyTooLong", { max: FEED_COMPOSE_MAX_BODY, count: rawBody.length }), "warn");
       return;
     }
     const doneAssets = feedComposeDoneAssets();
     const failedCount = _feedComposeAssets.filter(a => a.status === "failed").length;
     if (!body && doneAssets.length === 0) {
       const reason = failedCount > 0
-        ? "업로드에 실패한 이미지는 게시할 수 없어요. 다시 시도하거나 삭제해주세요."
-        : "내용 또는 이미지를 추가해주세요.";
+        ? feedT("feed.compose.failedImages")
+        : feedT("feed.compose.emptyBody");
       setFeedComposeMessage(reason, "warn");
       return;
     }
     submitBtn.disabled = true;
-    submitBtn.textContent = "게시 중";
+    submitBtn.textContent = feedT("feed.compose.submitting");
     try {
       const payload = { body };
       if (doneAssets.length > 0) {
@@ -1404,9 +1593,9 @@ function bindFeedComposeOnce() {
       // #333 — 직전 단문 본문을 캐시했다가 "이어서 쓰기" CTA에서 첫 조각으로 복원한다. 자동 분할은 하지 않는다.
       _feedComposeLastSubmittedBody = String(body || "");
       if (failedCount > 0) {
-        setFeedComposeMessage(`피드에 올라갔어요. 실패한 이미지 ${failedCount}장은 포함되지 않았어요.`, "success");
+        setFeedComposeMessage(feedText("feed.compose.partialSuccess", { count: failedCount }), "success");
       } else {
-        setFeedComposeMessage("피드에 올라갔어요.", "success");
+        setFeedComposeMessage(feedT("feed.compose.success"), "success");
       }
       updateState();
       // 피드 다시 로드
@@ -1414,9 +1603,9 @@ function bindFeedComposeOnce() {
       renderLuminaFeed();
     } catch (err) {
       console.warn("[#305 feed submit]", { status: err?.status || null });
-      setFeedComposeMessage(feedComposeSubmitErrorMessage(err), "warn");
+      setFeedComposeMessage(feedComposeSubmitErrorMessage(err), "warn", feedComposeSubmitErrorKey(err));
     } finally {
-      submitBtn.textContent = "게시하기";
+      submitBtn.textContent = feedT("feed.compose.submit");
       updateState();
     }
   });
@@ -1432,7 +1621,7 @@ function bindFeedComposeOnce() {
         const item = _feedComposeAssets[idx];
         if (item.status === "uploading") {
           // 진행 중인 업로드는 취소하지 않고 안내만 — assetId/네트워크 정합성 보호
-          setFeedComposeMessage("업로드가 끝난 뒤 삭제할 수 있어요.", "warn");
+          setFeedComposeMessage(feedT("feed.upload.removePending"), "warn");
           return;
         }
         _feedComposeAssets.splice(idx, 1);
@@ -1681,7 +1870,7 @@ function bindFeedComposeThreadMode(textarea, parentUpdateState) {
       renderLuminaFeed();
     } catch (err) {
       console.warn("[#309 thread submit]", { status: err?.status || null });
-      setFeedComposeMessage(feedComposeSubmitErrorMessage(err), "warn");
+      setFeedComposeMessage(feedComposeSubmitErrorMessage(err), "warn", feedComposeSubmitErrorKey(err));
     } finally {
       submitBtn.textContent = "타래 게시";
       updateThreadState();
@@ -1792,35 +1981,35 @@ function renderFeedComposeThumbs() {
   thumbs.innerHTML = _feedComposeAssets.map(asset => {
     const status = asset.status || "done";
     const localId = feedEscapeHtml(asset.localId || "");
-    const fileNameLabel = feedEscapeHtml(asset.fileName || "이미지");
+    const fileNameLabel = feedEscapeHtml(asset.fileName || feedT("feed.compose.image"));
     const previewSrc = feedEscapeHtml(asset.previewUrl || asset.localPreviewUrl || "");
     const localFallback = feedEscapeHtml(asset.localPreviewUrl || "");
-    const removeLabel = status === "uploading" ? "삭제(업로드 중)" : "이미지 삭제";
+    const removeLabel = status === "uploading" ? feedT("feed.upload.removeUploading") : feedT("feed.upload.remove");
     let overlay = "";
     if (status === "uploading") {
       overlay = `
         <div class="feed-compose-thumb-state" data-state="uploading" role="status" aria-live="polite">
           <span class="feed-compose-thumb-spinner" aria-hidden="true"></span>
-          <span class="feed-compose-thumb-state-label">업로드 중</span>
+          <span class="feed-compose-thumb-state-label">${feedEscapeHtml(feedT("feed.upload.uploading"))}</span>
         </div>`;
     } else if (status === "failed") {
-      const errorMessage = feedEscapeHtml(asset.errorMessage || "업로드 실패");
+      const errorMessage = feedEscapeHtml(asset.errorMessage || feedT("feed.upload.failedShort"));
       const shortLabel = feedEscapeHtml(feedUploadShortLabel(asset.stage));
       overlay = `
         <div class="feed-compose-thumb-state" data-state="failed" role="alert">
           <span class="feed-compose-thumb-state-label">${shortLabel}</span>
           <span class="feed-compose-thumb-state-detail">${errorMessage}</span>
-          <button type="button" class="feed-compose-thumb-retry" data-feed-thumb-retry="${localId}">다시 시도</button>
+          <button type="button" class="feed-compose-thumb-retry" data-feed-thumb-retry="${localId}">${feedEscapeHtml(feedT("feed.upload.retry"))}</button>
         </div>`;
     }
     const previewImg = previewSrc
       ? `<img src="${previewSrc}" data-local-src="${localFallback}" alt="${fileNameLabel}" onerror="if(this.dataset.localSrc&&this.src!==this.dataset.localSrc){this.src=this.dataset.localSrc;}else{this.parentElement.classList.add('is-broken');this.style.display='none';}" />`
-      : `<span class="feed-compose-thumb-fallback" aria-hidden="true">이미지</span>`;
+      : `<span class="feed-compose-thumb-fallback" aria-hidden="true">${feedEscapeHtml(feedT("feed.compose.image"))}</span>`;
     return `
       <div class="feed-compose-thumb" data-status="${status}" data-local-id="${localId}">
         ${previewImg}
         ${overlay}
-        <button type="button" class="feed-compose-thumb-remove" data-feed-thumb-remove="${localId}" aria-label="${removeLabel}">×</button>
+        <button type="button" class="feed-compose-thumb-remove" data-feed-thumb-remove="${localId}" aria-label="${feedEscapeHtml(removeLabel)}">×</button>
       </div>
     `;
   }).join("");
@@ -2081,12 +2270,7 @@ async function runFeedComposeUploadStages(item, onStateChange) {
             '<button class="feed-action-btn feed-share-btn" type="button" data-feed-share="' + postIdStr + '" aria-label="이 글 공유하기" title="이 글 공유하기">' +
               '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5" r="2.2" stroke="currentColor" fill="none" stroke-width="1.6"/><circle cx="6" cy="12" r="2.2" stroke="currentColor" fill="none" stroke-width="1.6"/><circle cx="18" cy="19" r="2.2" stroke="currentColor" fill="none" stroke-width="1.6"/><line x1="8.1" y1="10.9" x2="15.9" y2="6.1" stroke="currentColor" stroke-width="1.6"/><line x1="8.1" y1="13.1" x2="15.9" y2="17.9" stroke="currentColor" stroke-width="1.6"/></svg>' +
             '</button>' +
-            ((!isMineByViewer && (post.authorPublicHandle || post.authorUserId))
-              ? '<button class="feed-action-btn feed-block-btn" type="button" data-feed-block="' + feedEscapeHtml(post.authorPublicHandle || String(post.authorUserId)) + '" data-feed-block-name="' + feedEscapeHtml(authorName) + '" aria-label="이 사용자 차단" title="이 사용자 차단">' +
-                '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M6 6l12 12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>' +
-                '<span class="feed-action-btn-label">차단</span>' +
-              '</button>'
-              : '') +
+            buildFeedBlockButton(post, authorName, isMineByViewer) +
             ((!isMineByViewer && (post.authorPublicHandle || post.authorUserId)) ? buildFeedReportButton(post.id || "") : '') +
             editButton + deleteButton +
           '</div>' +
@@ -2096,9 +2280,13 @@ async function runFeedComposeUploadStages(item, onStateChange) {
   }
 
   async function openFeedPostDetail(postId, opts) {
+    if (feedReadsBlockedForViewer()) return;
     var targetId = String(postId || "");
     if (!targetId) return;
     var pushHistory = !opts || opts.pushHistory !== false;
+    var seq = ++_feedDetailLoadSeq;
+    var owner = feedViewerKey();
+    var current = () => seq === _feedDetailLoadSeq && owner === feedViewerKey() && _feedDetailOpen;
 
     var mainColumn = document.querySelector(".feed-main-column");
     var detailEl   = document.getElementById("feedPostDetail");
@@ -2126,6 +2314,7 @@ async function runFeedComposeUploadStages(item, onStateChange) {
           "/api/v1/lumina-feed/posts/" + encodeURIComponent(targetId),
           { auth: isAuth, throwOnError: true }
         );
+        if (!current()) return;
         var rawPost = res && (res.post || res.item || res.data || res);
         if (!rawPost || !rawPost.id) {
           detailEl.innerHTML = renderFeedDetailTombstone("unavailable");
@@ -2133,6 +2322,7 @@ async function runFeedComposeUploadStages(item, onStateChange) {
         }
         post = (typeof normalizeFeedPost === "function") ? normalizeFeedPost(rawPost) : rawPost;
       } catch (err) {
+        if (!current()) return;
         var status = err && err.status;
         if (status === 404 || status === 410) {
           detailEl.innerHTML = renderFeedDetailTombstone("deleted");
@@ -2145,6 +2335,7 @@ async function runFeedComposeUploadStages(item, onStateChange) {
       }
     }
 
+    if (!current()) return;
     detailEl.innerHTML = buildFeedDetailHTML(post);
     if (window.luminaI18n && typeof window.luminaI18n.apply === "function") {
       window.luminaI18n.apply(detailEl);
@@ -2156,6 +2347,7 @@ async function runFeedComposeUploadStages(item, onStateChange) {
   function closeFeedPostDetail(opts) {
     var pushHistory = !opts || opts.pushHistory !== false;
     _feedDetailOpen = false;
+    _feedDetailLoadSeq += 1;
     var mainColumn = document.querySelector(".feed-main-column");
     var detailEl   = document.getElementById("feedPostDetail");
     if (mainColumn) mainColumn.classList.remove("is-detail-open");
@@ -2199,6 +2391,48 @@ async function runFeedComposeUploadStages(item, onStateChange) {
   window.closeFeedPostDetail = closeFeedPostDetail;
   window.initFeedPostDetailFromURL = initFeedPostDetailFromURL;
   window.bindFeedPostDetailPopstate = bindFeedPostDetailPopstate;
+  window.feedReadsBlockedForViewer = feedReadsBlockedForViewer;
+  window.feedReportAvailable = feedReportAvailable;
+
+  let _feedLastViewerKey = feedViewerKey();
+  function clearFeedOnAccountChange() {
+    const owner = feedViewerKey();
+    if (owner === _feedLastViewerKey) return;
+    _feedLastViewerKey = owner;
+    if (!document.getElementById("luminaFeedList")) return;
+    invalidateFeedReads();
+    _luminaFeedItems = [];
+    _luminaFeedSource = "error";
+    closeProtectedFeedDetails();
+    renderLuminaFeed();
+    if (_luminaFeedQuery) executeLuminaFeedSearch(_luminaFeedQuery);
+    else loadLuminaFeedData(_luminaFeedScope).then(renderLuminaFeed);
+  }
+  window.addEventListener("lumina:authchange", clearFeedOnAccountChange);
+  window.addEventListener("lumina:auth-expired", clearFeedOnAccountChange);
+  window.addEventListener("storage", event => {
+    if (event.key === "lumina_auth" || event.key === null) clearFeedOnAccountChange();
+  });
+
+  window.addEventListener("lumina:localechange", () => {
+    if (!document.getElementById("luminaFeedList")) return;
+    renderLuminaFeed();
+    initLuminaFeedSidebar();
+    initLuminaFeedDiscovery();
+    const message = document.getElementById("feedComposeMessage");
+    if (message && !message.hidden && message.dataset.reason?.startsWith("feed.compose.error.")) {
+      message.textContent = feedText(message.dataset.reason, { max: FEED_COMPOSE_MAX_BODY });
+    }
+    const attachBtn = document.querySelector(".feed-compose-attach-btn");
+    if (attachBtn) {
+      const details = feedText("feed.compose.attachDetails", { types: FEED_ALLOWED_IMAGE_LABEL, max: FEED_COMPOSE_MAX_IMAGE_MB });
+      attachBtn.title = details;
+      attachBtn.setAttribute("aria-label", details);
+      const label = attachBtn.querySelector("span");
+      if (label) label.textContent = feedText("feed.compose.attachLabel", { max: FEED_COMPOSE_MAX_IMAGE_MB });
+    }
+    renderFeedComposeThumbs();
+  });
 
   // #358 — 타래 잇기 / 리포스트 / 공유 액션 핸들러. event delegation으로 동적 카드까지 커버한다.
   // 타래 append / repost submit은 #357 contract로 활성화했고, 공유는 Web Share/clipboard fallback으로 동작한다.
@@ -2430,18 +2664,23 @@ async function runFeedComposeUploadStages(item, onStateChange) {
     }
   }
 
+  var repostReturnFocus = null;
   function closeRepostModal() {
     var backdrop = document.getElementById("feedRepostBackdrop");
     var modal = document.getElementById("feedRepostModal");
+    if (!modal || modal.hidden) return;
     if (backdrop) backdrop.hidden = true;
     if (modal) { modal.hidden = true; modal.innerHTML = ""; modal.dataset.postId = ""; }
     document.body.classList.remove("is-feed-repost-open");
+    if (repostReturnFocus?.isConnected && typeof repostReturnFocus.focus === "function") repostReturnFocus.focus();
+    repostReturnFocus = null;
   }
 
   function openRepostModal(postInfo) {
     var backdrop = document.getElementById("feedRepostBackdrop");
     var modal = document.getElementById("feedRepostModal");
     if (!modal || !backdrop) return;
+    repostReturnFocus = document.activeElement;
     // #401 — 리포스트 모달 원글 참조: 본문이 길 때 160자에서 자르고 말줄임 처리.
     //         원글 전체는 "원글 보기 →" 링크로 접근. 민감값 기록 없음.
     var rawBody = postInfo.body || "";
@@ -2453,7 +2692,7 @@ async function runFeedComposeUploadStages(item, onStateChange) {
     modal.dataset.postId = postInfo.postId || "";
     modal.innerHTML =
       '<header class="feed-repost-head">' +
-        '<h2>리포스트</h2>' +
+        '<h2 id="feedRepostTitle">리포스트</h2>' +
         '<button type="button" class="feed-repost-close" aria-label="리포스트 창 닫기" data-feed-repost-close>×</button>' +
       '</header>' +
       '<div class="feed-repost-body">' +
@@ -2605,9 +2844,8 @@ async function runFeedComposeUploadStages(item, onStateChange) {
       var blockBtn = e.target.closest("[data-feed-block]");
       if (blockBtn) {
         e.preventDefault();
-        // #1018 — 사용자 차단 진입점. 실제 block mutation은 #1023 서버 계약 확정 전까지 실행하지 않음.
-        var blockName = blockBtn.getAttribute("data-feed-block-name") || "이 사용자";
-        window.alert(blockName + " 님을 차단하면 이 사용자의 글과 댓글이 내 피드와 팔로잉 목록에서 보이지 않아요.");
+        e.stopPropagation();
+        submitFeedUserBlock(blockBtn);
         return;
       }
     });
@@ -2617,6 +2855,20 @@ async function runFeedComposeUploadStages(item, onStateChange) {
       backdrop.addEventListener("click", closeRepostModal);
     }
     document.addEventListener("keydown", function (e) {
+      var modal = document.getElementById("feedRepostModal");
+      if (e.key === "Tab" && modal && !modal.hidden) {
+        var focusable = Array.from(modal.querySelectorAll('a[href], button:not([disabled]), textarea:not([disabled])'))
+          .filter(function (element) { return !element.hidden; });
+        if (focusable.length) {
+          var first = focusable[0];
+          var last = focusable[focusable.length - 1];
+          if (e.shiftKey && (document.activeElement === first || !modal.contains(document.activeElement))) {
+            e.preventDefault(); last.focus();
+          } else if (!e.shiftKey && (document.activeElement === last || !modal.contains(document.activeElement))) {
+            e.preventDefault(); first.focus();
+          }
+        }
+      }
       if (e.key === "Escape") closeRepostModal();
     });
   }

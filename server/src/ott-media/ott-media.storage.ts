@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash, randomUUID } from 'crypto';
-import { constants, createWriteStream } from 'fs';
-import { link, lstat, mkdir, open, realpath, unlink } from 'fs/promises';
+import { BigIntStats, constants, createWriteStream } from 'fs';
+import { FileHandle, link, lstat, mkdir, open, realpath, unlink } from 'fs/promises';
 import { dirname, isAbsolute, join, parse, resolve, sep } from 'path';
 import { Readable, Transform } from 'stream';
 import { pipeline } from 'stream/promises';
@@ -22,8 +22,27 @@ export abstract class OttObjectStorage {
   abstract open(id: string): Promise<StoredObject>;
 }
 
+type VerifiedFile = { sizeBytes: number; sha256: string; prefix: Buffer };
+type VerificationEntry = { identity: string; expiresAt: number; result: Promise<VerifiedFile> };
+const MAX_VERIFIED_FILES = 128;
+const VERIFICATION_TTL_MS = 5 * 60_000;
+
+function fileIdentity(info: BigIntStats) {
+  return [info.dev, info.ino, info.nlink, info.size, info.mode,
+    info.birthtimeNs, info.ctimeNs, info.mtimeNs].join(':');
+}
+
+function sameFile(before: BigIntStats, opened: BigIntStats) {
+  // Windows can report dev=0 for lstat while fstat identifies the volume.
+  return (before.dev === 0n || before.dev === opened.dev)
+    && before.ino === opened.ino && before.nlink === opened.nlink && before.size === opened.size
+    && before.mode === opened.mode && before.birthtimeNs === opened.birthtimeNs
+    && before.ctimeNs === opened.ctimeNs && before.mtimeNs === opened.mtimeNs;
+}
+
 @Injectable()
 export class PrivateLocalOttStorage extends OttObjectStorage {
+  private readonly verifiedFiles = new Map<string, VerificationEntry>();
   constructor(private readonly config: ConfigService) { super(); }
 
   assertAvailable() {
@@ -114,32 +133,51 @@ export class PrivateLocalOttStorage extends OttObjectStorage {
     uuid(id);
     const path = join(await this.root(), `${id}.mp4`);
     try {
-      const before = await lstat(path);
-      if (before.isSymbolicLink() || !before.isFile() || before.size < 16 || before.size > MAX_BYTES) fail('OBJECT_MISMATCH');
+      const before = await lstat(path, { bigint: true });
+      if (before.isSymbolicLink() || !before.isFile() || before.nlink !== 1n
+        || before.size < 16n || before.size > BigInt(MAX_BYTES)) fail('OBJECT_MISMATCH');
       const file = await open(path, constants.O_RDONLY | (constants.O_NOFOLLOW || 0));
       try {
-        const info = await file.stat();
-        // Windows lstat may report dev=0; the inode and checked real root still bind this open.
-        if (info.ino !== before.ino || (before.dev !== 0 && info.dev !== before.dev) || info.size !== before.size) fail('OBJECT_MISMATCH');
-        const hash = createHash('sha256');
-        let size = 0;
-        let prefix = Buffer.alloc(0);
-        for await (const part of file.createReadStream({ start: 0, autoClose: false, highWaterMark: 64 * 1024 })) {
-          const chunk = part as Buffer;
-          size += chunk.length;
-          if (size > before.size || size > MAX_BYTES) fail('OBJECT_MISMATCH');
-          if (!prefix.length) prefix = Buffer.from(chunk.subarray(0, 32));
-          hash.update(chunk);
+        const info = await file.stat({ bigint: true });
+        // The path and descriptor must name the same unchanged, single-link file.
+        if (!sameFile(before, info)) fail('OBJECT_MISMATCH');
+        const identity = fileIdentity(info);
+        let entry = this.verifiedFiles.get(path);
+        if (!entry || entry.identity !== identity || entry.expiresAt <= Date.now()) {
+          const result = this.hashOpenedFile(file, info, identity);
+          entry = { identity, expiresAt: Date.now() + VERIFICATION_TTL_MS, result };
+          this.verifiedFiles.set(path, entry);
+          if (this.verifiedFiles.size > MAX_VERIFIED_FILES) this.verifiedFiles.delete(this.verifiedFiles.keys().next().value!);
+          const current = entry;
+          void result.catch(() => { if (this.verifiedFiles.get(path) === current) this.verifiedFiles.delete(path); });
+        } else {
+          this.verifiedFiles.delete(path);
+          this.verifiedFiles.set(path, entry);
         }
-        const after = await file.stat();
-        if (size !== info.size || after.size !== info.size || after.mtimeMs !== info.mtimeMs || after.ctimeMs !== info.ctimeMs) fail('OBJECT_MISMATCH');
-        return { sizeBytes: size, sha256: hash.digest('hex'), prefix,
-          stream: (start = 0, end = size - 1) => file.createReadStream({ start, end, autoClose: false }),
+        const verified = await entry.result;
+        if (fileIdentity(await file.stat({ bigint: true })) !== identity) fail('OBJECT_MISMATCH');
+        return { sizeBytes: verified.sizeBytes, sha256: verified.sha256, prefix: Buffer.from(verified.prefix),
+          stream: (start = 0, end = verified.sizeBytes - 1) => file.createReadStream({ start, end, autoClose: false }),
           close: () => file.close() };
       } catch (error) { await file.close(); throw error; }
     } catch (error) {
       if (error && typeof error === 'object' && 'getStatus' in error) throw error;
       fail('STORAGE_UNAVAILABLE');
     }
+  }
+
+  protected async hashOpenedFile(file: FileHandle, info: BigIntStats, identity: string): Promise<VerifiedFile> {
+    const hash = createHash('sha256');
+    let size = 0;
+    let prefix = Buffer.alloc(0);
+    for await (const part of file.createReadStream({ start: 0, autoClose: false, highWaterMark: 64 * 1024 })) {
+      const chunk = part as Buffer;
+      size += chunk.length;
+      if (BigInt(size) > info.size || size > MAX_BYTES) fail('OBJECT_MISMATCH');
+      if (!prefix.length) prefix = Buffer.from(chunk.subarray(0, 32));
+      hash.update(chunk);
+    }
+    if (BigInt(size) !== info.size || fileIdentity(await file.stat({ bigint: true })) !== identity) fail('OBJECT_MISMATCH');
+    return { sizeBytes: size, sha256: hash.digest('hex'), prefix };
   }
 }

@@ -25,6 +25,8 @@ import {
 } from '../generation-profile/dto/creator-generation-profile.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { SEMANTIC_PIPELINE } from './story-semantic-analysis.types';
+import { assertStoryVisualSettings, publicationVisualReference, STORY_VISUAL_REVIEW_VERSION } from './story-approved-visual.policy';
+import { continuationGenerationProfileSnapshot } from './story-continuation-context.policy';
 
 const EVIDENCE_TYPES = [
   'scene',
@@ -57,24 +59,39 @@ export class StoryGenerationProfileService implements OnApplicationBootstrap {
   }
 
   private async approvePendingCompanyProfiles() {
-    const pending = await this.prisma.storyWorkGenerationProfile.findMany({
-      where: { status: 'needs_review' },
-      select: { workId: true, ownerUserId: true },
-      orderBy: { createdAt: 'asc' },
-      take: 100,
-    });
-    for (const profile of pending) {
-      try {
-        await this.autoApproveCompany(profile.ownerUserId, profile.workId);
-      } catch (error) {
-        this.logger.warn(`Company story profile recovery skipped ${profile.workId}: ${error instanceof Error ? error.name : 'unknown error'}`);
+    const batchSize = 100;
+    let after: { createdAt: Date; id: string } | null = null;
+    while (true) {
+      const pending: Array<{ id: string; createdAt: Date; workId: string; ownerUserId: string }> =
+        await this.prisma.storyWorkGenerationProfile.findMany({
+          where: {
+            status: 'needs_review',
+            ...(after ? { OR: [
+              { createdAt: { gt: after.createdAt } },
+              { createdAt: after.createdAt, id: { gt: after.id } },
+            ] } : {}),
+          },
+          select: { id: true, createdAt: true, workId: true, ownerUserId: true },
+          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+          take: batchSize,
+        });
+      for (const profile of pending) {
+        try {
+          await this.autoApproveCompany(profile.ownerUserId, profile.workId);
+        } catch (error) {
+          this.logger.warn(`Company story profile recovery skipped ${profile.workId}: ${error instanceof Error ? error.name : 'unknown error'}`);
+        }
       }
+      if (pending.length < batchSize) return;
+      const last = pending[pending.length - 1];
+      after = { createdAt: last.createdAt, id: last.id };
     }
   }
 
   async autoApproveCompany(userId: string, workId: string) {
     const source = await this.latestCompletedSource(userId, workId);
     return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw(Prisma.sql`SELECT id FROM story_works WHERE id = ${workId}::uuid FOR UPDATE`);
       const work = await tx.storyWork.findFirst({
         where: { id: workId, ownerUserId: userId },
         select: { authorDisplayName: true, fixtureSource: true },
@@ -97,12 +114,24 @@ export class StoryGenerationProfileService implements OnApplicationBootstrap {
           current.sourceFingerprint !== this.sourceFingerprint(source) || current.reviewRevision !== 0) return null;
       const draft = normalizeCreatorGenerationProfile('story', current.draftSettings);
       if (draft.sections.some((section) => section.decision !== 'proposed')) return null;
+      const style = draft.sections.find((section) => section.key === 'writing_style');
+      const styleEvidenceIds = Array.isArray(style?.value.observations)
+        ? style.value.observations.flatMap((item) => {
+          const ref = this.record(item).sourceRef;
+          return typeof ref === 'string' && /^analysis:[0-9a-f-]{36}$/i.test(ref) ? [ref.slice(9)] : [];
+        }) : [];
+      if (!styleEvidenceIds.length || !await tx.storyAnalysisEvidence.findFirst({
+        where: { id: { in: styleEvidenceIds }, analysisJobId: source.analysis.id,
+          provenance: 'semantic_candidate', evidenceType: 'style' }, select: { id: true },
+      })) return null;
       const settings = normalizeCreatorGenerationProfile('story', {
         ...draft,
         sections: draft.sections.map((section) => ({ ...section, decision: 'accepted' })),
       });
       assertCreatorGenerationProfileApprovable(settings);
+      assertStoryVisualSettings(settings);
       const fingerprint = creatorGenerationProfileFingerprint(current.sourceFingerprint, settings);
+      this.assertGenerationContextFits(current, settings, fingerprint);
       const updated = await tx.storyWorkGenerationProfile.updateMany({
         where: { id: current.id, status: 'needs_review', sourceFingerprint: current.sourceFingerprint,
           draftFingerprint: current.draftFingerprint, reviewRevision: 0 },
@@ -112,6 +141,7 @@ export class StoryGenerationProfileService implements OnApplicationBootstrap {
           reviewRevision: { increment: 1 }, updatedAt: new Date() },
       });
       if (updated.count !== 1) return null;
+      await this.invalidateOlderWorkSnapshots(tx, userId, workId);
       const approved = await tx.storyWorkGenerationProfile.findUniqueOrThrow({ where: { id: current.id } });
       const approvedMemoryCount = await this.persistApprovedMemories(tx, source, approved.id, settings);
       await tx.auditEvent.create({ data: { actorUserId: userId, actorType: 'system',
@@ -201,6 +231,7 @@ export class StoryGenerationProfileService implements OnApplicationBootstrap {
       sourceFingerprint, profileVersion: (current?.profileVersion ?? 0) + 1,
       status: 'needs_review', draftSettings: settings as unknown as Prisma.InputJsonValue, draftFingerprint,
     } });
+    await this.invalidateOlderWorkSnapshots(tx, userId, workId);
     await tx.auditEvent.create({ data: {
       actorUserId: created.ownerUserId, actorType: 'system',
       action: 'story_generation_profile.analysis_draft_created',
@@ -215,6 +246,7 @@ export class StoryGenerationProfileService implements OnApplicationBootstrap {
     const settings = normalizeCreatorGenerationProfile('story', input.settings);
     const source = await this.latestCompletedSource(userId, workId);
     return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw(Prisma.sql`SELECT id FROM story_works WHERE id = ${workId}::uuid FOR UPDATE`);
       const current = await tx.storyWorkGenerationProfile.findFirst({
         where: { workId },
         orderBy: { profileVersion: 'desc' },
@@ -225,6 +257,29 @@ export class StoryGenerationProfileService implements OnApplicationBootstrap {
           message: 'Load the latest manuscript analysis before saving the profile',
         });
       }
+      const previous = normalizeCreatorGenerationProfile('story', current.draftSettings);
+      for (const section of settings.sections) {
+        const visualControlsReviewed = section.value.visualReviewVersion === STORY_VISUAL_REVIEW_VERSION;
+        // This request marker must not survive into an older client's next read.
+        if (section.key === 'visual_direction' || section.key === 'visual_cast') delete section.value.visualReviewVersion;
+        const prior = previous.sections.find(item => item.key === section.key);
+        if (section.decision !== 'edited' || !prior || section.value.summary === prior.value.summary) continue;
+        // A summary-only correction supersedes untouched AI interpretations.
+        // Explicitly replaced observations and their source evidence remain valid.
+        for (const field of ['observations', 'categories']) {
+          if (Array.isArray(section.value[field]) &&
+              stableJson(section.value[field]) === stableJson(prior.value[field])) section.value[field] = [];
+        }
+        // Older summary-only clients cannot silently retain unshown visual anchors.
+        if (!visualControlsReviewed) {
+          for (const field of ['visualBible', 'characters']) {
+            if (section.value[field] !== undefined && stableJson(section.value[field]) === stableJson(prior.value[field])) {
+              delete section.value[field];
+            }
+          }
+        }
+      }
+      assertStoryVisualSettings(settings);
       const draftFingerprint = creatorGenerationProfileFingerprint(current.sourceFingerprint, settings);
       const data = {
         status: 'needs_review',
@@ -249,10 +304,11 @@ export class StoryGenerationProfileService implements OnApplicationBootstrap {
             },
           })
         : await tx.storyWorkGenerationProfile.update({ where: { id: current.id }, data });
+      await this.invalidateOlderWorkSnapshots(tx, userId, workId);
       await tx.auditEvent.create({
         data: {
           actorUserId: userId,
-          actorType: 'creator',
+          actorType: 'user',
           action: 'story_generation_profile.draft_saved',
           targetType: 'story_work_generation_profile',
           targetId: profile.id,
@@ -276,6 +332,7 @@ export class StoryGenerationProfileService implements OnApplicationBootstrap {
   async approve(userId: string, workId: string, input: ApproveCreatorGenerationProfileDto) {
     const source = await this.latestCompletedSource(userId, workId);
     return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw(Prisma.sql`SELECT id FROM story_works WHERE id = ${workId}::uuid FOR UPDATE`);
       const current = await tx.storyWorkGenerationProfile.findFirst({
         where: { workId },
         orderBy: { profileVersion: 'desc' },
@@ -294,6 +351,8 @@ export class StoryGenerationProfileService implements OnApplicationBootstrap {
       }
       const settings = normalizeCreatorGenerationProfile('story', current.draftSettings);
       assertCreatorGenerationProfileApprovable(settings);
+      assertStoryVisualSettings(settings);
+      this.assertGenerationContextFits(current, settings, creatorGenerationProfileFingerprint(current.sourceFingerprint, settings));
       const updated = await tx.storyWorkGenerationProfile.updateMany({
         where: {
           id: current.id,
@@ -317,12 +376,13 @@ export class StoryGenerationProfileService implements OnApplicationBootstrap {
           message: 'Review the latest generation profile before approval',
         });
       }
+      await this.invalidateOlderWorkSnapshots(tx, userId, workId);
       const profile = await tx.storyWorkGenerationProfile.findUniqueOrThrow({ where: { id: current.id } });
       const approvedMemoryCount = await this.persistApprovedMemories(tx, source, profile.id, settings);
       await tx.auditEvent.create({
         data: {
           actorUserId: userId,
-          actorType: 'creator',
+          actorType: 'user',
           action: 'story_generation_profile.approved',
           targetType: 'story_work_generation_profile',
           targetId: profile.id,
@@ -340,6 +400,15 @@ export class StoryGenerationProfileService implements OnApplicationBootstrap {
     });
   }
 
+  private async invalidateOlderWorkSnapshots(tx: Prisma.TransactionClient, userId: string, workId: string) {
+    // A row lock alone cannot invalidate a Serializable snapshot waiting on a newly inserted profile.
+    const changed = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      UPDATE story_works SET updated_at = CURRENT_TIMESTAMP
+      WHERE id = ${workId}::uuid AND owner_user_id = ${userId}::uuid RETURNING id
+    `);
+    if (!changed.length) throw new NotFoundException('Story work not found');
+  }
+
   private async persistApprovedMemories(
     tx: Prisma.TransactionClient,
     source: Awaited<ReturnType<StoryGenerationProfileService['latestCompletedSource']>>,
@@ -347,6 +416,7 @@ export class StoryGenerationProfileService implements OnApplicationBootstrap {
     settings: CreatorGenerationProfileSettings,
   ) {
     const sectionTypes: Record<string, string[]> = {
+      writing_style: ['style'],
       canon: ['entity', 'background'],
       timeline: ['event'],
       narrative_devices: ['foreshadow', 'payoff'],
@@ -377,7 +447,8 @@ export class StoryGenerationProfileService implements OnApplicationBootstrap {
         return [{ row, detail, title: this.text(observation.title, 80) }];
       });
       for (const { row, detail, title } of this.spread(valid, 6)) {
-        const memoryType = section.key === 'canon' ? 'entity' : section.key === 'timeline' ? 'event' : 'foreshadow';
+        const memoryType = section.key === 'writing_style' ? 'style'
+          : section.key === 'canon' ? 'entity' : section.key === 'timeline' ? 'event' : 'foreshadow';
         memories.push({
           workId: source.work.id,
           analysisJobId: source.analysis.id,
@@ -445,26 +516,11 @@ export class StoryGenerationProfileService implements OnApplicationBootstrap {
   }
 
   private async settingsFromAnalysis(
-    db: Pick<Prisma.TransactionClient, 'storyAnalysisEvidence'>,
+    db: Pick<Prisma.TransactionClient, 'storyAnalysisEvidence' | '$queryRaw'>,
     analysisJobId: string,
-    manuscript: { id: string; version: number; locale: string; structuredBody: Prisma.JsonValue },
+    manuscript: { id: string; version: number; locale: string; contentHash?: string; structuredBody: Prisma.JsonValue },
   ): Promise<CreatorGenerationProfileSettings> {
-    const rows = await db.storyAnalysisEvidence.findMany({
-      where: {
-        analysisJobId,
-        provenance: 'semantic_candidate',
-        evidenceType: { in: [...EVIDENCE_TYPES] },
-      },
-      orderBy: [{ sequence: 'asc' }, { id: 'asc' }],
-      select: {
-        id: true,
-        evidenceType: true,
-        sourcePartKey: true,
-        sourceParagraphIndex: true,
-        payload: true,
-      },
-      take: 5000,
-    });
+    const rows = await this.profileEvidence(db, analysisJobId);
     if (!rows.length) {
       throw new ServiceUnavailableException({
         code: 'GENERATION_PROFILE_ANALYSIS_EVIDENCE_MISSING',
@@ -539,7 +595,63 @@ export class StoryGenerationProfileService implements OnApplicationBootstrap {
         }),
       ],
     };
+    const reference = publicationVisualReference(manuscript.structuredBody, manuscript.contentHash);
+    const direction = settings.sections.find(item => item.key === 'visual_direction')!;
+    const cast = settings.sections.find(item => item.key === 'visual_cast')!;
+    const bible = reference?.bible;
+    direction.value.visualBible = { era: bible?.era ?? '', artStyle: bible?.artStyle ?? '',
+      palette: bible?.palette ?? '', prohibited: bible?.prohibited ?? [] };
+    cast.value.characters = bible?.characters ?? [];
+    if (bible && reference) {
+      for (const item of [direction, cast]) {
+        item.value.sourceVisualChecksum = reference.checksum;
+        item.evidence.unshift({ sourceType: 'visual', sourceRef: `publication-visual:${reference.checksum}`,
+          summary: item.key === 'visual_direction'
+            ? [bible.era, bible.artStyle, bible.palette].filter(Boolean).join(' / ').slice(0, 1000)
+            : bible.characters.map(character => character.name).join(', ').slice(0, 1000) });
+        item.evidence = item.evidence.slice(0, 20);
+      }
+    }
+    assertStoryVisualSettings(settings);
     return normalizeCreatorGenerationProfile('story', settings);
+  }
+
+  private async profileEvidence(
+    db: Pick<Prisma.TransactionClient, 'storyAnalysisEvidence' | '$queryRaw'>,
+    analysisJobId: string,
+  ): Promise<ProfileEvidenceRow[]> {
+    const where: Prisma.StoryAnalysisEvidenceWhereInput = {
+      analysisJobId, provenance: 'semantic_candidate', evidenceType: { in: [...EVIDENCE_TYPES] },
+    };
+    const select = {
+      id: true, evidenceType: true, sourcePartKey: true, sourceParagraphIndex: true, payload: true,
+    } as const;
+    const orderBy = [{ sequence: 'asc' as const }, { id: 'asc' as const }];
+    const total = await db.storyAnalysisEvidence.count({ where });
+    if (total <= 5000) {
+      return db.storyAnalysisEvidence.findMany({ where, orderBy, select, take: 5000 });
+    }
+
+    // One bounded query keeps finalization inside its short transaction while covering late parts.
+    return db.$queryRaw<ProfileEvidenceRow[]>(Prisma.sql`
+      WITH ranked AS (
+        SELECT id, evidence_type,
+          ROW_NUMBER() OVER (PARTITION BY evidence_type ORDER BY evidence_sequence ASC NULLS LAST, id) AS ordinal,
+          COUNT(*) OVER (PARTITION BY evidence_type) AS type_count
+        FROM story_analysis_evidence
+        WHERE analysis_job_id = ${analysisJobId}::uuid AND provenance = 'semantic_candidate'
+          AND evidence_type IN (${Prisma.join([...EVIDENCE_TYPES])})
+      ), sampled AS (
+        SELECT id, evidence_type, ordinal FROM ranked
+        WHERE type_count <= 250 OR ordinal = 1 OR ordinal = type_count
+          OR MOD(ordinal - 1, GREATEST(1, CEIL((type_count - 1)::numeric / 249)::bigint)) = 0
+      )
+      SELECT evidence.id, evidence.evidence_type AS "evidenceType",
+        evidence.source_part_key AS "sourcePartKey",
+        evidence.source_paragraph_index AS "sourceParagraphIndex", evidence.payload
+      FROM sampled JOIN story_analysis_evidence AS evidence ON evidence.id = sampled.id
+      ORDER BY sampled.evidence_type, sampled.ordinal
+    `);
   }
 
   private project(
@@ -562,6 +674,17 @@ export class StoryGenerationProfileService implements OnApplicationBootstrap {
       },
       profile: creatorGenerationProfileProjection(profile),
     };
+  }
+
+  private assertGenerationContextFits(profile: { id: string; profileVersion: number; reviewRevision: number;
+    sourceFingerprint: string }, settings: CreatorGenerationProfileSettings, fingerprint: string) {
+    try {
+      continuationGenerationProfileSnapshot({ ...profile, reviewRevision: profile.reviewRevision + 1,
+        status: 'approved', approvedSettings: settings as unknown as Prisma.JsonValue, approvedFingerprint: fingerprint });
+    } catch {
+      throw new ConflictException({ code: 'GENERATION_PROFILE_CONTEXT_INVALID',
+        message: 'The reviewed settings must fit the complete generation context before approval' });
+    }
   }
 
   private sourceFingerprint(source: Awaited<ReturnType<StoryGenerationProfileService['latestCompletedSource']>>) {

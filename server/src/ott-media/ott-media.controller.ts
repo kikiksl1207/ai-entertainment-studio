@@ -84,7 +84,7 @@ export class OttMediaBrowserController {
   }
 }
 
-async function streamResponse(media: StoredObject, range: string | undefined, response: ServerResponse) {
+export async function streamResponse(media: StoredObject, range: string | undefined, response: ServerResponse) {
   try {
       response.setHeader('Cache-Control', 'private, no-store');
       response.setHeader('Vary', 'Origin, Authorization, Cookie');

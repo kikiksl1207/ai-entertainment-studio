@@ -17,6 +17,7 @@ function database() {
   let revision = 0;
   const rows: any[] = [];
   const branchRows: any[] = [];
+  const analysisRows: any[] = [];
   const query = jest.fn(async (_sql?: unknown) => owner === userId ? [{ id: workId }] : []);
   const ownerRead = jest.fn(async ({ where }: any) => where.id === workId && where.ownerUserId === owner ? { id: workId } : null);
   const prisma = {
@@ -27,6 +28,7 @@ function database() {
       const seen = revision;
       const staged = rows.map(row => ({ ...row }));
       const stagedBranches = branchRows.map(row => ({ ...row }));
+      const stagedAnalyses = analysisRows.map(row => ({ ...row }));
       const tx = { $queryRaw: query, storyWork: { findFirst: ownerRead }, storyManuscriptVersion: {
         findUnique: jest.fn(async ({ where }: any) => staged.find(r => r.workId === where.workId_contentHash.workId && r.contentHash === where.workId_contentHash.contentHash) ?? null),
         findFirst: jest.fn(async () => [...staged].sort((a, b) => b.version - a.version)[0] ?? null),
@@ -39,15 +41,21 @@ function database() {
           if (branchFailure) throw new Error('PRIVATE-SYNTHETIC-BODY');
           stagedBranches.push(...data); return { count: data.length };
         }),
+      }, storyAnalysisJob: {
+        create: jest.fn(async ({ data }: any) => {
+          const row = { ...data, id: `analysis-${stagedAnalyses.length + 1}` };
+          stagedAnalyses.push(row); return row;
+        }),
       } };
       const result = await action(tx);
       if (seen !== revision) throw { code: 'P2034' };
       rows.splice(0, rows.length, ...staged); revision++;
       branchRows.splice(0, branchRows.length, ...stagedBranches);
+      analysisRows.splice(0, analysisRows.length, ...stagedAnalyses);
       return result;
     }),
   };
-  return { prisma, rows, branchRows, query, ownerRead,
+  return { prisma, rows, branchRows, analysisRows, query, ownerRead,
     failBranches: () => { branchFailure = true; },
     transfer: () => { owner = 'other'; revision++; }, missing: () => { owner = null; } };
 }
@@ -318,5 +326,46 @@ describe('atomic complete manuscript version store', () => {
     await expect(storeManuscriptVersion(db.prisma as never, userId, workId, input())).rejects.toMatchObject({ status: 503 });
     expect(db.rows).toHaveLength(0);
     expect(db.branchRows).toHaveLength(0);
+  });
+
+  it('commits upload and analysis together, then reuses the version after a failed admission', async () => {
+    const db = database();
+    const interrupted = async (tx: any, manuscriptId: string) => {
+      await tx.storyAnalysisJob.create({ data: { manuscriptVersionId: manuscriptId } });
+      throw new Error('simulated queue interruption');
+    };
+    await expect(storeManuscriptVersion(db.prisma as never, userId, workId, input(), interrupted))
+      .rejects.toMatchObject({ status: 503 });
+    expect(db.rows).toHaveLength(0);
+    expect(db.branchRows).toHaveLength(0);
+    expect(db.analysisRows).toHaveLength(0);
+
+    const admit = async (tx: any, manuscriptId: string) => {
+      const job = db.analysisRows[0] ?? await tx.storyAnalysisJob.create({ data: { manuscriptVersionId: manuscriptId } });
+      return { analysisStarted: true, analysisJobId: job.id };
+    };
+    const first = await storeManuscriptVersion(db.prisma as never, userId, workId, input(), admit);
+    const replay = await storeManuscriptVersion(db.prisma as never, userId, workId, input(), admit);
+    expect(first.analysisStarted).toBe(true);
+    expect(replay).toMatchObject({ idempotentReplay: true, analysisJobId: first.analysisJobId });
+    expect(db.rows).toHaveLength(1);
+    expect(db.branchRows).toHaveLength(1);
+    expect(db.analysisRows).toHaveLength(1);
+  });
+
+  it('retries a serialization conflict from the analysis admission before commit', async () => {
+    const db = database();
+    let attempts = 0;
+    const admit = async (tx: any, manuscriptId: string) => {
+      if (attempts++ === 0) throw { code: 'P2034' };
+      const job = await tx.storyAnalysisJob.create({ data: { manuscriptVersionId: manuscriptId } });
+      return { analysisStarted: true, analysisJobId: job.id };
+    };
+    const receipt = await storeManuscriptVersion(db.prisma as never, userId, workId, input(), admit);
+    expect(attempts).toBe(2);
+    expect(receipt.analysisStarted).toBe(true);
+    expect(db.rows).toHaveLength(1);
+    expect(db.branchRows).toHaveLength(1);
+    expect(db.analysisRows).toHaveLength(1);
   });
 });

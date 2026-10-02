@@ -9,7 +9,11 @@ test('public OTT surface is separate and never links owner-private playback', ()
   const script = read('pages/ott.js');
   assert.match(html, /href="\/ott"/);
   assert.match(script, /\/api\/v1\/ott/);
-  assert.doesNotMatch(`${html}\n${script}`, /me\/ott-media|ott-private-preview|playback-session|private-files|storageKey|fileId/);
+  assert.doesNotMatch(`${html}\n${script}`, /me\/ott-media|ott-private-preview|private-files|storageKey|fileId/);
+  assert.match(script, /credentials: "include"/);
+  assert.match(script, /demoVideo\.crossOrigin = "use-credentials"/);
+  assert.match(script, /node\.choices\.length > 3/);
+  assert.match(script, /label\.textContent = choice\.label/);
   assert.match(script, /viewing|감상 이용은 제공되지 않습니다/);
   assert.match(html, /<video id="ottDemoVideo" playsinline webkit-playsinline/);
   assert.doesNotMatch(html, /<video id="ottDemoVideo" controls/);
@@ -29,6 +33,22 @@ test('joker demo has one common clip, two playable endings, and no third branch'
     assert.ok(statSync(new URL(`../assets/ott/joker-choice/${file}`, import.meta.url)).size > 0, file);
     assert.match(script, new RegExp(file.replace('.', '\\.')));
   }
+});
+
+test('public player keeps recovery actions when choices or branch playback fail', () => {
+  const html = read('ott/index.html');
+  const script = read('pages/ott.js');
+  for (const id of ['ottNoChoices', 'ottChoiceBack', 'ottRestart', 'ottErrorChoices']) {
+    assert.match(html, new RegExp(`id="${id}"`));
+  }
+  assert.match(script, /restart\.hidden = false/);
+  assert.match(script, /choiceBack\.addEventListener\("click", \(\) => backToList\.click\(\)\)/);
+  assert.match(script, /errorChoices\.hidden = currentClip === "common"/);
+  assert.match(script, /errorChoices\.addEventListener\("click", \(\) => \{/);
+  assert.match(script, /focusAvailableChoice\(\)/);
+  assert.match(script, /!button\.hidden && !button\.disabled/);
+  assert.match(script, /contentLength === null \|\| Number\(contentLength\) > 0/);
+  assert.doesNotMatch(script, /Number\(response\.headers\.get\("content-length"\)\) > 0/);
 });
 
 test('home and primary mobile surfaces expose the canonical six-item discovery order', () => {

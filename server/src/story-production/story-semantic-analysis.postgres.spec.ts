@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { PrismaClient, type StoryAnalysisJob } from '@prisma/client';
 import { randomUUID } from 'crypto';
+import { readFileSync } from 'fs';
 import { SemanticAnalysisRepository } from './story-semantic-analysis.repository';
 import { SemanticAnalysisService } from './story-semantic-analysis.service';
 import { SemanticAnalysisProvider } from './story-semantic-analysis.provider';
@@ -11,6 +12,7 @@ import { SEMANTIC_PACKING_PROFILE, semanticPinHash, semanticPins, semanticReserv
 import type { SemanticInput } from './story-semantic-analysis.types';
 import { nextSourceChunk, sourceParts } from './story-semantic-analysis.source';
 import { preparePastedManuscript, storedManuscriptBody } from './story-manuscript-file.policy';
+import type { CreatorGenerationProfileSettings } from '../generation-profile/creator-generation-profile.policy';
 
 const url = process.env.STORY_ANALYSIS_TEST_DATABASE_URL;
 const postgres = url ? describe : describe.skip;
@@ -67,18 +69,21 @@ postgres('Semantic analysis durable pipeline (isolated PostgreSQL, fake transpor
   async function clearFixtures() {
     const database = await db.$queryRaw<Array<{ name: string }>>`SELECT current_database() AS name`;
     if (database[0]?.name !== 'lumina_analysis_packing_qa') throw new Error('Dedicated QA cleanup required');
-    // Append-only history deliberately rejects DELETE. TRUNCATE is limited to
-    // this dedicated disposable database and never changes production triggers.
-    await db.$executeRaw`TRUNCATE TABLE story_continuity_decision_audits,
-      story_continuity_issue_evidence, story_continuity_entry_evidence,
-      story_continuity_path_states, story_continuity_issues, story_continuity_entries,
-      story_analysis_evidence, story_analysis_chunks, story_analysis_jobs,
-      story_manuscript_versions, story_works, story_ai_rate_cards, users CASCADE`;
+    // Only fixture cleanup bypasses append-only and canonical TRUNCATE guards.
+    // SET LOCAL expires with this transaction; every assertion runs with triggers enabled.
+    await db.$transaction(async (tx) => {
+      await tx.$executeRaw`SET LOCAL session_replication_role = replica`;
+      await tx.$executeRaw`TRUNCATE TABLE story_continuity_decision_audits,
+        story_continuity_issue_evidence, story_continuity_entry_evidence,
+        story_continuity_path_states, story_continuity_issues, story_continuity_entries,
+        story_analysis_evidence, story_analysis_chunks, story_analysis_jobs,
+        story_manuscript_versions, story_works, story_ai_rate_cards, users CASCADE`;
+    }, { timeout: 30_000 });
   }
   afterEach(async () => {
     jest.restoreAllMocks();
     await clearFixtures();
-  });
+  }, 35_000);
   afterAll(async () => { await left?.$disconnect(); await right?.$disconnect(); await db?.$disconnect(); });
 
   const enqueue = (service = a, key = randomUUID()) => service.enqueue(owner, manuscriptId, key);
@@ -110,6 +115,67 @@ postgres('Semantic analysis durable pipeline (isolated PostgreSQL, fake transpor
     await db.$executeRaw`UPDATE story_analysis_jobs SET lease_expires_at=clock_timestamp()-interval '1 second' WHERE id=${id}::uuid`;
   }
 
+  async function failedProfileFinalization() {
+    const job = await enqueue();
+    await until(job.id, value => value.phase === 'finalizing');
+    const failure = jest.spyOn(profilesA, 'createDraftAtCompletion').mockRejectedValue(new Error('Synthetic local draft failure'));
+    for (let i = 0; i < 8 && (await row(job.id)).status !== 'failed'; i++)
+      await a.executeOne('offline-profile-failure');
+    failure.mockRestore();
+    const failed = await row(job.id);
+    expect(failed).toMatchObject({ status: 'failed', phase: 'finalizing', errorCode: 'analysis_profile_draft_unavailable' });
+    return failed;
+  }
+
+  it('recovers profile finalization once under concurrent author requests with no new provider call', async () => {
+    const failed = await failedProfileFinalization();
+    const callsBefore = transport.mock.calls.length;
+    // Local finalization is possible even when the provider has been disabled.
+    services({ enabled: false, apiKey: '' });
+    const results = await Promise.all([
+      a.recoverProfile(owner, failed.id, failed.sourceContentHash!),
+      b.recoverProfile(owner, failed.id, failed.sourceContentHash!),
+    ]);
+    expect(results.every(result => result.status === 'completed' && result.approval === 'not_approved')).toBe(true);
+    expect(transport).toHaveBeenCalledTimes(callsBefore);
+    const completed = await row(failed.id);
+    expect(completed.actualCostKrw?.equals(failed.observedCostKrw)).toBe(true);
+    expect(completed.reservedCostKrw.equals(failed.reservedCostKrw)).toBe(true);
+    expect(completed.configPins).toEqual(failed.configPins);
+    expect(completed).toMatchObject({ leaseToken: null, leaseExpiresAt: null, errorCode: null });
+    expect(await db.storyWorkGenerationProfile.count({ where: { analysisJobId: failed.id, status: 'needs_review' } })).toBe(1);
+    expect(await db.auditEvent.count({ where: { targetId: failed.id, action: 'story_analysis.profile_recovered' } })).toBe(1);
+    await a.recoverProfile(owner, failed.id, failed.sourceContentHash!);
+    expect(transport).toHaveBeenCalledTimes(callsBefore);
+  });
+
+  it('rolls back a failed profile recovery and rejects unknown dispatch or stale author scope', async () => {
+    const failed = await failedProfileFinalization();
+    const callsBefore = transport.mock.calls.length;
+    await expect(a.recoverProfile(stranger, failed.id, failed.sourceContentHash!)).rejects.toMatchObject({ status: 404 });
+    await expect(a.recoverProfile(owner, failed.id, 'f'.repeat(64)))
+      .rejects.toMatchObject({ response: { code: 'ANALYSIS_RECOVERY_SOURCE_CHANGED' } });
+    const draftFailure = jest.spyOn(profilesA, 'createDraftAtCompletion').mockRejectedValueOnce(new Error('Private source diagnostic'));
+    await expect(a.recoverProfile(owner, failed.id, failed.sourceContentHash!))
+      .rejects.toMatchObject({ response: { code: 'ANALYSIS_PROFILE_RECOVERY_RETRY' } });
+    draftFailure.mockRestore();
+    expect(await row(failed.id)).toEqual(failed);
+    expect(await db.storyWorkGenerationProfile.count({ where: { analysisJobId: failed.id } })).toBe(0);
+    expect(await db.auditEvent.count({ where: { targetId: failed.id, action: 'story_analysis.profile_recovered' } })).toBe(0);
+    const chunk = await db.storyAnalysisChunk.findFirstOrThrow({ where: { analysisJobId: failed.id } });
+    await db.storyAnalysisChunk.update({ where: { id: chunk.id }, data: { status: 'failed', errorCode: 'provider_outcome_unknown' } });
+    await expect(a.recoverProfile(owner, failed.id, failed.sourceContentHash!))
+      .rejects.toMatchObject({ response: { code: 'ANALYSIS_PROFILE_RECOVERY_UNAVAILABLE' } });
+    expect(transport).toHaveBeenCalledTimes(callsBefore);
+    await db.storyAnalysisChunk.update({ where: { id: chunk.id }, data: { status: 'completed', errorCode: null } });
+    await db.storyManuscriptVersion.create({ data: { workId, ownerUserId: owner, version: 2,
+      locale: 'ko', contentHash: 'f'.repeat(64), structuredBody: { parts: [] } } });
+    await expect(a.recoverProfile(owner, failed.id, failed.sourceContentHash!))
+      .rejects.toMatchObject({ response: { code: 'ANALYSIS_RECOVERY_SOURCE_CHANGED' } });
+    expect(await row(failed.id)).toEqual(failed);
+    expect(transport).toHaveBeenCalledTimes(callsBefore);
+  });
+
   async function historicalJob(phase: 'initializing' | 'planning', pins = semanticPins({ ...config, packingProfile: undefined })) {
     const source = await db.storyManuscriptVersion.findUniqueOrThrow({ where: { id: manuscriptId } });
     const parts = sourceParts(source.structuredBody);
@@ -130,6 +196,32 @@ postgres('Semantic analysis durable pipeline (isolated PostgreSQL, fake transpor
       inputTokenBudget: first.inputTokens } }) : null;
     return { job, chunk };
   }
+
+  it('includes late-book style and event evidence in a bounded profile draft', async () => {
+    const { job, chunk } = await historicalJob('planning');
+    const evidence = Array.from({ length: 5001 }, (_, index) => ({
+      id: randomUUID(), analysisJobId: job.id, chunkId: chunk!.id,
+      provenance: 'semantic_candidate', sequence: index + 1,
+      evidenceType: index % 2 === 0 ? 'style' : 'event',
+      sourcePartKey: 'part-1', sourceParagraphIndex: 0,
+      payload: { title: `Observation ${index}`, observation: `Synthetic observation ${index}`,
+        styleCategory: index % 2 === 0 ? 'sentence_rhythm' : null },
+    }));
+    await db.storyAnalysisEvidence.createMany({ data: evidence });
+    const manuscript = await db.storyManuscriptVersion.findUniqueOrThrow({ where: { id: manuscriptId } });
+
+    const settings = await db.$transaction(
+      (tx) => (profilesA as any).settingsFromAnalysis(tx, job.id, manuscript),
+      { timeout: 5000 },
+    ) as CreatorGenerationProfileSettings;
+    const style = settings.sections.find((section: { key: string }) => section.key === 'writing_style');
+    const timeline = settings.sections.find((section: { key: string }) => section.key === 'timeline');
+
+    expect(JSON.stringify(style?.value)).toContain(`analysis:${evidence[5000].id}`);
+    expect(JSON.stringify(timeline?.value)).toContain(`analysis:${evidence[4999].id}`);
+    expect(style?.value.observations).toHaveLength(20);
+    expect(timeline?.value.observations).toHaveLength(20);
+  });
 
   it('has no disabled fallback job or provider call', async () => {
     services({ enabled: false });
@@ -286,9 +378,74 @@ postgres('Semantic analysis durable pipeline (isolated PostgreSQL, fake transpor
     expect(await db.storyWorkGenerationProfile.count({ where: { workId } })).toBe(1);
     expect(JSON.stringify(page)).not.toMatch(/apiKey|offline-synthetic-test-key|structuredBody|providerPayload/);
   });
+  (process.env.STORY_QA_MANUSCRIPT_PATH ? it : it.skip)(
+    'analyzes the supplied 32-part manuscript offline into a review-only profile', async () => {
+      const raw = readFileSync(process.env.STORY_QA_MANUSCRIPT_PATH!, 'utf8');
+      const headings = [...raw.matchAll(/^# (?:Part|외전) [0-9]{1,2}\. (.+?)\r?$/gm)];
+      expect(headings).toHaveLength(32);
+      const prepared = preparePastedManuscript(Buffer.from(raw), JSON.stringify({
+        locale: 'ko', confirmed: true, parts: headings.map((heading, index) => ({
+          partKey: `part-${index + 1}`, title: heading[1],
+          start: index === 0 ? 0 : heading.index!,
+          end: headings[index + 1]?.index ?? raw.length,
+        })),
+      }));
+      manuscriptId = (await db.storyManuscriptVersion.create({ data: {
+        workId, ownerUserId: owner, version: 2, locale: 'ko',
+        contentHash: prepared.contentHash, structuredBody: storedManuscriptBody(prepared),
+      } })).id;
+      services({ maxJobCostKrw: '10000' });
+      const job = await enqueue();
+      let current = await row(job.id);
+      for (let step = 0; step < 500 && current.status !== 'completed' && current.status !== 'failed'; step++) {
+        await a.executeOne('offline-long-book-worker');
+        current = await row(job.id);
+      }
+      expect(current).toMatchObject({ status: 'completed', totalParts: 32,
+        completedParagraphs: prepared.paragraphCount });
+      expect(current.completedChunks).toBe(current.plannedChunks);
+      expect(transport).toHaveBeenCalledTimes(current.plannedChunks);
+      expect(await db.storyWorkGenerationProfile.findMany({ where: { workId } }))
+        .toEqual([expect.objectContaining({ manuscriptVersionId: manuscriptId,
+          analysisJobId: job.id, status: 'needs_review', approvedAt: null })]);
+      expect(await db.storyMemoryRecord.count({ where: { workId } })).toBe(0);
+    }, 180_000);
+  (process.env.STORY_QA_LONG_MANUSCRIPT_PATH ? it : it.skip)(
+    'plans the supplied 265-part manuscript without dispatching any provider request', async () => {
+      const raw = readFileSync(process.env.STORY_QA_LONG_MANUSCRIPT_PATH!, 'utf8');
+      const headings = [...raw.matchAll(/^# Part ([0-9]{3})\. (.+?)\r?$/gm)];
+      expect(headings).toHaveLength(265);
+      const prepared = preparePastedManuscript(Buffer.from(raw), JSON.stringify({
+        locale: 'ko', confirmed: true, parts: headings.map((heading, index) => ({
+          partKey: `part-${index + 1}`, title: heading[2],
+          start: index === 0 ? 0 : heading.index!,
+          end: headings[index + 1]?.index ?? raw.length,
+        })),
+      }));
+      manuscriptId = (await db.storyManuscriptVersion.create({ data: {
+        workId, ownerUserId: owner, version: 2, locale: 'ko',
+        contentHash: prepared.contentHash, structuredBody: storedManuscriptBody(prepared),
+      } })).id;
+      services({ maxJobCostKrw: '10000' });
+      const job = await enqueue();
+      let result = await row(job.id);
+      for (let step = 0; step < 100 && result.phase !== 'extracting' && result.status !== 'failed'; step++) {
+        await a.executeOne('offline-long-book-planner');
+        result = await row(job.id);
+      }
+      expect(result).toMatchObject({ status: 'running', phase: 'extracting', totalParts: 265,
+        totalParagraphs: prepared.paragraphCount, completedChunks: 0 });
+      expect(result.plannedChunks).toBeGreaterThan(0);
+      expect(result.plannedParagraphs).toBe(prepared.paragraphCount);
+      expect(result.reservedCostKrw.toNumber()).toBeLessThanOrEqual(10000);
+      expect(transport).not.toHaveBeenCalled();
+      expect(await db.storyWorkGenerationProfile.count({ where: { workId } })).toBe(0);
+    }, 240_000);
   it('rolls back completion when the draft write fails, then retries without a duplicate', async () => {
     const job = await enqueue();
     await until(job.id, value => value.phase === 'finalizing');
+    expect(await a.executeOne('continuity-review-worker')).toEqual({ status: 'processed' });
+    expect(await row(job.id)).toMatchObject({ status: 'running', phase: 'finalizing', finalCursor: expect.any(String) });
     jest.spyOn(profilesA, 'createDraftAtCompletion').mockRejectedValueOnce(new Error('temporary draft failure'));
 
     expect(await a.executeOne('draft-retry-worker')).toEqual({ status: 'retry_wait' });

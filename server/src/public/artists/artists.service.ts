@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { buildPublicAssetUrl } from '../../common/asset-url';
 import { PrismaService } from '../../prisma/prisma.service';
+import { approvedPublicArtistProfile } from './approved-artist-profile.policy';
 
 const publicArtistInclude = {
   publicProfile: true,
@@ -203,7 +204,7 @@ export class ArtistsService {
       status: artist.status,
       sortOrder: artist.sortOrder,
       launchedAt: artist.launchedAt,
-      profile: artist.publicProfile,
+      profile: approvedPublicArtistProfile(artist.slug, artist.status, artist.publicProfile),
       visual: artist.visualProfile,
       contentProfile: options.includeContentProfile ? artist.contentProfile : undefined,
       coverImage,

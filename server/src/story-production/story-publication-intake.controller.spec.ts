@@ -1,5 +1,5 @@
 import { ADMIN_PERMISSIONS_KEY } from '../auth/decorators/admin-permissions.decorator';
-import { ActivatePublishedStoryAiDto, PromoteStoryUploadDto } from './dto/story-publication-intake.dto';
+import { ActivatePublishedStoryAiDto, PromoteStoryUploadDto, ReviewPublishedChoiceBatchDto } from './dto/story-publication-intake.dto';
 import { StoryPublicationIntakeController } from './story-publication-intake.controller';
 
 describe('StoryPublicationIntakeController', () => {
@@ -53,7 +53,41 @@ describe('StoryPublicationIntakeController', () => {
       ),
     ).toEqual(['*']);
     expect(Reflect.getMetadata(ADMIN_PERMISSIONS_KEY, StoryPublicationIntakeController.prototype.aiStatus)).toEqual(['*']);
+    expect(Reflect.getMetadata(ADMIN_PERMISSIONS_KEY, StoryPublicationIntakeController.prototype.choiceCoverage)).toEqual(['*']);
     expect(Reflect.getMetadata(ADMIN_PERMISSIONS_KEY, StoryPublicationIntakeController.prototype.activateAi)).toEqual(['*']);
+    expect(Reflect.getMetadata(ADMIN_PERMISSIONS_KEY, StoryPublicationIntakeController.prototype.reviewInheritorChoiceBatch)).toEqual(['*']);
+    expect(Reflect.getMetadata(ADMIN_PERMISSIONS_KEY, StoryPublicationIntakeController.prototype.inheritorChoiceStatus)).toEqual(['*']);
+    expect(Reflect.getMetadata(ADMIN_PERMISSIONS_KEY, StoryPublicationIntakeController.prototype.prepareInheritorChoices)).toEqual(['*']);
+  });
+
+  it('pins status and preparation to the operator-selected work and release', async () => {
+    const publication = {
+      publishedInheritorChoiceStatus: jest.fn().mockResolvedValue({ status: 'preparing_choices' }),
+      preparePublishedInheritorChoices: jest.fn().mockResolvedValue({ status: 'ready' }),
+    };
+    const controller = new StoryPublicationIntakeController(publication as never, {} as never, {} as never);
+    const target = { workId: 'work-id', releaseId: 'release-id' };
+    await controller.inheritorChoiceStatus(target);
+    await controller.prepareInheritorChoices({ id: 'operator' } as never, target);
+    expect(publication.publishedInheritorChoiceStatus).toHaveBeenCalledWith(target);
+    expect(publication.preparePublishedInheritorChoices).toHaveBeenCalledWith('operator', target);
+    await controller.inheritorChoiceStatus();
+    await controller.prepareInheritorChoices({ id: 'operator' } as never);
+    expect(publication.publishedInheritorChoiceStatus).toHaveBeenLastCalledWith(undefined);
+    expect(publication.preparePublishedInheritorChoices).toHaveBeenLastCalledWith('operator', undefined);
+  });
+
+  it('sends reviewed batch reconciliation to the authenticated operator service', async () => {
+    const publication = { reviewPublishedInheritorChoiceBatch: jest.fn().mockResolvedValue({ status: 'retry_authorized' }) };
+    const controller = new StoryPublicationIntakeController(publication as never, {} as never, {} as never);
+    const body: ReviewPublishedChoiceBatchDto = {
+      outcome: 'no_reusable_response_confirmed',
+      reviewNote: 'Provider history checked and no reusable response remains.',
+    };
+
+    await expect(controller.reviewInheritorChoiceBatch({ id: 'operator' } as never, 'batch-id', body))
+      .resolves.toEqual({ status: 'retry_authorized' });
+    expect(publication.reviewPublishedInheritorChoiceBatch).toHaveBeenCalledWith('operator', 'batch-id', body);
   });
 
   it('passes the authenticated operator and explicit confirmations to the service', async () => {

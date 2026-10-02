@@ -25,7 +25,7 @@ const defaultCorsOrigins = [
   'https://ai-entertainment-studio.vercel.app',
 ];
 
-async function bootstrap() {
+export async function createApplication() {
   const app = await NestFactory.create(AppModule, { rawBody: true });
   app.enableShutdownHooks();
   const configService = app.get(ConfigService);
@@ -49,17 +49,26 @@ async function bootstrap() {
   );
   app.useGlobalFilters(new HttpExceptionFilter());
   app.enableCors({
-    origin: parseCorsOrigins(configService.get<string>('CORS_ORIGINS')),
+    origin: parseCorsOrigins(
+      configService.get<string>('CORS_ORIGINS'),
+      configService.get<string>('NODE_ENV'),
+    ),
     credentials: true,
   });
 
+  return app;
+}
+
+async function bootstrap() {
+  const app = await createApplication();
+  const configService = app.get(ConfigService);
   const port = Number(configService.get<string>('PORT') ?? 3001);
   await app.listen(port);
 }
 
-function parseCorsOrigins(value?: string) {
-  if (!value) {
-    return true;
+export function parseCorsOrigins(value?: string, nodeEnv?: string): boolean | string[] {
+  if (!value?.trim()) {
+    return nodeEnv === 'development' || nodeEnv === 'test' ? true : [...defaultCorsOrigins];
   }
 
   return [...new Set([
@@ -68,7 +77,9 @@ function parseCorsOrigins(value?: string) {
   ])];
 }
 
-void bootstrap();
+if (require.main === module) {
+  void bootstrap();
+}
 
 function requestIdMiddleware(
   request: RequestLike,

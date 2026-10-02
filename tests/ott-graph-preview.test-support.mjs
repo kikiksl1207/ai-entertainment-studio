@@ -28,11 +28,12 @@ export const failure = (status, code = ({ 400: 'OTT_INVALID', 401: 'UNAUTHORIZED
 export const flush = async () => { for (let i = 0; i < 12; i++) await new Promise(resolve => setImmediate(resolve)); };
 export function deferred() { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; }
 
-export function graphServer({ locale = 'en', node = 'A', revision = 0, position, status = 'active', longLabels = false } = {}) {
+export function graphServer({ locale = 'en', node = 'A', revision = 0, position, status = 'active', longLabels = false,
+  firstChoices = ['B', 'C', 'D'], firstClipEndMs = 700 } = {}) {
   const states = new Map();
   const receipts = new Map();
   const nodes = {
-    A: { startMs: 100, endMs: 700, choices: ['B', 'C', 'D'] },
+    A: { startMs: 100, endMs: firstClipEndMs, choices: firstChoices },
     B: { startMs: 300, endMs: 1400, choices: ['D'] },
     C: { startMs: 400, endMs: 1500, choices: ['D'] },
     D: { startMs: 800, endMs: 1700, choices: [] }
@@ -114,14 +115,15 @@ class Video extends Element {
   load() { this.currentTime = 0; }
 }
 
-export function browser({ server = graphServer(), search = `?manifestId=${ids.manifest}`, locale = 'en', signedIn = true, protocol = 'https:', storage = new Map(), intercept } = {}) {
+export function browser({ server = graphServer(), search = `?manifestId=${ids.manifest}`, locale = 'en', signedIn = true, protocol = 'https:', storage = new Map(), intercept, videoSize = { width: 1920, height: 1080 } } = {}) {
   const html = readFileSync(new URL('../ott-private-preview/index.html', import.meta.url), 'utf8');
   const elements = Object.fromEntries([...html.matchAll(/id="([^"]+)"/g)].map(([, id]) => [id, new Element('div', id)]));
+  const makeVideo = () => Object.assign(new Video(), { videoWidth: videoSize.width, videoHeight: videoSize.height });
   const installVideo = value => { elements.privateVideo = value; value.onReplace = installVideo; };
-  installVideo(new Video());
+  installVideo(makeVideo());
   const events = new Element();
   const document = { hidden: false, title: '', documentElement: {}, getElementById: id => elements[id],
-    createElement: tag => tag === 'video' ? new Video() : new Element(tag), addEventListener: events.addEventListener.bind(events) };
+    createElement: tag => tag === 'video' ? makeVideo() : new Element(tag), addEventListener: events.addEventListener.bind(events) };
   const data = new Map([['lumina_locale', locale], ...(signedIn ? [['lumina_auth', JSON.stringify(ownerAuth)]] : [])]);
   const localStorage = { getItem: key => data.get(key) || null, setItem: (key, value) => data.set(key, value) };
   const sessionStorage = { getItem: key => storage.get(key) || null, setItem: (key, value) => storage.set(key, value), removeItem: key => storage.delete(key) };

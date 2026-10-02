@@ -300,7 +300,7 @@ export class StoryUploadService {
       await tx.auditEvent.create({
         data: {
           actorUserId: userId,
-          actorType: 'creator',
+          actorType: 'user',
           action: 'story_generation_profile.draft_saved',
           targetType: 'story_upload_generation_profile',
           targetId: profile.id,
@@ -374,7 +374,7 @@ export class StoryUploadService {
       await tx.auditEvent.create({
         data: {
           actorUserId: userId,
-          actorType: 'creator',
+          actorType: 'user',
           action: 'story_generation_profile.approved',
           targetType: 'story_upload_generation_profile',
           targetId: profile.id,

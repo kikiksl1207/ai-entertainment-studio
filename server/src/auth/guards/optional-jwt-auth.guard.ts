@@ -1,4 +1,9 @@
-import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
+import {
+  CanActivate,
+  ExecutionContext,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -19,42 +24,52 @@ export class OptionalJwtAuthGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext) {
     const request = context.switchToHttp().getRequest<RequestWithOptionalAuth>();
-    const token = this.extractBearerToken(request.headers.authorization);
-
-    if (!token) {
+    const authorization = request.headers.authorization;
+    if (authorization === undefined) {
       return true;
     }
 
+    const token = this.extractBearerToken(authorization);
+    if (!token?.trim()) {
+      throw new UnauthorizedException('Invalid or expired access token');
+    }
+
+    let payload: JwtPayload;
     try {
-      const payload = await this.jwtService.verifyAsync<JwtPayload>(token, {
+      payload = await this.jwtService.verifyAsync<JwtPayload>(token, {
         secret: this.configService.getOrThrow<string>('JWT_ACCESS_SECRET'),
       });
-
-      if (payload.tokenType !== 'access') {
-        return true;
-      }
-
-      const user = await this.prisma.user.findFirst({
-        where: {
-          id: payload.sub,
-          status: 'active',
-          deletedAt: null,
-        },
-        select: {
-          id: true,
-          email: true,
-        },
-      });
-
-      if (user) {
-        request.user = {
-          id: user.id,
-          email: user.email ?? payload.email,
-        };
-      }
     } catch {
-      return true;
+      throw new UnauthorizedException('Invalid or expired access token');
     }
+
+    if (
+      payload?.tokenType !== 'access' ||
+      typeof payload.sub !== 'string' ||
+      !payload.sub.trim()
+    ) {
+      throw new UnauthorizedException('Invalid or expired access token');
+    }
+
+    const user = await this.prisma.user.findFirst({
+      where: {
+        id: payload.sub,
+        status: 'active',
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        email: true,
+      },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('User is not active');
+    }
+    request.user = {
+      id: user.id,
+      email: user.email ?? payload.email,
+    };
 
     return true;
   }

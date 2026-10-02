@@ -10,7 +10,13 @@
     <meta name="description" content="Lumina Stage 크리에이터가 아티스트, 피드, 에셋, 정산 예정금을 관리하는 전용 스튜디오입니다." />
     <link rel="icon" href="/assets/brand/lumina-stage-logo.png" />
     <link rel="stylesheet" href="/styles.css" />
-    <link rel="stylesheet" href="/styles/creator-studio.css" />
+    <link rel="stylesheet" href="/styles/creator-studio.css?v=writer-final-20261001" />
+    <link rel="stylesheet" href="/creator-story-visual-references.css?v=visual-references-20260930" />
+    <link rel="stylesheet" href="/pages/creator-story-visual-review.css?v=visual-review-20260930" />
+    <link rel="stylesheet" href="/pages/creator-story-visual-booking.css?v=visual-booking-20261001" />
+    <link rel="stylesheet" href="/pages/creator-story-choice-consent-review.css?v=choice-consent-20261001" />
+    <link rel="stylesheet" href="/pages/creator-story-interactions.css?v=interactions-20261001" />
+    <link rel="stylesheet" href="/pages/creator-branch-visual-review.css?v=branch-visual-review-20261001" />
     <!-- Google tag (gtag.js) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-1L7TCBQ0N4"></script>
     <script>
@@ -200,6 +206,14 @@
               <span class="badge is-warn" data-i18n="writerManuscript.badge">전송 전 검토</span>
             </div>
             <p class="writer-manuscript-note" data-i18n="writerManuscript.privacy">제출 전에는 이 브라우저에서만 검토합니다. 원고는 비공개로 접수되며 분석은 직접 시작할 때만 요청됩니다. 원고가 공개되지는 않습니다.</p>
+            <div class="writer-draft-create">
+              <label for="writerDraftTitle" data-i18n="writerManuscript.draftTitle">새 작품 제목</label>
+              <div class="writer-draft-create-controls">
+                <input id="writerDraftTitle" type="text" maxlength="120" autocomplete="off" data-i18n-attr="placeholder:writerManuscript.draftPlaceholder" placeholder="작품 제목" />
+                <button class="secondary-action" type="button" id="writerDraftCreate" data-i18n="writerManuscript.createDraft">비공개 작품 만들기</button>
+              </div>
+              <p class="studio-form-state" id="writerDraftState" role="status" aria-live="polite"></p>
+            </div>
             <div class="form-grid">
               <label class="is-wide">
                 <span data-i18n="writerManuscript.work">내 작품</span>
@@ -215,6 +229,29 @@
                   <option value="zh-Hant" data-i18n="storyIntake.locale.zhHant">繁體中文</option>
                 </select>
               </label>
+            </div>
+            <div class="writer-draft-metadata" id="writerDraftMetadata" hidden>
+              <h3 data-i18n="writerManuscript.metadataHeading">작품 공개 정보</h3>
+              <div class="form-grid">
+                <label>
+                  <span data-i18n="writerManuscript.authorName">작가명</span>
+                  <input id="writerMetadataAuthor" type="text" maxlength="80" autocomplete="off" />
+                </label>
+                <label class="is-wide">
+                  <span data-i18n="writerManuscript.summary">작품 소개</span>
+                  <textarea id="writerMetadataSummary" rows="3" maxlength="600"></textarea>
+                </label>
+                <label class="is-wide">
+                  <span data-i18n="writerManuscript.cover">작품 표지</span>
+                  <input id="writerMetadataCover" type="file" accept="image/png,image/jpeg,image/webp" />
+                </label>
+              </div>
+              <div class="composer-tools">
+                <button class="secondary-action" type="button" id="writerMetadataSave" data-i18n="writerManuscript.saveMetadata">공개 정보 저장</button>
+              </div>
+              <p class="studio-form-state" id="writerMetadataState" role="status" aria-live="polite"></p>
+            </div>
+            <div class="form-grid">
               <label class="writer-manuscript-file">
                 <span data-i18n="writerManuscript.file">텍스트 파일</span>
                 <input id="writerManuscriptFile" type="file" accept=".txt,.md,text/plain,text/markdown" aria-describedby="writerManuscriptFileHelp" />
@@ -227,12 +264,18 @@
             </div>
             <div class="writer-manuscript-boundaries">
               <div class="composer-tools">
+                <button class="secondary-action" type="button" id="writerManuscriptAutoParts" data-i18n="writerManuscript.autoParts">파트 자동 찾기</button>
                 <button class="secondary-action" type="button" id="writerManuscriptAddPart" data-i18n="writerManuscript.addPart">커서에서 파트 시작</button>
                 <button class="secondary-action" type="button" id="writerManuscriptReview" data-i18n="writerManuscript.review">파트 경계 검토</button>
               </div>
               <label class="writer-manuscript-expected">
                 <span data-i18n="writerManuscript.expected">예상 파트 수</span>
                 <input id="writerManuscriptExpected" type="number" min="1" max="1000" step="1" inputmode="numeric" data-i18n-attr="placeholder:writerManuscript.expectedPlaceholder" placeholder="모르면 비워두세요" />
+              </label>
+              <p class="writer-manuscript-boundary" id="writerManuscriptPreface" hidden data-i18n="writerManuscript.prefaceIncluded">첫 파트 제목 앞의 소개·메모도 1파트 본문에 포함됩니다. 독자에게 보이면 안 되는 내용은 원고에서 제거한 뒤 다시 확인해 주세요.</p>
+              <label class="writer-manuscript-confirm writer-manuscript-preface-choice" id="writerManuscriptPrefaceChoice" hidden>
+                <input id="writerManuscriptSeparatePreface" type="checkbox" />
+                <span data-i18n="writerManuscript.separatePreface">첫 파트 앞의 소개·메모를 원문에 보관하고 독자 본문에서는 제외</span>
               </label>
               <div id="writerManuscriptParts" class="writer-manuscript-parts" aria-live="polite"></div>
             </div>
@@ -260,8 +303,15 @@
             <div class="composer-tools">
               <button id="writerAnalysisStart" class="primary-action" type="button" data-i18n="writerAnalysis.start">분석 시작</button>
               <button id="writerAnalysisCheck" class="secondary-action" type="button" hidden data-i18n="writerAnalysis.check">상태 다시 확인</button>
+              <button id="writerAnalysisRecover" class="secondary-action" type="button" hidden aria-describedby="writerAnalysisRecoverState">생성 설정 복구</button>
             </div>
+            <p id="writerAnalysisRecoverState" class="studio-form-state" role="status" aria-live="polite" hidden></p>
             <p id="writerAnalysisBoundary" class="writer-analysis-boundary" hidden data-i18n="writerAnalysis.boundary">분석 결과는 검토가 필요한 제안이며 작가의 승인이나 공개를 뜻하지 않습니다.</p>
+            <div id="writerAnalysisViews" class="writer-analysis-views" role="group" aria-label="분석 결과 종류" hidden>
+              <button id="writerAnalysisSemantic" class="secondary-action" type="button" aria-pressed="true">AI 해석</button>
+              <button id="writerAnalysisStructural" class="secondary-action" type="button" aria-pressed="false">구조 정보</button>
+            </div>
+            <p id="writerAnalysisEmpty" class="writer-analysis-meta" role="status" hidden></p>
             <div id="writerAnalysisEvidence" class="writer-analysis-evidence"></div>
             <nav id="writerAnalysisPages" class="writer-analysis-pages" hidden>
               <button id="writerAnalysisPrevious" class="secondary-action" type="button"><span aria-hidden="true">&larr;</span></button>
@@ -279,6 +329,9 @@
             <button id="writerFinalOpen" class="primary-action" type="button">최종 검토 열기</button>
             <p id="writerFinalEntryState" role="status" aria-live="polite"></p>
           </section>
+          <section id="writerVisualBooking" aria-labelledby="writerVisualBookingTitle"></section>
+          <section id="writerBranchVisualReview" aria-labelledby="writerBranchVisualReviewTitle"></section>
+          <section id="writerInteractions" aria-labelledby="writerInteractionsTitle"></section>
         </section>
 
         <section class="studio-section" id="story-intake">
@@ -670,23 +723,49 @@
           <div><span class="eyebrow">작가 확인</span><h2 id="writerFinalTitle">원고와 원작 경로 최종 검토</h2></div>
           <button id="writerFinalClose" class="secondary-action" type="button">닫기</button>
         </header>
-          <p>각 파트 끝의 원작 진행 방향을 확인하고 1번 선택지의 문구를 입력해 주세요. 2·3번은 서버가 준비하며, 실패한 파트가 있으면 공개되지 않습니다.</p>
+        <p>분석 요약과 분기 제안, 설정 충돌을 차례로 검토해 주세요. 마지막 확정 후 2·3번 선택지를 서버에서 준비하며, 실패한 파트가 있으면 공개되지 않습니다.</p>
         <p id="writerFinalState" role="status" aria-live="polite"></p>
-        <div id="writerFinalIssues" class="writer-final-issues"></div>
-        <div id="writerFinalParts" class="writer-final-parts"></div>
-        <label class="writer-final-confirm"><input id="writerFinalReviewed" type="checkbox" /> 원고, 분석 결과, 원작 경로와 모든 파트의 선택 문구를 검토했습니다.</label>
-        <label class="writer-final-confirm"><input id="writerFinalRights" type="checkbox" /> 이 원고의 권리를 보유하고 있으며 서비스 이용을 승인합니다.</label>
-        <label class="writer-final-confirm"><input id="writerFinalAi" type="checkbox" /> 원고 문체를 참고한 AI 분기 생성과 검수된 결과의 재사용을 승인합니다.</label>
-        <label class="writer-final-confirm" id="writerFinalWarningsLabel"><input id="writerFinalWarnings" type="checkbox" /> 위 분석 경고를 확인했습니다.</label>
+        <p id="writerFinalStage" class="writer-final-stage"></p>
+        <section class="writer-final-review-section" aria-labelledby="writerFinalSummaryTitle">
+          <h3 id="writerFinalSummaryTitle">원고 분석 요약</h3>
+          <p id="writerFinalProfileStatus"></p>
+          <div id="writerFinalSummary" class="writer-final-profile"></div>
+          <label class="writer-final-confirm"><input id="writerFinalSummaryReviewed" type="checkbox" /> 위 원고 분석 요약을 확인했습니다.</label>
+        </section>
+        <section class="writer-final-review-section" aria-labelledby="writerFinalProposalTitle">
+          <h3 id="writerFinalProposalTitle">분기 방향 제안과 원작 경로</h3>
+          <div id="writerFinalProposals" class="writer-final-profile"></div>
+          <div id="writerFinalParts" class="writer-final-parts"></div>
+          <label class="writer-final-confirm"><input id="writerFinalProposalReviewed" type="checkbox" /> 위 분기 제안과 원작 경로를 확인했습니다.</label>
+        </section>
+        <section class="writer-final-review-section" aria-labelledby="writerFinalContinuityTitle">
+          <h3 id="writerFinalContinuityTitle">설정 충돌</h3>
+          <div id="writerFinalIssues" class="writer-final-issues"></div>
+          <label class="writer-final-confirm" id="writerFinalWarningsLabel"><input id="writerFinalWarnings" type="checkbox" /> 위 분석 경고를 확인했습니다.</label>
+          <label class="writer-final-confirm"><input id="writerFinalContinuityReviewed" type="checkbox" /> 위 설정 충돌 검토 결과를 확인했습니다.</label>
+        </section>
+        <section id="writerVisualReferences" hidden aria-labelledby="writerVisualReferencesTitle"></section>
+        <section class="writer-final-review-section" aria-labelledby="writerFinalConfirmationTitle">
+          <h3 id="writerFinalConfirmationTitle">최종 확인</h3>
+          <label class="writer-final-confirm"><input id="writerFinalReviewed" type="checkbox" /> 원고, 분석 결과, 원작 경로와 모든 파트의 선택 문구를 검토했습니다.</label>
+          <label class="writer-final-confirm"><input id="writerFinalRights" type="checkbox" /> 이 원고의 권리를 보유하고 있으며 서비스 이용을 승인합니다.</label>
+          <label class="writer-final-confirm"><input id="writerFinalAi" type="checkbox" /> 원고 문체를 참고한 AI 분기 생성과 검수된 결과의 재사용을 승인합니다.</label>
+        </section>
         <div class="modal-actions"><button id="writerFinalCancel" class="secondary-action" type="button">나중에</button>
           <button id="writerFinalPrepare" class="primary-action" type="button">확인하고 선택지 준비</button></div>
       </div>
     </div>
-    <script src="/pages/creator-studio.js?v=creator-readiness-20260926"></script>
+    <script src="/pages/creator-studio.js?v=creator-access-20261001"></script>
     <script src="/data/characters.js"></script>
-    <script src="/app.js"></script>
+    <script src="/app.js?v=studio-auth-20261001"></script>
     <script src="/pages/creator-analysis-review.js"></script>
-    <script src="/pages/creator-story-finalize.js?v=story-finalize-20260927"></script>
+    <script src="/pages/creator-story-visual-references.js?v=visual-references-20260930"></script>
+    <script src="/pages/creator-story-visual-review.js?v=visual-review-20260930"></script>
+    <script src="/pages/creator-story-visual-booking.js?v=visual-booking-20261001"></script>
+    <script src="/pages/creator-branch-visual-review.js?v=branch-visual-review-20261001"></script>
+    <script src="/pages/creator-story-choice-consent-review.js?v=choice-consent-20261001"></script>
+    <script src="/pages/creator-story-interactions.js?v=interactions-20261001"></script>
+    <script src="/pages/creator-story-finalize.js?v=story-finalize-mixed-reset-20261001"></script>
     <script src="/pages/content-rights-contract-ui.js"></script>
     <script src="/pages/creator-content-rights.js"></script>
   </body>

@@ -11,6 +11,8 @@ import {
   ValidateNested,
   IsUUID,
   IsOptional,
+  IsBoolean,
+  Equals,
 } from 'class-validator';
 
 const SOURCE_SCENE_KEY = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,159}$/;
@@ -77,6 +79,27 @@ export class SyncStoryVisualQueueDto {
   @IsOptional()
   @IsUUID()
   workId?: string;
+}
+
+export class ReprepareStoryVisualBookingDto extends ReplaceStaleStoryVisualDto {
+  @IsUUID()
+  generationId!: string;
+
+  @IsString()
+  @Matches(/^[a-f0-9]{64}$/)
+  promptSha256!: string;
+
+  @IsString()
+  @Matches(/^[a-f0-9]{64}$/)
+  expectedReviewSha256!: string;
+
+  @IsString()
+  @Matches(/^[a-f0-9]{64}$/)
+  expectedCurrentBookingIdentitySha256!: string;
+
+  @IsBoolean()
+  @Equals(true)
+  confirmedResume!: true;
 }
 
 export class RegisterStoryVisualAiBranchPromptDto {

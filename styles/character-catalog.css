@@ -1,5 +1,9 @@
 /* Character Catalog page-only styles. Shared artist, roster, feed, status, and detail styles stay in styles.css. */
 
+body[data-cms-page-key="characters"] .page-hero-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .catalog-card {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.04)),

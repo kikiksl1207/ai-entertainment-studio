@@ -3,7 +3,15 @@ import { Prisma } from '@prisma/client';
 import { createHash } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { isUUID } from 'class-validator';
-import { StoryChoicePreparationError, StoryChoicePreparationProvider } from './story-choice-preparation.provider';
+import { StoryChoicePreparationError, StoryChoicePreparationProvider,
+  type StoryChoiceUsage } from './story-choice-preparation.provider';
+import { readerPartText } from './story-studio-reader-text.policy';
+import { publicationReaderText } from './story-publication-reader-projection.policy';
+import { stableJson } from '../generation-profile/creator-generation-profile.policy';
+import { continuationGenerationProfileSnapshot, STORY_CONTINUATION_PROFILE_VIEW_VERSION } from './story-continuation-context.policy';
+import { SEMANTIC_PIPELINE } from './story-semantic-analysis.types';
+import { ManuscriptPart } from './story-production.policy';
+import { CHOICE_CONSENT_REAPPROVED, choiceConsentReceiptValid } from './story-studio-choice-consent.policy';
 
 function fail(code: string): never {
   throw new ConflictException({ code, message: 'The reviewed manuscript and original route must be ready before choices are prepared' });
@@ -20,7 +28,7 @@ type BoundChoice = {
   targetSceneId?: string | null; targetEndingKey?: string | null; declaredRejoinSceneId?: string | null;
 };
 
-function choiceDigest(choices: BoundChoice[], locale: string): string {
+export function choiceDigest(choices: BoundChoice[], locale: string): string {
   return createHash('sha256').update(JSON.stringify(choices.map(choice => ({
     choiceKey: choice.choiceKey, position: choice.position, label: localized(choice.label, locale),
     routeKind: choice.routeKind, targetSceneId: choice.targetSceneId ?? null,
@@ -29,7 +37,7 @@ function choiceDigest(choices: BoundChoice[], locale: string): string {
   })))).digest('hex');
 }
 
-function sceneDigest(text: string): string {
+export function sceneDigest(text: string): string {
   return createHash('sha256').update(text.replace(/\s+/gu, '')).digest('hex');
 }
 
@@ -39,11 +47,21 @@ type PreparationSnapshot = {
   partTitle: string;
   endingExcerpt: string;
   context: string;
-  originalLabel: string;
+  originalLabel: string | null;
+  nextPartTitle: string | null;
+  nextPartExcerpt: string | null;
   consentId: string;
   consentRevision: number;
   manuscriptHash: string;
   sceneDigest: string;
+  generationProfile: (ReturnType<typeof continuationGenerationProfileSnapshot> & {
+    manuscriptVersionId: string;
+    analysisJobId: string;
+    analysisVersion: number;
+    approvedByUserId: string;
+    approvedAt: string;
+    viewVersion: string;
+  }) | null;
 };
 
 @Injectable()
@@ -52,6 +70,16 @@ export class StoryStudioChoicePreparationService {
 
   async assertPublishableTx(tx: Prisma.TransactionClient, workId: string, ownerUserId: string,
     manuscriptVersionId: string, releaseId: string) {
+    return this.assertPreparedChoicesTx(tx, workId, ownerUserId, manuscriptVersionId, releaseId);
+  }
+
+  async assertPreparedScenesTx(tx: Prisma.TransactionClient, workId: string, ownerUserId: string,
+    manuscriptVersionId: string, releaseId: string, sceneIds: string[]) {
+    await this.assertPreparedChoicesTx(tx, workId, ownerUserId, manuscriptVersionId, releaseId, sceneIds);
+  }
+
+  private async assertPreparedChoicesTx(tx: Prisma.TransactionClient, workId: string, ownerUserId: string,
+    manuscriptVersionId: string, releaseId: string, preparedSceneIds?: string[]) {
     const manuscript = await tx.storyManuscriptVersion.findUnique({ where: { id: manuscriptVersionId } });
     const body = manuscript?.structuredBody as Record<string, unknown> | undefined;
     const intake = body?.intake as Record<string, unknown> | undefined;
@@ -66,50 +94,119 @@ export class StoryStudioChoicePreparationService {
       tx.storyPart.findMany({ where: { workId, fixtureSource: false }, orderBy: { position: 'asc' } }),
     ]);
     const now = new Date();
-    if (!manuscript || manuscript.locale !== 'ko' || !submission || submission.status !== 'submitted' ||
+    if (!manuscript || manuscript.workId !== workId || manuscript.ownerUserId !== ownerUserId ||
+        manuscript.locale !== 'ko' || !submission || submission.status !== 'submitted' ||
         submission.checksum !== manuscript.contentHash ||
         !consent || consent.ownerUserId !== ownerUserId || consent.manuscriptVersionId !== manuscriptVersionId ||
         consent.status !== 'active' || !consent.rightsConfirmed || !consent.aiBranchAllowed ||
+        !Number.isSafeInteger(consent.revision) || consent.revision < 1 ||
         consent.startsAt > now || (consent.expiresAt && consent.expiresAt <= now) ||
         !Array.isArray(consent.allowedLocales) || !consent.allowedLocales.includes('ko')) {
       fail('STUDIO_CHOICES_PUBLICATION_CONSENT_REQUIRED');
     }
+    if (tx.storyWorkGenerationProfile) {
+      await tx.$queryRaw(Prisma.sql`SELECT id FROM story_work_generation_profiles WHERE work_id = ${workId}::uuid FOR SHARE`);
+    }
+    const generationProfile = await this.approvedGenerationProfile(tx, ownerUserId, workId,
+      manuscript, review.analysisJobId);
     const authoredParts = Array.isArray(body?.parts) ? body.parts : [];
     if (!authoredParts.length || parts.length !== authoredParts.length ||
         parts.some((part, index) => part.position !== index + 1 || !['draft', 'published'].includes(part.status)) ||
         new Set(parts.map(part => part.status)).size !== 1) {
       fail('STUDIO_CHOICES_PUBLICATION_PARTS_INCOMPLETE');
     }
-    const sceneIds: string[] = [];
+    const scenes = await tx.storyScene.findMany({ where: { partId: { in: parts.map(part => part.id) },
+      fixtureSource: false }, select: { id: true, partId: true, status: true } });
+    const scenesByPart = new Map<string, typeof scenes>();
+    for (const scene of scenes) {
+      const rows = scenesByPart.get(scene.partId) ?? [];
+      rows.push(scene);
+      scenesByPart.set(scene.partId, rows);
+    }
+    const preparedScenes = preparedSceneIds ? new Set(preparedSceneIds) : null;
+    const sceneIds = scenes.filter(scene => !preparedScenes || preparedScenes.has(scene.id)).map(scene => scene.id);
+    if (preparedScenes && (!preparedScenes.size || preparedScenes.size !== sceneIds.length)) {
+      fail('STUDIO_CHOICES_PUBLICATION_SCENES_INCOMPLETE');
+    }
+    const [choices, proofs, beats] = await Promise.all([
+      tx.storyChoice.findMany({ where: { sceneId: { in: sceneIds } },
+        orderBy: [{ position: 'asc' }, { id: 'asc' }] }),
+      tx.auditEvent.findMany({ where: { actorUserId: ownerUserId, action: 'story_studio_choices.prepared',
+        targetType: 'story_scene', targetId: { in: sceneIds } },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        select: { id: true, targetId: true, metadata: true } }),
+      tx.storyBeat.findMany({ where: { sceneId: { in: sceneIds } },
+        orderBy: [{ sceneId: 'asc' }, { position: 'asc' }, { id: 'asc' }],
+        select: { sceneId: true, content: true } }),
+    ]);
+    const choicesByScene = new Map<string, typeof choices>();
+    for (const choice of choices) {
+      const rows = choicesByScene.get(choice.sceneId) ?? [];
+      rows.push(choice);
+      choicesByScene.set(choice.sceneId, rows);
+    }
+    const proofByScene = new Map<string, (typeof proofs)[number]>();
+    for (const proof of proofs) {
+      if (proof.targetId && !proofByScene.has(proof.targetId)) proofByScene.set(proof.targetId, proof);
+    }
+    const receipts = [...proofByScene.values()].some(proof =>
+      (proof.metadata as Record<string, unknown> | null)?.consentRevision !== consent.revision)
+      ? await tx.auditEvent.findMany({ where: { actorUserId: ownerUserId, action: CHOICE_CONSENT_REAPPROVED,
+        targetType: 'story_scene', targetId: { in: sceneIds } },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], select: { targetId: true, metadata: true } }) : [];
+    const receiptByScene = new Map<string, unknown>();
+    for (const receipt of receipts) if (receipt.targetId && !receiptByScene.has(receipt.targetId)) receiptByScene.set(receipt.targetId, receipt.metadata);
+    const beatsByScene = new Map<string, typeof beats>();
+    for (const beat of beats) {
+      const rows = beatsByScene.get(beat.sceneId) ?? [];
+      rows.push(beat);
+      beatsByScene.set(beat.sceneId, rows);
+    }
+    const orderedSceneIds: string[] = [];
     for (const part of parts) {
-      const scenes = await tx.storyScene.findMany({ where: { partId: part.id, fixtureSource: false } });
-      if (scenes.length !== 1 || scenes[0].status !== part.status) fail('STUDIO_CHOICES_PUBLICATION_SCENES_INCOMPLETE');
-      sceneIds.push(scenes[0].id);
-      const choices = await tx.storyChoice.findMany({ where: { sceneId: scenes[0].id }, orderBy: { position: 'asc' } });
-      const labels = choices.map(choice => localized(choice.label, manuscript.locale));
-      if (choices.length !== 3 || choices.some((choice, index) => choice.position !== index + 1) ||
-          choices[0].routeKind !== 'writer_original' ||
-          Boolean(choices[0].targetSceneId) === Boolean(choices[0].targetEndingKey) ||
-          choices.slice(1).some(choice => choice.routeKind !== 'generation_required' ||
+      const partScenes = scenesByPart.get(part.id) ?? [];
+      if (partScenes.length !== 1 || partScenes[0].status !== part.status) fail('STUDIO_CHOICES_PUBLICATION_SCENES_INCOMPLETE');
+      const sceneId = partScenes[0].id;
+      orderedSceneIds.push(sceneId);
+      if (preparedScenes && !preparedScenes.has(sceneId)) continue;
+      const sceneChoices = choicesByScene.get(sceneId) ?? [];
+      const labels = sceneChoices.map(choice => localized(choice.label, manuscript.locale));
+      if (sceneChoices.length !== 3 || sceneChoices.some((choice, index) => choice.position !== index + 1) ||
+          sceneChoices[0].routeKind !== 'writer_original' ||
+          Boolean(sceneChoices[0].targetSceneId) === Boolean(sceneChoices[0].targetEndingKey) ||
+          sceneChoices.slice(1).some(choice => choice.routeKind !== 'generation_required' ||
             choice.targetSceneId || choice.targetEndingKey || choice.declaredRejoinSceneId) ||
           labels.some(label => !label) || new Set(labels).size !== 3) {
         fail('STUDIO_CHOICES_PUBLICATION_CHOICES_INCOMPLETE');
       }
-      const evidence = await tx.auditEvent.findFirst({ where: {
-        actorUserId: ownerUserId, action: 'story_studio_choices.prepared',
-        targetType: 'story_scene', targetId: scenes[0].id,
-      }, orderBy: { createdAt: 'desc' } });
+      const evidence = proofByScene.get(sceneId);
       const metadata = evidence?.metadata as Record<string, unknown> | undefined;
-      const beats = await tx.storyBeat.findMany({ where: { sceneId: scenes[0].id }, orderBy: { position: 'asc' } });
-      const currentSceneDigest = sceneDigest(beats.map(beat => localized(beat.content, manuscript.locale) ?? '').join(''));
+      const sceneBeats = beatsByScene.get(sceneId) ?? [];
+      if (body && Object.prototype.hasOwnProperty.call(body, 'publicationReaderProjection')) {
+        const source = authoredParts[part.position - 1] as unknown as ManuscriptPart;
+        const expectedText = publicationReaderText(manuscript.structuredBody, source, manuscript.contentHash);
+        if (expectedText.replace(/\s+/gu, '') !== sceneBeats.map(beat =>
+          localized(beat.content, manuscript.locale) ?? '').join('').replace(/\s+/gu, '')) {
+          fail('STUDIO_CHOICES_MANUSCRIPT_SCENE_MISMATCH');
+        }
+      }
+      const currentSceneDigest = sceneDigest(sceneBeats.map(beat => localized(beat.content, manuscript.locale) ?? '').join(''));
       if (metadata?.workId !== workId || metadata?.releaseId !== releaseId ||
-          metadata?.consentId !== consent.id || metadata?.manuscriptHash !== manuscript.contentHash ||
+          metadata?.consentId !== consent.id || (metadata?.consentRevision !== consent.revision &&
+            !choiceConsentReceiptValid(evidence, receiptByScene.get(sceneId), consent)) ||
+          metadata?.manuscriptHash !== manuscript.contentHash ||
+          (generationProfile
+            ? metadata?.generationProfileViewVersion !== generationProfile.viewVersion ||
+              stableJson(metadata?.generationProfilePin) !== stableJson(generationProfile.pin) ||
+              metadata?.analysisJobId !== generationProfile.analysisJobId
+            : metadata?.generationProfilePin !== undefined || metadata?.generationProfileViewVersion !== undefined) ||
           metadata?.sceneDigest !== currentSceneDigest ||
-          metadata?.choiceDigest !== choiceDigest(choices, manuscript.locale)) {
+          metadata?.choiceDigest !== choiceDigest(sceneChoices, manuscript.locale)) {
         fail('STUDIO_CHOICES_GENERATION_PROOF_REQUIRED');
       }
     }
-    return parts[0].status === 'draft' ? { partIds: parts.map(part => part.id), sceneIds } : undefined;
+    return !preparedScenes && parts[0].status === 'draft'
+      ? { partIds: parts.map(part => part.id), sceneIds: orderedSceneIds } : undefined;
   }
 
   async prepare(ownerUserId: string, workId: string, releaseId: string, sceneId: string,
@@ -119,30 +216,55 @@ export class StoryStudioChoicePreparationService {
     const snapshot = await this.readiness(this.prisma, ownerUserId, workId, releaseId, sceneId);
     const provider = this.provider();
     let alternatives: [string, string];
+    let originalLabel: string;
+    let providerUsage: StoryChoiceUsage | null = null;
+    let providerOutcome: 'accepted' | 'rejected' = 'rejected';
     try {
-      const generated = await provider.generate({ workTitle: snapshot.workTitle, parts: [{
+      const generated = await provider.generate({ workTitle: snapshot.workTitle,
+        ...(snapshot.generationProfile ? { generationProfile: snapshot.generationProfile.approved } : {}), parts: [{
         partKey: snapshot.partKey, title: snapshot.partTitle, endingExcerpt: snapshot.endingExcerpt,
-        originalChoiceLabel: snapshot.originalLabel, context: snapshot.context,
-      }] });
+        ...(snapshot.originalLabel ? { originalChoiceLabel: snapshot.originalLabel } : {
+          nextPartTitle: snapshot.nextPartTitle, nextPartExcerpt: snapshot.nextPartExcerpt,
+        }), context: snapshot.context,
+      }] }, (usage) => { providerUsage = usage; });
       if (generated.length !== 1 || generated[0].partKey !== snapshot.partKey) fail('STUDIO_CHOICES_GENERATION_INVALID');
       alternatives = generated[0].alternatives;
+      originalLabel = snapshot.originalLabel ?? generated[0].originalChoiceLabel;
+      if (!originalLabel || originalLabel.length > 120) fail('STUDIO_CHOICES_GENERATION_INVALID');
+      providerOutcome = 'accepted';
     } catch (error) {
       if (error instanceof StoryChoicePreparationError) throw new ServiceUnavailableException({
         code: 'STUDIO_CHOICES_GENERATION_FAILED', reason: error.code,
         message: 'Choice preparation did not complete; this scene remains unpublished',
       });
       throw error;
+    } finally {
+      await this.prisma.auditEvent.create({ data: {
+        actorUserId: ownerUserId, actorType: 'user',
+        action: 'story_studio_choices.provider_usage', targetType: 'story_scene', targetId: sceneId,
+        metadata: {
+          workId, releaseId, model: provider.modelName, outcome: providerOutcome,
+          usageStatus: providerUsage ? 'reported' : 'unavailable', providerUsage,
+        },
+      } });
     }
     try {
       return await this.prisma.$transaction(async tx => {
+      await tx.$queryRaw(Prisma.sql`SELECT id FROM story_studio_choice_jobs WHERE release_id = ${releaseId}::uuid FOR UPDATE`);
       await tx.$queryRaw(Prisma.sql`SELECT id FROM story_scenes WHERE id = ${sceneId}::uuid FOR UPDATE`);
       await tx.$queryRaw(Prisma.sql`SELECT id FROM story_style_profile_consents WHERE work_id = ${workId}::uuid FOR SHARE`);
+      if (tx.storyWorkGenerationProfile) {
+        await tx.$queryRaw(Prisma.sql`SELECT id FROM story_work_generation_profiles WHERE work_id = ${workId}::uuid FOR SHARE`);
+      }
       await this.assertJobLease(tx, releaseId, jobLeaseToken);
       const current = await this.readiness(tx, ownerUserId, workId, releaseId, sceneId);
       if (JSON.stringify(current) !== JSON.stringify(snapshot)) fail('STUDIO_CHOICES_SOURCE_CHANGED');
       const choices = await tx.storyChoice.findMany({ where: { sceneId }, orderBy: { position: 'asc' } });
       if (choices.length !== 1 || choices[0].position !== 1 || choices[0].routeKind !== 'writer_original' ||
           localized(choices[0].label, 'ko') !== snapshot.originalLabel) fail('STUDIO_CHOICES_ORIGINAL_CHANGED');
+      if (snapshot.originalLabel === null) {
+        await tx.storyChoice.update({ where: { id: choices[0].id }, data: { label: { ko: originalLabel } } });
+      }
       const generated = alternatives.map((label, index) => ({
         sceneId, choiceKey: index === 0 ? 'branch-b' : 'branch-c', position: index + 2,
         label: { ko: label }, routeKind: 'generation_required',
@@ -153,7 +275,11 @@ export class StoryStudioChoicePreparationService {
         metadata: { workId, releaseId, manuscriptHash: snapshot.manuscriptHash,
           consentId: snapshot.consentId, consentRevision: snapshot.consentRevision, choiceCount: 3,
           sceneDigest: snapshot.sceneDigest,
-          choiceDigest: choiceDigest([choices[0], ...generated], 'ko') } } });
+          ...(snapshot.generationProfile ? { generationProfilePin: snapshot.generationProfile.pin,
+            generationProfileViewVersion: snapshot.generationProfile.viewVersion,
+            analysisJobId: snapshot.generationProfile.analysisJobId } : {}),
+          choiceDigest: choiceDigest([{ ...choices[0], label: { ko: originalLabel } }, ...generated], 'ko'),
+          originalLabelGenerated: snapshot.originalLabel === null } } });
       return { sceneId, choiceCount: 3, originalRoutePreserved: true };
       }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, maxWait: 2000, timeout: 10000 });
     } catch (error) {
@@ -174,8 +300,8 @@ export class StoryStudioChoicePreparationService {
     releaseId: string, leaseToken?: string) {
     const job = await db.storyStudioChoiceJob.findUnique({ where: { releaseId },
       select: { status: true, leaseToken: true, leaseExpiresAt: true } });
-    if (job && (job.status !== 'processing' || !leaseToken || job.leaseToken !== leaseToken ||
-        !job.leaseExpiresAt || job.leaseExpiresAt <= new Date())) {
+    if ((!job && leaseToken) || (job && (job.status !== 'processing' || !leaseToken || job.leaseToken !== leaseToken ||
+        !job.leaseExpiresAt || job.leaseExpiresAt <= new Date()))) {
       fail('STUDIO_CHOICES_BACKGROUND_JOB_ACTIVE');
     }
   }
@@ -206,6 +332,8 @@ export class StoryStudioChoicePreparationService {
         !Array.isArray(consent.allowedLocales) || !consent.allowedLocales.includes('ko')) {
       fail('STUDIO_CHOICES_AI_RIGHTS_CONSENT_REQUIRED');
     }
+    const generationProfile = await this.approvedGenerationProfile(db, ownerUserId, workId,
+      manuscript, review!.analysisJobId);
     const scene = await db.storyScene.findFirst({ where: { id: sceneId, status: 'draft' } });
     const part = scene ? await db.storyPart.findFirst({ where: { id: scene.partId, workId, status: 'draft' } }) : null;
     if (!scene || !part) fail('STUDIO_CHOICES_DRAFT_SCENE_REQUIRED');
@@ -220,16 +348,31 @@ export class StoryStudioChoicePreparationService {
       Boolean(item && typeof item === 'object' &&
         ['title', 'scene_break', 'paragraph', 'dialogue'].includes(item.kind) && typeof item.text === 'string'))
       .map(item => item.text).join('');
+    const readerText = typeof source?.title === 'string' ? publicationReaderText(manuscript.structuredBody,
+      source as unknown as ManuscriptPart, manuscript.contentHash) : sourceText;
     const beats = await db.storyBeat.findMany({ where: { sceneId }, orderBy: { position: 'asc' } });
     const sceneText = beats.map(beat => localized(beat.content, 'ko') ?? '').join('');
     const compact = (value: string) => value.replace(/\s+/gu, '');
     if (!source || typeof source.partKey !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(source.partKey) ||
         typeof source.title !== 'string' || source.title !== localized(part.title, 'ko') ||
-        !sourceText.trim() || compact(sourceText) !== compact(sceneText)) fail('STUDIO_CHOICES_MANUSCRIPT_SCENE_MISMATCH');
+        !readerText.trim() || compact(readerText) !== compact(sceneText)) {
+      fail('STUDIO_CHOICES_MANUSCRIPT_SCENE_MISMATCH');
+    }
     const choices = await db.storyChoice.findMany({ where: { sceneId }, orderBy: { position: 'asc' } });
+    const originalLabel = choices[0] ? localized(choices[0].label, 'ko') : null;
+    const graph = release.branchGraphSnapshot as Record<string, unknown> | undefined;
+    const graphParts = Array.isArray(graph?.parts) ? graph.parts : [];
+    const plannedRoute = graphParts.find((row): row is Record<string, unknown> =>
+      Boolean(row && typeof row === 'object' && !Array.isArray(row) &&
+        (row as Record<string, unknown>).partKey === source?.partKey));
+    if (plannedRoute && (plannedRoute.originalLabel === null ? originalLabel !== null :
+        typeof plannedRoute.originalLabel !== 'string' || plannedRoute.originalLabel !== originalLabel)) {
+      fail('STUDIO_CHOICES_ORIGINAL_ROUTE_REQUIRED');
+    }
+    const generatedOriginalPending = !originalLabel && plannedRoute?.originalLabel === null;
     if (choices.length !== 1 || choices[0].position !== 1 || choices[0].routeKind !== 'writer_original' ||
         Boolean(choices[0].targetSceneId) === Boolean(choices[0].targetEndingKey) ||
-        !localized(choices[0].label, 'ko')) fail('STUDIO_CHOICES_ORIGINAL_ROUTE_REQUIRED');
+        (!originalLabel && !generatedOriginalPending)) fail('STUDIO_CHOICES_ORIGINAL_ROUTE_REQUIRED');
     if (choices[0].targetSceneId) {
       const target = await db.storyScene.findUnique({ where: { id: choices[0].targetSceneId } });
       const targetPart = target ? await db.storyPart.findFirst({ where: { id: target.partId, workId } }) : null;
@@ -237,9 +380,80 @@ export class StoryStudioChoicePreparationService {
     }
     const workTitle = localized(work.title, 'ko');
     if (!workTitle) fail('STUDIO_CHOICES_TITLE_REQUIRED');
+    const next = parts[part.position] as Record<string, unknown> | undefined;
+    if (generatedOriginalPending && (Boolean(choices[0].targetSceneId) !== Boolean(next) ||
+        (!next && choices[0].targetEndingKey !== 'author_main'))) {
+      fail('STUDIO_CHOICES_ORIGINAL_ROUTE_REQUIRED');
+    }
+    if (plannedRoute && plannedRoute.nextPartKey !== (next?.partKey ?? null)) {
+      fail('STUDIO_CHOICES_ORIGINAL_ROUTE_REQUIRED');
+    }
+    const nextParagraphs = next && Array.isArray(next.paragraphs) ? next.paragraphs : [];
+    const nextPartText = nextParagraphs.filter((item): item is { text: string } =>
+      Boolean(item && typeof item === 'object' && typeof item.text === 'string'))
+      .map(item => item.text).join('');
+    const nextPartExcerpt = (typeof next?.title === 'string'
+      ? publicationReaderText(manuscript.structuredBody,
+        next as unknown as ManuscriptPart, manuscript.contentHash)
+      : readerPartText(nextPartText, '')).trim().slice(0, 500);
+    if (generatedOriginalPending && choices[0].targetSceneId &&
+        (typeof next?.title !== 'string' || !nextPartExcerpt)) fail('STUDIO_CHOICES_ORIGINAL_ROUTE_REQUIRED');
     return { workTitle, partKey: source.partKey, partTitle: source.title,
-      endingExcerpt: sourceText.trim().slice(-1200), context: sourceText.trim().slice(0, 350),
-      originalLabel: localized(choices[0].label, 'ko')!, consentId: consent.id,
-      consentRevision: consent.revision, manuscriptHash: manuscript.contentHash, sceneDigest: sceneDigest(sceneText) };
+      endingExcerpt: readerText.trim().slice(-1200), context: readerText.trim().slice(0, 350),
+      originalLabel, nextPartTitle: generatedOriginalPending && next ? String(next.title) : null,
+      nextPartExcerpt: generatedOriginalPending && next ? nextPartExcerpt : null,
+      consentId: consent.id,
+      consentRevision: consent.revision, manuscriptHash: manuscript.contentHash, sceneDigest: sceneDigest(sceneText),
+      generationProfile };
+  }
+
+  async assertOriginalSceneReadyTx(tx: Prisma.TransactionClient, ownerUserId: string,
+    workId: string, releaseId: string, sceneId: string) {
+    await this.readiness(tx, ownerUserId, workId, releaseId, sceneId);
+  }
+
+  async approvedGenerationProfile(db: PrismaService | Prisma.TransactionClient, ownerUserId: string,
+    workId: string, manuscript: { id: string; contentHash: string }, reviewAnalysisJobId: string) {
+    // Legacy clients/works without profiles retain their existing choice preparation contract.
+    if (!db.storyWorkGenerationProfile) return null;
+    const profile = await db.storyWorkGenerationProfile.findFirst({ where: { workId },
+      orderBy: { profileVersion: 'desc' } });
+    const analysis = await db.storyAnalysisJob.findFirst({ where: { workId,
+      manuscriptVersionId: manuscript.id, pipeline: SEMANTIC_PIPELINE },
+      orderBy: { analysisVersion: 'desc' } });
+    if (!profile) {
+      if (analysis) fail('STUDIO_CHOICES_GENERATION_PROFILE_APPROVAL_REQUIRED');
+      return null;
+    }
+    if (profile.workId !== workId || profile.ownerUserId !== ownerUserId ||
+        profile.approvedByUserId !== ownerUserId || !profile.approvedAt ||
+        profile.status !== 'approved' || profile.profileVersion < 1 || profile.reviewRevision < 1) {
+      fail('STUDIO_CHOICES_GENERATION_PROFILE_APPROVAL_REQUIRED');
+    }
+    if (profile.manuscriptVersionId !== manuscript.id || !analysis ||
+        analysis.workId !== workId || analysis.manuscriptVersionId !== manuscript.id ||
+        analysis.status !== 'completed' || analysis.pipeline !== SEMANTIC_PIPELINE ||
+        analysis.sourceLocale !== 'ko' || analysis.totalParagraphs < 1 ||
+        analysis.plannedParagraphs !== analysis.totalParagraphs ||
+        analysis.completedParagraphs !== analysis.totalParagraphs ||
+        analysis.sourceContentHash !== manuscript.contentHash || profile.analysisJobId !== analysis.id ||
+        reviewAnalysisJobId !== analysis.id) {
+      fail('STUDIO_CHOICES_GENERATION_PROFILE_SOURCE_MISMATCH');
+    }
+    const sourceFingerprint = createHash('sha256').update(stableJson({ workId,
+      manuscriptVersionId: manuscript.id, contentHash: manuscript.contentHash,
+      analysisJobId: analysis.id, analysisVersion: analysis.analysisVersion,
+      analysisConfigHash: analysis.configHash })).digest('hex');
+    if (profile.sourceFingerprint !== sourceFingerprint) fail('STUDIO_CHOICES_GENERATION_PROFILE_SOURCE_MISMATCH');
+    try {
+      const snapshot = continuationGenerationProfileSnapshot(profile);
+      const binding = { manuscriptVersionId: manuscript.id,
+        analysisJobId: analysis.id, analysisVersion: analysis.analysisVersion,
+        approvedByUserId: profile.approvedByUserId, approvedAt: profile.approvedAt.toISOString() };
+      return { ...snapshot, ...binding, pin: { ...snapshot.pin, ...binding },
+        viewVersion: STORY_CONTINUATION_PROFILE_VIEW_VERSION };
+    } catch {
+      fail('STUDIO_CHOICES_GENERATION_PROFILE_INVALID');
+    }
   }
 }

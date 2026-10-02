@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "scope": "Night source candidate dependencies only; not a confirmed deployment bundle",
+  "serverEntries": ["server/src/main.ts"],
+  "groups": [
+    {
+      "id": "runtime",
+      "requires": [],
+      "files": ["server/package.json", "server/package-lock.json", "server/tsconfig.json", "server/tsconfig.build.json", "server/nest-cli.json", "server/prisma/schema.prisma", ".github/workflows/deploy-pages.yml", "scripts/run-static-site-tests.mjs", "scripts/release-candidate-20261002.json", "app.js", "styles.css", "data/characters.js"],
+      "serverFiles": ["server/src/main.ts", "server/src/app.module.ts"]
+    },
+    {
+      "id": "story-author",
+      "requires": ["runtime"],
+      "files": ["creator-studio/index.html", "creator-studio.html", "pages/creator-studio.js", "pages/creator-analysis-review.js", "pages/creator-story-finalize.js", "pages/creator-story-interactions.js", "pages/creator-story-interactions.css", "pages/creator-story-visual-references.js", "creator-story-visual-references.css", "pages/creator-story-visual-review.js", "pages/creator-story-visual-review.css", "pages/creator-story-visual-booking.js", "pages/creator-story-visual-booking.css", "pages/creator-branch-visual-review.js", "pages/creator-branch-visual-review.css", "pages/creator-story-choice-consent-review.js", "pages/creator-story-choice-consent-review.css", "pages/content-rights-contract-ui.js", "pages/creator-content-rights.js", "styles/creator-studio.css"],
+      "serverFiles": ["server/src/story-production/story-production.module.ts", "server/src/story-production/story-interaction-approval.controller.ts", "server/src/story-production/story-interaction-approval.service.ts", "server/src/story-production/story-canonical-source.policy.ts", "server/src/story-production/story-progress-control.service.ts", "server/src/story-production/story-studio-choice-job.service.ts", "server/src/story-production/story-choice-preparation.provider.ts"]
+    },
+    {
+      "id": "story-reader",
+      "requires": ["runtime", "story-author"],
+      "files": ["story-stage/index.html", "pages/story-stage.js", "pages/story-canonical-read.js", "styles/story-stage.css", "app.js", "styles.css", "data/characters.js"],
+      "serverFiles": ["server/src/story-production/story-canonical-read.controller.ts", "server/src/story-production/story-canonical-read.service.ts", "server/src/story-production/story-canonical-read.policy.ts"]
+    },
+    {
+      "id": "artist-memory",
+      "requires": ["story-reader", "story-author"],
+      "files": ["character-chat/index.html", "character-chat.html", "pages/character-chat.js", "styles/character-chat.css", "cms-bootstrap.js", "data/character-chat-tones.js", "pages/premium-chat-support.js", "pages/premium-chat-hub.js"],
+      "serverFiles": ["server/src/chat/chat.service.ts", "server/src/chat/story-chat-memory.ts", "server/src/chat/story-chat-canonical-memory.ts", "server/src/chat/story-chat-memory-scope.ts", "server/src/chat/story-chat-route-scope.ts", "server/src/creator-studio/creator-studio.service.ts", "server/src/admin/admin.service.ts"]
+    },
+    {
+      "id": "backstage",
+      "requires": ["runtime", "story-author", "artist-memory"],
+      "files": ["backstage/index.html", "backstage.js", "backstage.css", "backstage-site-content.js", "backstage-content-rights.js", "backstage-story-publication.js", "backstage-story-publication.css", "backstage-story-visual-booking.js", "backstage-story-visual-booking.css", "pages/content-rights-contract-ui.js"],
+      "serverFiles": ["server/src/admin/admin.module.ts", "server/src/admin/admin-users-read.service.ts"]
+    }
+  ],
+  "migrations": {
+    "directory": "server/prisma/migrations",
+    "expectedCount": 99,
+    "requiredInOrder": [
+      "20261001000000_story_branch_visual_review_batches",
+      "20261001010000_story_interaction_approvals",
+      "20261001020000_story_canonical_read_receipts"
+    ]
+  }
+}

@@ -106,9 +106,9 @@
             </nav>
 
             <dl class="hero-metrics">
-              <div>
+              <div id="homeFeaturedArtistMetric" hidden>
                 <dt>대표 아티스트</dt>
-                <dd>윤세린</dd>
+                <dd id="homeFeaturedArtistName"></dd>
               </div>
               <div>
                 <dt>공개 라인업</dt>
@@ -122,24 +122,7 @@
           </div>
 
           <div class="hero-visual">
-            <article class="hero-feature" id="heroFeature">
-              <!-- JS renderHeroFeature()가 좋아요 1위 캐릭터로 동적 채움. 아래는 fallback HTML (API/JS 실패 시) -->
-              <div class="hero-feature-media">
-                <img src="/assets/characters/yoon-serin/thumb.png" alt="윤세린 프로필" />
-              </div>
-              <div class="hero-feature-body">
-                <span class="hero-feature-label">이달의 아티스트</span>
-                <strong>윤세린</strong>
-                <p class="hero-feature-summary">차갑게, 그러나 또렷하게.</p>
-                <p>첫 조명이 켜지는 순간까지 흔들리지 않을게요. 당신의 응원이 제 무대의 온도를 바꿉니다.</p>
-                <ul class="hero-feature-tags">
-                  <li>아이돌</li>
-                  <li>퍼포먼스</li>
-                  <li>뷰티</li>
-                </ul>
-              <a class="text-link hero-feature-link" href="/character-detail?slug=yoon-serin">윤세린 프로필 보기</a>
-              </div>
-            </article>
+            <article class="hero-feature" id="heroFeature" hidden></article>
           </div>
         </div>
       </section>
@@ -215,7 +198,7 @@
         </div>
       </section>
 
-      <section id="premium" class="content-section">
+      <section id="premium" class="content-section" hidden>
         <div class="shell premium-grid">
           <div class="premium-copy">
             <p class="eyebrow">프리미엄 라인</p>
@@ -310,7 +293,7 @@
           <a href="/refund-policy" data-i18n="footer.refund">환불 정책</a>
 
           <a href="/business" data-i18n="footer.businessInquiry" data-i18n-attr="title:footer.businessInquiry.helper" title="브랜드 협업, IP 제휴, 제작 문의는 Lumina Stage 비즈니스 채널로 연결됩니다.">Business Inquiry</a>
-          <a href="/business#partner-inquiry" title="사업 제휴, 전략 파트너, 투자 관련 문의를 확인합니다.">사업·투자 문의</a>
+          <a href="/business#partner-inquiry" data-i18n="footer.partnerInquiry" data-i18n-attr="title:footer.partnerInquiry.helper" title="사업 제휴, 전략 파트너, 투자 관련 문의를 확인합니다.">사업·투자 문의</a>
         </div>
       </div>
     </footer>

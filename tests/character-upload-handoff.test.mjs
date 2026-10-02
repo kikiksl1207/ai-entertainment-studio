@@ -91,7 +91,7 @@ test('public catalog uses thumbnails and detail pages use main cover images', ()
   const catalogPage = readFileSync(`${root}/pages/character-catalog.js`, 'utf8');
   const detailPage = readFileSync(`${root}/pages/character-detail.js`, 'utf8');
   const detailStyles = readFileSync(`${root}/styles/character-detail.css`, 'utf8');
-  assert.match(catalogPage, /a\.images\.thumb \|\| a\.images\.cover/);
+  assert.match(catalogPage, /a\.images\?\.thumb \|\| a\.images\?\.cover/);
   assert.match(detailPage, /artist\.images\.cover \|\| artist\.images\.thumb/);
   assert.match(catalogPage, /candidate: "신규"/);
   assert.match(detailPage, /candidate: "신규"/);

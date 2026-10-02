@@ -61,8 +61,11 @@ import { StoryVisualGenerationService } from './story-visual-generation.service'
 import { StoryPublicBetaPolicy } from './story-public-beta.policy';
 import { StoryPublicationIntakeController } from './story-publication-intake.controller';
 import { StoryPublicationIntakeService } from './story-publication-intake.service';
+import { StoryPublicationChoiceProfileService } from './story-publication-choice-profile.service';
 import { StoryPublicBetaAiActivationService } from './story-public-beta-ai-activation.service';
 import { StoryUploadModule } from '../story-upload/story-upload.module';
+import { CreatorStudioModule } from '../creator-studio/creator-studio.module';
+import { UserAssetsModule } from '../assets/user-assets.module';
 import { StoryGenerationProfileService } from './story-generation-profile.service';
 import { StoryArtistParticipantService } from './story-artist-participant.service';
 import { StoryStudioChoicePreparationController } from './story-studio-choice-preparation.controller';
@@ -70,14 +73,28 @@ import { StoryStudioChoicePreparationService } from './story-studio-choice-prepa
 import { StoryStudioLinearController } from './story-studio-linear.controller';
 import { StoryStudioLinearService } from './story-studio-linear.service';
 import { StoryStudioChoiceJobService } from './story-studio-choice-job.service';
+import { StoryStudioChoiceRecoveryService } from './story-studio-choice-recovery.service';
+import { StoryStudioVisualReviewController } from './story-studio-visual-review.controller';
+import { StoryStudioVisualReviewService } from './story-studio-visual-review.service';
+import { StoryBranchVisualReviewService } from './story-branch-visual-review.service';
+import { StoryBranchVisualReviewController, StoryBranchVisualReviewListController } from './story-branch-visual-review.controller';
+import { StoryInteractionApprovalController } from './story-interaction-approval.controller';
+import { StoryInteractionApprovalService } from './story-interaction-approval.service';
+import { StoryCanonicalReadController } from './story-canonical-read.controller';
+import { StoryCanonicalReadService } from './story-canonical-read.service';
 
 @Module({
-  imports: [ModerationModule, StoryUploadModule],
+  imports: [ModerationModule, StoryUploadModule, CreatorStudioModule, UserAssetsModule],
   controllers: [
     StoryAiActivationAdminController,
     StoryManuscriptFileController,
     StoryStudioChoicePreparationController,
     StoryStudioLinearController,
+    StoryStudioVisualReviewController,
+    StoryBranchVisualReviewController,
+    StoryBranchVisualReviewListController,
+    StoryInteractionApprovalController,
+    StoryCanonicalReadController,
     StoryAuthoredImportController,
     StoryProductionController,
     StoryProgressAdminController,
@@ -106,7 +123,12 @@ import { StoryStudioChoiceJobService } from './story-studio-choice-job.service';
     StoryAuthorFinalReviewService,
     StoryStudioChoicePreparationService,
     StoryStudioChoiceJobService,
+    StoryStudioChoiceRecoveryService,
     StoryStudioLinearService,
+    StoryStudioVisualReviewService,
+    StoryBranchVisualReviewService,
+    StoryInteractionApprovalService,
+    StoryCanonicalReadService,
     StoryAuthoredImportMultipartInterceptor,
     StoryProductionService,
     StoryProgressControlService,
@@ -116,6 +138,7 @@ import { StoryStudioChoiceJobService } from './story-studio-choice-job.service';
     StoryVisualGenerationService,
     StoryPublicBetaPolicy,
     StoryPublicationIntakeService,
+    StoryPublicationChoiceProfileService,
     StoryPublicBetaAiActivationService,
     StoryGenerationProfileService,
     StoryArtistParticipantService,

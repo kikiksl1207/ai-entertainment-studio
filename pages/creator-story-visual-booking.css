@@ -1,0 +1,58 @@
+#writerVisualBooking {
+  min-width: 0;
+  border-top: 1px solid var(--line, #d6d7dc);
+  margin-top: 24px;
+  padding-top: 20px;
+  font: 14px/1.65 Pretendard, "Noto Sans KR", system-ui, sans-serif;
+  letter-spacing: 0;
+  overflow-wrap: anywhere;
+}
+#writerVisualBooking * { min-width: 0; box-sizing: border-box; letter-spacing: 0; }
+#writerVisualBooking header, .writer-booking-target, .writer-booking-pages, .writer-booking-dialog-actions {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 12px;
+}
+#writerVisualBooking header { justify-content: space-between; }
+#writerVisualBooking h3, #writerVisualBooking h4 { margin: 0; font-size: 17px; }
+.writer-booking-target { align-items: end; margin-block: 16px; }
+.writer-booking-target > label { display: grid; flex: 1 1 260px; gap: 6px; }
+#writerVisualBooking select { width: 100%; max-width: 100%; min-height: 42px; font: inherit; }
+#writerVisualBooking button {
+  max-width: 100%; min-height: 40px; border: 1px solid var(--line, #d6d7dc); border-radius: 4px;
+  background: var(--panel, #fff); color: inherit; padding: 8px 12px; font: inherit; font-weight: 600;
+  white-space: normal; overflow-wrap: anywhere; cursor: pointer;
+}
+#writerVisualBooking button:disabled, #writerVisualBooking select:disabled { opacity: .5; cursor: not-allowed; }
+#writerVisualBooking :is(button, select, input, summary):focus-visible { outline: 2px solid #16806a; outline-offset: 3px; }
+.writer-booking-binding { display: grid; gap: 6px; margin-block: 12px; }
+.writer-booking-binding > div { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 8px; }
+.writer-booking-binding dt, .writer-booking-choice small { color: var(--muted, #6b7280); }
+.writer-booking-binding dd { margin: 0; overflow-wrap: anywhere; }
+.writer-booking-state { min-height: 24px; }
+.writer-booking-state.is-error { color: var(--danger, #b42318); }
+.writer-booking-items { list-style: none; display: grid; gap: 10px; padding: 0; }
+.writer-booking-items > li { padding: 12px; border: 1px solid var(--line, #d6d7dc); border-radius: 4px; }
+.writer-booking-choice { display: flex; align-items: start; gap: 9px; }
+.writer-booking-choice span { display: grid; gap: 2px; }
+#writerVisualBooking input { flex: 0 0 16px; width: 16px; height: 16px; margin: 4px 0 0; accent-color: #16806a; }
+.writer-booking-items summary { cursor: pointer; }
+.writer-booking-items p { margin-block: 8px; }
+.writer-booking-pages { justify-content: center; margin-block: 16px; }
+.writer-booking-pages button { flex: 0 0 44px; width: 44px; }
+.writer-booking-pages span { min-width: 70px; text-align: center; }
+.writer-booking-approval { display: grid; gap: 12px; border-top: 1px solid var(--line, #d6d7dc); padding-block: 16px; }
+.writer-booking-approval button { justify-self: start; }
+.writer-booking-dialog {
+  width: min(560px, calc(100% - 28px)); max-height: calc(100dvh - 32px); overflow: auto;
+  padding: 20px; border: 1px solid var(--line, #d6d7dc); border-radius: 6px;
+  background: #fff; color: #18181b; font: inherit; overflow-wrap: anywhere;
+}
+.writer-booking-dialog::backdrop { background: rgb(0 0 0 / 50%); }
+.writer-booking-dialog-actions { justify-content: end; margin-top: 16px; }
+#writerVisualBooking .writer-booking-dialog :is(p, dt) { color: #4b5563; }
+#writerVisualBooking .writer-booking-dialog button { background: #f4f4f5; border-color: #d1d5db; color: #18181b; }
+#writerVisualBooking .writer-booking-dialog [data-writer-booking-action="confirm"] { background: #047857; border-color: #047857; color: #fff; }
+@media (max-width: 600px) {
+  .writer-booking-binding > div { grid-template-columns: minmax(0, 1fr); gap: 1px; }
+  .writer-booking-target > button { width: 100%; }
+  .writer-booking-dialog-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

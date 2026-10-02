@@ -1,4 +1,4 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   ArrayMinSize,
@@ -12,6 +12,7 @@ import {
   MaxLength,
   Matches,
   Min,
+  MinLength,
   ValidateNested,
 } from 'class-validator';
 import { STORY_LOCALES } from '../story-production.policy';
@@ -42,6 +43,38 @@ export class StoryCatalogQueryDto {
   @MaxLength(40)
   @Matches(/^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/)
   tag?: string;
+}
+
+export class CreateStoryDraftDto {
+  @IsUUID()
+  requestId: string;
+
+  @IsString()
+  @MaxLength(120)
+  title: string;
+
+  @IsIn(STORY_LOCALES)
+  locale: string;
+}
+
+export class UpdateStoryDraftMetadataDto {
+  @Transform(({ value }) => typeof value === 'string' && !/[\p{Cc}\p{Cf}]/u.test(value) ? value.trim() : value)
+  @IsString()
+  @MinLength(1)
+  @MaxLength(80)
+  @Matches(/^[^\p{Cc}\p{Cf}]+$/u)
+  authorDisplayName: string;
+
+  @Transform(({ value }) => typeof value === 'string' && !/[\p{Cc}\p{Cf}]/u.test(value) ? value.trim() : value)
+  @IsString()
+  @MinLength(1)
+  @MaxLength(600)
+  @Matches(/^[^\p{Cc}\p{Cf}]+$/u)
+  summary: string;
+
+  @Transform(({ value }) => typeof value === 'string' && !/[\p{Cc}\p{Cf}]/u.test(value) ? value.trim() : value)
+  @IsUUID()
+  coverAssetId: string;
 }
 
 export class StoryLocaleQueryDto {

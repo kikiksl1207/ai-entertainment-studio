@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
-import { createHash, randomBytes, randomUUID } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import {
   brotliCompressSync,
   brotliDecompressSync,
@@ -21,7 +21,7 @@ import {
   StoryUploadFile,
   StoryUploadFileFields,
 } from '../story-upload/story-upload.types';
-import { PromoteStoryUploadDto } from './dto/story-publication-intake.dto';
+import { PromoteStoryUploadDto, ReviewPublishedChoiceBatchDto } from './dto/story-publication-intake.dto';
 import { missingAuthoredSceneVisual } from './story-authored-beat-visual.policy';
 import {
   authoredHash,
@@ -57,6 +57,15 @@ import {
   StoryChoicePreparationProvider,
   StoryChoicePreparationInput,
 } from './story-choice-preparation.provider';
+import { hasPreparedOriginalAndAlternatives, hasValidWriterOriginalChoice } from './story-three-choice-readiness.policy';
+import { PublicationChoiceProfileBinding, StoryPublicationChoiceProfileService } from './story-publication-choice-profile.service';
+import { assertSamePublishedChoicePreparationContext, PublishedChoicePreparationContext,
+  readPublishedChoicePreparationContext } from './story-publication-choice-context.policy';
+import { comparePublicationPlanStorage } from './story-publication-persisted-plan.policy';
+import { StoryStudioChoicePreparationService } from './story-studio-choice-preparation.service';
+import { assertPrivatePublicationSource, createPrivatePublicationIntake,
+  PrivatePublicationSource, PUBLICATION_AUTHOR_REVIEW_STATUS,
+  publicationAuthorReviewReceipt } from './story-publication-private-intake.policy';
 
 const NORSE_ANALYSIS_SHA256 =
   '74462e693982cbb72733b3db465e435c008309dbcb76c603b908ed1369cb37f8';
@@ -78,6 +87,8 @@ const APPROVED_STORY_KEYS = ['imjin', 'norse', 'monster', 'rebellion', 'inherito
 const COMPANY_AUTHOR_DISPLAY_NAME = '루미나';
 const CHOICE_PREPARATION_VERSION = 'authored-context-two-alternatives-v1';
 const CHOICE_PREPARATION_BATCH_SIZE = 8;
+const CHOICE_PREPARATION_IN_FLIGHT = 'choice_preparing:';
+const CHOICE_PREPARATION_REVIEW_REQUIRED = 'choice_review_required:';
 const IMPORT_JOB_RECEIPT_SELECT = {
   id: true,
   status: true,
@@ -131,8 +142,10 @@ type PublicationPlan = {
   visualBible?: FixedRouteVisualBible;
   contentRating?: 'adults_only';
   catalogVisibility?: 'unlisted' | 'public_test';
-  choicePreparation?: { version: string; preparedPartKeys: string[] };
+  choicePreparation?: { version: string; preparedPartKeys: string[];
+    profileBinding?: PublicationChoiceProfileBinding | null };
   submissionId?: string;
+  writerIntakeWorkflow?: 'writer_review_before_choices_v1';
 };
 
 type PublicationPlanSnapshot = Omit<PublicationPlan, 'manuscript'> & {
@@ -149,7 +162,61 @@ export class StoryPublicationIntakeService {
     private readonly prisma: PrismaService,
     private readonly storage: StoryUploadStorageService,
     @Optional() private readonly config?: ConfigService,
+    @Optional() private readonly choiceProfiles?: StoryPublicationChoiceProfileService,
   ) {}
+
+  private profilePolicy() {
+    return this.choiceProfiles ?? new StoryPublicationChoiceProfileService(this.prisma);
+  }
+
+  private async assertChoiceProfileTx(tx: Prisma.TransactionClient, plan: Pick<PublicationPlan, 'slug' | 'choicePreparation'> & {
+    manuscript: { contentHash: string };
+  }) {
+    const profile = await this.profilePolicy().forPlan(tx, plan, true);
+    this.profilePolicy().assertSame(plan.choicePreparation?.profileBinding, profile?.binding);
+  }
+
+  private async assertStoredPublicationTx(tx: Prisma.TransactionClient, workId: string,
+    plan: Pick<PublicationPlan, 'parts'>) {
+    const parts = await tx.storyPart.findMany({ where: { workId }, take: plan.parts.length + 1,
+      select: { id: true, position: true, actNumber: true, title: true, status: true, fixtureSource: true } });
+    const scenes = await tx.storyScene.findMany({ where: { partId: { in: parts.map(part => part.id) } },
+      take: plan.parts.length + 1,
+      select: { id: true, partId: true, sceneKey: true, position: true, status: true, fixtureSource: true } });
+    if (parts.length !== plan.parts.length || scenes.length !== plan.parts.length ||
+        parts.some(part => part.status !== 'published' || part.fixtureSource) ||
+        scenes.some(scene => scene.status !== 'published' || scene.fixtureSource) ||
+        new Set(parts.map(part => part.position)).size !== parts.length ||
+        new Set(scenes.map(scene => scene.partId)).size !== scenes.length) {
+      throw new ConflictException({ code: 'STORY_PUBLICATION_STORED_PLAN_MISMATCH',
+        message: 'Stored publication parts or scenes do not match the approved plan' });
+    }
+    const partByPosition = new Map(parts.map(part => [part.position, part]));
+    const sceneByPartId = new Map(scenes.map(scene => [scene.partId, scene]));
+    const routing = new Map(plan.parts.map(part => {
+      const storedPart = partByPosition.get(part.position);
+      const scene = storedPart && sceneByPartId.get(storedPart.id);
+      if (!scene) throw new ConflictException({ code: 'STORY_PUBLICATION_STORED_PLAN_MISMATCH',
+        message: 'The approved part is missing its stored scene' });
+      return [part.partKey, scene.id] as const;
+    }));
+    // Read long-form prose in small batches instead of loading the entire novel again.
+    for (let cursor = 0; cursor < plan.parts.length; cursor += 6) {
+      const batch = plan.parts.slice(cursor, cursor + 6);
+      const sceneIds = batch.map(part => routing.get(part.partKey)!);
+      const batchParts = batch.map(part => partByPosition.get(part.position)!);
+      const batchScenes = batchParts.map(part => sceneByPartId.get(part.id)!);
+      const [beats, choices] = await Promise.all([
+        tx.storyBeat.findMany({ where: { sceneId: { in: sceneIds } },
+          take: batch.reduce((sum, part) => sum + part.beats.length, 0) + 1,
+          select: { sceneId: true, position: true, content: true, sourceSceneKey: true } }),
+        tx.storyChoice.findMany({ where: { sceneId: { in: sceneIds } }, take: batch.length * 3 + 1,
+          select: { sceneId: true, choiceKey: true, position: true, label: true, routeKind: true,
+            targetSceneId: true, targetEndingKey: true, declaredRejoinSceneId: true } }),
+      ]);
+      comparePublicationPlanStorage({ parts: batch }, { parts: batchParts, scenes: batchScenes, beats, choices }, routing);
+    }
+  }
 
   async submissions() {
     const [rows, publishedWorks] = await Promise.all([
@@ -181,7 +248,7 @@ export class StoryPublicationIntakeService {
           } }, { slug: { startsWith: `${INHERITOR_STORY.slug}-` } }],
           status: 'published',
         },
-        select: { id: true, slug: true, activeReleaseId: true, status: true },
+        select: { id: true, slug: true, title: true, activeReleaseId: true, status: true },
       }),
     ]);
     return {
@@ -189,7 +256,7 @@ export class StoryPublicationIntakeService {
       items: rows.map((row) => ({
         id: row.id,
         title: row.title,
-        status: row.status,
+        status: row.status === 'author_review' ? PUBLICATION_AUTHOR_REVIEW_STATUS : row.status,
         originalLocale: row.originalLocale,
         sourceClass: row.sourceClass,
         totalBytes: Number(row.totalBytes),
@@ -240,6 +307,7 @@ export class StoryPublicationIntakeService {
     }
     const plan = this.approvedPlan(input.storyKey, buffers);
     plan.submissionId = submissionId;
+    plan.writerIntakeWorkflow = 'writer_review_before_choices_v1';
     this.assertPublicRatingReady(plan);
     const existing = await this.prisma.storyPublicationImportJob.findUnique({
       where: {
@@ -251,7 +319,12 @@ export class StoryPublicationIntakeService {
       },
       select: IMPORT_JOB_RECEIPT_SELECT,
     });
-    if (existing && (existing.status !== 'queued' || existing.workId)) {
+    if (existing?.status === PUBLICATION_AUTHOR_REVIEW_STATUS) {
+      return this.stagePrivateIntake(actorUserId, existing.id, submissionId);
+    }
+    if (existing && (existing.status !== 'queued' || existing.workId ||
+        existing.errorCode?.startsWith(CHOICE_PREPARATION_IN_FLIGHT) ||
+        existing.errorCode?.startsWith(CHOICE_PREPARATION_REVIEW_REQUIRED))) {
       return this.importJobReceipt(existing, plan.parts.length);
     }
     const planSnapshot = this.storedPlan(plan);
@@ -261,23 +334,32 @@ export class StoryPublicationIntakeService {
     if (existing) {
       if (existing.status === 'queued' && !existing.workId && (plan.storyKey === 'inheritor' || submissionId)) {
         const current = await this.prisma.storyPublicationImportJob.findUnique({
-          where: { id: existing.id }, select: { planSnapshot: true },
+          where: { id: existing.id }, select: { planSnapshot: true, updatedAt: true,
+            status: true, errorCode: true, workId: true },
         });
+        if (!current || current.status !== 'queued' || current.workId ||
+            current.errorCode?.startsWith(CHOICE_PREPARATION_IN_FLIGHT) ||
+            current.errorCode?.startsWith(CHOICE_PREPARATION_REVIEW_REQUIRED)) {
+          throw new ConflictException({ code: 'STORY_CHOICE_PREPARATION_CONCURRENT_UPDATE',
+            message: 'The import changed while re-uploading; reload before attaching a submission' });
+        }
         const stored = current && this.hasStoredPlan(current.planSnapshot)
           ? this.readStoredPlan(current.planSnapshot) : plan;
         if (submissionId) stored.submissionId = submissionId;
-        const [updated] = await this.prisma.$transaction([
-          this.prisma.storyPublicationImportJob.update({
-            where: { id: existing.id },
+        await this.prisma.$transaction(async tx => {
+          const updated = await tx.storyPublicationImportJob.updateMany({
+            where: { id: existing.id, actorUserId, status: 'queued', workId: null,
+              errorCode: current.errorCode, updatedAt: current.updatedAt },
             data: { planSnapshot: this.storedPlan(stored) },
-            select: IMPORT_JOB_RECEIPT_SELECT,
-          }),
-          this.prisma.storyPublicationSourceChunk.createMany({
+          });
+          if (updated.count !== 1) throw new ConflictException({ code: 'STORY_CHOICE_PREPARATION_CONCURRENT_UPDATE',
+            message: 'The choice preparation changed while re-uploading; no stored results were replaced' });
+          await tx.storyPublicationSourceChunk.createMany({
             data: sourceChunks.map((chunk) => ({ jobId: existing.id, ...chunk })),
             skipDuplicates: true,
-          }),
-        ]);
-        return this.importJobReceipt(updated, plan.parts.length);
+          });
+        });
+        return this.importJobReceipt(existing, plan.parts.length);
       }
       return this.importJobReceipt(existing, plan.parts.length);
     }
@@ -567,10 +649,23 @@ export class StoryPublicationIntakeService {
       }
       const plan = this.readStoredPlan(job.planSnapshot);
       this.assertPublicRatingReady(plan);
-      this.assertThreeChoicePlan(plan);
 
       if (job.status === 'queued') {
         stage = 'prepare_release';
+        const publishedSource = plan.storyKey === 'inheritor'
+          ? await this.publishedInheritorWorkForSource(tx, plan.sourceBindingSha256) : null;
+        if (publishedSource) {
+          const completed = await tx.storyPublicationImportJob.update({
+            where: { id: job.id },
+            data: {
+              status: 'published', batchCursor: plan.parts.length,
+              workId: publishedSource.id, releaseId: publishedSource.activeReleaseId,
+              planSnapshot: Prisma.DbNull,
+            },
+            select: IMPORT_JOB_RECEIPT_SELECT,
+          });
+          return this.importJobReceipt(completed, plan.parts.length, publishedSource);
+        }
         const existingWork = await tx.storyWork.findUnique({
           where: { slug: plan.slug },
           select: { id: true, slug: true, activeReleaseId: true, status: true },
@@ -590,6 +685,9 @@ export class StoryPublicationIntakeService {
           return this.importJobReceipt(completed, plan.parts.length, existingWork);
         }
         if (existingWork) throw new ConflictException('Story slug is already preparing');
+
+        this.assertThreeChoicePlan(plan);
+        await this.assertChoiceProfileTx(tx, plan);
 
         const workId = randomUUID();
         const manuscriptVersionId = randomUUID();
@@ -678,6 +776,8 @@ export class StoryPublicationIntakeService {
       if (!job.workId || !job.releaseId) {
         throw new ConflictException('Story publication job bindings are missing');
       }
+      this.assertThreeChoicePlan(plan);
+      await this.assertChoiceProfileTx(tx, plan);
       if (job.status === 'structuring') {
         const end = Math.min(job.batchCursor + 12, plan.parts.length);
         const batch = plan.parts.slice(job.batchCursor, end);
@@ -817,8 +917,21 @@ export class StoryPublicationIntakeService {
       stage = 'finalize_release';
       const release = await tx.storyRelease.findUniqueOrThrow({
         where: { id: job.releaseId },
-        select: { checksum: true },
+        select: { checksum: true, workId: true, manuscriptVersionId: true },
       });
+      const boundWork = await tx.storyWork.findFirst({ where: { id: job.workId, slug: plan.slug,
+        ownerUserId: actorUserId, status: 'release_ready', activeReleaseId: null, fixtureSource: false },
+        select: { id: true } });
+      const boundManuscript = await tx.storyManuscriptVersion.findFirst({ where: {
+        id: release.manuscriptVersionId, workId: job.workId, ownerUserId: actorUserId,
+        contentHash: plan.manuscript.contentHash }, select: { id: true } });
+      if (!boundWork || !boundManuscript || release.workId !== job.workId ||
+          release.checksum !== releaseChecksum(this.releaseSnapshot(plan, release.manuscriptVersionId))) {
+        throw new ConflictException({ code: 'STORY_PUBLICATION_STORED_PLAN_MISMATCH',
+          message: 'The publication work, manuscript or release no longer matches its approved plan' });
+      }
+      stage = 'validate_stored_publication';
+      await this.assertStoredPublicationTx(tx, job.workId, plan);
       stage = 'finalize_rate_card';
       const rateCard = await tx.storyAiRateCard.upsert({
         where: { version: DISABLED_RATE_CARD_VERSION },
@@ -913,6 +1026,9 @@ export class StoryPublicationIntakeService {
             promptCount: plan.prompts.length,
             releaseChecksum: release.checksum,
             aiGeneratedBranchesActivated: false,
+            choicePreparationVersion: plan.choicePreparation?.version ?? null,
+            generationProfileBinding: plan.choicePreparation?.profileBinding ?? null,
+            choicePlanDigest: releaseChecksum(plan.parts.map(part => ({ partKey: part.partKey, choices: part.choices }))),
           },
         },
       });
@@ -957,6 +1073,176 @@ export class StoryPublicationIntakeService {
     }
   }
 
+  private async privateSourceTx(tx: Prisma.TransactionClient, jobId: string,
+    plan: PublicationPlanSnapshot): Promise<PrivatePublicationSource> {
+    const body = plan.manuscript.structuredBody as Record<string, unknown>;
+    if (body?.format !== 'approved-source-plan-reference-v1') {
+      assertPrivatePublicationSource(plan);
+      return plan;
+    }
+    if (plan.storyKey !== 'inheritor') throw new ConflictException({ code: 'STORY_PUBLICATION_PRIVATE_SOURCE_MISMATCH' });
+    const chunks = await tx.storyPublicationSourceChunk.findMany({ where: { jobId },
+      orderBy: { position: 'asc' }, take: APPROVED_SOURCE_MAX_CHUNKS + 1 });
+    if (!chunks.length || chunks.length > APPROVED_SOURCE_MAX_CHUNKS ||
+        chunks.some((chunk, index) => chunk.position !== index || chunk.totalChunks !== chunks.length ||
+          !chunk.payload.length || chunk.payload.length > APPROVED_SOURCE_CHUNK_MAX_BYTES ||
+          this.sha256(Buffer.from(chunk.payload)) !== chunk.checksumSha256) ||
+        chunks.reduce((sum, chunk) => sum + chunk.payload.length, 0) > APPROVED_SOURCE_COMPRESSED_MAX_BYTES) {
+      throw new ConflictException({ code: 'STORY_PUBLICATION_PRIVATE_ARCHIVE_INVALID' });
+    }
+    let restored: PublicationPlan;
+    try {
+      const bundle = brotliDecompressSync(Buffer.concat(chunks.map(chunk => Buffer.from(chunk.payload))),
+        { maxOutputLength: NORSE_BUNDLE_MAX_BYTES });
+      if (!bundle.subarray(0, INHERITOR_BUNDLE_MAGIC.length).equals(INHERITOR_BUNDLE_MAGIC)) throw new Error();
+      let cursor = INHERITOR_BUNDLE_MAGIC.length;
+      const buffers = new Map<string, Buffer>();
+      for (let index = 0; index < 2; index++) {
+        if (cursor + 4 > bundle.length) throw new Error();
+        const length = bundle.readUInt32BE(cursor);
+        cursor += 4;
+        if (!length || cursor + length > bundle.length) throw new Error();
+        const source = bundle.subarray(cursor, cursor + length);
+        buffers.set(this.sha256(source), source);
+        cursor += length;
+      }
+      if (cursor !== bundle.length || buffers.size !== 2) throw new Error();
+      restored = this.inheritorPlan(buffers);
+    } catch {
+      throw new ConflictException({ code: 'STORY_PUBLICATION_PRIVATE_ARCHIVE_INVALID' });
+    }
+    if (restored.sourceBindingSha256 !== plan.sourceBindingSha256 ||
+        restored.manuscript.contentHash !== plan.manuscript.contentHash ||
+        releaseChecksum(restored.parts) !== releaseChecksum(plan.parts)) {
+      throw new ConflictException({ code: 'STORY_PUBLICATION_PRIVATE_SOURCE_MISMATCH' });
+    }
+    const source = { ...plan, manuscript: { locale: restored.manuscript.locale,
+      contentHash: restored.manuscript.contentHash,
+      structuredBody: storedManuscriptBody(restored.manuscript) as unknown as Prisma.JsonValue } };
+    assertPrivatePublicationSource(source);
+    return source;
+  }
+
+  private async stagePrivateIntake(actorUserId: string, jobId: string, submissionId?: string) {
+    return this.prisma.$transaction(async tx => {
+      const locked = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+        SELECT id FROM story_publication_import_jobs WHERE id=${jobId}::uuid FOR UPDATE
+      `);
+      if (!locked.length) throw new NotFoundException('Story publication job not found');
+      const job = await tx.storyPublicationImportJob.findUnique({ where: { id: jobId } });
+      if (!job || job.actorUserId !== actorUserId) throw new NotFoundException('Story publication job not found');
+      if (job.status === PUBLICATION_AUTHOR_REVIEW_STATUS) {
+        if (submissionId) {
+          const plan = this.readStoredPlan(job.planSnapshot);
+          if (plan.submissionId && plan.submissionId !== submissionId) {
+            throw new ConflictException({ code: 'STORY_PUBLICATION_SUBMISSION_CHANGED' });
+          }
+          if (!plan.submissionId) {
+            const submission = await tx.storyUploadSubmission.findUnique({ where: { id: submissionId },
+              include: { files: { select: { category: true, checksumSha256: true } } } });
+            if (!job.workId || !submission || submission.userId !== actorUserId ||
+                submission.status !== 'received' || submission.promotedWorkId ||
+                this.detectStoryKey(submission.files.filter(file => file.category === 'manuscript')) !== job.storyKey) {
+              throw new ConflictException({ code: 'STORY_PUBLICATION_SUBMISSION_CHANGED' });
+            }
+            const attached = await tx.storyUploadSubmission.updateMany({ where: { id: submissionId,
+              userId: actorUserId, status: 'received', promotedWorkId: null },
+              data: { status: 'author_review', promotedWorkId: job.workId } });
+            if (attached.count !== 1) throw new ConflictException({ code: 'STORY_PUBLICATION_SUBMISSION_CHANGED' });
+            plan.submissionId = submissionId;
+            job.planSnapshot = this.storedPlan(plan) as Prisma.JsonValue;
+            await tx.storyPublicationImportJob.update({ where: { id: job.id },
+              data: { planSnapshot: job.planSnapshot as Prisma.InputJsonValue } });
+            await tx.auditEvent.create({ data: { actorUserId, actorType: 'admin',
+              action: 'story_publication.private_submission_attached', targetType: 'story_work', targetId: job.workId,
+              metadata: { jobId: job.id, submissionId, sourceBindingSha256: job.sourceBindingSha256,
+                providerCalled: false, published: false } } });
+          }
+        }
+        return this.privateReviewReceiptTx(tx, job);
+      }
+      if (job.status !== 'queued' || job.workId || job.releaseId || job.batchCursor !== 0 ||
+          (job.errorCode && job.errorCode !== PLAN_STORAGE_MARKER)) {
+        throw new ConflictException({ code: 'STORY_PUBLICATION_PRIVATE_INTAKE_CHANGED' });
+      }
+      const plan = this.readStoredPlan(job.planSnapshot);
+      if (job.storyKey !== plan.storyKey || job.sourceBindingSha256 !== plan.sourceBindingSha256 ||
+          plan.writerIntakeWorkflow !== 'writer_review_before_choices_v1' ||
+          plan.choicePreparation?.preparedPartKeys.length || !this.choicePartsToPrepare(plan).length) {
+        throw new ConflictException({ code: 'STORY_PUBLICATION_PRIVATE_INTAKE_CHANGED' });
+      }
+      const publishedSource = plan.storyKey === 'inheritor'
+        ? await this.publishedInheritorWorkForSource(tx, plan.sourceBindingSha256) : null;
+      const existing = publishedSource ?? await tx.storyWork.findUnique({ where: { slug: plan.slug },
+        select: { id: true, status: true } });
+      if (existing?.status === 'published') return null;
+      if (existing) throw new ConflictException({ code: 'STORY_PUBLICATION_SOURCE_ALREADY_PREPARING' });
+      const source = await this.privateSourceTx(tx, job.id, plan);
+      const created = await createPrivatePublicationIntake(tx, actorUserId, job.id, source);
+      return publicationAuthorReviewReceipt(job.id, created.workId, created.manuscriptId,
+        source.manuscript.contentHash, source.parts.length);
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, maxWait: 5000, timeout: 30000 });
+  }
+
+  private async privateReviewReceiptTx(tx: Prisma.TransactionClient, job: {
+    id: string; actorUserId: string; workId: string | null; planSnapshot: Prisma.JsonValue | null;
+    storyKey: string; sourceBindingSha256: string;
+  }) {
+    if (!job.workId) throw new ConflictException({ code: 'STORY_PUBLICATION_PRIVATE_BINDING_INVALID' });
+    const plan = this.readStoredPlan(job.planSnapshot);
+    if (job.storyKey !== plan.storyKey || job.sourceBindingSha256 !== plan.sourceBindingSha256 ||
+        plan.writerIntakeWorkflow !== 'writer_review_before_choices_v1') {
+      throw new ConflictException({ code: 'STORY_PUBLICATION_PRIVATE_BINDING_INVALID' });
+    }
+    await tx.$queryRaw(Prisma.sql`SELECT id FROM story_works WHERE id=${job.workId}::uuid FOR SHARE`);
+    const work = await tx.storyWork.findFirst({ where: { id: job.workId,
+      ownerUserId: job.actorUserId, slug: plan.slug, fixtureSource: false },
+      select: { id: true, status: true, activeReleaseId: true, publishedAt: true } });
+    const manuscript = await tx.storyManuscriptVersion.findFirst({ where: { workId: job.workId,
+      ownerUserId: job.actorUserId }, orderBy: { version: 'desc' },
+      select: { id: true, contentHash: true } });
+    if (!work || !manuscript || manuscript.contentHash !== plan.manuscript.contentHash) {
+      throw new ConflictException({ code: 'STORY_PUBLICATION_PRIVATE_BINDING_INVALID' });
+    }
+    if (work.status === 'published' || work.activeReleaseId || work.publishedAt) {
+      const release = work.activeReleaseId && work.status === 'published' && work.publishedAt
+        ? await tx.storyRelease.findFirst({ where: { id: work.activeReleaseId, workId: work.id,
+          manuscriptVersionId: manuscript.id, status: 'active' } }) : null;
+      const validation = release?.validationSummary as Record<string, unknown> | undefined;
+      const graph = release?.branchGraphSnapshot as Record<string, unknown> | undefined;
+      const transition = release ? await tx.storyPublicationTransition.findFirst({ where: {
+        workId: work.id, releaseId: release.id, toStatus: 'published',
+      }, select: { id: true } }) : null;
+      if (!release || !transition || validation?.ready !== true ||
+          graph?.contract !== 'studio-linear-v1' || release.checksum !== releaseChecksum({
+            manuscriptVersionId: manuscript.id, branchGraphSnapshot: release.branchGraphSnapshot,
+            endingSetSnapshot: release.endingSetSnapshot, sceneAssetManifest: release.sceneAssetManifest,
+            localizedDisplaySnapshot: release.localizedDisplaySnapshot,
+          })) {
+        throw new ConflictException({ code: 'STORY_PUBLICATION_WRITER_FLOW_NOT_CONFIRMED' });
+      }
+      await new StoryStudioChoicePreparationService(this.prisma).assertPublishableTx(tx, work.id,
+        job.actorUserId, manuscript.id, release.id);
+      if (plan.submissionId) {
+        const updated = await tx.storyUploadSubmission.updateMany({ where: { id: plan.submissionId,
+          userId: job.actorUserId, promotedWorkId: work.id, status: 'author_review' }, data: { status: 'published' } });
+        if (updated.count !== 1) throw new ConflictException({ code: 'STORY_PUBLICATION_SUBMISSION_CHANGED' });
+      }
+      const completed = await tx.storyPublicationImportJob.update({ where: { id: job.id }, data: {
+        status: 'published', releaseId: release.id, batchCursor: plan.parts.length, planSnapshot: Prisma.DbNull,
+      }, select: IMPORT_JOB_RECEIPT_SELECT });
+      await tx.auditEvent.create({ data: { actorUserId: job.actorUserId, actorType: 'admin',
+        action: 'story_publication.writer_flow_linked', targetType: 'story_work', targetId: work.id,
+        metadata: { jobId: job.id, releaseId: release.id, manuscriptHash: manuscript.contentHash,
+          sourceBindingSha256: plan.sourceBindingSha256, publicationTransitionId: transition.id,
+          releaseChecksum: release.checksum, providerCalled: false },
+      } });
+      return this.importJobReceipt(completed, plan.parts.length, { ...work, slug: plan.slug });
+    }
+    return publicationAuthorReviewReceipt(job.id, work.id, manuscript.id,
+      manuscript.contentHash, plan.parts.length);
+  }
+
   async promote(
     actorUserId: string,
     submissionId: string,
@@ -973,6 +1259,13 @@ export class StoryPublicationIntakeService {
         select: { id: true, slug: true, activeReleaseId: true, status: true },
       });
       if (!work) throw new ConflictException('Promoted story work is missing');
+      if (work.status !== 'published') {
+        const job = await this.prisma.storyPublicationImportJob.findFirst({ where: {
+          actorUserId, workId: work.id, status: PUBLICATION_AUTHOR_REVIEW_STATUS,
+        }, select: { id: true } });
+        if (job) return this.stagePrivateIntake(actorUserId, job.id);
+        throw new ConflictException({ code: 'STORY_PUBLICATION_AUTHOR_REVIEW_REQUIRED' });
+      }
       return { work, idempotentReplay: true };
     }
     if (submission.userId !== actorUserId) {
@@ -1074,75 +1367,167 @@ export class StoryPublicationIntakeService {
       select: { ...IMPORT_JOB_RECEIPT_SELECT, actorUserId: true, planSnapshot: true, updatedAt: true },
     });
     if (!job || job.actorUserId !== actorUserId) throw new NotFoundException('Story publication job not found');
-    if (job.status !== 'queued' || !this.hasStoredPlan(job.planSnapshot)) return null;
-    const plan = this.readStoredPlan(job.planSnapshot);
-    const pending = this.choicePartsToPrepare(plan);
-    if (!pending.length) return null;
-    const batch = pending.slice(0, CHOICE_PREPARATION_BATCH_SIZE);
-    const result = await this.generateChoiceBatch({
-      workTitle: plan.title,
-      parts: batch.map((part) => ({
-        partKey: part.partKey,
-        title: part.title,
-        endingExcerpt: part.beats.at(-1)?.text.slice(-1200) ?? '',
-        originalChoiceLabel: part.choices[0]?.label ?? '',
-        context: part.beats[0]?.text.slice(0, 350) ?? '',
-      })),
-    });
-    const byKey = new Map(result.map((item) => [item.partKey, item.alternatives]));
-    if (byKey.size !== batch.length) throw new ServiceUnavailableException('Choice preparation returned an incomplete batch');
-    for (const part of batch) {
-      const alternatives = byKey.get(part.partKey);
-      if (!alternatives || part.choices[0]?.routeKind !== 'writer_original') {
-        throw new ServiceUnavailableException('Choice preparation returned an invalid part');
-      }
-      const original = part.choices[0];
-      const authored = plan.storyKey === 'monster' || plan.storyKey === 'rebellion'
-        ? [] : part.choices.slice(1);
-      const suggested = alternatives.filter((label) =>
-        ![original, ...authored].some((choice) => choice.label.trim() === label.trim()));
-      const labels = [...authored.map((choice) => choice.label), ...suggested].slice(0, 2);
-      if (labels.length !== 2 || new Set([original.label, ...labels].map((label) => label.trim())).size !== 3) {
-        throw new ServiceUnavailableException('Choice preparation did not produce distinct routes');
-      }
-      part.choices = [original, ...labels.map((label, index) => ({
-        choiceKey: plan.storyKey === 'monster' || plan.storyKey === 'rebellion'
-          ? index === 0 ? 'ai-branch-b-v1' : 'ai-branch-c-v1'
-          : index === 0 ? 'branch-b' : 'branch-c',
-        label,
-        position: index + 2,
-        routeKind: 'generation_required',
-        targetPartKey: null,
-        targetEndingKey: null,
-      }))];
-    }
-    const prepared = new Set(plan.choicePreparation?.preparedPartKeys ?? []);
-    for (const part of batch) prepared.add(part.partKey);
-    plan.choicePreparation = { version: CHOICE_PREPARATION_VERSION, preparedPartKeys: [...prepared] };
-    const updated = await this.prisma.storyPublicationImportJob.updateMany({
-      where: { id: jobId, actorUserId, status: 'queued', updatedAt: job.updatedAt },
-      data: { planSnapshot: this.storedPlan(plan) },
-    });
-    if (updated.count !== 1) {
+    if (job.errorCode?.startsWith(CHOICE_PREPARATION_IN_FLIGHT) ||
+        job.errorCode?.startsWith(CHOICE_PREPARATION_REVIEW_REQUIRED)) {
       throw new ConflictException({
-        code: 'STORY_CHOICE_PREPARATION_CONCURRENT_UPDATE',
-        message: 'Choice preparation changed concurrently; retry the job',
+        code: job.errorCode.startsWith(CHOICE_PREPARATION_IN_FLIGHT)
+          ? 'STORY_CHOICE_PREPARATION_IN_PROGRESS' : 'STORY_CHOICE_PREPARATION_REVIEW_REQUIRED',
+        message: 'Choice preparation is already running or requires provider outcome review',
       });
     }
-    return {
-      ...this.importJobReceipt(job, plan.parts.length),
-      status: 'preparing_choices',
-      processedParts: prepared.size,
-    };
+    if (job.status === PUBLICATION_AUTHOR_REVIEW_STATUS) return this.stagePrivateIntake(actorUserId, jobId);
+    if (job.status !== 'queued' || !this.hasStoredPlan(job.planSnapshot)) return null;
+    const plan = this.readStoredPlan(job.planSnapshot);
+    if (plan.writerIntakeWorkflow === 'writer_review_before_choices_v1' &&
+        (job.workId || plan.choicePreparation?.preparedPartKeys.length)) throw new ConflictException({
+      code: 'STORY_PUBLICATION_PRIVATE_INTAKE_CHANGED',
+      message: 'Continue the reviewed private manuscript instead of the legacy choice generator',
+    });
+    const pending = this.choicePartsToPrepare(plan);
+    if (!pending.length) return null;
+    // Re-uploading an already public source never starts a new paid choice batch.
+    if (this.prisma.storyWork && this.prisma.storyRelease) {
+      const publishedSource = plan.storyKey === 'inheritor'
+        ? await this.publishedInheritorWorkForSource(this.prisma, plan.sourceBindingSha256) : null;
+      const existing = publishedSource ?? await this.prisma.storyWork.findUnique({ where: { slug: plan.slug },
+        select: { id: true, status: true } });
+      if (existing?.status === 'published') return null;
+      if (existing && existing.id !== job.workId) throw new ConflictException({
+        code: 'STORY_PUBLICATION_SOURCE_ALREADY_PREPARING',
+        message: 'The source is already preparing; continue its existing author review instead of duplicating it',
+      });
+    }
+    if (plan.writerIntakeWorkflow === 'writer_review_before_choices_v1') {
+      return this.stagePrivateIntake(actorUserId, jobId);
+    }
+    const generationProfile = await this.profilePolicy().forPlan(this.prisma, plan);
+    if (plan.choicePreparation?.preparedPartKeys.length) {
+      this.profilePolicy().assertSame(plan.choicePreparation.profileBinding, generationProfile?.binding);
+    }
+    const batch = pending.slice(0, CHOICE_PREPARATION_BATCH_SIZE);
+    const provider = this.choiceProvider();
+    const claim = `${CHOICE_PREPARATION_IN_FLIGHT}${randomUUID()}`;
+    const claimed = await this.prisma.storyPublicationImportJob.updateMany({
+      where: { id: jobId, actorUserId, status: 'queued', updatedAt: job.updatedAt,
+        errorCode: job.errorCode },
+      data: { errorCode: claim },
+    });
+    if (claimed.count !== 1) throw new ConflictException({
+      code: 'STORY_CHOICE_PREPARATION_CONCURRENT_UPDATE',
+      message: 'Choice preparation changed concurrently; reload the job',
+    });
+    try {
+      const result = await provider.generate({
+        workTitle: plan.title,
+        ...(generationProfile ? { generationProfile: generationProfile.approved } : {}),
+        parts: batch.map((part) => ({
+          partKey: part.partKey,
+          title: part.title,
+          endingExcerpt: part.beats.at(-1)?.text.slice(-1200) ?? '',
+          originalChoiceLabel: part.choices[0]?.label ?? '',
+          context: part.beats[0]?.text.slice(0, 350) ?? '',
+        })),
+      });
+      const byKey = new Map(result.map((item) => [item.partKey, item.alternatives]));
+      if (byKey.size !== batch.length) throw new ServiceUnavailableException('Choice preparation returned an incomplete batch');
+      for (const part of batch) {
+        const alternatives = byKey.get(part.partKey);
+        if (!alternatives || part.choices[0]?.routeKind !== 'writer_original') {
+          throw new ServiceUnavailableException('Choice preparation returned an invalid part');
+        }
+        const original = part.choices[0];
+        const authored = plan.storyKey === 'monster' || plan.storyKey === 'rebellion'
+          ? [] : part.choices.slice(1);
+        const suggested = alternatives.filter((label) =>
+          ![original, ...authored].some((choice) => choice.label.trim() === label.trim()));
+        const labels = [...authored.map((choice) => choice.label), ...suggested].slice(0, 2);
+        if (labels.length !== 2 || new Set([original.label, ...labels].map((label) => label.trim())).size !== 3) {
+          throw new ServiceUnavailableException('Choice preparation did not produce distinct routes');
+        }
+        part.choices = [original, ...labels.map((label, index) => ({
+          choiceKey: plan.storyKey === 'monster' || plan.storyKey === 'rebellion'
+            ? index === 0 ? 'ai-branch-b-v1' : 'ai-branch-c-v1'
+            : index === 0 ? 'branch-b' : 'branch-c',
+          label,
+          position: index + 2,
+          routeKind: 'generation_required',
+          targetPartKey: null,
+          targetEndingKey: null,
+        }))];
+      }
+      const prepared = new Set(plan.choicePreparation?.preparedPartKeys ?? []);
+      for (const part of batch) prepared.add(part.partKey);
+      plan.choicePreparation = { version: CHOICE_PREPARATION_VERSION, preparedPartKeys: [...prepared],
+        profileBinding: generationProfile?.binding ?? null };
+      const persist = async (db: PrismaService | Prisma.TransactionClient) => {
+        const currentProfile = await this.profilePolicy().forPlan(db, plan, true);
+        this.profilePolicy().assertSame(generationProfile?.binding, currentProfile?.binding);
+        const updated = await db.storyPublicationImportJob.updateMany({
+          where: { id: jobId, actorUserId, status: 'queued', errorCode: claim },
+          data: { planSnapshot: this.storedPlan(plan), errorCode: job.errorCode },
+        });
+        if (updated.count === 1 && db.auditEvent) await db.auditEvent.create({ data: {
+          actorUserId, actorType: 'admin', action: 'story_public_beta.import_choices.prepared',
+          targetType: 'story_publication_import_job', targetId: jobId,
+          metadata: { sourceBindingSha256: plan.sourceBindingSha256, manuscriptHash: plan.manuscript.contentHash,
+            partKeys: batch.map(part => part.partKey), generationProfileBinding: generationProfile?.binding ?? null,
+            policyVersion: CHOICE_PREPARATION_VERSION,
+            choicePlanDigest: releaseChecksum(batch.map(part => ({ partKey: part.partKey, choices: part.choices }))) },
+        } });
+        return updated;
+      };
+      const updated = this.prisma.$transaction
+        ? await this.prisma.$transaction(persist, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+          maxWait: 5000, timeout: 30000 }) : await persist(this.prisma);
+      if (updated.count !== 1) {
+        throw new ConflictException({
+          code: 'STORY_CHOICE_PREPARATION_CONCURRENT_UPDATE',
+          message: 'Choice preparation changed concurrently; review the provider outcome',
+        });
+      }
+      return {
+        ...this.importJobReceipt(job, plan.parts.length),
+        status: 'preparing_choices',
+        processedParts: prepared.size,
+      };
+    } catch (error) {
+      await this.prisma.storyPublicationImportJob.updateMany({
+        where: { id: jobId, actorUserId, status: 'queued', errorCode: claim },
+        data: { errorCode: `${CHOICE_PREPARATION_REVIEW_REQUIRED}${claim.slice(CHOICE_PREPARATION_IN_FLIGHT.length)}` },
+      });
+      if (error instanceof StoryChoicePreparationError) {
+        throw new ServiceUnavailableException({
+          code: 'STORY_CHOICE_PREPARATION_REVIEW_REQUIRED',
+          details: { reason: error.code },
+          message: 'Provider outcome must be reviewed before this batch is retried',
+        });
+      }
+      throw error;
+    }
   }
 
-  async publishedInheritorChoiceStatus() {
+  async publishedInheritorChoiceStatus(expected?: { workId: string; releaseId: string }) {
+    if (!expected && this.prisma.storyWorkGenerationProfile) {
+      const candidates = await this.prisma.storyWork.findMany({ where: {
+        slug: { startsWith: `${INHERITOR_STORY.slug}-` }, status: 'published',
+        fixtureSource: false, publishedAt: { not: null },
+      }, select: { id: true }, take: 2 });
+      if (candidates.length > 1) throw new ConflictException({
+        code: 'STORY_PUBLICATION_SOURCE_SELECTION_REQUIRED',
+        message: 'Multiple published copies exist; identify the source before preparing alternatives',
+      });
+    }
     const work = await this.prisma.storyWork.findFirst({
-      where: { slug: { startsWith: `${INHERITOR_STORY.slug}-` }, status: 'published' },
+      where: { ...(expected ? { id: expected.workId } : {}),
+        slug: { startsWith: `${INHERITOR_STORY.slug}-` }, status: 'published',
+        fixtureSource: false, publishedAt: { not: null } },
       orderBy: { publishedAt: 'desc' },
       select: { id: true, slug: true, activeReleaseId: true },
     });
     if (!work?.activeReleaseId) throw new NotFoundException('Published story work not found');
+    if (expected && work.activeReleaseId !== expected.releaseId) throw new ConflictException({
+      code: 'STORY_PUBLICATION_CHOICE_SOURCE_CHANGED', message: 'The published source changed during preparation',
+    });
     const parts = await this.prisma.storyPart.findMany({
       where: { workId: work.id, status: 'published', fixtureSource: false },
       orderBy: { position: 'asc' },
@@ -1152,17 +1537,50 @@ export class StoryPublicationIntakeService {
       where: { partId: { in: parts.map((part) => part.id) }, status: 'published', fixtureSource: false },
       select: { id: true, partId: true },
     });
-    if (scenes.length !== parts.length || parts.length !== INHERITOR_STORY.partCount) {
+    if (scenes.length !== parts.length ||
+        new Set(scenes.map((scene) => scene.partId)).size !== parts.length ||
+        parts.length !== INHERITOR_STORY.partCount ||
+        parts.some((part, index) => part.position !== index + 1)) {
       throw new ConflictException('Published story parts are incomplete');
     }
     const sceneByPart = new Map(scenes.map((scene) => [scene.partId, scene.id]));
     const counts = await this.prisma.storyChoice.groupBy({
       by: ['sceneId'],
-      where: { sceneId: { in: scenes.map((scene) => scene.id) } },
+      where: { sceneId: { in: scenes.map((scene) => scene.id) }, position: { gt: 0 } },
       _count: { _all: true },
     });
     const countByScene = new Map(counts.map((item) => [item.sceneId, item._count._all]));
-    const pending = parts.filter((part) => countByScene.get(this.requiredId(sceneByPart, part.id)) !== 3);
+    const threeChoiceSceneIds = scenes.filter((scene) => countByScene.get(scene.id) === 3)
+      .map((scene) => scene.id);
+    const threeChoices = threeChoiceSceneIds.length ? await this.prisma.storyChoice.findMany({
+      where: { sceneId: { in: threeChoiceSceneIds }, position: { gt: 0 } },
+      select: { sceneId: true, position: true, label: true, routeKind: true,
+        targetSceneId: true, targetEndingKey: true },
+    }) : [];
+    const choicesByScene = new Map<string, typeof threeChoices>();
+    for (const choice of threeChoices) {
+      const rows = choicesByScene.get(choice.sceneId) ?? [];
+      rows.push(choice);
+      choicesByScene.set(choice.sceneId, rows);
+    }
+    const pending = parts.filter((part) => {
+      const sceneId = this.requiredId(sceneByPart, part.id);
+      return !hasPreparedOriginalAndAlternatives(choicesByScene.get(sceneId) ?? []);
+    });
+    const preparationBatch = await this.prisma.storyPublicationChoiceBatch.findFirst({
+      where: { workId: work.id, releaseId: work.activeReleaseId,
+        status: { in: ['in_progress', 'review_required', 'retry_authorized'] } },
+      select: { id: true, status: true, firstPartPosition: true, updatedAt: true,
+        workId: true, releaseId: true, preparationContext: true, preparationContextSha256: true },
+    });
+    let reviewContextReady = false;
+    let partKeys: string[] = [];
+    if (preparationBatch) {
+      try {
+        partKeys = readPublishedChoicePreparationContext(preparationBatch).parts.map(part => part.partKey);
+        reviewContextReady = true;
+      } catch { /* Old attempts have no provable scope; do not infer one from their first part. */ }
+    }
     return {
       workId: work.id,
       slug: work.slug,
@@ -1170,41 +1588,146 @@ export class StoryPublicationIntakeService {
       totalParts: parts.length,
       preparedParts: parts.length - pending.length,
       status: pending.length ? 'preparing_choices' : 'ready',
+      preparationBatch: preparationBatch ? { id: preparationBatch.id, status: preparationBatch.status,
+        firstPartPosition: preparationBatch.firstPartPosition, updatedAt: preparationBatch.updatedAt,
+        reviewContextReady, partKeys } : null,
       pending: pending.slice(0, CHOICE_PREPARATION_BATCH_SIZE).map((part) => ({
         partId: part.id,
         partKey: `part-${part.position}`,
         sceneId: this.requiredId(sceneByPart, part.id),
         title: String((part.title as Record<string, unknown>)?.ko ?? ''),
+        choiceCount: countByScene.get(this.requiredId(sceneByPart, part.id)) ?? 0,
       })),
     };
   }
 
-  async preparePublishedInheritorChoices(actorUserId: string) {
-    const status = await this.publishedInheritorChoiceStatus();
+  async preparePublishedInheritorChoices(actorUserId: string, expected?: { workId: string; releaseId: string }) {
+    const status = await this.publishedInheritorChoiceStatus(expected);
     if (status.status === 'ready') return status;
+    const generationProfile = await this.profilePolicy().forWork(this.prisma, status.workId,
+      { releaseId: status.releaseId });
+    if (status.pending.some((part) => part.choiceCount !== 1)) {
+      throw new ConflictException({
+        code: 'STORY_CHOICE_PREPARATION_REVIEW_REQUIRED',
+        message: 'A published part has an unexpected choice count; review it before AI preparation',
+      });
+    }
     const sceneIds = status.pending.map((item) => item.sceneId);
     const [beats, choices] = await Promise.all([
       this.prisma.storyBeat.findMany({
         where: { sceneId: { in: sceneIds } },
-        orderBy: { position: 'asc' },
+        orderBy: [{ sceneId: 'asc' }, { position: 'asc' }, { id: 'asc' }],
         select: { sceneId: true, content: true },
       }),
       this.prisma.storyChoice.findMany({
         where: { sceneId: { in: sceneIds }, routeKind: 'writer_original' },
-        select: { sceneId: true, label: true },
+        orderBy: [{ sceneId: 'asc' }, { position: 'asc' }, { id: 'asc' }],
+        select: { id: true, choiceKey: true, sceneId: true, position: true, label: true, routeKind: true,
+          targetSceneId: true, targetEndingKey: true, declaredRejoinSceneId: true },
       }),
     ]);
+    const sourceDigest = releaseChecksum({ beats, choices });
     const textByScene = new Map<string, string>();
     for (const beat of beats) {
       const text = String((beat.content as Record<string, unknown>)?.ko ?? '');
       textByScene.set(beat.sceneId, `${textByScene.get(beat.sceneId) ?? ''}\n${text}`);
     }
+    if (sceneIds.some((sceneId) => !textByScene.get(sceneId)?.trim())) {
+      throw new ConflictException({
+        code: 'STORY_CHOICE_PREPARATION_REVIEW_REQUIRED',
+        message: 'A published part has no Korean manuscript text for choice preparation',
+      });
+    }
     const originalByScene = new Map(choices.map((choice) => [
       choice.sceneId,
       String((choice.label as Record<string, unknown>)?.ko ?? ''),
     ]));
+    if (originalByScene.size !== sceneIds.length || choices.length !== sceneIds.length ||
+        choices.some((choice) => !hasValidWriterOriginalChoice(choice) || choice.declaredRejoinSceneId)) {
+      throw new ConflictException({
+        code: 'STORY_CHOICE_PREPARATION_REVIEW_REQUIRED',
+        message: 'A published part is missing its unique authored choice',
+      });
+    }
+    this.choiceProvider();
+    const claimToken = randomUUID();
+    let batchId: string | undefined;
+    const firstPartPosition = Number(status.pending[0].partKey.slice('part-'.length));
+    const preparationContext: PublishedChoicePreparationContext = {
+      version: 'published-choice-exact-scope-v1', workId: status.workId, releaseId: status.releaseId,
+      parts: status.pending.map(({ partId, partKey, sceneId, title }) => ({ partId, partKey, sceneId, title })),
+      sourceDigest, generationProfileBinding: generationProfile?.binding ?? null,
+    };
+    const preparationContextSha256 = releaseChecksum(preparationContext);
+    try {
+      const batch = await this.prisma.storyPublicationChoiceBatch.create({ data: {
+        workId: status.workId,
+        releaseId: status.releaseId,
+        firstPartPosition,
+        status: 'in_progress',
+        claimToken,
+        preparationContext,
+        preparationContextSha256,
+      } });
+      batchId = batch.id;
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        const previous = await this.prisma.storyPublicationChoiceBatch.findFirst({
+          where: { workId: status.workId, releaseId: status.releaseId, firstPartPosition },
+          select: { id: true, status: true, claimToken: true, updatedAt: true,
+            workId: true, releaseId: true, firstPartPosition: true,
+            preparationContext: true, preparationContextSha256: true },
+        });
+        if (previous?.status === 'retry_authorized') {
+          assertSamePublishedChoicePreparationContext(previous, preparationContext);
+          const resume = async (tx: Prisma.TransactionClient) => {
+            if (tx.storyWorkGenerationProfile) {
+              await this.assertPublishedChoiceContextTx(tx, preparationContext);
+              const counts = await tx.storyChoice.groupBy({ by: ['sceneId'],
+                where: { sceneId: { in: sceneIds }, position: { gt: 0 } }, _count: { _all: true } });
+              if (counts.length !== sceneIds.length || counts.some(count => count._count._all !== 1)) {
+                throw new ConflictException({ code: 'STORY_CHOICE_PREPARATION_CONCURRENT_UPDATE',
+                  message: 'Choices changed before acquiring the reviewed retry claim' });
+              }
+            }
+            return tx.storyPublicationChoiceBatch.updateMany({
+              where: { id: previous.id, status: 'retry_authorized', claimToken: previous.claimToken,
+                updatedAt: previous.updatedAt, preparationContextSha256 },
+              data: { status: 'in_progress', claimToken, errorCode: null },
+            });
+          };
+          const resumed = this.prisma.storyWorkGenerationProfile ? await this.prisma.$transaction(resume,
+            { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, maxWait: 5000, timeout: 30000 })
+            : await resume(this.prisma);
+          if (resumed.count === 1) batchId = previous.id;
+        }
+        if (!batchId) throw new ConflictException({
+          code: 'STORY_CHOICE_PREPARATION_IN_PROGRESS_OR_REVIEW',
+          message: 'This published choice batch was already attempted; review its outcome before retrying',
+        });
+      } else {
+        throw error;
+      }
+    }
+    if (!batchId) throw new ConflictException('Choice preparation claim was not acquired');
+    try {
+    if (this.prisma.storyWorkGenerationProfile) {
+      await this.prisma.$transaction(async tx => {
+        await this.assertPublishedChoiceContextTx(tx, preparationContext);
+        const claimed = await tx.storyPublicationChoiceBatch.findFirst({ where: { id: batchId,
+          claimToken, status: 'in_progress', preparationContextSha256 }, select: { id: true } });
+        const counts = await tx.storyChoice.groupBy({ by: ['sceneId'],
+          where: { sceneId: { in: sceneIds }, position: { gt: 0 } }, _count: { _all: true } });
+        if (!claimed || counts.length !== sceneIds.length || counts.some(count => count._count._all !== 1)) {
+          throw new ConflictException({ code: 'STORY_CHOICE_PREPARATION_CONCURRENT_UPDATE',
+            message: 'The reviewed claim or choices changed before provider dispatch' });
+        }
+      },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, maxWait: 5000, timeout: 30000 });
+    }
     const result = await this.generateChoiceBatch({
       workTitle: INHERITOR_STORY.title,
+      ...(generationProfile ? { generationProfile: generationProfile.approved } : {}),
       parts: status.pending.map((part) => {
         const text = textByScene.get(part.sceneId) ?? '';
         return {
@@ -1221,8 +1744,14 @@ export class StoryPublicationIntakeService {
       throw new ServiceUnavailableException('Choice preparation returned an incomplete batch');
     }
     await this.prisma.$transaction(async (tx) => {
-      await tx.storyChoice.createMany({
-        data: status.pending.flatMap((part) => {
+      if (tx.storyWorkGenerationProfile) {
+        await this.assertPublishedChoiceContextTx(tx, preparationContext);
+      } else {
+        const currentProfile = await this.profilePolicy().forWork(tx, status.workId,
+          { releaseId: status.releaseId, lock: true });
+        this.profilePolicy().assertSame(generationProfile?.binding, currentProfile?.binding);
+      }
+      const generatedChoices = status.pending.flatMap((part) => {
           const alternatives = byKey.get(part.partKey);
           if (!alternatives || !originalByScene.get(part.sceneId)) {
             throw new ServiceUnavailableException('Choice preparation returned an invalid part');
@@ -1237,8 +1766,32 @@ export class StoryPublicationIntakeService {
             targetEndingKey: null,
             declaredRejoinSceneId: null,
           }));
-        }),
-        skipDuplicates: true,
+        });
+      const inserted = await tx.storyChoice.createMany({ data: generatedChoices, skipDuplicates: true });
+      const persisted = await tx.storyChoice.findMany({
+        where: { sceneId: { in: sceneIds }, position: { gt: 0 } },
+        select: { choiceKey: true, sceneId: true, position: true, label: true, routeKind: true,
+          targetSceneId: true, targetEndingKey: true, declaredRejoinSceneId: true },
+      });
+      if ((tx.storyWorkGenerationProfile && inserted.count !== generatedChoices.length) ||
+          status.pending.some((part) => !hasPreparedOriginalAndAlternatives(
+            persisted.filter((choice) => choice.sceneId === part.sceneId))) ||
+          generatedChoices.some(expected => !persisted.some(actual => actual.sceneId === expected.sceneId &&
+            actual.position === expected.position && actual.choiceKey === expected.choiceKey &&
+            releaseChecksum(actual.label) === releaseChecksum(expected.label) && actual.routeKind === expected.routeKind &&
+            actual.targetSceneId === null && actual.targetEndingKey === null && !actual.declaredRejoinSceneId))) {
+        throw new ConflictException({
+          code: 'STORY_CHOICE_PREPARATION_CONCURRENT_UPDATE',
+          message: 'Stored choices changed during preparation; review before retrying',
+        });
+      }
+      const claimed = await tx.storyPublicationChoiceBatch.updateMany({
+        where: { id: batchId, claimToken, status: 'in_progress' },
+        data: { status: 'completed' },
+      });
+      if (claimed.count !== 1) throw new ConflictException({
+        code: 'STORY_CHOICE_PREPARATION_CONCURRENT_UPDATE',
+        message: 'Choice preparation changed concurrently; review the provider outcome',
       });
       await tx.auditEvent.create({ data: {
         actorUserId,
@@ -1250,10 +1803,138 @@ export class StoryPublicationIntakeService {
           releaseId: status.releaseId,
           partKeys: status.pending.map((part) => part.partKey),
           policyVersion: CHOICE_PREPARATION_VERSION,
+          generationProfileBinding: generationProfile?.binding ?? null,
+          sourceDigest,
+          preparationContextSha256,
         },
       } });
-    });
-    return this.publishedInheritorChoiceStatus();
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, maxWait: 5000, timeout: 30000 });
+    } catch (error) {
+      await this.prisma.storyPublicationChoiceBatch.updateMany({
+        where: { id: batchId, claimToken, status: 'in_progress' },
+        data: { status: 'review_required', errorCode: 'PROVIDER_OUTCOME_UNCERTAIN' },
+      });
+      throw error;
+    }
+    return this.publishedInheritorChoiceStatus({ workId: status.workId, releaseId: status.releaseId });
+  }
+
+  private async assertPublishedChoiceContextTx(tx: Prisma.TransactionClient,
+    context: PublishedChoicePreparationContext) {
+    const currentProfile = await this.profilePolicy().forWork(tx, context.workId,
+      { releaseId: context.releaseId, lock: true });
+    this.profilePolicy().assertSame(context.generationProfileBinding, currentProfile?.binding);
+    const work = await tx.storyWork.findFirst({ where: { id: context.workId,
+      activeReleaseId: context.releaseId, status: 'published', fixtureSource: false }, select: { id: true } });
+    if (!work) throw new ConflictException({ code: 'STORY_PUBLICATION_CHOICE_SOURCE_CHANGED',
+      message: 'The published release changed before choice preparation or review' });
+    const partIds = context.parts.map(part => part.partId);
+    const sceneIds = context.parts.map(part => part.sceneId);
+    if (tx.storyWorkGenerationProfile) {
+      await tx.$queryRaw(Prisma.sql`SELECT id FROM story_parts
+        WHERE id IN (${Prisma.join(partIds.map(id => Prisma.sql`${id}::uuid`))}) ORDER BY id FOR SHARE`);
+      await tx.$queryRaw(Prisma.sql`SELECT id FROM story_scenes
+        WHERE part_id IN (${Prisma.join(partIds.map(id => Prisma.sql`${id}::uuid`))}) ORDER BY id FOR UPDATE`);
+      await tx.$queryRaw(Prisma.sql`SELECT id FROM story_beats
+        WHERE scene_id IN (${Prisma.join(sceneIds.map(id => Prisma.sql`${id}::uuid`))}) ORDER BY id FOR SHARE`);
+      await tx.$queryRaw(Prisma.sql`SELECT id FROM story_choices
+        WHERE scene_id IN (${Prisma.join(sceneIds.map(id => Prisma.sql`${id}::uuid`))}) ORDER BY id FOR SHARE`);
+    }
+    const [parts, scenes, beats, choices] = await Promise.all([
+      tx.storyPart.findMany({ where: { id: { in: partIds }, workId: context.workId,
+        status: 'published', fixtureSource: false }, select: { id: true, position: true, title: true } }),
+      tx.storyScene.findMany({ where: { partId: { in: partIds }, status: 'published', fixtureSource: false },
+        select: { id: true, partId: true } }),
+      tx.storyBeat.findMany({ where: { sceneId: { in: sceneIds } },
+        orderBy: [{ sceneId: 'asc' }, { position: 'asc' }, { id: 'asc' }], select: { sceneId: true, content: true } }),
+      tx.storyChoice.findMany({ where: { sceneId: { in: sceneIds }, routeKind: 'writer_original' },
+        orderBy: [{ sceneId: 'asc' }, { position: 'asc' }, { id: 'asc' }],
+        select: { id: true, choiceKey: true, sceneId: true, position: true, label: true, routeKind: true,
+          targetSceneId: true, targetEndingKey: true, declaredRejoinSceneId: true } }),
+    ]);
+    if (parts.length !== context.parts.length || scenes.length !== context.parts.length ||
+        context.parts.some(part => !parts.some(current => current.id === part.partId &&
+          `part-${current.position}` === part.partKey &&
+          String((current.title as Record<string, unknown>)?.ko ?? '') === part.title) ||
+          !scenes.some(current => current.id === part.sceneId && current.partId === part.partId)) ||
+        releaseChecksum({ beats, choices }) !== context.sourceDigest) {
+      throw new ConflictException({ code: 'STORY_PUBLICATION_CHOICE_SOURCE_CHANGED',
+        message: 'The exact batch manuscript, scene mapping or original route changed' });
+    }
+  }
+
+  async reviewPublishedInheritorChoiceBatch(
+    actorUserId: string,
+    batchId: string,
+    review: ReviewPublishedChoiceBatchDto,
+  ) {
+    return this.prisma.$transaction(async tx => {
+      const batch = await tx.storyPublicationChoiceBatch.findUnique({ where: { id: batchId } });
+      if (!batch) throw new NotFoundException('Choice preparation batch not found');
+      if (!['in_progress', 'review_required'].includes(batch.status)) throw new ConflictException({
+        code: 'STORY_CHOICE_PREPARATION_NOT_REVIEWABLE',
+        message: 'This choice batch is not awaiting operator review',
+      });
+      if (batch.status === 'in_progress' && Date.now() - batch.updatedAt.getTime() < 10 * 60_000) {
+        throw new ConflictException({
+          code: 'STORY_CHOICE_PREPARATION_STILL_RUNNING',
+          message: 'Wait for the provider timeout before reviewing an interrupted batch',
+        });
+      }
+      const context = readPublishedChoicePreparationContext(batch);
+      await this.assertPublishedChoiceContextTx(tx, context);
+      const sceneIds = context.parts.map(part => part.sceneId);
+      const choices = await tx.storyChoice.findMany({
+        where: { sceneId: { in: sceneIds }, position: { gt: 0 } },
+        select: { sceneId: true, position: true, label: true, routeKind: true,
+          targetSceneId: true, targetEndingKey: true, declaredRejoinSceneId: true },
+      });
+      const sceneCounts = sceneIds.map(sceneId => choices.filter(choice => choice.sceneId === sceneId).length);
+      const completed = sceneCounts.every((count) => count === 3);
+      if (completed && sceneIds.some(sceneId => !hasPreparedOriginalAndAlternatives(
+        choices.filter(choice => choice.sceneId === sceneId)))) {
+        throw new ConflictException('Choice batch has three entries but invalid routes');
+      }
+      if (!completed && !sceneCounts.every((count) => count === 1)) {
+        throw new ConflictException({
+          code: 'STORY_CHOICE_PREPARATION_PARTIAL_RESULT',
+          message: 'Choice counts must be reconciled before a retry can be authorized',
+        });
+      }
+      if (choices.some(choice => choice.declaredRejoinSceneId) || (!completed &&
+          choices.some(choice => !hasValidWriterOriginalChoice(choice)))) {
+        throw new ConflictException({ code: 'STORY_CHOICE_PREPARATION_PARTIAL_RESULT',
+          message: 'Choice routes must be reconciled before a retry can be authorized' });
+      }
+      const nextStatus = completed ? 'completed' : 'retry_authorized';
+      const updated = await tx.storyPublicationChoiceBatch.updateMany({
+        where: { id: batch.id, status: batch.status, claimToken: batch.claimToken,
+          updatedAt: batch.updatedAt, preparationContextSha256: batch.preparationContextSha256 },
+        data: { status: nextStatus, errorCode: null },
+      });
+      if (updated.count !== 1) throw new ConflictException({
+        code: 'STORY_CHOICE_PREPARATION_CONCURRENT_UPDATE',
+        message: 'Choice preparation changed during operator review',
+      });
+      await tx.auditEvent.create({ data: {
+        actorUserId, actorType: 'admin', action: 'story_public_beta.ai_choices.reviewed',
+        targetType: 'story_work', targetId: batch.workId,
+        metadata: { batchId: batch.id, releaseId: batch.releaseId,
+          firstPartPosition: batch.firstPartPosition, previousStatus: batch.status,
+          partKeys: context.parts.map(part => part.partKey),
+          preparationContextSha256: batch.preparationContextSha256,
+          sourceDigest: context.sourceDigest, generationProfileBinding: context.generationProfileBinding,
+          nextStatus, reviewOutcome: review.outcome, reviewNote: review.reviewNote.trim() },
+      } });
+      return { batchId: batch.id, status: nextStatus, retryRequiresSeparateRequest: !completed };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, maxWait: 5000, timeout: 30000 })
+      .catch((error: unknown) => {
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034') {
+          throw new ConflictException({ code: 'STORY_CHOICE_PREPARATION_CONCURRENT_UPDATE',
+            message: 'Choice preparation changed during operator review; reload its state' });
+        }
+        throw error;
+      });
   }
 
   private assertPublicRatingReady(
@@ -1462,6 +2143,8 @@ export class StoryPublicationIntakeService {
       for (let index = 0; index < choiceRows.length; index += 256) {
         await tx.storyChoice.createMany({ data: choiceRows.slice(index, index + 256) });
       }
+      await this.assertChoiceProfileTx(tx, plan);
+      await this.assertStoredPublicationTx(tx, workId, plan);
       const promptRows = plan.prompts.map((prompt) => ({
         workId,
         releaseId,
@@ -1612,7 +2295,7 @@ export class StoryPublicationIntakeService {
     );
     return {
       storyKey: 'inheritor',
-      slug: `${INHERITOR_STORY.slug}-${randomBytes(12).toString('hex')}`,
+      slug: `${INHERITOR_STORY.slug}-${source.sourceBindingSha256.slice(0, 32)}`,
       title: INHERITOR_STORY.title,
       summary: INHERITOR_STORY.summary,
       hashtagKeys: [...STORY_HASHTAG_KEYS.inheritor],
@@ -1624,6 +2307,26 @@ export class StoryPublicationIntakeService {
       contentRating: 'adults_only',
       catalogVisibility: 'public_test',
     };
+  }
+
+  private async publishedInheritorWorkForSource(tx: Prisma.TransactionClient, sourceBindingSha256: string) {
+    const releases = await tx.storyRelease.findMany({
+      where: { diffSummary: { path: ['sourceBindingSha256'], equals: sourceBindingSha256 } },
+      select: { id: true, workId: true },
+    });
+    if (!releases.length) return null;
+    const works = await tx.storyWork.findMany({
+      where: { id: { in: releases.map((release) => release.workId) },
+        slug: { startsWith: `${INHERITOR_STORY.slug}-` }, status: 'published' },
+      select: { id: true, slug: true, activeReleaseId: true, status: true },
+    });
+    const matching = works.filter((work) => releases.some((release) =>
+      release.workId === work.id && release.id === work.activeReleaseId));
+    if (matching.length > 1) throw new ConflictException({
+      code: 'STORY_PUBLICATION_DUPLICATE_SOURCE',
+      message: 'Multiple published works share the approved source; review them before publishing again',
+    });
+    return matching[0] ?? null;
   }
 
   private fixedRoutePlan(storyKey: FixedRouteStoryKey, buffers: Map<string, Buffer>): PublicationPlan {
@@ -1788,6 +2491,7 @@ export class StoryPublicationIntakeService {
       catalogVisibility: plan.catalogVisibility,
       choicePreparation: plan.choicePreparation,
       submissionId: plan.submissionId,
+      writerIntakeWorkflow: plan.writerIntakeWorkflow,
     };
     const serialized = Buffer.from(JSON.stringify(stored), 'utf8');
     const compressed = brotliCompressSync(serialized, {

@@ -3,6 +3,8 @@ import {
   ChatService,
 } from './chat.service';
 import { ChatLlmProviderRequestError } from './llm-provider.adapter';
+import type { StoryChatMemoryContext } from './story-chat-memory';
+import { storyChatMemoryMarker } from './story-chat-memory-scope';
 import {
   CHARACTER_CHAT_PREMIUM_TRANSITION_CTA_CONTRACT,
   PREMIUM_CHAT_COMMUNICATION_DONATION_RANKING_READ_MODEL_CONTRACT,
@@ -1741,6 +1743,29 @@ describe('ChatService.getConversationList', () => {
     expect(prisma.walletAccount.updateMany).not.toHaveBeenCalled();
     expect(prisma.walletLedger.create).not.toHaveBeenCalled();
     expect(payload).not.toContain('must-not-return');
+  });
+
+  it('does not preview story-route messages in the ordinary conversation list', async () => {
+    const prisma = { chatSession: { findMany: jest.fn().mockResolvedValue([{
+      id: '00000000-0000-4000-8000-000000000274', userId,
+      status: 'active', createdAt: new Date('2026-05-16T00:00:00.000Z'),
+      updatedAt: new Date('2026-05-16T00:07:00.000Z'),
+      artist: { id: '00000000-0000-4000-8000-000000000272', slug: 'yoon-serin', displayName: 'Yoon Serin' },
+      chatPersona: null,
+      messages: [{
+        id: '00000000-0000-4000-8000-000000000275', senderType: 'artist',
+        messageType: 'text', body: 'private previous route', chatFeatureOrderId: null,
+        modelMetadata: { storyRouteScope: { version: 2 } },
+        createdAt: new Date('2026-05-16T00:06:00.000Z'),
+      }],
+      _count: { messages: 1 },
+    }]) } };
+    const service = new ChatService(prisma as never, llmProvider as never);
+
+    const result = await service.getConversationList(userId, { box: 'recent' });
+
+    expect(result.items[0]).toMatchObject({ lastMessage: null, latestMessage: null, lastMessageAt: null });
+    expect(JSON.stringify(result)).not.toContain('private previous route');
   });
 
   it('returns stable latest message keys for pending provider previews without provider calls', async () => {
@@ -9231,7 +9256,7 @@ describe('ChatService.generateMessage provider beta', () => {
   };
 
   function prismaForGenerate(tx: Record<string, unknown>) {
-    return {
+    const prisma = {
       user: {
         findUnique: jest.fn().mockResolvedValue({
           id: userId,
@@ -9258,13 +9283,31 @@ describe('ChatService.generateMessage provider beta', () => {
       },
       storyReaderProgress: {
         findMany: jest.fn().mockResolvedValue([]),
+        findFirst: jest.fn(),
       },
+      storyProgressRouteNode: { findFirst: jest.fn() },
+      storyResetCommand: { findFirst: jest.fn().mockResolvedValue(null) },
+      artistStoryIdentityProfile: { findFirst: jest.fn() },
+      storyAiGeneratedScene: { findMany: jest.fn() },
+      storyAiGeneratedBeat: { findMany: jest.fn() },
+      storyWork: { findFirst: jest.fn() },
+      $queryRaw: jest.fn().mockResolvedValue([]),
       $transaction: jest.fn((callback) => callback(tx)),
     };
+    for (const key of ['storyReaderProgress', 'storyProgressRouteNode', 'artistStoryIdentityProfile',
+      'storyAiGeneratedScene', 'storyAiGeneratedBeat', 'storyWork'] as const) {
+      tx[key] = { ...(tx[key] as object), ...prisma[key] };
+    }
+    return prisma;
   }
 
   function persistTx(aiBody: string) {
     return {
+      $queryRaw: jest.fn().mockImplementation(query => Promise.resolve(
+        String(query).includes('SELECT display_name') || query?.strings?.join('').includes('SELECT display_name')
+          ? [{ displayName: session.artist.displayName }] : [{ id: 'profile-1' }],
+      )),
+      storyReaderProgress: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
       chatMessage: {
         create: jest
           .fn()
@@ -9286,9 +9329,40 @@ describe('ChatService.generateMessage provider beta', () => {
     };
   }
 
+  function validStoryRoute(prisma: ReturnType<typeof prismaForGenerate>) {
+    const progress = {
+      id: '00000000-0000-4000-8000-000000000981',
+      workId: 'work-1', activeReleaseId: 'release-1', routeNodeId: 'route-node-1',
+      progressRevision: 7, updatedAt: new Date('2026-09-28T00:00:00.000Z'),
+      participantArtist: {
+        identityProfileId: 'profile-1', identityProfileVersion: 1,
+        identityReviewRevision: 1, identitySourceFingerprint: 'source',
+        identityApprovedFingerprint: 'approved',
+      },
+    };
+    prisma.storyReaderProgress.findFirst.mockResolvedValue(progress);
+    prisma.storyProgressRouteNode.findFirst.mockResolvedValue({ id: progress.routeNodeId });
+    prisma.artistStoryIdentityProfile.findFirst.mockResolvedValue({ id: 'profile-1' });
+    return progress;
+  }
+
+  const emptyStoryMemory: StoryChatMemoryContext = { source: 'no_verified_interaction', items: [] };
+  const canonicalStoryMemory: StoryChatMemoryContext = {
+    source: 'attributed_story_dialogue',
+    items: [{
+      workTitle: 'Work', sceneTitle: 'Scene', artistDialogue: 'Approved canonical dialogue',
+      interactionKind: 'dialogue', evidenceSource: 'canonical_author_approved',
+    }],
+    canonicalProofFingerprint: 'a'.repeat(64),
+  };
+
   it('passes allowlisted user context to the provider without wallet mutation', async () => {
     const tx = persistTx('조금 쉬어도 괜찮아. 오늘은 천천히 가자.');
     const prisma = prismaForGenerate(tx);
+    prisma.storyReaderProgress.findMany.mockResolvedValue([{
+      pathSummary: [{ sceneId: 'visited-scene', choiceId: 'chosen-option' }],
+      participantArtist: { artistId: session.artistId },
+    }]);
     const llmProvider = {
       readiness: jest.fn().mockReturnValue(readyState),
       generate: jest.fn().mockResolvedValue({
@@ -9323,6 +9397,12 @@ describe('ChatService.generateMessage provider beta', () => {
       userId,
       userEmail: 'beta@example.com',
     });
+    expect(prisma.chatMessage.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { chatSessionId: sessionId },
+    }));
+    expect(tx.chatMessage.create).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      data: expect.not.objectContaining({ modelMetadata: expect.anything() }),
+    }));
     expect(prisma.chatSession.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({
         include: expect.objectContaining({
@@ -9350,6 +9430,7 @@ describe('ChatService.generateMessage provider beta', () => {
         userId,
         userEmail: 'beta@example.com',
         userMessage: '오늘 조금 지쳤어.',
+        storyMemoryContext: { source: 'no_verified_interaction', items: [] },
         runtimePersona: expect.objectContaining({
           welcome: expect.objectContaining({
             text: '세린 런타임 인사',
@@ -9375,9 +9456,12 @@ describe('ChatService.generateMessage provider beta', () => {
         }),
       }),
     );
+    expect(prisma.storyReaderProgress.findMany).not.toHaveBeenCalled();
     expect(prisma.walletAccount.findUnique).not.toHaveBeenCalled();
     expect(prisma.walletAccount.updateMany).not.toHaveBeenCalled();
     expect(prisma.walletLedger.create).not.toHaveBeenCalled();
+    expect(tx.chatMessage.create.mock.calls[1][0].data.modelMetadata).not.toHaveProperty('storyMemoryScope');
+    expect(tx.chatMessage.create.mock.calls[1][0].data.modelMetadata).not.toHaveProperty('storyRouteScope');
     expect(tx.chatMessage.create).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
@@ -9400,6 +9484,915 @@ describe('ChatService.generateMessage provider beta', () => {
         }),
       }),
     );
+  });
+
+  it('keeps legacy unscoped chat but excludes newer story turns from ordinary provider history', async () => {
+    const tx = persistTx('ordinary reply');
+    const prisma = prismaForGenerate(tx);
+    const rows = [
+      ...Array.from({ length: 20 }, (_, index) => ({
+        id: `story-${index}`, senderType: index % 2 ? 'artist' : 'user',
+        messageType: 'text', body: `story turn ${index}`,
+        modelMetadata: { storyRouteScope: { version: 2, routeNodeId: 'old-route' } },
+      })),
+      { id: 'legacy-newer', senderType: 'user', messageType: 'text', body: 'ordinary question', modelMetadata: {} },
+      { id: 'legacy-older', senderType: 'artist', messageType: 'text', body: 'ordinary answer',
+        modelMetadata: { provider: 'openai' } },
+    ];
+    prisma.chatMessage.findMany.mockImplementation(({ where, cursor, take }) => {
+      if (where?.chatSessionId !== sessionId) return Promise.resolve([]);
+      const start = cursor ? rows.findIndex((row) => row.id === cursor.id) + 1 : 0;
+      return Promise.resolve(rows.slice(start, start + take));
+    });
+    const llmProvider = {
+      readiness: jest.fn().mockReturnValue(readyState),
+      generate: jest.fn().mockResolvedValue({
+        body: 'ordinary reply',
+        usage: { provider: 'openai', model: 'gpt-5-mini', inputTokens: 1, outputTokens: 1, estimatedCostKrw: '0.00' },
+        safetyMetadata: {},
+      }),
+    };
+    const service = new ChatService(prisma as never, llmProvider as never);
+
+    await service.generateMessage(userId, sessionId, { body: 'ordinary chat' });
+
+    const historyQueries = prisma.chatMessage.findMany.mock.calls
+      .map(([args]) => args)
+      .filter((args) => args.where?.chatSessionId === sessionId);
+    expect(historyQueries).toHaveLength(2);
+    expect(historyQueries[0]).toEqual(expect.objectContaining({
+      where: { chatSessionId: sessionId }, take: 20,
+      select: expect.objectContaining({ id: true, modelMetadata: true }),
+    }));
+    expect(historyQueries[1]).toEqual(expect.objectContaining({
+      cursor: { id: 'story-19' }, skip: 1,
+    }));
+    expect(llmProvider.generate).toHaveBeenCalledWith(expect.objectContaining({
+      recentMessages: [
+        { senderType: 'artist', messageType: 'text', body: 'ordinary answer' },
+        { senderType: 'user', messageType: 'text', body: 'ordinary question' },
+      ],
+    }));
+  });
+
+  it('caps ordinary provider history at 10 pages while retaining unscoped turns within the window', async () => {
+    const tx = persistTx('ordinary reply');
+    const prisma = prismaForGenerate(tx);
+    const rows = [
+      ...Array.from({ length: 199 }, (_, index) => ({
+        id: `story-${index}`, senderType: 'user', messageType: 'text',
+        body: `story ${index}`, modelMetadata: { storyRouteScope: { version: 2 } },
+      })),
+      { id: 'ordinary-within', senderType: 'user', messageType: 'text',
+        body: 'within bounded window', modelMetadata: {} },
+      { id: 'ordinary-beyond', senderType: 'user', messageType: 'text',
+        body: 'beyond bounded window', modelMetadata: {} },
+    ];
+    prisma.chatMessage.findMany.mockImplementation(({ where, cursor, take }) => {
+      if (where?.chatSessionId !== sessionId) return Promise.resolve([]);
+      const start = cursor ? rows.findIndex((row) => row.id === cursor.id) + 1 : 0;
+      return Promise.resolve(rows.slice(start, start + take));
+    });
+    const llmProvider = {
+      readiness: jest.fn().mockReturnValue(readyState),
+      generate: jest.fn().mockResolvedValue({
+        body: 'ordinary reply',
+        usage: { provider: 'openai', model: 'gpt-5-mini', inputTokens: 1, outputTokens: 1, estimatedCostKrw: '0.00' },
+        safetyMetadata: {},
+      }),
+    };
+    const service = new ChatService(prisma as never, llmProvider as never);
+
+    await service.generateMessage(userId, sessionId, { body: 'ordinary chat' });
+
+    const historyQueries = prisma.chatMessage.findMany.mock.calls
+      .map(([args]) => args)
+      .filter((args) => args.where?.chatSessionId === sessionId);
+    expect(historyQueries).toHaveLength(10);
+    expect(historyQueries[9]).toEqual(expect.objectContaining({ cursor: { id: 'story-179' }, skip: 1 }));
+    expect(llmProvider.generate).toHaveBeenCalledWith(expect.objectContaining({
+      recentMessages: [{ senderType: 'user', messageType: 'text', body: 'within bounded window' }],
+    }));
+  });
+
+  it('returns up to 20 ordinary turns found within the bounded history window', async () => {
+    const tx = persistTx('ordinary reply');
+    const prisma = prismaForGenerate(tx);
+    const rows = [
+      ...Array.from({ length: 180 }, (_, index) => ({
+        id: `story-${index}`, senderType: 'user', messageType: 'text',
+        body: `story ${index}`, modelMetadata: { storyRouteScope: { version: 2 } },
+      })),
+      ...Array.from({ length: 20 }, (_, index) => ({
+        id: `ordinary-${index}`, senderType: 'user', messageType: 'text',
+        body: `ordinary ${index}`, modelMetadata: {},
+      })),
+    ];
+    prisma.chatMessage.findMany.mockImplementation(({ where, cursor, take }) => {
+      if (where?.chatSessionId !== sessionId) return Promise.resolve([]);
+      const start = cursor ? rows.findIndex((row) => row.id === cursor.id) + 1 : 0;
+      return Promise.resolve(rows.slice(start, start + take));
+    });
+    const llmProvider = {
+      readiness: jest.fn().mockReturnValue(readyState),
+      generate: jest.fn().mockResolvedValue({
+        body: 'ordinary reply',
+        usage: { provider: 'openai', model: 'gpt-5-mini', inputTokens: 1, outputTokens: 1, estimatedCostKrw: '0.00' },
+        safetyMetadata: {},
+      }),
+    };
+    const service = new ChatService(prisma as never, llmProvider as never);
+
+    prisma.storyReaderProgress.findMany.mockResolvedValue([{ id: 'unselected-story-progress' }]);
+
+    await service.generateMessage(userId, sessionId, { body: 'ordinary chat' });
+
+    const historyQueries = prisma.chatMessage.findMany.mock.calls
+      .map(([args]) => args)
+      .filter((args) => args.where?.chatSessionId === sessionId);
+    expect(historyQueries).toHaveLength(10);
+    expect(llmProvider.generate).toHaveBeenCalledWith(expect.objectContaining({
+      recentMessages: Array.from({ length: 20 }, (_, index) => ({
+        senderType: 'user', messageType: 'text', body: `ordinary ${19 - index}`,
+      })),
+      storyMemoryContext: { source: 'no_verified_interaction', items: [] },
+    }));
+    expect(prisma.storyReaderProgress.findMany).not.toHaveBeenCalled();
+  });
+
+  it('sends only read, attributed story dialogue to the same artist chat', async () => {
+    const tx = persistTx('기차역에서 함께 있었지.');
+    const prisma = prismaForGenerate(tx);
+    const selectedProgressId = '00000000-0000-4000-8000-000000000981';
+    const progress = {
+      id: selectedProgressId, workId: 'work-1', activeReleaseId: 'release-1', routeNodeId: 'route-node-1',
+      progressRevision: 7, updatedAt: new Date('2026-09-28T00:00:00.000Z'),
+      pathSummary: [{ generatedSceneId: 'scene-1' }],
+      currentGeneratedSceneId: 'scene-1', currentBeatPosition: 1,
+      participantArtist: {
+        identityProfileId: 'profile-1', identityProfileVersion: 1,
+        identityReviewRevision: 1, identitySourceFingerprint: 'source',
+        identityApprovedFingerprint: 'approved',
+      },
+    };
+    prisma.storyReaderProgress.findMany.mockResolvedValue([progress]);
+    prisma.storyReaderProgress.findFirst.mockImplementation(({ select }) => Promise.resolve(
+      select.id ? progress : {
+        ...progress,
+        participantArtist: { identityApprovedFingerprint: 'approved' },
+      },
+    ));
+    const memoryContext: StoryChatMemoryContext = {
+      source: 'attributed_story_dialogue',
+      items: [{ workTitle: '함께한 이야기', sceneTitle: '기차역', artistDialogue: '여기서 기다릴게.' }],
+    };
+    const memoryMarker = storyChatMemoryMarker(memoryContext);
+    prisma.chatMessage.findMany.mockImplementation(({ where }) => Promise.resolve(
+      where.modelMetadata ? [
+        { senderType: 'user', messageType: 'text', body: '이 경로의 이전 대화',
+          modelMetadata: { storyMemoryScope: memoryMarker } },
+      ] : [
+        { senderType: 'user', messageType: 'text', body: '이전 경로 대화' },
+      ],
+    ));
+    prisma.storyProgressRouteNode.findFirst.mockResolvedValue({ id: 'route-node-1' });
+    prisma.artistStoryIdentityProfile.findFirst.mockResolvedValue({ id: 'profile-1' });
+    prisma.storyAiGeneratedScene.findMany.mockResolvedValue([{ id: 'scene-1', title: { ko: '기차역' } }]);
+    prisma.storyAiGeneratedBeat.findMany.mockResolvedValue([
+      { sceneId: 'scene-1', position: 1, content: { ko: '윤세린: 여기서 기다릴게.' } },
+      { sceneId: 'scene-1', position: 2, content: { ko: '윤세린: 아직 읽지 않은 대사야.' } },
+    ]);
+    prisma.storyWork.findFirst.mockResolvedValue({ title: { ko: '함께한 이야기' } });
+    const llmProvider = {
+      readiness: jest.fn().mockReturnValue(readyState),
+      generate: jest.fn().mockResolvedValue({
+        body: '기차역에서 함께 있었지.',
+        usage: { provider: 'openai', model: 'gpt-5-mini', inputTokens: 11, outputTokens: 12, estimatedCostKrw: '0.00' },
+        safetyMetadata: { requestId: 'req-story-memory' },
+      }),
+      fallbackResult: jest.fn(),
+    };
+    const service = new ChatService(prisma as never, llmProvider as never);
+
+    await service.generateMessage(userId, sessionId, { body: '기차역 기억나?', storyProgressId: selectedProgressId });
+
+    expect(prisma.storyReaderProgress.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ id: selectedProgressId, userId }),
+      take: 1,
+    }));
+
+    expect(llmProvider.generate).toHaveBeenCalledWith(expect.objectContaining({
+      recentMessages: [{ senderType: 'user', messageType: 'text', body: '이 경로의 이전 대화' }],
+      storyMemoryContext: {
+        source: 'attributed_story_dialogue',
+        items: [{ workTitle: '함께한 이야기', sceneTitle: '기차역', artistDialogue: '여기서 기다릴게.' }],
+      },
+    }));
+    const routeMarker = {
+      version: 2, progressId: selectedProgressId, workId: 'work-1', releaseId: 'release-1',
+      routeNodeId: 'route-node-1', resetEpoch: null, identityApprovedFingerprint: 'approved',
+    };
+    expect(prisma.storyResetCommand.findFirst).toHaveBeenCalledTimes(1);
+    expect(prisma.storyResetCommand.findFirst).toHaveBeenCalledWith({
+      where: {
+        progressId: selectedProgressId, userId, status: 'completed',
+        afterRevision: { lte: 7 },
+      },
+      orderBy: [{ afterRevision: 'desc' }, { id: 'desc' }],
+      select: { id: true, afterRevision: true },
+    });
+    expect(prisma.chatMessage.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { chatSessionId: sessionId, modelMetadata: {
+        path: ['storyRouteScope'], equals: routeMarker,
+      }, AND: [{ modelMetadata: { path: ['storyMemoryScope'], equals: memoryMarker } }] },
+      select: { senderType: true, messageType: true, body: true, modelMetadata: true },
+    }));
+    expect(tx.storyReaderProgress.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        id: selectedProgressId, routeNodeId: 'route-node-1', progressRevision: 7,
+      }),
+    }));
+    expect(tx.chatMessage.create).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      data: expect.objectContaining({ senderType: 'user', modelMetadata: {
+        storyRouteScope: routeMarker, storyMemoryScope: memoryMarker,
+      } }),
+    }));
+    expect(tx.chatMessage.create).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      data: expect.objectContaining({ senderType: 'artist', modelMetadata: expect.objectContaining({
+        storyRouteScope: routeMarker, storyMemoryScope: memoryMarker,
+      }) }),
+    }));
+  });
+
+  it('rejects an unowned or unverified explicit progress before reading history or calling provider', async () => {
+    for (const invalidPart of ['progress', 'route', 'approval']) {
+      const tx = persistTx('unused');
+      const prisma = prismaForGenerate(tx);
+      validStoryRoute(prisma);
+      if (invalidPart === 'progress') prisma.storyReaderProgress.findFirst.mockResolvedValue(null);
+      if (invalidPart === 'route') prisma.storyProgressRouteNode.findFirst.mockResolvedValue(null);
+      if (invalidPart === 'approval') prisma.artistStoryIdentityProfile.findFirst.mockResolvedValue(null);
+      const llmProvider = { readiness: jest.fn(), generate: jest.fn() };
+      const service = new ChatService(prisma as never, llmProvider as never);
+
+      await expect(service.generateMessage(userId, sessionId, {
+        body: '이야기 기억나?', storyProgressId: '00000000-0000-4000-8000-000000000981',
+      })).rejects.toMatchObject({ response: expect.objectContaining({ code: 'STORY_CHAT_ROUTE_CHANGED' }) });
+
+      expect(prisma.chatMessage.findMany).not.toHaveBeenCalled();
+      expect(prisma.storyReaderProgress.findMany).not.toHaveBeenCalled();
+      expect(llmProvider.generate).not.toHaveBeenCalled();
+      expect(tx.chatMessage.create).not.toHaveBeenCalled();
+    }
+  });
+
+  it('retains same-route chat history after a beat advances progressRevision', async () => {
+    const tx = persistTx('same route reply');
+    const prisma = prismaForGenerate(tx);
+    const progress = validStoryRoute(prisma);
+    progress.progressRevision = 8;
+    const priorMarker = {
+      version: 2, progressId: progress.id, workId: progress.workId,
+      releaseId: progress.activeReleaseId, routeNodeId: progress.routeNodeId,
+      resetEpoch: null, identityApprovedFingerprint: 'approved',
+    };
+    const memoryMarker = storyChatMemoryMarker(emptyStoryMemory);
+    prisma.chatMessage.findMany.mockImplementation(({ where }) => Promise.resolve(
+      JSON.stringify(where.modelMetadata?.equals) === JSON.stringify(priorMarker)
+        ? [{ senderType: 'user', messageType: 'text', body: 'same route turn from prior beat',
+          modelMetadata: { storyRouteScope: priorMarker, storyMemoryScope: memoryMarker } }]
+        : [],
+    ));
+    const llmProvider = {
+      readiness: jest.fn().mockReturnValue(readyState),
+      generate: jest.fn().mockResolvedValue({
+        body: 'same route reply',
+        usage: { provider: 'openai', model: 'gpt-5-mini', inputTokens: 1, outputTokens: 1, estimatedCostKrw: '0.00' },
+        safetyMetadata: {},
+      }),
+    };
+    const service = new ChatService(prisma as never, llmProvider as never);
+
+    await service.generateMessage(userId, sessionId, { body: '계속 이야기하자', storyProgressId: progress.id });
+
+    expect(prisma.chatMessage.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ modelMetadata: expect.objectContaining({
+        equals: priorMarker,
+      }), AND: [{ modelMetadata: { path: ['storyMemoryScope'], equals: memoryMarker } }] }),
+      select: { senderType: true, messageType: true, body: true, modelMetadata: true },
+    }));
+    expect(prisma.storyResetCommand.findFirst).toHaveBeenCalledTimes(1);
+    expect(prisma.storyResetCommand.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ afterRevision: { lte: 8 } }),
+    }));
+    expect(prisma.storyReaderProgress.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        id: progress.id, routeNodeId: progress.routeNodeId,
+        progressRevision: 8, updatedAt: progress.updatedAt,
+      }),
+    }));
+    expect(llmProvider.generate).toHaveBeenCalledWith(expect.objectContaining({
+      recentMessages: [{ senderType: 'user', messageType: 'text', body: 'same route turn from prior beat' }],
+    }));
+    expect(tx.storyReaderProgress.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ progressRevision: 8 }),
+    }));
+  });
+
+  it('excludes old chat after an act reset restores the same route node', async () => {
+    const tx = persistTx('reset reply');
+    const prisma = prismaForGenerate(tx);
+    const progress = validStoryRoute(prisma);
+    progress.progressRevision = 8;
+    prisma.storyResetCommand.findFirst.mockResolvedValue({ id: 'reset-2', afterRevision: 8 });
+    const priorMarker = {
+      version: 2, progressId: progress.id, workId: progress.workId,
+      releaseId: progress.activeReleaseId, routeNodeId: progress.routeNodeId,
+      resetEpoch: { commandId: 'reset-1', afterRevision: 4 },
+      identityApprovedFingerprint: 'approved',
+    };
+    prisma.chatMessage.findMany.mockImplementation(({ where }) => Promise.resolve(
+      JSON.stringify(where.modelMetadata?.equals) === JSON.stringify(priorMarker)
+        ? [{ senderType: 'user', messageType: 'text', body: 'before act reset',
+          modelMetadata: { storyRouteScope: priorMarker, storyMemoryScope: storyChatMemoryMarker(emptyStoryMemory) } }]
+        : [],
+    ));
+    const llmProvider = {
+      readiness: jest.fn().mockReturnValue(readyState),
+      generate: jest.fn().mockResolvedValue({
+        body: 'reset reply',
+        usage: { provider: 'openai', model: 'gpt-5-mini', inputTokens: 1, outputTokens: 1, estimatedCostKrw: '0.00' },
+        safetyMetadata: {},
+      }),
+    };
+    const service = new ChatService(prisma as never, llmProvider as never);
+
+    await service.generateMessage(userId, sessionId, { body: '다시 시작할까?', storyProgressId: progress.id });
+
+    expect(prisma.chatMessage.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ modelMetadata: {
+        path: ['storyRouteScope'],
+        equals: { ...priorMarker, resetEpoch: { commandId: 'reset-2', afterRevision: 8 } },
+      }, AND: [{ modelMetadata: { path: ['storyMemoryScope'], equals: storyChatMemoryMarker(emptyStoryMemory) } }] }),
+    }));
+    expect(prisma.storyResetCommand.findFirst).toHaveBeenCalledTimes(1);
+    expect(llmProvider.generate).toHaveBeenCalledWith(expect.objectContaining({ recentMessages: [] }));
+  });
+
+  it('excludes old chat after a route choice changes the route node', async () => {
+    const tx = persistTx('new route reply');
+    const prisma = prismaForGenerate(tx);
+    const progress = validStoryRoute(prisma);
+    progress.routeNodeId = 'route-node-2';
+    progress.progressRevision = 8;
+    prisma.storyProgressRouteNode.findFirst.mockResolvedValue({ id: progress.routeNodeId });
+    const priorMarker = {
+      version: 2, progressId: progress.id, workId: progress.workId,
+      releaseId: progress.activeReleaseId, routeNodeId: 'route-node-1',
+      resetEpoch: null, identityApprovedFingerprint: 'approved',
+    };
+    prisma.chatMessage.findMany.mockImplementation(({ where }) => Promise.resolve(
+      JSON.stringify(where.modelMetadata?.equals) === JSON.stringify(priorMarker)
+        ? [{ senderType: 'user', messageType: 'text', body: 'before route choice',
+          modelMetadata: { storyRouteScope: priorMarker, storyMemoryScope: storyChatMemoryMarker(emptyStoryMemory) } }]
+        : [],
+    ));
+    const llmProvider = {
+      readiness: jest.fn().mockReturnValue(readyState),
+      generate: jest.fn().mockResolvedValue({
+        body: 'new route reply',
+        usage: { provider: 'openai', model: 'gpt-5-mini', inputTokens: 1, outputTokens: 1, estimatedCostKrw: '0.00' },
+        safetyMetadata: {},
+      }),
+    };
+    const service = new ChatService(prisma as never, llmProvider as never);
+
+    await service.generateMessage(userId, sessionId, { body: '이 길로 가자', storyProgressId: progress.id });
+
+    expect(prisma.chatMessage.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ modelMetadata: {
+        path: ['storyRouteScope'], equals: { ...priorMarker, routeNodeId: 'route-node-2' },
+      }, AND: [{ modelMetadata: { path: ['storyMemoryScope'], equals: storyChatMemoryMarker(emptyStoryMemory) } }] }),
+    }));
+    expect(prisma.storyResetCommand.findFirst).toHaveBeenCalledTimes(1);
+    expect(llmProvider.generate).toHaveBeenCalledWith(expect.objectContaining({ recentMessages: [] }));
+  });
+
+  it('stops before provider generation if the route changes while context is loaded', async () => {
+    const tx = persistTx('unused');
+    const prisma = prismaForGenerate(tx);
+    const progress = validStoryRoute(prisma);
+    prisma.storyReaderProgress.findFirst.mockResolvedValueOnce(progress).mockResolvedValueOnce(null);
+    const llmProvider = { readiness: jest.fn().mockReturnValue(readyState), generate: jest.fn() };
+    const service = new ChatService(prisma as never, llmProvider as never);
+
+    await expect(service.generateMessage(userId, sessionId, {
+      body: '이야기 기억나?', storyProgressId: progress.id,
+    })).rejects.toMatchObject({ response: expect.objectContaining({ code: 'STORY_CHAT_ROUTE_CHANGED' }) });
+
+    expect(llmProvider.generate).not.toHaveBeenCalled();
+    expect(tx.chatMessage.create).not.toHaveBeenCalled();
+  });
+
+  it('does not persist either turn when the route revision changes during provider generation', async () => {
+    const tx = persistTx('stale reply');
+    tx.storyReaderProgress.updateMany.mockResolvedValue({ count: 0 });
+    const prisma = prismaForGenerate(tx);
+    const progress = validStoryRoute(prisma);
+    const llmProvider = {
+      readiness: jest.fn().mockReturnValue(readyState),
+      generate: jest.fn().mockResolvedValue({
+        body: 'stale reply',
+        usage: { provider: 'openai', model: 'gpt-5-mini', inputTokens: 1, outputTokens: 1, estimatedCostKrw: '0.00' },
+        safetyMetadata: {},
+      }),
+    };
+    const service = new ChatService(prisma as never, llmProvider as never);
+
+    await expect(service.generateMessage(userId, sessionId, {
+      body: '이야기 기억나?', storyProgressId: progress.id,
+    })).rejects.toMatchObject({ response: expect.objectContaining({ code: 'STORY_CHAT_ROUTE_CHANGED' }) });
+
+    expect(llmProvider.generate).toHaveBeenCalledTimes(1);
+    expect(tx.chatMessage.create).not.toHaveBeenCalled();
+  });
+
+  it('does not persist either turn when participant identity approval is revoked during provider generation', async () => {
+    const tx = persistTx('stale identity reply');
+    const prisma = prismaForGenerate(tx);
+    const progress = validStoryRoute(prisma);
+    const llmProvider = {
+      readiness: jest.fn().mockReturnValue(readyState),
+      generate: jest.fn().mockImplementation(async () => {
+        tx.$queryRaw.mockResolvedValue([]);
+        return {
+          body: 'stale identity reply',
+          usage: { provider: 'openai', model: 'gpt-5-mini', inputTokens: 1, outputTokens: 1, estimatedCostKrw: '0.00' },
+          safetyMetadata: {},
+        };
+      }),
+    };
+    const service = new ChatService(prisma as never, llmProvider as never);
+
+    await expect(service.generateMessage(userId, sessionId, {
+      body: '이야기 기억나?', storyProgressId: progress.id,
+    })).rejects.toMatchObject({ response: expect.objectContaining({ code: 'STORY_CHAT_ROUTE_CHANGED' }) });
+
+    expect(llmProvider.generate).toHaveBeenCalledTimes(1);
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(tx.chatMessage.create).not.toHaveBeenCalled();
+  });
+
+  describe('story memory evidence scope', () => {
+    function memoryFixture() {
+      const generated = {
+        body: 'Current memory reply',
+        usage: { provider: 'openai', model: 'gpt-5-mini', inputTokens: 1, outputTokens: 1, estimatedCostKrw: '0.00' },
+        safetyMetadata: {},
+      };
+      const tx = persistTx(generated.body);
+      const prisma = prismaForGenerate(tx);
+      const progress = validStoryRoute(prisma);
+      const routeMarker = {
+        version: 2, progressId: progress.id, workId: progress.workId,
+        releaseId: progress.activeReleaseId, routeNodeId: progress.routeNodeId,
+        resetEpoch: null, identityApprovedFingerprint: 'approved',
+      };
+      const llmProvider = {
+        readiness: jest.fn().mockReturnValue(readyState),
+        generate: jest.fn().mockResolvedValue(generated),
+      };
+      const service = new ChatService(prisma as never, llmProvider as never);
+      const memory = jest.spyOn(service as any, 'loadOptionalStoryMemory').mockResolvedValue(canonicalStoryMemory);
+      const lockedMemory = jest.spyOn(service as any, 'loadLockedStoryMemory').mockResolvedValue(canonicalStoryMemory);
+      return { service, prisma, tx, progress, routeMarker, llmProvider, memory, lockedMemory, generated };
+    }
+
+    it.each(['withdrawn', 'replaced proof'])('rejects %s at the final transaction boundary without saving a turn', async change => {
+      const f = memoryFixture();
+      f.lockedMemory.mockResolvedValue(change === 'withdrawn' ? emptyStoryMemory : {
+        ...canonicalStoryMemory, canonicalProofFingerprint: 'b'.repeat(64),
+      });
+      await expect(f.service.generateMessage(userId, sessionId, {
+        body: 'Story question', storyProgressId: f.progress.id,
+      })).rejects.toMatchObject({ response: { code: 'STORY_CHAT_MEMORY_CHANGED', retryable: true } });
+      expect(f.memory).toHaveBeenCalledTimes(3);
+      expect(f.lockedMemory).toHaveBeenCalledWith(f.tx, userId, session.artist.id, expect.objectContaining({
+        progressId: f.progress.id,
+      }));
+      expect(f.tx.chatMessage.create).not.toHaveBeenCalled();
+      expect(f.tx.chatSession.update).not.toHaveBeenCalled();
+      expect(f.llmProvider.generate).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not fall back to an unverified save when the locked memory query fails', async () => {
+      const f = memoryFixture();
+      f.lockedMemory.mockRejectedValue(new Error('Synthetic database failure'));
+      await expect(f.service.generateMessage(userId, sessionId, {
+        body: 'Story question', storyProgressId: f.progress.id,
+      })).rejects.toMatchObject({ response: { code: 'CHAT_LLM_GENERATION_FAILED' } });
+      expect(f.tx.chatMessage.create).not.toHaveBeenCalled();
+      expect(f.tx.chatSession.update).not.toHaveBeenCalled();
+    });
+
+    it.each(['missing', 'extra property', 'unknown source', 'invalid empty checksum'])('rejects a %s memory marker at commit', async kind => {
+      const f = memoryFixture();
+      const scope = { progressId: f.progress.id, workId: f.progress.workId,
+        releaseId: f.progress.activeReleaseId, routeNodeId: f.progress.routeNodeId,
+        progressRevision: f.progress.progressRevision, progressUpdatedAt: f.progress.updatedAt,
+        resetCommandId: null, resetAfterRevision: null, ...f.progress.participantArtist };
+      const marker = kind === 'missing' ? null : kind === 'extra property'
+        ? { ...storyChatMemoryMarker(canonicalStoryMemory), extra: true }
+        : kind === 'unknown source' ? { ...storyChatMemoryMarker(canonicalStoryMemory), source: 'unknown' }
+        : { ...storyChatMemoryMarker(emptyStoryMemory), checksum: 'f'.repeat(64) };
+      await expect(f.service['persistGeneratedMessage'](userId, sessionId, session.artist.id, 'Synthetic question',
+        undefined, f.generated, scope, marker as never))
+        .rejects.toMatchObject({ response: { code: 'STORY_CHAT_MEMORY_CHANGED' } });
+      expect(f.lockedMemory).not.toHaveBeenCalled();
+      expect(f.tx.chatMessage.create).not.toHaveBeenCalled();
+    });
+
+    it.each(['approval revoked', 'proof changed'])('stops before provider generation when %s during context loading', async change => {
+      const f = memoryFixture();
+      const changed = change === 'approval revoked' ? emptyStoryMemory : {
+        ...canonicalStoryMemory, canonicalProofFingerprint: 'b'.repeat(64),
+      };
+      f.memory.mockResolvedValueOnce(canonicalStoryMemory).mockResolvedValueOnce(changed);
+
+      await expect(f.service.generateMessage(userId, sessionId, {
+        body: 'Story question', storyProgressId: f.progress.id,
+      })).rejects.toMatchObject({ status: 409, response: expect.objectContaining({
+        code: 'STORY_CHAT_MEMORY_CHANGED', retryable: true,
+      }) });
+
+      expect(f.memory).toHaveBeenCalledTimes(2);
+      expect(f.llmProvider.generate).not.toHaveBeenCalled();
+      expect(f.prisma.$transaction).not.toHaveBeenCalled();
+      expect(f.tx.chatMessage.create).not.toHaveBeenCalled();
+      expect(f.tx.chatSession.update).not.toHaveBeenCalled();
+    });
+
+    it.each(['approval revoked', 'proof changed'])('does not persist either turn when %s during provider generation', async change => {
+      const f = memoryFixture();
+      f.llmProvider.generate.mockImplementation(async () => {
+        f.memory.mockResolvedValue(change === 'approval revoked' ? emptyStoryMemory : {
+          ...canonicalStoryMemory, canonicalProofFingerprint: 'b'.repeat(64),
+        });
+        return f.generated;
+      });
+
+      await expect(f.service.generateMessage(userId, sessionId, {
+        body: 'Story question', storyProgressId: f.progress.id,
+      })).rejects.toMatchObject({ status: 409, response: expect.objectContaining({ code: 'STORY_CHAT_MEMORY_CHANGED' }) });
+
+      expect(f.memory).toHaveBeenCalledTimes(3);
+      expect(f.llmProvider.generate).toHaveBeenCalledTimes(1);
+      expect(f.prisma.$transaction).not.toHaveBeenCalled();
+      expect(f.tx.chatMessage.create).not.toHaveBeenCalled();
+      expect(f.tx.chatSession.update).not.toHaveBeenCalled();
+    });
+
+    it('filters missing, invalid, and mismatched history markers but includes the exact current marker', async () => {
+      const f = memoryFixture();
+      const marker = storyChatMemoryMarker(canonicalStoryMemory);
+      const invalidMarkers: unknown[] = [
+        undefined, null, [], { ...marker, version: 2 },
+        { ...marker, checksum: marker.checksum.toUpperCase() },
+        { ...marker, checksum: 'invalid' }, { ...marker, extra: true },
+        { ...marker, source: emptyStoryMemory.source },
+        storyChatMemoryMarker({ ...canonicalStoryMemory, canonicalProofFingerprint: 'b'.repeat(64) }),
+      ];
+      const rows = invalidMarkers.map((storyMemoryScope, index) => ({
+        senderType: 'artist', messageType: 'text', body: `excluded memory turn ${index}`,
+        modelMetadata: {
+          storyRouteScope: f.routeMarker,
+          ...(storyMemoryScope === undefined ? {} : { storyMemoryScope }),
+        },
+      }));
+      rows.push({
+        senderType: 'user', messageType: 'text', body: 'current memory turn',
+        modelMetadata: { storyRouteScope: f.routeMarker,
+          storyMemoryScope: { checksum: marker.checksum, source: marker.source, version: marker.version } },
+      });
+      f.prisma.chatMessage.findMany.mockImplementation(({ where }) => Promise.resolve(where.modelMetadata ? rows : []));
+
+      await f.service.generateMessage(userId, sessionId, { body: 'Story question', storyProgressId: f.progress.id });
+
+      const historyQueries = f.prisma.chatMessage.findMany.mock.calls
+        .map(([args]) => args).filter(args => args.where?.modelMetadata);
+      expect(historyQueries).toHaveLength(1);
+      expect(historyQueries[0]).toEqual({
+        where: { chatSessionId: sessionId,
+          modelMetadata: { path: ['storyRouteScope'], equals: f.routeMarker },
+          AND: [{ modelMetadata: { path: ['storyMemoryScope'], equals: marker } }],
+        },
+        take: 20, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        select: { senderType: true, messageType: true, body: true, modelMetadata: true },
+      });
+      expect(f.llmProvider.generate).toHaveBeenCalledWith(expect.objectContaining({
+        recentMessages: [{ senderType: 'user', messageType: 'text', body: 'current memory turn' }],
+      }));
+    });
+
+    it('persists the same canonical marker on both turns after all three memory checks', async () => {
+      const f = memoryFixture();
+      const marker = storyChatMemoryMarker(canonicalStoryMemory);
+      const [item] = canonicalStoryMemory.items;
+      const reordered: StoryChatMemoryContext = {
+        canonicalProofFingerprint: canonicalStoryMemory.canonicalProofFingerprint,
+        items: [{ evidenceSource: item.evidenceSource, interactionKind: item.interactionKind,
+          artistDialogue: item.artistDialogue, sceneTitle: item.sceneTitle, workTitle: item.workTitle }],
+        source: canonicalStoryMemory.source,
+      };
+      f.memory.mockResolvedValueOnce(canonicalStoryMemory).mockResolvedValue(reordered);
+
+      await expect(f.service.generateMessage(userId, sessionId, {
+        body: 'Story question', storyProgressId: f.progress.id,
+      })).resolves.toMatchObject({ generationStatus: 'completed' });
+
+      expect(f.memory).toHaveBeenCalledTimes(3);
+      expect(f.llmProvider.generate).toHaveBeenCalledTimes(1);
+      expect(f.tx.chatMessage.create).toHaveBeenCalledTimes(2);
+      for (const [index, senderType] of ['user', 'artist'].entries()) {
+        expect(f.tx.chatMessage.create).toHaveBeenNthCalledWith(index + 1, expect.objectContaining({
+          data: expect.objectContaining({ senderType, modelMetadata: expect.objectContaining({
+            storyRouteScope: f.routeMarker, storyMemoryScope: marker,
+          }) }),
+        }));
+      }
+    });
+
+    it('cannot revive old canonical history when the evidence lookup fails', async () => {
+      const f = memoryFixture();
+      f.memory.mockRestore();
+      f.prisma.storyReaderProgress.findMany.mockRejectedValue(new Error('Evidence storage unavailable'));
+      const warn = jest.spyOn(f.service['logger'], 'warn').mockImplementation();
+      f.prisma.chatMessage.findMany.mockImplementation(({ where }) => Promise.resolve(where.modelMetadata ? [{
+        senderType: 'artist', messageType: 'text', body: 'old canonical answer',
+        modelMetadata: { storyRouteScope: f.routeMarker, storyMemoryScope: storyChatMemoryMarker(canonicalStoryMemory) },
+      }] : []));
+
+      await expect(f.service.generateMessage(userId, sessionId, {
+        body: 'Story question', storyProgressId: f.progress.id,
+      })).resolves.toMatchObject({ generationStatus: 'completed' });
+
+      expect(f.prisma.storyReaderProgress.findMany).toHaveBeenCalledTimes(3);
+      expect(f.llmProvider.generate).toHaveBeenCalledWith(expect.objectContaining({
+        storyMemoryContext: emptyStoryMemory, recentMessages: [],
+      }));
+      const emptyMarker = storyChatMemoryMarker(emptyStoryMemory);
+      expect(f.prisma.chatMessage.findMany).toHaveBeenCalledWith(expect.objectContaining({
+        where: expect.objectContaining({
+          AND: [{ modelMetadata: { path: ['storyMemoryScope'], equals: emptyMarker } }],
+        }),
+      }));
+      for (const { data } of f.tx.chatMessage.create.mock.calls.map(([args]) => args)) {
+        expect(data.modelMetadata.storyMemoryScope).toEqual(emptyMarker);
+      }
+      expect(warn).toHaveBeenCalled();
+      warn.mockRestore();
+    });
+  });
+
+  describe('paid reply replay story scope', () => {
+    function replayFixture(scoped = true) {
+      const tx = persistTx('unused');
+      const basePrisma = prismaForGenerate(tx);
+      const progress = validStoryRoute(basePrisma);
+      const usage = { provider: 'openai', model: 'gpt-5-mini', inputTokens: 11, outputTokens: 12, estimatedCostKrw: '0.00' };
+      const modelMetadata: Record<string, unknown> = { usage };
+      if (scoped) {
+        modelMetadata.storyRouteScope = {
+          version: 2, progressId: progress.id, workId: progress.workId,
+          releaseId: progress.activeReleaseId, routeNodeId: progress.routeNodeId,
+          resetEpoch: null, identityApprovedFingerprint: 'approved',
+        };
+        modelMetadata.storyMemoryScope = storyChatMemoryMarker(emptyStoryMemory);
+      }
+      const existingGenerated = {
+        id: 'stored-reply', senderType: 'artist', body: 'Stored paid reply', modelMetadata,
+      };
+      const order = {
+        id: '00000000-0000-4000-8000-000000000777', userId, chatSessionId: sessionId,
+        status: 'completed', messages: [existingGenerated],
+        walletLedger: { walletAccountId: 'wallet-1', amount: 2 },
+        chatFeatureProduct: { sku: 'CHAT_DEEP_REPLY', featureType: 'deep_reply', metadata: {}, status: 'active' },
+      };
+      const prisma = {
+        ...basePrisma,
+        chatFeatureOrder: { findFirst: jest.fn().mockResolvedValue(order) },
+      };
+      const llmProvider = {
+        readiness: jest.fn().mockReturnValue(readyState), generate: jest.fn(), fallbackResult: jest.fn(),
+      };
+      const service = new ChatService(prisma as never, llmProvider as never);
+      const refund = jest.spyOn(service as any, 'failFeatureOrderAndRestoreLumina').mockResolvedValue(null);
+      return { service, prisma, tx, llmProvider, progress, order, existingGenerated, usage, refund };
+    }
+
+    function expectReadOnlyReplay(f: ReturnType<typeof replayFixture>, memoryReads = 0) {
+      expect(f.llmProvider.generate).not.toHaveBeenCalled();
+      expect(f.llmProvider.fallbackResult).not.toHaveBeenCalled();
+      expect(f.prisma.$transaction).not.toHaveBeenCalled();
+      expect(f.prisma.walletAccount.findUnique).not.toHaveBeenCalled();
+      expect(f.prisma.walletAccount.updateMany).not.toHaveBeenCalled();
+      expect(f.prisma.walletLedger.create).not.toHaveBeenCalled();
+      expect(f.prisma.chatMessage.findMany).not.toHaveBeenCalled();
+      expect(f.prisma.storyReaderProgress.findMany).toHaveBeenCalledTimes(memoryReads);
+      expect(f.refund).not.toHaveBeenCalled();
+      expect(f.tx.storyReaderProgress.updateMany).not.toHaveBeenCalled();
+      expect(f.tx.chatMessage.create).not.toHaveBeenCalled();
+      expect(f.tx.chatSession.update).not.toHaveBeenCalled();
+      expect(f.order.status).toBe('completed');
+      expect(f.order.messages).toEqual([f.existingGenerated]);
+    }
+
+    it('rejects repeated scoped replays without an explicit progress before returning the stored reply', async () => {
+      const f = replayFixture();
+      for (let replay = 0; replay < 2; replay += 1) {
+        await expect(f.service.generateMessage(userId, sessionId, {
+          body: 'Replay please', chatFeatureOrderId: f.order.id,
+        })).rejects.toMatchObject({ response: expect.objectContaining({
+          code: 'STORY_CHAT_ROUTE_CHANGED', retryable: false,
+        }) });
+      }
+      expect(f.prisma.storyReaderProgress.findFirst).not.toHaveBeenCalled();
+      expect(f.prisma.user.findUnique).not.toHaveBeenCalled();
+      expect(f.llmProvider.readiness).not.toHaveBeenCalled();
+      expectReadOnlyReplay(f);
+    });
+
+    it.each(['reset', 'revoked approval'])('rejects scoped replay after %s without refunding the delivered order', async (change) => {
+      const f = replayFixture();
+      if (change === 'reset') {
+        f.progress.progressRevision += 1;
+        f.prisma.storyResetCommand.findFirst.mockResolvedValue({
+          id: 'reset-1', afterRevision: f.progress.progressRevision,
+        });
+      } else {
+        f.prisma.artistStoryIdentityProfile.findFirst.mockResolvedValue(null);
+      }
+      await expect(f.service.generateMessage(userId, sessionId, {
+        body: 'Replay please', chatFeatureOrderId: f.order.id, storyProgressId: f.progress.id,
+      })).rejects.toMatchObject({ response: expect.objectContaining({
+        code: 'STORY_CHAT_ROUTE_CHANGED', retryable: false,
+      }) });
+      expect(f.prisma.storyReaderProgress.findFirst).toHaveBeenCalled();
+      expectReadOnlyReplay(f);
+    });
+
+    it('returns the stored reply for repeated matching current-scope replays without generating or charging again', async () => {
+      const f = replayFixture();
+      for (let replay = 0; replay < 2; replay += 1) {
+        await expect(f.service.generateMessage(userId, sessionId, {
+          body: 'Replay please', chatFeatureOrderId: f.order.id, storyProgressId: f.progress.id,
+        })).resolves.toMatchObject({
+          generationStatus: 'completed', message: f.existingGenerated, usage: f.usage,
+        });
+      }
+      expect(f.prisma.storyReaderProgress.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+        where: expect.objectContaining({
+          id: f.progress.id, userId,
+          participantArtist: { is: {
+            artistId: session.artist.id, identityApprovedFingerprint: { not: null },
+          } },
+        }),
+      }));
+      expectReadOnlyReplay(f, 2);
+    });
+
+    it.each(['missing', 'invalid', 'outdated'])('rejects a paid replay with %s memory marker without refund or regeneration', async change => {
+      const f = replayFixture();
+      if (change === 'missing') delete f.existingGenerated.modelMetadata.storyMemoryScope;
+      else if (change === 'invalid') f.existingGenerated.modelMetadata.storyMemoryScope = {
+        ...storyChatMemoryMarker(emptyStoryMemory), checksum: 'INVALID',
+      };
+      else f.existingGenerated.modelMetadata.storyMemoryScope = storyChatMemoryMarker(canonicalStoryMemory);
+
+      await expect(f.service.generateMessage(userId, sessionId, {
+        body: 'Replay please', chatFeatureOrderId: f.order.id, storyProgressId: f.progress.id,
+      })).rejects.toMatchObject({ status: 409, response: expect.objectContaining({ code: 'STORY_CHAT_MEMORY_CHANGED' }) });
+
+      expectReadOnlyReplay(f, 1);
+    });
+
+    it('rejects a changed canonical proof on paid replay even when the items are unchanged', async () => {
+      const f = replayFixture();
+      f.existingGenerated.modelMetadata.storyMemoryScope = storyChatMemoryMarker(canonicalStoryMemory);
+      const memory = jest.spyOn(f.service as any, 'loadOptionalStoryMemory').mockResolvedValue({
+        ...canonicalStoryMemory, canonicalProofFingerprint: 'b'.repeat(64),
+      });
+
+      await expect(f.service.generateMessage(userId, sessionId, {
+        body: 'Replay please', chatFeatureOrderId: f.order.id, storyProgressId: f.progress.id,
+      })).rejects.toMatchObject({ status: 409, response: expect.objectContaining({ code: 'STORY_CHAT_MEMORY_CHANGED' }) });
+
+      expect(memory).toHaveBeenCalledTimes(1);
+      expectReadOnlyReplay(f);
+    });
+
+    it('preserves ordinary unscoped replay without requiring a story progress', async () => {
+      const f = replayFixture(false);
+      await expect(f.service.generateMessage(userId, sessionId, {
+        body: 'Replay please', chatFeatureOrderId: f.order.id,
+      })).resolves.toMatchObject({
+        generationStatus: 'completed', message: f.existingGenerated, usage: f.usage,
+      });
+      expect(f.prisma.storyReaderProgress.findFirst).not.toHaveBeenCalled();
+      expect(f.prisma.storyResetCommand.findFirst).not.toHaveBeenCalled();
+      expect(f.prisma.artistStoryIdentityProfile.findFirst).not.toHaveBeenCalled();
+      expectReadOnlyReplay(f);
+    });
+
+    it.each(['reset', 'approval'])('rejects a scoped paid replay if %s changes after its initial scope check', async change => {
+      const f = replayFixture();
+      f.prisma.user.findUnique.mockImplementation(async () => {
+        if (change === 'reset') f.prisma.storyReaderProgress.findFirst.mockResolvedValue(null);
+        else f.prisma.artistStoryIdentityProfile.findFirst.mockResolvedValue(null);
+        return { id: userId, email: 'beta@example.com' };
+      });
+      await expect(f.service.generateMessage(userId, sessionId, {
+        body: 'Replay please', chatFeatureOrderId: f.order.id, storyProgressId: f.progress.id,
+      })).rejects.toMatchObject({ response: expect.objectContaining({ code: 'STORY_CHAT_ROUTE_CHANGED' }) });
+      expect(f.prisma.storyReaderProgress.findFirst).toHaveBeenCalledTimes(2);
+      expectReadOnlyReplay(f);
+    });
+
+    it('fails closed on a final replay-scope query failure without undoing the delivered order', async () => {
+      const f = replayFixture();
+      f.prisma.storyReaderProgress.findFirst.mockResolvedValueOnce(f.progress).mockRejectedValueOnce(new Error('Scope query unavailable'));
+      await expect(f.service.generateMessage(userId, sessionId, {
+        body: 'Replay please', chatFeatureOrderId: f.order.id, storyProgressId: f.progress.id,
+      })).rejects.toMatchObject({ status: 503 });
+      expectReadOnlyReplay(f);
+    });
+  });
+
+  it('refunds an unused paid order when explicit story progress validation fails', async () => {
+    const order = {
+      id: '00000000-0000-4000-8000-000000000777', userId, chatSessionId: sessionId,
+      status: 'completed', messages: [],
+      walletLedger: { walletAccountId: 'wallet-1', amount: 2 },
+    };
+    const tx = {
+      ...persistTx('unused'),
+      chatMessage: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn() },
+      chatFeatureOrder: {
+        findFirst: jest.fn().mockResolvedValue(order),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+      walletLedger: {
+        findUnique: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({}),
+      },
+      walletAccount: { update: jest.fn().mockResolvedValue({}) },
+    };
+    const prisma = {
+      ...prismaForGenerate(tx),
+      chatFeatureOrder: { findFirst: jest.fn().mockResolvedValue(order) },
+    };
+    prisma.storyReaderProgress.findFirst.mockResolvedValue(null);
+    const llmProvider = { readiness: jest.fn(), generate: jest.fn() };
+    const service = new ChatService(prisma as never, llmProvider as never);
+
+    await expect(service.generateMessage(userId, sessionId, {
+      body: 'paid story reply', chatFeatureOrderId: order.id,
+      storyProgressId: '00000000-0000-4000-8000-000000000981',
+    })).rejects.toMatchObject({ response: expect.objectContaining({ code: 'STORY_CHAT_ROUTE_CHANGED' }) });
+
+    expect(tx.chatFeatureOrder.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        id: order.id, status: 'completed', messages: { none: { senderType: 'artist' } },
+      }),
+    }));
+    expect(tx.walletAccount.update).toHaveBeenCalledTimes(1);
+    expect(tx.walletLedger.create).toHaveBeenCalledTimes(1);
+    expect(llmProvider.generate).not.toHaveBeenCalled();
+  });
+
+  it('keeps character chat available when the optional story memory lookup fails', async () => {
+    const tx = persistTx('오늘은 여기서 이야기하자.');
+    const prisma = prismaForGenerate(tx);
+    const progress = validStoryRoute(prisma);
+    prisma.storyReaderProgress.findMany.mockRejectedValue(new Error('story storage unavailable'));
+    const llmProvider = {
+      readiness: jest.fn().mockReturnValue(readyState),
+      generate: jest.fn().mockResolvedValue({
+        body: '오늘은 여기서 이야기하자.',
+        usage: { provider: 'openai', model: 'gpt-5-mini', inputTokens: 11, outputTokens: 12, estimatedCostKrw: '0.00' },
+        safetyMetadata: { requestId: 'req-memory-fallback' },
+      }),
+      fallbackResult: jest.fn(),
+    };
+    const service = new ChatService(prisma as never, llmProvider as never);
+    const warn = jest.spyOn(service['logger'], 'warn').mockImplementation();
+
+    await expect(service.generateMessage(userId, sessionId, { body: '오늘 어땠어?', storyProgressId: progress.id }))
+      .resolves.toMatchObject({ generationStatus: 'completed' });
+
+    expect(llmProvider.generate).toHaveBeenCalledWith(expect.objectContaining({
+      storyMemoryContext: { source: 'no_verified_interaction', items: [] },
+    }));
+    expect(warn).toHaveBeenCalledWith('Story chat memory lookup failed; continuing without shared memories');
   });
 
   it('passes only approved artist URL knowledge fragments to the provider', async () => {
@@ -9774,6 +10767,45 @@ describe('ChatService.generateMessage provider beta', () => {
     expect(prisma.walletLedger.create).not.toHaveBeenCalled();
   });
 
+  it('runs paid failure recovery exactly once when generated message persistence rejects', async () => {
+    const tx = persistTx('Paid generated reply');
+    tx.chatMessage.create.mockReset().mockRejectedValue(new Error('Message persistence failed'));
+    const order = {
+      id: '00000000-0000-4000-8000-000000000777', userId, chatSessionId: sessionId,
+      status: 'completed', messages: [],
+      chatFeatureProduct: {
+        sku: 'CHAT_DEEP_REPLY', featureType: 'deep_reply', priceLumina: 2, metadata: {}, status: 'active',
+      },
+    };
+    const prisma = {
+      ...prismaForGenerate(tx),
+      chatFeatureOrder: { findFirst: jest.fn().mockResolvedValue(order) },
+    };
+    const llmProvider = {
+      readiness: jest.fn().mockReturnValue(readyState),
+      generate: jest.fn().mockResolvedValue({
+        body: 'Paid generated reply',
+        usage: { provider: 'openai', model: 'gpt-5-mini', inputTokens: 1, outputTokens: 1, estimatedCostKrw: '0.00' },
+        safetyMetadata: {},
+      }),
+      fallbackResult: jest.fn(),
+    };
+    const service = new ChatService(prisma as never, llmProvider as never);
+    const refund = jest.spyOn(service as any, 'failFeatureOrderAndRestoreLumina').mockResolvedValue(null);
+
+    await expect(service.generateMessage(userId, sessionId, {
+      body: 'Paid reply please', chatFeatureOrderId: order.id,
+    })).rejects.toMatchObject({ status: 503, response: expect.objectContaining({ code: 'CHAT_LLM_GENERATION_FAILED' }) });
+
+    expect(llmProvider.generate).toHaveBeenCalledTimes(1);
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(tx.chatMessage.create).toHaveBeenCalledTimes(1);
+    expect(tx.chatSession.update).not.toHaveBeenCalled();
+    expect(refund).toHaveBeenCalledTimes(1);
+    expect(refund).toHaveBeenCalledWith(userId, order.id, 'generation_failed');
+    expect(llmProvider.fallbackResult).not.toHaveBeenCalled();
+  });
+
   it('refunds a paid order before provider calls when provider is unavailable', async () => {
     const paidProduct = {
       id: '00000000-0000-4000-8000-000000000004',
@@ -9800,6 +10832,7 @@ describe('ChatService.generateMessage provider beta', () => {
       messages: [],
     };
     const tx = {
+      chatMessage: { findFirst: jest.fn().mockResolvedValue(null) },
       chatFeatureOrder: {
         findFirst: jest.fn().mockResolvedValue(paidOrder),
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
@@ -9861,7 +10894,8 @@ describe('ChatService.generateMessage provider beta', () => {
       expect.objectContaining({
         where: expect.objectContaining({
           id: paidOrder.id,
-          status: { not: 'failed' },
+          status: 'completed',
+          messages: { none: { senderType: 'artist' } },
         }),
       }),
     );
@@ -9883,6 +10917,34 @@ describe('ChatService.generateMessage provider beta', () => {
         }),
       }),
     );
+  });
+
+  it('does not refund an order whose artist reply committed while the refund waited', async () => {
+    const order = {
+      id: '00000000-0000-4000-8000-000000000777', userId, status: 'completed',
+      walletLedger: { walletAccountId: 'wallet-1', amount: 2 },
+    };
+    const tx = {
+      chatFeatureOrder: {
+        findFirst: jest.fn().mockResolvedValue(order),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+      chatMessage: { findFirst: jest.fn().mockResolvedValue({ id: 'committed-reply' }) },
+      walletAccount: { update: jest.fn() },
+      walletLedger: { findUnique: jest.fn(), create: jest.fn() },
+    };
+    const prisma = { $transaction: jest.fn((callback) => callback(tx)) };
+    const service = new ChatService(prisma as never, {} as never);
+
+    await service['failFeatureOrderAndRestoreLumina'](userId, order.id, 'generation_failed');
+
+    expect(tx.chatFeatureOrder.updateMany).toHaveBeenCalledTimes(1);
+    expect(tx.chatMessage.findFirst).toHaveBeenCalledWith({
+      where: { chatFeatureOrderId: order.id, senderType: 'artist' },
+      select: { id: true },
+    });
+    expect(tx.walletAccount.update).not.toHaveBeenCalled();
+    expect(tx.walletLedger.create).not.toHaveBeenCalled();
   });
 
   it('does not create a duplicate refund ledger for repeated paid generation failures', async () => {
@@ -9911,6 +10973,7 @@ describe('ChatService.generateMessage provider beta', () => {
       messages: [],
     };
     const tx = {
+      chatMessage: { findFirst: jest.fn().mockResolvedValue(null) },
       chatFeatureOrder: {
         findFirst: jest.fn().mockResolvedValue(paidOrder),
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),

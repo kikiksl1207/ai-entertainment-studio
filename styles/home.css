@@ -119,6 +119,8 @@
   box-shadow: 0 32px 64px rgba(0, 0, 0, 0.32), 0 0 0 1px rgba(255,255,255,0.06);
   position: relative;
 }
+.hero-feature[hidden] { display: none; }
+.hero-metrics > div[hidden], #premium[hidden], #debut-line[hidden] { display: none; }
 
 .hero-feature::before {
   content: "";

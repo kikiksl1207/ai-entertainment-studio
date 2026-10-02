@@ -6,6 +6,23 @@ import { verifyStoryStageSource } from '../server/scripts/verify-story-stage-no-
 
 const source = await readFile(new URL('../pages/story-stage.js', import.meta.url), 'utf8');
 const css = await readFile(new URL('../styles/story-stage.css', import.meta.url), 'utf8');
+const controls = runInNewContext(`${source.slice(source.indexOf('const STORY_CONTROL_COPY ='),
+  source.indexOf('const state =', source.indexOf('const STORY_CONTROL_COPY =')))}; STORY_CONTROL_COPY`);
+for (const locale of ['ko', 'en', 'ja', 'zh-Hans', 'zh-Hant']) {
+  test(`reader source: reset version error is localized and never exposes diagnostics (${locale})`, () => {
+    const errorCopy = runInNewContext(`${source.slice(source.indexOf('function errorCode('), source.indexOf('function blockScene('))}; errorCopy`, {
+      tr: key => key, controlTr: key => controls[locale][key],
+    });
+    const privateMessage = 'INTERNAL_DIAGNOSTIC_DO_NOT_RENDER';
+    const changed = { status: 409, body: { error: { code: 'STORY_RESET_VERSION_MISMATCH', message: privateMessage } } };
+    assert.equal(errorCopy(changed, 'resetFailed'), controls[locale].resetVersionChanged);
+    assert.notEqual(errorCopy(changed, 'resetFailed'), controls[locale].resetFailed);
+    assert.equal(errorCopy({ ...changed, status: 401 }), 'loginRequired');
+    assert.equal(errorCopy({ ...changed, status: 403 }), controls[locale].accessRequired);
+    assert.equal(errorCopy({ status: 500, body: { error: { message: privateMessage } } }, 'resetFailed'), controls[locale].resetFailed);
+    assert(!errorCopy(changed).includes(privateMessage));
+  });
+}
 const helpers = source.slice(source.indexOf('function readerScope('), source.indexOf('function rememberReadingScroll('));
 function reader(positions, position = 0, status = 'active') {
   const scene = { id: 'scene', beats: positions.map((position) => ({ position, content: { value: `full.text.${position}\n\nSecond paragraph.` } })) };
@@ -89,6 +106,32 @@ test('reader source: generated prose turns on sentence boundaries and hides a sh
   assert.ok(grouped.beats.every((page) => /[.!?。！？…][”"'’」』)]*$/.test(page.text)));
 });
 
+test('reader source: a long sentence crossing the planned page cut never makes an empty page', () => {
+  const runtime = reader([1, 2, 3, 4, 5, 6], 3);
+  runtime.state.scene.isGenerated = true;
+  runtime.state.scene.beats = [
+    '하나의 ', '문장이 ', '계속 ', '이어진다.', '다음 문장이다.', '마지막 문장이다.',
+  ].map((text, index) => ({ position: index + 1, content: { value: text } }));
+  const grouped = runtime.readableBeats();
+  assert.equal(grouped.beats.length, 2);
+  assert.deepEqual(Array.from(grouped.beats, (page) => Array.from(page.positions)), [[1, 2, 3, 4], [5, 6]]);
+  assert.equal(grouped.beats[0].text, '하나의 문장이 계속 이어진다.');
+  assert.equal(grouped.index, 0);
+  assert.ok(grouped.beats.every((page) => page.positions.length && page.segments.length));
+  assert.deepEqual(Array.from(grouped.beats).flatMap((page) => Array.from(page.positions)), [1, 2, 3, 4, 5, 6]);
+});
+
+test('reader source: generated prose without an earlier sentence boundary stays on one page', () => {
+  const runtime = reader([1, 2, 3, 4, 5, 6]);
+  const grouped = runtime.groupReaderBeats([
+    { position: 1, text: '계속 ' }, { position: 2, text: '이어지는 ' },
+    { position: 3, text: '긴 ' }, { position: 4, text: '문장을 ' },
+    { position: 5, text: '끝까지 ' }, { position: 6, text: '읽었다.' },
+  ], true);
+  assert.equal(grouped.length, 1);
+  assert.deepEqual(Array.from(grouped[0].positions), [1, 2, 3, 4, 5, 6]);
+});
+
 test('reader source: previously stored escaped line breaks render as paragraphs', () => {
   const runtime = reader([0, 1, 2, 3], 0);
   runtime.state.scene.isGenerated = true;
@@ -125,9 +168,12 @@ test('reader source: progress status controls endings and choices wait for the l
   assert.match(css, /\.story-player-stage \{[^}]*aspect-ratio: 16 \/ 9;/);
   assert.match(css, /\.story-player-copy \{[^}]*overflow: visible;/);
   assert.match(css, /\.story-beat-navigation \{[^}]*margin-bottom: -44px;/);
+  assert.match(css, /\.story-reader-shell\[data-visual-layout="portrait"\] \.story-beat-navigation \{[^}]*grid-column: 1 \/ -1;/);
   assert.match(source, /function focusBeatStart\(\)[\s\S]*scrollIntoView\(\{ block: "start", behavior: "instant" \}\)/);
   assert.match(css, /white-space: pre-wrap/);
-  assert.match(css, /\.story-player-copy p \{[^}]*font-size: 17px;[^}]*font-weight: 400;[^}]*line-height: 1.82;/);
+  assert.match(css, /\.story-player-copy \{[^}]*font-family: system-ui,/);
+  assert.match(css, /\.story-player-copy p \{[^}]*max-width: 34em;[^}]*font-size: 18px;[^}]*font-weight: 400;[^}]*line-height: 1.78;/);
+  assert.match(css, /\.story-choice-list button \{[^}]*font-family: system-ui,[^}]*font-size: 15px;[^}]*font-weight: 500;/);
   assert.match(source, /story-reader-shell[\s\S]*story-player-stage[\s\S]*story-player-copy/);
   assert.match(source, /story-reader-shell-text-only/);
   assert.match(css, /\.story-reader-shell-text-only \{[^}]*grid-template-columns: minmax\(0, 760px\);[^}]*justify-content: center;/);
@@ -136,6 +182,9 @@ test('reader source: progress status controls endings and choices wait for the l
   assert.match(css, /\.story-reader-shell:hover \.story-beat-navigation button,[\s\S]*\.story-reader-shell:focus-within \.story-beat-navigation button/);
   assert.match(css, /@media \(max-width: 680px\)[\s\S]*\.story-beat-navigation button \{[\s\S]*opacity: 1;/);
   assert.match(source, /\["ArrowLeft", "ArrowRight"\][\s\S]*button\.click\(\)/);
+  assert.match(source, /const unavailable = choice\.available === false/);
+  assert.match(source, /choice\.available !== false/);
+  assert.match(source, /story-choice-unavailable/);
 });
 
 test('reader source: five locales have safe names/status copy, including missing-key behavior', () => {

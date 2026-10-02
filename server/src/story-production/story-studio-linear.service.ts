@@ -3,17 +3,23 @@ import { Prisma } from '@prisma/client';
 import { createHash, randomUUID } from 'crypto';
 import { isUUID } from 'class-validator';
 import { PrismaService } from '../prisma/prisma.service';
-import { MaterializeStudioLinearDto } from './dto/story-studio-linear.dto';
+import { MaterializeStudioLinearDto, StudioVisualReferenceDetailDto, StudioVisualReferencePageDto } from './dto/story-studio-linear.dto';
 import { missingAuthoredSceneVisual } from './story-authored-beat-visual.policy';
 import { releaseChecksum } from './story-lifecycle.policy';
 import { PreparedManuscript, prepareManuscript, preparePastedManuscript } from './story-manuscript-file.policy';
 import { StoryStudioChoicePreparationService } from './story-studio-choice-preparation.service';
+import { readerPartText } from './story-studio-reader-text.policy';
+import { publicationReaderText } from './story-publication-reader-projection.policy';
+import { studioSceneVisualPrompt } from './story-approved-visual.policy';
+import { publicationVisualReferencePreview } from './story-publication-visual-binding.policy';
+import { studioVisualReferenceDetail, studioVisualReferencePage } from './story-studio-visual-reference.policy';
+import { studioManuscriptVisualReviewSource } from './story-studio-visual-source.policy';
 
 function reject(code: string): never {
   throw new ConflictException({ code, message: 'The private manuscript is not ready for Studio choice preparation' });
 }
 
-function sourceOf(manuscript: { locale: string; contentHash: string; structuredBody: Prisma.JsonValue }): PreparedManuscript {
+export function sourceOf(manuscript: { locale: string; contentHash: string; structuredBody: Prisma.JsonValue }): PreparedManuscript {
   const body = manuscript.structuredBody as Record<string, unknown>;
   const intake = body?.intake as Record<string, unknown> | undefined;
   const source = intake?.source as Record<string, unknown> | undefined;
@@ -29,24 +35,28 @@ function sourceOf(manuscript: { locale: string; contentHash: string; structuredB
     reject('STUDIO_LINEAR_SOURCE_CHANGED');
   }
   const prepared = source.kind === 'utf8_paste'
-    ? preparePastedManuscript(bytes, JSON.stringify({ locale: 'ko', confirmed: true, parts: intake.confirmedBoundaries }))
+    ? preparePastedManuscript(bytes, JSON.stringify({ locale: 'ko', confirmed: true,
+      parts: intake.confirmedBoundaries,
+      ...(intake.confirmedPreface ? { preface: intake.confirmedPreface } : {}) }))
     : prepareManuscript(bytes);
   if (prepared.contentHash !== manuscript.contentHash ||
       releaseChecksum(prepared.parts) !== releaseChecksum(body.parts)) reject('STUDIO_LINEAR_SOURCE_CHANGED');
-  return prepared;
+  return { ...prepared, readerPartTexts: new Map(prepared.parts.map(part =>
+    [part.partKey, publicationReaderText(manuscript.structuredBody, part, manuscript.contentHash)])) };
 }
 
-export function linearPartPlan(prepared: PreparedManuscript, routes: Array<{ partKey: string; label: string }>) {
+export function linearPartPlan(prepared: PreparedManuscript, routes: Array<{ partKey: string; label?: string }>) {
   if (prepared.locale !== 'ko' || routes.length !== prepared.parts.length) reject('STUDIO_LINEAR_ROUTE_REVIEW_REQUIRED');
   return prepared.parts.map((part, index) => {
     const route = routes[index];
-    const label = route?.label?.trim();
+    if (route?.label !== undefined && typeof route.label !== 'string') reject('STUDIO_LINEAR_ROUTE_REVIEW_REQUIRED');
+    const label = route?.label?.trim() || null;
     if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(part.partKey) || route?.partKey !== part.partKey ||
-        !label || label.length > 120 || label.includes('\0') ||
-        /^(다음|계속|next|continue)(\s*(장|파트|으로|part))?$/iu.test(label)) {
+        (label !== null && (label.length > 120 || label.includes('\0') ||
+        /^(다음|계속|next|continue)(\s*(장|파트|으로|part))?$/iu.test(label)))) {
       reject('STUDIO_LINEAR_ROUTE_REVIEW_REQUIRED');
     }
-    const text = part.paragraphs.map(row => row.text).join('');
+    const text = prepared.readerPartTexts?.get(part.partKey) ?? readerPartText(part.paragraphs.map(row => row.text).join(''), part.title);
     if (!text.trim()) reject('STUDIO_LINEAR_EMPTY_PART');
     return { partKey: part.partKey, title: part.title, text, label,
       nextPartKey: prepared.parts[index + 1]?.partKey ?? null };
@@ -80,6 +90,30 @@ export class StoryStudioLinearService {
   constructor(private readonly prisma: PrismaService,
     private readonly choices: StoryStudioChoicePreparationService) {}
 
+  private async visualReferenceContext(ownerUserId: string, workId: string, manuscriptVersionId: string) {
+    if (![workId, manuscriptVersionId].every(id => isUUID(id))) reject('STUDIO_LINEAR_INVALID_ID');
+    const work = await this.prisma.storyWork.findFirst({ where: { id: workId, ownerUserId }, select: { id: true } });
+    if (!work) throw new NotFoundException('Story work not found');
+    const manuscript = await this.prisma.storyManuscriptVersion.findFirst({ where: {
+      id: manuscriptVersionId, workId, ownerUserId } });
+    if (!manuscript) throw new NotFoundException('Manuscript version not found');
+    const prepared = sourceOf(manuscript);
+    const source = studioManuscriptVisualReviewSource(manuscript.structuredBody, manuscript.contentHash, prepared);
+    return { body: source.body, guidanceOrigin: source.guidanceOrigin,
+      identity: { workId, manuscriptVersionId, manuscriptHash: manuscript.contentHash } };
+  }
+
+  async visualReferencePage(ownerUserId: string, workId: string, manuscriptVersionId: string, query: StudioVisualReferencePageDto) {
+    const { body, identity, guidanceOrigin } = await this.visualReferenceContext(ownerUserId, workId, manuscriptVersionId);
+    return { ...studioVisualReferencePage(body, identity, query.expectedManuscriptHash, query.expectedSourceChecksum, query.offset), guidanceOrigin };
+  }
+
+  async visualReferenceDetail(ownerUserId: string, workId: string, manuscriptVersionId: string,
+    referenceIndex: number, query: StudioVisualReferenceDetailDto) {
+    const { body, identity, guidanceOrigin } = await this.visualReferenceContext(ownerUserId, workId, manuscriptVersionId);
+    return { ...studioVisualReferenceDetail(body, identity, query.expectedManuscriptHash, query.expectedSourceChecksum, referenceIndex, query.textOffset), guidanceOrigin };
+  }
+
   async preview(ownerUserId: string, workId: string, manuscriptVersionId: string) {
     if (![workId, manuscriptVersionId].every(id => isUUID(id))) reject('STUDIO_LINEAR_INVALID_ID');
     const { manuscript, prepared, analysis, review, consent } = await this.context(this.prisma, ownerUserId, workId, manuscriptVersionId);
@@ -91,7 +125,17 @@ export class StoryStudioLinearService {
     const scenes = release ? await this.scenes(this.prisma, workId) : [];
     const choiceJob = release ? await this.prisma.storyStudioChoiceJob.findUnique({ where: { releaseId: release.id },
       select: { status: true, totalParts: true, completedParts: true, errorCode: true } }) : null;
+    const choiceWorkerAvailable = process.env.NODE_ENV !== 'test' &&
+      process.env.STORY_STUDIO_CHOICE_WORKER_ENABLED === 'true' &&
+      Boolean((process.env.STORY_CONTINUATION_OPENAI_API_KEY || process.env.OPENAI_API_KEY || '').trim());
+    const visualView = studioManuscriptVisualReviewSource(manuscript.structuredBody, manuscript.contentHash, prepared);
+    const visualReference = visualView.reference;
+    const visualSource = (visualView.body as Record<string, unknown>).publicationVisualSource as {
+      prompts: Array<{ sourceSceneKey: string; promptText: string; promptSha256: string }>; sceneBindings?: unknown };
     return { manuscriptVersionId, manuscriptHash: manuscript.contentHash, analysisJobId: analysis?.id ?? null,
+      importedVisualReferences: { ...publicationVisualReferencePreview(
+        visualView.body, manuscript.contentHash, visualReference.checksum, visualSource.prompts,
+        visualSource.sceneBindings), guidanceOrigin: visualView.guidanceOrigin },
       review: review ? { reviewId: review.id, state: review.state, revision: review.revision } : null,
       consent: consent ? { revision: consent.revision, active: consent.status === 'active' && consent.rightsConfirmed &&
         consent.aiBranchAllowed && consent.manuscriptVersionId === manuscriptVersionId &&
@@ -102,7 +146,7 @@ export class StoryStudioLinearService {
         endingExcerpt: part.paragraphs.map(row => row.text).join('').trim().slice(-300),
         nextPartTitle: prepared.parts[index + 1]?.title ?? null })),
       releaseId: release?.id ?? null, ready: (release?.validationSummary as Record<string, unknown> | undefined)?.ready === true,
-      scenes, choiceJob };
+      scenes, choiceJob, choiceWorkerAvailable };
   }
 
   async materialize(ownerUserId: string, workId: string, body: MaterializeStudioLinearDto) {
@@ -122,7 +166,9 @@ export class StoryStudioLinearService {
       return await this.prisma.$transaction(async tx => {
       await tx.$queryRaw(Prisma.sql`SELECT id FROM story_works WHERE id = ${workId}::uuid FOR UPDATE`);
       await tx.$queryRaw(Prisma.sql`SELECT id FROM story_style_profile_consents WHERE work_id = ${workId}::uuid FOR SHARE`);
-      await this.assertReady(tx, ownerUserId, workId, manuscript.id, manuscript.contentHash);
+      const reviewed = await this.assertReady(tx, ownerUserId, workId, manuscript.id, manuscript.contentHash);
+      if (tx.storyWorkGenerationProfile) await this.choices.approvedGenerationProfile(tx, ownerUserId, workId,
+        reviewed.manuscript, reviewed.analysis.id);
       const existing = await tx.storyRelease.findFirst({ where: { workId } });
       if (existing) {
         if (existing.status !== 'candidate' || existing.checksum !== checksum ||
@@ -131,6 +177,7 @@ export class StoryStudioLinearService {
         if (scenes.length !== plan.length || scenes.some((scene, index) => scene.partKey !== plan[index].partKey)) {
           reject('STUDIO_LINEAR_EXISTING_GRAPH_CHANGED');
         }
+        await this.prepareVisualPrompts(tx, workId, existing.id, checksum, manuscript.id, manuscript.contentHash, plan);
         await tx.storyStudioChoiceJob.upsert({ where: { releaseId: existing.id }, update: {}, create: {
           ownerUserId, workId, releaseId: existing.id, manuscriptVersionId: manuscript.id,
           totalParts: plan.length,
@@ -155,6 +202,7 @@ export class StoryStudioLinearService {
         fixtureSource: false, visualManifest: missingAuthoredSceneVisual(`${part.partKey}-main`) }));
       await tx.storyPart.createMany({ data: partRows });
       await tx.storyScene.createMany({ data: sceneRows });
+      await this.prepareVisualPrompts(tx, workId, release.id, checksum, manuscript.id, manuscript.contentHash, plan);
       const beats = plan.flatMap((part, index) => {
         const rows = [] as Array<{ sceneId: string; position: number; beatType: string; content: { ko: string } }>;
         for (const text of splitStudioLinearBeats(part.text)) rows.push({
@@ -253,19 +301,61 @@ export class StoryStudioLinearService {
         !Array.isArray(consent.allowedLocales) || !consent.allowedLocales.includes('ko')) {
       reject('STUDIO_LINEAR_AI_RIGHTS_CONSENT_REQUIRED');
     }
+    return { manuscript, analysis };
+  }
+
+  private async prepareVisualPrompts(tx: Prisma.TransactionClient, workId: string, releaseId: string,
+    checksum: string, manuscriptId: string, manuscriptHash: string, parts: ReturnType<typeof linearPartPlan>) {
+    const planned = parts.map(part => {
+      const promptText = studioSceneVisualPrompt(part.title, part.text);
+      return { workId, releaseId, releaseChecksum: checksum, sourceSceneKey: `${part.partKey}-main`,
+        promptText, promptSha256: createHash('sha256').update(promptText).digest('hex'), sourceKind: 'studio_reviewed',
+        sourceBindingSha256: releaseChecksum({ manuscriptId, manuscriptHash, partKey: part.partKey,
+          textSha256: createHash('sha256').update(part.text).digest('hex') }) };
+    });
+    const stored = await tx.storyVisualPrompt.findMany({ where: { workId, releaseId,
+      sourceSceneKey: { in: planned.map(item => item.sourceSceneKey) } } });
+    const byKey = new Map(stored.map(item => [item.sourceSceneKey, item]));
+    for (const item of planned) {
+      const previous = byKey.get(item.sourceSceneKey);
+      if (previous && (previous.releaseChecksum !== item.releaseChecksum || previous.promptSha256 !== item.promptSha256 ||
+          previous.promptText !== item.promptText || previous.sourceKind !== item.sourceKind ||
+          previous.sourceBindingSha256 !== item.sourceBindingSha256)) reject('STUDIO_LINEAR_VISUAL_SOURCE_CHANGED');
+    }
+    const missing = planned.filter(item => !byKey.has(item.sourceSceneKey));
+    for (let index = 0; index < missing.length; index += 128) {
+      await tx.storyVisualPrompt.createMany({ data: missing.slice(index, index + 128) });
+    }
   }
 
   private async scenes(db: Db, workId: string) {
     const parts = await db.storyPart.findMany({ where: { workId, fixtureSource: false }, orderBy: { position: 'asc' } });
+    if (!parts.length) return [];
+    const scenes = await db.storyScene.findMany({ where: { partId: { in: parts.map(part => part.id) },
+      status: 'draft', fixtureSource: false },
+      select: { id: true, partId: true, sceneKey: true }, orderBy: [{ position: 'asc' }, { id: 'asc' }] });
+    const choices = await db.storyChoice.findMany({ where: { sceneId: { in: scenes.map(scene => scene.id) } },
+      select: { sceneId: true, position: true, label: true }, orderBy: [{ position: 'asc' }, { id: 'asc' }] });
+    const sceneByPart = new Map<string, (typeof scenes)[number]>();
+    for (const scene of scenes) {
+      if (sceneByPart.has(scene.partId) || !scene.sceneKey.endsWith('-main'))
+        reject('STUDIO_LINEAR_EXISTING_GRAPH_CHANGED');
+      sceneByPart.set(scene.partId, scene);
+    }
+    const choicesByScene = new Map<string, (typeof choices)>();
+    for (const choice of choices) {
+      const rows = choicesByScene.get(choice.sceneId) ?? [];
+      rows.push(choice);
+      choicesByScene.set(choice.sceneId, rows);
+    }
     const result = [] as Array<{ partKey: string; sceneId: string; choiceCount: number; originalLabel: string | null }>;
     for (const part of parts) {
-      const scene = await db.storyScene.findFirst({ where: { partId: part.id, status: 'draft', fixtureSource: false } });
-      if (!scene || !scene.sceneKey.endsWith('-main')) reject('STUDIO_LINEAR_EXISTING_GRAPH_CHANGED');
-      const choices = await db.storyChoice.findMany({ where: { sceneId: scene.id }, orderBy: { position: 'asc' },
-        select: { position: true, label: true } });
-      const label = choices.find(choice => choice.position === 1)?.label as Record<string, unknown> | undefined;
+      const scene = sceneByPart.get(part.id);
+      if (!scene) reject('STUDIO_LINEAR_EXISTING_GRAPH_CHANGED');
+      const sceneChoices = choicesByScene.get(scene.id) ?? [];
+      const label = sceneChoices.find(choice => choice.position === 1)?.label as Record<string, unknown> | undefined;
       result.push({ partKey: scene.sceneKey.slice(0, -5), sceneId: scene.id,
-        choiceCount: choices.length, originalLabel: typeof label?.ko === 'string' ? label.ko : null });
+        choiceCount: sceneChoices.length, originalLabel: typeof label?.ko === 'string' ? label.ko : null });
     }
     return result;
   }

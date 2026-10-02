@@ -396,6 +396,8 @@ export class CreatorStudioService {
         userId,
         status: 'active',
         revokedAt: null,
+        role: 'owner',
+        permissions: { has: 'settlement:read' },
       },
       select: {
         id: true,
@@ -959,25 +961,26 @@ export class CreatorStudioService {
       throw new BadRequestException('At least one profile section is required');
     }
 
-    const before = await this.prisma.artist.findUnique({
-      where: { id: artistId },
-      include: {
-        publicProfile: true,
-        visualProfile: true,
-        contentProfile: true,
-        artistAssets: {
-          where: { asset: { visibility: 'public' } },
-          include: { asset: true },
-          orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }],
+    const artist = await this.prisma.$transaction(async (tx) => {
+      await this.lockArtistIdentityOperator(tx, user.id, artistId);
+      const before = await tx.artist.findUnique({
+        where: { id: artistId },
+        include: {
+          publicProfile: true,
+          visualProfile: true,
+          contentProfile: true,
+          artistAssets: {
+            where: { asset: { visibility: 'public' } },
+            include: { asset: true },
+            orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }],
+          },
         },
-      },
-    });
+      });
 
-    if (!before) {
-      throw new NotFoundException('Artist not found');
-    }
+      if (!before) {
+        throw new NotFoundException('Artist not found');
+      }
 
-    await this.prisma.$transaction(async (tx) => {
       if (input.publicProfile !== undefined) {
         const publicMetadata =
           input.publicProfile.publicMetadata === undefined
@@ -1057,7 +1060,7 @@ export class CreatorStudioService {
       await tx.auditEvent.create({
         data: {
           actorUserId: user.id,
-          actorType: 'creator',
+          actorType: 'user',
           action: 'creator_studio.artist_profile.update',
           targetType: 'artist',
           targetId: artistId,
@@ -1070,33 +1073,33 @@ export class CreatorStudioService {
           metadata: Prisma.JsonNull,
         },
       });
-    });
-
-    const updated = await this.prisma.artistOperator.findFirstOrThrow({
-      where: {
-        userId: user.id,
-        artistId,
-        status: 'active',
-        revokedAt: null,
-      },
-      include: {
-        artist: {
-          include: {
-            publicProfile: true,
-            visualProfile: true,
-            contentProfile: true,
-            artistAssets: {
-              where: { asset: { visibility: 'public' } },
-              include: { asset: true },
-              orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }],
+      const updated = await tx.artistOperator.findFirstOrThrow({
+        where: {
+          userId: user.id,
+          artistId,
+          status: 'active',
+          revokedAt: null,
+        },
+        include: {
+          artist: {
+            include: {
+              publicProfile: true,
+              visualProfile: true,
+              contentProfile: true,
+              artistAssets: {
+                where: { asset: { visibility: 'public' } },
+                include: { asset: true },
+                orderBy: [{ isPrimary: 'desc' }, { sortOrder: 'asc' }],
+              },
             },
           },
         },
-      },
-    });
+      });
+      return this.presentOperator(updated).artist;
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted, timeout: 10_000 });
 
     return {
-      artist: this.presentOperator(updated).artist,
+      artist,
       message: 'Creator studio artist profile updated',
     };
   }
@@ -1123,23 +1126,25 @@ export class CreatorStudioService {
   ) {
     this.assertUuid(artistId, 'artistId');
     await this.assertArtistOperator(userId, artistId);
-    const referenceAssetIds = [...new Set(input.referenceAssetIds)].sort();
+    const referenceAssetIds = [...new Set(input.referenceAssetIds.map(id => id.toLowerCase()))].sort();
     if (referenceAssetIds.length !== input.referenceAssetIds.length) {
       throw new BadRequestException({
         code: 'ARTIST_IDENTITY_REFERENCE_DUPLICATE',
         message: 'Reference images must be unique',
       });
     }
-    const source = await this.artistIdentitySource(artistId, referenceAssetIds);
-    if (expectedSourceFingerprint && source.fingerprint !== expectedSourceFingerprint) {
-      throw new ConflictException({
-        code: 'ARTIST_IDENTITY_SOURCE_CHANGED',
-        message: 'Reference images changed during analysis; run the analysis again',
-      });
-    }
     const settings = normalizeCreatorGenerationProfile('artist', input.settings);
-    const draftFingerprint = creatorGenerationProfileFingerprint(source.fingerprint, settings);
     return this.prisma.$transaction(async (tx) => {
+      await this.lockArtistIdentityOperator(tx, userId, artistId);
+      await this.lockLatestArtistIdentity(tx, artistId);
+      const source = await this.artistIdentitySource(artistId, referenceAssetIds, tx);
+      if (expectedSourceFingerprint && source.fingerprint !== expectedSourceFingerprint) {
+        throw new ConflictException({
+          code: 'ARTIST_IDENTITY_SOURCE_CHANGED',
+          message: 'Reference images changed during analysis; run the analysis again',
+        });
+      }
+      const draftFingerprint = creatorGenerationProfileFingerprint(source.fingerprint, settings);
       const current = await tx.artistStoryIdentityProfile.findFirst({
         where: { artistId },
         orderBy: { profileVersion: 'desc' },
@@ -1171,7 +1176,7 @@ export class CreatorStudioService {
       await tx.auditEvent.create({
         data: {
           actorUserId: userId,
-          actorType: 'creator',
+          actorType: 'user',
           action: 'artist_story_identity_profile.draft_saved',
           targetType: 'artist_story_identity_profile',
           targetId: profile.id,
@@ -1195,7 +1200,7 @@ export class CreatorStudioService {
         },
       });
       return { artistId, profile: creatorGenerationProfileProjection(profile) };
-    });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted, timeout: 10_000 });
   }
 
   async createArtistStoryIdentityDraft(
@@ -1211,7 +1216,7 @@ export class CreatorStudioService {
         message: 'Artist identity analysis is not configured',
       });
     }
-    const referenceAssetIds = [...new Set(input.referenceAssetIds)].sort();
+    const referenceAssetIds = [...new Set(input.referenceAssetIds.map(id => id.toLowerCase()))].sort();
     if (referenceAssetIds.length !== input.referenceAssetIds.length) {
       throw new BadRequestException({
         code: 'ARTIST_IDENTITY_REFERENCE_DUPLICATE',
@@ -1248,28 +1253,36 @@ export class CreatorStudioService {
   ) {
     this.assertUuid(artistId, 'artistId');
     await this.assertArtistOperator(userId, artistId);
-    const current = await this.prisma.artistStoryIdentityProfile.findFirst({
-      where: { artistId },
-      orderBy: { profileVersion: 'desc' },
-    });
-    if (!current || current.status !== 'needs_review' ||
-        current.draftFingerprint !== input.expectedDraftFingerprint) {
-      throw new ConflictException({
-        code: 'GENERATION_PROFILE_DRAFT_CHANGED',
-        message: 'Review the latest generation profile before approval',
-      });
-    }
-    const referenceAssetIds = this.jsonStringArray(current.referenceAssetIds);
-    const source = await this.artistIdentitySource(artistId, referenceAssetIds);
-    if (source.fingerprint !== current.sourceFingerprint) {
-      throw new ConflictException({
-        code: 'ARTIST_IDENTITY_SOURCE_CHANGED',
-        message: 'Reference images or artist profile changed; review is required again',
-      });
-    }
-    const settings = normalizeCreatorGenerationProfile('artist', current.draftSettings);
-    assertCreatorGenerationProfileApprovable(settings);
     return this.prisma.$transaction(async (tx) => {
+      await this.lockArtistIdentityOperator(tx, userId, artistId);
+      await this.lockLatestArtistIdentity(tx, artistId);
+      const current = await tx.artistStoryIdentityProfile.findFirst({
+        where: { artistId },
+        orderBy: { profileVersion: 'desc' },
+      });
+      if (!current || current.status !== 'needs_review' ||
+          current.draftFingerprint !== input.expectedDraftFingerprint) {
+        throw new ConflictException({
+          code: 'GENERATION_PROFILE_DRAFT_CHANGED',
+          message: 'Review the latest generation profile before approval',
+        });
+      }
+      const referenceAssetIds = this.jsonStringArray(current.referenceAssetIds);
+      const source = await this.artistIdentitySource(artistId, referenceAssetIds, tx);
+      if (source.fingerprint !== current.sourceFingerprint) {
+        throw new ConflictException({
+          code: 'ARTIST_IDENTITY_SOURCE_CHANGED',
+          message: 'Reference images or artist profile changed; review is required again',
+        });
+      }
+      const settings = normalizeCreatorGenerationProfile('artist', current.draftSettings);
+      assertCreatorGenerationProfileApprovable(settings);
+      if (creatorGenerationProfileFingerprint(source.fingerprint, settings) !== current.draftFingerprint) {
+        throw new ConflictException({
+          code: 'GENERATION_PROFILE_DRAFT_CHANGED',
+          message: 'Review the latest generation profile before approval',
+        });
+      }
       const updated = await tx.artistStoryIdentityProfile.updateMany({
         where: {
           id: current.id,
@@ -1297,7 +1310,7 @@ export class CreatorStudioService {
       await tx.auditEvent.create({
         data: {
           actorUserId: userId,
-          actorType: 'creator',
+          actorType: 'user',
           action: 'artist_story_identity_profile.approved',
           targetType: 'artist_story_identity_profile',
           targetId: profile.id,
@@ -1316,7 +1329,7 @@ export class CreatorStudioService {
         },
       });
       return { artistId, profile: creatorGenerationProfileProjection(profile) };
-    });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted, timeout: 10_000 });
   }
 
   private presentOperator(
@@ -1389,14 +1402,48 @@ export class CreatorStudioService {
     };
   }
 
-  private async artistIdentitySource(artistId: string, referenceAssetIds: string[]) {
+  private async lockArtistIdentityOperator(tx: Prisma.TransactionClient, userId: string, artistId: string) {
+    // Lock the parent before child writes, including inserts that check its foreign key.
+    const artists = await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT id FROM artists WHERE id = ${artistId}::uuid FOR UPDATE`;
+    if (!artists.length) throw new NotFoundException('Artist not found');
+    const operators = await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT id FROM artist_operators
+      WHERE artist_id = ${artistId}::uuid AND user_id = ${userId}::uuid
+        AND status = 'active' AND revoked_at IS NULL
+      ORDER BY id FOR SHARE`;
+    if (!operators.length) throw new ForbiddenException('Artist operator access is required');
+  }
+
+  private async lockLatestArtistIdentity(tx: Prisma.TransactionClient, artistId: string) {
+    await tx.$queryRaw`
+      SELECT id FROM artist_story_identity_profiles WHERE artist_id = ${artistId}::uuid
+      ORDER BY profile_version DESC LIMIT 1 FOR UPDATE`;
+  }
+
+  private async artistIdentitySource(
+    artistId: string, referenceAssetIds: string[], tx?: Prisma.TransactionClient,
+  ) {
     if (referenceAssetIds.length < 1 || referenceAssetIds.length > 8) {
       throw new BadRequestException({
         code: 'ARTIST_IDENTITY_REFERENCE_COUNT_INVALID',
         message: 'One to eight reference images are required',
       });
     }
-    const artist = await this.prisma.artist.findUnique({
+    for (const id of referenceAssetIds) this.assertUuid(id, 'referenceAssetId');
+    const db = tx ?? this.prisma;
+    if (tx) {
+      await tx.$queryRaw`
+        SELECT artist_id FROM artist_visual_profiles WHERE artist_id = ${artistId}::uuid FOR SHARE`;
+      await tx.$queryRaw`
+        SELECT id FROM assets WHERE id IN (${Prisma.join(referenceAssetIds.map(id => Prisma.sql`${id}::uuid`))})
+        ORDER BY id FOR SHARE`;
+      await tx.$queryRaw`
+        SELECT id FROM artist_assets WHERE artist_id = ${artistId}::uuid
+          AND asset_id IN (${Prisma.join(referenceAssetIds.map(id => Prisma.sql`${id}::uuid`))})
+        ORDER BY id FOR SHARE`;
+    }
+    const artist = await db.artist.findUnique({
       where: { id: artistId },
       select: {
         id: true,
@@ -1427,13 +1474,21 @@ export class CreatorStudioService {
         },
       },
     });
-    if (!artist || artist.artistAssets.length !== referenceAssetIds.length) {
+    const attachedIds = new Set(artist?.artistAssets.map(row => row.assetId));
+    if (!artist || attachedIds.size !== referenceAssetIds.length ||
+        referenceAssetIds.some(id => !attachedIds.has(id.toLowerCase()))) {
       throw new BadRequestException({
         code: 'ARTIST_IDENTITY_REFERENCE_NOT_OWNED',
         message: 'Every reference image must belong to this artist',
       });
     }
-    const references = artist.artistAssets.map((row) => {
+    // One image can serve multiple gallery roles; prefer cover, then a stable role order.
+    const selectedLinks = [...artist.artistAssets].sort((left, right) =>
+      left.assetId.localeCompare(right.assetId) ||
+      Number(right.usageType === 'cover') - Number(left.usageType === 'cover') ||
+      left.usageType.localeCompare(right.usageType),
+    ).filter((row, index, rows) => index === 0 || row.assetId !== rows[index - 1].assetId);
+    const references = selectedLinks.map((row) => {
       const metadata = this.recordOrEmpty(row.asset.metadata);
       const lifecycle = this.recordOrEmpty(metadata.lifecycle);
       const uploadIntent = this.recordOrEmpty(metadata.uploadIntent);
@@ -1549,7 +1604,7 @@ export class CreatorStudioService {
     return this.prisma.auditEvent.create({
       data: {
         actorUserId: user.id,
-        actorType: 'creator',
+        actorType: 'user',
         action,
         targetType: 'artist_knowledge_url',
         targetId,
@@ -2071,16 +2126,29 @@ export class CreatorStudioService {
     userId: string,
     parsedKey: ReturnType<typeof this.parseSettlementKey>,
   ) {
-    if (parsedKey.type === 'partner') {
-      if (parsedKey.id !== userId) {
-        throw new ForbiddenException('Creator settlement conversion access is required');
-      }
-
-      await this.assertCreatorStudioAccess(userId);
-      return;
+    if (parsedKey.type === 'partner' && parsedKey.id !== userId) {
+      throw new ForbiddenException('Creator settlement conversion access is required');
     }
 
-    await this.assertArtistOperator(userId, parsedKey.id);
+    const operator = await this.prisma.artistOperator.findFirst({
+      where: {
+        userId,
+        ...(parsedKey.type === 'artist' ? { artistId: parsedKey.id } : {}),
+        status: 'active',
+        revokedAt: null,
+        role: 'owner',
+        permissions: { has: 'settlement:read' },
+      },
+      select: { id: true },
+    });
+
+    if (!operator) {
+      throw new ForbiddenException(
+        parsedKey.type === 'artist'
+          ? 'Artist operator access is required'
+          : 'Creator settlement conversion access is required',
+      );
+    }
   }
 
   private async assertCreatorStudioAccess(userId: string) {

@@ -84,7 +84,7 @@ describe('StoryUploadService generation profile', () => {
     expect(result.profile).toMatchObject({ status: 'needs_review', reviewRequired: true });
     expect(result.profile.draftFingerprint).toMatch(/^[a-f0-9]{64}$/);
     expect(f.tx.auditEvent.create).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ action: 'story_generation_profile.draft_saved', actorUserId: owner }),
+      data: expect.objectContaining({ action: 'story_generation_profile.draft_saved', actorUserId: owner, actorType: 'user' }),
     }));
   });
 
@@ -127,6 +127,9 @@ describe('StoryUploadService generation profile', () => {
     expect(f.tx.storyUploadGenerationProfile.updateMany).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({ sourceFingerprint, draftFingerprint }),
       data: expect.objectContaining({ status: 'approved', approvedByUserId: owner }),
+    }));
+    expect(f.tx.auditEvent.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ action: 'story_generation_profile.approved', actorUserId: owner, actorType: 'user' }),
     }));
   });
 });

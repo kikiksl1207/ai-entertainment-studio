@@ -264,8 +264,15 @@ export class StoryProgressControlService {
     progressId: string,
     query: StoryResetPreviewQueryDto,
   ) {
-    const context = await this.progressContext(userId, progressId);
+    const context = await this.resetPreviewContext(userId, progressId);
     await this.assertStoryAccess(userId, context.work.id, context.part.id, context.work.priceLumina.isZero());
+    if (query.target === 'act' && context.progress.storyVersion !== context.work.publishedVersion) {
+      throw new ConflictException({
+        code: 'STORY_RESET_VERSION_MISMATCH',
+        messageKey: STORY_PROGRESS_MESSAGE_KEYS.versionMismatch,
+        retryable: false,
+      });
+    }
     const configuredLimits = query.target === 'full'
       ? (await this.fullResetRelease(this.prisma, context.work)).limits
       : await this.resetLimits(context.progress.activeReleaseId, context.progress.capabilityRevision);
@@ -342,7 +349,7 @@ export class StoryProgressControlService {
         : null;
       const currentPart = currentScene
         ? await tx.storyPart.findUnique({ where: { id: currentScene.partId } })
-        : await tx.storyPart.findFirst({ where: { workId: work.id }, orderBy: { position: 'asc' } });
+        : await tx.storyPart.findFirst({ where: { workId: work.id, status: 'published', fixtureSource: false }, orderBy: { position: 'asc' } });
       if (!currentPart) throw new NotFoundException('Story part not found');
       await this.assertStoryAccessTx(
         tx,
@@ -442,6 +449,12 @@ export class StoryProgressControlService {
           invalidatedAt: null,
           ...(body.target === 'act' ? { sceneId: { in: plan.invalidatedSceneIds } } : {}),
         },
+        data: { invalidatedAt: new Date(), resetCommandId: command.id },
+      });
+      // Act-entry route nodes may be reused; old read confirmations must not survive that reset.
+      await tx.storyCanonicalReadReceipt.updateMany({
+        where: { progressId: progress.id, userId, invalidatedAt: null,
+          ...(body.target === 'act' ? { actNumber: { gte: plan.targetAct } } : {}) },
         data: { invalidatedAt: new Date(), resetCommandId: command.id },
       });
       await tx.storyProgressCheckpoint.create({
@@ -694,6 +707,26 @@ export class StoryProgressControlService {
       return created;
     });
     return this.adjustmentProjection(adjustment, false);
+  }
+
+  private async resetPreviewContext(userId: string, progressId: string) {
+    const progress = await this.prisma.storyReaderProgress.findFirst({ where: { id: progressId, userId } });
+    if (!progress) throw new NotFoundException('Story progress not found');
+    if (progress.status === 'ai_pending') throw new ConflictException('Story progress is awaiting AI continuation');
+    if (progress.currentSceneId) return this.progressContext(userId, progressId);
+    if (progress.status !== 'completed' && !(progress.status === 'active' && progress.currentGeneratedSceneId)) {
+      throw new NotFoundException('Active story progress not found');
+    }
+    // Endings and generated routes have no canonical scene; reset does not expose their generated content.
+    const work = await this.prisma.storyWork.findFirst({
+      where: { id: progress.workId, status: 'published', fixtureSource: false },
+    });
+    if (!work) throw new NotFoundException('Published story progress not found');
+    const part = await this.prisma.storyPart.findFirst({
+      where: { workId: work.id, status: 'published', fixtureSource: false }, orderBy: { position: 'asc' },
+    });
+    if (!part) throw new NotFoundException('Published story part not found');
+    return { progress, work, part };
   }
 
   private async progressContext(userId: string, progressId: string) {

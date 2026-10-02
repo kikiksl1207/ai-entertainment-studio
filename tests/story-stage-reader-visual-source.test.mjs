@@ -15,9 +15,16 @@ function harness(context, legacy = {}) {
   let identity = 'reader';
   const fallback = { hidden: true };
   const player = { dataset: { hasBackground: 'false' } };
+  const shellClasses = new Set();
+  const shell = { dataset: { hasVisual: 'true' }, classList: {
+    add: (name) => shellClasses.add(name), contains: (name) => shellClasses.has(name),
+  } };
   const stage = { isConnected: true, dataset: {}, images: [],
-    contains: (el) => stage.images.includes(el), closest: () => player,
-    querySelector: () => fallback, querySelectorAll: () => [...stage.images] };
+    contains: (el) => stage.images.includes(el),
+    closest: (selector) => selector === '.story-reader-shell' ? shell : player,
+    querySelector: () => fallback, querySelectorAll: () => [...stage.images],
+    remove: () => { stage.isConnected = false; },
+  };
   function image(background) {
     const handlers = {};
     const el = { hidden: true, complete: false, naturalWidth: 0,
@@ -35,7 +42,7 @@ function harness(context, legacy = {}) {
     readerIdentity: () => identity, readableBeats: () => currentReading,
     currentRequest: (epoch, session) => epoch === state.epoch && session === state.sessionId,
   });
-  return { ...api, state, reading, stage, player, fallback, image, switchIdentity: () => { identity = 'other'; },
+  return { ...api, state, reading, stage, shell, player, fallback, image, switchIdentity: () => { identity = 'other'; },
     switchBeat: () => { currentReading = { ...reading, key: 'beat-b' }; } };
 }
 
@@ -73,7 +80,7 @@ test('visual source: invalid binding cannot borrow legacy art; fallback assets d
   assert.equal(h.visualAssetUrl('https://api.lumina-stage.com/api/v1/assets/public/id/original'), 'https://api.lumina-stage.com/api/v1/assets/public/id/original');
 });
 
-test('visual source: broken background removes only its image and reveals neutral fallback; character error is isolated', () => {
+test('visual source: broken background removes the empty stage but preserves prose; character error is isolated', () => {
   const h = harness(context());
   const bg = h.image(true); const good = h.image(false); const bad = h.image(false);
   h.bindReadingImages(h.reading, h.readingVisual(h.reading));
@@ -82,7 +89,10 @@ test('visual source: broken background removes only its image and reveals neutra
   assert.equal(h.stage.dataset.visualStatus, 'ready');
   assert.equal(h.fallback.hidden, true); assert.equal(good.hidden, false); assert.equal(h.stage.contains(bad), false);
   bg.fire('error');
-  assert.equal(h.stage.dataset.visualStatus, 'missing'); assert.equal(h.fallback.hidden, false);
+  assert.equal(h.stage.dataset.visualStatus, 'missing');
+  assert.equal(h.stage.isConnected, false);
+  assert.equal(h.shell.classList.contains('story-reader-shell-text-only'), true);
+  assert.equal(h.shell.dataset.hasVisual, 'false');
   assert.equal(h.stage.contains(bg), false); assert.equal(h.stage.contains(good), true);
 });
 
@@ -112,7 +122,7 @@ test('visual source: image settlement cannot rerender text, advance progress, or
   assert.doesNotMatch(bindingHelpers.slice(bindingHelpers.indexOf('function bindReadingImages(')), /renderScene\(|request\(|scrollTop\s*=|\.revision\s*=/);
   assert.match(css, /\.story-player-stage img\[hidden\],\s*\.story-player-no-visual\[hidden\] \{ display: none; \}/);
   assert.match(css, /\.story-player-visual-layers,\s*\.story-player-background-layer,\s*\.story-player-background/);
-  assert.match(css, /font-size: 17px;\s*font-weight: 400;\s*line-height: 1.82;/);
+  assert.match(css, /font-size: 18px;\s*font-weight: 400;\s*line-height: 1.78;/);
   assert.match(css, /\.story-hashtag-filters \{[^}]*flex-wrap: wrap;[^}]*overflow: visible;/);
   assert.match(css, /\.story-hashtag-filters::\-webkit-scrollbar \{ width: 0; height: 0; \}/);
   assert.match(css, /@media \(max-width: 680px\)[\s\S]*\.story-hashtag-filters \{[^}]*flex-wrap: nowrap;[^}]*overflow-x: auto;[^}]*scrollbar-width: none;/);

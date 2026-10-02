@@ -14,6 +14,6 @@ import { OttObjectStorage, PrivateLocalOttStorage } from './ott-media.storage';
     { provide: OttMediaRepository, useClass: PrismaOttMediaRepository },
     { provide: OttObjectStorage, useClass: PrivateLocalOttStorage },
     { provide: OttMediaProbe, useClass: FfprobeOttMediaProbe }],
-  exports: [OttMediaService],
+  exports: [OttMediaService, OttMediaDelivery],
 })
 export class OttMediaModule {}

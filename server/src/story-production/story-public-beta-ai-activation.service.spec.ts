@@ -79,6 +79,84 @@ describe('StoryPublicBetaAiActivationService', () => {
     await expect(service.status('unapproved-work')).rejects.toBeInstanceOf(BadRequestException);
   });
 
+  it('audits the actual published scene choices without treating AI activation as coverage', async () => {
+    const prisma = {
+      storyWork: { findUnique: jest.fn().mockResolvedValue({ id: 'work', activeReleaseId: 'release', status: 'published' }) },
+      storyPart: { findMany: jest.fn().mockResolvedValue([
+        { id: 'part-1', position: 1 }, { id: 'part-2', position: 2 }, { id: 'part-3', position: 3 },
+      ]) },
+      storyScene: { findMany: jest.fn().mockResolvedValue([
+        { id: 'scene-1', partId: 'part-1', sceneKey: 'opening' },
+        { id: 'scene-2', partId: 'part-2', sceneKey: 'choice' },
+      ]) },
+      storyChoice: { findMany: jest.fn().mockResolvedValue([
+        { sceneId: 'scene-1', position: 1, label: { ko: '원작대로' }, routeKind: 'writer_original', targetSceneId: 'scene-2', targetEndingKey: null },
+        { sceneId: 'scene-2', position: 1, label: { ko: '말한다' }, routeKind: 'writer_original', targetSceneId: null, targetEndingKey: 'main' },
+        { sceneId: 'scene-2', position: 2, label: { ko: '숨긴다' }, routeKind: 'generation_required', targetSceneId: null, targetEndingKey: null },
+        { sceneId: 'scene-2', position: 3, label: { ko: '돌아간다' }, routeKind: 'generation_required', targetSceneId: null, targetEndingKey: null },
+      ]) },
+    };
+    const scoped = new StoryPublicBetaAiActivationService(prisma as never, {} as never);
+    await expect(scoped.choiceCoverage('monster')).resolves.toEqual({
+      storyKey: 'monster', status: 'ready', totalParts: 3, totalScenes: 2,
+      partsWithoutScenes: 1,
+      distribution: { zero: 0, one: 1, two: 0, threeValid: 1, otherOrInvalid: 0 },
+      routeIssues: { duplicateImmediateTargets: 0, invalidDirectTargets: 0 },
+      incompleteExamples: [{ partPosition: 1, sceneKey: 'opening', choiceCount: 1 }],
+    });
+    expect(prisma.storyChoice.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { sceneId: { in: ['scene-1', 'scene-2'] }, position: { gt: 0 } },
+    }));
+  });
+
+  it('does not count duplicate or blank Korean choice labels as a complete scene', async () => {
+    const prisma = {
+      storyWork: { findUnique: jest.fn().mockResolvedValue({ id: 'work', activeReleaseId: 'release', status: 'published' }) },
+      storyPart: { findMany: jest.fn().mockResolvedValue([{ id: 'part', position: 1 }]) },
+      storyScene: { findMany: jest.fn().mockResolvedValue([{ id: 'scene', partId: 'part', sceneKey: 'scene' }]) },
+      storyChoice: { findMany: jest.fn().mockResolvedValue([
+        { sceneId: 'scene', position: 1, label: { ko: '선택' }, routeKind: 'branch', targetSceneId: 'next-1', targetEndingKey: null },
+        { sceneId: 'scene', position: 2, label: { ko: '선택' }, routeKind: 'branch', targetSceneId: 'next-1', targetEndingKey: null },
+        { sceneId: 'scene', position: 3, label: { ko: '' }, routeKind: 'generation_required', targetSceneId: null, targetEndingKey: null },
+      ]) },
+    };
+    const scoped = new StoryPublicBetaAiActivationService(prisma as never, {} as never);
+    await expect(scoped.choiceCoverage('imjin')).resolves.toMatchObject({
+      distribution: { threeValid: 0, otherOrInvalid: 1 },
+      routeIssues: { duplicateImmediateTargets: 1, invalidDirectTargets: 0 },
+    });
+  });
+
+  it('flags a scene whose three different labels point to the same immediate scene', async () => {
+    const prisma = {
+      storyWork: { findUnique: jest.fn().mockResolvedValue({ id: 'work', activeReleaseId: 'release', status: 'published' }) },
+      storyPart: { findMany: jest.fn().mockResolvedValue([{ id: 'part', position: 1 }]) },
+      storyScene: { findMany: jest.fn().mockResolvedValue([{ id: 'scene', partId: 'part', sceneKey: 'choice' }]) },
+      storyChoice: { findMany: jest.fn().mockResolvedValue(['기다린다', '달아난다', '돌아간다'].map((label, index) => ({
+        sceneId: 'scene', position: index + 1, label: { ko: label }, routeKind: 'branch',
+        targetSceneId: 'same-scene', targetEndingKey: null,
+      }))) },
+    };
+    const scoped = new StoryPublicBetaAiActivationService(prisma as never, {} as never);
+    await expect(scoped.choiceCoverage('norse')).resolves.toMatchObject({
+      distribution: { threeValid: 1 }, routeIssues: { duplicateImmediateTargets: 1 },
+    });
+  });
+
+  it('bounds the read-only audit before loading scenes of an oversized work', async () => {
+    const prisma = {
+      storyWork: { findUnique: jest.fn().mockResolvedValue({ id: 'work', activeReleaseId: 'release', status: 'published' }) },
+      storyPart: { findMany: jest.fn().mockResolvedValue(Array.from({ length: 1_001 }, (_, index) => ({
+        id: `part-${index}`, position: index + 1,
+      }))) },
+      storyScene: { findMany: jest.fn() },
+    };
+    const scoped = new StoryPublicBetaAiActivationService(prisma as never, {} as never);
+    await expect(scoped.choiceCoverage('imjin')).resolves.toEqual({ storyKey: 'imjin', status: 'too_large' });
+    expect(prisma.storyPart.findMany).toHaveBeenCalledWith(expect.objectContaining({ take: 1_001 }));
+    expect(prisma.storyScene.findMany).not.toHaveBeenCalled();
+  });
+
   it('reports the unique dynamic inheritor release only after all choices are ready', async () => {
     const prisma = { storyWork: { findMany: jest.fn().mockResolvedValue([{
       id: 'work', activeReleaseId: 'release', status: 'published', fixtureSource: false,
@@ -95,6 +173,81 @@ describe('StoryPublicBetaAiActivationService', () => {
       { id: 'work-2', activeReleaseId: 'release-2', status: 'published' },
     ]);
     await expect(scoped.status('inheritor')).rejects.toThrow('Multiple published inheritor works match');
+  });
+
+  it('reports the explicitly selected release even when other inheritor works exist', async () => {
+    const target = { workId: 'selected-work', releaseId: 'selected-release' };
+    const prisma = { storyWork: {
+      findFirst: jest.fn().mockResolvedValue({ id: target.workId, activeReleaseId: target.releaseId, status: 'published' }),
+      findMany: jest.fn(),
+    }, storyPart: { findMany: jest.fn().mockResolvedValue([{ id: 'part', position: 1 }]) },
+    storyScene: { findMany: jest.fn().mockResolvedValue([]) } };
+    const scoped = new StoryPublicBetaAiActivationService(prisma as never, {} as never);
+    jest.spyOn(scoped as any, 'latestValidActivation').mockResolvedValue(null);
+    jest.spyOn(scoped as any, 'fixedRouteChoicesReady').mockResolvedValue(false);
+    await expect(scoped.status('inheritor', target)).resolves.toMatchObject({ ...target, active: false });
+    await expect(scoped.choiceCoverage('inheritor', target)).resolves.toMatchObject({ ...target, totalParts: 1 });
+    expect(prisma.storyWork.findMany).not.toHaveBeenCalled();
+    expect(prisma.storyWork.findFirst).toHaveBeenCalledWith({ where: {
+      id: target.workId, slug: { startsWith: 'the-killer-inherits-the-dead-' },
+      status: 'published', fixtureSource: false,
+    } });
+    prisma.storyWork.findFirst.mockResolvedValueOnce({ id: target.workId, activeReleaseId: 'new-release', status: 'published' });
+    await expect(scoped.status('inheritor', target)).rejects.toMatchObject({ response: {
+      code: 'STORY_PUBLICATION_CHOICE_SOURCE_CHANGED',
+    } });
+    prisma.storyWork.findFirst.mockResolvedValueOnce(null);
+    await expect(scoped.choiceCoverage('inheritor', target)).rejects.toMatchObject({ status: 404 });
+  });
+
+  it('checks the exact current release under a work lock before any approval or activation writes', async () => {
+    const target = { workId: 'selected-work', releaseId: 'selected-release' };
+    const tx = { $queryRaw: jest.fn().mockResolvedValue([]), storyWork: {
+      findFirst: jest.fn().mockResolvedValue({ id: target.workId, activeReleaseId: 'new-release', status: 'published' }),
+      findMany: jest.fn(),
+    } };
+    const prisma = { $transaction: jest.fn(async callback => callback(tx)) };
+    const legal = { createActivation: jest.fn() };
+    const scoped = new StoryPublicBetaAiActivationService(prisma as never, legal as never);
+    const ensureConsent = jest.spyOn(scoped as any, 'ensureConsent');
+    const ensureRights = jest.spyOn(scoped as any, 'ensureRights');
+    const body = { ...target, aiBranchGenerationConfirmed: true, authorStyleReferenceConfirmed: true,
+      generatedResultReuseConfirmed: true, imageTransformationConfirmed: true } as const;
+    await expect(scoped.activate('operator', 'inheritor', body)).rejects.toMatchObject({ response: {
+      code: 'STORY_PUBLICATION_CHOICE_SOURCE_CHANGED',
+    } });
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(tx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(tx.storyWork.findFirst.mock.invocationCallOrder[0]);
+    expect(tx.storyWork.findMany).not.toHaveBeenCalled();
+    expect(ensureConsent).not.toHaveBeenCalled(); expect(ensureRights).not.toHaveBeenCalled();
+    expect(legal.createActivation).not.toHaveBeenCalled();
+    tx.storyWork.findFirst.mockResolvedValueOnce(null);
+    await expect(scoped.activate('operator', 'inheritor', body)).rejects.toMatchObject({ status: 404 });
+    expect(ensureConsent).not.toHaveBeenCalled(); expect(ensureRights).not.toHaveBeenCalled();
+  });
+
+  it('does not activate three malformed inheritor choices by count alone', async () => {
+    const choices = [
+      { sceneId: 'scene', position: 1, label: { ko: '원작' }, routeKind: 'writer_original',
+        targetSceneId: null, targetEndingKey: 'ending' },
+      { sceneId: 'scene', position: 2, label: { ko: '원작' }, routeKind: 'generation_required',
+        targetSceneId: null as string | null, targetEndingKey: null },
+      { sceneId: 'scene', position: 3, label: { ko: '다른 길' }, routeKind: 'generation_required',
+        targetSceneId: null, targetEndingKey: null },
+    ];
+    const prisma = {
+      storyPart: { findMany: jest.fn().mockResolvedValue([{ id: 'part' }]) },
+      storyScene: { findMany: jest.fn().mockResolvedValue([{ id: 'scene', partId: 'part' }]) },
+      storyChoice: { findMany: jest.fn().mockImplementation(async () => choices) },
+    };
+    const scoped = new StoryPublicBetaAiActivationService(prisma as never, {} as never);
+
+    await expect((scoped as any).fixedRouteChoicesReady(prisma, 'work')).resolves.toBe(false);
+    choices[1].label = { ko: '도망친다' };
+    choices[1].targetSceneId = 'unapproved-direct-scene';
+    await expect((scoped as any).fixedRouteChoicesReady(prisma, 'work')).resolves.toBe(false);
+    choices[1].targetSceneId = null;
+    await expect((scoped as any).fixedRouteChoicesReady(prisma, 'work')).resolves.toBe(true);
   });
 
   it('reports a legal activation independently of whether a legacy part has one public choice', async () => {

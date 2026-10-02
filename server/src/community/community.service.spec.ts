@@ -50,6 +50,10 @@ function createPrismaMock() {
       create: jest.fn(),
       findUnique: jest.fn().mockResolvedValue(null),
     },
+    feedSearchEvent: {
+      findFirst: jest.fn().mockResolvedValue(null),
+      create: jest.fn().mockResolvedValue({ id: 'search-event' }),
+    },
     artistFollow: {
       findMany: jest.fn().mockResolvedValue([]),
       findUnique: jest.fn().mockResolvedValue(null),
@@ -157,6 +161,168 @@ function threadMetadata(overrides: Record<string, unknown> = {}) {
     },
   };
 }
+
+describe('CommunityService authenticated feed read block guard', () => {
+  const blockingAuthorId = '00000000-0000-4000-8000-000000000103';
+
+  it.each([
+    { q: 'stage', type: 'text' },
+    { q: '#stage', type: 'hashtag' },
+  ])('excludes both block directions before $type search pagination', async ({ q, type }) => {
+    const prisma = createPrismaMock();
+    prisma.userBlock.findMany.mockResolvedValue([
+      { blockerUserId: otherUserId, blockedUserId: authorId },
+      { blockerUserId: blockingAuthorId, blockedUserId: otherUserId },
+      { blockerUserId: authorId, blockedUserId: otherUserId },
+    ]);
+    const ownPost = postView({ id: repostId, authorUserId: otherUserId });
+    const candidates = [postView(), postView({ authorUserId: blockingAuthorId }), ownPost];
+    prisma.communityPost.findMany.mockImplementation(async ({ where, take }: any) =>
+      candidates
+        .filter((post) => !where.authorUserId?.notIn.includes(post.authorUserId))
+        .slice(0, take),
+    );
+    const result = await serviceWith(prisma).searchFeed(
+      { q, type, take: '1', cursor: postId },
+      { userId: otherUserId },
+    );
+
+    expect(prisma.userBlock.findMany).toHaveBeenCalledWith({
+      where: {
+        status: 'active',
+        deletedAt: null,
+        OR: [{ blockerUserId: otherUserId }, { blockedUserId: otherUserId }],
+      },
+      select: { blockerUserId: true, blockedUserId: true },
+    });
+    expect(prisma.communityPost.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          status: 'published',
+          visibility: 'public',
+          deletedAt: null,
+          authorUserId: { notIn: [authorId, blockingAuthorId] },
+          ...(type === 'hashtag'
+            ? { body: { contains: '#stage', mode: 'insensitive' } }
+            : { OR: expect.arrayContaining([{ body: { contains: 'stage', mode: 'insensitive' } }]) }),
+        }),
+        take: 1,
+        cursor: { id: postId },
+        skip: 1,
+        orderBy: { publishedAt: 'desc' },
+      }),
+    );
+    expect(prisma.userBlock.findMany.mock.invocationCallOrder[0]).toBeLessThan(
+      prisma.communityPost.findMany.mock.invocationCallOrder[0],
+    );
+    expect(result.items.map((post) => post.id)).toEqual([repostId]);
+    expect(result.posts).toEqual(result.items);
+    expect(result.count).toBe(1);
+    expect(result.nextCursor).toBe(repostId);
+    expect(prisma.feedSearchEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ resultCount: 1 }) }),
+    );
+  });
+
+  it.each([undefined, otherUserId])('preserves search without active blocks for viewer %s', async (userId) => {
+    const prisma = createPrismaMock();
+    prisma.communityPost.findMany.mockResolvedValue([postView()]);
+
+    const result = await serviceWith(prisma).searchFeed({ q: 'stage' }, { userId });
+
+    expect(result.items[0].body).toBe('Updated body');
+    const { where } = prisma.communityPost.findMany.mock.calls[0][0];
+    expect(where).not.toHaveProperty('authorUserId');
+    expect(prisma.userBlock.findMany).toHaveBeenCalledTimes(userId ? 1 : 0);
+  });
+
+  it('does not fall back to public search when the block lookup fails', async () => {
+    const prisma = createPrismaMock();
+    const error = new Error('block lookup unavailable');
+    prisma.userBlock.findMany.mockRejectedValue(error);
+
+    await expect(
+      serviceWith(prisma).searchFeed({ q: 'stage' }, { userId: otherUserId }),
+    ).rejects.toBe(error);
+    expect(prisma.communityPost.findMany).not.toHaveBeenCalled();
+    expect(prisma.feedSearchEvent.create).not.toHaveBeenCalled();
+  });
+
+  it.each(['viewer_blocks_author', 'author_blocks_viewer'])('returns 404 for detail when %s', async (direction) => {
+    const prisma = createPrismaMock();
+    prisma.userBlock.findMany.mockResolvedValue([
+      direction === 'viewer_blocks_author'
+        ? { blockerUserId: otherUserId, blockedUserId: authorId }
+        : { blockerUserId: authorId, blockedUserId: otherUserId },
+    ]);
+    prisma.communityPost.findFirst.mockImplementation(async ({ where }: any) =>
+      where.authorUserId?.notIn.includes(authorId) ? null : postView(),
+    );
+
+    await expect(serviceWith(prisma).getPost(postId, otherUserId)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    expect(prisma.communityPost.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          id: postId,
+          status: 'published',
+          deletedAt: null,
+          authorUserId: { notIn: [authorId] },
+        },
+      }),
+    );
+    expect(prisma.userBlock.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          status: 'active',
+          deletedAt: null,
+          OR: [{ blockerUserId: otherUserId }, { blockedUserId: otherUserId }],
+        },
+      }),
+    );
+    expect(prisma.communityReaction.findUnique).not.toHaveBeenCalled();
+    expect(prisma.userFollow.findUnique).not.toHaveBeenCalled();
+  });
+
+  it.each([undefined, null, otherUserId])('preserves unblocked detail for viewer %s', async (viewerUserId) => {
+    const prisma = createPrismaMock();
+    prisma.communityPost.findFirst.mockResolvedValue(postView());
+
+    const result = await serviceWith(prisma).getPost(postId, viewerUserId);
+
+    expect(result.post.body).toBe('Updated body');
+    expect(prisma.communityPost.findFirst.mock.calls[0][0].where).toEqual({
+      id: postId,
+      status: 'published',
+      deletedAt: null,
+    });
+    expect(prisma.userBlock.findMany).toHaveBeenCalledTimes(viewerUserId ? 1 : 0);
+  });
+
+  it('keeps own detail visible when another author is blocked', async () => {
+    const prisma = createPrismaMock();
+    prisma.userBlock.findMany.mockResolvedValue([
+      { blockerUserId: otherUserId, blockedUserId: authorId },
+    ]);
+    prisma.communityPost.findFirst.mockResolvedValue(postView({ authorUserId: otherUserId }));
+
+    const result = await serviceWith(prisma).getPost(postId, otherUserId);
+
+    expect(result.post.viewer.isAuthor).toBe(true);
+    expect(result.post.body).toBe('Updated body');
+  });
+
+  it('rejects invalid detail IDs before querying block relationships', async () => {
+    const prisma = createPrismaMock();
+
+    await expect(serviceWith(prisma).getPost('invalid', otherUserId)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    expect(prisma.userBlock.findMany).not.toHaveBeenCalled();
+    expect(prisma.communityPost.findFirst).not.toHaveBeenCalled();
+  });
+});
 
 describe('CommunityService user follow/block mutation contract', () => {
   beforeEach(() => {

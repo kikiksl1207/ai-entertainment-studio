@@ -50,14 +50,18 @@ export function registerReaderVisualTests({ fixture, projection, sessionId, work
     }, { url, count });
   }
   async function missing(f) {
-    await f.page.waitForFunction(() => document.querySelector('.story-player-stage')?.dataset.visualStatus === 'missing' && !document.querySelector('.story-player-background'));
-    assert.equal(await f.page.locator('.story-player-no-visual').isVisible(), true);
+    await f.page.waitForFunction(() => document.querySelector('.story-reader-shell-text-only') && !document.querySelector('.story-player-stage'));
+    assert.equal(await f.page.locator('.story-player-no-visual, .story-player-background').count(), 0);
     assert.equal(await f.page.locator('.story-player').getAttribute('data-has-background'), 'false');
+    assert.equal(await f.page.locator('.story-reader-shell').getAttribute('data-has-visual'), 'false');
   }
   async function textOnly(f) {
     await f.page.waitForFunction(() => document.querySelector('.story-reader-shell-text-only') && !document.querySelector('.story-player-stage'));
     assert.equal(await f.page.locator('.story-player-no-visual, .story-player-background').count(), 0);
     assert.equal(await f.page.locator('.story-reader-shell').getAttribute('data-has-visual'), 'false');
+  }
+  async function renderedProse(f) {
+    return (await f.page.locator('.story-player-copy p').allTextContents()).join('\n\n').trimEnd();
   }
   async function imagePixels(f) {
     const samples = await f.page.locator('.story-player-stage img').evaluateAll((images) => images.map((image) => {
@@ -110,13 +114,13 @@ export function registerReaderVisualTests({ fixture, projection, sessionId, work
         await turn(f, 'previous', '2 / 3'); await loaded(f, backgroundA);
         assert.deepEqual(f.requests.filter((r) => r.method === 'POST').map((r) => r.body), [
           { position: positions[1], expectedRevision: 3 }, { position: positions[2], expectedRevision: 10 }, { position: positions[1], expectedRevision: 17 }]);
-        assert.equal(await f.page.locator('.story-player-copy p').textContent(), value.scene.beats[1].content);
+        assert.equal(await renderedProse(f), value.scene.beats[1].content.trimEnd());
       } finally { await f.close(); }
     });
   }
 
   for (const mode of ['imported missing fallback', 'ready background 404']) {
-    test(`beat visual: ${mode} leaves neutral readable stage without broken images`, async () => {
+    test(`beat visual: ${mode} removes the broken image stage without disturbing prose`, async () => {
       const value = current(); const visual = value.scene.beats[0].visualContext;
       visual.manifest.background.publicAssetPath = '/assets/story/fallback.webp';
       if (mode.startsWith('imported')) { visual.assetReadiness = 'missing'; visual.manifest.background.state = 'fallback'; }
@@ -125,7 +129,7 @@ export function registerReaderVisualTests({ fixture, projection, sessionId, work
       try {
         await f.ready(); await missing(f);
         assert.equal(await f.page.locator('.story-player-stage img').count(), 0);
-        assert.equal(await f.page.locator('.story-player-copy p').textContent(), value.scene.beats[0].content);
+        assert.equal(await renderedProse(f), value.scene.beats[0].content.trimEnd());
         assert.equal(await f.page.locator('[data-story-beat="next"]').isEnabled(), true);
         assert.equal(f.requests.filter((r) => r.method === 'POST').length, 0);
       } finally { await f.close(); }
@@ -161,7 +165,60 @@ export function registerReaderVisualTests({ fixture, projection, sessionId, work
       const requests = f.requests.filter((request) => request.method === 'POST' && request.path.endsWith('/scene-visual'));
       assert.equal(requests.length, 1);
       assert.deepEqual(requests[0].body, { sourceSceneKey: 'source-a' });
-      assert.equal(await f.page.locator('.story-player-copy p').textContent(), value.scene.beats[0].content);
+      assert.equal(await renderedProse(f), value.scene.beats[0].content.trimEnd());
+    } finally { await f.close(); }
+  });
+
+  test('beat visual: a denied image request stops polling while reading remains available', async () => {
+    const value = current(); const visual = value.scene.beats[0].visualContext;
+    visual.generationAvailable = true;
+    visual.assetReadiness = 'missing';
+    visual.manifest.background = { state: 'fallback', publicAssetPath: '' };
+    visual.manifest.characters = [];
+    const f = await reader({ current: value, hook: (request) => request.method === 'POST' &&
+      request.path.endsWith('/scene-visual') ? { status: 403, body: { message: 'Not approved' } } : null });
+    try {
+      await f.ready();
+      await f.page.locator('[data-story-visual-retry]').waitFor();
+      assert.equal(f.requests.filter((request) => request.path.endsWith('/scene-visual')).length, 1);
+      assert.equal(await renderedProse(f), value.scene.beats[0].content.trimEnd());
+      await f.page.locator('[data-story-visual-retry]').click();
+      await f.page.waitForFunction(() => document.querySelector('[data-story-visual-retry]') &&
+        document.querySelector('.story-player-copy'));
+      assert.equal(f.requests.filter((request) => request.path.endsWith('/scene-visual')).length, 2);
+    } finally { await f.close(); }
+  });
+
+  for (const response of ['processing', 'temporary failure']) test(`beat visual: ${response} polls the scene without starting another image request`, async () => {
+    const value = current(); const visual = value.scene.beats[0].visualContext;
+    visual.generationAvailable = true;
+    visual.assetReadiness = 'missing';
+    visual.manifest.background = { state: 'fallback', publicAssetPath: '' };
+    visual.manifest.characters = [];
+    let requested = false;
+    const f = await reader({ current: value, hook: (request, state) => {
+      if (request.method === 'POST' && request.path.endsWith('/scene-visual')) {
+        requested = true;
+        return response === 'processing' ? { body: { status: 'processing' } } :
+          { status: 503, body: { message: 'Temporary failure' } };
+      }
+      if (requested && request.method === 'GET' && request.path.endsWith('/current-scene')) {
+        const ready = clone(state.current);
+        ready.scene.beats[0].visualContext.assetReadiness = 'ready';
+        ready.scene.beats[0].visualContext.manifest.background = {
+          state: 'ready', publicAssetPath: backgroundA,
+        };
+        state.setCurrent(ready);
+        return { body: ready };
+      }
+      return null;
+    } });
+    try {
+      await f.ready();
+      await f.page.waitForFunction(() => document.querySelector('.story-player-stage')?.dataset.visualStatus === 'ready', null, { timeout: 20000 });
+      assert.equal(f.requests.filter((request) => request.method === 'POST' && request.path.endsWith('/scene-visual')).length, 1);
+      assert.ok(f.requests.filter((request) => request.method === 'GET' && request.path.endsWith('/current-scene')).length >= 2);
+      assert.equal(await renderedProse(f), value.scene.beats[0].content.trimEnd());
     } finally { await f.close(); }
   });
 
@@ -175,7 +232,7 @@ export function registerReaderVisualTests({ fixture, projection, sessionId, work
     try {
       await f.ready(); await textOnly(f);
       assert.equal(f.requests.filter((request) => request.method === 'POST' && request.path.endsWith('/scene-visual')).length, 1);
-      assert.equal(await f.page.locator('.story-player-copy p').textContent(), value.scene.beats[0].content);
+      assert.equal(await renderedProse(f), value.scene.beats[0].content.trimEnd());
     } finally { await f.close(); }
   });
 
@@ -201,7 +258,7 @@ export function registerReaderVisualTests({ fixture, projection, sessionId, work
         await f.ready(); await textOnly(f);
         assert.equal(await f.page.locator('.story-player-stage img').count(), 0);
         assert.equal(f.assetRequests.length, 0);
-        assert.equal(await f.page.locator('.story-player-copy p').textContent(), value.scene.beats[0].content);
+        assert.equal(await renderedProse(f), value.scene.beats[0].content.trimEnd());
       } finally { await f.close(); }
     });
   }
@@ -251,19 +308,28 @@ export function registerReaderVisualTests({ fixture, projection, sessionId, work
     });
   }
 
-  test('beat visual: delayed background settlement preserves exact text, focus and page scroll', async () => {
+  test('beat visual: delayed background settlement preserves exact text, focus and reading position', async () => {
     const g = gate(); const value = current({ long: true });
     value.scene.beats[0].visualContext.manifest.background.publicAssetPath += '?hold=1';
     const f = await reader({ current: value, pendingAssets: true, assetHook: async (r) => { if (r.query.hold) { await g.promise; return { status: 404, body: '' }; } } });
     try {
       await f.ready();
-      await f.page.locator('[data-story-scene-focus]').evaluate((el) => { el.focus(); window.scrollTo(0, el.getBoundingClientRect().top + scrollY + 145); });
-      const scrollBefore = await f.page.evaluate(() => scrollY);
+      await f.page.locator('[data-story-scene-focus]').evaluate((el) => {
+        el.focus({ preventScroll: true });
+        window.scrollTo({ top: el.getBoundingClientRect().top + scrollY + 145, behavior: 'instant' });
+      });
+      const before = await f.page.evaluate(() => ({ scrollY,
+        proseTop: document.querySelector('.story-player-copy p').getBoundingClientRect().top,
+        focusTop: document.querySelector('[data-story-scene-focus]').getBoundingClientRect().top }));
       g.release(); await missing(f);
-      assert.ok(Math.abs(await f.page.evaluate(() => scrollY) - scrollBefore) <= 2);
+      const after = await f.page.evaluate(() => ({ scrollY,
+        proseTop: document.querySelector('.story-player-copy p').getBoundingClientRect().top,
+        focusTop: document.querySelector('[data-story-scene-focus]').getBoundingClientRect().top }));
+      assert.ok(Math.abs(after.proseTop - before.proseTop) <= 2,
+        `visual settlement moved prose from ${JSON.stringify(before)} to ${JSON.stringify(after)}`);
       assert.equal(await f.page.locator('[data-story-scene-focus]').evaluate((el) => el === document.activeElement), true);
-      assert.equal(await f.page.locator('.story-player-copy p').textContent(), value.scene.beats[0].content);
-      assert.equal(await f.page.locator('.story-player-characters img').count(), 1);
+      assert.equal(await renderedProse(f), value.scene.beats[0].content.trimEnd());
+      assert.equal(await f.page.locator('.story-player-characters img').count(), 0);
       assert.equal(f.requests.filter((r) => r.method === 'POST').length, 0);
     } finally { g.release(); await f.close(); }
   });
@@ -277,13 +343,13 @@ export function registerReaderVisualTests({ fixture, projection, sessionId, work
       const f = await reader({ locale, width, current: value });
       try {
         await f.ready(); await missing(f);
-        assert.equal(await f.page.locator('.story-player-copy p').textContent(), value.scene.beats[0].content);
+        assert.equal(await renderedProse(f), value.scene.beats[0].content.trimEnd());
         const region = f.page.locator('[data-story-scene-focus]');
         await region.evaluate((el) => el.scrollIntoView({ block: 'end', behavior: 'instant' }));
         await turn(f, 'next', '2 / 3'); await loaded(f, backgroundB);
-        assert.equal(await region.locator('p').textContent(), value.scene.beats[1].content);
+        assert.equal((await region.locator('p').allTextContents()).join('\n\n').trimEnd(), value.scene.beats[1].content.trimEnd());
         await turn(f, 'next', '3 / 3'); await loaded(f, backgroundB);
-        assert.equal(await region.locator('p').textContent(), value.scene.beats[2].content);
+        assert.equal((await region.locator('p').allTextContents()).join('\n\n').trimEnd(), value.scene.beats[2].content.trimEnd());
         assert.equal(await f.page.locator('[data-choice-id]:enabled').count(), 3);
         assert.equal(await region.evaluate((el) => el.scrollTop), 0);
         await region.evaluate((el) => el.scrollIntoView({ block: 'end', behavior: 'instant' }));
@@ -298,7 +364,7 @@ export function registerReaderVisualTests({ fixture, projection, sessionId, work
         assert.equal(metrics.horizontalOverflow, false); assert.equal(metrics.navRendered, true); assert.equal(metrics.fullTextReachable, true);
         assert.ok(metrics.stageHeight > 190 && metrics.stageHeight <= 610 && metrics.documentHeight > 2400);
         assert.ok(metrics.stageRatio > 1.76 && metrics.stageRatio < 1.79 && metrics.stacked, JSON.stringify(metrics));
-        assert.equal(metrics.fontSize, width <= 680 ? 16 : 17); assert.equal(metrics.fontWeight, '400');
+        assert.equal(metrics.fontSize, width <= 680 ? 17 : 18); assert.equal(metrics.fontWeight, '400');
         assert.ok(metrics.lineHeight / metrics.fontSize >= 1.74);
         const pixels = await imagePixels(f);
         const controlBounds = [];

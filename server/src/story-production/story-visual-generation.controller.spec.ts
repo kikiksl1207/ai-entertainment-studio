@@ -2,8 +2,10 @@ import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { ADMIN_PERMISSIONS_KEY } from '../auth/decorators/admin-permissions.decorator';
 import { AdminAuthGuard } from '../auth/guards/admin-auth.guard';
 import { AdminPermissionGuard } from '../auth/guards/admin-permission.guard';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import {
   StoryVisualGenerationAdminController,
+  StoryVisualAssetController,
   StoryVisualGenerationController,
 } from './story-visual-generation.controller';
 
@@ -54,5 +56,45 @@ describe('StoryVisualGenerationController security boundary', () => {
     expect(Reflect.getMetadata(ADMIN_PERMISSIONS_KEY, method)).toEqual(['*']);
     await controller.replacementStatus('work-id');
     expect(visuals.replacementStatus).toHaveBeenCalledWith('work-id');
+  });
+
+  it('protects booking review and explicit recovery with admin permission and a server-owned actor', async () => {
+    const visuals = { bookingReview: jest.fn(), reprepareBooking: jest.fn() };
+    const controller = new StoryVisualGenerationAdminController(visuals as never);
+    for (const key of ['bookingReview', 'reprepareBooking'] as const) {
+      expect(Reflect.getMetadata(ADMIN_PERMISSIONS_KEY, StoryVisualGenerationAdminController.prototype[key])).toEqual(['*']);
+    }
+    await controller.bookingReview('work-id', 'cursor-id');
+    expect(visuals.bookingReview).toHaveBeenCalledWith('work-id', 'cursor-id');
+    const body = { actorUserId: 'attacker', asOwner: false } as never;
+    await controller.reprepareBooking({ id: 'authenticated' } as never, 'work-id', body);
+    expect(visuals.reprepareBooking).toHaveBeenCalledWith('authenticated', 'work-id', body);
+  });
+
+  it('forces the authenticated author ownership boundary on creator booking routes', async () => {
+    const visuals = { bookingReview: jest.fn(), reprepareBooking: jest.fn() };
+    const controller = new StoryVisualGenerationController(visuals as never);
+    expect(Reflect.getMetadata(GUARDS_METADATA, StoryVisualGenerationController)).toEqual([JwtAuthGuard]);
+    const user = { id: 'author' } as never, body = { asOwner: false, ownerUserId: 'attacker' } as never;
+    await controller.bookingReview(user, 'work-id', 'cursor-id');
+    await controller.reprepareBooking(user, 'work-id', body);
+    expect(visuals.bookingReview).toHaveBeenCalledWith('work-id', 'cursor-id', 'author');
+    expect(visuals.reprepareBooking).toHaveBeenCalledWith('author', 'work-id', body, true);
+  });
+
+  it.each(['redirect', 'inline'] as const)('requires a fresh asset check for %s delivery', async kind => {
+    const image = Buffer.from('verified-image');
+    const visuals = { publicVisualAsset: jest.fn().mockResolvedValue(kind === 'redirect'
+      ? { kind, url: '/api/v1/assets/public/asset-id/original' }
+      : { kind, mimeType: 'image/webp', image }) };
+    const response = { statusCode: 0, setHeader: jest.fn(), end: jest.fn() };
+
+    await new StoryVisualAssetController(visuals as never).deliver('asset-id', response as never);
+
+    expect(visuals.publicVisualAsset).toHaveBeenCalledWith('asset-id');
+    expect(response.setHeader).toHaveBeenCalledWith('cache-control', 'no-store');
+    expect(response.statusCode).toBe(kind === 'redirect' ? 302 : 200);
+    if (kind === 'redirect') expect(response.end).toHaveBeenCalledWith();
+    else expect(response.end).toHaveBeenCalledWith(image);
   });
 });

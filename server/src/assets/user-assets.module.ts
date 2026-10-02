@@ -7,5 +7,6 @@ import { UserAssetsService } from './user-assets.service';
   imports: [PrismaModule],
   controllers: [UserAssetsController, PublicAssetsController],
   providers: [UserAssetsService],
+  exports: [UserAssetsService],
 })
 export class UserAssetsModule {}

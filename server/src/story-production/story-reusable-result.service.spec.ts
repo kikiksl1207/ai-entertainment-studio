@@ -1,4 +1,5 @@
 import { Decimal } from '@prisma/client/runtime/library';
+import { Prisma } from '@prisma/client';
 import { StoryEconomicsService } from './story-economics.service';
 import { StoryAiActivationService } from './story-ai-activation.service';
 import { storyRouteRootHash } from './story-route-identity.policy';
@@ -9,6 +10,19 @@ const evidence = {
   moderationEvidenceVersion: 'moderation-evidence-v1',
   qualityPolicyVersion: 'quality-policy-v1',
 };
+
+function queryRawWithSiblingClaim(otherRows: unknown[]) {
+  return jest.fn(async (query: TemplateStringsArray | Prisma.Sql, ...parameters: unknown[]) => {
+    const segments = Array.isArray(query) ? query : (query as Prisma.Sql).strings;
+    const values = Array.isArray(query) ? parameters : (query as Prisma.Sql).values;
+    return (
+    segments[0].includes('INSERT INTO story_ai_sibling_narrative_claims')
+      ? [{ sibling_choice_key: values[2] }]
+      : segments[0].includes('WITH RECURSIVE ancestry') && segments[0].includes('narrative_step')
+        ? []
+      : otherRows);
+  });
+}
 
 function integrationFixture() {
   const now = new Date();
@@ -91,7 +105,7 @@ function integrationFixture() {
         return row;
       }),
     },
-    $queryRaw: jest.fn().mockResolvedValue([{ parent_id: null, source_shared_result_id: null }]),
+    $queryRaw: queryRawWithSiblingClaim([{ parent_id: null, source_shared_result_id: null }]),
     storyAiContinuation: {
       findUnique: jest.fn(async ({ where }) => {
         if (where.idempotencyKey) {
@@ -115,16 +129,18 @@ function integrationFixture() {
     storyAnalysisJob: {
       findFirst: jest.fn().mockResolvedValue({ id: 'analysis-id', analysisVersion: 6 }),
     },
+    storyWorkGenerationProfile: { findFirst: jest.fn().mockResolvedValue(null) },
     contentRightsContract: {
       findFirst: jest.fn().mockResolvedValue({ id: 'contract-id', versions: [rights] }),
     },
     contentRightsContractVersion: { findUnique: jest.fn().mockResolvedValue(rights) },
     storyMemoryRecord: {
-      findMany: jest.fn().mockResolvedValue([{
-        id: 'memory-id', memoryType: 'event', revision: 1, content: { ko: '승인된 기억' },
+      findMany: jest.fn(async ({ where }) => where.memoryType === 'style' ? [] : [{
+        id: '00000000-0000-4000-8000-000000000001', memoryType: 'event', revision: 1, content: { ko: '승인된 기억' },
       }]),
     },
     storyChoiceEvent: { findMany: jest.fn().mockResolvedValue([]), create: jest.fn() },
+    storyPart: { findMany: jest.fn().mockResolvedValue([{ id: 'part-id' }]) },
     storyScene: {
       findMany: jest.fn().mockResolvedValue([]),
       findUnique: jest.fn().mockResolvedValue({ id: 'scene-id', partId: 'part-id' }),
@@ -240,7 +256,7 @@ function integrationFixture() {
   const input = (reader: 'reader-1' | 'reader-2') => ({
     userId: reader,
     progress: progresses[reader === 'reader-1' ? 'progress-1' : 'progress-2'],
-    work: { id: 'work-id' }, part: { id: 'part-id' },
+    work: { id: 'work-id' }, part: { id: 'part-id', position: 1 },
     scene: { id: 'scene-id', title: { ko: '공개 장면' } }, release,
     choice: {
       id: 'choice-id', sceneId: 'scene-id', label: { ko: '추천 B' },
@@ -259,6 +275,9 @@ function integrationFixture() {
 describe('shared story result cache integration', () => {
   it.each([false, true])('settles and reuses a generated result with ending=%s for another reader at zero cost', async (isEnding) => {
     const f = integrationFixture();
+    const sourceReadBeatPosition = 1;
+    f.progresses['progress-1'].currentBeatPosition = sourceReadBeatPosition;
+    f.progresses['progress-2'].currentBeatPosition = sourceReadBeatPosition;
     const first = await f.service.requestRecommendedChoiceTx(f.tx, f.input('reader-1'));
     const continuation = f.continuations.get(first.continuationId)!;
     Object.assign(continuation, {
@@ -280,6 +299,16 @@ describe('shared story result cache integration', () => {
       ...(isEnding ? { ending: { endingKey: 'ai-shared-ending' } } : {}),
     }, 'settle-shared-result', 'lease-token')).resolves.toMatchObject({ status: 'completed' });
 
+    expect(f.progresses['progress-1']).toMatchObject({ currentBeatPosition: 0, pathSummary: [
+      expect.objectContaining({ sourceSceneId: 'scene-id', sourceGeneratedSceneId: null,
+        choiceId: 'choice-id', readBeatPosition: sourceReadBeatPosition,
+        generatedSceneId: 'generated-1', provenance: 'ai_generated' }),
+    ] });
+    expect(f.tx.storyProgressRouteNode.create).toHaveBeenCalledWith({ data: expect.objectContaining({
+      progressId: 'progress-1', workId: 'work-id', releaseId: 'release-id',
+      sourceSceneId: 'scene-id', sourceChoiceId: 'choice-id',
+      narrativeStep: f.progresses['progress-1'].pathSummary[0],
+    }) });
     expect(f.getShared()).toMatchObject({
       status: 'pending', resultChecksum: expect.stringMatching(/^[a-f0-9]{64}$/),
       originGeneratedSceneId: 'generated-1', reviewPendingAt: expect.any(Date),
@@ -290,7 +319,7 @@ describe('shared story result cache integration', () => {
     await expect(f.service.requestRecommendedChoiceTx(f.tx, f.input('reader-2')))
       .rejects.toMatchObject({ response: { code: 'STORY_AI_SHARED_RESULT_PENDING' } });
     // Explicit promotion has its own gate; settlement never fabricates evidence.
-    f.tx.$queryRaw = jest.fn().mockResolvedValue([{ valid: true }]);
+    f.tx.$queryRaw = queryRawWithSiblingClaim([{ valid: true }]);
     f.tx.storyAiLegalActivation = { findUnique: jest.fn().mockResolvedValue({
       id: evidence.rightsActivationKey, rightsContractVersionId: 'rights-version-id',
     }) };
@@ -298,7 +327,7 @@ describe('shared story result cache integration', () => {
     const activation = new StoryAiActivationService(f.prisma as never);
     jest.spyOn(activation, 'prepare').mockResolvedValue({ id: evidence.rightsActivationKey } as never);
     await activation.promote('admin-id', f.getShared().id, f.getShared().resultChecksum);
-    f.tx.$queryRaw = jest.fn().mockResolvedValue([{ parent_id: null, source_shared_result_id: null }]);
+    f.tx.$queryRaw = queryRawWithSiblingClaim([{ parent_id: null, source_shared_result_id: null }]);
     expect(f.getShared().status).toBe('approved');
     const providerChecksAfterFirst = f.provider.readiness.mock.calls.length;
     const preflightChecksAfterFirst = f.provider.preflight.mock.calls.length;
@@ -313,8 +342,19 @@ describe('shared story result cache integration', () => {
       });
     expect(f.progresses['progress-2']).toMatchObject({
       currentGeneratedSceneId: 'generated-2',
+      currentBeatPosition: 0,
       status: isEnding ? 'completed' : 'active',
     });
+    expect(f.progresses['progress-2'].pathSummary).toEqual([
+      expect.objectContaining({ sourceSceneId: 'scene-id', sourceGeneratedSceneId: null,
+        choiceId: 'choice-id', readBeatPosition: sourceReadBeatPosition,
+        generatedSceneId: 'generated-2', provenance: 'ai_reused' }),
+    ]);
+    expect(f.tx.storyProgressRouteNode.create).toHaveBeenCalledWith({ data: expect.objectContaining({
+      progressId: 'progress-2', workId: 'work-id', releaseId: 'release-id',
+      sourceSceneId: 'scene-id', sourceChoiceId: 'choice-id',
+      narrativeStep: f.progresses['progress-2'].pathSummary[0],
+    }) });
 
     expect(f.provider.readiness).toHaveBeenCalledTimes(providerChecksAfterFirst);
     expect(f.provider.preflight).toHaveBeenCalledTimes(preflightChecksAfterFirst);
@@ -361,6 +401,7 @@ describe('shared story result cache integration', () => {
     Object.assign(input.progress, {
       currentSceneId: null,
       currentGeneratedSceneId: 'private-generated-scene',
+      currentBeatPosition: 1,
     });
     input.sourceKind = 'generated';
     input.scene = {
@@ -373,7 +414,7 @@ describe('shared story result cache integration', () => {
     f.tx.storyAiGeneratedBeat.findMany.mockResolvedValue([{
       position: 1, beatType: 'paragraph', content: { ko: '개인별 생성 본문' },
     }]);
-    f.tx.storyScene.findMany.mockResolvedValue([{ id: 'scene-id' }]);
+    f.tx.storyScene.findMany.mockResolvedValue([{ id: 'scene-id', sceneKey: 'part-001-main' }]);
     await expect(f.service.requestRecommendedChoiceTx(f.tx, input))
       .resolves.toMatchObject({ status: 'queued', provenance: 'ai_generated' });
     expect(f.tx.storyAiReusableResult.upsert).not.toHaveBeenCalled();

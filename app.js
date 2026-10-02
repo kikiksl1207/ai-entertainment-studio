@@ -12,23 +12,34 @@
    ─────────────────────────────────────────── */
 const API_BASE = "https://api.lumina-stage.com";
 
+function authRequestSession(auth = getAuth()) {
+  return JSON.stringify([auth?.user?.id || auth?.user?.userId || "", auth?.accessToken || "", getRefreshToken(auth) || ""]);
+}
+
+function authRequestSessionCurrent(session) {
+  const current = authRequestSession();
+  return current === session || (_refreshCompleted?.session === session && current === authRequestSession(_refreshCompleted.auth));
+}
+
 async function apiFetch(path, options = {}, _retryDepth = 0) {
   if (!API_BASE) return null;
   const { method = "GET", body, auth = false, throwOnError = false, headers: extraHeaders = {} } = options;
 
+  const requestAuth = auth ? getAuth() : null;
   const headers = {};
   if (body) headers["Content-Type"] = "application/json";
   if (auth) {
-    const token = getAccessToken();
+    const token = requestAuth?.accessToken;
     if (token) headers["Authorization"] = `Bearer ${token}`;
   }
   // #057: caller가 추가 헤더를 넘기면 머지 (예: Idempotency-Key)
   // — auth/Content-Type을 의도치 않게 덮어쓰지 않도록 마지막에 머지
   Object.assign(headers, extraHeaders);
 
+  let timer;
   try {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 8000);
+    timer = setTimeout(() => controller.abort(), 8000);
     const res = await fetch(API_BASE + path, {
       method,
       headers,
@@ -40,8 +51,8 @@ async function apiFetch(path, options = {}, _retryDepth = 0) {
     // #088 — auth 요청이 401이고 첫 시도면 refresh + 원래 요청 1회 재시도
     // refresh endpoint 자체는 retry 대상에서 제외 (무한 루프 방지)
     if (res.status === 401 && auth && _retryDepth === 0 && path !== "/api/v1/auth/refresh") {
-      const refreshed = await refreshAuthOnce();
-      if (refreshed) {
+      const refreshed = await refreshAuthOnce(requestAuth);
+      if (refreshed && authRequestSession() === authRequestSession(refreshed)) {
         // 새 토큰으로 동일 method/body/extraHeaders 보존하여 재시도
         return apiFetch(path, options, 1);
       }
@@ -64,6 +75,8 @@ async function apiFetch(path, options = {}, _retryDepth = 0) {
   } catch (e) {
     if (throwOnError) throw e;
     return null;
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -75,21 +88,27 @@ async function apiFetch(path, options = {}, _retryDepth = 0) {
    - 단일 in-flight (mutex) — 동시 401 wave가 refresh를 중복 호출하지 않도록
    ══════════════════════════════════════════════ */
 let _refreshInFlight = null;
+let _refreshCompleted = null;
 
-async function refreshAuthOnce() {
-  if (_refreshInFlight) return _refreshInFlight;
-
-  const auth = getAuth();
+async function refreshAuthOnce(auth = getAuth()) {
+  const session = authRequestSession(auth);
+  if (_refreshCompleted?.session === session && authRequestSession() === authRequestSession(_refreshCompleted.auth)) return _refreshCompleted.auth;
+  if (_refreshInFlight?.session === session) return _refreshInFlight.promise;
+  if (session !== authRequestSession()) return null;
   const refreshToken = getRefreshToken(auth);
   if (!refreshToken) {
+    clearAuth();
     notifyAuthExpired();
     return null;
   }
 
-  _refreshInFlight = (async () => {
+  const flight = { session, promise: null };
+  _refreshInFlight = flight;
+  flight.promise = (async () => {
+    let timer;
     try {
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 8000);
+      timer = setTimeout(() => controller.abort(), 8000);
       const res = await fetch(API_BASE + "/api/v1/auth/refresh", {
         method: "POST",
         headers: { "Content-Type": "application/json" }, // #088 — Authorization 헤더 사용 안 함
@@ -97,6 +116,7 @@ async function refreshAuthOnce() {
         signal: controller.signal
       });
       clearTimeout(timer);
+      if (session !== authRequestSession()) return null;
 
       if (!res.ok) {
         console.warn("[#088 refresh] 실패 status=", res.status);
@@ -109,31 +129,37 @@ async function refreshAuthOnce() {
       const newAccess = data?.accessToken || data?.tokens?.accessToken || data?.access_token;
       const newRefresh = data?.refreshToken || data?.tokens?.refreshToken || data?.refresh_token;
       const user = data?.user || auth.user;
-      if (!newAccess) {
+      if (session !== authRequestSession()) return null;
+      const originalUserId = auth?.user?.id || auth?.user?.userId;
+      if (!newAccess || (originalUserId && String(user?.id || user?.userId || "") !== String(originalUserId))) {
         console.warn("[#088 refresh] 응답에 accessToken 없음", { keys: data && typeof data === "object" ? Object.keys(data) : [] });
         clearAuth();
         notifyAuthExpired();
         return null;
       }
-      setAuth({
+      const refreshed = {
         accessToken: newAccess,
         refreshToken: newRefresh || refreshToken, // rotation 미적용 시 기존값 유지
         user
-      });
+      };
+      _refreshCompleted = { session, auth: refreshed };
+      setAuth(refreshed);
       console.info("[#088 refresh] OK");
-      return { accessToken: newAccess, refreshToken: newRefresh, user };
+      return refreshed;
     } catch (err) {
-      console.warn("[#088 refresh] 예외:", err);
+      if (session !== authRequestSession()) return null;
+      console.warn("[#088 refresh] transport failure");
       clearAuth();
       notifyAuthExpired();
       return null;
     } finally {
       // 다음 wave를 위해 microtask 뒤 락 해제 — 동일 wave는 같은 promise 결과 공유
-      setTimeout(() => { _refreshInFlight = null; }, 0);
+      clearTimeout(timer);
+      setTimeout(() => { if (_refreshInFlight === flight) _refreshInFlight = null; }, 0);
     }
   })();
 
-  return _refreshInFlight;
+  return flight.promise;
 }
 
 function notifyAuthExpired() {
@@ -167,8 +193,12 @@ function getAuth() {
   } catch { return null; }
 }
 function setAuth(auth) {
+  if (_refreshCompleted && authRequestSession(auth) !== authRequestSession(_refreshCompleted.auth)) _refreshCompleted = null;
   if (auth) localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(auth));
   else      localStorage.removeItem(AUTH_STORAGE_KEY);
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event("lumina:authchange"));
+  }
 }
 function clearAuth() { setAuth(null); }
 function isLoggedIn() { return !!(getAuth()?.accessToken); }
@@ -230,6 +260,54 @@ const I18N_DICT = {
   "nav.shortform": { "ko-KR": "숏폼", "ja-JP": "ショート", "en-US": "Shorts", "zh-CN": "短视频", "zh-Hant": "短影音" },
   "nav.story": { "ko-KR": "스토리", "ja-JP": "ストーリー", "en-US": "Story", "zh-CN": "故事", "zh-Hant": "故事" },
   "nav.ott": { "ko-KR": "선택극장", "ja-JP": "選択劇場", "en-US": "Choice Theater", "zh-CN": "选择剧场", "zh-Hant": "選擇劇場" },
+  // Lumina Pick page UI. Artist and campaign content stays in its source language.
+  "pick.hero.title": { "ko-KR": "루미나 픽", "ja-JP": "ルミナピック", "en-US": "Lumina Pick", "zh-CN": "Lumina Pick", "zh-Hant": "Lumina Pick" },
+  "pick.hero.body": { "ko-KR": "팬의 선택이 이달의 주인공을 만듭니다. 오늘 마음이 닿은 아티스트에게 한 표를 보내고, 다음 무대의 스포트라이트를 함께 밝혀주세요.", "ja-JP": "ファンの選択が今月の主役を決めます。心に響いたアーティストに一票を送り、次のステージを一緒に照らしましょう。", "en-US": "Fans choose this month's star. Support the artist who moved you today and help light up their next stage.", "zh-CN": "粉丝的选择决定本月主角。为今天打动你的艺人投上一票，一起点亮下一座舞台。", "zh-Hant": "粉絲的選擇決定本月主角。為今天打動你的藝人投上一票，一起點亮下一座舞台。" },
+  "pick.hero.note.before": { "ko-KR": "프리미엄챗 소통/후원 활동은 ", "ja-JP": "プレミアムチャットでの交流・支援は", "en-US": "Premium chat interactions and support are counted separately in ", "zh-CN": "高级聊天互动与支持活动另计入", "zh-Hant": "進階聊天互動與支持活動另計入" },
+  "pick.hero.note.link": { "ko-KR": "소통·후원 랭킹", "ja-JP": "交流・支援ランキング", "en-US": "Chat & Support Rankings", "zh-CN": "互动与支持排行", "zh-Hant": "互動與支持排行" },
+  "pick.hero.note.after": { "ko-KR": "에서 별도로 집계돼요.", "ja-JP": "で別途集計されます。", "en-US": ".", "zh-CN": "。", "zh-Hant": "。" },
+  "pick.hero.thisMonth": { "ko-KR": "이번 달", "ja-JP": "今月", "en-US": "This month", "zh-CN": "本月", "zh-Hant": "本月" },
+  "pick.hero.campaign": { "ko-KR": "진행 중 캠페인", "ja-JP": "開催中のキャンペーン", "en-US": "Active campaign", "zh-CN": "进行中的活动", "zh-Hant": "進行中的活動" },
+  "pick.hero.freeSupport": { "ko-KR": "오늘의 무료 응원", "ja-JP": "今日の無料応援", "en-US": "Today's free support", "zh-CN": "今日免费应援", "zh-Hant": "今日免費應援" },
+  "pick.hero.oneVote": { "ko-KR": "오늘의 한 표", "ja-JP": "今日の一票", "en-US": "Your vote today", "zh-CN": "今日一票", "zh-Hant": "今日一票" },
+  "pick.hero.quota": { "ko-KR": "오늘 {remaining}/{limit} 남음", "ja-JP": "本日残り {remaining}/{limit}", "en-US": "{remaining}/{limit} left today", "zh-CN": "今日剩余 {remaining}/{limit}", "zh-Hant": "今日剩餘 {remaining}/{limit}" },
+  "pick.tab.monthly": { "ko-KR": "이달의 픽", "ja-JP": "今月のピック", "en-US": "Monthly Pick", "zh-CN": "本月之选", "zh-Hant": "本月之選" },
+  "pick.tab.race": { "ko-KR": "응원 레이스", "ja-JP": "応援レース", "en-US": "Cheer Race", "zh-CN": "应援竞赛", "zh-Hant": "應援競賽" },
+  "pick.tab.hall": { "ko-KR": "명예의 전당", "ja-JP": "殿堂", "en-US": "Hall of Fame", "zh-CN": "名人堂", "zh-Hant": "名人堂" },
+  "pick.monthly.body": { "ko-KR": "이번 달 가장 많은 선택을 받은 아티스트가 주인공이 됩니다. 월간 픽의 이름은 명예의 전당에 오래 남습니다.", "ja-JP": "今月最も多く選ばれたアーティストが主役になります。その名は殿堂に刻まれます。", "en-US": "The artist with the most support this month takes the spotlight and earns a place in the Hall of Fame.", "zh-CN": "本月获得最多支持的艺人将成为主角，并留名名人堂。", "zh-Hant": "本月獲得最多支持的藝人將成為主角，並留名名人堂。" },
+  "pick.race.title": { "ko-KR": "오늘의 한 표가 무대를 바꿉니다", "ja-JP": "今日の一票がステージを変える", "en-US": "Today's vote can change the stage", "zh-CN": "今天的一票，改变下一座舞台", "zh-Hant": "今天的一票，改變下一座舞台" },
+  "pick.race.body": { "ko-KR": "아티스트마다 다른 이유로 이 무대에 서 있습니다. 마음이 움직인 이름에게 오늘의 응원을 보내주세요.", "ja-JP": "それぞれの想いを胸に、アーティストはこのステージに立っています。心を動かされた人に今日の応援を送りましょう。", "en-US": "Every artist has a reason to be here. Send today's support to the one who moved you.", "zh-CN": "每位艺人都带着不同的理由站上舞台。将今天的支持送给打动你的人。", "zh-Hant": "每位藝人都帶著不同的理由站上舞台。將今天的支持送給打動你的人。" },
+  "pick.hall.body": { "ko-KR": "월간 픽과 연간 챔피언이 기록되는 공간입니다. 팬이 만든 순간은 이곳에서 다시 빛납니다.", "ja-JP": "月間ピックと年間チャンピオンの記録です。ファンが作った瞬間がここで再び輝きます。", "en-US": "Monthly Picks and annual champions are recorded here. Moments made by fans shine again.", "zh-CN": "这里记录月度之选和年度冠军。粉丝创造的精彩时刻在此重现。", "zh-Hant": "這裡記錄月度之選和年度冠軍。粉絲創造的精彩時刻在此重現。" },
+  "pick.archive.title": { "ko-KR": "월간 픽 아카이브", "ja-JP": "月間ピックの記録", "en-US": "Monthly Pick Archive", "zh-CN": "月度之选档案", "zh-Hant": "月度之選檔案" },
+  "pick.archive.year": { "ko-KR": "연도", "ja-JP": "年", "en-US": "Year", "zh-CN": "年份", "zh-Hant": "年份" },
+  "pick.archive.yearAria": { "ko-KR": "아카이브 연도", "ja-JP": "記録の年", "en-US": "Archive year", "zh-CN": "档案年份", "zh-Hant": "檔案年份" },
+  "pick.archive.yearOption": { "ko-KR": "{year}년", "ja-JP": "{year}年", "en-US": "{year}", "zh-CN": "{year}年", "zh-Hant": "{year}年" },
+  "pick.status.loading": { "ko-KR": "불러오는 중…", "ja-JP": "読み込み中…", "en-US": "Loading…", "zh-CN": "加载中…", "zh-Hant": "載入中…" },
+  "pick.status.tallying": { "ko-KR": "집계 중", "ja-JP": "集計中", "en-US": "Tallying", "zh-CN": "统计中", "zh-Hant": "統計中" },
+  "pick.status.awaitingVote": { "ko-KR": "첫 응원 대기", "ja-JP": "最初の応援待ち", "en-US": "Awaiting first vote", "zh-CN": "等待首票", "zh-Hant": "等待首票" },
+  "pick.status.unavailable": { "ko-KR": "집계 확인 불가", "ja-JP": "集計を確認できません", "en-US": "Results unavailable", "zh-CN": "暂无法查看结果", "zh-Hant": "暫無法查看結果" },
+  "pick.monthly.noVotes": { "ko-KR": "아직 첫 응원이 도착하기 전이에요. 이달의 주인공은 팬의 첫 선택에서 시작됩니다.", "ja-JP": "最初の応援を待っています。今月の主役はファンの最初の一票から始まります。", "en-US": "The first vote has yet to arrive. This month's star starts with a fan's choice.", "zh-CN": "还在等待第一份应援。本月主角从粉丝的第一票开始。", "zh-Hant": "還在等待第一份應援。本月主角從粉絲的第一票開始。" },
+  "pick.monthly.loadError": { "ko-KR": "이달의 집계를 불러오지 못했어요. 잠시 후 다시 확인해 주세요.", "ja-JP": "今月の集計を読み込めませんでした。しばらくしてからお試しください。", "en-US": "Could not load this month's results. Please try again shortly.", "zh-CN": "无法加载本月统计结果，请稍后再试。", "zh-Hant": "無法載入本月統計結果，請稍後再試。" },
+  "pick.race.empty": { "ko-KR": "아직 진행 중인 픽이 없어요. 다음 라운드가 열리면 이곳에서 바로 응원할 수 있습니다.", "ja-JP": "現在開催中のピックはありません。次のラウンドが始まるとここで応援できます。", "en-US": "No active picks yet. You can support artists here when the next round opens.", "zh-CN": "目前没有进行中的评选。下一轮开启后即可在这里应援。", "zh-Hant": "目前沒有進行中的評選。下一輪開啟後即可在這裡應援。" },
+  "pick.rank.label": { "ko-KR": "{rank}위", "ja-JP": "{rank}位", "en-US": "#{rank}", "zh-CN": "第{rank}名", "zh-Hant": "第{rank}名" },
+  "pick.rank.support": { "ko-KR": "{count} 응원", "ja-JP": "応援 {count}", "en-US": "{count} supports", "zh-CN": "{count}次应援", "zh-Hant": "{count}次應援" },
+  "pick.rank.heading": { "ko-KR": "응원 순위", "ja-JP": "応援ランキング", "en-US": "Support Rankings", "zh-CN": "应援排行", "zh-Hant": "應援排行" },
+  "pick.rank.more": { "ko-KR": "{count}명 더보기 ↓", "ja-JP": "あと{count}人を表示 ↓", "en-US": "Show {count} more ↓", "zh-CN": "再看{count}人 ↓", "zh-Hant": "再看{count}人 ↓" },
+  "pick.rank.less": { "ko-KR": "접기 ↑", "ja-JP": "閉じる ↑", "en-US": "Show less ↑", "zh-CN": "收起 ↑", "zh-Hant": "收起 ↑" },
+  "pick.action.mood": { "ko-KR": "{name} 무드 보기", "ja-JP": "{name}の世界観を見る", "en-US": "Explore {name}'s vibe", "zh-CN": "了解{name}的风格", "zh-Hant": "了解{name}的風格" },
+  "pick.action.chat": { "ko-KR": "AI 캐릭터챗", "ja-JP": "AIキャラクターチャット", "en-US": "AI Character Chat", "zh-CN": "AI 角色聊天", "zh-Hant": "AI 角色聊天" },
+  "pick.action.support": { "ko-KR": "루미나 픽에서 응원하기", "ja-JP": "ルミナピックで応援する", "en-US": "Support in Lumina Pick", "zh-CN": "在 Lumina Pick 应援", "zh-Hant": "在 Lumina Pick 應援" },
+  "pick.action.unavailable": { "ko-KR": "응원 기능 연결 중", "ja-JP": "応援機能を準備中", "en-US": "Support is being set up", "zh-CN": "应援功能准备中", "zh-Hant": "應援功能準備中" },
+  "pick.year.champion": { "ko-KR": "{year} 연간 챔피언", "ja-JP": "{year}年 年間チャンピオン", "en-US": "{year} Annual Champion", "zh-CN": "{year} 年度冠军", "zh-Hant": "{year} 年度冠軍" },
+  "pick.year.score": { "ko-KR": "1년 누적 응원 {score}점으로 {year}년 가장 빛난 이름이 되었습니다.", "ja-JP": "年間の応援スコア{score}点で、{year}年に最も輝いたアーティストになりました。", "en-US": "With {score} support points this year, this artist shone brightest in {year}.", "zh-CN": "凭借全年{score}应援积分，成为{year}年最闪耀的艺人。", "zh-Hant": "憑藉全年{score}應援積分，成為{year}年最閃耀的藝人。" },
+  "pick.year.waiting": { "ko-KR": "이 자리는 올해 가장 오래 사랑받은 아티스트에게 열립니다. 매일의 응원이 1년의 영광으로 이어집니다.", "ja-JP": "この場所は一年を通じて最も愛されたアーティストのために。毎日の応援が一年の栄光につながります。", "en-US": "This place awaits the artist loved throughout the year. Every day's support adds up.", "zh-CN": "这里留给全年最受喜爱的艺人。每天的应援汇成一年的荣耀。", "zh-Hant": "這裡留給全年最受喜愛的藝人。每天的應援匯成一年的榮耀。" },
+  "pick.archive.loadError": { "ko-KR": "월간 기록을 불러오지 못했어요. 잠시 후 다시 확인해 주세요.", "ja-JP": "月間記録を読み込めませんでした。しばらくしてからお試しください。", "en-US": "Could not load monthly records. Please try again shortly.", "zh-CN": "无法加载月度记录，请稍后再试。", "zh-Hant": "無法載入月度記錄，請稍後再試。" },
+  "pick.archive.firstPending": { "ko-KR": "{year}년 첫 월간 1위는 팬들의 응원이 모이는 순간 이곳에 기록됩니다.", "ja-JP": "{year}年最初の月間1位は、ファンの応援が集まるとここに記録されます。", "en-US": "The first Monthly Pick of {year} will appear here once fans' support is counted.", "zh-CN": "{year}年的首位月度冠军将在粉丝应援汇集后记录于此。", "zh-Hant": "{year}年的首位月度冠軍將在粉絲應援匯集後記錄於此。" },
+  "pick.archive.noYear": { "ko-KR": "{year}년 월간 선정 기록이 없습니다.", "ja-JP": "{year}年の月間選出記録はありません。", "en-US": "No Monthly Pick records for {year}.", "zh-CN": "{year}年没有月度评选记录。", "zh-Hant": "{year}年沒有月度評選記錄。" },
+  "pick.archive.settling": { "ko-KR": "집계 확정 중", "ja-JP": "集計確定中", "en-US": "Finalizing results", "zh-CN": "结果确认中", "zh-Hant": "結果確認中" },
+  "pick.archive.noRecord": { "ko-KR": "선정 기록 없음", "ja-JP": "選出記録なし", "en-US": "No selection recorded", "zh-CN": "暂无评选记录", "zh-Hant": "暫無評選記錄" },
+  "pick.archive.unknownArtist": { "ko-KR": "알 수 없는 아티스트", "ja-JP": "不明なアーティスト", "en-US": "Unknown artist", "zh-CN": "未知艺人", "zh-Hant": "未知藝人" },
+  "pick.footer.body": { "ko-KR": "아티스트와 팬이 만나는 공간입니다. 매일 응원으로 무대를 함께 만드세요.", "ja-JP": "アーティストとファンが出会う場所。毎日の応援でステージを一緒に作りましょう。", "en-US": "Where artists and fans meet. Help make the stage with your support every day.", "zh-CN": "艺人与粉丝相遇的空间。每天用应援一起创造舞台。", "zh-Hant": "藝人與粉絲相遇的空間。每天用應援一起創造舞台。" },
   "home.discovery.story.label": { "ko-KR": "스토리", "ja-JP": "ストーリー", "en-US": "Story", "zh-CN": "故事", "zh-Hant": "故事" },
   "home.discovery.story": { "ko-KR": "공개된 이야기를 찾아보세요", "ja-JP": "公開中の物語を探す", "en-US": "Browse published stories", "zh-CN": "探索已公开的故事", "zh-Hant": "探索已公開的故事" },
   "home.discovery.ott.label": { "ko-KR": "선택극장", "ja-JP": "選択劇場", "en-US": "Choice Theater", "zh-CN": "选择剧场", "zh-Hant": "選擇劇場" },
@@ -332,7 +410,56 @@ const I18N_DICT = {
   "character.status.private.summary": { "ko-KR": "비공개", "ja-JP": "非公開", "en-US": "Private", "zh-CN": "非公开", "zh-Hant": "非公開" },
   "character.status.candidate.label": { "ko-KR": "비공개 라인", "ja-JP": "非公開ライン", "en-US": "Private lineup", "zh-CN": "非公开阵容", "zh-Hant": "非公開陣容" },
   "character.status.candidate.summary": { "ko-KR": "비공개", "ja-JP": "非公開", "en-US": "Private", "zh-CN": "非公开", "zh-Hant": "非公開" },
+  "character.filter.newArtists": { "ko-KR": "신규 아티스트", "ja-JP": "新しいアーティスト", "en-US": "New artists", "zh-CN": "新艺人", "zh-Hant": "新藝人" },
+  "artist.public.loading": { "ko-KR": "공개 아티스트를 불러오는 중입니다.", "ja-JP": "公開アーティストを読み込んでいます。", "en-US": "Loading public artists.", "zh-CN": "正在加载公开艺人。", "zh-Hant": "正在載入公開藝人。" },
+  "artist.public.error": { "ko-KR": "공개 아티스트를 불러오지 못했습니다.", "ja-JP": "公開アーティストを読み込めませんでした。", "en-US": "Could not load public artists.", "zh-CN": "无法加载公开艺人。", "zh-Hant": "無法載入公開藝人。" },
+  "artist.public.empty": { "ko-KR": "현재 공개된 아티스트가 없습니다.", "ja-JP": "現在、公開アーティストはいません。", "en-US": "No artists are currently public.", "zh-CN": "目前没有公开艺人。", "zh-Hant": "目前沒有公開藝人。" },
+  "artist.public.noMatch": { "ko-KR": "선택한 조건에 맞는 공개 아티스트가 없습니다.", "ja-JP": "選択した条件に合う公開アーティストはいません。", "en-US": "No public artists match these filters.", "zh-CN": "没有符合所选条件的公开艺人。", "zh-Hant": "沒有符合所選條件的公開藝人。" },
+  "artist.public.notFound": { "ko-KR": "공개된 아티스트를 찾을 수 없습니다.", "ja-JP": "公開アーティストが見つかりません。", "en-US": "This public artist could not be found.", "zh-CN": "找不到该公开艺人。", "zh-Hant": "找不到此公開藝人。" },
+  "artist.public.choose": { "ko-KR": "아티스트를 선택해 주세요", "ja-JP": "アーティストを選択してください。", "en-US": "Choose an artist.", "zh-CN": "请选择艺人。", "zh-Hant": "請選擇藝人。" },
+  "artist.public.retry": { "ko-KR": "다시 확인", "ja-JP": "再試行", "en-US": "Try again", "zh-CN": "重试", "zh-Hant": "重試" },
+  "artist.public.catalog": { "ko-KR": "아티스트 목록 보러 가기", "ja-JP": "アーティスト一覧へ", "en-US": "Browse artists", "zh-CN": "查看艺人列表", "zh-Hant": "查看藝人列表" },
+  // Public artist-detail actions; artist-authored content remains untouched.
+  "detail.follow.count": { "ko-KR": "팔로워 {count}", "ja-JP": "フォロワー {count}", "en-US": "{count} followers", "zh-CN": "{count} 位关注者", "zh-Hant": "{count} 位追蹤者" },
+  "detail.follow.authReturn": { "ko-KR": "아티스트 팔로우 이어가기", "ja-JP": "アーティストのフォローを続ける", "en-US": "Continue following the artist", "zh-CN": "继续关注艺人", "zh-Hant": "繼續追蹤藝人" },
+  "detail.follow.loginRequired": { "ko-KR": "로그인하면 팔로우할 수 있어요.", "ja-JP": "フォローするにはログインしてください。", "en-US": "Log in to follow this artist.", "zh-CN": "登录后即可关注艺人。", "zh-Hant": "登入後即可追蹤藝人。" },
+  "detail.follow.artistUnavailable": { "ko-KR": "아티스트 정보를 불러오지 못했어요. 새로고침 후 다시 시도해주세요.", "ja-JP": "アーティスト情報を読み込めませんでした。再読み込みしてお試しください。", "en-US": "Could not load artist details. Refresh and try again.", "zh-CN": "无法加载艺人信息。请刷新后重试。", "zh-Hant": "無法載入藝人資訊。請重新整理後再試。" },
+  "detail.follow.error": { "ko-KR": "팔로우 처리에 실패했어요.", "ja-JP": "フォローを更新できませんでした。", "en-US": "Could not update your follow. Please try again.", "zh-CN": "无法更新关注状态，请重试。", "zh-Hant": "無法更新追蹤狀態，請再試一次。" },
+  "detail.chat.choose": { "ko-KR": "대화 방법 선택", "ja-JP": "チャット方法を選択", "en-US": "Choose a chat option", "zh-CN": "选择聊天方式", "zh-Hant": "選擇聊天方式" },
+  "detail.chat.ai": { "ko-KR": "AI 캐릭터챗", "ja-JP": "AIキャラクターチャット", "en-US": "AI Character Chat", "zh-CN": "AI 角色聊天", "zh-Hant": "AI 角色聊天" },
+  "detail.chat.free": { "ko-KR": "무료", "ja-JP": "無料", "en-US": "Free", "zh-CN": "免费", "zh-Hant": "免費" },
+  "detail.chat.aiDescription": { "ko-KR": "AI가 캐릭터 톤으로 답변 · 언제든 시작 가능", "ja-JP": "AIがキャラクターらしく返信・いつでも開始可能", "en-US": "AI replies in character · Start anytime", "zh-CN": "AI 以角色口吻回复 · 随时开始", "zh-Hant": "AI 以角色口吻回覆 · 隨時開始" },
+  "detail.chat.aiTooltip": { "ko-KR": "AI 캐릭터챗: AI가 캐릭터 톤앤매너로 답합니다. 무료로 언제든 이용할 수 있어요.", "ja-JP": "AIキャラクターチャット：AIがキャラクターらしく返信します。いつでも無料で利用できます。", "en-US": "AI Character Chat: AI responds in character. Free to use anytime.", "zh-CN": "AI 角色聊天：AI 以角色口吻回复，随时免费使用。", "zh-Hant": "AI 角色聊天：AI 以角色口吻回覆，隨時免費使用。" },
+  "detail.chat.premium": { "ko-KR": "프리미엄챗", "ja-JP": "プレミアムチャット", "en-US": "Premium Chat", "zh-CN": "高级聊天", "zh-Hant": "進階聊天" },
+  "detail.chat.paid": { "ko-KR": "유료", "ja-JP": "有料", "en-US": "Paid", "zh-CN": "付费", "zh-Hant": "付費" },
+  "detail.chat.premiumDescription": { "ko-KR": "아티스트가 직접 DM으로 답변하는 유료 채팅", "ja-JP": "アーティスト本人がDMに返信する有料チャット", "en-US": "Paid chat with direct replies from the artist", "zh-CN": "艺人亲自回复私信的付费聊天", "zh-Hant": "藝人親自回覆私訊的付費聊天" },
+  "detail.chat.premiumTooltip": { "ko-KR": "프리미엄챗: 아티스트가 직접 답변하는 유료 채팅이에요. 방 오픈 시 이용할 수 있어요.", "ja-JP": "プレミアムチャット：アーティスト本人が返信する有料チャットです。公開後に利用できます。", "en-US": "Premium Chat: Paid chat with direct artist replies. Available when the room opens.", "zh-CN": "高级聊天：艺人亲自回复的付费聊天，聊天室开放后可用。", "zh-Hant": "進階聊天：藝人親自回覆的付費聊天，聊天室開放後可用。" },
+  "detail.chat.premiumUnavailable": { "ko-KR": "프리미엄챗 오픈 예정", "ja-JP": "プレミアムチャットは近日公開", "en-US": "Premium Chat coming soon", "zh-CN": "高级聊天即将开放", "zh-Hant": "進階聊天即將開放" },
+  "detail.chat.comingSoon": { "ko-KR": "오픈 예정", "ja-JP": "近日公開", "en-US": "Coming soon", "zh-CN": "即将开放", "zh-Hant": "即將開放" },
+  "detail.chat.note": { "ko-KR": "AI 캐릭터챗은 무료로 언제든 시작할 수 있어요. 프리미엄챗은 아티스트가 직접 답변하는 유료 서비스예요.", "ja-JP": "AIキャラクターチャットはいつでも無料で始められます。プレミアムチャットはアーティスト本人が返信する有料サービスです。", "en-US": "AI Character Chat is free anytime. Premium Chat is a paid service with direct artist replies.", "zh-CN": "AI 角色聊天随时免费使用。高级聊天是艺人亲自回复的付费服务。", "zh-Hant": "AI 角色聊天隨時免費使用。進階聊天是藝人親自回覆的付費服務。" },
+  "detail.chat.aiCtaDescription": { "ko-KR": "AI가 캐릭터 톤으로 답하는 일반 대화", "ja-JP": "AIがキャラクターらしく返信する通常チャット", "en-US": "Regular chat with AI in character", "zh-CN": "AI 以角色口吻回复的普通聊天", "zh-Hant": "AI 以角色口吻回覆的一般聊天" },
+  "detail.chat.premiumCtaDescription": { "ko-KR": "아티스트 직접 답변 · 유료 · 오픈 예정", "ja-JP": "アーティスト本人が返信・有料・近日公開", "en-US": "Direct artist replies · Paid · Coming soon", "zh-CN": "艺人亲自回复 · 付费 · 即将开放", "zh-Hant": "藝人親自回覆 · 付費 · 即將開放" },
+  "detail.support.heading": { "ko-KR": "{name}의 다음 무대를 응원하세요", "ja-JP": "{name}の次のステージを応援しよう", "en-US": "Support {name}'s next stage", "zh-CN": "支持{name}的下一座舞台", "zh-Hant": "支持{name}的下一座舞台" },
+  "detail.support.description": { "ko-KR": "오늘의 응원은 순위와 콘텐츠 반응에 반영되어 다음 장면을 여는 힘이 됩니다.", "ja-JP": "今日の応援はランキングやコンテンツへの反応に反映され、次のシーンにつながります。", "en-US": "Today's support contributes to rankings and content engagement, helping shape the next scene.", "zh-CN": "今天的支持会计入排名和内容反馈，为开启下一幕助力。", "zh-Hant": "今天的支持會計入排名和內容回響，為開啟下一幕助力。" },
+  "detail.support.action": { "ko-KR": "후원하기", "ja-JP": "支援する", "en-US": "Support", "zh-CN": "赞助", "zh-Hant": "贊助" },
+  "detail.gallery.photo": { "ko-KR": "포토 갤러리", "ja-JP": "フォトギャラリー", "en-US": "Photo Gallery", "zh-CN": "照片画廊", "zh-Hant": "照片藝廊" },
+  "detail.gallery.official": { "ko-KR": "공식 이미지", "ja-JP": "公式画像", "en-US": "Official Images", "zh-CN": "官方图片", "zh-Hant": "官方圖片" },
+  "detail.gallery.previous": { "ko-KR": "이전", "ja-JP": "前へ", "en-US": "Previous", "zh-CN": "上一张", "zh-Hant": "上一張" },
+  "detail.gallery.next": { "ko-KR": "다음", "ja-JP": "次へ", "en-US": "Next", "zh-CN": "下一张", "zh-Hant": "下一張" },
   "feed.follow.action": { "ko-KR": "팔로우", "ja-JP": "フォロー", "en-US": "Follow", "zh-CN": "关注", "zh-Hant": "追蹤" },
+  "feed.block.label": { "ko-KR": "차단", "ja-JP": "ブロック", "en-US": "Block", "zh-CN": "屏蔽", "zh-Hant": "封鎖" },
+  "feed.block.action": { "ko-KR": "이 사용자 차단", "ja-JP": "このユーザーをブロック", "en-US": "Block this user", "zh-CN": "屏蔽此用户", "zh-Hant": "封鎖此使用者" },
+  "feed.block.defaultName": { "ko-KR": "이 사용자", "ja-JP": "このユーザー", "en-US": "this user", "zh-CN": "此用户", "zh-Hant": "此使用者" },
+  "feed.block.confirm": { "ko-KR": "{name}님을 차단할까요? 로그인한 피드에서 상대의 글과 댓글이 숨겨지고, 양쪽 팔로우도 해제돼요.", "ja-JP": "{name}さんをブロックしますか？ログイン中のフィードで相手の投稿とコメントが非表示になり、お互いのフォローも解除されます。", "en-US": "Block {name}? Their posts and comments will be hidden in your signed-in feed, and both follow relationships will be removed.", "zh-CN": "要屏蔽{name}吗？登录后的动态中将隐藏对方的帖子和评论，并解除双方的关注。", "zh-Hant": "要封鎖{name}嗎？登入後的動態中將隱藏對方的貼文和留言，並解除雙方的追蹤。" },
+  "feed.block.login": { "ko-KR": "로그인하면 사용자를 차단할 수 있어요.", "ja-JP": "ログインするとユーザーをブロックできます。", "en-US": "Log in to block a user.", "zh-CN": "登录后可以屏蔽用户。", "zh-Hant": "登入後可以封鎖使用者。" },
+  "feed.block.preview": { "ko-KR": "미리보기 자료에서는 차단 요청을 보낼 수 없어요.", "ja-JP": "プレビューのデータではブロックを送信できません。", "en-US": "Blocking is unavailable for preview data.", "zh-CN": "预览数据不能提交屏蔽请求。", "zh-Hant": "預覽資料不能提交封鎖請求。" },
+  "feed.block.invalidTarget": { "ko-KR": "차단할 사용자를 확인하지 못했어요. 피드를 다시 불러와 주세요.", "ja-JP": "対象のユーザーを確認できませんでした。フィードを再読み込みしてください。", "en-US": "Could not identify the user. Please reload the feed.", "zh-CN": "无法确认要屏蔽的用户，请重新加载动态。", "zh-Hant": "無法確認要封鎖的使用者，請重新載入動態。" },
+  "feed.block.self": { "ko-KR": "본인 계정은 차단할 수 없어요.", "ja-JP": "自分のアカウントはブロックできません。", "en-US": "You cannot block your own account.", "zh-CN": "不能屏蔽自己的账号。", "zh-Hant": "不能封鎖自己的帳號。" },
+  "feed.block.success": { "ko-KR": "사용자를 차단했어요.", "ja-JP": "ユーザーをブロックしました。", "en-US": "User blocked.", "zh-CN": "已屏蔽该用户。", "zh-Hant": "已封鎖該使用者。" },
+  "feed.block.refreshError": { "ko-KR": "사용자는 차단했지만 피드를 다시 불러오지 못했어요. 잠시 후 다시 조회해 주세요.", "ja-JP": "ユーザーはブロックしましたが、フィードを再読み込みできませんでした。後ほど再試行してください。", "en-US": "User blocked, but the feed could not be reloaded. Please try again shortly.", "zh-CN": "已屏蔽用户，但无法重新加载动态，请稍后再试。", "zh-Hant": "已封鎖使用者，但無法重新載入動態，請稍後再試。" },
+  "feed.block.expired": { "ko-KR": "로그인이 만료됐어요. 다시 로그인해 주세요.", "ja-JP": "ログインの有効期限が切れました。もう一度ログインしてください。", "en-US": "Your session expired. Please log in again.", "zh-CN": "登录已过期，请重新登录。", "zh-Hant": "登入已過期，請重新登入。" },
+  "feed.block.rateLimited": { "ko-KR": "요청이 너무 많아요. 잠시 후 다시 시도해 주세요.", "ja-JP": "リクエストが多すぎます。しばらくしてから再試行してください。", "en-US": "Too many requests. Please try again shortly.", "zh-CN": "请求过于频繁，请稍后再试。", "zh-Hant": "請求過於頻繁，請稍後再試。" },
+  "feed.block.error": { "ko-KR": "차단 결과를 확인하지 못했어요. 피드를 다시 조회한 후 확인해 주세요.", "ja-JP": "ブロックの結果を確認できませんでした。フィードを再読み込みして確認してください。", "en-US": "Could not confirm the block result. Please reload the feed to check.", "zh-CN": "无法确认屏蔽结果，请重新加载动态后确认。", "zh-Hant": "無法確認封鎖結果，請重新載入動態後確認。" },
   "feed.follow.cancel": { "ko-KR": "팔로우 취소", "ja-JP": "フォロー解除", "en-US": "Unfollow", "zh-CN": "取消关注", "zh-Hant": "取消追蹤" },
   "miniProfile.loading": { "ko-KR": "로딩 중…", "ja-JP": "読み込み中…", "en-US": "Loading…", "zh-CN": "加载中…", "zh-Hant": "載入中…" },
   "miniProfile.detail": { "ko-KR": "상세 프로필 보기 →", "ja-JP": "詳細プロフィールを見る →", "en-US": "View full profile →", "zh-CN": "查看详细资料 →", "zh-Hant": "查看詳細資料 →" },
@@ -366,6 +493,8 @@ const I18N_DICT = {
     "zh-Hant": "上傳最終稿件 | Lumina Stage"
   },
   "footer.businessInquiry": { "ko-KR": "Business Inquiry", "ja-JP": "Business Inquiry", "en-US": "Business Inquiry", "zh-CN": "商务合作", "zh-Hant": "商務合作" },
+  "footer.partnerInquiry": { "ko-KR": "사업·투자 문의", "ja-JP": "事業・投資のお問い合わせ", "en-US": "Business & investment inquiries", "zh-CN": "商务与投资咨询", "zh-Hant": "商務與投資諮詢" },
+  "footer.partnerInquiry.helper": { "ko-KR": "사업 제휴, 전략 파트너, 투자 관련 문의를 확인합니다.", "ja-JP": "事業提携、戦略的パートナーシップ、投資に関するお問い合わせ。", "en-US": "Explore business partnerships, strategic partnerships, and investment inquiries.", "zh-CN": "了解业务合作、战略伙伴关系及投资咨询。", "zh-Hant": "了解業務合作、策略夥伴關係及投資諮詢。" },
   "footer.businessInquiry.helper": {
     "ko-KR": "브랜드 협업, IP 제휴, 제작 문의는 Lumina Stage 비즈니스 채널로 연결됩니다.",
     "ja-JP": "ブランドコラボ、IP提携、制作のお問い合わせはLumina Stageのビジネス窓口へ。",
@@ -1048,6 +1177,25 @@ const I18N_DICT = {
     "zh-CN": "举报这篇帖子（准备中）",
     "zh-Hant": "檢舉這篇貼文（準備中）"
   },
+  "feed.report.title": { "ko-KR": "이 글 신고", "ja-JP": "この投稿を通報", "en-US": "Report this post", "zh-CN": "举报这篇帖子", "zh-Hant": "檢舉這篇貼文" },
+  "feed.report.reason": { "ko-KR": "신고 사유", "ja-JP": "通報理由", "en-US": "Reason", "zh-CN": "举报理由", "zh-Hant": "檢舉原因" },
+  "feed.report.choose": { "ko-KR": "사유 선택", "ja-JP": "理由を選択", "en-US": "Select a reason", "zh-CN": "选择理由", "zh-Hant": "選擇原因" },
+  "feed.report.detail": { "ko-KR": "추가 내용 (선택)", "ja-JP": "詳細（任意）", "en-US": "Additional details (optional)", "zh-CN": "补充内容（选填）", "zh-Hant": "補充內容（選填）" },
+  "feed.report.cancel": { "ko-KR": "닫기", "ja-JP": "閉じる", "en-US": "Close", "zh-CN": "关闭", "zh-Hant": "關閉" },
+  "feed.report.submit": { "ko-KR": "신고 접수", "ja-JP": "通報を送信", "en-US": "Submit report", "zh-CN": "提交举报", "zh-Hant": "送出檢舉" },
+  "feed.report.sending": { "ko-KR": "접수 중입니다.", "ja-JP": "送信中です。", "en-US": "Submitting report.", "zh-CN": "正在提交。", "zh-Hant": "正在送出。" },
+  "feed.report.submitted": { "ko-KR": "신고가 접수됐습니다.", "ja-JP": "通報を受け付けました。", "en-US": "Your report was submitted.", "zh-CN": "举报已提交。", "zh-Hant": "檢舉已送出。" },
+  "feed.report.duplicate": { "ko-KR": "이미 접수된 신고입니다.", "ja-JP": "この通報は受付済みです。", "en-US": "This report was already submitted.", "zh-CN": "此举报已提交。", "zh-Hant": "此檢舉已送出。" },
+  "feed.report.error": { "ko-KR": "접수 결과를 확인하지 못했습니다. 다시 시도해 주세요.", "ja-JP": "送信結果を確認できません。もう一度お試しください。", "en-US": "Could not confirm submission. Please try again.", "zh-CN": "无法确认提交结果，请重试。", "zh-Hant": "無法確認送出結果，請重試。" },
+  "feed.report.auth": { "ko-KR": "다시 로그인해 주세요.", "ja-JP": "再度ログインしてください。", "en-US": "Please log in again.", "zh-CN": "请重新登录。", "zh-Hant": "請重新登入。" },
+  "feed.report.unavailable": { "ko-KR": "현재 이 글을 신고할 수 없습니다.", "ja-JP": "現在この投稿は通報できません。", "en-US": "This post cannot be reported right now.", "zh-CN": "目前无法举报此帖子。", "zh-Hant": "目前無法檢舉此貼文。" },
+  "feed.report.invalid": { "ko-KR": "사유와 추가 내용을 확인해 주세요.", "ja-JP": "理由と詳細を確認してください。", "en-US": "Please check the reason and details.", "zh-CN": "请检查理由和补充内容。", "zh-Hant": "請檢查原因和補充內容。" },
+  "feed.report.reason.sexual_content": { "ko-KR": "성적 콘텐츠", "ja-JP": "性的コンテンツ", "en-US": "Sexual content", "zh-CN": "色情内容", "zh-Hant": "色情內容" },
+  "feed.report.reason.harassment": { "ko-KR": "괴롭힘", "ja-JP": "嫌がらせ", "en-US": "Harassment", "zh-CN": "骚扰", "zh-Hant": "騷擾" },
+  "feed.report.reason.hate": { "ko-KR": "혐오 표현", "ja-JP": "ヘイト表現", "en-US": "Hate speech", "zh-CN": "仇恨言论", "zh-Hant": "仇恨言論" },
+  "feed.report.reason.impersonation": { "ko-KR": "사칭", "ja-JP": "なりすまし", "en-US": "Impersonation", "zh-CN": "冒充他人", "zh-Hant": "冒充他人" },
+  "feed.report.reason.spam": { "ko-KR": "스팸", "ja-JP": "スパム", "en-US": "Spam", "zh-CN": "垃圾信息", "zh-Hant": "垃圾訊息" },
+  "feed.report.reason.other": { "ko-KR": "기타", "ja-JP": "その他", "en-US": "Other", "zh-CN": "其他", "zh-Hant": "其他" },
   "feed.tab.posts": {
     "ko-KR": "피드",
     "ja-JP": "フィード",
@@ -1090,6 +1238,100 @@ const I18N_DICT = {
     "zh-CN": "无法加载短视频。",
     "zh-Hant": "無法載入短影音。"
   },
+  "feed.side.navigation": { "ko-KR": "루미나 피드 바로가기", "ja-JP": "ルミナフィードのショートカット", "en-US": "Lumina Feed shortcuts", "zh-CN": "Lumina Feed 快捷导航", "zh-Hant": "Lumina Feed 快捷導覽" },
+  "feed.side.myProfile": { "ko-KR": "내 프로필", "ja-JP": "マイプロフィール", "en-US": "My profile", "zh-CN": "我的主页", "zh-Hant": "我的個人頁面" },
+  "feed.side.viewProfile": { "ko-KR": "내꺼 보러가기", "ja-JP": "プロフィールを見る", "en-US": "View my profile", "zh-CN": "查看我的主页", "zh-Hant": "查看我的個人頁面" },
+  "feed.side.myFeed": { "ko-KR": "내 피드 보기", "ja-JP": "マイフィードを見る", "en-US": "View my feed", "zh-CN": "查看我的动态", "zh-Hant": "查看我的動態" },
+  "feed.side.posts": { "ko-KR": "게시물", "ja-JP": "投稿", "en-US": "Posts", "zh-CN": "帖子", "zh-Hant": "貼文" },
+  "feed.side.photos": { "ko-KR": "사진", "ja-JP": "写真", "en-US": "Photos", "zh-CN": "照片", "zh-Hant": "照片" },
+  "feed.side.likes": { "ko-KR": "좋아요", "ja-JP": "いいね", "en-US": "Likes", "zh-CN": "赞", "zh-Hant": "讚" },
+  "feed.search.label": { "ko-KR": "검색", "ja-JP": "検索", "en-US": "Search", "zh-CN": "搜索", "zh-Hant": "搜尋" },
+  "feed.search.placeholder": { "ko-KR": "작성자, 글 검색", "ja-JP": "投稿者・投稿を検索", "en-US": "Search authors and posts", "zh-CN": "搜索作者和帖子", "zh-Hant": "搜尋作者和貼文" },
+  "feed.surface.navigation": { "ko-KR": "피드 화면", "ja-JP": "フィード画面", "en-US": "Feed views", "zh-CN": "动态视图", "zh-Hant": "動態檢視" },
+  "feed.filter.navigation": { "ko-KR": "피드 필터", "ja-JP": "フィードの絞り込み", "en-US": "Feed filters", "zh-CN": "动态筛选", "zh-Hant": "動態篩選" },
+  "feed.filter.all": { "ko-KR": "전체", "ja-JP": "すべて", "en-US": "All", "zh-CN": "全部", "zh-Hant": "全部" },
+  "feed.filter.following": { "ko-KR": "팔로잉", "ja-JP": "フォロー中", "en-US": "Following", "zh-CN": "关注中", "zh-Hant": "追蹤中" },
+  "feed.filter.artist": { "ko-KR": "아티스트", "ja-JP": "アーティスト", "en-US": "Artists", "zh-CN": "艺人", "zh-Hant": "藝人" },
+  "feed.filter.fan": { "ko-KR": "팬", "ja-JP": "ファン", "en-US": "Fans", "zh-CN": "粉丝", "zh-Hant": "粉絲" },
+  "feed.filter.debut": { "ko-KR": "데뷔 준비", "ja-JP": "デビュー準備中", "en-US": "Pre-debut", "zh-CN": "出道准备", "zh-Hant": "出道準備" },
+  "feed.compose.navigation": { "ko-KR": "피드 작성", "ja-JP": "フィードに投稿", "en-US": "Create a feed post", "zh-CN": "发布动态", "zh-Hant": "發佈動態" },
+  "feed.compose.placeholder": { "ko-KR": "지금 떠오른 응원을 남겨보세요.", "ja-JP": "今伝えたい応援を投稿しましょう。", "en-US": "Share the support on your mind.", "zh-CN": "写下此刻想送出的应援。", "zh-Hant": "寫下此刻想送出的應援。" },
+  "feed.compose.content": { "ko-KR": "피드 내용", "ja-JP": "投稿内容", "en-US": "Post content", "zh-CN": "帖子内容", "zh-Hant": "貼文內容" },
+  "feed.compose.attachTitle": { "ko-KR": "이미지 첨부 (최대 4장)", "ja-JP": "画像を添付（最大4枚）", "en-US": "Attach images (up to 4)", "zh-CN": "添加图片（最多4张）", "zh-Hant": "附加圖片（最多4張）" },
+  "feed.compose.attachDetails": { "ko-KR": "이미지 첨부 ({types}, 장당 {max}MB 이하)", "ja-JP": "画像を添付（{types}、1枚{max}MB以下）", "en-US": "Attach images ({types}, up to {max}MB each)", "zh-CN": "添加图片（{types}，每张不超过 {max}MB）", "zh-Hant": "附加圖片（{types}，每張不超過 {max}MB）" },
+  "feed.compose.attachLabel": { "ko-KR": "이미지 · {max}MB 이하", "ja-JP": "画像 · {max}MB以下", "en-US": "Images · up to {max}MB", "zh-CN": "图片 · 不超过 {max}MB", "zh-Hant": "圖片 · 不超過 {max}MB" },
+  "feed.compose.image": { "ko-KR": "이미지", "ja-JP": "画像", "en-US": "Image", "zh-CN": "图片", "zh-Hant": "圖片" },
+  "feed.compose.submit": { "ko-KR": "게시하기", "ja-JP": "投稿する", "en-US": "Post", "zh-CN": "发布", "zh-Hant": "發佈" },
+  "feed.compose.submitting": { "ko-KR": "게시 중", "ja-JP": "投稿中", "en-US": "Posting", "zh-CN": "发布中", "zh-Hant": "發佈中" },
+  "feed.compose.followupTitle": { "ko-KR": "방금 글을 올렸어요", "ja-JP": "投稿しました", "en-US": "Your post is live", "zh-CN": "帖子已发布", "zh-Hant": "貼文已發佈" },
+  "feed.compose.followupBody": { "ko-KR": "더 길게 잇고 싶으면 이어서 타래로 풀어쓸 수 있어요. 조각당 500자, 총 10조각까지.", "ja-JP": "続きを書きたい場合はスレッドにできます。1投稿500字、最大10投稿まで。", "en-US": "Keep writing as a thread if you have more to say. Up to 500 characters per part and 10 parts total.", "zh-CN": "想继续写的话，可以接成帖子串。每段最多500字，共10段。", "zh-Hant": "想繼續寫的話，可以接成貼文串。每段最多500字，共10段。" },
+  "feed.compose.continue": { "ko-KR": "이어서 쓰기", "ja-JP": "続きを書く", "en-US": "Continue writing", "zh-CN": "继续写", "zh-Hant": "繼續寫" },
+  "feed.compose.dismissFollowup": { "ko-KR": "이어서 쓰기 안내 닫기", "ja-JP": "続きを書く案内を閉じる", "en-US": "Dismiss continue-writing notice", "zh-CN": "关闭续写提示", "zh-Hant": "關閉續寫提示" },
+  "feed.compose.guest": { "ko-KR": "로그인하면 응원과 후기를 직접 남길 수 있어요.", "ja-JP": "ログインすると応援や感想を投稿できます。", "en-US": "Log in to share your support and thoughts.", "zh-CN": "登录后即可发布应援和感想。", "zh-Hant": "登入後即可發佈應援和心得。" },
+  "feed.compose.login": { "ko-KR": "로그인하기", "ja-JP": "ログイン", "en-US": "Log in", "zh-CN": "登录", "zh-Hant": "登入" },
+  "feed.detail.navigation": { "ko-KR": "글 상세 보기", "ja-JP": "投稿の詳細", "en-US": "Post details", "zh-CN": "帖子详情", "zh-Hant": "貼文詳情" },
+  "feed.discovery.navigation": { "ko-KR": "루미나 피드 실시간 검색", "ja-JP": "ルミナフィードのリアルタイム検索", "en-US": "Lumina Feed discovery", "zh-CN": "Lumina Feed 实时搜索", "zh-Hant": "Lumina Feed 即時搜尋" },
+  "feed.discovery.trends": { "ko-KR": "아티스트 Pulse", "ja-JP": "アーティスト Pulse", "en-US": "Artist Pulse", "zh-CN": "艺人 Pulse", "zh-Hant": "藝人 Pulse" },
+  "feed.discovery.realtime": { "ko-KR": "실시간", "ja-JP": "リアルタイム", "en-US": "Live", "zh-CN": "实时", "zh-Hant": "即時" },
+  "feed.discovery.hashtags": { "ko-KR": "팬덤 미션", "ja-JP": "ファンダムミッション", "en-US": "Fandom Missions", "zh-CN": "粉丝任务", "zh-Hant": "粉絲任務" },
+  "feed.discovery.today": { "ko-KR": "오늘", "ja-JP": "今日", "en-US": "Today", "zh-CN": "今天", "zh-Hant": "今天" },
+  "feed.discovery.loading": { "ko-KR": "불러오는 중…", "ja-JP": "読み込み中…", "en-US": "Loading…", "zh-CN": "加载中…", "zh-Hant": "載入中…" },
+  "feed.discovery.locale": { "ko-KR": "한국어", "ja-JP": "日本語", "en-US": "English", "zh-CN": "简体中文", "zh-Hant": "繁體中文" },
+  "feed.discovery.allLanguages": { "ko-KR": "전체 언어", "ja-JP": "すべての言語", "en-US": "All languages", "zh-CN": "所有语言", "zh-Hant": "所有語言" },
+  "feed.discovery.checkedAt": { "ko-KR": "조회 {time}", "ja-JP": "取得 {time}", "en-US": "Checked {time}", "zh-CN": "查询 {time}", "zh-Hant": "查詢 {time}" },
+  "feed.discovery.trendsEmpty": { "ko-KR": "아직 급상승 검색어가 없어요.", "ja-JP": "急上昇の検索語はまだありません。", "en-US": "No trending searches yet.", "zh-CN": "暂时没有热门搜索。", "zh-Hant": "暫時沒有熱門搜尋。" },
+  "feed.discovery.trendsError": { "ko-KR": "급상승 검색어를 불러오지 못했어요.", "ja-JP": "急上昇の検索語を読み込めませんでした。", "en-US": "Could not load trending searches.", "zh-CN": "无法加载热门搜索。", "zh-Hant": "無法載入熱門搜尋。" },
+  "feed.discovery.hashtagsEmpty": { "ko-KR": "아직 발견된 해시태그가 없어요.", "ja-JP": "ハッシュタグはまだありません。", "en-US": "No hashtags found yet.", "zh-CN": "暂时没有话题标签。", "zh-Hant": "暫時沒有主題標籤。" },
+  "feed.discovery.hashtagsError": { "ko-KR": "해시태그를 불러오지 못했어요.", "ja-JP": "ハッシュタグを読み込めませんでした。", "en-US": "Could not load hashtags.", "zh-CN": "无法加载话题标签。", "zh-Hant": "無法載入主題標籤。" },
+  "feed.empty.error": { "ko-KR": "피드 소식을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.", "ja-JP": "フィードを読み込めませんでした。しばらくしてからお試しください。", "en-US": "Could not load the feed. Please try again shortly.", "zh-CN": "无法加载动态，请稍后重试。", "zh-Hant": "無法載入動態，請稍後再試。" },
+  "feed.empty.followingGuest": { "ko-KR": "로그인하면 응원과 후기를 직접 남길 수 있어요. 팔로우한 아티스트의 소식도 이곳에 모입니다.", "ja-JP": "ログインすると応援や感想を投稿できます。フォロー中のアーティストの更新もここに集まります。", "en-US": "Log in to share support and thoughts. Updates from artists you follow will appear here too.", "zh-CN": "登录后即可发布应援和感想。关注艺人的动态也会汇集在这里。", "zh-Hant": "登入後即可發佈應援和心得。追蹤藝人的動態也會匯集在這裡。" },
+  "feed.empty.search": { "ko-KR": "검색 결과가 없어요. 다른 이름이나 문장으로 다시 찾아볼까요?", "ja-JP": "検索結果がありません。別の名前や言葉で試してみてください。", "en-US": "No results. Try another name or phrase.", "zh-CN": "没有搜索结果。试试其他名字或词句。", "zh-Hant": "沒有搜尋結果。試試其他名字或詞句。" },
+  "feed.empty.all": { "ko-KR": "아직 올라온 피드가 없어요. 첫 응원 글을 남기거나 팔로우한 아티스트의 소식을 기다려 주세요.", "ja-JP": "投稿はまだありません。最初の応援を投稿するか、フォロー中のアーティストの更新をお待ちください。", "en-US": "No posts yet. Share the first note of support or wait for updates from artists you follow.", "zh-CN": "暂时没有动态。发布第一条应援，或等待关注艺人的消息吧。", "zh-Hant": "暫時沒有動態。發佈第一則應援，或等待追蹤藝人的消息吧。" },
+  "feed.empty.filter": { "ko-KR": "이 분류의 글이 아직 없어요. 다른 탭도 둘러봐 주세요.", "ja-JP": "このカテゴリーの投稿はまだありません。ほかのタブもご覧ください。", "en-US": "No posts in this category yet. Try another tab.", "zh-CN": "此分类暂时没有帖子。看看其他标签页吧。", "zh-Hant": "此分類暫時沒有貼文。看看其他分頁吧。" },
+  "feed.upload.invalidType": { "ko-KR": "{types} 파일만 첨부할 수 있어요.", "ja-JP": "{types} ファイルのみ添付できます。", "en-US": "Only {types} files can be attached.", "zh-CN": "只能添加 {types} 文件。", "zh-Hant": "只能附加 {types} 檔案。" },
+  "feed.upload.tooLarge": { "ko-KR": "이미지가 너무 큽니다. {max}MB 이하 이미지를 올려주세요.", "ja-JP": "画像が大きすぎます。{max}MB以下の画像を選んでください。", "en-US": "Image is too large. Choose an image under {max}MB.", "zh-CN": "图片太大，请选择不超过 {max}MB 的图片。", "zh-Hant": "圖片太大，請選擇不超過 {max}MB 的圖片。" },
+  "feed.upload.authExpired": { "ko-KR": "로그인이 만료됐어요. 다시 로그인해주세요.", "ja-JP": "ログインの有効期限が切れました。再度ログインしてください。", "en-US": "Your session expired. Please log in again.", "zh-CN": "登录已过期，请重新登录。", "zh-Hant": "登入已過期，請重新登入。" },
+  "feed.upload.unsupported": { "ko-KR": "지원하지 않는 파일 형식이에요. {types} 파일로 다시 올려주세요.", "ja-JP": "対応していない形式です。{types} ファイルを選んでください。", "en-US": "Unsupported file type. Choose a {types} file.", "zh-CN": "不支持此文件格式，请选择 {types} 文件。", "zh-Hant": "不支援此檔案格式，請選擇 {types} 檔案。" },
+  "feed.upload.network": { "ko-KR": "인터넷 연결을 확인한 뒤 다시 시도해주세요.", "ja-JP": "インターネット接続を確認してから再度お試しください。", "en-US": "Check your connection and try again.", "zh-CN": "请检查网络连接后重试。", "zh-Hant": "請檢查網路連線後再試。" },
+  "feed.upload.intentError": { "ko-KR": "업로드 준비에 실패했어요. 잠시 후 다시 시도해주세요.", "ja-JP": "アップロードを準備できませんでした。しばらくしてからお試しください。", "en-US": "Could not prepare the upload. Please try again shortly.", "zh-CN": "无法准备上传，请稍后重试。", "zh-Hant": "無法準備上傳，請稍後再試。" },
+  "feed.upload.directError": { "ko-KR": "이미지 저장소 업로드에 실패했어요. 다시 시도해주세요.", "ja-JP": "画像のアップロードに失敗しました。再度お試しください。", "en-US": "Could not upload the image. Please try again.", "zh-CN": "图片上传失败，请重试。", "zh-Hant": "圖片上傳失敗，請再試一次。" },
+  "feed.upload.confirmError": { "ko-KR": "업로드는 됐는데 확인 단계에서 실패했어요. 다시 시도해주세요.", "ja-JP": "アップロード後の確認に失敗しました。再度お試しください。", "en-US": "The image uploaded, but confirmation failed. Please try again.", "zh-CN": "图片已上传，但确认失败，请重试。", "zh-Hant": "圖片已上傳，但確認失敗，請再試一次。" },
+  "feed.upload.error": { "ko-KR": "이미지를 업로드하지 못했어요. 잠시 후 다시 시도해주세요.", "ja-JP": "画像をアップロードできませんでした。しばらくしてからお試しください。", "en-US": "Could not upload the image. Please try again shortly.", "zh-CN": "无法上传图片，请稍后重试。", "zh-Hant": "無法上傳圖片，請稍後再試。" },
+  "feed.upload.intentShort": { "ko-KR": "준비 실패", "ja-JP": "準備失敗", "en-US": "Preparation failed", "zh-CN": "准备失败", "zh-Hant": "準備失敗" },
+  "feed.upload.failedShort": { "ko-KR": "업로드 실패", "ja-JP": "アップロード失敗", "en-US": "Upload failed", "zh-CN": "上传失败", "zh-Hant": "上傳失敗" },
+  "feed.upload.confirmShort": { "ko-KR": "확인 실패", "ja-JP": "確認失敗", "en-US": "Confirmation failed", "zh-CN": "确认失败", "zh-Hant": "確認失敗" },
+  "feed.upload.removePending": { "ko-KR": "업로드가 끝난 뒤 삭제할 수 있어요.", "ja-JP": "アップロードが終わってから削除できます。", "en-US": "You can remove the image after the upload finishes.", "zh-CN": "上传完成后才能删除图片。", "zh-Hant": "上傳完成後才能移除圖片。" },
+  "feed.upload.removeUploading": { "ko-KR": "삭제(업로드 중)", "ja-JP": "削除（アップロード中）", "en-US": "Remove (uploading)", "zh-CN": "删除（上传中）", "zh-Hant": "移除（上傳中）" },
+  "feed.upload.remove": { "ko-KR": "이미지 삭제", "ja-JP": "画像を削除", "en-US": "Remove image", "zh-CN": "删除图片", "zh-Hant": "移除圖片" },
+  "feed.upload.uploading": { "ko-KR": "업로드 중", "ja-JP": "アップロード中", "en-US": "Uploading", "zh-CN": "上传中", "zh-Hant": "上傳中" },
+  "feed.upload.retry": { "ko-KR": "다시 시도", "ja-JP": "再試行", "en-US": "Retry", "zh-CN": "重试", "zh-Hant": "重試" },
+  "feed.compose.error.offline": { "ko-KR": "인터넷 연결을 확인한 뒤 다시 시도해주세요. 작성한 내용은 그대로 남아 있어요.", "ja-JP": "接続を確認して再度お試しください。入力内容は残っています。", "en-US": "Check your connection and try again. Your draft is still here.", "zh-CN": "请检查网络连接后重试。草稿仍保留在这里。", "zh-Hant": "請檢查網路連線後再試。草稿仍保留在這裡。" },
+  "feed.compose.error.authExpired": { "ko-KR": "로그인이 만료됐어요. 다시 로그인하면 작성한 내용을 그대로 올릴 수 있어요.", "ja-JP": "ログインの有効期限が切れました。再ログイン後に入力内容を投稿できます。", "en-US": "Your session expired. Log in again to post your saved draft.", "zh-CN": "登录已过期。重新登录后仍可发布草稿。", "zh-Hant": "登入已過期。重新登入後仍可發佈草稿。" },
+  "feed.compose.error.forbidden": { "ko-KR": "지금은 이 글을 게시할 수 없어요. 권한 확인 후 다시 시도해주세요.", "ja-JP": "この投稿は今は公開できません。権限を確認して再度お試しください。", "en-US": "You cannot post this right now. Check your permissions and try again.", "zh-CN": "目前无法发布此帖，请检查权限后重试。", "zh-Hant": "目前無法發佈此貼文，請檢查權限後再試。" },
+  "feed.compose.error.tooLarge": { "ko-KR": "내용 또는 첨부 파일이 너무 커요. 글자나 이미지를 줄인 뒤 다시 시도해주세요.", "ja-JP": "文章か添付ファイルが大きすぎます。短くするか画像を減らしてお試しください。", "en-US": "The post or attachments are too large. Shorten the text or reduce the images.", "zh-CN": "内容或附件太大。请缩短文字或减少图片后重试。", "zh-Hant": "內容或附件太大。請縮短文字或減少圖片後再試。" },
+  "feed.compose.error.rateLimit": { "ko-KR": "너무 자주 게시하고 있어요. 잠시 후 다시 시도해주세요.", "ja-JP": "投稿回数が多すぎます。しばらくしてからお試しください。", "en-US": "You are posting too often. Please try again shortly.", "zh-CN": "发布过于频繁，请稍后重试。", "zh-Hant": "發佈過於頻繁，請稍後再試。" },
+  "feed.compose.error.server": { "ko-KR": "서버 연결이 일시적으로 불안정해요. 잠시 후 다시 시도해주세요.", "ja-JP": "サーバーへの接続が一時的に不安定です。しばらくしてからお試しください。", "en-US": "The server connection is temporarily unstable. Please try again shortly.", "zh-CN": "服务器连接暂时不稳定，请稍后重试。", "zh-Hant": "伺服器連線暫時不穩定，請稍後再試。" },
+  "feed.compose.error.bodyLimit": { "ko-KR": "본문은 {max}자 이하로 작성해주세요.", "ja-JP": "本文は{max}文字以内にしてください。", "en-US": "Keep the post under {max} characters.", "zh-CN": "正文不能超过 {max} 字。", "zh-Hant": "正文不能超過 {max} 字。" },
+  "feed.compose.error.empty": { "ko-KR": "내용을 더 입력하거나 이미지를 추가해주세요.", "ja-JP": "文章を入力するか画像を追加してください。", "en-US": "Add some text or an image.", "zh-CN": "请添加文字或图片。", "zh-Hant": "請新增文字或圖片。" },
+  "feed.compose.error.policy": { "ko-KR": "정책에 맞지 않는 표현이 있어요. 내용을 수정한 뒤 다시 시도해주세요.", "ja-JP": "ポリシーに沿わない表現があります。修正して再度お試しください。", "en-US": "Some wording does not meet our policy. Edit the post and try again.", "zh-CN": "部分措辞不符合规定，请修改后重试。", "zh-Hant": "部分措辭不符合規定，請修改後再試。" },
+  "feed.compose.error.validation": { "ko-KR": "내용을 다시 확인해 주세요. 일부 입력이 올바르지 않아요.", "ja-JP": "入力内容を確認してください。一部が正しくありません。", "en-US": "Check your post. Some input is invalid.", "zh-CN": "请检查内容，部分输入无效。", "zh-Hant": "請檢查內容，部分輸入無效。" },
+  "feed.compose.error.network": { "ko-KR": "네트워크가 불안정해요. 연결을 확인한 뒤 다시 시도해주세요.", "ja-JP": "ネットワークが不安定です。接続を確認して再度お試しください。", "en-US": "The network is unstable. Check your connection and try again.", "zh-CN": "网络不稳定，请检查连接后重试。", "zh-Hant": "網路不穩定，請檢查連線後再試。" },
+  "feed.compose.error.generic": { "ko-KR": "게시하지 못했어요. 잠시 후 다시 시도해주세요. 작성한 내용은 그대로 남아 있어요.", "ja-JP": "投稿できませんでした。しばらくしてからお試しください。入力内容は残っています。", "en-US": "Could not post. Please try again shortly. Your draft is still here.", "zh-CN": "发布失败，请稍后重试。草稿仍保留在这里。", "zh-Hant": "發佈失敗，請稍後再試。草稿仍保留在這裡。" },
+  "feed.compose.counterLimit": { "ko-KR": "{max}자까지 작성할 수 있어요. 더 쓰려면 줄여주세요.", "ja-JP": "{max}文字までです。続きを書くには短くしてください。", "en-US": "Limit: {max} characters. Shorten the post to continue.", "zh-CN": "最多 {max} 字。请缩短内容后继续。", "zh-Hant": "最多 {max} 字。請縮短內容後繼續。" },
+  "feed.compose.counterRemaining": { "ko-KR": "{count}자 남았어요.", "ja-JP": "残り{count}文字です。", "en-US": "{count} characters left.", "zh-CN": "还剩 {count} 字。", "zh-Hant": "還剩 {count} 字。" },
+  "feed.compose.overLimit": { "ko-KR": "{max}자까지 입력할 수 있어요. 현재 글을 줄여주세요.", "ja-JP": "{max}文字まで入力できます。文章を短くしてください。", "en-US": "You can enter up to {max} characters. Shorten this post.", "zh-CN": "最多输入 {max} 字，请缩短当前内容。", "zh-Hant": "最多輸入 {max} 字，請縮短目前內容。" },
+  "feed.compose.uploadPending": { "ko-KR": "업로드 중인 이미지가 있어요. 잠시 후 다시 시도해주세요.", "ja-JP": "画像をアップロード中です。しばらくしてからお試しください。", "en-US": "An image is still uploading. Please try again shortly.", "zh-CN": "图片仍在上传，请稍后重试。", "zh-Hant": "圖片仍在上傳，請稍後再試。" },
+  "feed.compose.imageLimit": { "ko-KR": "이미지는 최대 {max}장까지 첨부할 수 있어요.", "ja-JP": "画像は最大{max}枚まで添付できます。", "en-US": "You can attach up to {max} images.", "zh-CN": "最多可添加 {max} 张图片。", "zh-Hant": "最多可附加 {max} 張圖片。" },
+  "feed.compose.duplicateImage": { "ko-KR": "이미 추가된 이미지예요.", "ja-JP": "この画像はすでに追加されています。", "en-US": "This image has already been added.", "zh-CN": "这张图片已添加。", "zh-Hant": "這張圖片已附加。" },
+  "feed.compose.duplicatesSkipped": { "ko-KR": "중복된 {duplicate}장은 빼고 {added}장을 추가할게요.", "ja-JP": "重複した{duplicate}枚を除き、{added}枚を追加します。", "en-US": "Skipped {duplicate} duplicates and added {added} images.", "zh-CN": "已跳过 {duplicate} 张重复图片，添加 {added} 张。", "zh-Hant": "已跳過 {duplicate} 張重複圖片，附加 {added} 張。" },
+  "feed.compose.imagesTrimmed": { "ko-KR": "이미지는 최대 {max}장까지 첨부할 수 있어요. {added}장만 추가했어요.", "ja-JP": "画像は最大{max}枚までです。{added}枚を追加しました。", "en-US": "You can attach up to {max} images. Added {added}.", "zh-CN": "最多可添加 {max} 张图片，已添加 {added} 张。", "zh-Hant": "最多可附加 {max} 張圖片，已附加 {added} 張。" },
+  "feed.compose.loginRequired": { "ko-KR": "로그인 후 작성할 수 있어요.", "ja-JP": "投稿するにはログインしてください。", "en-US": "Log in to post.", "zh-CN": "登录后即可发布。", "zh-Hant": "登入後即可發佈。" },
+  "feed.compose.waitForUpload": { "ko-KR": "이미지 업로드가 끝난 뒤에 게시할 수 있어요.", "ja-JP": "画像のアップロードが終わってから投稿できます。", "en-US": "Wait for the image upload to finish before posting.", "zh-CN": "请等待图片上传完成后再发布。", "zh-Hant": "請等待圖片上傳完成後再發佈。" },
+  "feed.compose.bodyTooLong": { "ko-KR": "본문은 {max}자 이하로 작성해주세요. (현재 {count}자)", "ja-JP": "本文は{max}文字以内にしてください（現在{count}文字）。", "en-US": "Keep the post under {max} characters (currently {count}).", "zh-CN": "正文不能超过 {max} 字（当前 {count} 字）。", "zh-Hant": "正文不能超過 {max} 字（目前 {count} 字）。" },
+  "feed.compose.failedImages": { "ko-KR": "업로드에 실패한 이미지는 게시할 수 없어요. 다시 시도하거나 삭제해주세요.", "ja-JP": "アップロードに失敗した画像は投稿できません。再試行するか削除してください。", "en-US": "Images that failed to upload cannot be posted. Retry or remove them.", "zh-CN": "上传失败的图片无法发布，请重试或删除。", "zh-Hant": "上傳失敗的圖片無法發佈，請重試或移除。" },
+  "feed.compose.emptyBody": { "ko-KR": "내용 또는 이미지를 추가해주세요.", "ja-JP": "文章か画像を追加してください。", "en-US": "Add text or an image.", "zh-CN": "请添加文字或图片。", "zh-Hant": "請新增文字或圖片。" },
+  "feed.compose.partialSuccess": { "ko-KR": "피드에 올라갔어요. 실패한 이미지 {count}장은 포함되지 않았어요.", "ja-JP": "投稿しました。失敗した画像{count}枚は含まれていません。", "en-US": "Posted to the feed. {count} failed images were not included.", "zh-CN": "已发布到动态，{count} 张上传失败的图片未包含在内。", "zh-Hant": "已發佈至動態，{count} 張上傳失敗的圖片未包含在內。" },
+  "feed.compose.success": { "ko-KR": "피드에 올라갔어요.", "ja-JP": "フィードに投稿しました。", "en-US": "Posted to the feed.", "zh-CN": "已发布到动态。", "zh-Hant": "已發佈至動態。" },
   "shortform.redirect.notice": {
     "ko-KR": "쇼츠는 루미나 피드에서 볼 수 있어요.",
     "ja-JP": "ショートはルミナフィードで見られます。",
@@ -1516,6 +1758,11 @@ const I18N_DICT = {
   "writerManuscript.expected": { "ko-KR": "예상 파트 수", "ja-JP": "予定パート数", "en-US": "Expected part count", "zh-CN": "预计部分数", "zh-Hant": "預計部分數" },
   "writerManuscript.expectedPlaceholder": { "ko-KR": "모르면 비워두세요", "ja-JP": "不明なら空欄", "en-US": "Leave blank if unknown", "zh-CN": "不确定可留空", "zh-Hant": "不確定可留空" },
   "writerManuscript.addPart": { "ko-KR": "커서에서 파트 시작", "ja-JP": "カーソル位置でパート開始", "en-US": "Start part at cursor", "zh-CN": "从光标处开始新部分", "zh-Hant": "從游標處開始新部分" },
+  "writerManuscript.autoParts": { "ko-KR": "파트 자동 찾기", "ja-JP": "パートを自動検出", "en-US": "Find parts", "zh-CN": "自动查找章节", "zh-Hant": "自動尋找章節" },
+  "writerManuscript.autoNotFound": { "ko-KR": "명확한 파트 제목을 찾지 못했습니다. 원고에서 시작 위치를 직접 지정해 주세요.", "ja-JP": "明確なパート見出しが見つかりません。本文で開始位置を指定してください。", "en-US": "No clear part headings found. Mark part starts in the manuscript.", "zh-CN": "未找到明确的章节标题，请在正文中手动标记起点。", "zh-Hant": "找不到明確的章節標題，請在正文中手動標記起點。" },
+  "writerManuscript.prefaceIncluded": { "ko-KR": "첫 파트 제목 앞의 소개·메모도 1파트 본문에 포함됩니다. 독자에게 보이면 안 되는 내용은 원고에서 제거한 뒤 다시 확인해 주세요.", "ja-JP": "最初のパート見出しより前の紹介・メモも第1パートの本文に含まれます。読者に見せない内容は原稿から削除し、再確認してください。", "en-US": "The introduction and notes before the first part heading are included in Part 1. Remove anything readers should not see, then review again.", "zh-CN": "首个章节标题前的简介和备注也会包含在第 1 章正文中。请删除不应向读者展示的内容后重新检查。", "zh-Hant": "首個章節標題前的簡介和備註也會包含在第 1 章正文中。請刪除不應向讀者展示的內容後重新檢查。" },
+  "writerManuscript.separatePreface": { "ko-KR": "첫 파트 앞의 소개·메모를 원문에 보관하고 독자 본문에서는 제외", "ja-JP": "最初のパートより前の紹介・メモを原文に保存し、読者向け本文から除外", "en-US": "Keep the introduction and notes in the source, but exclude them from reader prose", "zh-CN": "保留原稿中的简介和备注，但从读者正文中排除", "zh-Hant": "保留原稿中的簡介和備註，但從讀者正文中排除" },
+  "writerManuscript.prefaceExcluded": { "ko-KR": "첫 파트 앞의 소개·메모는 원문에 보관되지만 독자에게는 표시되지 않습니다. 경계를 확인해 주세요.", "ja-JP": "最初のパートより前の紹介・メモは原文に保存されますが、読者には表示されません。境界を確認してください。", "en-US": "The introduction and notes remain in the source but will not appear in reader prose. Review the boundary.", "zh-CN": "简介和备注仍保留在原稿中，但不会显示给读者。请确认边界。", "zh-Hant": "簡介和備註仍保留在原稿中，但不會顯示給讀者。請確認邊界。" },
   "writerManuscript.review": { "ko-KR": "파트 경계 검토", "ja-JP": "パート境界を確認", "en-US": "Review part boundaries", "zh-CN": "核对部分边界", "zh-Hant": "核對部分邊界" },
   "writerManuscript.partNumber": { "ko-KR": "검토 구간 {number}", "ja-JP": "確認範囲 {number}", "en-US": "Review range {number}", "zh-CN": "核对区间 {number}", "zh-Hant": "核對區間 {number}" },
   "writerManuscript.viewPart": { "ko-KR": "원문 구간 보기", "ja-JP": "原文範囲を見る", "en-US": "View source range", "zh-CN": "查看原文区间", "zh-Hant": "查看原文區間" },
@@ -1524,6 +1771,27 @@ const I18N_DICT = {
   "writerManuscript.clear": { "ko-KR": "입력 지우기", "ja-JP": "入力を消去", "en-US": "Clear draft", "zh-CN": "清除输入", "zh-Hant": "清除輸入" },
   "writerManuscript.loading": { "ko-KR": "내 작품을 확인하고 있습니다.", "ja-JP": "自分の作品を確認しています。", "en-US": "Loading your works.", "zh-CN": "正在加载你的作品。", "zh-Hant": "正在載入你的作品。" },
   "writerManuscript.chooseWork": { "ko-KR": "내 작품을 선택해 주세요.", "ja-JP": "自分の作品を選択してください。", "en-US": "Select one of your works.", "zh-CN": "请选择你的作品。", "zh-Hant": "請選擇你的作品。" },
+  "writerManuscript.draftTitle": { "ko-KR": "새 작품 제목", "ja-JP": "新しい作品名", "en-US": "New work title", "zh-CN": "新作品标题", "zh-Hant": "新作品標題" },
+  "writerManuscript.draftPlaceholder": { "ko-KR": "작품 제목", "ja-JP": "作品名", "en-US": "Work title", "zh-CN": "作品标题", "zh-Hant": "作品標題" },
+  "writerManuscript.createDraft": { "ko-KR": "비공개 작품 만들기", "ja-JP": "非公開の作品を作成", "en-US": "Create private work", "zh-CN": "创建非公开作品", "zh-Hant": "建立非公開作品" },
+  "writerManuscript.metadataHeading": { "ko-KR": "작품 공개 정보", "ja-JP": "作品の公開情報", "en-US": "Work publication details", "zh-CN": "作品公开信息", "zh-Hant": "作品公開資訊" },
+  "writerManuscript.authorName": { "ko-KR": "작가명", "ja-JP": "著者名", "en-US": "Author name", "zh-CN": "作者名", "zh-Hant": "作者名" },
+  "writerManuscript.summary": { "ko-KR": "작품 소개", "ja-JP": "作品紹介", "en-US": "Work description", "zh-CN": "作品简介", "zh-Hant": "作品簡介" },
+  "writerManuscript.cover": { "ko-KR": "표지 이미지", "ja-JP": "表紙画像", "en-US": "Cover image", "zh-CN": "封面图片", "zh-Hant": "封面圖片" },
+  "writerManuscript.saveMetadata": { "ko-KR": "공개 정보 저장", "ja-JP": "公開情報を保存", "en-US": "Save publication details", "zh-CN": "保存公开信息", "zh-Hant": "儲存公開資訊" },
+  "writerManuscript.coverReady": { "ko-KR": "표지가 등록되어 있습니다. 다른 파일을 선택하면 교체합니다.", "ja-JP": "表紙が登録されています。別のファイルを選ぶと差し替えます。", "en-US": "A cover is registered. Choose another file to replace it.", "zh-CN": "已设置封面。选择其他文件可替换。", "zh-Hant": "已設定封面。選擇其他檔案可替換。" },
+  "writerManuscript.coverRequired": { "ko-KR": "공개 전에 표지 이미지를 등록해 주세요.", "ja-JP": "公開前に表紙画像を登録してください。", "en-US": "Add a cover image before publication.", "zh-CN": "公开前请上传封面图片。", "zh-Hant": "公開前請上傳封面圖片。" },
+  "writerManuscript.metadataRequired": { "ko-KR": "작가명과 작품 소개를 입력해 주세요.", "ja-JP": "著者名と作品紹介を入力してください。", "en-US": "Enter an author name and work description.", "zh-CN": "请填写作者名和作品简介。", "zh-Hant": "請填寫作者名和作品簡介。" },
+  "writerManuscript.coverInvalid": { "ko-KR": "표지 파일을 확인해 주세요. 20 MiB 이하의 이미지가 필요합니다.", "ja-JP": "表紙ファイルを確認してください。20 MiB 以下の画像が必要です。", "en-US": "Check the cover file. Use an image up to 20 MiB.", "zh-CN": "请检查封面文件。需使用不超过 20 MiB 的图片。", "zh-Hant": "請檢查封面檔案。需使用不超過 20 MiB 的圖片。" },
+  "writerManuscript.metadataSaving": { "ko-KR": "공개 정보를 저장하고 있습니다.", "ja-JP": "公開情報を保存しています。", "en-US": "Saving publication details.", "zh-CN": "正在保存公开信息。", "zh-Hant": "正在儲存公開資訊。" },
+  "writerManuscript.coverUploadUnavailable": { "ko-KR": "현재 이미지 업로드를 사용할 수 없습니다. 나중에 다시 시도해 주세요.", "ja-JP": "現在、画像をアップロードできません。後でもう一度お試しください。", "en-US": "Image upload is unavailable. Try again later.", "zh-CN": "目前无法上传图片，请稍后重试。", "zh-Hant": "目前無法上傳圖片，請稍後重試。" },
+  "writerManuscript.metadataSaved": { "ko-KR": "작가명·소개·표지를 저장했습니다. 공개 전 최종 확인이 필요합니다.", "ja-JP": "著者名・紹介・表紙を保存しました。公開前に最終確認が必要です。", "en-US": "Author, description, and cover saved. Final review is still required before publication.", "zh-CN": "作者名、简介及封面已保存。公开前仍需最终核对。", "zh-Hant": "作者名、簡介及封面已儲存。公開前仍需最終核對。" },
+  "writerManuscript.metadataFailed": { "ko-KR": "공개 정보를 저장하지 못했습니다. 상태를 확인한 뒤 다시 시도해 주세요.", "ja-JP": "公開情報を保存できませんでした。状態を確認して再試行してください。", "en-US": "Could not save publication details. Check the status and try again.", "zh-CN": "未能保存公开信息。请检查状态后重试。", "zh-Hant": "無法儲存公開資訊。請檢查狀態後重試。" },
+  "writerManuscript.draftTitleRequired": { "ko-KR": "작품 제목을 입력해 주세요.", "ja-JP": "作品名を入力してください。", "en-US": "Enter a work title.", "zh-CN": "请输入作品标题。", "zh-Hant": "請輸入作品標題。" },
+  "writerManuscript.draftCreating": { "ko-KR": "비공개 작품을 만들고 있습니다.", "ja-JP": "非公開の作品を作成しています。", "en-US": "Creating the private work.", "zh-CN": "正在创建非公开作品。", "zh-Hant": "正在建立非公開作品。" },
+  "writerManuscript.draftCreated": { "ko-KR": "비공개 작품을 만들었습니다. 이제 원고를 올릴 수 있습니다.", "ja-JP": "非公開の作品を作成しました。原稿を送信できます。", "en-US": "Private work created. You can now submit the manuscript.", "zh-CN": "非公开作品已创建，现在可以提交稿件。", "zh-Hant": "非公開作品已建立，現在可以提交稿件。" },
+  "writerManuscript.draftRefreshFailed": { "ko-KR": "작품은 만들어졌지만 목록을 다시 확인하지 못했습니다. 같은 버튼을 다시 누르면 중복 생성 없이 확인합니다.", "ja-JP": "作品は作成されましたが、一覧を確認できませんでした。同じボタンでもう一度確認できます。", "en-US": "The work was created, but the list could not be refreshed. Try the same button to check it without duplicating the work.", "zh-CN": "作品已创建，但未能刷新列表。再次点击同一按钮可核对，不会重复创建。", "zh-Hant": "作品已建立，但無法重新整理清單。再次按相同按鈕可核對，不會重複建立。" },
+  "writerManuscript.draftFailed": { "ko-KR": "작품을 만들지 못했습니다. 로그인과 연결 상태를 확인한 뒤 다시 시도해 주세요.", "ja-JP": "作品を作成できませんでした。ログインと接続を確認して再試行してください。", "en-US": "Could not create the work. Check your sign-in and connection, then retry.", "zh-CN": "无法创建作品，请检查登录和网络后重试。", "zh-Hant": "無法建立作品，請檢查登入和連線後重試。" },
   "writerManuscript.noWorks": { "ko-KR": "접수할 수 있는 내 작품이 없습니다. 먼저 작품을 등록해야 합니다.", "ja-JP": "受付できる作品がありません。先に作品の登録が必要です。", "en-US": "You have no eligible work. A work must exist first.", "zh-CN": "没有可用的自有作品。请先创建作品。", "zh-Hant": "沒有可用的自有作品。請先建立作品。" },
   "writerManuscript.catalogFailed": { "ko-KR": "내 작품 목록을 확인하지 못했습니다. 다시 열어 주세요.", "ja-JP": "作品一覧を確認できませんでした。開き直してください。", "en-US": "Could not load your works. Reopen this page.", "zh-CN": "无法加载你的作品，请重新打开页面。", "zh-Hant": "無法載入你的作品，請重新開啟頁面。" },
   "writerManuscript.empty": { "ko-KR": "원고 본문을 붙여넣거나 텍스트 파일을 선택해 주세요.", "ja-JP": "原稿を貼り付けるか、テキストファイルを選択してください。", "en-US": "Paste the manuscript or choose a text file.", "zh-CN": "请粘贴稿件或选择文本文件。", "zh-Hant": "請貼上稿件或選擇文字檔案。" },
@@ -1574,6 +1842,11 @@ const I18N_DICT = {
   "writerAnalysis.previous": { "ko-KR": "이전 결과", "ja-JP": "前の結果", "en-US": "Previous results", "zh-CN": "上一页结果", "zh-Hant": "上一頁結果" },
   "writerAnalysis.next": { "ko-KR": "다음 결과", "ja-JP": "次の結果", "en-US": "Next results", "zh-CN": "下一页结果", "zh-Hant": "下一頁結果" },
   "writerAnalysis.evidence": { "ko-KR": "분석 결과 페이지", "ja-JP": "分析結果のページ", "en-US": "Analysis result pages", "zh-CN": "分析结果分页", "zh-Hant": "分析結果分頁" },
+  "writerAnalysis.views": { "ko-KR": "분석 결과 종류", "ja-JP": "分析結果の種類", "en-US": "Analysis result type", "zh-CN": "分析结果类型", "zh-Hant": "分析結果類型" },
+  "writerAnalysis.semanticView": { "ko-KR": "AI 해석", "ja-JP": "AIによる解釈", "en-US": "AI findings", "zh-CN": "AI 解读", "zh-Hant": "AI 解讀" },
+  "writerAnalysis.structuralView": { "ko-KR": "구조 정보", "ja-JP": "構造情報", "en-US": "Structure", "zh-CN": "结构信息", "zh-Hant": "結構資訊" },
+  "writerAnalysis.semanticEmpty": { "ko-KR": "검토할 AI 해석 결과가 없습니다. 생성 설정의 근거도 별도로 확인해 주세요.", "ja-JP": "確認できるAI分析結果がありません。生成設定の根拠も別途確認してください。", "en-US": "No AI findings are available for review. Check the generation settings and their evidence separately.", "zh-CN": "没有可核对的 AI 解读结果。请另行核对生成设置及其依据。", "zh-Hant": "沒有可核對的 AI 解讀結果。請另行核對生成設定及其依據。" },
+  "writerAnalysis.structuralEmpty": { "ko-KR": "표시할 구조 정보가 없습니다.", "ja-JP": "表示できる構造情報はありません。", "en-US": "No structural information is available.", "zh-CN": "没有可显示的结构信息。", "zh-Hant": "沒有可顯示的結構資訊。" },
   "writerAnalysis.version": { "ko-KR": "비공개 원고 버전 {version} · {language}", "ja-JP": "非公開原稿バージョン{version} · {language}", "en-US": "Private manuscript version {version} · {language}", "zh-CN": "非公开稿件版本 {version} · {language}", "zh-Hant": "非公開稿件版本 {version} · {language}" },
   "writerAnalysis.savedVersion": { "ko-KR": "이 브라우저에 남아 있는 원고 요청 · {language}", "ja-JP": "このブラウザーに保持された原稿の依頼 · {language}", "en-US": "Manuscript request retained in this browser · {language}", "zh-CN": "此浏览器保留的稿件请求 · {language}", "zh-Hant": "此瀏覽器保留的稿件請求 · {language}" },
   "writerAnalysis.counts": { "ko-KR": "문단 {done}/{total} · 결과 {evidence}개", "ja-JP": "段落 {done}/{total} · 結果 {evidence}件", "en-US": "Paragraphs {done}/{total} · {evidence} results", "zh-CN": "段落 {done}/{total} · {evidence} 项结果", "zh-Hant": "段落 {done}/{total} · {evidence} 項結果" },
@@ -2410,10 +2683,12 @@ async function authRegister(email, password, displayName, referralCode) {
   return data;
 }
 async function authLogout() {
+  const session = authRequestSession();
   const refreshToken = getRefreshToken();
   const options = { method: "POST", auth: true };
   if (refreshToken) options.body = { refreshToken };
   try { await apiFetch("/api/v1/auth/logout", options); } catch {}
+  if (!authRequestSessionCurrent(session)) return;
   clearAuth();
   updateAuthUI();
   if (typeof initMypagePage === "function") initMypagePage();
@@ -2507,6 +2782,8 @@ function shouldOpenAuthBridgeFixture() {
   try {
     const path = String(window.location?.pathname || "").replace(/\/$/, "");
     if (path !== "/lumina-feed") return false;
+    const host = window.location?.hostname || "";
+    if (!(host === "localhost" || host === "127.0.0.1" || host === "" || host.endsWith(".local"))) return false;
     const params = new URLSearchParams(window.location.search || "");
     return params.get("feedfixture") === "1" || params.get("authfixture") === "1";
   } catch (_) {
@@ -2562,7 +2839,7 @@ function createAuthModal() {
       </form>
 
       <form class="auth-modal-form" data-form="forgot" novalidate hidden>
-        <h2 data-i18n="auth.modal.forgot.title">비밀번호 재설정</h2>
+        <h2 id="authModalForgotTitle" data-i18n="auth.modal.forgot.title">비밀번호 재설정</h2>
         <p class="auth-modal-subtitle" data-i18n="auth.modal.forgot.subtitle">가입한 이메일을 입력하면 재설정 안내 메일을 보내드려요.</p>
         <div class="auth-modal-error" data-error hidden></div>
         <div class="auth-modal-info" data-info hidden></div>
@@ -2575,7 +2852,7 @@ function createAuthModal() {
       </form>
 
       <div class="auth-modal-form auth-modal-success-panel" data-form="signupSuccess" hidden>
-        <h2 data-i18n="auth.modal.success.title">가입이 완료됐어요</h2>
+        <h2 id="authModalSuccessTitle" data-i18n="auth.modal.success.title">가입이 완료됐어요</h2>
         <p class="auth-modal-subtitle" data-i18n="auth.modal.success.subtitle">입력한 이메일로 인증 메일을 보냈어요. 메일함에서 인증을 마치면 Lumina Stage를 더 안전하게 이용할 수 있어요.</p>
         <p class="auth-modal-email-line" data-signup-email-line hidden>
           <small data-i18n="auth.modal.success.emailHint">받은 메일이 안 보이면 스팸·프로모션함도 한 번 확인해 보세요.</small>
@@ -2589,7 +2866,7 @@ function createAuthModal() {
       </div>
 
       <form class="auth-modal-form" data-form="register" novalidate hidden>
-        <h2 data-i18n="auth.modal.register.title">Lumina Stage 가입</h2>
+        <h2 id="authModalRegisterTitle" data-i18n="auth.modal.register.title">Lumina Stage 가입</h2>
         <p class="auth-modal-subtitle" data-i18n="auth.modal.register.subtitle">팬으로서 좋아요와 응원을 보내세요</p>
         <div class="auth-modal-error" data-error hidden></div>
         <label class="auth-modal-field"><span data-i18n="auth.modal.email">이메일</span>
@@ -2633,7 +2910,21 @@ function bindAuthModalEvents(modal) {
   modal.querySelector(".auth-modal-close").addEventListener("click", closeAuthModal);
   modal.addEventListener("click", e => { if (e.target === modal) closeAuthModal(); });
   document.addEventListener("keydown", e => {
-    if (e.key === "Escape" && modal.classList.contains("is-open")) closeAuthModal();
+    if (!modal.classList.contains("is-open")) return;
+    if (e.key === "Escape") { closeAuthModal(); return; }
+    if (e.key !== "Tab") return;
+    const focusable = [...modal.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')]
+      .filter(el => el.getClientRects().length && getComputedStyle(el).visibility !== "hidden");
+    if (!focusable.length) { e.preventDefault(); return; }
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (e.shiftKey && (document.activeElement === first || !modal.contains(document.activeElement))) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && (document.activeElement === last || !modal.contains(document.activeElement))) {
+      e.preventDefault();
+      first.focus();
+    }
   });
   modal.querySelectorAll(".auth-modal-tab").forEach(t =>
     t.addEventListener("click", () => switchAuthTab(t.dataset.tab)));
@@ -2669,34 +2960,45 @@ async function handleForgotPasswordSubmit(form) {
 
   const email = form.email.value.trim();
   if (!email) {
-    errorEl.textContent = "이메일을 입력해 주세요.";
+    errorEl.textContent = authModalCopy("emailRequired");
     errorEl.hidden = false;
     return;
   }
 
   const originalText = submitBtn.textContent;
   submitBtn.disabled = true;
-  submitBtn.textContent = "메일 보내는 중...";
-  const neutralMsg = "입력한 이메일로 비밀번호 재설정 안내를 보냈어요. 메일함을 확인해 주세요.";
+  submitBtn.textContent = authModalCopy("sending");
+  const neutralMsg = authModalCopy("sent");
   try {
     await apiFetch("/api/v1/auth/password-resets", {
       method: "POST",
-      body: { email }
+      body: { email },
+      throwOnError: true
     });
     infoEl.textContent = neutralMsg;
     infoEl.hidden = false;
   } catch (err) {
-    if (err?.status >= 500) {
-      errorEl.textContent = "메일을 보내지 못했어요. 잠시 뒤에 다시 시도해 주세요.";
-      errorEl.hidden = false;
-    } else {
-      infoEl.textContent = neutralMsg;
-      infoEl.hidden = false;
-    }
+    errorEl.textContent = authModalCopy(err?.status === 429 ? "rateLimited" : "sendFailed");
+    errorEl.hidden = false;
   } finally {
     submitBtn.disabled = false;
     submitBtn.textContent = originalText;
   }
+}
+
+function authModalCopy(key) {
+  const copy = {
+    emailRequired: ["이메일을 입력해 주세요.", "メールアドレスを入力してください。", "Enter your email address.", "请输入邮箱地址。", "請輸入電子郵件地址。"],
+    sending: ["메일 보내는 중...", "送信中...", "Sending email...", "正在发送邮件...", "正在寄送郵件..."],
+    sent: ["입력한 이메일로 비밀번호 재설정 안내를 보냈어요. 메일함을 확인해 주세요.", "入力したメールアドレスに再設定の案内を送信しました。受信箱をご確認ください。", "If this address has an account, reset instructions have been sent. Check your inbox.", "如果此邮箱对应账户，重设说明已发送。请查看收件箱。", "若此信箱對應帳戶，重設說明已寄出。請查看收件匣。"],
+    rateLimited: ["요청이 너무 많아요. 잠시 뒤에 다시 시도해 주세요.", "リクエストが多すぎます。しばらくしてからお試しください。", "Too many requests. Please try again shortly.", "请求过多，请稍后重试。", "請求過多，請稍後再試。"],
+    sendFailed: ["메일 요청을 처리하지 못했어요. 잠시 뒤에 다시 시도해 주세요.", "メールの送信を処理できませんでした。しばらくしてからお試しください。", "We couldn't process the email request. Please try again shortly.", "无法处理邮件请求，请稍后重试。", "無法處理郵件請求，請稍後再試。"],
+    loginFailed: ["로그인 정보가 맞지 않아요. 다시 확인해 주세요.", "ログイン情報が正しくありません。もう一度ご確認ください。", "Those login details don't match. Please try again.", "登录信息不正确，请重试。", "登入資料不正確，請再試一次。"],
+    verifyRequired: ["이메일 인증 후 다시 시도해 주세요.", "メール認証後にもう一度お試しください。", "Verify your email, then try again.", "请先验证邮箱，然后重试。", "請先驗證電子郵件，再試一次。"]
+  };
+  const locales = ["ko-KR", "ja-JP", "en-US", "zh-CN", "zh-Hant"];
+  const index = locales.indexOf(window.luminaI18n?.getRegionalLocale?.());
+  return copy[key][index < 0 ? 0 : index];
 }
 
 async function handleResendVerification(button) {
@@ -2838,9 +3140,14 @@ function getAuthSubmitErrorMessage(err, mode) {
     return AUTH_REFERRAL_CODE_ERROR_MESSAGE;
   }
   const publicCopy = normalizedAuthPublicErrorCopy(err, mode);
+  if (publicCopy && mode === "login") {
+    if (err.status === 429) return authModalCopy("rateLimited");
+    if (/verification|required/i.test(errorCode)) return authModalCopy("verifyRequired");
+    return authModalCopy("loginFailed");
+  }
   if (publicCopy) return publicCopy;
   if (mode === "login") {
-    return "\ub85c\uadf8\uc778\uc5d0 \uc2e4\ud328\ud588\uc5b4\uc694. \uc815\ubcf4\ub97c \ud655\uc778\ud558\uace0 \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.";
+    return authModalCopy("loginFailed");
   }
   if (mode === "register") {
     return "\uac00\uc785\uc744 \uc644\ub8cc\ud558\uc9c0 \ubabb\ud588\uc5b4\uc694. \uc785\ub825\uac12\uc744 \ud655\uc778\ud558\uace0 \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694.";
@@ -2869,6 +3176,8 @@ function translateValidationError(field, message) {
   return `${fieldKo}: \uc785\ub825\uac12\uc744 \ud655\uc778\ud574 \uc8fc\uc138\uc694.`;
 }
 
+let _authPreviousFocus = null;
+let _authPreviousOverflow = "";
 function openAuthModal(tab = "login", options = {}) {
   if (tab && typeof tab === "object") {
     options = tab;
@@ -2876,11 +3185,20 @@ function openAuthModal(tab = "login", options = {}) {
   }
   createAuthModal();
   const modal = document.getElementById("authModal");
+  if (!modal.classList.contains("is-open")) {
+    _authPreviousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    _authPreviousOverflow = document.body.style.overflow;
+  }
   _authReturnIntent = normalizeAuthReturnIntent(options?.returnTo || null);
   switchAuthTab(tab);
   modal.classList.add("is-open");
   document.body.style.overflow = "hidden";
-  setTimeout(() => modal.querySelector(`[data-form="${tab}"] input[name="email"]`)?.focus(), 120);
+  setTimeout(() => {
+    if (!modal.classList.contains("is-open")) return;
+    (modal.querySelector(`[data-form="${tab}"] input[name="email"]`) ||
+      modal.querySelector(`[data-form="${tab}"] button`) ||
+      modal.querySelector(".auth-modal-close"))?.focus();
+  }, 120);
   // 추천인 코드 자동 채움 (URL ?ref= 또는 저장된 값)
   const refInput = modal.querySelector('input[name="referralCode"]');
   if (refInput && !refInput.value) {
@@ -2931,21 +3249,31 @@ function closeAuthModal() {
   const modal = document.getElementById("authModal");
   if (!modal) return;
   modal.classList.remove("is-open");
-  document.body.style.overflow = "";
+  document.body.style.overflow = _authPreviousOverflow;
+  if (_authPreviousFocus?.isConnected) _authPreviousFocus.focus();
+  _authPreviousFocus = null;
 }
 function switchAuthTab(tab) {
   const modal = document.getElementById("authModal");
   if (!modal) return;
+  const previousFocus = document.activeElement;
   const isSpecial = tab === "forgot" || tab === "signupSuccess";
   modal.querySelectorAll(".auth-modal-tab").forEach(t => t.classList.toggle("is-active", t.dataset.tab === tab));
   const tabBar = modal.querySelector(".auth-modal-tabs");
   if (tabBar) tabBar.style.display = isSpecial ? "none" : "";
   modal.querySelectorAll(".auth-modal-form").forEach(f => f.hidden = f.dataset.form !== tab);
+  const activeTitle = modal.querySelector(`[data-form="${tab}"] h2`);
+  if (activeTitle?.id) modal.querySelector(".auth-modal")?.setAttribute("aria-labelledby", activeTitle.id);
   modal.querySelectorAll("[data-foot]").forEach(f => f.hidden = isSpecial || f.dataset.foot !== tab);
   modal.querySelectorAll("[data-error]").forEach(e => e.hidden = true);
   modal.querySelectorAll("[data-info]").forEach(e => e.hidden = true);
   const social = modal.querySelector("#authSocialSection");
   if (social) social.style.display = isSpecial ? "none" : "";
+  if (modal.classList.contains("is-open") && previousFocus?.closest("[hidden]")) {
+    (modal.querySelector(`[data-form="${tab}"] input[name="email"]`) ||
+      modal.querySelector(`[data-form="${tab}"] button`) ||
+      modal.querySelector(".auth-modal-close"))?.focus();
+  }
 }
 
 /* ── 소셜 로그인 (Google/Kakao/Naver/Apple) ── */
@@ -3231,6 +3559,10 @@ function loadGoogleSDK() {
     script.onload = () => resolve();
     script.onerror = () => reject(new Error("Google SDK 로드 실패 (네트워크 또는 차단)"));
     document.head.appendChild(script);
+  }).catch(err => {
+    _googleSdkPromise = null;
+    document.getElementById("googleGsiSdk")?.remove();
+    throw err;
   });
   return _googleSdkPromise;
 }
@@ -3414,13 +3746,19 @@ function likeButtonHTML(slug, extraClass = "") {
   const canVote = Boolean(getCharacterBySlug(slug)?.id);
   const liked = _userLikedSlugs.has(slug) ? " is-liked" : "";
   const cls = extraClass ? ` ${extraClass}` : "";
-  const tooltip = canVote ? "루미나 픽에서 응원하기" : "응원 기능 연결 중";
+  const isPickPage = Boolean(document.getElementById("voteTabs"));
+  const displayCount = isPickPage
+    ? new Intl.NumberFormat(_currentLocale, { notation: "compact", maximumFractionDigits: 1 }).format(count)
+    : formatLikeCount(count);
+  const tooltip = canVote
+    ? (isPickPage ? t("pick.action.support") : "루미나 픽에서 응원하기")
+    : (isPickPage ? t("pick.action.unavailable") : "응원 기능 연결 중");
   return `
-    <button class="like-btn${cls}${liked}" data-like-slug="${slug}" type="button" aria-label="${tooltip}" title="${tooltip}" ${canVote ? "" : "disabled"}>
+    <button class="like-btn${cls}${liked}" data-like-slug="${feedEscapeHtml(slug)}" type="button" aria-label="${feedEscapeHtml(tooltip)}" title="${feedEscapeHtml(tooltip)}" ${canVote ? "" : "disabled"}>
       <svg class="like-heart" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
         <path d="M12 21s-7.5-4.5-9.5-9.5C1 8.5 3.5 5.5 7 5.5c2 0 3.5 1 5 2.5 1.5-1.5 3-2.5 5-2.5 3.5 0 6 3 4.5 6-2 5-9.5 9.5-9.5 9.5z"/>
       </svg>
-      <span class="like-count">${formatLikeCount(count)}</span>
+      <span class="like-count">${feedEscapeHtml(displayCount)}</span>
     </button>`;
 }
 
@@ -3459,6 +3797,7 @@ async function handleLike(slug, btnEl) {
     if (rank) rank.likes += 1;
     else _rankings.push({ slug, likes: 1 });
     updateLikeButtons(slug);
+    if (document.getElementById("voteTabs")) window.refreshPopularVotePage?.();
     // Q1 답변 권장: 좋아요 성공 후 rankings 재호출로 정확한 순위/점수 갱신
     // (실패해도 낙관적 갱신은 유지 — 사용자 경험 영향 없음)
     apiFetch(`/api/v1/boost-campaigns/${_currentCampaign.id}/rankings?period=month`)
@@ -3674,6 +4013,7 @@ async function openPaidLikeModal(slug) {
       else _rankings.push({ slug, likes: selectedBundle.quantity });
       if (_wallet?.loaded) _wallet.balance = Math.max(0, Number(_wallet.balance || 0) - selectedBundle.lumina);
       updateLikeButtons(slug);
+      if (document.getElementById("voteTabs")) window.refreshPopularVotePage?.();
       // #261 — 성공 후 서버 wallet / quota / rankings 모두 재조회. 낙관적 값이 서버 기준과
       // 다르면 곧바로 정정. 음수 잔액/중복 차감을 사용자 화면에서 들킬 일이 없게.
       loadWallet?.();
@@ -3769,16 +4109,20 @@ function updateAuthUI() {
   const signupBtn = document.querySelector(".auth-btn-signup");
   if (!loginBtn || !signupBtn) return;
   if (auth?.user) {
+    loginBtn.removeAttribute("data-i18n");
     loginBtn.textContent = auth.user.displayName || auth.user.email?.split("@")[0] || "내 계정";
     loginBtn.dataset.action = "menu";
-    signupBtn.textContent = "로그아웃";
+    signupBtn.dataset.i18n = "auth.logout";
+    signupBtn.textContent = t("auth.logout");
     signupBtn.dataset.action = "logout";
     // 잔액 뱃지 영역 추가 (없으면 생성, 있으면 그대로)
     ensureWalletBadgeInHeader(loginBtn);
   } else {
-    loginBtn.textContent = "로그인";
+    loginBtn.dataset.i18n = "auth.login";
+    loginBtn.textContent = t("auth.login");
     loginBtn.dataset.action = "login";
-    signupBtn.textContent = "회원가입";
+    signupBtn.dataset.i18n = "auth.signup";
+    signupBtn.textContent = t("auth.signup");
     signupBtn.dataset.action = "signup";
     // 비로그인 시 뱃지 제거
     document.getElementById("walletBadge")?.remove();
@@ -4546,6 +4890,11 @@ function bindLuminaFeedDelete() {
    배지가 카드 클릭(아티스트 라우팅)에 묻히지 않도록 stopPropagation. */
 let _feedThreadModalEl = null;
 
+function feedModalViewerKey() {
+  const auth = getAuth();
+  return auth?.accessToken ? String(auth.user?.id || auth.user?.userId || auth.accessToken) : "";
+}
+
 function closeFeedThreadModal() {
   if (!_feedThreadModalEl) return;
   if (_feedThreadModalEl._escHandler) {
@@ -4617,13 +4966,19 @@ function showFeedThreadModalShell(post) {
 }
 
 async function openFeedThreadModal(postId) {
+  if (window.feedReadsBlockedForViewer?.()) return;
+  const owner = feedModalViewerKey();
   const cached = _luminaFeedItems.find(post => String(post.id) === String(postId)) || null;
   showFeedThreadModalShell(cached);
+  const modal = _feedThreadModalEl;
+  const current = () => modal === _feedThreadModalEl && owner === feedModalViewerKey() && !window.feedReadsBlockedForViewer?.();
   try {
     const res = await apiFetch(`/api/v1/lumina-feed/posts/${encodeURIComponent(postId)}`, {
-      auth: typeof isLoggedIn === "function" && isLoggedIn()
+      auth: typeof isLoggedIn === "function" && isLoggedIn(), throwOnError: true
     });
+    if (!current()) return;
     const serverPost = res?.post || res?.data?.post || res;
+    if (!serverPost?.id || String(serverPost.id) !== String(postId)) throw new Error("invalid thread response");
     const normalized = normalizeFeedPost({ ...(cached || {}), ...(serverPost || {}) });
     const idx = _luminaFeedItems.findIndex(post => String(post.id) === String(postId));
     if (idx >= 0) _luminaFeedItems[idx] = normalized;
@@ -4632,8 +4987,9 @@ async function openFeedThreadModal(postId) {
       if (panel) panel.innerHTML = renderFeedThreadModalContent(normalized);
     }
   } catch (err) {
+    if (!current()) return;
     console.warn("[#309 feed thread detail]", { status: err?.status || null });
-    if (!cached && _feedThreadModalEl) {
+    if (_feedThreadModalEl) {
       const panel = _feedThreadModalEl.querySelector(".feed-thread-modal-panel");
       if (panel) panel.innerHTML = `
         <button type="button" class="feed-thread-modal-close" data-feed-thread-close aria-label="닫기">×</button>
@@ -4737,7 +5093,9 @@ function bindLuminaFeedLike() {
 }
 
 let _feedCommentModalEl = null;
+let _feedCommentLoadSeq = 0;
 function openFeedCommentModal(post) {
+  if (window.feedReadsBlockedForViewer?.()) return;
   closeFeedCommentModal();
   const modal = document.createElement("div");
   modal.className = "feed-comment-modal";
@@ -4789,6 +5147,7 @@ function openFeedCommentModal(post) {
 }
 
 function closeFeedCommentModal() {
+  _feedCommentLoadSeq += 1;
   if (!_feedCommentModalEl) return;
   _feedCommentModalEl.remove();
   _feedCommentModalEl = null;
@@ -4808,16 +5167,25 @@ function renderFeedCommentItems(items) {
 }
 
 async function loadFeedComments(postId) {
-  const list = _feedCommentModalEl?.querySelector("[data-feed-comment-list]");
+  if (window.feedReadsBlockedForViewer?.()) return;
+  const owner = feedModalViewerKey();
+  const modal = _feedCommentModalEl;
+  if (String(modal?.querySelector("[data-feed-comment-form]")?.dataset.postId || "") !== String(postId)) return;
+  const seq = ++_feedCommentLoadSeq;
+  const current = () => modal === _feedCommentModalEl && seq === _feedCommentLoadSeq && owner === feedModalViewerKey() &&
+    String(modal?.querySelector("[data-feed-comment-form]")?.dataset.postId || "") === String(postId) && !window.feedReadsBlockedForViewer?.();
+  const list = modal?.querySelector("[data-feed-comment-list]");
   if (!list || !postId) return;
   try {
     const res = await apiFetch(`/api/v1/lumina-feed/posts/${encodeURIComponent(postId)}/replies?take=20`, {
-      auth: typeof isLoggedIn === "function" && isLoggedIn()
+      auth: typeof isLoggedIn === "function" && isLoggedIn(), throwOnError: true
     });
+    if (!current()) return;
     const items = Array.isArray(res) ? res : (res?.items || res?.replies || res?.comments || []);
     list.innerHTML = renderFeedCommentItems(items);
   } catch (err) {
-    console.warn("[Lumina feed comments] 조회 실패:", err?.status, err?.message);
+    if (!current()) return;
+    console.warn("[Lumina feed comments] 조회 실패:", err?.status);
     list.innerHTML = `<p class="feed-comment-state">댓글 목록은 잠시 후 다시 불러와 주세요.</p>`;
   }
 }
@@ -4849,6 +5217,11 @@ function bindLuminaFeedComment() {
       return;
     }
     const postId = form.dataset.postId;
+    const owner = feedModalViewerKey();
+    const modal = _feedCommentModalEl;
+    const current = () => modal === _feedCommentModalEl && owner === feedModalViewerKey() &&
+      modal?.querySelector("[data-feed-comment-form]") === form && form.dataset.postId === postId && !window.feedReadsBlockedForViewer?.();
+    if (!current()) return;
     const textarea = form.querySelector("textarea");
     const message = form.querySelector("[data-feed-comment-message]");
     const body = (textarea?.value || "").trim();
@@ -4860,6 +5233,7 @@ function bindLuminaFeedComment() {
       return;
     }
     const submitBtn = form.querySelector("button[type='submit']");
+    if (submitBtn?.disabled) return;
     if (submitBtn) submitBtn.disabled = true;
     try {
       const res = await apiFetch(`/api/v1/lumina-feed/posts/${encodeURIComponent(postId)}/replies`, {
@@ -4868,6 +5242,7 @@ function bindLuminaFeedComment() {
         throwOnError: true,
         body: { body }
       });
+      if (!current()) return;
       if (textarea) textarea.value = "";
       const idx = _luminaFeedItems.findIndex(p => p.id === postId);
       if (idx >= 0) {
@@ -4875,9 +5250,11 @@ function bindLuminaFeedComment() {
         _luminaFeedItems[idx].replyCount = Number(serverPost?.replyCount ?? _luminaFeedItems[idx].replyCount + 1) || 0;
       }
       await loadFeedComments(postId);
+      if (!current()) return;
       if (typeof renderLuminaFeed === "function") renderLuminaFeed();
     } catch (err) {
-      console.warn("[Lumina feed comments] 등록 실패:", err?.status, err?.message);
+      if (!current()) return;
+      console.warn("[Lumina feed comments] 등록 실패:", err?.status);
       if (message) {
         message.textContent = err?.message || "댓글 등록에 실패했어요. 잠시 후 다시 시도해 주세요.";
         message.hidden = false;
@@ -5186,8 +5563,9 @@ function getCharacterBySlug(slug) {
   return _artists.find(a => a.slug === slug);
 }
 function mediaStyle(path) {
-  if (!path) return "";
-  return `style="background-image: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(22,18,32,0.16)), url('${path}')"`;
+  if (typeof path !== "string" || !/^(?:https?:\/\/|\/(?!\/)|\.\/)/i.test(path) ||
+      /[<>"'\\\r\n\t]/.test(path)) return "";
+  return `style="background-image: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(22,18,32,0.16)), url('${feedEscapeHtml(path)}')"`;
 }
 
 function isHiddenLineupArtist(artist) {
@@ -5222,15 +5600,87 @@ function normalizeAssetUrl(url) {
   return `/${String(url).replace(/^(\.\/+|\/+)/, "")}`;
 }
 
+function publicArtistCopy(value) {
+  if (typeof value !== "string") return "";
+  const text = value.trim();
+  return text && !/\b(?:planned|candidate|TBD)\b|준비\s*중|후보/i.test(text) ? text : "";
+}
+
+function preferKoreanArtistCopy(publishedValue, localValue) {
+  const published = publicArtistCopy(publishedValue);
+  const local = publicArtistCopy(localValue);
+  const koreanLocale = typeof _currentLocale === "undefined" || _currentLocale === "ko-KR";
+  return koreanLocale && local && /[가-힣]/.test(local) && published && !/[가-힣]/.test(published)
+    ? local : (published || local);
+}
+
 function pickArtistProfile(apiProfile, localProfile) {
-  const apiKeys = apiProfile && typeof apiProfile === "object" ? Object.keys(apiProfile) : [];
-  const localKeys = localProfile && typeof localProfile === "object" ? Object.keys(localProfile) : [];
-  if (apiKeys.length >= localKeys.length) return apiProfile || localProfile || {};
-  return localProfile || apiProfile || {};
+  const profile = Object.fromEntries(Object.entries(localProfile || {}).filter(([, value]) =>
+    typeof value !== "string" || publicArtistCopy(value)));
+  const facts = apiProfile?.publicMetadata?.profileFacts;
+  if (!facts || typeof facts !== "object" || Array.isArray(facts)) return profile;
+  const fields = {
+    생년월일: ["displayBirthDate", "생년월일"], 출신지: ["hometown", "출신지"],
+    신체: ["height", "신체"], 혈액형: ["bloodType", "혈액형"],
+    포지션: ["position", "포지션"], 데뷔: ["debut", "데뷔"],
+    캐릭터타입: ["characterType", "캐릭터타입"],
+    팬포인트: ["fanPoint", "팬포인트"],
+    시그니처: ["signatureItems", "시그니처"], 광고축: ["adCategory", "광고축"],
+    대표컬러: ["representativeColors", "대표컬러"], MBTI: ["mbti", "MBTI"],
+    취미: ["hobbies", "취미"], 좋아하는선물: ["favoriteGifts", "좋아하는선물"],
+    나이: ["나이"], 비주얼: ["비주얼"], 콘텐츠포맷: ["콘텐츠포맷"],
+    대표장면: ["대표장면"], 대화톤: ["대화톤"],
+    함께하는방식: ["함께하는방식"], 관심주제: ["관심주제"],
+    팬과의약속: ["팬과의약속"], 휴식루틴: ["휴식루틴"],
+  };
+  for (const [label, keys] of Object.entries(fields)) {
+    const key = keys.find(candidate => Object.prototype.hasOwnProperty.call(facts, candidate));
+    if (!key) continue;
+    const value = facts[key];
+    if (Array.isArray(value)) {
+      const items = value.filter(item => typeof item === "number" || publicArtistCopy(item));
+      if (items.length) profile[label] = items.join(" · ");
+    } else if (typeof value === "number" || publicArtistCopy(value)) {
+      profile[label] = value;
+    }
+  }
+  if (facts.fandomNameCandidate || facts.fandomNameStatus) {
+    delete profile.팬덤명;
+    const status = typeof facts.fandomNameStatus === "string" ? facts.fandomNameStatus.trim() : "";
+    if (/^(?:approved|confirmed|published|확정|승인)$/i.test(status)) {
+      const name = publicArtistCopy(facts.fandomNameCandidate);
+      if (name) profile.팬덤명 = name;
+    }
+  }
+  return profile;
+}
+
+const _artistCopySources = new WeakMap();
+
+function localizedArtistCopy(source) {
+  const regional = typeof _currentLocale === "string" ? _currentLocale : "ko-KR";
+  const locale = regional.startsWith("ja") ? "ja" : regional.startsWith("zh")
+    ? (/Hant|TW|HK|MO/i.test(regional) ? "zh-Hant" : "zh-Hans")
+    : regional.startsWith("en") ? "en" : "ko";
+  const approved = source.approved?.[locale];
+  const approvedText = key => publicArtistCopy(approved?.[key]);
+  return {
+    name: approvedText("displayName") || preferKoreanArtistCopy(...source.name),
+    publicName: approvedText("displayName") || preferKoreanArtistCopy(...source.publicName),
+    summary: approvedText("summary") || preferKoreanArtistCopy(...source.summary),
+    intro: approvedText("publicStory") || preferKoreanArtistCopy(...source.intro),
+  };
 }
 
 function adaptArtist(api) {
   const local = characters.find(c => c.slug === api.slug) || {};
+  const copySource = {
+    approved: api.profile?.publicMetadata?.publicCopyByLocale,
+    name: [api.displayName || api.name, local.name],
+    publicName: [api.displayName || api.publicName || api.public_name, local.publicName],
+    summary: [publicArtistCopy(api.profile?.summary) || api.summary, local.summary],
+    intro: [publicArtistCopy(api.profile?.publicStory) || api.intro, local.intro],
+  };
   const approvedLocalImages = shouldKeepLocalGallery(api.slug) && local.images;
   // 운영 API의 assets[]에서 usageType별로 우선 사용, 없으면 로컬 fallback.
   const assets = api.assets || [];
@@ -5239,17 +5689,14 @@ function adaptArtist(api) {
   const apiGallery = assets
     .filter(a => a.usageType === "gallery")
     .map(a => ({ caption: a.caption || "Gallery", src: normalizeAssetUrl(a.url) }));
-  return {
+  const artist = {
     ...local,
+    ...localizedArtistCopy(copySource),
     id:          api.id            || api._id           || local.id,
-    name:        local.name || api.name || api.displayName,
-    publicName:  local.publicName || api.publicName || api.public_name || api.displayName,
     slug:        api.slug,
-    type:        local.type || api.type || api.displayCategory || api.category || "아티스트",
+    type:        api.displayCategory || api.category || api.type || local.type || "아티스트",
     tier:        api.tier || local.tier || "sub",
     status:      api.status === "active" ? "public" : (local.status || api.status),
-    summary:     api.summary       || local.summary,
-    intro:       api.intro         || local.intro,
     concept:     api.concept       || local.concept,
     tags:        api.tags          || local.tags || [],
     fandom:      api.fandom        || local.fandom,
@@ -5262,14 +5709,46 @@ function adaptArtist(api) {
     },
     gallery:           shouldKeepLocalGallery(api.slug) ? (local.gallery || []) : (apiGallery.length > 0 ? apiGallery : (local.gallery || [])),
     assets:            api.assets || [],   // #031: 원본 assets[] 보존 (상세 페이지에서 필터링용)
-    profile:           local.profile || pickArtistProfile(api.profile, local.profile),
+    profile:           pickArtistProfile(api.profile, local.profile),
+    fandomNameApproved: /^(?:approved|confirmed|published|확정|승인)$/i.test(
+      String(api.profile?.publicMetadata?.profileFacts?.fandomNameStatus || '').trim()),
     shorts:            api.shorts  || local.shorts  || [],
     // 프론트 전용 필드: 항상 로컬 유지
-    role:              local.role,
-    artistDescription: local.artistDescription,
-    colorAccent:       local.colorAccent
+    role:              local.role || api.profile?.publicMetadata?.profileFacts?.position || api.displayCategory || "아티스트",
+    artistDescription: local.artistDescription || api.profile?.summary || "",
+    colorAccent:       [local.colorAccent, api.visual?.primaryColor].find(color =>
+      typeof color === "string" && /^#[0-9a-f]{6}$/i.test(color)) || "#9f8bc7"
   };
+  _artistCopySources.set(artist, copySource);
+  return artist;
 }
+
+function publicArtistsFromApi(apiArtists) {
+  return apiArtists.filter(a => a?.status === "active" && a.slug &&
+    a.coverImage?.url && a.thumbnailImage?.url).map(adaptArtist);
+}
+
+function refreshPublicArtistLocale() {
+  for (const artist of _artists) {
+    const source = _artistCopySources.get(artist);
+    if (source) Object.assign(artist, localizedArtistCopy(source));
+  }
+}
+
+if (typeof window !== "undefined") window.refreshPublicArtistLocale = refreshPublicArtistLocale;
+if (typeof window !== "undefined") window.addEventListener("lumina:localechange", () => {
+  refreshPublicArtistLocale();
+  if (typeof renderMainArtists === "function") renderMainArtists();
+  if (typeof renderHeroFeature === "function") renderHeroFeature();
+  if (typeof renderDebutLine === "function") renderDebutLine();
+  if (typeof renderRoster === "function") renderRoster();
+  if (typeof renderCharacterCatalog === "function") {
+    const filter = document.querySelector("#characterFilters .is-active")?.dataset.filter || "all";
+    const status = document.querySelector("#characterStatusFilters .is-active")?.dataset.statusFilter || "all";
+    const tag = new URLSearchParams(window.location.search).get("tag") || "";
+    renderCharacterCatalog(filter, tag, status);
+  }
+});
 
 function adaptShortform(api) {
   const local = shortformsLocal.find(s => s.title === api.title) || {};
@@ -5323,9 +5802,11 @@ function updateHeroQuotaDisplay() {
   if (_freeLikeQuota && typeof _freeLikeQuota.dailyLimit === "number") {
     const remaining = _freeLikeQuota.remaining ?? 0;
     const limit = _freeLikeQuota.dailyLimit;
-    heroQuotaEl.textContent = `오늘 ${remaining}/${limit} 남음`;
+    heroQuotaEl.textContent = t("pick.hero.quota")
+      .replace("{remaining}", String(remaining))
+      .replace("{limit}", String(limit));
   } else {
-    heroQuotaEl.textContent = "오늘의 한 표";
+    heroQuotaEl.textContent = t("pick.hero.oneVote");
   }
 }
 
@@ -5397,6 +5878,7 @@ function bindCardNavigation() {
 
 /* ── 초기화: API 우선, fallback 로컬 ─────────── */
 /* ── 갤러리 슬라이더 (scroll-snap 방식, JS 계산 없음) ── */
+let gallerySliderEvents = null;
 function initGallerySlider(items, artistName) {
   const sliderEl = document.getElementById("gallerySlider");
   const track    = document.getElementById("galleryTrack");
@@ -5404,6 +5886,10 @@ function initGallerySlider(items, artistName) {
   const btnPrev  = document.getElementById("galleryPrev");
   const btnNext  = document.getElementById("galleryNext");
   if (!track || !sliderEl) return;
+
+  gallerySliderEvents?.abort();
+  gallerySliderEvents = new AbortController();
+  const signal = gallerySliderEvents.signal;
 
   track.innerHTML = "";
   sliderEl.scrollLeft = 0;
@@ -5451,7 +5937,7 @@ function initGallerySlider(items, artistName) {
       const img = document.createElement("img");
       img.src     = item.src;
       img.alt     = item.caption || "";
-      img.loading = "eager";
+      img.loading = globalIdx < perPage ? "eager" : "lazy";
       img.style.cssText = "width:100%;height:100%;object-fit:cover;object-position:center top;display:block;transition:transform 260ms ease;";
       img.onerror = () => {
         if (!img.dataset.retried) {
@@ -5488,23 +5974,27 @@ function initGallerySlider(items, artistName) {
     if (btnNext) btnNext.disabled = page >= totalPages - 1;
   }
 
-  sliderEl.addEventListener("scroll", updateUI, { passive: true });
+  sliderEl.addEventListener("scroll", updateUI, { passive: true, signal });
   updateUI();
 
   if (btnPrev) btnPrev.addEventListener("click", () => {
     sliderEl.scrollBy({ left: -sliderEl.offsetWidth, behavior: "smooth" });
-  });
+  }, { signal });
   if (btnNext) btnNext.addEventListener("click", () => {
     sliderEl.scrollBy({ left: sliderEl.offsetWidth, behavior: "smooth" });
-  });
+  }, { signal });
 
   // 터치 스와이프 (scroll-snap이 이미 처리하지만 보험용)
   let sx = 0;
-  sliderEl.addEventListener("touchstart", e => { sx = e.touches[0].clientX; }, { passive: true });
+  sliderEl.addEventListener("touchstart", e => { sx = e.touches[0].clientX; }, { passive: true, signal });
 }
 
 /* ── Encar식 라이트박스 ───────────────────────── */
+let galleryLightboxEvents = null;
 function initLightbox(items, artistName) {
+  galleryLightboxEvents?.abort();
+  galleryLightboxEvents = new AbortController();
+  const signal = galleryLightboxEvents.signal;
   // 기존 라이트박스 제거
   document.querySelectorAll(".encar-lightbox").forEach(el => el.remove());
 
@@ -5523,7 +6013,7 @@ function initLightbox(items, artistName) {
     </div>
     <div class="encar-thumbs">
       ${items.map((item, idx) => `
-        <img class="encar-thumb" src="${item.src}" alt="${item.caption}" data-idx="${idx}" />
+        <img class="encar-thumb" src="${feedEscapeHtml(item.src)}" alt="${feedEscapeHtml(item.caption)}" data-idx="${idx}" loading="lazy" />
       `).join("")}
     </div>`;
   document.body.appendChild(lb);
@@ -5609,10 +6099,10 @@ function initLightbox(items, artistName) {
     panX = e.clientX - panStartX;
     panY = e.clientY - panStartY;
     applyTransform(false);
-  });
+  }, { signal });
   window.addEventListener("mouseup", () => {
     if (isPanning) { isPanning = false; applyTransform(true); }
-  });
+  }, { signal });
 
   // 모바일 — 핀치 줌(2터치) + pan(1터치, 줌 상태)
   mainImg.addEventListener("touchstart", e => {
@@ -5657,7 +6147,7 @@ function initLightbox(items, artistName) {
     currentIdx = Math.max(0, Math.min(idx, items.length - 1));
     const item = items[currentIdx];
     mainImg.src = item.src;
-    mainImg.alt = `${artistName} ${item.caption}`;
+    mainImg.alt = `${typeof artistName === "function" ? artistName() : artistName} ${item.caption}`;
     caption.textContent = item.caption;
     counter.textContent = `${currentIdx + 1} / ${items.length}`;
     btnPrev.disabled = currentIdx === 0;
@@ -5684,7 +6174,7 @@ function initLightbox(items, artistName) {
   document.addEventListener("click", e => {
     const slide = e.target.closest(".gallery-slide[data-lightbox]");
     if (slide) show(+slide.dataset.lightbox);
-  });
+  }, { signal });
 
   // 썸네일 클릭
   thumbs.forEach(t => t.addEventListener("click", () => show(+t.dataset.idx)));
@@ -5704,7 +6194,7 @@ function initLightbox(items, artistName) {
     if (e.key === "Escape")      close();
     if (e.key === "ArrowLeft")   show(currentIdx - 1);
     if (e.key === "ArrowRight")  show(currentIdx + 1);
-  });
+  }, { signal });
 }
 
 /* 헤더 드롭다운(.user-menu-avatar) 안에 프로필 이미지 또는 기본 SVG placeholder 토글 */
@@ -5828,29 +6318,21 @@ async function init() {
   // 네이버 OAuth redirect 콜백 처리 (URL에 ?code=... 있으면)
   await handleNaverCallback();
 
-  // API 아티스트 — 안전망 추가: 응답이 형식 안 맞으면 로컬 데이터 유지
+  // A successful public API response is the publication boundary. Never add
+  // local records that the server omitted, including when the list is empty.
   const apiArtists = await apiFetch("/api/v1/artists");
-  if (apiArtists && Array.isArray(apiArtists) && apiArtists.length > 0) {
+  if (Array.isArray(apiArtists)) {
     try {
-      const adapted = apiArtists.map(adaptArtist);
-      // 핵심 필드 검증 — 메인 캐릭터가 4명 이상 있어야 사용
-      const valid = adapted.filter(a => a?.slug && a?.tier && a?.status && a?.images?.thumb);
-      const mainCount = valid.filter(a => a.status === "public").length;
-      if (mainCount >= 4) {
-        const bySlug = new Map(adapted.map(a => [a.slug, a]));
-        _artists = characters.map(local => bySlug.get(local.slug) || local);
-        adapted.forEach(apiArtist => {
-          if (!characters.some(local => local.slug === apiArtist.slug)) _artists.push(apiArtist);
-        });
-        console.info(`[Lumina] API 아티스트 ${adapted.length}명 로드됨 (공개 ${mainCount}명)`);
-      } else {
-        console.warn(`[Lumina] API 응답 불완전 (메인 캐릭터 ${mainCount}명) — 로컬 데이터 유지`);
-      }
+      _artists = publicArtistsFromApi(apiArtists);
+      console.info(`[Lumina] 공개 API 아티스트 ${_artists.length}명 로드됨`);
     } catch (err) {
-      console.error("[Lumina] adaptArtist 에러 — 로컬 데이터 유지:", err);
+      _artists = [];
+      console.error("[Lumina] 공개 아티스트 데이터 변환 실패:", err);
     }
   } else {
-    console.info("[Lumina] 로컬 데이터 사용 중 (API 응답 없음)");
+    const publicHost = /(?:^|\.)lumina-stage\.com$/i.test(window.location.hostname);
+    _artists = publicHost ? [] : characters;
+    console.warn("[Lumina] 공개 아티스트 API 응답 없음", { publicHost });
   }
 
   // API 숏폼 — 같은 안전망
@@ -5881,6 +6363,7 @@ async function init() {
 
   if (typeof renderMainArtists === "function") renderMainArtists();
   if (typeof renderHeroFeature === "function") renderHeroFeature();
+  if (typeof renderPremiumFeature === "function") renderPremiumFeature();
   if (typeof renderDebutLine === "function") renderDebutLine();
   if (typeof renderShortforms === "function") renderShortforms();
   if (typeof renderShortformHub === "function") renderShortformHub();
@@ -6191,6 +6674,11 @@ function syncLateNavigationUI() {
   updateAuthUI();
   activateCurrentNavItem();
   openAuthBridgeFixtureIfNeeded();
+  if (window.location?.pathname === "/" && ["#login", "#forgot"].includes(window.location.hash)) {
+    const tab = window.location.hash === "#forgot" ? "forgot" : "login";
+    window.history.replaceState(null, "", window.location.pathname + window.location.search);
+    openAuthModal(tab);
+  }
 }
 
 if (document.readyState === "loading") {

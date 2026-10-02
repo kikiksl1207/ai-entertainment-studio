@@ -1,5 +1,5 @@
 import { ConflictException } from '@nestjs/common';
-import { PrismaStoryContinuationQueueRepository } from './story-continuation.repository';
+import { PrismaStoryContinuationQueueRepository, StoryContinuationDispatchAuthorizationChanged } from './story-continuation.repository';
 
 function fixture() {
   const row = {
@@ -13,6 +13,7 @@ function fixture() {
   const prisma = {
     $queryRaw: jest.fn().mockResolvedValue([row]),
     $executeRaw: jest.fn().mockResolvedValue(1),
+    $transaction: jest.fn(async (operation: (tx: unknown) => Promise<unknown>): Promise<unknown> => operation(prisma)),
   };
   const repository = new PrismaStoryContinuationQueueRepository(prisma as never);
   return { row, prisma, repository };
@@ -73,5 +74,44 @@ describe('continuation queue provider pins', () => {
     f.prisma.$executeRaw.mockResolvedValue(0);
     await expect(f.repository.releaseForRetry(claim!, 'transient', new Date()))
       .rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('does not write a dispatch fence when its transaction rejects current author approval', async () => {
+    const f = fixture();
+    const claim = (await f.repository.claimNext('worker', 60_000))!;
+    const authorize = jest.fn().mockResolvedValue(false);
+    await expect(f.repository.markDispatched(claim, authorize))
+      .rejects.toBeInstanceOf(StoryContinuationDispatchAuthorizationChanged);
+    expect(authorize).toHaveBeenCalledWith(f.prisma);
+    expect(f.prisma.$executeRaw).not.toHaveBeenCalled();
+  });
+
+  it('awaits approval before executing the fence CAS in the same transaction', async () => {
+    const f = fixture();
+    const claim = (await f.repository.claimNext('worker', 60_000))!;
+    const order: string[] = [];
+    const authorize = jest.fn().mockImplementation(async tx => {
+      expect(tx).toBe(f.prisma);
+      order.push('approval');
+      return true;
+    });
+    f.prisma.$executeRaw.mockImplementation(async () => { order.push('fence'); return 1; });
+    await f.repository.markDispatched(claim, authorize);
+    expect(order).toEqual(['approval', 'fence']);
+    expect(f.prisma.$transaction).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not turn a failed transaction acknowledgement into a definite approval rejection', async () => {
+    const f = fixture();
+    const claim = (await f.repository.claimNext('worker', 60_000))!;
+    f.prisma.$transaction.mockRejectedValue({ code: 'P1001' });
+    await expect(f.repository.markDispatched(claim, async () => false)).rejects.toEqual({ code: 'P1001' });
+  });
+
+  it('still rejects a stale lease after current approval passed', async () => {
+    const f = fixture();
+    const claim = (await f.repository.claimNext('worker', 60_000))!;
+    f.prisma.$executeRaw.mockResolvedValue(0);
+    await expect(f.repository.markDispatched(claim, async () => true)).rejects.toBeInstanceOf(ConflictException);
   });
 });

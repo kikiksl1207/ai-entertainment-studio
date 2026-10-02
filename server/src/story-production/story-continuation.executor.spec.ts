@@ -10,6 +10,7 @@ import {
 import {
   StoryContinuationClaim,
   StoryContinuationQueueRepository,
+  StoryContinuationDispatchAuthorizationChanged,
 } from './story-continuation.repository';
 import {
   assertRecommendedContinuationOutput,
@@ -18,6 +19,7 @@ import {
 } from './story-economics.service';
 import { StoryEconomicsAdminController } from './story-economics.controller';
 import { StoryContinuationContextError } from './story-continuation-context.assembler';
+import { STORY_CONTINUATION_PROMPT_VERSION } from './story-continuation-openai.schema';
 
 const claim: StoryContinuationClaim = {
   continuationId: 'continuation-id',
@@ -28,7 +30,7 @@ const claim: StoryContinuationClaim = {
     operationId: 'continuation-id',
     locale: 'ko',
     contextFingerprint: 'fingerprint',
-    promptVersion: 'story-continuation-v6',
+    promptVersion: STORY_CONTINUATION_PROMPT_VERSION,
     outputSchemaVersion: 'story-continuation-output-v1',
     inputTokenLimit: 1000,
     outputTokenLimit: 500,
@@ -69,7 +71,8 @@ function fixture() {
   } as unknown as StoryContinuationProvider;
   const economics = {
     continuationExecutionAuthorization: jest.fn().mockResolvedValue({ allowed: true }),
-    settleClaimedContinuation: jest.fn(),
+    continuationDispatchAuthorization: jest.fn().mockResolvedValue(true),
+    settleClaimedContinuation: jest.fn().mockResolvedValue({ status: 'completed' }),
     failClaimedContinuation: jest.fn(),
   };
   const approvedContext = {
@@ -119,7 +122,7 @@ describe('StoryContinuationExecutor', () => {
     jest.mocked(f.queue.markDispatched).mockImplementation(() => new Promise((resolve) => { commit = resolve; }));
     const pending = f.executor.executeOne('worker');
     for (let i = 0; i < 10; i++) await Promise.resolve();
-    expect(f.queue.markDispatched).toHaveBeenCalledWith(claim);
+    expect(f.queue.markDispatched).toHaveBeenCalledWith(claim, expect.any(Function));
     expect(f.provider.generate).not.toHaveBeenCalled();
     commit();
     await expect(pending).resolves.toMatchObject({ status: 'completed' });
@@ -156,9 +159,48 @@ describe('StoryContinuationExecutor', () => {
     expect(f.economics.failClaimedContinuation).not.toHaveBeenCalled();
   });
 
+  it('does not report completion or create a visual prompt when settlement rejects changed approval', async () => {
+    const f = fixture();
+    f.economics.settleClaimedContinuation.mockResolvedValue({ status: 'failed' });
+    await expect(f.executor.executeOne('worker')).resolves.toMatchObject({ status: 'failed' });
+    expect(f.visuals.registerGeneratedContinuationPrompt).not.toHaveBeenCalled();
+    expect(f.economics.failClaimedContinuation).not.toHaveBeenCalled();
+    expect(f.queue.releaseForRetry).not.toHaveBeenCalled();
+  });
+
   it('never generates when dispatch commit acknowledgement fails', async () => {
     const f = fixture();
     jest.mocked(f.queue.markDispatched).mockRejectedValue({ code: 'P1001' });
+    await expect(f.executor.executeOne('worker')).resolves.toMatchObject({ status: 'failed' });
+    expect(f.provider.generate).not.toHaveBeenCalled();
+    expect(f.queue.releaseForRetry).not.toHaveBeenCalled();
+    expect(f.economics.failClaimedContinuation).toHaveBeenCalledWith(claim, 'provider_outcome_unknown', 'failed');
+  });
+
+  it('rechecks approval in the fence transaction after preflight and records a definite rejection', async () => {
+    const f = fixture();
+    const tx = {} as never;
+    f.provider.preflight = jest.fn().mockImplementation(async () => {
+      f.economics.continuationDispatchAuthorization.mockResolvedValue(false);
+      return { supported: true };
+    });
+    jest.mocked(f.queue.markDispatched).mockImplementation(async (_claim, authorize) => {
+      if (!await authorize(tx)) throw new StoryContinuationDispatchAuthorizationChanged();
+    });
+    await expect(f.executor.executeOne('worker')).resolves.toMatchObject({ status: 'failed' });
+    expect(f.economics.continuationDispatchAuthorization).toHaveBeenCalledWith(tx, claim);
+    expect(f.provider.generate).not.toHaveBeenCalled();
+    expect(f.queue.releaseForRetry).not.toHaveBeenCalled();
+    expect(f.economics.failClaimedContinuation).toHaveBeenCalledWith(claim, 'generation_authorization_changed', 'failed');
+  });
+
+  it('preserves outcome uncertainty when the rejected dispatch transaction is not acknowledged', async () => {
+    const f = fixture();
+    f.economics.continuationDispatchAuthorization.mockResolvedValue(false);
+    jest.mocked(f.queue.markDispatched).mockImplementation(async (_claim, authorize) => {
+      await authorize({} as never);
+      throw { code: 'P1001' };
+    });
     await expect(f.executor.executeOne('worker')).resolves.toMatchObject({ status: 'failed' });
     expect(f.provider.generate).not.toHaveBeenCalled();
     expect(f.queue.releaseForRetry).not.toHaveBeenCalled();
@@ -237,7 +279,7 @@ describe('StoryContinuationExecutor', () => {
     await expect(f.executor.executeOne('worker')).resolves.toMatchObject({ status: 'failed' });
     expect(f.economics.settleClaimedContinuation).not.toHaveBeenCalled();
     expect(f.economics.failClaimedContinuation).toHaveBeenCalledWith(
-      claim, 'participant_missing_from_scene', 'failed',
+      claim, 'participant_missing_from_scene', 'failed', result.usage,
     );
   });
 
@@ -271,7 +313,7 @@ describe('StoryContinuationExecutor', () => {
     await expect(f.executor.executeOne('worker')).resolves.toMatchObject({ status: 'failed' });
     expect(f.economics.settleClaimedContinuation).not.toHaveBeenCalled();
     expect(f.economics.failClaimedContinuation).toHaveBeenCalledWith(
-      claim, 'continuation_output_underlength', 'failed',
+      claim, 'continuation_output_underlength', 'failed', result.usage,
     );
   });
 
@@ -300,7 +342,36 @@ describe('StoryContinuationExecutor', () => {
     await expect(f.executor.executeOne('worker')).resolves.toMatchObject({ status: 'failed' });
     expect(f.economics.settleClaimedContinuation).not.toHaveBeenCalled();
     expect(f.economics.failClaimedContinuation).toHaveBeenCalledWith(
-      claim, 'server_moderation_rejected', 'failed',
+      claim, 'server_moderation_rejected', 'failed', result.usage,
+    );
+  });
+
+  it('fails a duplicate sibling settlement without another paid generation attempt', async () => {
+    const f = fixture();
+    f.economics.settleClaimedContinuation.mockRejectedValue(Object.assign(
+      new Error('continuation_sibling_narrative_duplicate'),
+      { code: 'continuation_sibling_narrative_duplicate' },
+    ));
+    await expect(f.executor.executeOne('worker')).resolves.toMatchObject({ status: 'failed' });
+    expect(f.provider.generate).toHaveBeenCalledTimes(1);
+    expect(f.queue.releaseForRetry).not.toHaveBeenCalled();
+    expect(f.economics.failClaimedContinuation).toHaveBeenCalledWith(
+      claim, 'continuation_sibling_narrative_duplicate', 'failed', result.usage,
+    );
+  });
+
+  it('holds an impossible generated date before moderation or publication', async () => {
+    const f = fixture();
+    f.approvedContext.sourceScene.beats = [{ beatType: 'paragraph', content: '검증용 본문'.repeat(4) }];
+    jest.mocked(f.provider.generate).mockResolvedValue({
+      ...result,
+      beats: [{ beatType: 'paragraph', content: { ko: '2025년 2월 29일의 기록을 발견했다.' } }],
+    });
+    await expect(f.executor.executeOne('worker')).resolves.toMatchObject({ status: 'failed' });
+    expect(f.moderation.preview).not.toHaveBeenCalled();
+    expect(f.economics.settleClaimedContinuation).not.toHaveBeenCalled();
+    expect(f.economics.failClaimedContinuation).toHaveBeenCalledWith(
+      claim, 'continuation_invalid_calendar_date', 'failed', result.usage,
     );
   });
 

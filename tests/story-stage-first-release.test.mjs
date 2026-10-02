@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-import { readFile, mkdir } from 'node:fs/promises';
+import { readFile, mkdir, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { registerCatalogTests } from './story-stage-catalog.test-support.mjs';
@@ -181,6 +181,99 @@ async function fixture(options = {}) {
 
 registerReaderTests({ fixture, projection, sessionId, workId, artifacts, locales, repo });
 registerReaderVisualTests({ fixture, projection, sessionId, workId, artifacts, locales });
+
+for (const width of [390, 1280]) {
+  test(`real final manuscript reading QA at ${width}px`, { skip: !process.env.STORY_READING_MANUSCRIPT }, async () => {
+    const manuscript = await readFile(process.env.STORY_READING_MANUSCRIPT, 'utf8');
+    const paragraphs = manuscript.replace(/^# [^\r\n]+\r?\n/u, '').trim().split(/\r?\n\s*\r?\n/u);
+    assert.ok(manuscript.length > 6000 && paragraphs.length > 100);
+    const midpoint = Math.floor(paragraphs.length / 2);
+    const value = projection(3, 'ko');
+    value.scene.title = '지워진 목소리';
+    value.scene.beats = [paragraphs.slice(0, midpoint).join('\n\n'), paragraphs.slice(midpoint).join('\n\n')]
+      .map((content, index) => ({ position: index + 1, content,
+        visualContext: { sourceSceneKey: `final-part-01-${index}`, assetReadiness: 'ready',
+          manifest: { sceneKey: `final-part-01-${index}`,
+            background: { state: 'ready', publicAssetPath: '/local-reader-background-a.png' }, characters: [] } } }));
+    const f = await fixture({ width, locale: 'ko', work: true, apiHelper: true, readerAuth: 'reader-a', current: value,
+      assetHook: async (request) => request.path === '/local-reader-background-a.png'
+        ? { body: await readFile(path.join(repo, 'assets/story/monster-name-cover.png')), contentType: 'image/png' } : null,
+      hook: (request, state) => {
+        if (request.method !== 'POST' || !request.path.endsWith('/beat')) return null;
+        const next = { ...state.current, currentBeatPosition: request.body.position, revision: state.current.revision + 1 };
+        state.setCurrent(next);
+        return { body: next };
+      } });
+    try {
+      await f.ready();
+      await f.page.locator('.story-player-background:not([hidden])').waitFor();
+      const phase = process.env.STORY_READING_QA_PHASE || 'qa';
+      const prefix = path.join(artifacts, `${phase}-${width}`);
+      const opening = await f.page.evaluate(() => {
+        const image = document.querySelector('.story-player-stage').getBoundingClientRect();
+        const firstLine = document.querySelector('.story-player-copy p').getBoundingClientRect();
+        return { imageHeight: image.height, imageBottom: image.bottom, firstTextTop: firstLine.top,
+          imageLoaded: document.querySelector('.story-player-background').naturalWidth > 0 };
+      });
+      const renderedProse = async () => (await f.page.locator('.story-player-copy p').allTextContents())
+        .join('\n\n').replace(/\r\n/gu, '\n');
+      assert.ok(await renderedProse() === value.scene.beats[0].content.replace(/\r\n/gu, '\n'),
+        'First page must retain the manuscript text');
+      await f.page.screenshot({ path: `${prefix}-opening.png` });
+      await f.page.evaluate(() => window.scrollTo(0, document.querySelector('.story-player-copy').offsetTop + 780));
+      await f.page.screenshot({ path: `${prefix}-middle.png` });
+      const metrics = await f.page.evaluate(() => {
+        const prose = document.querySelector('.story-player-copy');
+        const paragraph = prose.querySelector('p');
+        const art = document.querySelector('.story-player-stage');
+        const header = document.querySelector('.site-header');
+        const pStyle = getComputedStyle(paragraph);
+        const copyStyle = getComputedStyle(prose);
+        const rect = (element) => { const r = element.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; };
+        const luminance = (color) => {
+          const channels = color.match(/\d+/gu).slice(0, 3).map((channel) => Number(channel) / 255)
+            .map((channel) => channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4);
+          return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+        };
+        const contrastRatio = (luminance(pStyle.color) + 0.05) / (luminance(copyStyle.backgroundColor) + 0.05);
+        return { fontFamily: pStyle.fontFamily, fontSize: pStyle.fontSize, lineHeight: pStyle.lineHeight,
+          color: pStyle.color, background: copyStyle.backgroundColor, contrastRatio, paragraphWidth: rect(paragraph).width,
+          paneWidth: rect(prose).width, image: rect(art), header: rect(header), prose: rect(prose),
+          paragraphGap: getComputedStyle(prose.querySelector('p + p')).marginTop,
+          focusOutlineColor: copyStyle.outlineColor,
+          horizontalOverflow: document.documentElement.scrollWidth > innerWidth,
+          paragraphCount: prose.querySelectorAll('p').length, characters: prose.innerText.length };
+      });
+      await f.page.locator('[data-story-beat="next"]').click();
+      await f.page.locator('[data-story-beat-counter]').getByText('2 / 2').waitFor();
+      assert.ok(await renderedProse() === value.scene.beats[1].content.replace(/\r\n/gu, '\n'),
+        'Second page must retain the manuscript text');
+      await f.page.locator('.story-choice-panel').scrollIntoViewIfNeeded();
+      await f.page.screenshot({ path: `${prefix}-choices.png` });
+      const controls = await f.page.locator('[data-choice-id]').evaluateAll((buttons) => buttons.map((button) => {
+        const r = button.getBoundingClientRect();
+        return { width: r.width, height: r.height, right: r.right, scrollWidth: button.scrollWidth, clientWidth: button.clientWidth };
+      }));
+      await f.page.locator('.story-player-copy').scrollIntoViewIfNeeded();
+      await f.page.screenshot({ path: `${prefix}-second-beat.png` });
+      await writeFile(`${prefix}-metrics.json`, JSON.stringify({ width, opening, ...metrics, controls }, null, 2));
+      assert.equal(opening.imageLoaded, true);
+      assert.ok(opening.imageHeight <= (width === 390 ? 210 : 340));
+      assert.ok(opening.firstTextTop <= (width === 390 ? 510 : 630));
+      assert.ok(opening.firstTextTop > opening.imageBottom);
+      assert.ok(parseFloat(metrics.paragraphGap) <= 17);
+      assert.equal(metrics.header.y, 0);
+      assert.ok(metrics.characters > 3000 && metrics.paragraphCount > 60);
+      assert.equal(parseFloat(metrics.fontSize), width === 390 ? 17 : 18);
+      assert.ok(parseFloat(metrics.lineHeight) / parseFloat(metrics.fontSize) >= 1.75);
+      assert.ok(metrics.paragraphWidth >= 300 && metrics.paragraphWidth <= 620);
+      assert.ok(metrics.contrastRatio >= 7);
+      assert.equal(metrics.horizontalOverflow, false);
+      assert.equal(controls.length, 3);
+      assert.ok(controls.every((c) => c.width >= 44 && c.height >= 44 && c.right <= width + 1 && c.scrollWidth <= c.clientWidth + 1));
+    } finally { await f.close(); }
+  });
+}
 
 for (const locale of locales) {
   for (const paid of [false, true]) {
@@ -579,6 +672,25 @@ test('stale choice envelope refetches revision without replay or diagnostics', a
   } finally { await f.close(); }
 });
 
+for (const [locale, expected] of Object.entries({
+  ko: '선택지가 아직 준비되지 않았어요',
+  en: 'choices are not ready yet',
+  ja: '選択肢はまだ準備中です',
+  'zh-Hans': '选项尚未准备好',
+  'zh-Hant': '選項尚未準備好',
+})) {
+  test(`${locale} unavailable AI choices explain the wait without a duplicate request`, async () => {
+    const f = await fixture({ locale, hook: (r) => r.method === 'POST' ? envelope('STORY_AI_CHOICES_NOT_READY') : null });
+    try {
+      await f.ready();
+      await f.page.locator('[data-choice-id]').nth(1).click();
+      await f.page.waitForFunction((text) => document.querySelector('[data-story-action-status]')?.textContent.includes(text), expected);
+      assert.equal(f.requests.filter((r) => r.method === 'POST').length, 1);
+      assert.doesNotMatch(await f.page.locator('#storyStageRoot').innerText(), /STORY_AI_CHOICES_NOT_READY|INTERNAL_DIAGNOSTIC/);
+    } finally { await f.close(); }
+  });
+}
+
 for (const [code, status] of [['STORY_SUGGESTED_CHOICE_LIMIT_EXCEEDED', 409], ['FORBIDDEN', 403], ['UNAUTHORIZED', 401]]) {
   test(`${code}: error envelope blocks actionable scene with safe copy`, async () => {
     const f = await fixture({ hook: (r) => r.method === 'POST' ? envelope(code, status) : null });
@@ -630,6 +742,10 @@ for (const locale of locales) {
           const region = document.querySelector('.story-player-copy');
           const shell = document.querySelector('.story-reader-shell');
           const choicePanel = document.querySelector('.story-choice-panel');
+          const choiceBounds = [...document.querySelectorAll('[data-choice-id]')].map((choice) => {
+            const bounds = choice.getBoundingClientRect();
+            return { left: bounds.left, height: bounds.height };
+          });
           region.scrollTop = region.scrollHeight;
           const regionBounds = region.getBoundingClientRect();
           const shellBounds = shell.getBoundingClientRect();
@@ -637,7 +753,7 @@ for (const locale of locales) {
             hasVisualStage: Boolean(document.querySelector('.story-player-stage')),
             textOnly: shell.classList.contains('story-reader-shell-text-only'),
             centered: Math.abs((regionBounds.left + regionBounds.right) / 2 - (shellBounds.left + shellBounds.right) / 2) <= 1,
-            regionWidth: regionBounds.width, choiceTop: choicePanel?.getBoundingClientRect().top,
+            regionWidth: regionBounds.width, choiceTop: choicePanel?.getBoundingClientRect().top, choiceBounds,
             regionBottom: regionBounds.bottom, endReachable: Math.abs(region.scrollHeight - region.clientHeight - region.scrollTop) <= 2 };
         });
         assert.ok(geometry.scroll <= geometry.width, JSON.stringify(geometry));
@@ -645,6 +761,9 @@ for (const locale of locales) {
         assert.equal(geometry.textOnly, true);
         assert.ok(geometry.centered && geometry.regionWidth <= 761, JSON.stringify(geometry));
         assert.ok(geometry.choiceTop >= geometry.regionBottom, JSON.stringify(geometry));
+        assert.equal(geometry.choiceBounds.length, 3);
+        assert.ok(geometry.choiceBounds.every((choice) => Math.abs(choice.left - geometry.choiceBounds[0].left) < 1), JSON.stringify(geometry));
+        assert.ok(geometry.choiceBounds[0].height > geometry.choiceBounds[1].height, JSON.stringify(geometry));
         assert.equal(geometry.endReachable, true);
         if (process.env.STORY_UI_READER_CAPTURES !== '0') await f.page.screenshot({ path: path.join(artifacts, `${locale}-${width}-choices.png`), fullPage: true });
         await f.page.locator('[data-story-reset-preview="act"]').click();

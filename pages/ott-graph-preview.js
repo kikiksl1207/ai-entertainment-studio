@@ -216,7 +216,7 @@
       unknown = true;
     } catch (_) {}
   }
-  function duration(ms) { const seconds = Math.floor(ms / 1000); return Math.floor(seconds / 60) + ":" + String(seconds % 60).padStart(2, "0"); }
+  function duration(ms) { const seconds = Math.ceil(ms / 1000); return Math.floor(seconds / 60) + ":" + String(seconds % 60).padStart(2, "0"); }
   function syncBranches(focus = false) {
     if (!progress) { el.graphBranches.hidden = true; return; }
     const clip = progress.node.clip;
@@ -485,6 +485,7 @@
   function attachMedia(path) {
     const old = video;
     stopMedia();
+    el.previewPlayer.removeAttribute("data-video-orientation");
     video = document.createElement("video");
     video.id = "privateVideo";
     video.controls = true;
@@ -524,6 +525,7 @@
     element.addEventListener("loadedmetadata", () => {
       if (!current()) return;
       if (!Number.isFinite(element.duration) || element.duration * 1000 + 100 < progress.node.clip.endMs) return mediaFailure();
+      el.previewPlayer.setAttribute("data-video-orientation", element.videoHeight > element.videoWidth ? "portrait" : "landscape");
       mediaReady = true;
       if (Math.abs(element.currentTime * 1000 - playhead) < 1) {
         if (desiredPlaying) nativePlay();

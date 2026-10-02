@@ -1,20 +1,24 @@
 import {
   Body,
+  ConflictException,
   Controller,
   Delete,
   Get,
+  Inject,
   Param,
   Patch,
   Post,
   Query,
   UseGuards,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { RequireAdminPermissions } from '../auth/decorators/admin-permissions.decorator';
 import { AuthUser } from '../auth/auth.types';
 import { AdminAuthGuard } from '../auth/guards/admin-auth.guard';
 import { AdminPermissionGuard } from '../auth/guards/admin-permission.guard';
 import { AdminService } from './admin.service';
+import { AdminUsersReadService } from './admin-users-read.service';
 
 type AdminPayload = Record<string, unknown>;
 type AuditQuery = Record<string, string | undefined>;
@@ -27,6 +31,9 @@ type AuthActionTokenAuditQuery = AuditQuery & {
 @Controller('/admin/api/v1')
 @UseGuards(AdminAuthGuard, AdminPermissionGuard)
 export class AdminController {
+  @Inject(AdminUsersReadService)
+  private readonly adminUsersReadService!: AdminUsersReadService;
+
   constructor(private readonly adminService: AdminService) {}
 
   @Get('me')
@@ -42,8 +49,14 @@ export class AdminController {
 
   @Get('backstage/launch-readiness')
   @RequireAdminPermissions('*')
-  getBackstageLaunchReadiness() {
-    return this.adminService.getBackstageLaunchReadiness();
+  async getBackstageLaunchReadiness() {
+    const readiness = await this.adminService.getBackstageLaunchReadiness();
+    if (readiness.overall.status !== 'ready_candidate' ||
+        !readiness.categories.some((category) => category.blockers.length > 0)) return readiness;
+    return {
+      ...readiness,
+      overall: { ...readiness.overall, status: 'score_ready_with_blockers' },
+    };
   }
 
   @Get('backstage/operations/creators')
@@ -115,7 +128,7 @@ export class AdminController {
   @Get('backstage/operations/users-overview')
   @RequireAdminPermissions('users:read')
   getBackstageUsersOverview(@Query() query: AuditQuery) {
-    return this.adminService.getBackstageUsersOverview(query);
+    return this.adminUsersReadService.getBackstageUsersOverview(query);
   }
 
   @Get('backstage/operations/feed-search-analytics')
@@ -470,12 +483,20 @@ export class AdminController {
 
   @Post('assets/:assetId/archive')
   @RequireAdminPermissions('assets:write')
-  archiveAsset(
+  async archiveAsset(
     @CurrentUser() user: AuthUser,
     @Param('assetId') assetId: string,
     @Body() body: AdminPayload,
   ) {
-    return this.adminService.archiveAsset(user, assetId, body);
+    try {
+      return await this.adminService.archiveAsset(user, assetId, body);
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientUnknownRequestError &&
+          error.message.includes('Published story cover cannot be archived')) {
+        throw new ConflictException({ code: 'STORY_PUBLISHED_COVER_ARCHIVE_BLOCKED' });
+      }
+      throw error;
+    }
   }
 
   @Post('assets/:assetId/restore')

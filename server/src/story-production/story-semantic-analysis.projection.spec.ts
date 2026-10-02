@@ -16,7 +16,7 @@ describe('Semantic writer projections (mocked owner repository, not JWT HTTP)', 
         styleCategory: 'sentence_rhythm', rawSource: 'private-entire-manuscript', providerPayload: 'private-envelope',
         citations: [{ partIndex: 0, partKey: 'part-1', paragraphIndex: i, start: 0, end: 12, quoteHash: 'b'.repeat(64), quote: 'not-for-list' }],
       } }));
-    const db = { storyAnalysisEvidence: { findMany: jest.fn().mockResolvedValue(rows), findFirst: jest.fn() } };
+    const db = { storyAnalysisEvidence: { findMany: jest.fn().mockResolvedValue(rows), findFirst: jest.fn(), count: jest.fn().mockResolvedValue(35) } };
     const owned = jest.fn().mockResolvedValue(job);
     const service = new SemanticAnalysisService({ prisma: db, owned } as never, new SemanticAnalysisProvider(semanticTestConfig(), jest.fn()), {} as never);
     return { job, rows, db, owned, service };
@@ -42,6 +42,25 @@ describe('Semantic writer projections (mocked owner repository, not JWT HTTP)', 
     expect(f.db.storyAnalysisEvidence.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { analysisJobId: 'job', sequence: { gt: 99 } } }));
     f.db.storyAnalysisEvidence.findFirst.mockResolvedValue(null);
     await expect(f.service.get('owner', 'job', 'foreign')).rejects.toMatchObject({ response: { code: 'ANALYSIS_CURSOR_INVALID' } });
+  });
+  it('separates AI findings from structural rows and rejects a cursor from the other view', async () => {
+    const f = fixture();
+    const filtered = await f.service.get('owner', 'job', undefined, 'semantic');
+    expect(filtered).toMatchObject({ view: 'semantic', totalCount: 35 });
+    expect(f.db.storyAnalysisEvidence.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { analysisJobId: 'job', provenance: 'semantic_candidate' }, take: 101,
+    }));
+    f.db.storyAnalysisEvidence.findFirst.mockResolvedValue(null);
+    await expect(f.service.get('owner', 'job', 'structural-cursor', 'semantic'))
+      .rejects.toMatchObject({ response: { code: 'ANALYSIS_CURSOR_INVALID' } });
+    expect(f.db.storyAnalysisEvidence.findFirst).toHaveBeenCalledWith({
+      where: { id: 'structural-cursor', analysisJobId: 'job', provenance: 'semantic_candidate' },
+      select: { id: true, sequence: true },
+    });
+    await f.service.get('owner', 'job', undefined, 'structural');
+    expect(f.db.storyAnalysisEvidence.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { analysisJobId: 'job', provenance: { in: ['structural_only', 'structural_legacy'] } }, take: 101,
+    }));
   });
   it('labels old structural completion without claiming semantic completion or approval', async () => {
     const f = fixture('structural_legacy');

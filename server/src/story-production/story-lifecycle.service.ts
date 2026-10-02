@@ -150,6 +150,29 @@ export class StoryLifecycleService {
       let authoredPromotion: { partIds: string[]; sceneIds: string[] } | undefined;
       let studioPromotion: { partIds: string[]; sceneIds: string[] } | undefined;
       if (body.toStatus === 'published') {
+        if (work.activeReleaseId === null && /^draft-[0-9a-f-]{36}$/i.test(work.slug)) {
+          const summary = work.summary as Record<string, unknown> | null;
+          const cover = work.coverManifest as Record<string, unknown> | null;
+          const assetId = typeof cover?.assetId === 'string' ? cover.assetId : '';
+          if (/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(assetId)) {
+            await tx.$queryRaw(Prisma.sql`SELECT id FROM assets WHERE id = ${assetId}::uuid FOR UPDATE`);
+          }
+          const asset = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(assetId)
+            ? await tx.asset.findUnique({ where: { id: assetId } }) : null;
+          const assetMetadata = asset?.metadata as Record<string, unknown> | null;
+          const upload = assetMetadata?.uploadIntent as Record<string, unknown> | null;
+          const lifecycle = assetMetadata?.lifecycle as Record<string, unknown> | null;
+          if (!work.authorDisplayName?.trim() ||
+              typeof summary?.[work.defaultLocale] !== 'string' ||
+              !String(summary[work.defaultLocale]).trim() ||
+              !asset || asset.assetType !== 'image' || asset.visibility !== 'public' ||
+              !['s3', 'r2'].includes(asset.storageProvider) ||
+              upload?.status !== 'uploaded' || upload.createdByUserId !== work.ownerUserId ||
+              lifecycle?.status === 'archived' ||
+              cover?.url !== `/api/v1/assets/public/${assetId}/display`) {
+            throw new ConflictException({ code: 'STORY_PUBLICATION_METADATA_REQUIRED' });
+          }
+        }
         if (!release) throw new BadRequestException('Validated release is required');
         authoredPromotion = await assertAuthoredImportPublicationTx(tx, workId, release.id);
         const validation = release.validationSummary as Record<string, unknown>;
@@ -176,7 +199,10 @@ export class StoryLifecycleService {
             throw new ConflictException('Unresolved critical continuity issue blocks publication');
           }
         }
-        if (!authoredPromotion) {
+        const authoredImport = await tx.storyAuthoredImport.findUnique({
+          where: { workId }, select: { id: true },
+        });
+        if (!authoredImport) {
           studioPromotion = await this.studioChoices.assertPublishableTx(tx, work.id, work.ownerUserId,
             release.manuscriptVersionId, release.id);
         }

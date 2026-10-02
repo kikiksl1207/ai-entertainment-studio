@@ -1,0 +1,31 @@
+#writerInteractions { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--line, #d6d7dc); min-width: 0; font: 14px/1.65 Pretendard, "Noto Sans KR", system-ui, sans-serif; }
+#writerInteractions * { box-sizing: border-box; min-width: 0; letter-spacing: 0; }
+#writerInteractions :is(header, nav) { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+#writerInteractions header { justify-content: space-between; }
+#writerInteractions :is(h3, h4) { font-size: 17px; margin-block: 12px; }
+.writer-interaction-controls { display: flex; align-items: end; flex-wrap: wrap; gap: 12px; margin-block: 16px; }
+#writerInteractions label { display: grid; gap: 6px; }
+.writer-interaction-controls label { flex: 1 1 220px; }
+#writerInteractions :is(select, textarea, input:not([type="checkbox"])) { width: 100%; max-width: 100%; font: inherit; padding: 8px; border: 1px solid var(--line, #d6d7dc); border-radius: 4px; color: inherit; background: var(--panel, #fff); }
+#writerInteractions select, #writerInteractions input { min-height: 42px; }
+#writerInteractions textarea { resize: vertical; overflow-wrap: anywhere; white-space: pre-wrap; }
+#writerInteractions [data-interaction-source], #writerInteractions [data-interaction-evidence-source] { min-height: 240px; max-height: 480px; }
+#writerInteractions [data-interaction-memory] { min-height: 96px; }
+#writerInteractions button { min-height: 40px; max-width: 100%; border: 1px solid var(--line, #d6d7dc); border-radius: 4px; font: inherit; font-weight: 600; padding: 8px 12px; color: inherit; background: var(--panel, #fff); cursor: pointer; white-space: normal; overflow-wrap: anywhere; }
+#writerInteractions :disabled { opacity: .5; cursor: not-allowed; }
+#writerInteractions :is(button, select, textarea, input):focus-visible { outline: 2px solid #16806a; outline-offset: 3px; }
+.writer-interaction-editor { display: grid; gap: 14px; border-block: 1px solid var(--line, #d6d7dc); padding-block: 16px; }
+.writer-interaction-editor > button { justify-self: start; }
+#writerInteractions .writer-interaction-check { display: flex; align-items: start; gap: 9px; }
+#writerInteractions .writer-interaction-check span { font: inherit; font-weight: 400; color: inherit; text-transform: none; }
+#writerInteractions input[type="checkbox"] { flex: 0 0 18px; width: 18px; height: 18px; min-height: 18px; margin-top: 4px; accent-color: #16806a; }
+.writer-interaction-records { padding: 0; display: grid; gap: 12px; list-style: none; }
+.writer-interaction-records li { padding: 12px; border: 1px solid var(--line, #d6d7dc); border-radius: 4px; overflow-wrap: anywhere; }
+.writer-interaction-records blockquote { margin: 12px 0; padding-left: 12px; border-left: 2px solid #16806a; white-space: pre-wrap; }
+.writer-interaction-state { min-height: 24px; }
+.writer-interaction-boundary { color: var(--muted, #6b7280); margin-block: 14px; }
+#writerInteractions nav button { width: 44px; }
+#writerInteractions dialog { width: min(520px, calc(100% - 28px)); max-height: calc(100dvh - 32px); overflow: auto; padding: 20px; border: 1px solid #d1d5db; border-radius: 6px; background: #fff; color: #18181b; font: inherit; }
+#writerInteractions dialog::backdrop { background: rgb(0 0 0 / 50%); }
+#writerInteractions dialog button { color: #18181b; background: #f4f4f5; margin: 8px; }
+@media (max-width: 600px) { .writer-interaction-controls > button { width: 100%; } .writer-interaction-controls > nav { width: 100%; justify-content: center; } }

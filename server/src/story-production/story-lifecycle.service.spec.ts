@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 import { BadRequestException, ConflictException } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import * as authoredImport from './story-authored-import.service';
 import { StoryLifecycleService } from './story-lifecycle.service';
 import { StoryStudioChoicePreparationService } from './story-studio-choice-preparation.service';
@@ -30,12 +31,14 @@ describe('StoryLifecycleService', () => {
           activeReleaseId: null }),
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
+      asset: { findUnique: jest.fn() },
       storyRelease: {
         findFirst: jest.fn().mockResolvedValue({ id: 'release-id', version: 1, manuscriptVersionId: 'manuscript-id',
           validationSummary: { ready: true } }),
         update: jest.fn(),
       },
       storyAnalysisJob: { findFirst: jest.fn().mockResolvedValue(null) },
+      storyAuthoredImport: { findUnique: jest.fn().mockResolvedValue(authored ? { id: 'import-id' } : null) },
       storyWriterReview: { findFirst: jest.fn().mockResolvedValue(null) },
       storyManuscriptVersion: { findUnique: jest.fn().mockResolvedValue(null) },
       storyPart: {
@@ -184,6 +187,52 @@ describe('StoryLifecycleService', () => {
     expect(tx.storyPart.updateMany).toHaveBeenCalledTimes(1);
     expect(tx.storyScene.updateMany).toHaveBeenCalledTimes(1);
     expect(tx.storyRelease.update).toHaveBeenCalledTimes(1);
+  });
+
+  it('blocks a newly created draft from publishing without author, summary and verified cover', async () => {
+    const { tx, lifecycle } = publicationFixture();
+    tx.storyWork.findUnique.mockResolvedValue({ id: 'work-id', ownerUserId: 'owner-id',
+      slug: `draft-${randomUUID()}`, status: 'release_ready', releaseRevision: 1,
+      activeReleaseId: null, defaultLocale: 'ko', authorDisplayName: null,
+      summary: {}, coverManifest: {} });
+    await expect(publish(lifecycle)).rejects.toMatchObject({
+      response: { code: 'STORY_PUBLICATION_METADATA_REQUIRED' },
+    });
+    expect(tx.storyPart.updateMany).not.toHaveBeenCalled();
+    expect(tx.asset.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('publishes a new draft only with an uploaded, active public image owned by its author', async () => {
+    const { tx, lifecycle } = publicationFixture();
+    const assetId = randomUUID();
+    tx.storyWork.findUnique.mockResolvedValue({ id: 'work-id', ownerUserId: 'owner-id',
+      slug: `draft-${randomUUID()}`, status: 'release_ready', releaseRevision: 1,
+      activeReleaseId: null, defaultLocale: 'ko', authorDisplayName: '루미나',
+      summary: { ko: '작품 소개' },
+      coverManifest: { assetId, url: `/api/v1/assets/public/${assetId}/display` } });
+    tx.asset.findUnique.mockResolvedValue({ id: assetId, assetType: 'image', visibility: 'public', storageProvider: 'r2',
+      metadata: { uploadIntent: { status: 'uploaded', createdByUserId: 'owner-id' } } });
+    await expect(publish(lifecycle)).resolves.toMatchObject({ toStatus: 'published' });
+    expect(tx.asset.findUnique).toHaveBeenCalledWith({ where: { id: assetId } });
+  });
+
+  it.each(['other-owner', 'archived', 'local-storage'])('rejects a new draft cover that is %s', async (state) => {
+    const { tx, lifecycle } = publicationFixture();
+    const assetId = randomUUID();
+    tx.storyWork.findUnique.mockResolvedValue({ id: 'work-id', ownerUserId: 'owner-id',
+      slug: `draft-${randomUUID()}`, status: 'release_ready', releaseRevision: 1,
+      activeReleaseId: null, defaultLocale: 'ko', authorDisplayName: '루미나',
+      summary: { ko: '작품 소개' },
+      coverManifest: { assetId, url: `/api/v1/assets/public/${assetId}/display` } });
+    tx.asset.findUnique.mockResolvedValue({ id: assetId, assetType: 'image', visibility: 'public',
+      storageProvider: state === 'local-storage' ? 'local' : 'r2',
+      metadata: { uploadIntent: { status: 'uploaded',
+        createdByUserId: state === 'other-owner' ? 'other-id' : 'owner-id' },
+        lifecycle: { status: state === 'archived' ? 'archived' : 'active' } } });
+    await expect(publish(lifecycle)).rejects.toMatchObject({
+      response: { code: 'STORY_PUBLICATION_METADATA_REQUIRED' },
+    });
+    expect(tx.storyPart.updateMany).not.toHaveBeenCalled();
   });
 
   it('atomically promotes reviewed Studio drafts after their three choices are checked', async () => {

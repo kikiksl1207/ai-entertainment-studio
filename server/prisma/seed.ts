@@ -1,14 +1,21 @@
 import { createHash } from 'crypto';
-import { existsSync, readdirSync } from 'fs';
+import { existsSync, statSync } from 'fs';
 import { join } from 'path';
 import { PrismaClient } from '@prisma/client';
 import {
   CHAT_FEATURE_PRODUCT_POLICIES,
   LEGACY_CHAT_FEATURE_PRODUCT_POLICIES,
 } from '../src/chat/chat-feature-policy';
+import {
+  publicArtistCopyBySlug,
+  publicArtistCopyFor,
+} from '../src/public/artists/public-artist-copy';
+import { type CanonicalGalleryDirectory, selectCanonicalGalleryImageKeys } from './seed-gallery-selection';
 
 const prisma = new PrismaClient();
 const launchedAt = new Date('2026-04-27T00:00:00.000Z');
+const seoYuanPublicCopy = publicArtistCopyBySlug['seo-yuan'].ko;
+const kwonTaejunPublicCopy = publicArtistCopyBySlug['kwon-taejun'].ko;
 
 const artists = [
   {
@@ -91,14 +98,12 @@ const artists = [
   },
   {
     slug: 'seo-yuan',
-    displayName: 'Seo Yuan',
+    displayName: seoYuanPublicCopy.displayName,
     sortOrder: 70,
-    tagline: 'Natural luxury beauty and lifestyle muse',
-    summary:
-      'A graceful premium model character for skincare, fragrance, and calm lifestyle content.',
-    keywords: ['natural luxury', 'beauty', 'lifestyle'],
-    story:
-      'Seo Yuan is a clean, elegant Lumina Stage artist built around transparent beauty, fragrance, and premium lifestyle imagery.',
+    tagline: seoYuanPublicCopy.tagline,
+    summary: seoYuanPublicCopy.summary,
+    keywords: ['내추럴 럭셔리', '뷰티', '라이프스타일'],
+    story: seoYuanPublicCopy.publicStory,
     visualKeywords: ['soft oval face', 'dewy skin', 'minimal ivory styling'],
     primaryColor: '#f8fafc',
     secondaryColor: '#94a3b8',
@@ -119,14 +124,12 @@ const artists = [
   },
   {
     slug: 'kwon-taejun',
-    displayName: 'Kwon Taejun',
+    displayName: kwonTaejunPublicCopy.displayName,
     sortOrder: 90,
-    tagline: 'Noir actor mood and low-voice emotional chat candidate',
-    summary:
-      'A quiet actor-type male character candidate for suit styling, low-voice clips, and emotional fan chat.',
-    keywords: ['noir actor', 'low voice', 'emotional chat'],
-    story:
-      'Kwon Taejun is a planned Lumina Stage artist candidate built around night rain, tailored suits, and restrained emotional scenes.',
+    tagline: kwonTaejunPublicCopy.tagline,
+    summary: kwonTaejunPublicCopy.summary,
+    keywords: ['누아르 배우', '낮은 목소리', '절제된 감정'],
+    story: kwonTaejunPublicCopy.publicStory,
     visualKeywords: ['dark suit', 'low-key lighting', 'rainy night mood'],
     primaryColor: '#111827',
     secondaryColor: '#9ca3af',
@@ -435,16 +438,16 @@ const shortforms = [
 ] as const;
 
 const galleryDirsBySlug = {
-  'yoon-serin': ['reference-final'],
-  'han-seoyul': ['.'],
-  'park-doa': ['reference-final'],
+  'yoon-serin': ['site-selected'],
+  'han-seoyul': ['site-selected'],
+  'park-doa': ['site-selected'],
   'oh-hyerin': ['site-selected'],
-  'seo-yuan': ['.'],
-  'choi-seojin': ['.'],
-  'cha-dohyun': ['.'],
+  'seo-yuan': ['site-selected'],
+  'choi-seojin': ['site-selected'],
+  'cha-dohyun': ['site-selected'],
   'min-chaeon': ['site-selected'],
-  'ha-yuna': ['.'],
-  'kwon-taejun': ['.'],
+  'ha-yuna': ['site-selected'],
+  'kwon-taejun': ['site-selected'],
 } as const;
 
 const publicSeedArtistSlugs = new Set(Object.keys(galleryDirsBySlug));
@@ -455,6 +458,10 @@ async function main() {
   const artistBySlug = new Map<string, { id: string; displayName: string }>();
   const assetByKey = new Map<string, { id: string }>();
   const artistsToSeed = seedArtists();
+  // Check every canonical gallery before any database reads or writes.
+  const galleryImageKeysBySlug = new Map(
+    artistsToSeed.map((artist) => [artist.slug, getGalleryImageKeys(artist.slug)] as const),
+  );
 
   if (requestedSeedArtistSlugs) {
     console.log(`Running selective artist seed for: ${[...requestedSeedArtistSlugs].join(', ')}`);
@@ -475,6 +482,12 @@ async function main() {
       continue;
     }
     const status = seedArtistStatus(artist.slug);
+    const publicCopyByLocale = publicArtistCopyFor(artist.slug);
+    const publicMetadata = {
+      seed: true,
+      ...(publicCopyByLocale ? { publicCopyByLocale } : {}),
+      profileFacts: profileFactsBySlug[artist.slug],
+    };
     const row = await prisma.artist.upsert({
       where: { slug: artist.slug },
       update: {
@@ -503,10 +516,7 @@ async function main() {
         summary: artist.summary,
         personalityKeywords: [...artist.keywords],
         publicStory: artist.story,
-        publicMetadata: {
-          seed: true,
-          profileFacts: profileFactsBySlug[artist.slug],
-        },
+        publicMetadata,
         updatedAt: new Date(),
       },
       create: {
@@ -515,10 +525,7 @@ async function main() {
         summary: artist.summary,
         personalityKeywords: [...artist.keywords],
         publicStory: artist.story,
-        publicMetadata: {
-          seed: true,
-          profileFacts: profileFactsBySlug[artist.slug],
-        },
+        publicMetadata,
       },
     });
 
@@ -587,7 +594,7 @@ async function main() {
       });
     }
 
-    for (const [index, storageKey] of getGalleryImageKeys(artist.slug).entries()) {
+    for (const [index, storageKey] of (galleryImageKeysBySlug.get(artist.slug) ?? []).entries()) {
       expectedStorageKeys.add(storageKey);
       const asset = await upsertImageAsset(storageKey, `${artist.displayName} gallery ${index + 1}`);
       assetByKey.set(storageKey, asset);
@@ -1013,27 +1020,12 @@ async function upsertImageAsset(storageKey: string, title: string) {
 
 function getGalleryImageKeys(slug: string) {
   const dirs = galleryDirsBySlug[slug as keyof typeof galleryDirsBySlug] ?? [];
-  const keys: string[] = [];
-
-  for (const dir of dirs) {
-    const storageDir = dir === '.' ? `assets/characters/${slug}` : `assets/characters/${slug}/${dir}`;
-    const localDir = resolveAssetDir(storageDir);
-
-    if (!localDir) {
-      continue;
-    }
-
-    const fileNames = readdirSync(localDir)
-      .filter((fileName) => /\.(png|jpe?g|webp)$/i.test(fileName))
-      .filter((fileName) => dir !== '.' || /^reference-final-\d+\.(png|jpe?g|webp)$/i.test(fileName))
-      .sort((a, b) => a.localeCompare(b, 'en'));
-
-    for (const fileName of fileNames) {
-      keys.push(`${storageDir}/${fileName}`);
-    }
-  }
-
-  return keys;
+  return dirs.flatMap((dir) => selectCanonicalGalleryImageKeys(slug, dir, (storageKey) => {
+    const localFile = resolveAssetDir(storageKey);
+    if (!localFile) return false;
+    const stats = statSync(localFile);
+    return stats.isFile() && stats.size > 0;
+  }));
 }
 
 function getPrimaryImageStorageKey(slug: string, usageType: 'cover' | 'thumb') {
@@ -1042,7 +1034,7 @@ function getPrimaryImageStorageKey(slug: string, usageType: 'cover' | 'thumb') {
     return rootStorageKey;
   }
 
-  const dirs = galleryDirsBySlug[slug as keyof typeof galleryDirsBySlug] ?? [];
+  const dirs: readonly CanonicalGalleryDirectory[] = galleryDirsBySlug[slug as keyof typeof galleryDirsBySlug] ?? [];
   for (const dir of dirs) {
     const storageDir = dir === '.' ? `assets/characters/${slug}` : `assets/characters/${slug}/${dir}`;
     const storageKey = `${storageDir}/${usageType}.png`;

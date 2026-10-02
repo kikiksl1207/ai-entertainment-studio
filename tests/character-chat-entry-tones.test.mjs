@@ -17,12 +17,12 @@ const pageSource = readFileSync(`${root}/pages/character-chat.js`, 'utf8');
 const initMarker = '  if (document.readyState === "loading") {';
 assert.ok(pageSource.includes(initMarker), 'chat initialization marker is missing');
 vm.runInNewContext(
-  pageSource.replace(initMarker, `  window.__chatEntryTest = { shouldPreferLocalStarters, buildStarterOptions };\n${initMarker}`),
+  pageSource.replace(initMarker, `  window.__chatEntryTest = { shouldPreferLocalStarters, buildStarterOptions, getDmListCharacters, loadDmArtistList };\n${initMarker}`),
   context,
 );
 
 const { characters, chatTones, getChatTone } = context.window.LuminaStaticData;
-const { shouldPreferLocalStarters, buildStarterOptions } = context.window.__chatEntryTest;
+const { shouldPreferLocalStarters, buildStarterOptions, getDmListCharacters, loadDmArtistList } = context.window.__chatEntryTest;
 const affectedSlugs = [
   'nam-ian',
   'jang-taegeon',
@@ -43,6 +43,34 @@ test('every public artist has an explicit chat-entry tone', () => {
   for (const artist of publicArtists) {
     assert.ok(Object.hasOwn(chatTones, artist.slug), `${artist.slug}: missing chat tone`);
   }
+});
+
+test('chat list includes every public artist and excludes unpublished entries', () => {
+  const listed = getDmListCharacters();
+  assert.deepEqual(Array.from(listed, (artist) => artist.slug),
+    Array.from(characters.filter((artist) => artist.status === 'public'), (artist) => artist.slug));
+  characters.push({ slug: 'private-test-artist', status: 'pending' });
+  try {
+    assert.equal(getDmListCharacters().some((artist) => artist.slug === 'private-test-artist'), false);
+  } finally {
+    characters.pop();
+  }
+});
+
+test('public chat list uses the published API boundary, not local seed records', async () => {
+  context.window.location = { hostname: 'www.lumina-stage.com' };
+  assert.equal(getDmListCharacters().length, 0);
+  const published = characters.filter((artist) => artist.status === 'public');
+  context.apiFetch = async () => [
+    ...published.map((artist) => ({ slug: artist.slug, status: 'active' })),
+    { slug: 'withheld-artist', status: 'planned' },
+  ];
+  context.publicArtistsFromApi = (rows) => rows
+    .filter((row) => row.status === 'active')
+    .map((row) => ({ slug: row.slug, status: 'public' }));
+  await loadDmArtistList();
+  assert.deepEqual(Array.from(getDmListCharacters(), (artist) => artist.slug),
+    Array.from(published, (artist) => artist.slug));
 });
 
 test('the nine new entries have distinct greetings and usable artist-specific starters', () => {
@@ -71,5 +99,18 @@ test('only the nine affected artists prefer local starters over the default API 
   }
   assert.equal(shouldPreferLocalStarters('ha-yuna', { id: 'ha-yuna-soft-start-1' }), false);
   assert.equal(shouldPreferLocalStarters('missing-artist', { id: 'missing-artist-soft-start-1' }), false);
+});
+
+test('public chat entry paths do not show sample room status matrices', () => {
+  for (const path of ['character-chat.html', 'character-chat/index.html']) {
+    const html = readFileSync(`${root}/${path}`, 'utf8');
+    assert.doesNotMatch(html, /premium-chat-hub-state-matrix|방 상태 표시 안내/, path);
+    assert.match(html, /id="premiumChatRoomsList"/, path);
+  }
+});
+
+test('sample chat image threads are unavailable from public URL flags', () => {
+  assert.doesNotMatch(pageSource, /imagefixture=1/);
+  assert.match(pageSource, /return h === "localhost" \|\| h === "127\.0\.0\.1"/);
 });
 

@@ -41,7 +41,8 @@ describe('Pinned semantic packing compatibility', () => {
   });
 
   it('does not turn on either paid flag when selecting the new server planner', () => {
-    expect(semanticConfig({})).toMatchObject({ enabled: false, workerEnabled: false, apiKey: '',
+    expect(semanticConfig({})).toMatchObject({ enabled: false, workerEnabled: false,
+      autoEnqueueOnUpload: false, apiKey: '',
       packingProfile: SEMANTIC_PACKING_PROFILE });
   });
 

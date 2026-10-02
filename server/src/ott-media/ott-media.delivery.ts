@@ -80,6 +80,43 @@ export class OttMediaDelivery {
     } catch { fail('TOKEN_INVALID'); }
   }
 
+  issuePublicSession(grant: Omit<PublicBrowserGrant, 'expires'>) {
+    const expires = Math.floor(Date.now() / 1000) + 60;
+    const iv = randomBytes(12);
+    const cipher = createCipheriv('aes-256-gcm', createHash('sha256').update(this.key()).digest(), iv);
+    cipher.setAAD(Buffer.from('ott-public-watch-v1'));
+    const encrypted = Buffer.concat([cipher.update(JSON.stringify({ ...grant, expires })), cipher.final()]);
+    const token = Buffer.concat([iv, cipher.getAuthTag(), encrypted]).toString('base64url');
+    const path = this.publicBrowserPath(grant.slug, grant.nodeKey);
+    return { path, expiresAt: new Date(expires * 1000).toISOString(),
+      cookie: `__Secure-ott-public=${token}; Path=${path}; Max-Age=60; HttpOnly; Secure; SameSite=Strict` };
+  }
+
+  publicBrowserPath(slug: string, nodeKey: string) {
+    return `/api/v1/ott/${slug}/nodes/${nodeKey}/delivery`;
+  }
+
+  readPublicSession(cookie: unknown, slug: string, nodeKey: string): PublicBrowserGrant {
+    if (typeof cookie !== 'string' || cookie.length > 8192) fail('TOKEN_INVALID');
+    const matches = cookie.split(';').map((part) => part.trim()).filter((part) => part.startsWith('__Secure-ott-public='));
+    if (matches.length !== 1) fail('TOKEN_INVALID');
+    const token = matches[0].slice('__Secure-ott-public='.length);
+    if (!/^[A-Za-z0-9_-]{60,2048}$/.test(token)) fail('TOKEN_INVALID');
+    try {
+      const bytes = Buffer.from(token, 'base64url');
+      if (bytes.toString('base64url') !== token) fail('TOKEN_INVALID');
+      const decipher = createDecipheriv('aes-256-gcm', createHash('sha256').update(this.key()).digest(), bytes.subarray(0, 12));
+      decipher.setAAD(Buffer.from('ott-public-watch-v1'));
+      decipher.setAuthTag(bytes.subarray(12, 28));
+      const grant: PublicBrowserGrant = JSON.parse(Buffer.concat([decipher.update(bytes.subarray(28)), decipher.final()]).toString('utf8'));
+      const now = Math.floor(Date.now() / 1000);
+      if (grant.slug !== slug || grant.nodeKey !== nodeKey || typeof grant.manifestId !== 'string'
+        || typeof grant.fileId !== 'string' || !/^[a-f0-9]{64}$/.test(grant.checksum)
+        || !Number.isSafeInteger(grant.expires) || grant.expires <= now || grant.expires > now + 60) fail('TOKEN_INVALID');
+      return grant;
+    } catch { fail('TOKEN_INVALID'); }
+  }
+
   verify(upload: Upload, expiresInput: unknown, signature: unknown) {
     if (typeof expiresInput !== 'string' || !/^\d{10}$/.test(expiresInput)
       || typeof signature !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(signature)) fail('TOKEN_INVALID');
@@ -92,3 +129,4 @@ export class OttMediaDelivery {
 }
 
 export type BrowserGrant = { ownerId: string; fileId: string; versionId: string; checksum: string; expires: number };
+export type PublicBrowserGrant = { slug: string; manifestId: string; nodeKey: string; fileId: string; checksum: string; expires: number };

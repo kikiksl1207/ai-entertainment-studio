@@ -568,6 +568,91 @@ model StoryWorkGenerationProfile {
   @@map("story_work_generation_profiles")
 }
 
+model StorySceneVisualReviewBatch {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ownerUserId         String    @map("owner_user_id") @db.Uuid
+  workId              String    @map("work_id") @db.Uuid
+  manuscriptVersionId String    @map("manuscript_version_id") @db.Uuid
+  manuscriptHash      String    @map("manuscript_hash") @db.VarChar(64)
+  sourceChecksum      String    @map("source_checksum") @db.VarChar(64)
+  analysisJobId       String    @map("analysis_job_id") @db.Uuid
+  profilePinHash      String    @map("profile_pin_hash") @db.VarChar(64)
+  profilePin          Json      @map("profile_pin")
+  referenceIndexes    Int[]     @map("reference_indexes")
+  entries             Json
+  batchChecksum       String    @map("batch_checksum") @db.VarChar(64)
+  idempotencyKey      String    @map("idempotency_key") @db.Uuid
+  batchVersion        Int       @map("batch_version")
+  status              String    @default("draft") @db.VarChar(24)
+  revision            Int       @default(1)
+  approvedByUserId    String?   @map("approved_by_user_id") @db.Uuid
+  approvedAt          DateTime? @map("approved_at") @db.Timestamptz(6)
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([ownerUserId, workId, idempotencyKey], map: "uq_story_scene_visual_review_idempotency")
+  @@unique([workId, batchVersion], map: "uq_story_scene_visual_review_version")
+  @@index([ownerUserId, workId, manuscriptVersionId, profilePinHash, createdAt], map: "idx_story_scene_visual_review_current")
+  @@index([referenceIndexes], type: Gin, map: "idx_story_scene_visual_review_references")
+  @@map("story_scene_visual_review_batches")
+}
+
+model StoryBranchVisualReviewBatch {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ownerUserId         String    @map("owner_user_id") @db.Uuid
+  workId              String    @map("work_id") @db.Uuid
+  sharedResultId      String    @map("shared_result_id") @db.Uuid
+  releaseId           String    @map("release_id") @db.Uuid
+  releaseChecksum     String    @map("release_checksum") @db.VarChar(64)
+  manuscriptVersionId String    @map("manuscript_version_id") @db.Uuid
+  manuscriptHash      String    @map("manuscript_hash") @db.VarChar(64)
+  sourceChecksum      String    @map("source_checksum") @db.VarChar(64)
+  profilePinHash      String    @map("profile_pin_hash") @db.VarChar(64)
+  promptText          String    @map("prompt_text")
+  promptSha256        String    @map("prompt_sha256") @db.VarChar(64)
+  batchChecksum       String    @map("batch_checksum") @db.VarChar(64)
+  idempotencyKey      String    @map("idempotency_key") @db.Uuid
+  batchVersion        Int       @map("batch_version")
+  status              String    @default("draft") @db.VarChar(24)
+  revision            Int       @default(1)
+  approvedByUserId    String?   @map("approved_by_user_id") @db.Uuid
+  approvedAt          DateTime? @map("approved_at") @db.Timestamptz(6)
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([ownerUserId, workId, idempotencyKey], map: "uq_story_branch_visual_review_idempotency")
+  @@unique([workId, sharedResultId, batchVersion], map: "uq_story_branch_visual_review_version")
+  @@index([workId, sharedResultId, batchVersion], map: "idx_story_branch_visual_review_latest")
+  @@map("story_branch_visual_review_batches")
+}
+
+model StoryPartVisualSelection {
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ownerUserId         String   @map("owner_user_id") @db.Uuid
+  workId              String   @map("work_id") @db.Uuid
+  manuscriptVersionId String   @map("manuscript_version_id") @db.Uuid
+  manuscriptHash      String   @map("manuscript_hash") @db.VarChar(64)
+  sourceChecksum      String   @map("source_checksum") @db.VarChar(64)
+  analysisJobId       String   @map("analysis_job_id") @db.Uuid
+  profilePinHash      String   @map("profile_pin_hash") @db.VarChar(64)
+  partKey             String   @map("part_key") @db.VarChar(120)
+  targetSceneKey      String   @map("target_scene_key") @db.VarChar(160)
+  selectionVersion    Int      @map("selection_version")
+  status              String   @db.VarChar(24)
+  referenceIndex      Int?     @map("reference_index")
+  sourceSceneKey      String?  @map("source_scene_key") @db.VarChar(160)
+  batchId             String?  @map("batch_id") @db.Uuid
+  batchChecksum       String?  @map("batch_checksum") @db.VarChar(64)
+  selectionChecksum   String   @map("selection_checksum") @db.VarChar(64)
+  idempotencyKey      String   @map("idempotency_key") @db.Uuid
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([ownerUserId, workId, idempotencyKey], map: "uq_story_part_visual_selection_idempotency")
+  @@unique([workId, partKey, selectionVersion], map: "uq_story_part_visual_selection_version")
+  @@index([workId, partKey, selectionVersion], map: "idx_story_part_visual_selection_latest")
+  @@map("story_part_visual_selections")
+}
+
 model ArtistStoryIdentityProfile {
   id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   artistId            String    @map("artist_id") @db.Uuid
@@ -588,6 +673,7 @@ model ArtistStoryIdentityProfile {
   artist              Artist    @relation(fields: [artistId], references: [id], onDelete: Cascade)
 
   @@unique([artistId, profileVersion], map: "uq_artist_story_identity_profiles_version")
+  @@unique([id, artistId], map: "uq_artist_story_identity_profiles_actor")
   @@index([artistId, status, updatedAt], map: "idx_artist_story_identity_profiles_status")
   @@map("artist_story_identity_profiles")
 }
@@ -610,6 +696,23 @@ model StoryPublicationImportJob {
   @@unique([actorUserId, storyKey, sourceBindingSha256], map: "story_publication_import_jobs_identity")
   @@index([actorUserId, status, updatedAt], map: "idx_story_publication_import_jobs_actor_status")
   @@map("story_publication_import_jobs")
+}
+
+model StoryPublicationChoiceBatch {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workId            String   @map("work_id") @db.Uuid
+  releaseId         String   @map("release_id") @db.Uuid
+  firstPartPosition Int      @map("first_part_position")
+  status            String   @db.VarChar(32)
+  claimToken        String   @map("claim_token") @db.Uuid
+  preparationContext Json?   @map("preparation_context")
+  preparationContextSha256 String? @map("preparation_context_sha256") @db.VarChar(64)
+  errorCode         String?  @map("error_code") @db.VarChar(80)
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([workId, releaseId, firstPartPosition], map: "story_publication_choice_batches_identity")
+  @@map("story_publication_choice_batches")
 }
 
 model StoryPublicationSourceChunk {
@@ -1853,6 +1956,72 @@ model StoryScene {
   @@map("story_scenes")
 }
 
+model StoryInteractionApproval {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ownerUserId String @map("owner_user_id") @db.Uuid
+  workId String @map("work_id") @db.Uuid
+  releaseId String @map("release_id") @db.Uuid
+  releaseChecksum String @map("release_checksum") @db.VarChar(64)
+  manuscriptVersionId String @map("manuscript_version_id") @db.Uuid
+  manuscriptHash String @map("manuscript_hash") @db.VarChar(64)
+  partId String @map("part_id") @db.Uuid
+  sceneId String @map("scene_id") @db.Uuid
+  beatId String @map("beat_id") @db.Uuid
+  artistId String @map("artist_id") @db.Uuid
+  identityProfileId String @map("identity_profile_id") @db.Uuid
+  identityPinHash String @map("identity_pin_hash") @db.VarChar(64)
+  locale String @db.VarChar(8)
+  sourceChecksum String @map("source_checksum") @db.VarChar(64)
+  interactionKind String @map("interaction_kind") @db.VarChar(16)
+  evidenceStart Int @map("evidence_start")
+  evidenceText String @map("evidence_text") @db.Text
+  memoryText String @map("memory_text") @db.Text
+  approvalChecksum String @map("approval_checksum") @db.VarChar(64)
+  idempotencyKey String @map("idempotency_key") @db.Uuid
+  status String @default("approved") @db.VarChar(16)
+  revision Int @default(1)
+  approvedAt DateTime @default(now()) @map("approved_at") @db.Timestamptz(6)
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([ownerUserId, workId, idempotencyKey], map: "uq_story_interaction_approval_idempotency")
+  @@index([workId, releaseId, artistId, beatId, locale, status], map: "idx_story_interaction_approval_source")
+  @@map("story_interaction_approvals")
+}
+
+model StoryCanonicalReadReceipt {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId String @map("user_id") @db.Uuid
+  progressId String @map("progress_id") @db.Uuid
+  workId String @map("work_id") @db.Uuid
+  ownerUserId String @map("owner_user_id") @db.Uuid
+  releaseId String @map("release_id") @db.Uuid
+  releaseChecksum String @map("release_checksum") @db.VarChar(64)
+  manuscriptVersionId String @map("manuscript_version_id") @db.Uuid
+  manuscriptHash String @map("manuscript_hash") @db.VarChar(64)
+  partId String @map("part_id") @db.Uuid
+  sceneId String @map("scene_id") @db.Uuid
+  beatId String @map("beat_id") @db.Uuid
+  beatPosition Int @map("beat_position")
+  actNumber Int @map("act_number")
+  locale String @db.VarChar(8)
+  sourceChecksum String @map("source_checksum") @db.VarChar(64)
+  sourceTextHash String @map("source_text_hash") @db.VarChar(64)
+  routeNodeId String @map("route_node_id") @db.Uuid
+  routeHash String @map("route_hash") @db.VarChar(64)
+  storyVersion Int @map("story_version")
+  progressRevision Int @map("progress_revision")
+  scopeChecksum String @map("scope_checksum") @db.VarChar(64)
+  idempotencyKey String @map("idempotency_key") @db.Uuid
+  confirmedAt DateTime @default(now()) @map("confirmed_at") @db.Timestamptz(6)
+  invalidatedAt DateTime? @map("invalidated_at") @db.Timestamptz(6)
+  resetCommandId String? @map("reset_command_id") @db.Uuid
+
+  @@unique([userId, progressId, idempotencyKey], map: "uq_story_canonical_read_idempotency")
+  @@index([progressId, routeNodeId, beatId, locale, invalidatedAt], map: "idx_story_canonical_read_route")
+  @@map("story_canonical_read_receipts")
+}
+
 model StoryBeat {
   id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   sceneId   String   @map("scene_id") @db.Uuid
@@ -1864,6 +2033,7 @@ model StoryBeat {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   @@unique([sceneId, position])
+  @@unique([sceneId, id], map: "uq_story_beats_scene_identity")
   @@index([sceneId, position], map: "idx_story_beats_scene_position")
   @@map("story_beats")
 }
@@ -2021,6 +2191,7 @@ model StoryResetCommand {
   status                String   @default("completed")
   createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
+  @@unique([id, progressId, userId], map: "uq_story_reset_command_reader")
   @@index([progressId, createdAt], map: "idx_story_reset_commands_progress")
   @@map("story_reset_commands")
 }
@@ -2143,6 +2314,7 @@ model StoryVisualGeneration {
   sourceSceneKey  String    @map("source_scene_key") @db.VarChar(160)
   variantKey      String    @default("default") @map("variant_key") @db.VarChar(80)
   promptSha256    String    @map("prompt_sha256") @db.VarChar(64)
+  bookingIdentity Json?     @map("booking_identity")
   status          String    @default("pending") @db.VarChar(24)
   provider        String?   @db.VarChar(32)
   model           String?   @db.VarChar(80)
@@ -2463,6 +2635,8 @@ model StoryAiContinuation {
   contextFingerprint      String    @default("") @map("context_fingerprint")
   sourceRouteNodeId        String?   @map("source_route_node_id") @db.Uuid
   sourceRouteHash          String?   @map("source_route_hash")
+  siblingContextKey        String?   @map("sibling_context_key") @db.VarChar(64)
+  siblingChoiceKey         String?   @map("sibling_choice_key") @db.VarChar(64)
   reusableContextFingerprint String? @map("reusable_context_fingerprint")
   reuseKey                String?   @map("reuse_key")
   sharedResultId          String?   @map("shared_result_id") @db.Uuid
@@ -2499,6 +2673,16 @@ model StoryAiContinuation {
   @@index([sharedResultId, status], map: "idx_story_ai_continuations_shared_result")
   @@unique([id, userId, workId, releaseId, progressId], map: "uq_story_ai_continuations_owner_scope")
   @@map("story_ai_continuations")
+}
+
+model StoryAiSiblingNarrativeClaim {
+  siblingContextKey String   @map("sibling_context_key") @db.VarChar(64)
+  narrativeChecksum String   @map("narrative_checksum") @db.VarChar(64)
+  siblingChoiceKey  String   @map("sibling_choice_key") @db.VarChar(64)
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@id([siblingContextKey, narrativeChecksum])
+  @@map("story_ai_sibling_narrative_claims")
 }
 
 model StoryProgressRouteNode {

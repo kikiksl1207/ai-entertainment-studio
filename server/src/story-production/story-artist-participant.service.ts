@@ -14,6 +14,13 @@ import type { StoryArtistCandidateQueryDto } from './dto/story-production.dto';
 
 type ParticipantSource = 'liked' | 'voted' | 'liked_and_voted' | 'search';
 
+type ParticipantProgress = {
+  currentBeatPosition: number;
+  currentGeneratedSceneId: string | null;
+  pathSummary: Prisma.JsonValue;
+  status: string;
+};
+
 type ArtistCandidateRow = {
   id: string;
   slug: string;
@@ -34,6 +41,18 @@ type ArtistCandidateRow = {
     approvedSettings: Prisma.JsonValue | null;
     referenceAssetIds: Prisma.JsonValue;
   }>;
+};
+
+type IdentityReferenceRow = {
+  artistId: string;
+  assetId: string;
+  asset: {
+    checksum: string | null;
+    mimeType: string;
+    metadata: Prisma.JsonValue;
+    storageProvider: string;
+    fileSizeBytes: bigint | null;
+  };
 };
 
 export type StoryParticipantPin = {
@@ -98,7 +117,7 @@ export class StoryArtistParticipantService {
     const engagedIds = [...new Set([...liked, ...voted])];
     const search = query.q?.trim() ?? '';
 
-    const [engagedRows, searchRows, current] = await Promise.all([
+    const [engagedRows, searchRows, current, progress] = await Promise.all([
       engagedIds.length
         ? this.prisma.artist.findMany({
             where: { id: { in: engagedIds }, status: 'active' },
@@ -124,16 +143,44 @@ export class StoryArtistParticipantService {
         where: { userId_workId: { userId, workId } },
         select: { progressId: true, artistId: true },
       }),
+      this.prisma.storyReaderProgress.findUnique({
+        where: { userId_workId: { userId, workId } },
+        select: { currentBeatPosition: true, currentGeneratedSceneId: true, pathSummary: true, status: true },
+      }),
     ]);
 
+    const candidateRows = [...new Map(([
+      ...engagedRows as ArtistCandidateRow[], ...searchRows as ArtistCandidateRow[],
+    ]).map((row) => [row.id, row])).values()];
+    const referenceIds = [...new Set(candidateRows.flatMap((row) =>
+      this.stringArray(row.storyIdentityProfiles[0]?.referenceAssetIds)))];
+    const references = referenceIds.length ? await this.prisma.artistAsset.findMany({
+      where: {
+        artistId: { in: candidateRows.map((row) => row.id) },
+        assetId: { in: referenceIds },
+        asset: { visibility: 'public' },
+      },
+      select: { artistId: true, assetId: true, asset: { select: {
+        checksum: true, mimeType: true, metadata: true, storageProvider: true, fileSizeBytes: true,
+      } } },
+    }) : [];
+    const referencesByArtist = new Map<string, IdentityReferenceRow[]>();
+    for (const reference of references) {
+      const rows = referencesByArtist.get(reference.artistId) ?? [];
+      rows.push(reference);
+      referencesByArtist.set(reference.artistId, rows);
+    }
+    const project = (row: ArtistCandidateRow) => this.candidateProjection(
+      row, this.selectionSource(row.id, liked, voted),
+      Boolean(this.identitySnapshotFromAssets(row.storyIdentityProfiles[0], referencesByArtist.get(row.id) ?? [])),
+    );
+
     return {
-      engaged: (engagedRows as ArtistCandidateRow[]).map((row) =>
-        this.candidateProjection(row, this.selectionSource(row.id, liked, voted))),
-      searchResults: (searchRows as ArtistCandidateRow[]).map((row) =>
-        this.candidateProjection(row, this.selectionSource(row.id, liked, voted))),
+      engaged: (engagedRows as ArtistCandidateRow[]).map(project),
+      searchResults: (searchRows as ArtistCandidateRow[]).map(project),
       query: search,
       selectedArtistId: current?.artistId ?? null,
-      selectionLocked: Boolean(current),
+      selectionLocked: Boolean(current || (progress && !this.canFirstBind(progress))),
       policy: {
         maximumParticipants: 1,
         defaultSources: ['liked', 'voted'],
@@ -144,16 +191,26 @@ export class StoryArtistParticipantService {
   }
 
   async bind(
-    tx: PrismaService | Prisma.TransactionClient,
+    tx: Prisma.TransactionClient,
     input: { progressId: string; userId: string; workId: string; artistId: string },
   ) {
+    // Reading and first participation share the progress row, so the winner fixes the start state.
+    const [progress] = await tx.$queryRaw<ParticipantProgress[]>(Prisma.sql`
+      SELECT current_beat_position AS "currentBeatPosition",
+        current_generated_scene_id AS "currentGeneratedSceneId", path_summary AS "pathSummary", status
+      FROM story_reader_progress
+      WHERE id = ${input.progressId}::uuid AND user_id = ${input.userId}::uuid AND work_id = ${input.workId}::uuid
+      FOR UPDATE
+    `);
+    if (!progress) throw new NotFoundException('Story progress not found');
     const existing = await tx.storyProgressArtistParticipant.findUnique({
       where: { progressId: input.progressId },
     });
     if (existing) {
-      if (existing.artistId !== input.artistId) this.locked();
+      if (existing.artistId !== input.artistId || existing.userId !== input.userId || existing.workId !== input.workId) this.locked();
       return existing;
     }
+    if (!this.canFirstBind(progress)) this.locked();
     const artist = await tx.artist.findFirst({
       where: { id: input.artistId, status: 'active' },
       select: {
@@ -251,6 +308,13 @@ export class StoryArtistParticipantService {
     });
     if (!participant) return null;
     const pin = this.participantPin(participant);
+    if (participant.artist.id !== pin.artistId || pin.participantFingerprint !== this.hash({
+      artistId: pin.artistId, slug: participant.artist.slug, displayName: participant.artist.displayName,
+      identity: pin.identityProfileId ? { id: pin.identityProfileId, profileVersion: pin.identityProfileVersion,
+        reviewRevision: pin.identityReviewRevision, sourceFingerprint: pin.identitySourceFingerprint,
+        approvedFingerprint: pin.identityApprovedFingerprint } : null,
+      referenceAssetIds: pin.referenceAssetIds, referenceChecksums: pin.referenceChecksums,
+    })) this.changed();
     let identityProfile: StoryApprovedParticipant['identityProfile'];
     if (pin.identityProfileId) {
       const profile = await prisma.artistStoryIdentityProfile.findFirst({
@@ -269,10 +333,13 @@ export class StoryArtistParticipantService {
       if (creatorGenerationProfileFingerprint(profile.sourceFingerprint, normalized) !== profile.approvedFingerprint) this.changed();
       const assets = await prisma.artistAsset.findMany({
         where: { artistId: participant.artistId, assetId: { in: pin.referenceAssetIds }, asset: { visibility: 'public' } },
-        select: { assetId: true, asset: { select: { checksum: true } } },
+        select: { assetId: true, asset: { select: { checksum: true, metadata: true } } },
       });
-      const checksumById = new Map(assets.map((asset) => [asset.assetId, asset.asset.checksum]));
-      if (pin.referenceAssetIds.some((id, index) => checksumById.get(id) !== pin.referenceChecksums[index])) this.changed();
+      const assetById = new Map(assets.map((asset) => [asset.assetId, asset.asset]));
+      if (pin.referenceAssetIds.some((id, index) => {
+        const asset = assetById.get(id);
+        return !asset || !this.publicReady(asset.metadata) || asset.checksum !== pin.referenceChecksums[index];
+      })) this.changed();
       identityProfile = {
         schemaVersion: CREATOR_GENERATION_PROFILE_SCHEMA,
         sections: normalized.sections
@@ -317,6 +384,7 @@ export class StoryArtistParticipantService {
             storageKey: true,
             mimeType: true,
             fileSizeBytes: true,
+            metadata: true,
           },
         },
       },
@@ -326,7 +394,7 @@ export class StoryArtistParticipantService {
       const asset = byId.get(assetId);
       const expectedChecksum = context.pin.referenceChecksums[index];
       const fileSizeBytes = Number(asset?.fileSizeBytes ?? -1);
-      if (!asset || asset.checksum !== expectedChecksum ||
+      if (!asset || !this.publicReady(asset.metadata) || asset.checksum !== expectedChecksum ||
           !['local', 'r2', 's3'].includes(asset.storageProvider) ||
           !['image/png', 'image/jpeg', 'image/webp'].includes(asset.mimeType) ||
           !Number.isSafeInteger(fileSizeBytes) || fileSizeBytes < 1 || fileSizeBytes > 50 * 1024 * 1024) {
@@ -371,21 +439,25 @@ export class StoryArtistParticipantService {
     },
   };
 
-  private candidateProjection(row: ArtistCandidateRow, source: ParticipantSource) {
+  private candidateProjection(row: ArtistCandidateRow, source: ParticipantSource, visualIdentityReady: boolean) {
     const thumbnail = this.thumbnail(row.artistAssets);
-    const profile = row.storyIdentityProfiles[0];
     return {
       artistId: row.id,
       slug: row.slug,
       displayName: row.displayName,
       source,
       thumbnail,
-      visualIdentityReady: Boolean(profile?.approvedFingerprint && this.stringArray(profile.referenceAssetIds).length),
+      visualIdentityReady,
     };
   }
 
   private selectionSource(id: string, liked: Set<string>, voted: Set<string>): ParticipantSource {
     return liked.has(id) && voted.has(id) ? 'liked_and_voted' : liked.has(id) ? 'liked' : voted.has(id) ? 'voted' : 'search';
+  }
+
+  private canFirstBind(progress: ParticipantProgress) {
+    return progress.status === 'active' && progress.currentBeatPosition === 0 &&
+      progress.currentGeneratedSceneId === null && Array.isArray(progress.pathSummary) && progress.pathSummary.length === 0;
   }
 
   private thumbnail(assets: ArtistCandidateRow['artistAssets']) {
@@ -401,18 +473,39 @@ export class StoryArtistParticipantService {
   private async validIdentitySnapshot(tx: PrismaService | Prisma.TransactionClient, artistId: string, profile?: ArtistCandidateRow['storyIdentityProfiles'][number]) {
     if (!profile?.approvedFingerprint || !profile.approvedSettings) return null;
     try {
-      const normalized = normalizeCreatorGenerationProfile('artist', profile.approvedSettings);
-      if (creatorGenerationProfileFingerprint(profile.sourceFingerprint, normalized) !== profile.approvedFingerprint) return null;
       const ids = this.stringArray(profile.referenceAssetIds);
       if (ids.length < 1 || ids.length > 8) return null;
       const rows = await tx.artistAsset.findMany({
         where: { artistId, assetId: { in: ids }, asset: { visibility: 'public' } },
-        select: { assetId: true, asset: { select: { checksum: true, mimeType: true } } },
+        select: { artistId: true, assetId: true, asset: { select: {
+          checksum: true, mimeType: true, metadata: true, storageProvider: true, fileSizeBytes: true,
+        } } },
       });
+      return this.identitySnapshotFromAssets(profile, rows);
+    } catch {
+      return null;
+    }
+  }
+
+  private identitySnapshotFromAssets(profile: ArtistCandidateRow['storyIdentityProfiles'][number] | undefined,
+    rows: IdentityReferenceRow[]) {
+    if (!profile?.approvedFingerprint || !profile.approvedSettings) return null;
+    try {
+      const normalized = normalizeCreatorGenerationProfile('artist', profile.approvedSettings);
+      if (creatorGenerationProfileFingerprint(profile.sourceFingerprint, normalized) !== profile.approvedFingerprint) return null;
+      const ids = this.stringArray(profile.referenceAssetIds);
+      if (ids.length < 1 || ids.length > 8 || new Set(ids).size !== ids.length) return null;
       const byId = new Map(rows.map((row) => [row.assetId, row.asset]));
       const checksums = ids.map((id) => byId.get(id)?.checksum ?? '');
       if (checksums.some((checksum) => !/^[a-f0-9]{64}$/.test(checksum)) ||
-          ids.some((id) => !byId.get(id)?.mimeType.startsWith('image/'))) return null;
+          ids.some((id) => {
+            const asset = byId.get(id);
+            const bytes = Number(asset?.fileSizeBytes ?? -1);
+            return !asset || !this.publicReady(asset.metadata) ||
+              !['image/png', 'image/jpeg', 'image/webp'].includes(asset.mimeType) ||
+              !['local', 'r2', 's3'].includes(asset.storageProvider) ||
+              !Number.isSafeInteger(bytes) || bytes < 1 || bytes > 50 * 1024 * 1024;
+          })) return null;
       return {
         pin: {
           id: profile.id,

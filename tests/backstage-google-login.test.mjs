@@ -19,7 +19,11 @@ test('Backstage Google login uses an ID credential for authentication', () => {
   assert.doesNotMatch(source, /use_fedcm_for_prompt/);
   assert.match(html, /id="backstageGoogleButtonMount"/);
   assert.match(html, /id="backstageGoogleButtonFallback"/);
-  assert.match(html, /backstage\.js\?v=20260922-google-auth-5/);
+  const runtimeScripts = [...html.matchAll(/<script\b[^>]*\bsrc="([^"]+)"[^>]*>/g)]
+    .map((match) => new URL(match[1], 'https://lumina-stage.com'))
+    .filter((url) => url.pathname === '/backstage.js');
+  assert.equal(runtimeScripts.length, 1);
+  assert.ok(runtimeScripts[0].searchParams.get('v'));
   assert.match(css, /\.google-action\[hidden\]\s*\{\s*display:\s*none/);
 });
 

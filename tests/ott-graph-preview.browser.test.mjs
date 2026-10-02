@@ -122,6 +122,41 @@ for (const width of [390, 1280]) {
   });
 }
 
+for (const width of [390, 1280]) {
+  test(`browser demo ${width}: two choices appear over the playing portrait finale`, async () => {
+    const f = await fixture({ width, locale: 'ko', endScreen: true,
+      server: graphServer({ locale: 'ko', firstChoices: ['B', 'C'], firstClipEndMs: 8000 }) });
+    try {
+      await f.play();
+      await f.page.locator('#graphBranches').waitFor({ state: 'visible', timeout: 10000 });
+      const metrics = await f.page.evaluate(() => {
+        const player = document.getElementById('previewPlayer');
+        const video = document.querySelector('video');
+        const frame = video.getBoundingClientRect();
+        const overlay = document.getElementById('graphBranches').getBoundingClientRect();
+        return { orientation: player.getAttribute('data-video-orientation'), playing: !video.paused,
+          currentTime: video.currentTime, choiceCount: document.querySelectorAll('#graphChoices button').length,
+          frame: { left: frame.left, right: frame.right, top: frame.top, bottom: frame.bottom },
+          overlay: { left: overlay.left, right: overlay.right, top: overlay.top, bottom: overlay.bottom },
+          pageWidth: document.documentElement.scrollWidth };
+      });
+      assert.equal(metrics.orientation, 'portrait');
+      assert.equal(metrics.choiceCount, 2);
+      assert.equal(metrics.playing, true);
+      assert.match(await f.page.locator('#previewDuration').textContent(), /0:08/);
+      assert.ok(metrics.currentTime >= 6 && metrics.currentTime < 8);
+      assert.ok(metrics.pageWidth <= width);
+      assert.ok(metrics.overlay.left >= metrics.frame.left - 1 && metrics.overlay.right <= metrics.frame.right + 1);
+      assert.ok(metrics.overlay.top >= metrics.frame.top - 1 && metrics.overlay.bottom <= metrics.frame.bottom + 1);
+      if (artifacts) await f.page.screenshot({ path: path.join(artifacts, `demo-two-choices-${width}.png`), fullPage: true });
+      await f.page.locator('#graphChoices button').last().click();
+      await f.page.waitForFunction(() => document.getElementById('graphBranches').hidden);
+      assert.equal(f.server.states.get('ko').node, 'C');
+      assert.deepEqual(f.errors, []);
+    } finally { await f.close(); }
+  });
+}
+
 test('browser functional: real native decode uses cookie range and source clip bounds', async () => {
   const f = await fixture();
   try {

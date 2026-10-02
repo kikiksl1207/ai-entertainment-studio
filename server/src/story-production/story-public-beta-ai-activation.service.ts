@@ -8,6 +8,7 @@ import type { ActivatePublishedStoryAiDto } from './dto/story-publication-intake
 import { StoryAiActivationService } from './story-ai-activation.service';
 import { INHERITOR_STORY } from './story-inheritor-publication.policy';
 import { StoryFixedRouteChoiceRefreshService } from './story-fixed-route-choice-refresh.service';
+import { hasPreparedOriginalAndAlternatives } from './story-three-choice-readiness.policy';
 
 const STORY_KEYS = {
   imjin: 'records-of-the-burning-sea-imjin-war',
@@ -28,6 +29,7 @@ const STYLE_SAMPLE_COUNT = 8;
 
 type StoryKey = keyof typeof STORY_KEYS;
 type Tx = Prisma.TransactionClient;
+type PublishedTarget = { workId: string; releaseId: string };
 
 @Injectable()
 export class StoryPublicBetaAiActivationService {
@@ -36,9 +38,9 @@ export class StoryPublicBetaAiActivationService {
     private readonly legalActivation: StoryAiActivationService,
   ) {}
 
-  async status(storyKeyValue: string) {
+  async status(storyKeyValue: string, expected?: PublishedTarget) {
     const storyKey = this.storyKey(storyKeyValue);
-    const work = await this.findWork(this.prisma, storyKey);
+    const work = await this.findWork(this.prisma, storyKey, expected);
     if (!work?.activeReleaseId || work.status !== 'published') {
       return { storyKey, status: 'unavailable', active: false };
     }
@@ -52,12 +54,93 @@ export class StoryPublicBetaAiActivationService {
     const readyActivation = choicesReady ? activation : null;
     return {
       storyKey,
+      ...(expected ? { workId: work.id, releaseId: work.activeReleaseId } : {}),
       status: readyActivation ? 'active' : 'inactive',
       active: Boolean(readyActivation),
       locale: readyActivation?.locale ?? LOCALE,
       region: readyActivation?.region ?? REGION,
       expiresAt: readyActivation?.expiresAt ?? null,
       ...(choicePreparation ? { choicePreparation } : {}),
+    };
+  }
+
+  async choiceCoverage(storyKeyValue: string, expected?: PublishedTarget) {
+    const storyKey = this.storyKey(storyKeyValue);
+    const work = await this.findWork(this.prisma, storyKey, expected);
+    if (!work?.activeReleaseId || work.status !== 'published') {
+      return { storyKey, status: 'unavailable' };
+    }
+    const parts = await this.prisma.storyPart.findMany({
+      where: { workId: work.id, status: 'published', fixtureSource: false },
+      orderBy: [{ position: 'asc' }, { id: 'asc' }],
+      select: { id: true, position: true },
+      take: 1_001,
+    });
+    if (!parts.length) return { storyKey, status: 'unavailable' };
+    if (parts.length > 1_000) return { storyKey, status: 'too_large' };
+    const scenes = parts.length ? await this.prisma.storyScene.findMany({
+      where: { partId: { in: parts.map((part) => part.id) }, status: 'published', fixtureSource: false },
+      select: { id: true, partId: true, sceneKey: true },
+      take: 2_001,
+    }) : [];
+    if (scenes.length > 2_000) return { storyKey, status: 'too_large' };
+    const choices = scenes.length ? await this.prisma.storyChoice.findMany({
+      where: { sceneId: { in: scenes.map((scene) => scene.id) }, position: { gt: 0 } },
+      select: { sceneId: true, position: true, label: true, routeKind: true,
+        targetSceneId: true, targetEndingKey: true },
+      take: 6_001,
+    }) : [];
+    if (choices.length > 6_000) return { storyKey, status: 'too_large' };
+    const partById = new Map(parts.map((part) => [part.id, part.position]));
+    const sceneCountByPart = new Map<string, number>();
+    const choicesByScene = new Map<string, typeof choices>();
+    for (const scene of scenes) sceneCountByPart.set(scene.partId, (sceneCountByPart.get(scene.partId) ?? 0) + 1);
+    for (const choice of choices) {
+      const rows = choicesByScene.get(choice.sceneId) ?? [];
+      rows.push(choice);
+      choicesByScene.set(choice.sceneId, rows);
+    }
+    const distribution = { zero: 0, one: 0, two: 0, threeValid: 0, otherOrInvalid: 0 };
+    const routeIssues = { duplicateImmediateTargets: 0, invalidDirectTargets: 0 };
+    const examples: Array<{ partPosition: number; sceneKey: string; choiceCount: number }> = [];
+    for (const scene of scenes) {
+      const sceneChoices = choicesByScene.get(scene.id) ?? [];
+      const labels = sceneChoices.map((choice) => {
+        const localized = choice.label && typeof choice.label === 'object' && !Array.isArray(choice.label)
+          ? (choice.label as Record<string, unknown>).ko : null;
+        return typeof localized === 'string' ? localized.trim() : '';
+      });
+      const validThree = sceneChoices.length === 3 &&
+        new Set(sceneChoices.map((choice) => choice.position)).size === 3 &&
+        [1, 2, 3].every((position) => sceneChoices.some((choice) => choice.position === position)) &&
+        labels.every(Boolean) && new Set(labels).size === 3;
+      const directTargets = sceneChoices.flatMap((choice) => {
+        if (choice.routeKind === 'generation_required') {
+          if (choice.targetSceneId || choice.targetEndingKey) routeIssues.invalidDirectTargets += 1;
+          return [];
+        }
+        if (Boolean(choice.targetSceneId) === Boolean(choice.targetEndingKey)) {
+          routeIssues.invalidDirectTargets += 1;
+          return [];
+        }
+        return [choice.targetSceneId ? `scene:${choice.targetSceneId}` : `ending:${choice.targetEndingKey}`];
+      });
+      if (new Set(directTargets).size < directTargets.length) routeIssues.duplicateImmediateTargets += 1;
+      const bucket = sceneChoices.length === 0 ? 'zero'
+        : sceneChoices.length === 1 ? 'one'
+          : sceneChoices.length === 2 ? 'two'
+            : validThree ? 'threeValid' : 'otherOrInvalid';
+      distribution[bucket] += 1;
+      if (bucket !== 'threeValid' && examples.length < 10) {
+        examples.push({ partPosition: partById.get(scene.partId) ?? 0,
+          sceneKey: scene.sceneKey, choiceCount: sceneChoices.length });
+      }
+    }
+    return {
+      storyKey, status: 'ready', totalParts: parts.length, totalScenes: scenes.length,
+      ...(expected ? { workId: work.id, releaseId: work.activeReleaseId } : {}),
+      partsWithoutScenes: parts.filter((part) => !sceneCountByPart.has(part.id)).length,
+      distribution, routeIssues, incompleteExamples: examples,
     };
   }
 
@@ -77,7 +160,12 @@ export class StoryPublicBetaAiActivationService {
     expiresAt.setUTCFullYear(expiresAt.getUTCFullYear() + 1);
 
     const prepared = await this.prisma.$transaction(async (tx) => {
-      const work = await this.findWork(tx, storyKey);
+      const expected = body.workId !== undefined || body.releaseId !== undefined
+        ? { workId: body.workId!, releaseId: body.releaseId! } : undefined;
+      if (expected) {
+        await tx.$queryRaw(Prisma.sql`SELECT id FROM story_works WHERE id = ${expected.workId}::uuid FOR UPDATE`);
+      }
+      const work = await this.findWork(tx, storyKey, expected);
       if (!work || work.status !== 'published' || work.fixtureSource || !work.activeReleaseId) {
         throw new NotFoundException('Published story work not found');
       }
@@ -134,6 +222,7 @@ export class StoryPublicBetaAiActivationService {
         .refreshBatch(actorUserId, storyKey, prepared.work.id, prepared.release.id);
       if (!choices.ready) return {
         storyKey, status: 'preparing_choices',
+        ...(body.workId ? { workId: prepared.work.id, releaseId: prepared.release.id } : {}),
         active: Boolean(await this.latestValidActivation(this.prisma, prepared.work.id, prepared.release.id)),
         totalParts: choices.totalParts, preparedParts: choices.preparedParts,
         remainingParts: choices.remainingParts, phase: choices.phase,
@@ -178,6 +267,7 @@ export class StoryPublicBetaAiActivationService {
     });
     return {
       storyKey,
+      ...(body.workId ? { workId: prepared.work.id, releaseId: prepared.release.id } : {}),
       status: 'active',
       active: true,
       idempotentReplay: Boolean(existing),
@@ -200,7 +290,19 @@ export class StoryPublicBetaAiActivationService {
     return value as StoryKey;
   }
 
-  private async findWork(client: PrismaService | Tx, storyKey: StoryKey) {
+  private async findWork(client: PrismaService | Tx, storyKey: StoryKey, expected?: PublishedTarget) {
+    if (expected) {
+      const work = await client.storyWork.findFirst({ where: {
+        id: expected.workId,
+        slug: storyKey === 'inheritor' ? { startsWith: `${INHERITOR_STORY.slug}-` } : STORY_KEYS[storyKey],
+        status: 'published', fixtureSource: false,
+      } });
+      if (!work?.activeReleaseId) throw new NotFoundException('Selected published story work not found');
+      if (work.activeReleaseId !== expected.releaseId) throw new ConflictException({
+        code: 'STORY_PUBLICATION_CHOICE_SOURCE_CHANGED', message: 'The selected published release changed',
+      });
+      return work;
+    }
     if (storyKey !== 'inheritor') {
       return client.storyWork.findUnique({ where: { slug: STORY_KEYS[storyKey] } });
     }
@@ -227,12 +329,22 @@ export class StoryPublicBetaAiActivationService {
       select: { id: true, partId: true },
     });
     if (scenes.length !== parts.length || new Set(scenes.map((scene) => scene.partId)).size !== parts.length) return false;
-    const counts = await client.storyChoice.groupBy({
-      by: ['sceneId'],
+    const choices = await client.storyChoice.findMany({
       where: { sceneId: { in: scenes.map((scene) => scene.id) }, position: { gt: 0 } },
-      _count: { _all: true },
+      select: { sceneId: true, position: true, label: true, routeKind: true,
+        targetSceneId: true, targetEndingKey: true },
     });
-    return counts.length === scenes.length && counts.every((count) => count._count._all === 3);
+    if (choices.length !== scenes.length * 3) return false;
+    const byScene = new Map<string, typeof choices>();
+    for (const choice of choices) {
+      const rows = byScene.get(choice.sceneId) ?? [];
+      rows.push(choice);
+      byScene.set(choice.sceneId, rows);
+    }
+    return scenes.every((scene) => {
+      const rows = byScene.get(scene.id) ?? [];
+      return hasPreparedOriginalAndAlternatives(rows);
+    });
   }
 
   private async ensureRateCard(tx: Tx, actorUserId: string, effectiveAt: Date) {

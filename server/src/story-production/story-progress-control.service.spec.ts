@@ -1,5 +1,5 @@
 import 'reflect-metadata';
-import { ForbiddenException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Decimal } from '@prisma/client/runtime/library';
 import { StoryProgressControlService } from './story-progress-control.service';
 import { STORY_PROGRESS_MESSAGE_KEYS } from './story-progress-control.policy';
@@ -155,6 +155,129 @@ describe('StoryProgressControlService', () => {
         invalidatedAt: null,
         sceneId: { in: ['part-45-main', 'part-30-main', 'part-66-main'] },
       },
+    });
+  });
+
+  describe('completed ending reset preview', () => {
+    beforeEach(() => {
+      prisma.storyReaderProgress.findFirst.mockResolvedValue({ ...progress, status: 'completed', currentSceneId: null });
+      prisma.storyWork.findFirst.mockResolvedValue({ ...work, priceLumina: new Decimal(0), status: 'published',
+        fixtureSource: false, activeReleaseId: 'release-1', publishedAt: new Date(0) });
+      prisma.storyPart.findMany.mockResolvedValue([{ id: part.id }]);
+      prisma.storyScene.findMany.mockResolvedValue([{ id: scene.id, partId: part.id, position: 1 }]);
+      prisma.storyRelease.findFirst.mockResolvedValue({ id: 'release-1' });
+      prisma.storyReleaseCapability.findUnique.mockResolvedValue({ status: 'active', revision: 1,
+        rateCardId: 'rate-card-1', fullResetLimit: 1, actResetLimit: 3 });
+      prisma.storyAiRateCard.findUnique.mockResolvedValue({ id: 'rate-card-1', status: 'active' });
+      prisma.storyChoiceEvent.count.mockResolvedValue(1);
+      prisma.storyResetQuotaBucket.findUnique.mockResolvedValue(null);
+    });
+
+    it('allows full and act previews without inventing a current scene or changing progress', async () => {
+      for (const target of ['full', 'act'] as const) {
+        await expect(service.resetPreview(progress.userId, progress.id, { target, locale: 'ko',
+          ...(target === 'act' ? { actNumber: 1 } : {}) })).resolves.toMatchObject({
+          target, targetSceneId: scene.id, expectedRevision: progress.progressRevision, canExecute: true,
+        });
+      }
+      expect(prisma.storyReaderProgress.findFirst).toHaveBeenCalledWith({ where: { id: progress.id, userId: progress.userId } });
+      expect(prisma.storyPart.findFirst).toHaveBeenCalledWith({
+        where: { workId: work.id, status: 'published', fixtureSource: false }, orderBy: { position: 'asc' },
+      });
+      expect(prisma.storyScene.findFirst).not.toHaveBeenCalled();
+      expect(prisma.storyQualityEvent.upsert).not.toHaveBeenCalled();
+    });
+
+    it('still denies another reader before work or reset plan lookup', async () => {
+      prisma.storyReaderProgress.findFirst.mockResolvedValue(null);
+      await expect(service.resetPreview('other-reader', progress.id, { target: 'full', locale: 'ko' })).rejects.toBeInstanceOf(NotFoundException);
+      expect(prisma.storyWork.findFirst).not.toHaveBeenCalled();
+      expect(prisma.storyChoiceEvent.count).not.toHaveBeenCalled();
+    });
+
+    it('does not turn an incomplete progress without a scene into a completed ending', async () => {
+      prisma.storyReaderProgress.findFirst.mockResolvedValue({ ...progress, currentSceneId: null });
+      await expect(service.resetPreview(progress.userId, progress.id, { target: 'full', locale: 'ko' })).rejects.toBeInstanceOf(NotFoundException);
+      expect(prisma.storyPart.findMany).not.toHaveBeenCalled();
+    });
+
+    it.each(['full', 'act'] as const)('previews %s reset from an owned active generated route using published entry access', async target => {
+      prisma.storyReaderProgress.findFirst.mockResolvedValue({ ...progress, currentSceneId: null,
+        currentGeneratedSceneId: '00000000-0000-0000-0000-000000000006' });
+      await expect(service.resetPreview(progress.userId, progress.id, { target, locale: 'ko',
+        ...(target === 'act' ? { actNumber: 1 } : {}) })).resolves.toMatchObject({
+        target, canExecute: true, targetSceneId: scene.id, expectedRevision: progress.progressRevision,
+      });
+      expect(prisma.storyPart.findFirst).toHaveBeenCalledWith({
+        where: { workId: work.id, status: 'published', fixtureSource: false }, orderBy: { position: 'asc' },
+      });
+      expect(prisma.storyScene.findFirst).not.toHaveBeenCalled();
+      expect(prisma.storyQualityEvent.upsert).not.toHaveBeenCalled();
+    });
+
+    it('does not enable a non-active generated progress', async () => {
+      prisma.storyReaderProgress.findFirst.mockResolvedValue({ ...progress, currentSceneId: null, status: 'paused',
+        currentGeneratedSceneId: '00000000-0000-0000-0000-000000000006' });
+      await expect(service.resetPreview(progress.userId, progress.id, { target: 'full', locale: 'ko' }))
+        .rejects.toBeInstanceOf(NotFoundException);
+      expect(prisma.storyPart.findMany).not.toHaveBeenCalled();
+    });
+
+    it('does not bypass published entry access for an active generated route', async () => {
+      prisma.storyReaderProgress.findFirst.mockResolvedValue({ ...progress, currentSceneId: null,
+        currentGeneratedSceneId: '00000000-0000-0000-0000-000000000006' });
+      prisma.storyWork.findFirst.mockResolvedValue(work);
+      await expect(service.resetPreview(progress.userId, progress.id, { target: 'full', locale: 'ko' }))
+        .rejects.toBeInstanceOf(ForbiddenException);
+      expect(prisma.storyPart.findMany).not.toHaveBeenCalled();
+    });
+
+    it.each(['active', 'completed'])('rejects an outdated %s act preview before planning or quota lookup', async status => {
+      prisma.storyReaderProgress.findFirst.mockResolvedValue({ ...progress, status,
+        currentSceneId: status === 'completed' ? null : scene.id, storyVersion: 1 });
+      await expect(service.resetPreview(progress.userId, progress.id, { target: 'act', actNumber: 1,
+        locale: 'ko' })).rejects.toMatchObject({ response: {
+        code: 'STORY_RESET_VERSION_MISMATCH', messageKey: STORY_PROGRESS_MESSAGE_KEYS.versionMismatch,
+        retryable: false,
+      } });
+      expect(prisma.storyPart.findMany).not.toHaveBeenCalled();
+      expect(prisma.storyResetQuotaBucket.findUnique).not.toHaveBeenCalled();
+    });
+
+    it('still previews a full reset onto the current release after the manuscript version changed', async () => {
+      prisma.storyReaderProgress.findFirst.mockResolvedValue({ ...progress, status: 'completed',
+        currentSceneId: null, storyVersion: 1 });
+      await expect(service.resetPreview(progress.userId, progress.id, { target: 'full', locale: 'ko' }))
+        .resolves.toMatchObject({ target: 'full', expectedRevision: progress.progressRevision, canExecute: true });
+      expect(prisma.storyRelease.findFirst).toHaveBeenCalled();
+    });
+
+    it('keeps pending generation unavailable just like reset execution', async () => {
+      prisma.storyReaderProgress.findFirst.mockResolvedValue({ ...progress, status: 'ai_pending' });
+      await expect(service.resetPreview(progress.userId, progress.id, { target: 'full', locale: 'ko' })).rejects.toBeInstanceOf(ConflictException);
+      expect(prisma.storyWork.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('retains paid access checks for the published entry part', async () => {
+      prisma.storyWork.findFirst.mockResolvedValue(work);
+      await expect(service.resetPreview(progress.userId, progress.id, { target: 'full', locale: 'ko' })).rejects.toBeInstanceOf(ForbiddenException);
+      expect(prisma.userEntitlement.findFirst).toHaveBeenCalled();
+      expect(prisma.storyPart.findMany).not.toHaveBeenCalled();
+    });
+
+    it('keeps exhausted reset limits visible without charging or executing', async () => {
+      prisma.storyResetQuotaBucket.findUnique.mockResolvedValue({ usedCount: 1, limitCount: 1 });
+      await expect(service.resetPreview(progress.userId, progress.id, { target: 'full', locale: 'ko' })).resolves.toMatchObject({
+        canExecute: false, remainingBefore: 0, remainingAfter: 0,
+      });
+      expect(prisma.storyQualityEvent.upsert).not.toHaveBeenCalled();
+    });
+
+    it.each(['work', 'part'] as const)('requires a published non-fixture %s', async missing => {
+      if (missing === 'work') prisma.storyWork.findFirst.mockResolvedValue(null);
+      else prisma.storyPart.findFirst.mockResolvedValue(null);
+      await expect(service.resetPreview(progress.userId, progress.id, { target: 'full', locale: 'ko' })).rejects.toBeInstanceOf(NotFoundException);
+      expect(prisma.storyPart.findMany).not.toHaveBeenCalled();
     });
   });
 
