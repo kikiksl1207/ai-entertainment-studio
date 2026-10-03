@@ -1,6 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { validateStoryContinuationProviderResult } from './story-continuation-output.policy';
-import { StoryContinuationProvider, StoryContinuationProviderError, type StoryContinuationProviderRequest, type StoryContinuationProviderResult } from './story-continuation.provider';
+import { StoryContinuationProvider, StoryContinuationProviderError, storyContinuationMeasuredUsage, type StoryContinuationProviderRequest, type StoryContinuationProviderResult } from './story-continuation.provider';
 import { storyContinuationConfigFailure, type StoryContinuationOpenAiConfig } from './story-continuation-openai.config';
 import { buildStoryContinuationOpenAiRequest, preflightStoryContinuationOpenAiRequest } from './story-continuation-openai.prompt';
 
@@ -83,6 +83,22 @@ export class OpenAiStoryContinuationProvider extends StoryContinuationProvider {
     let envelope: Record<string, unknown>;
     try { envelope = record(JSON.parse(raw)); } catch { fail('provider_malformed_response'); }
     if (envelope!.model !== this.config.model) fail('provider_response_model_mismatch');
+    if (envelope!.service_tier !== 'default') fail('provider_response_service_tier_mismatch');
+    if (!['completed', 'incomplete', 'failed', 'cancelled'].includes(envelope!.status as string)) fail('provider_incomplete_output');
+    // Billable usage is independent of whether the generated prose passes review.
+    const usage = parseUsage(envelope!.usage);
+    try {
+      return this.parseOutput(envelope!, request, usage);
+    } catch (error) {
+      throw new StoryContinuationProviderError(error instanceof StoryContinuationProviderError
+        ? error.code : 'provider_output_invalid', false, usage);
+    }
+  }
+
+  private parseOutput(envelope: Record<string, unknown>, request: StoryContinuationProviderRequest,
+    usage: StoryContinuationProviderResult['usage']) {
+    if (envelope.status === 'failed') fail('provider_response_failed');
+    if (envelope.status === 'cancelled') fail('provider_response_cancelled');
     if (!Array.isArray(envelope!.output)) fail('provider_malformed_response');
     if (envelope!.status === 'incomplete') {
       const details = envelope!.incomplete_details;
@@ -119,7 +135,6 @@ export class OpenAiStoryContinuationProvider extends StoryContinuationProvider {
       exactKeys(ending, ['endingKey']);
       if (typeof ending.endingKey !== 'string' || !/^ai-[a-z0-9][a-z0-9_-]{0,116}$/i.test(ending.endingKey)) fail('provider_malformed_output');
     }
-    const usage = parseUsage(envelope!.usage);
     const sceneKey = `ai-${request.operationId}`;
     const visual = { publicAssetPath: this.config.visualAssetPath, altKey: 'story.visual.fallback' };
     try {
@@ -174,7 +189,9 @@ function parseUsage(value: unknown): StoryContinuationProviderResult['usage'] {
   if (cachedInputTokens > inputTokens || reasoningTokens > outputTokens ||
       count(usage.total_tokens) !== inputTokens + outputTokens) fail('provider_usage_invalid');
   // cached input is a subset of input; reasoning is ALREADY included in output_tokens.
-  return { inputTokens, outputTokens, cachedInputTokens, imageUnits: 0 };
+  const measured = storyContinuationMeasuredUsage({ inputTokens, outputTokens, cachedInputTokens, imageUnits: 0 });
+  if (!measured) fail('provider_usage_invalid');
+  return measured;
 }
 
 function count(value: unknown): number {

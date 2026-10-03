@@ -4,6 +4,7 @@ import { StoryEconomicsService } from './story-economics.service';
 import {
   StoryContinuationProvider,
   StoryContinuationProviderError,
+  storyContinuationMeasuredUsage,
   type StoryContinuationProviderResult,
 } from './story-continuation.provider';
 import {
@@ -102,6 +103,7 @@ export class StoryContinuationExecutor {
         PROVIDER_TIMEOUT_MS,
         signal,
       );
+      measuredUsage = storyContinuationMeasuredUsage(providerResult?.usage);
       if (signal?.aborted) throw new StoryContinuationProviderError('provider_outcome_unknown', false);
       const sanitized = validateStoryContinuationProviderResult(providerResult, {
         locale: claim.request.locale,
@@ -153,6 +155,12 @@ export class StoryContinuationExecutor {
       return { status: 'completed' as const, continuationId: claim.continuationId };
     } catch (error) {
       let providerError = normalizeProviderError(error);
+      if (providerStarted && error instanceof StoryContinuationProviderError && error.usage) {
+        measuredUsage = error.usage;
+      }
+      if (measuredUsage && providerError.retryable) {
+        providerError = new StoryContinuationProviderError(providerError.code, false, measuredUsage);
+      }
       // A settlement/database error after generation must not replay a potentially paid call.
       if (fenceAttempted && !(error instanceof StoryContinuationDispatchAuthorizationChanged) &&
           (!providerStarted || providerError.retryable) &&

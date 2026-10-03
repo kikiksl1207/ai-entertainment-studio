@@ -56,12 +56,29 @@ export abstract class StoryContinuationProvider {
 }
 
 export class StoryContinuationProviderError extends Error {
+  readonly usage?: StoryContinuationProviderResult['usage'];
+
   constructor(
     readonly code: string,
     readonly retryable: boolean,
+    usage?: StoryContinuationProviderResult['usage'],
   ) {
     super(code);
+    this.usage = storyContinuationMeasuredUsage(usage);
   }
+}
+
+export function storyContinuationMeasuredUsage(value: unknown): StoryContinuationProviderResult['usage'] | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const source = value as StoryContinuationProviderResult['usage'];
+  const usage = { inputTokens: source.inputTokens, outputTokens: source.outputTokens,
+    cachedInputTokens: source.cachedInputTokens, imageUnits: source.imageUnits };
+  // Usage ledger counters are PostgreSQL INTEGER, not arbitrary JS safe integers.
+  if (Object.values(usage).some(count => !Number.isSafeInteger(count) || count < 0 || count > 2_147_483_647) ||
+      usage.cachedInputTokens > usage.inputTokens || !Number.isSafeInteger(usage.inputTokens + usage.outputTokens)) {
+    return undefined;
+  }
+  return Object.freeze(usage);
 }
 
 @Injectable()

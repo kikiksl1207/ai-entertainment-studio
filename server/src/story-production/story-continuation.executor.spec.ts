@@ -385,8 +385,50 @@ describe('StoryContinuationExecutor', () => {
     expect(f.moderation.preview).not.toHaveBeenCalled();
     expect(f.economics.settleClaimedContinuation).not.toHaveBeenCalled();
     expect(f.economics.failClaimedContinuation).toHaveBeenCalledWith(
-      claim, 'continuation_execution_failed', 'failed',
+      claim, 'continuation_execution_failed', 'failed', result.usage,
     );
+  });
+
+  it.each(['provider_incomplete_output', 'provider_output_token_limit', 'provider_refusal',
+    'provider_response_failed', 'provider_response_cancelled'])
+  ('settles measured usage for rejected provider output %s without a paid retry', async code => {
+    const f = fixture();
+    jest.mocked(f.provider.generate).mockRejectedValue(new StoryContinuationProviderError(code, false, result.usage));
+    await expect(f.executor.executeOne('worker')).resolves.toMatchObject({ status: 'failed' });
+    expect(f.economics.failClaimedContinuation).toHaveBeenCalledWith(claim, code, 'failed', result.usage);
+    expect(f.provider.generate).toHaveBeenCalledTimes(1);
+    expect(f.queue.releaseForRetry).not.toHaveBeenCalled();
+    expect(f.queue.releaseNotAcceptedForRetry).not.toHaveBeenCalled();
+    expect(f.economics.settleClaimedContinuation).not.toHaveBeenCalled();
+    expect(f.moderation.preview).not.toHaveBeenCalled();
+    expect(f.visuals.registerGeneratedContinuationPrompt).not.toHaveBeenCalled();
+  });
+
+  it('does not treat a cost-bearing rejection as a no-charge rate-limit retry', async () => {
+    const f = fixture();
+    jest.mocked(f.provider.generate).mockRejectedValue(new StoryContinuationProviderError('provider_rate_limited', true, result.usage));
+    await expect(f.executor.executeOne('worker')).resolves.toMatchObject({ status: 'failed' });
+    expect(f.queue.releaseNotAcceptedForRetry).not.toHaveBeenCalled();
+    expect(f.economics.failClaimedContinuation).toHaveBeenCalledWith(claim, 'provider_rate_limited', 'failed', result.usage);
+  });
+
+  it.each([
+    { ...result.usage, inputTokens: -1 }, { ...result.usage, inputTokens: 0.5 },
+    { ...result.usage, cachedInputTokens: 11 }, { ...result.usage, outputTokens: Number.MAX_SAFE_INTEGER },
+    { ...result.usage, inputTokens: 2_147_483_648 }, { ...result.usage, outputTokens: 2_147_483_648 },
+    { ...result.usage, imageUnits: 2_147_483_648 },
+  ])('keeps invalid usage unknown instead of settling fabricated cost %#', async usage => {
+    const f = fixture();
+    jest.mocked(f.provider.generate).mockRejectedValue(new StoryContinuationProviderError('provider_incomplete_output', false, usage));
+    await f.executor.executeOne('worker');
+    expect(f.economics.failClaimedContinuation).toHaveBeenCalledWith(claim, 'provider_incomplete_output', 'failed');
+  });
+
+  it('ignores usage attached to an arbitrary transport exception', async () => {
+    const f = fixture();
+    jest.mocked(f.provider.generate).mockRejectedValue(Object.assign(new Error('private transport details'), { usage: result.usage }));
+    await f.executor.executeOne('worker');
+    expect(f.economics.failClaimedContinuation).toHaveBeenCalledWith(claim, 'continuation_execution_failed', 'failed');
   });
 
   it('fails before provider transmission when pinned authorization was withdrawn', async () => {

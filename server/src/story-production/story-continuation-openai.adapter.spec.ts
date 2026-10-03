@@ -8,7 +8,7 @@ import { buildStoryContinuationOpenAiRequest, preflightStoryContinuationOpenAiRe
 import { STORY_CONTINUATION_PROMPT_VERSION } from './story-continuation-openai.schema';
 import { STORY_CONTINUATION_ROUTE_VIEW_VERSION } from './story-continuation-route-continuity';
 import { storyContinuationInputTokenBudget } from './story-continuation-tokenizer';
-import { DisabledStoryContinuationProvider, type StoryContinuationProviderRequest } from './story-continuation.provider';
+import { DisabledStoryContinuationProvider, StoryContinuationProviderError, type StoryContinuationProviderRequest } from './story-continuation.provider';
 
 const config: StoryContinuationOpenAiConfig = {
   enabled: true, provider: 'openai', model: 'gpt-4.1-2025-04-14',
@@ -43,7 +43,7 @@ function output() {
 
 function envelope(value: unknown = output()) {
   return {
-    model: config.model, status: 'completed',
+    model: config.model, service_tier: 'default', status: 'completed',
     output: [{ type: 'reasoning' }, { type: 'message', role: 'assistant', status: 'completed', content: [{ type: 'output_text', text: JSON.stringify(value) }] }],
     usage: { input_tokens: 120, input_tokens_details: { cached_tokens: 30 }, output_tokens: 100, output_tokens_details: { reasoning_tokens: 70 }, total_tokens: 220 },
   };
@@ -212,7 +212,7 @@ describe('OpenAiStoryContinuationProvider (fake transport only)', () => {
     const body = JSON.parse(init.body as string);
     expect(url).toBe('https://api.openai.com/v1/responses');
     expect(init.redirect).toBe('error');
-    expect(body).toMatchObject({ model: config.model, store: false, stream: false, background: false, truncation: 'disabled', max_output_tokens: 500,
+    expect(body).toMatchObject({ model: config.model, service_tier: 'default', store: false, stream: false, background: false, truncation: 'disabled', max_output_tokens: 500,
       text: { format: { type: 'json_schema', strict: true, schema: { additionalProperties: false, properties: { nextChoices: { maxItems: 3 } } } } } });
     expect(body.instructions).toContain('exactly 3 distinct nextChoices');
     expect(body.instructions).toContain('mandatory bounds');
@@ -461,7 +461,61 @@ describe('OpenAiStoryContinuationProvider (fake transport only)', () => {
       ...envelope(), status: 'incomplete', incomplete_details: { reason },
     })));
     await expect(f.provider.generate(request(), new AbortController().signal))
-      .rejects.toMatchObject({ code, retryable: false });
+      .rejects.toMatchObject({ code, retryable: false,
+        usage: { inputTokens: 120, outputTokens: 100, cachedInputTokens: 30, imageUnits: 0 } });
+  });
+
+  it.each(['failed', 'cancelled'])('preserves valid usage for terminal %s without retaining provider errors', async status => {
+    const f = fixture();
+    f.transport.mockResolvedValue(new Response(JSON.stringify({ ...envelope(), status, output: null,
+      error: { code: 'server_error', message: 'private provider details' } })));
+    const error = await f.provider.generate(request(), new AbortController().signal).catch(value => value);
+    expect(error).toMatchObject({ code: `provider_response_${status}`, retryable: false,
+      usage: { inputTokens: 120, outputTokens: 100, cachedInputTokens: 30, imageUnits: 0 } });
+    expect(JSON.stringify(error)).not.toMatch(/private|details|server_error/);
+    expect(f.transport).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    { output: null },
+    { output: [{ type: 'message', role: 'assistant', status: 'completed',
+      content: [{ type: 'output_text', text: '{private malformed prose' }] }] },
+    { output: [{ type: 'message', role: 'assistant', status: 'incomplete',
+      content: [{ type: 'output_text', text: 'private partial prose' }] }] },
+  ])('retains only measured usage after rejecting output %#', async change => {
+    const f = fixture();
+    f.transport.mockResolvedValue(new Response(JSON.stringify({ ...envelope(), ...change })));
+    const error = await f.provider.generate(request(), new AbortController().signal).catch(value => value);
+    expect(error).toMatchObject({ retryable: false,
+      usage: { inputTokens: 120, outputTokens: 100, cachedInputTokens: 30, imageUnits: 0 } });
+    expect(JSON.stringify(error)).not.toMatch(/private|prose|refusal/);
+    expect(f.transport).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    { model: 'different-model' }, { status: 'in_progress' }, { service_tier: undefined },
+    { service_tier: 'priority' }, { service_tier: 'auto' }, { usage: null },
+    { usage: { ...envelope().usage, total_tokens: 999 } },
+    { usage: { ...envelope().usage, input_tokens: Number.MAX_SAFE_INTEGER + 1 } },
+    { usage: { ...envelope().usage, input_tokens: 2_147_483_648, total_tokens: 2_147_483_748 } },
+    { usage: { ...envelope().usage, output_tokens: 2_147_483_648, total_tokens: 2_147_483_768 } },
+  ])('does not claim measured usage from an untrusted envelope %#', async change => {
+    const f = fixture();
+    f.transport.mockResolvedValue(new Response(JSON.stringify({ ...envelope(), ...change })));
+    const error = await f.provider.generate(request(), new AbortController().signal).catch(value => value);
+    expect(error).toBeInstanceOf(StoryContinuationProviderError);
+    expect(error.usage).toBeUndefined();
+  });
+
+  it('retains over-limit provider usage without accepting its result', async () => {
+    const f = fixture();
+    f.transport.mockResolvedValue(new Response(JSON.stringify({ ...envelope(), usage: {
+      ...envelope().usage, output_tokens: 501, total_tokens: 621,
+    } })));
+    await expect(f.provider.generate(request(), new AbortController().signal)).rejects.toMatchObject({
+      code: 'provider_output_usage_limit', retryable: false,
+      usage: { inputTokens: 120, outputTokens: 501, cachedInputTokens: 30, imageUnits: 0 },
+    });
   });
 
   it('classifies refusal without logging or retaining refusal payload', async () => {
@@ -469,7 +523,8 @@ describe('OpenAiStoryContinuationProvider (fake transport only)', () => {
     const e = envelope();
     e.output = [{ type: 'message', role: 'assistant', status: 'completed', content: [{ type: 'refusal', refusal: 'private-refusal' } as never] }];
     f.transport.mockResolvedValue(new Response(JSON.stringify(e)));
-    await expect(f.provider.generate(request(), new AbortController().signal)).rejects.toMatchObject({ message: 'provider_refusal', code: 'provider_refusal', retryable: false });
+    await expect(f.provider.generate(request(), new AbortController().signal)).rejects.toMatchObject({ message: 'provider_refusal', code: 'provider_refusal', retryable: false,
+      usage: { inputTokens: 120, outputTokens: 100, cachedInputTokens: 30, imageUnits: 0 } });
   });
 
   it.each([[400, false], [401, false], [403, false], [408, false], [409, false], [429, true], [500, false], [503, false]])('classifies HTTP %s retryability without retrying transport', async (status, retryable) => {

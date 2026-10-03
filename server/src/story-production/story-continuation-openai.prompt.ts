@@ -86,6 +86,7 @@ function prepareRequest(request: StoryContinuationProviderRequest, config: Story
   };
   const body = {
     model: config.model,
+    service_tier: 'default',
     store: false,
     stream: false,
     background: false,
