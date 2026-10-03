@@ -64,6 +64,7 @@ import {
   projectStoryHashtags,
 } from './story-hashtag.policy';
 import { UserAssetsService } from '../assets/user-assets.service';
+import { StoryAuthorBodyTrialService, type AuthorBodyTrialScope } from './story-author-body-trial.service';
 
 const STORY_ENTITLEMENT_TYPES = [
   'story_work',
@@ -92,6 +93,7 @@ export class StoryProductionService {
     @Optional() private readonly publicBeta?: StoryPublicBetaPolicy,
     @Optional() private readonly storyParticipants?: StoryArtistParticipantService,
     @Optional() private readonly userAssets?: UserAssetsService,
+    @Optional() private readonly authorBodyTrial?: StoryAuthorBodyTrialService,
   ) {}
 
   async createDraft(userId: string, body: CreateStoryDraftDto) {
@@ -706,6 +708,19 @@ export class StoryProductionService {
   }
 
   async startProgress(userId: string, workId: string, body: StartStoryProgressDto) {
+    try {
+      return await this.startProgressAttempt(userId, workId, body);
+    } catch (error) {
+      const target = error instanceof Prisma.PrismaClientKnownRequestError ? error.meta?.target : null;
+      if (body.mode !== 'continue' || !(error instanceof Prisma.PrismaClientKnownRequestError) ||
+        error.code !== 'P2002' || !Array.isArray(target) || target.length !== 2 ||
+        !target.includes('user_id') || !target.includes('work_id')) throw error;
+      // A concurrent start won the unique owner/work slot. Recheck access and version once.
+      return this.startProgressAttempt(userId, workId, body);
+    }
+  }
+
+  private async startProgressAttempt(userId: string, workId: string, body: StartStoryProgressDto) {
     const work = await this.publicWorkById(workId);
     const parts = await this.prisma.storyPart.findMany({
       where: { workId, status: 'published', fixtureSource: false },
@@ -837,11 +852,12 @@ export class StoryProductionService {
       ? await this.storyParticipants.projection(progress.id)
       : null;
     if (progress.currentGeneratedSceneId) {
-      return { ...(await this.generatedSceneProjection(progress, locale)), participantArtist };
+      return { ...(await this.generatedSceneProjection(progress, locale)), workId: progress.workId, participantArtist };
     }
     if (!progress.currentSceneId) {
       return {
         progressId,
+        workId: progress.workId,
         status: progress.status,
         revision: progress.progressRevision,
         storyVersion: progress.storyVersion,
@@ -853,7 +869,7 @@ export class StoryProductionService {
         participantArtist,
       };
     }
-    return { ...(await this.sceneProjection(progress, locale)), participantArtist };
+    return { ...(await this.sceneProjection(progress, locale)), workId: progress.workId, participantArtist };
   }
 
   async updateBeatProgress(
@@ -950,6 +966,21 @@ export class StoryProductionService {
     return this.currentProgress(userId, progressId, locale);
   }
 
+  async selectAuthorBodyTrialChoice(userId: string, workId: string, choiceId: string,
+    body: { approvalId: string; progressId: string; expectedRevision: number; locale: string }, idempotencyKey?: string) {
+    if (![userId, workId, choiceId, body?.approvalId, body?.progressId].every(id => typeof id === 'string' && isUUID(id)) ||
+      !Number.isSafeInteger(body?.expectedRevision) || body.expectedRevision < 1 ||
+      !STORY_LOCALES.includes(body.locale as typeof STORY_LOCALES[number]) ||
+      Object.keys(body).some(key => !['approvalId', 'progressId', 'expectedRevision', 'locale'].includes(key)) ||
+      typeof idempotencyKey !== 'string' || !/^[A-Za-z0-9._:-]{8,120}$/.test(idempotencyKey)) {
+      throw new BadRequestException({ code: 'STORY_AUTHOR_BODY_TRIAL_INPUT_INVALID' });
+    }
+    if (!this.authorBodyTrial || !this.economics) throw new ServiceUnavailableException('Author body trial unavailable');
+    return this.selectChoice(userId.toLowerCase(), body.progressId.toLowerCase(), choiceId.toLowerCase(),
+      body.expectedRevision, body.locale, idempotencyKey,
+      { workId: workId.toLowerCase(), approvalId: body.approvalId.toLowerCase() });
+  }
+
   async selectChoice(
     userId: string,
     progressId: string,
@@ -957,8 +988,9 @@ export class StoryProductionService {
     expectedRevision: number,
     locale = 'ko',
     idempotencyKey?: string,
+    authorTrial?: AuthorBodyTrialScope,
   ) {
-    if (this.economics && idempotencyKey) {
+    if (!authorTrial && this.economics && idempotencyKey) {
       const replay = await this.economics.recommendedChoiceReplay(
         userId,
         progressId,
@@ -972,7 +1004,46 @@ export class StoryProductionService {
     let generationReceipt: unknown;
     try {
       generationReceipt = await this.prisma.$transaction(async (tx) => {
+      const trialApproval = authorTrial ? await this.authorBodyTrial!.authorizeTx(tx, userId, authorTrial) : null;
+      if (trialApproval) await this.authorBodyTrial!.assertCommittedBudgetTx(tx, trialApproval);
       const progress = await tx.storyReaderProgress.findFirst({ where: { id: progressId, userId } });
+      if (trialApproval) {
+        if (!progress || progress.workId !== trialApproval.workId || progress.activeReleaseId !== trialApproval.releaseId) {
+          throw new NotFoundException({ code: 'STORY_AUTHOR_BODY_TRIAL_UNAVAILABLE' });
+        }
+        const command = await tx.storyAuthorBodyTrialCommand.findUnique({ where: {
+          userId_idempotencyKey: { userId, idempotencyKey: idempotencyKey! },
+        } });
+        if (command) {
+          if (command.workId !== trialApproval.workId || command.approvalId !== trialApproval.id ||
+            command.progressId !== progressId || command.choiceId !== choiceId || command.sourceRevision !== expectedRevision ||
+            command.locale !== locale || !command.receipt || typeof command.receipt !== 'object' || Array.isArray(command.receipt)) {
+            throw new ConflictException('Author body trial idempotency scope changed');
+          }
+          return { ...command.receipt, idempotentReplay: true };
+        }
+        // Replays are checked inside the same owner/approval lock, never the public fast path.
+        const replay = await this.economics!.recommendedChoiceReplay(userId, progressId, choiceId,
+          expectedRevision, locale, idempotencyKey!, tx);
+        if (replay) {
+          const accepted = await tx.storyAiContinuation.findUnique({ where: { id: replay.continuationId } });
+          if (!accepted || accepted.authorBodyTrialApprovalId !== trialApproval.id || accepted.workId !== trialApproval.workId ||
+            accepted.releaseId !== trialApproval.releaseId || accepted.maxAttempts !== 1) {
+            throw new ConflictException('Author body trial idempotency scope changed');
+          }
+          return { contract: 'story-author-body-trial-choice-v1', ...replay, imageGenerationStarted: false };
+        }
+      }
+      const trialReceipt = async (receipt: Record<string, unknown>) => {
+        if (!trialApproval) return receipt;
+        const result = { contract: 'story-author-body-trial-choice-v1', ...receipt,
+          idempotentReplay: false, imageGenerationStarted: false };
+        const stored = JSON.parse(JSON.stringify(result)) as Prisma.InputJsonObject;
+        await tx.storyAuthorBodyTrialCommand.create({ data: { userId, workId: trialApproval.workId,
+          approvalId: trialApproval.id, progressId, choiceId, sourceRevision: expectedRevision, locale,
+          idempotencyKey: idempotencyKey!, receipt: stored } });
+        return stored;
+      };
       if (!progress || (!progress.currentSceneId && !progress.currentGeneratedSceneId)) {
         throw new NotFoundException('Active story progress not found');
       }
@@ -1124,7 +1195,7 @@ export class StoryProductionService {
             generationStarted: false,
           });
         }
-        return this.economics.requestRecommendedChoiceTx(tx, {
+        const receipt = await this.economics.requestRecommendedChoiceTx(tx, {
           userId,
           progress,
           work,
@@ -1135,7 +1206,9 @@ export class StoryProductionService {
           sourceKind,
           locale: normalizedLocale,
           idempotencyKey,
+          authorBodyTrialApprovalId: trialApproval?.id,
         });
+        return trialApproval ? trialReceipt({ ...receipt }) : receipt;
       }
       const target = choice.targetSceneId
         ? await tx.storyScene.findFirst({ where: { id: choice.targetSceneId, status: 'published', fixtureSource: false } })
@@ -1253,11 +1326,18 @@ export class StoryProductionService {
       if (sourceKind === 'generated') {
         throw new ConflictException('Generated story choice route is invalid');
       }
+      if (trialApproval) {
+        const updatedProgress = await tx.storyReaderProgress.findUniqueOrThrow({ where: { id: progressId },
+          select: { progressRevision: true, status: true } });
+        return trialReceipt({ progressId,
+          revisionAfterRequest: updatedProgress.progressRevision, status: updatedProgress.status,
+          generationStarted: false });
+      }
       return null;
       }, { timeout: 15_000 });
     } catch (error) {
       if (
-        idempotencyKey &&
+        !authorTrial && idempotencyKey &&
         error && typeof error === 'object' && 'code' in error && error.code === 'P2002' &&
         this.economics
       ) {

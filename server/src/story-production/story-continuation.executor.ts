@@ -60,6 +60,7 @@ export class StoryContinuationExecutor {
     if (!claim) return { status: 'idle' as const };
     let providerStarted = false;
     let fenceAttempted = false;
+    let preflightRejected = false;
     let measuredUsage: StoryContinuationProviderResult['usage'] | undefined;
     try {
       throwIfCancelled(signal);
@@ -84,6 +85,7 @@ export class StoryContinuationExecutor {
       const request = { ...claim.request, approvedContext };
       const preflight = await this.provider.preflight?.(request);
       if (preflight && !preflight.supported) {
+        preflightRejected = true;
         throw new StoryContinuationProviderError(preflight.reason ?? 'provider_preflight_unavailable', false);
       }
       throwIfCancelled(signal);
@@ -166,12 +168,16 @@ export class StoryContinuationExecutor {
         }
         return { status: 'retry_wait' as const, continuationId: claim.continuationId };
       }
-      await this.economics.failClaimedContinuation(
-        claim,
-        providerError.code,
-        providerError.code === 'provider_timeout' ? 'timeout' : 'failed',
-        ...(measuredUsage ? [measuredUsage] : []),
-      );
+      if (!fenceAttempted && preflightRejected) {
+        await this.economics.failClaimedContinuation(claim, providerError.code, 'failed', undefined, true);
+      } else {
+        await this.economics.failClaimedContinuation(
+          claim,
+          providerError.code,
+          providerError.code === 'provider_timeout' ? 'timeout' : 'failed',
+          ...(measuredUsage ? [measuredUsage] : []),
+        );
+      }
       return { status: 'failed' as const, continuationId: claim.continuationId };
     }
   }

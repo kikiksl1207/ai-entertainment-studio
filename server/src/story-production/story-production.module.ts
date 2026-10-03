@@ -84,6 +84,12 @@ import { StoryCanonicalReadController } from './story-canonical-read.controller'
 import { StoryCanonicalReadService } from './story-canonical-read.service';
 import { StoryAuthorBodyPreviewController } from './story-author-body-preview.controller';
 import { StoryAuthorBodyPreviewService } from './story-author-body-preview.service';
+import { StoryAuthorBodyTrialCostController } from './story-author-body-trial-cost.controller';
+import { StoryAuthorBodyTrialCostService } from './story-author-body-trial-cost.service';
+import { StoryAuthorBodyTrialService } from './story-author-body-trial.service';
+import { StoryAuthorBodyTrialController } from './story-author-body-trial.controller';
+import { StoryAuthorBodyTrialStateService } from './story-author-body-trial-state.service';
+import { StoryAuthorBodyTrialStateController } from './story-author-body-trial-state.controller';
 
 @Module({
   imports: [ModerationModule, StoryUploadModule, CreatorStudioModule, UserAssetsModule],
@@ -98,6 +104,9 @@ import { StoryAuthorBodyPreviewService } from './story-author-body-preview.servi
     StoryInteractionApprovalController,
     StoryCanonicalReadController,
     StoryAuthorBodyPreviewController,
+    StoryAuthorBodyTrialCostController,
+    StoryAuthorBodyTrialController,
+    StoryAuthorBodyTrialStateController,
     StoryAuthoredImportController,
     StoryProductionController,
     StoryProgressAdminController,
@@ -133,6 +142,9 @@ import { StoryAuthorBodyPreviewService } from './story-author-body-preview.servi
     StoryInteractionApprovalService,
     StoryCanonicalReadService,
     StoryAuthorBodyPreviewService,
+    StoryAuthorBodyTrialCostService,
+    StoryAuthorBodyTrialStateService,
+    StoryAuthorBodyTrialService,
     StoryAuthoredImportMultipartInterceptor,
     StoryProductionService,
     StoryProgressControlService,

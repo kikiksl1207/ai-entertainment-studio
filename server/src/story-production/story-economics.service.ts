@@ -80,6 +80,7 @@ import {
 import { StoryArtistParticipantService, type StoryParticipantPin } from './story-artist-participant.service';
 import { STORY_CONTINUATION_PROMPT_VERSION } from './story-continuation-openai.schema';
 import { assembleContinuationRouteContinuity, STORY_CONTINUATION_ROUTE_VIEW_VERSION } from './story-continuation-route-continuity';
+import { StoryAuthorBodyTrialService } from './story-author-body-trial.service';
 
 type CustomChoiceContext = {
   progress: {
@@ -130,6 +131,7 @@ type RecommendedChoiceRequest = {
   sourceKind: 'canonical' | 'generated';
   locale: string;
   idempotencyKey?: string;
+  authorBodyTrialApprovalId?: string;
 };
 
 type RecommendedChoiceReplayClient = Pick<
@@ -162,6 +164,7 @@ export class StoryEconomicsService {
     @Optional() private readonly continuationProvider?: StoryContinuationProvider,
     @Optional() private readonly reusableApproval?: StoryReusableResultApprovalGate,
     @Optional() private readonly storyParticipants?: StoryArtistParticipantService,
+    @Optional() private readonly authorBodyTrial?: StoryAuthorBodyTrialService,
   ) {}
 
   async recommendedChoiceReplay(
@@ -171,10 +174,11 @@ export class StoryEconomicsService {
     expectedRevision: number,
     locale: string,
     idempotencyKey: string,
+    client: RecommendedChoiceReplayClient = this.prisma,
   ) {
     const key = this.idempotencyKey('recommended-choice', idempotencyKey);
     return this.recommendedChoiceReplayForClient(
-      this.prisma,
+      client,
       { userId, progressId, choiceId, expectedRevision, locale },
       key,
     );
@@ -184,6 +188,31 @@ export class StoryEconomicsService {
     tx: Prisma.TransactionClient,
     input: RecommendedChoiceRequest,
   ) {
+    if (input.authorBodyTrialApprovalId) {
+      if (!this.authorBodyTrial) throw new ConflictException('Author body trial unavailable');
+      const approval = await this.authorBodyTrial.authorizeTx(tx, input.userId, {
+        workId: input.work.id, approvalId: input.authorBodyTrialApprovalId,
+      });
+      if (input.release.id !== approval.releaseId || input.release.manuscriptVersionId !== approval.manuscriptVersionId ||
+        input.progress.workId !== approval.workId || input.progress.userId !== approval.userId) {
+        throw new ConflictException('Author body trial scope changed');
+      }
+      await this.authorBodyTrial.assertCommittedBudgetTx(tx, approval);
+      const receipt = await this.requestRecommendedChoiceUnlockedTx(tx, input);
+      const accepted = await tx.storyAiContinuation.findUnique({ where: { id: receipt.continuationId } });
+      if (!accepted || accepted.authorBodyTrialApprovalId !== approval.id || accepted.workId !== approval.workId ||
+        accepted.userId !== approval.userId || accepted.releaseId !== approval.releaseId || accepted.maxAttempts !== 1) {
+        throw new ConflictException('Author body trial idempotency scope changed');
+      }
+      // The queued row, usage reservation, allowance and progress roll back together on excess.
+      await this.authorBodyTrial.assertCommittedBudgetTx(tx, approval);
+      return receipt;
+    }
+    if (this.authorBodyTrial) await this.authorBodyTrial.guardOrdinaryRequestTx(tx, input.userId, input.work.id);
+    return this.requestRecommendedChoiceUnlockedTx(tx, input);
+  }
+
+  private async requestRecommendedChoiceUnlockedTx(tx: Prisma.TransactionClient, input: RecommendedChoiceRequest) {
     const key = this.idempotencyKey('recommended-choice', input.idempotencyKey);
     const locale = normalizeRecommendedChoiceLocale(input.locale);
     if (
@@ -852,7 +881,7 @@ export class StoryEconomicsService {
       rateCardVersion: rateCard.version,
       approvedContext,
     });
-    if (preflight && !preflight.supported) {
+    if ((preflight && !preflight.supported) || (input.authorBodyTrialApprovalId && !preflight)) {
       throw new ConflictException({
         code: 'STORY_CHOICE_GENERATION_UNAVAILABLE',
         messageKey: 'story.choice.status.generationUnavailable',
@@ -882,6 +911,11 @@ export class StoryEconomicsService {
       inputTokens: estimatedInputTokens!,
       outputTokens: outputTokenLimit,
     });
+    if (input.authorBodyTrialApprovalId && calculateStoryUsageCost(this.rateNumbers(rateCard), {
+      inputTokens: capability.aiInputTokenLimit, outputTokens: outputTokenLimit,
+    }) > Number(capability.hardBudgetKrw)) {
+      throw new ForbiddenException({ code: 'STORY_AUTHOR_BODY_TRIAL_REQUEST_MAXIMUM_UNSAFE', retryable: false });
+    }
     if (storyBudgetDecision(
       estimatedCostKrw,
       Number(capability.warningBudgetKrw),
@@ -938,6 +972,7 @@ export class StoryEconomicsService {
         releaseId: input.release.id,
         progressId: input.progress.id,
         requestKind: 'recommended_choice',
+        authorBodyTrialApprovalId: input.authorBodyTrialApprovalId ?? null,
         customChoiceId: null,
         recommendedChoiceId: input.sourceKind === 'canonical' ? input.choice.id : null,
         generatedChoiceId: input.sourceKind === 'generated' ? input.choice.id : null,
@@ -988,7 +1023,7 @@ export class StoryEconomicsService {
         hardBudgetKrw: capability.hardBudgetKrw,
         inputTokenLimit: capability.aiInputTokenLimit,
         outputTokenLimit,
-        maxAttempts: 3,
+        maxAttempts: input.authorBodyTrialApprovalId ? 1 : 3,
       },
     });
     await tx.storyAiUsageLedger.create({
@@ -1951,9 +1986,24 @@ export class StoryEconomicsService {
         continuation.contextFingerprint !== claim.request.contextFingerprint) {
       throw new ConflictException('Story AI continuation dispatch lease is stale');
     }
+    // Take the work lock before existing approval locks; all trial intake uses this same order.
+    if (continuation.authorBodyTrialApprovalId &&
+      (!this.authorBodyTrial || !await this.authorBodyTrial.authorizeDispatchTx(tx, continuation))) return false;
+    if (!continuation.authorBodyTrialApprovalId && this.authorBodyTrial) {
+      try { await this.authorBodyTrial.guardOrdinaryRequestTx(tx, continuation.userId, continuation.workId); }
+      catch (error) { if (error instanceof ConflictException) return false; throw error; }
+    }
     await tx.$queryRaw(Prisma.sql`
       SELECT id FROM story_works WHERE id = ${continuation.workId}::uuid FOR SHARE
     `);
+    // Revocation and dispatch share the activation lock; preflight is not authorization.
+    const legalActivation = await this.legalActivation?.authorize({
+      workId: continuation.workId, releaseId: continuation.releaseId,
+      manuscriptVersionId: continuation.manuscriptVersionId,
+      rightsContractVersionId: continuation.rightsContractVersionId,
+      locale: continuation.locale ?? undefined,
+    }, tx);
+    if (!legalActivation?.active) return false;
     if (!continuation.analysisJobId || !continuation.manuscriptVersionId || !continuation.analysisVersion) return false;
     const analysis = await tx.storyAnalysisJob.findFirst({
       where: {
@@ -2003,6 +2053,7 @@ export class StoryEconomicsService {
     failureCode: string,
     status: 'failed' | 'timeout',
     usage?: StoryContinuationProviderResult['usage'],
+    preflightRejectedBeforeDispatch = false,
   ) {
     let actualCostKrw: number | undefined;
     if (usage) {
@@ -2031,6 +2082,7 @@ export class StoryEconomicsService {
       },
       `worker:${claim.continuationId}:${claim.leaseToken}`,
       claim.leaseToken,
+      ...(preflightRejectedBeforeDispatch && !usage ? [true] : []),
     );
   }
 
@@ -2040,6 +2092,7 @@ export class StoryEconomicsService {
     body: SettleStoryAiContinuationDto,
     idempotencyKey?: string,
     expectedLeaseToken?: string,
+    preflightRejectedBeforeDispatch = false,
   ) {
     const key = this.idempotencyKey('story-ai-settlement', idempotencyKey);
     const replay = await this.prisma.storyAiUsageLedger.findUnique({
@@ -2055,6 +2108,14 @@ export class StoryEconomicsService {
       return this.settlementProjection(continuation, true);
     }
     return this.prisma.$transaction(async (tx) => {
+      const confirmNoDispatchCandidate = Boolean(expectedLeaseToken && body.status === 'failed' &&
+        (body.failureCode === 'generation_authorization_changed' || preflightRejectedBeforeDispatch) &&
+        body.actualCostKrw === undefined && body.inputTokens === 0 && body.outputTokens === 0 &&
+        body.cachedInputTokens === 0 && body.imageUnits === 0);
+      if (confirmNoDispatchCandidate) {
+        // Lock out a concurrent dispatch before declaring an uncharged cancellation.
+        await tx.$queryRaw(Prisma.sql`SELECT id FROM story_ai_continuations WHERE id = ${continuationId}::uuid FOR UPDATE`);
+      }
       const continuation = await tx.storyAiContinuation.findUnique({
         where: { id: continuationId },
       });
@@ -2069,6 +2130,11 @@ export class StoryEconomicsService {
         continuation.leaseExpiresAt <= new Date()
       )) {
         throw new ConflictException('Story AI continuation lease is stale');
+      }
+      const confirmedNoDispatch = confirmNoDispatchCandidate && continuation.requestKind === 'recommended_choice' &&
+        continuation.attemptCount === 1 && continuation.dispatchStartedAt === null;
+      if (confirmedNoDispatch) {
+        body = { ...body, actualCostKrw: 0, inputTokens: 0, outputTokens: 0, cachedInputTokens: 0, imageUnits: 0 };
       }
       if (body.status === 'completed' && continuation.requestKind === 'recommended_choice') {
         // Creator profile edits take this work lock before replacing approved settings.
@@ -2495,6 +2561,13 @@ export class StoryEconomicsService {
           resultSceneId: null,
           resultGeneratedSceneId,
           actualCostKrw: body.actualCostKrw ?? null,
+          ...(confirmedNoDispatch ? { contextReferences: { ...jsonRecord(continuation.contextReferences),
+            noProviderDispatchEvidence: {
+              kind: preflightRejectedBeforeDispatch ? 'provider_preflight_rejected_before_dispatch_v1'
+                : 'authorization_rejected_before_dispatch_v1',
+              continuationId: continuation.id, attemptCount: 1,
+              ...(preflightRejectedBeforeDispatch ? { failureCode: body.failureCode } : {}),
+            } } } : {}),
           leaseToken: null,
           leaseOwner: null,
           leaseExpiresAt: null,
@@ -3064,6 +3137,7 @@ export class StoryEconomicsService {
         releaseId: input.release.id,
         progressId: input.progress.id,
         requestKind: 'recommended_choice',
+        authorBodyTrialApprovalId: input.authorBodyTrialApprovalId ?? null,
         customChoiceId: null,
         recommendedChoiceId: input.sourceKind === 'canonical' ? input.choice.id : null,
         generatedChoiceId: input.sourceKind === 'generated' ? input.choice.id : null,
@@ -3119,6 +3193,7 @@ export class StoryEconomicsService {
         outputTokenLimit: prepared.capability.aiOutputTokenLimit,
         actualCostKrw: 0,
         completedAt: now,
+        maxAttempts: input.authorBodyTrialApprovalId ? 1 : 3,
       },
     });
     const scene = await tx.storyAiGeneratedScene.create({

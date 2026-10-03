@@ -320,7 +320,7 @@
     });
     button.addEventListener("click", () => { if (!button.disabled) return controller.load(controller.snapshot().ticket); });
     const sync = () => controller.syncContext(), erase = () => controller.invalidate();
-    for (const name of ["storage", "lumina:authchange", "lumina:auth-expired", "pagehide"]) window.addEventListener(name, erase);
+    for (const name of ["storage", "lumina:authchange", "lumina:auth-expired", "pagehide", "lumina:author-body-trial-progress-changed"]) window.addEventListener(name, erase);
     for (const name of ["focus", "lumina:localechange", "pageshow"]) window.addEventListener(name, sync);
     document.addEventListener("lumina:auth-expired", erase);
     document.addEventListener("visibilitychange", erase);

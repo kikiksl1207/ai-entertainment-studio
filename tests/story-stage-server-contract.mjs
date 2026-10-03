@@ -11,6 +11,7 @@ export function loadStoryServerContract(repo) {
   const require = createRequire(path.join(deps, '../package.json'));
   const ts = require('typescript');
   const nest = require('@nestjs/common');
+  const { Prisma } = require('@prisma/client');
   const { Decimal } = require('@prisma/client/runtime/library');
   function source(relative) {
     const file = path.join(repo, relative);
@@ -51,7 +52,7 @@ export function loadStoryServerContract(repo) {
     const code = ts.transpileModule(`const container = {${printed.join(',\n')}};`, {
       compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None },
     }).outputText;
-    const environment = { ...nest, ...productionPolicy, ...progressPolicy, ...hashtagPolicy, ...walletPolicy,
+    const environment = { Prisma, ...nest, ...productionPolicy, ...progressPolicy, ...hashtagPolicy, ...walletPolicy,
       createStoryRouteRoot: routeStore.createStoryRouteRoot, CURRENCY: 'LUMINA',
       jsonArray: (x) => Array.isArray(x) ? x : [],
       jsonStringArray: (x) => Array.isArray(x) ? x.filter((y) => typeof y === 'string') : [],
@@ -59,7 +60,7 @@ export function loadStoryServerContract(repo) {
     return new Function(...Object.keys(environment), `${code}\nreturn container;`)(...Object.values(environment));
   }
   const production = methods('server/src/story-production/story-production.service.ts',
-    ['detail', 'readerAccess', 'accessProjection', 'startProgress', 'currentProgress', 'updateBeatProgress', 'purchaseWork', 'assertPurchaseReplay']);
+    ['detail', 'readerAccess', 'accessProjection', 'startProgress', 'startProgressAttempt', 'currentProgress', 'updateBeatProgress', 'purchaseWork', 'assertPurchaseReplay']);
   const controls = methods('server/src/story-production/story-progress-control.service.ts', ['publicState']);
   const economics = methods('server/src/story-production/story-economics.service.ts', ['capabilityProjection']);
   return async function contract(options = {}) {

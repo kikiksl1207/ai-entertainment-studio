@@ -2605,6 +2605,47 @@ model StoryAiAllowanceBucket {
   @@map("story_ai_allowance_buckets")
 }
 
+model StoryAuthorBodyTrialApproval {
+  id                           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId                       String   @map("user_id") @db.Uuid
+  workId                       String   @map("work_id") @db.Uuid
+  releaseId                    String   @map("release_id") @db.Uuid
+  manuscriptVersionId          String   @map("manuscript_version_id") @db.Uuid
+  releaseChecksum              String   @map("release_checksum")
+  capabilityRevision           Int      @map("capability_revision")
+  styleConsentId               String   @map("style_consent_id") @db.Uuid
+  styleConsentRevision         Int      @map("style_consent_revision")
+  analysisJobId                String   @map("analysis_job_id") @db.Uuid
+  analysisVersion              Int      @map("analysis_version")
+  generationProfileId          String?  @map("generation_profile_id") @db.Uuid
+  generationProfileRevision    Int?     @map("generation_profile_revision")
+  generationProfileFingerprint String?  @map("generation_profile_fingerprint")
+  approvedBudgetKrw            Decimal  @map("approved_budget_krw") @db.Decimal(18, 6)
+  approvalReference            String   @unique(map: "uq_story_author_body_trial_approval_reference") @map("approval_reference") @db.VarChar(128)
+  status                       String   @default("active")
+  expiresAt                    DateTime @map("expires_at") @db.Timestamptz(6)
+  createdAt                    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([userId, workId, status], map: "idx_story_author_body_trial_owner_work")
+  @@map("story_author_body_trial_approvals")
+}
+
+model StoryAuthorBodyTrialCommand {
+  userId                String   @map("user_id") @db.Uuid
+  idempotencyKey        String   @map("idempotency_key") @db.VarChar(120)
+  workId                String   @map("work_id") @db.Uuid
+  approvalId            String   @map("approval_id") @db.Uuid
+  progressId            String   @map("progress_id") @db.Uuid
+  choiceId              String   @map("choice_id") @db.Uuid
+  sourceRevision        Int      @map("source_revision")
+  locale                String
+  receipt               Json
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@id([userId, idempotencyKey])
+  @@map("story_author_body_trial_commands")
+}
+
 model StoryAiContinuation {
   id                     String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userId                 String    @map("user_id") @db.Uuid
@@ -2612,6 +2653,7 @@ model StoryAiContinuation {
   releaseId              String    @map("release_id") @db.Uuid
   progressId             String    @map("progress_id") @db.Uuid
   requestKind             String    @default("custom_choice") @map("request_kind")
+  authorBodyTrialApprovalId String?  @map("author_body_trial_approval_id") @db.Uuid
   customChoiceId          String?   @unique @map("custom_choice_id") @db.Uuid
   recommendedChoiceId     String?   @map("recommended_choice_id") @db.Uuid
   generatedChoiceId       String?   @map("generated_choice_id") @db.Uuid

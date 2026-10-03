@@ -286,7 +286,8 @@
       method: options.method || "GET",
       headers,
       body: options.formData || (options.body ? JSON.stringify(options.body) : undefined),
-      signal: options.signal
+      signal: options.signal,
+      ...(options.cache !== undefined ? { cache: options.cache } : {})
     });
     if (!currentStudioIdentity(identity)) throw new DOMException("Context changed", "AbortError");
     if (res.status === 401 && !options._retried) {
