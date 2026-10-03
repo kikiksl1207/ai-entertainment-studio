@@ -1,6 +1,8 @@
 import { ConflictException } from '@nestjs/common';
 import { Prisma, PrismaClient } from '@prisma/client';
 import { randomUUID } from 'crypto';
+import { spawnSync } from 'child_process';
+import { resolve } from 'path';
 import { activationFixture } from './story-ai-activation.postgres-fixture';
 import { createStoryRouteRoot } from './story-route-identity.store';
 import { StoryAuthorBodyTrialCostService } from './story-author-body-trial-cost.service';
@@ -25,6 +27,34 @@ postgres('approved historical separation on isolated PostgreSQL (synthetic, no A
     db = new PrismaClient({ datasources: { db: { url } } }); await db.$connect();
   });
   afterAll(async () => { await db?.$disconnect(); });
+
+  it('records the operator-approved separation with valid DB status, preserved history and idempotent replay', async () => {
+    const f = await prepared();
+    await db.storyWork.update({ where: { id: f.work.id }, data: {
+      title: { ko: '\uB0B4 \uC774\uB984\uC744 \uBA39\uC9C0 \uC54A\uC740 \uAD34\uBB3C' }, fixtureSource: false,
+    } });
+    await db.storyAuthorBodyTrialApproval.update({ where: { id: f.approval.id },
+      data: { approvalReference: 'user-approved-20261002-monster-body-10000' } });
+    const before = JSON.stringify(await f.costs.snapshotTx(db, f.owner.id, f.work.id));
+    const invoke = (apply: boolean) => {
+      const result = spawnSync(process.execPath, [resolve(__dirname, '../../scripts/separate-approved-monster-body-budget.cjs'),
+        ...(apply ? ['--apply'] : [])], { cwd: resolve(__dirname, '../..'), encoding: 'utf8',
+        env: { ...process.env, DATABASE_URL: url }, timeout: 30000 });
+      if (result.status !== 0) throw new Error(`Isolated operator probe: ${result.stderr.trim()}`);
+      expect(result.status).toBe(0);
+      return JSON.parse(result.stdout.trim());
+    };
+    expect(invoke(false)).toMatchObject({ recorded: false, historicalUnknownCostCount: 2, unknownCostCount: 0 });
+    expect(await db.storyAuthorBodyTrialApproval.count({ where: { userId: f.owner.id, workId: f.work.id } })).toBe(1);
+    expect(invoke(true)).toMatchObject({ recorded: true, reusedApproval: false,
+      historicalUnknownCostCount: 2, knownActualCostKrw: '45.589500', oldRequestsAndLedgerModified: false });
+    expect(invoke(true)).toMatchObject({ recorded: true, reusedApproval: true });
+    const records = await db.storyAuthorBodyTrialApproval.findMany({ where: { userId: f.owner.id, workId: f.work.id } });
+    expect(records).toHaveLength(2);
+    expect(records.find(row => row.id === f.approval.id)?.status).toBe('revoked');
+    expect(records.find(row => row.status === 'active')?.expiresAt).toEqual(f.approval.expiresAt);
+    expect(JSON.stringify(await f.costs.snapshotTx(db, f.owner.id, f.work.id))).toBe(before);
+  });
 
   async function prepared(cap = '10000') {
     const f = await activationFixture(db, true, false);

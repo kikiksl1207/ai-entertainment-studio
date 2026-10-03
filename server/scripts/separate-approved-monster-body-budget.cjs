@@ -10,6 +10,7 @@ const costs = new StoryAuthorBodyTrialCostService(db);
 const trial = new StoryAuthorBodyTrialService(costs);
 const originalReference = 'user-approved-20261002-monster-body-10000';
 const prefix = 'user-approved-20261004-future-body-v1:';
+let phase = 'exact_work';
 
 async function run() {
   const apply = process.argv.includes('--apply');
@@ -21,6 +22,7 @@ async function run() {
     assert.equal(works.length, 1);
     const work = works[0];
     assert(work.ownerUserId);
+    phase = 'scope_lock';
     await trial.lockWorkTx(tx, work.ownerUserId, work.id);
     const recorded = await tx.storyAuthorBodyTrialApproval.findMany({ where: {
       userId: work.ownerUserId, workId: work.id, approvalReference: { startsWith: prefix },
@@ -32,6 +34,7 @@ async function run() {
       return { recorded: true, reusedApproval: true, ...summarizeApprovedAuthorBodyTrialCosts(snapshot, recorded[0]) };
     }
     const original = await tx.storyAuthorBodyTrialApproval.findUniqueOrThrow({ where: { approvalReference: originalReference } });
+    phase = 'original_approval';
     assert.equal(original.userId, work.ownerUserId); assert.equal(original.workId, work.id);
     assert.equal(original.approvedBudgetKrw.toFixed(6), '10000.000000');
     await trial.authorizeTx(tx, work.ownerUserId, { workId: work.id, approvalId: original.id });
@@ -39,6 +42,7 @@ async function run() {
       userId: work.ownerUserId, workId: work.id, status: 'active',
     } }), 1, 'Exactly one current approval is required');
     const all = summarizeAuthorBodyTrialCosts(snapshot);
+    phase = 'historical_costs';
     assert.equal(all.requestCount, 3); assert.equal(all.unknownCostCount, 2); assert.equal(all.pendingCount, 0);
     assert.equal(all.knownActualCostKrw, '45.589500'); assert.equal(all.reservedMaximumCostKrw, '0.000000');
     const createdAt = new Date();
@@ -47,9 +51,11 @@ async function run() {
     const next = { ...pins, approvalReference, createdAt };
     const summary = summarizeApprovedAuthorBodyTrialCosts(snapshot, next);
     if (!apply) return { recorded: false, dryRun: true, ...summary };
+    phase = 'replace_approval';
     assert.equal((await tx.storyAuthorBodyTrialApproval.updateMany({ where: { id: original.id,
-      status: 'active', approvalReference: originalReference }, data: { status: 'superseded' } })).count, 1);
+      status: 'active', approvalReference: originalReference }, data: { status: 'revoked' } })).count, 1);
     const approval = await tx.storyAuthorBodyTrialApproval.create({ data: next });
+    phase = 'verify_recorded_approval';
     await trial.authorizeTx(tx, work.ownerUserId, { workId: work.id, approvalId: approval.id });
     await trial.assertCommittedBudgetTx(tx, approval);
     return { recorded: true, reusedApproval: false, ...summary };
@@ -58,6 +64,8 @@ async function run() {
     approvedBudgetKrw: '10000.000000', originalKnownCostRetained: true, oldRequestsAndLedgerModified: false,
     originalExpiryRetained: true, generationStarted: false, imageStarted: false }));
 }
-run().catch(error => { console.error(JSON.stringify({ failed: true, code: error.code ?? 'SEPARATION_PRECONDITION_FAILED' }));
+run().catch(error => { const code = error.code ?? error.getResponse?.()?.code;
+  console.error(JSON.stringify({ failed: true, phase,
+    code: typeof code === 'string' && /^[A-Z0-9_]+$/.test(code) ? code : 'SEPARATION_PRECONDITION_FAILED' }));
   process.exitCode = 1;
 }).finally(() => db.$disconnect());
