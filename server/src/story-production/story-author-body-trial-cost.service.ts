@@ -44,7 +44,8 @@ export class StoryAuthorBodyTrialCostService {
         select: { id: true, userId: true, workId: true, requestKind: true, status: true,
           attemptCount: true, maxAttempts: true, dispatchStartedAt: true,
           estimatedCostKrw: true, hardBudgetKrw: true, actualCostKrw: true,
-          contextReferences: true, sharedResultId: true, resultGeneratedSceneId: true, releaseId: true, progressId: true, failureCode: true },
+          contextReferences: true, sharedResultId: true, resultGeneratedSceneId: true, releaseId: true, progressId: true, failureCode: true,
+          createdAt: true, authorBodyTrialApprovalId: true },
       });
       if (continuations.length > 1000) {
         throw new ConflictException({ code: 'STORY_AUTHOR_BODY_TRIAL_COST_EVIDENCE_INCOMPLETE' });

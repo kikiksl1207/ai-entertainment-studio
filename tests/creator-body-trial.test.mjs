@@ -995,3 +995,164 @@ test('trial CSS keeps wrapping prose, fixed icon targets, responsive type, and p
   assert.match(css, /font-size: 17px/); assert.match(css, /@media print[^\n]*#writerBodyTrial[^\n]*display: none/);
   assert.doesNotMatch(css, /\d(?:vw|cqw)|linear-gradient|box-shadow|overflow-y|position:\s*(fixed|absolute)/);
 });
+
+const budgetSeparationScopes = [
+  ['all_recommended_body_requests_for_author_work', 0],
+  ['approved_historical_unknown_separation', 2]
+];
+function scopedApprovalState(costScope = budgetSeparationScopes[1][0]) {
+  const value = approvalState();
+  Object.assign(value.budget, { costScope, historicalUnknownCostCount: costScope === budgetSeparationScopes[0][0] ? 0 : 2,
+    knownActualCostKrw: '45.589500', committedCostKrw: '4045.589500', remainingBudgetKrw: '5954.410500' });
+  return value;
+}
+
+test('budget separation regression: absent fields preserve the legacy contract without inventing a scope', async () => {
+  const value = approvalState(), view = screen(({ kind, reply }) => kind === 'state' ? response(value) : reply());
+  assert.deepEqual(clone(view.api.parseState(value, { workId: id(1) })), value);
+  assert.equal(await view.load(), true);
+  const budget = view.snapshot().data.approvalState.budget;
+  assert.equal(Object.hasOwn(budget, 'costScope'), false);
+  assert.equal(Object.hasOwn(budget, 'historicalUnknownCostCount'), false);
+  assert.equal(view.snapshot().canChoose, true); assert.equal(posts(view).length, 0);
+});
+
+for (const [costScope, historicalUnknownCostCount] of budgetSeparationScopes) {
+  test(`budget separation regression: preserves ${costScope}, its history count, and confirmed costs`, async () => {
+    const value = scopedApprovalState(costScope), expected = clone(value);
+    value.budget.ledger = ['Private diagnostics'];
+    const view = screen(({ kind, reply }) => kind === 'state' ? response(value) : reply());
+    assert.deepEqual(clone(view.api.parseState(value, { workId: id(1) })), expected);
+    assert.equal(await view.load(), true);
+    assert.deepEqual(clone(view.snapshot().data.approvalState), expected);
+    const budget = view.snapshot().data.approvalState.budget;
+    assert.equal(budget.costScope, costScope); assert.equal(budget.historicalUnknownCostCount, historicalUnknownCostCount);
+    assert.equal(budget.knownActualCostKrw, '45.589500'); assert.equal(budget.committedCostKrw, '4045.589500');
+    assert.equal(budget.remainingBudgetKrw, '5954.410500'); assert.equal(Object.hasOwn(budget, 'ledger'), false);
+    assert.equal(view.snapshot().canChoose, true); assert.equal(view.calls.length, 2); assert.equal(posts(view).length, 0);
+    budget.costScope = 'invalid'; budget.historicalUnknownCostCount = 0; budget.knownActualCostKrw = '0.000000';
+    assert.deepEqual(clone(view.snapshot().data.approvalState), expected);
+  });
+}
+
+const invalidBudgetSeparationStates = {};
+for (const [costScope] of budgetSeparationScopes) {
+  for (const key of ['costScope', 'historicalUnknownCostCount']) {
+    invalidBudgetSeparationStates[`${costScope}-missing-${key}`] = value => {
+      value.budget.costScope = costScope; delete value.budget[key];
+    };
+  }
+  for (const [name, count] of [['undefined', undefined], ['null', null], ['true', true], ['false', false],
+    ['string', '2'], ['array', []], ['object', {}], ['negative', -1], ['fraction', 0.5],
+    ['nan', NaN], ['infinity', Infinity], ['unsafe', Number.MAX_SAFE_INTEGER + 1]]) {
+    invalidBudgetSeparationStates[`${costScope}-history-${name}`] = value => {
+      Object.assign(value.budget, { costScope, historicalUnknownCostCount: count });
+    };
+  }
+  for (const count of costScope === budgetSeparationScopes[0][0] ? [1, 2, 3] : [0, 1, 3]) {
+    invalidBudgetSeparationStates[`${costScope}-history-mismatch-${count}`] = value => {
+      Object.assign(value.budget, { costScope, historicalUnknownCostCount: count });
+    };
+  }
+}
+for (const [name, costScope] of [['undefined', undefined], ['null', null], ['array', []], ['object', {}],
+  ['number', 2], ['boolean', false], ['unknown', 'other'],
+  ['whitespace', budgetSeparationScopes[0][0] + ' '], ['case', budgetSeparationScopes[1][0].toUpperCase()]]) {
+  invalidBudgetSeparationStates[`scope-${name}`] = value => { value.budget.costScope = costScope; };
+}
+for (const [name, corrupt] of Object.entries(invalidBudgetSeparationStates)) {
+  test(`budget separation regression: rejects invalid contract before preview or choices: ${name}`, async () => {
+    const value = scopedApprovalState(); corrupt(value);
+    const view = screen(({ kind, reply }) => kind === 'state' ? response(value) : reply());
+    assert.throws(() => view.api.parseState(value, { workId: id(1) }), error => error.kind === 'invalid');
+    assert.equal(await view.load(), false); assertCleared(view);
+    assert.equal(view.snapshot().messageKey, 'invalid'); assert.equal(view.snapshot().canChoose, false);
+    for (const choice of preview().progress.choices) assert.equal(await view.choose(choice.id), false);
+    assert.equal(view.calls.length, 1); assert.equal(view.keys(), 0); assert.equal(posts(view).length, 0);
+  });
+}
+
+test('budget separation regression: present undefined fields are invalid but JSON omission remains legacy', async () => {
+  const value = approvalState();
+  value.budget.costScope = undefined; value.budget.historicalUnknownCostCount = undefined;
+  const view = screen(({ kind, reply }) => kind === 'state' ? response(value) : reply());
+  assert.throws(() => view.api.parseState(value, { workId: id(1) }), error => error.kind === 'invalid');
+  assert.equal(await view.load(), true);
+  assert.deepEqual(clone(view.snapshot().data.approvalState), approvalState());
+  assert.equal(view.snapshot().canChoose, true); assert.equal(posts(view).length, 0);
+});
+
+for (const [costScope] of budgetSeparationScopes) {
+  test(`budget separation regression: current unknown costs still block both choices under ${costScope}`, async () => {
+    const value = scopedApprovalState(costScope); value.state = 'cost_unknown';
+    Object.assign(value.budget, { unknownCostCount: 1, remainingBudgetKrw: null, evidenceReadyForBudgetCheck: false });
+    const view = screen(({ kind, reply }) => kind === 'state' ? response(value) : reply());
+    assert.equal(await view.load(), true); assert.deepEqual(clone(view.snapshot().data.approvalState), value);
+    assert.equal(view.snapshot().messageKey, 'cost_unknown'); assert.equal(view.snapshot().canChoose, false);
+    for (const choice of preview().progress.choices) assert.equal(await view.choose(choice.id), false);
+    assert.equal(view.calls.length, 2); assert.equal(view.keys(), 0); assert.equal(posts(view).length, 0);
+  });
+  for (const inconsistent of ['approval_recorded', 'evidence-ready']) {
+    test(`budget separation regression: current unknown cannot claim ${inconsistent} under ${costScope}`, async () => {
+      const value = scopedApprovalState(costScope); value.state = 'cost_unknown';
+      Object.assign(value.budget, { unknownCostCount: 1, remainingBudgetKrw: null, evidenceReadyForBudgetCheck: false });
+      if (inconsistent === 'approval_recorded') value.state = 'approval_recorded';
+      else value.budget.evidenceReadyForBudgetCheck = true;
+      const view = screen(({ kind, reply }) => kind === 'state' ? response(value) : reply());
+      assert.throws(() => view.api.parseState(value, { workId: id(1) }), error => error.kind === 'invalid');
+      assert.equal(await view.load(), false); assertCleared(view);
+      assert.equal(view.snapshot().canChoose, false); assert.equal(await view.choose(id(6)), false);
+      assert.equal(view.calls.length, 1); assert.equal(posts(view).length, 0);
+    });
+  }
+}
+
+const historicalSeparationCopy = {
+  ko: '\uacfc\uac70 \uae08\uc561 \ubbf8\ud655\uc778 2\uac74, \uc774\ubc88 \uc2dc\ud5d8 \ud55c\ub3c4 \ubc16 \ubcc4\ub3c4 \ubcf4\uc874',
+  en: "2 historical requests with unconfirmed costs, preserved separately outside this trial's budget limit",
+  ja: '\u904e\u53bb\u306e\u91d1\u984d\u672a\u78ba\u8a8d 2 \u4ef6\u3001\u4eca\u56de\u306e\u30c6\u30b9\u30c8\u306e\u4e88\u7b97\u4e0a\u9650\u5916\u3067\u5225\u9014\u4fdd\u6301',
+  'zh-Hans': '\u8fc7\u53bb\u91d1\u989d\u672a\u786e\u8ba4 2 \u7b14\uff0c\u5728\u672c\u6b21\u6d4b\u8bd5\u9884\u7b97\u9650\u989d\u5916\u5355\u72ec\u4fdd\u7559',
+  'zh-Hant': '\u904e\u53bb\u91d1\u984d\u672a\u78ba\u8a8d 2 \u7b46\uff0c\u5728\u672c\u6b21\u6e2c\u8a66\u9810\u7b97\u9650\u984d\u5916\u55ae\u7368\u4fdd\u7559'
+};
+for (const language of locales) {
+  for (const currentUnknown of [false, true]) {
+    test(`budget separation regression: ${language} separates historical 2 from balance with current unknown ${currentUnknown}`, async () => {
+      const value = scopedApprovalState();
+      if (currentUnknown) {
+        value.state = 'cost_unknown';
+        Object.assign(value.budget, { unknownCostCount: 1, remainingBudgetKrw: null, evidenceReadyForBudgetCheck: false });
+      }
+      const view = mounted(({ kind, reply }) => kind === 'state' ? response(value) : reply());
+      view.locale(language); view.sourceLocale.value = 'ja'; view.sourceLocale.fire('change');
+      assert.equal(view.calls.length, 0); await view.load(); assert.equal(view.host.lang, language);
+      const content = walk(view.host).find(node => node.id === 'writerBodyTrialContent');
+      const amounts = walk(view.host).find(node => node.className === 'body-trial-budget');
+      const notices = walk(view.host).filter(node => node.id === 'writerBodyTrialHistoricalCosts');
+      assert.equal(notices.length, 1); const note = notices[0];
+      assert.equal(note.textContent, historicalSeparationCopy[language]); assert.equal(note.getAttribute('role'), 'note');
+      assert.ok(content.children.includes(note)); assert.equal(walk(amounts).includes(note), false);
+      assert.deepEqual(walk(amounts).filter(node => node.tagName === 'DD').map(node => node.textContent),
+        ['10,000 KRW', '4,045.5895 KRW', currentUnknown ? view.api.copy[language].unknown : '5,954.4105 KRW']);
+      assert.equal(view.choices().length, 2);
+      for (const button of view.choices()) {
+        assert.equal(button.disabled, currentUnknown);
+        if (currentUnknown) await button.fire('click');
+      }
+      const state = walk(view.host).find(node => node.id === 'writerBodyTrialState');
+      assert.equal(state.textContent, view.api.copy[language][currentUnknown ? 'cost_unknown' : 'approval_recorded']);
+      assert.equal(posts(view).length, 0); assert.equal(view.calls.length, 2);
+      view.window.fire('lumina:authchange');
+      assert.equal(walk(view.host).some(node => node.id === 'writerBodyTrialHistoricalCosts'), false);
+    });
+  }
+  for (const contract of ['legacy', 'all-requests']) {
+    test(`budget separation regression: ${language} never invents a historical notice for ${contract}`, async () => {
+      const value = contract === 'legacy' ? approvalState() : scopedApprovalState(budgetSeparationScopes[0][0]);
+      const view = mounted(({ kind, reply }) => kind === 'state' ? response(value) : reply());
+      view.locale(language); view.window.fire('lumina:localechange'); await view.load();
+      assert.equal(walk(view.host).some(node => node.id === 'writerBodyTrialHistoricalCosts'), false);
+      assert.equal(view.choices().length, 2); assert.ok(view.choices().every(button => !button.disabled));
+      assert.equal(posts(view).length, 0); assert.equal(view.calls.length, 2);
+    });
+  }
+}

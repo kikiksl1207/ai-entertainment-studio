@@ -3,7 +3,7 @@ import { Prisma } from '@prisma/client';
 import { isUUID } from 'class-validator';
 import { PrismaService } from '../prisma/prisma.service';
 import { StoryAuthorBodyTrialCostService } from './story-author-body-trial-cost.service';
-import { StoryAuthorBodyTrialBudgetError, summarizeAuthorBodyTrialCosts } from './story-author-body-trial-budget.policy';
+import { StoryAuthorBodyTrialBudgetError, summarizeApprovedAuthorBodyTrialCosts } from './story-author-body-trial-budget.policy';
 
 @Injectable()
 export class StoryAuthorBodyTrialStateService {
@@ -27,7 +27,8 @@ export class StoryAuthorBodyTrialStateService {
         readOnly: true as const, generationAuthorized: false as const, currentAuthorizationVerified: false as const,
         imageGenerationStarted: false as const };
       const approval = await tx.storyAuthorBodyTrialApproval.findFirst({ where: { userId, workId, status: 'active' },
-        select: { id: true, userId: true, workId: true, status: true, releaseId: true, approvedBudgetKrw: true, expiresAt: true } });
+        select: { id: true, userId: true, workId: true, status: true, releaseId: true, approvedBudgetKrw: true, expiresAt: true,
+          createdAt: true, approvalReference: true } });
       if (!approval) return { ...base, state: 'approval_required' as const, approval: null, budget: null };
       if (approval.userId !== userId || approval.workId !== workId || approval.status !== 'active' ||
         approval.approvedBudgetKrw.lte(0) || approval.approvedBudgetKrw.gt(10000)) {
@@ -35,7 +36,7 @@ export class StoryAuthorBodyTrialStateService {
       }
       let summary;
       try {
-        summary = summarizeAuthorBodyTrialCosts(await this.costs.snapshotTx(tx, userId, workId));
+        summary = summarizeApprovedAuthorBodyTrialCosts(await this.costs.snapshotTx(tx, userId, workId), approval);
       } catch (error) {
         if (!(error instanceof StoryAuthorBodyTrialBudgetError)) throw error;
         throw new ConflictException({ code: 'STORY_AUTHOR_BODY_TRIAL_COST_EVIDENCE_INCOMPLETE' });

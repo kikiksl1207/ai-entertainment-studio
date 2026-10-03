@@ -3,6 +3,8 @@ import {
   evaluateAuthorBodyTrialBudget,
   StoryAuthorBodyTrialBudgetError,
   summarizeAuthorBodyTrialCosts,
+  summarizeApprovedAuthorBodyTrialCosts,
+  authorBodyTrialHistoricalSeparationReference,
 } from './story-author-body-trial-budget.policy';
 
 type Snapshot = Parameters<typeof summarizeAuthorBodyTrialCosts>[0];
@@ -405,5 +407,65 @@ describe('evaluateAuthorBodyTrialBudget', () => {
       expectInvalid(() => evaluateAuthorBodyTrialBudget(snapshot(), invalid, '1'), invalid ? [invalid] : []);
       expectInvalid(() => evaluateAuthorBodyTrialBudget(snapshot(), '1', invalid), invalid ? [invalid] : []);
     }
+  });
+});
+
+describe('explicitly pinned historical unknown costs (no reset or rolling exemption)', () => {
+  const cutoff = new Date('2026-10-04T00:00:00Z');
+  function separated() {
+    const old: Continuation[] = [continuation(), continuation()].map(row => ({ ...row, status: 'failed', attemptCount: 1,
+      maxAttempts: 3, createdAt: new Date('2026-09-27T00:00:00Z'), authorBodyTrialApprovalId: null,
+      dispatchStartedAt: dispatchedAt }));
+    const known = charged('45.589500');
+    Object.assign(known.row, { createdAt: dispatchedAt, authorBodyTrialApprovalId: null });
+    const state = snapshot([...old, known.row], [...old.flatMap(row => [ledger(row),
+      ledger(row, { eventKind: 'new_route_failed', status: 'failed' })]), known.request, known.settlement]);
+    const approval = { createdAt: cutoff, approvalReference: authorBodyTrialHistoricalSeparationReference(state, cutoff) };
+    return { state, approval, old };
+  }
+  it('keeps all-history GET unknown and known spending while the exact approved pair is separate', () => {
+    const { state, approval } = separated();
+    const before = JSON.stringify(state);
+    expect(summarizeAuthorBodyTrialCosts(state)).toMatchObject({ unknownCostCount: 2, knownActualCostKrw: '45.589500' });
+    expect(summarizeApprovedAuthorBodyTrialCosts(state, approval)).toMatchObject({
+      requestCount: 1, unknownCostCount: 0, historicalUnknownCostCount: 2,
+      costScope: 'approved_historical_unknown_separation', committedCostKrw: '45.589500' });
+    expect(JSON.stringify(state)).toBe(before);
+    expect(approval.approvalReference.length).toBeLessThanOrEqual(128);
+  });
+  it('does not automatically apply the policy to old or absent approval references', () => {
+    const { state } = separated();
+    expect(summarizeApprovedAuthorBodyTrialCosts(state, {})).toMatchObject({ unknownCostCount: 2, historicalUnknownCostCount: 0 });
+    expect(summarizeApprovedAuthorBodyTrialCosts(state, { approvalReference: 'user-approved-20261002-monster-body-10000' }))
+      .toMatchObject({ unknownCostCount: 2, costScope: 'all_recommended_body_requests_for_author_work' });
+  });
+  it.each(['reference', 'cutoff', 'missing-date', 'attached-trial', 'ledger', 'new-historical-record'])
+    ('fails closed when approved evidence changes: %s', mode => {
+      const { state, approval, old } = separated();
+      if (mode === 'reference') approval.approvalReference += '0';
+      if (mode === 'cutoff') approval.createdAt = new Date(cutoff.getTime() + 1);
+      if (mode === 'missing-date') delete old[0].createdAt;
+      if (mode === 'attached-trial') old[0].authorBodyTrialApprovalId = randomUUID();
+      if (mode === 'ledger') state.ledger[1].outputTokens = 1;
+      if (mode === 'new-historical-record') {
+        const row = { ...old[0], id: randomUUID() };
+        state.continuations.push(row); state.ledger.push(ledger(row), ledger(row, { eventKind: 'new_route_failed', status: 'failed' }));
+      }
+      expectInvalid(() => summarizeApprovedAuthorBodyTrialCosts(state, approval));
+    });
+  it('counts new pending maximums and keeps new unknown failures blocking', () => {
+    const { state, approval } = separated();
+    const row = continuation({ createdAt: new Date(cutoff.getTime() + 1), authorBodyTrialApprovalId: randomUUID(), hardBudgetKrw: '300' });
+    state.continuations.push(row); state.ledger.push(ledger(row));
+    expect(summarizeApprovedAuthorBodyTrialCosts(state, approval)).toMatchObject({
+      reservedMaximumCostKrw: '300.000000', committedCostKrw: '345.589500', pendingCount: 1, unknownCostCount: 0 });
+    Object.assign(row, { status: 'failed', attemptCount: 1, dispatchStartedAt: new Date() });
+    state.ledger.push(ledger(row, { eventKind: 'new_route_failed', status: 'failed' }));
+    expect(summarizeApprovedAuthorBodyTrialCosts(state, approval)).toMatchObject({ unknownCostCount: 1, historicalUnknownCostCount: 2 });
+  });
+  it('never issues a new separation reference while an additional unknown/pending request exists', () => {
+    const { state } = separated(); const row = continuation({ createdAt: cutoff, authorBodyTrialApprovalId: randomUUID() });
+    state.continuations.push(row); state.ledger.push(ledger(row));
+    expectInvalid(() => authorBodyTrialHistoricalSeparationReference(state, cutoff));
   });
 });

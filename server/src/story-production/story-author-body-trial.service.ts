@@ -2,7 +2,7 @@ import { ConflictException, Injectable, NotFoundException } from '@nestjs/common
 import { Prisma, type StoryAuthorBodyTrialApproval } from '@prisma/client';
 import { isUUID } from 'class-validator';
 import { StoryAuthorBodyTrialCostService } from './story-author-body-trial-cost.service';
-import { StoryAuthorBodyTrialBudgetError, summarizeAuthorBodyTrialCosts } from './story-author-body-trial-budget.policy';
+import { StoryAuthorBodyTrialBudgetError, summarizeApprovedAuthorBodyTrialCosts } from './story-author-body-trial-budget.policy';
 import { continuationGenerationProfileSnapshot } from './story-continuation-context.policy';
 
 export type AuthorBodyTrialScope = { workId: string; approvalId: string };
@@ -80,7 +80,7 @@ export class StoryAuthorBodyTrialService {
 
   async assertCommittedBudgetTx(tx: Prisma.TransactionClient, approval: StoryAuthorBodyTrialApproval) {
     try {
-      const summary = summarizeAuthorBodyTrialCosts(await this.costs.snapshotTx(tx, approval.userId, approval.workId));
+      const summary = summarizeApprovedAuthorBodyTrialCosts(await this.costs.snapshotTx(tx, approval.userId, approval.workId), approval);
       if (summary.unknownCostCount) this.changed('STORY_AUTHOR_BODY_TRIAL_COST_UNKNOWN');
       if (new Prisma.Decimal(summary.committedCostKrw).gt(approval.approvedBudgetKrw)) {
         this.changed('STORY_AUTHOR_BODY_TRIAL_BUDGET_EXCEEDED');

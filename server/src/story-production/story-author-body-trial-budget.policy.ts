@@ -1,4 +1,5 @@
 import { isUUID } from 'class-validator';
+import { createHash } from 'crypto';
 
 export interface AuthorBodyTrialContinuationCost {
   id: string;
@@ -17,6 +18,8 @@ export interface AuthorBodyTrialContinuationCost {
   confirmedNoProviderDispatch?: boolean;
   sharedResultId: string | null;
   resultGeneratedSceneId: string | null;
+  createdAt?: Date;
+  authorBodyTrialApprovalId?: string | null;
 }
 
 export interface AuthorBodyTrialLedgerCost {
@@ -183,4 +186,47 @@ export function evaluateAuthorBodyTrialBudget(
   return { ...costs, mayReserve: reason === 'within_budget', reason,
     remainingBudgetKrw: formatMoney(committed < cap ? cap - committed : 0n),
     maximumAfterReservationKrw: formatMoney(maximumAfterReservation) };
+}
+
+const historicalSeparationPrefix = 'user-approved-20261004-future-body-v1:';
+export type AuthorBodyTrialBudgetScope = { approvalReference?: string; createdAt?: Date };
+
+function historicalSeparation(snapshot: AuthorBodyTrialCostSnapshot, cutoff: Date) {
+  if (!(cutoff instanceof Date) || !Number.isFinite(cutoff.getTime()) ||
+      snapshot.continuations.some(row => !(row.createdAt instanceof Date) || !Number.isFinite(row.createdAt.getTime()))) invalid();
+  const rows = snapshot.continuations.filter(row => row.createdAt! < cutoff &&
+    row.authorBodyTrialApprovalId === null && row.actualCostKrw === null &&
+    (row.status === 'failed' || row.status === 'timeout')).sort((a, b) => a.id.localeCompare(b.id));
+  if (rows.length !== 2 || rows.some(row => row.attemptCount !== 1 || row.maxAttempts !== 3 ||
+      row.dispatchStartedAt === null || row.sharedResultReused || row.confirmedNoProviderDispatch)) invalid();
+  const ids = new Set(rows.map(row => row.id));
+  const ledger = snapshot.ledger.filter(row => ids.has(row.continuationId)).sort((a, b) => a.id.localeCompare(b.id));
+  const historical = { ...snapshot, continuations: rows, ledger };
+  const summary = summarizeAuthorBodyTrialCosts(historical);
+  if (summary.unknownCostCount !== 2 || summary.pendingCount !== 0) invalid();
+  // A stored, server-only approval pins the exact historical evidence, never a rolling date exemption.
+  const reference = historicalSeparationPrefix + createHash('sha256').update(JSON.stringify({
+    userId: snapshot.userId, workId: snapshot.workId, cutoff: cutoff.toISOString(), rows, ledger,
+  })).digest('hex');
+  return { reference, ids, historicalUnknownCostCount: summary.unknownCostCount };
+}
+
+export function authorBodyTrialHistoricalSeparationReference(snapshot: AuthorBodyTrialCostSnapshot, cutoff: Date) {
+  const summary = summarizeAuthorBodyTrialCosts(snapshot);
+  if (summary.unknownCostCount !== 2 || summary.pendingCount !== 0) invalid();
+  return historicalSeparation(snapshot, cutoff).reference;
+}
+
+export function summarizeApprovedAuthorBodyTrialCosts(snapshot: AuthorBodyTrialCostSnapshot, approval: AuthorBodyTrialBudgetScope) {
+  const all = summarizeAuthorBodyTrialCosts(snapshot);
+  if (!approval.approvalReference?.startsWith(historicalSeparationPrefix)) {
+    return { ...all, historicalUnknownCostCount: 0,
+      costScope: 'all_recommended_body_requests_for_author_work' as const };
+  }
+  const historical = historicalSeparation(snapshot, approval.createdAt!);
+  if (approval.approvalReference !== historical.reference) invalid();
+  const scoped = { ...snapshot, continuations: snapshot.continuations.filter(row => !historical.ids.has(row.id)),
+    ledger: snapshot.ledger.filter(row => !historical.ids.has(row.continuationId)) };
+  return { ...summarizeAuthorBodyTrialCosts(scoped), historicalUnknownCostCount: historical.historicalUnknownCostCount,
+    costScope: 'approved_historical_unknown_separation' as const };
 }
