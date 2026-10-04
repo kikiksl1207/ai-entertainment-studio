@@ -7,6 +7,8 @@ import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/http-exception.filter';
 import { createValidationException } from './common/validation-exception.factory';
 import { configureHttpRouting } from './common/http-routing';
+import { authorBodyReviewPrivacyMiddleware } from './story-production/story-author-body-review.privacy';
+import { authorBodyTrialReceiptPrivacyMiddleware } from './story-production/story-author-body-trial-receipt.controller';
 
 type RequestLike = {
   headers: Record<string, string | string[] | undefined>;
@@ -31,6 +33,8 @@ export async function createApplication() {
   const configService = app.get(ConfigService);
   app.getHttpAdapter().getInstance().set('trust proxy', 1);
   app.use(requestIdMiddleware);
+  app.use(authorBodyReviewPrivacyMiddleware);
+  app.use(authorBodyTrialReceiptPrivacyMiddleware);
   app.use(
     helmet({
       crossOriginResourcePolicy: { policy: 'cross-origin' },

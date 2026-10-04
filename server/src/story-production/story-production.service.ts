@@ -65,6 +65,7 @@ import {
 } from './story-hashtag.policy';
 import { UserAssetsService } from '../assets/user-assets.service';
 import { StoryAuthorBodyTrialService, type AuthorBodyTrialScope } from './story-author-body-trial.service';
+import { canonicalEndingPosition } from './story-canonical-ending.store';
 
 const STORY_ENTITLEMENT_TYPES = [
   'story_work',
@@ -855,6 +856,11 @@ export class StoryProductionService {
       return { ...(await this.generatedSceneProjection(progress, locale)), workId: progress.workId, participantArtist };
     }
     if (!progress.currentSceneId) {
+      const ending = await canonicalEndingPosition(this.prisma, progress, true);
+      if (ending) {
+        return { ...(await this.sceneProjection({ ...progress, currentSceneId: ending.sceneId,
+          currentBeatPosition: 0 }, locale)), workId: progress.workId, participantArtist };
+      }
       return {
         progressId,
         workId: progress.workId,
@@ -885,6 +891,9 @@ export class StoryProductionService {
       throw new NotFoundException('Active story progress not found');
     }
     let readableEnding = false;
+    if (progress.status === 'completed' && progress.currentSceneId && !progress.currentGeneratedSceneId) {
+      readableEnding = Boolean(await canonicalEndingPosition(this.prisma, progress));
+    }
     if (progress.status === 'completed' && !progress.currentSceneId &&
         progress.currentGeneratedSceneId && progress.activeReleaseId) {
       const [work, ending] = await Promise.all([
@@ -1296,8 +1305,8 @@ export class StoryProductionService {
       const updated = await tx.storyReaderProgress.updateMany({
         where: { id: progress.id, userId, progressRevision: expectedRevision },
         data: {
-          currentSceneId: endingType ? null : target?.id,
-          currentBeatPosition: 0,
+          currentSceneId: endingType ? target?.id ?? scene.id : target?.id,
+          currentBeatPosition: endingType && !target ? progress.currentBeatPosition : 0,
           currentAct: targetPart?.actNumber ?? progress.currentAct,
           progressRevision: { increment: 1 },
           checkpointSceneId: target?.id ?? progress.checkpointSceneId,

@@ -394,6 +394,7 @@ describe('First public release suggested choices', () => {
     f.work.priceLumina = new Decimal(0);
     f.choices[0].targetSceneId = null as never;
     f.choices[0].targetEndingKey = 'author_main' as never;
+    f.progress.currentBeatPosition = 4;
     jest.spyOn(f.production, 'currentProgress').mockResolvedValue({} as never);
     await f.production.selectChoice('reader', 'progress', 'choice-1', 3);
     expect(f.prisma.storyChoice.findMany).toHaveBeenCalledWith(expect.objectContaining({
@@ -407,6 +408,9 @@ describe('First public release suggested choices', () => {
     }));
     expect(f.mutations.progressUpdate).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ status: 'completed', visitedEndingKeys: ['author_main'] }),
+    }));
+    expect(f.mutations.progressUpdate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ currentSceneId: f.scene.id, currentBeatPosition: 4 }),
     }));
   });
 

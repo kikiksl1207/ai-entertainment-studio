@@ -2630,6 +2630,43 @@ model StoryAuthorBodyTrialApproval {
   @@map("story_author_body_trial_approvals")
 }
 
+model StoryAuthorBodyReview {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ownerUserId String @map("owner_user_id") @db.Uuid
+  workId String @map("work_id") @db.Uuid
+  releaseId String @map("release_id") @db.Uuid
+  progressId String @map("progress_id") @db.Uuid
+  sceneId String @map("scene_id") @db.Uuid
+  continuationId String @map("continuation_id") @db.Uuid
+  locale String @db.VarChar(8)
+  version Int
+  sourceBindingHash String @map("source_binding_hash") @db.VarChar(64)
+  bindingSnapshot Json @map("binding_snapshot")
+  requestHash String @map("request_hash") @db.VarChar(64)
+  idempotencyKey String @map("idempotency_key") @db.VarChar(120)
+  decision String @db.VarChar(8)
+  styleReviewed Boolean @map("style_reviewed")
+  charactersReviewed Boolean @map("characters_reviewed")
+  timelineReviewed Boolean @map("timeline_reviewed")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([ownerUserId,workId,idempotencyKey], map: "uq_story_body_review_key")
+  @@unique([workId,version], map: "uq_story_body_review_version")
+  @@unique([id,ownerUserId,workId], map: "uq_story_body_review_owner")
+  @@map("story_author_body_reviews")
+}
+
+model StoryAuthorBodyReviewWithdrawal {
+  reviewId String @id @map("review_id") @db.Uuid
+  ownerUserId String @map("owner_user_id") @db.Uuid
+  workId String @map("work_id") @db.Uuid
+  idempotencyKey String @map("idempotency_key") @db.VarChar(120)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([ownerUserId,workId,idempotencyKey], map: "uq_story_body_review_withdrawal_key")
+  @@map("story_author_body_review_withdrawals")
+}
+
 model StoryAuthorBodyTrialCommand {
   userId                String   @map("user_id") @db.Uuid
   idempotencyKey        String   @map("idempotency_key") @db.VarChar(120)

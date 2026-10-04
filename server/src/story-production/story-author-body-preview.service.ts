@@ -4,6 +4,7 @@ import { isUUID } from 'class-validator';
 import { PrismaService } from '../prisma/prisma.service';
 import { StoryLocaleQueryDto } from './dto/story-production.dto';
 import { STORY_LOCALES } from './story-production.policy';
+import { canonicalEndingPosition } from './story-canonical-ending.store';
 
 const MAX_RESPONSE_BYTES = 256 * 1024;
 const beatSelect = { id: true, position: true, beatType: true, content: true } as const;
@@ -52,7 +53,8 @@ export class StoryAuthorBodyPreviewService {
       if (!work) throw new NotFoundException({ code: 'STORY_AUTHOR_BODY_PREVIEW_UNAVAILABLE' });
       const progress = await db.storyReaderProgress.findUnique({ where: { userId_workId: { userId, workId } },
         select: { id: true, userId: true, workId: true, activeReleaseId: true, storyVersion: true,
-          progressRevision: true, status: true, currentSceneId: true, currentGeneratedSceneId: true } });
+          progressRevision: true, status: true, currentSceneId: true, currentGeneratedSceneId: true,
+          routeNodeId: true, pathSummary: true } });
       const envelope = { contract: 'story-author-body-preview-v1' as const, workId, locale,
         readOnly: true as const, imageGenerationStarted: false as const };
       if (!progress) return { ...envelope, progress: null };
@@ -65,7 +67,11 @@ export class StoryAuthorBodyPreviewService {
       if (!release || release.version !== progress.storyVersion) this.changed();
       const state = { progressId: progress.id, revision: progress.progressRevision, status: progress.status,
         storyVersion: progress.storyVersion };
-      if (!progress.currentSceneId && !progress.currentGeneratedSceneId) {
+      let currentSceneId = progress.currentSceneId;
+      if (!currentSceneId && !progress.currentGeneratedSceneId) {
+        currentSceneId = (await canonicalEndingPosition(db, progress, true))?.sceneId ?? null;
+      }
+      if (!currentSceneId && !progress.currentGeneratedSceneId) {
         return { ...envelope, progress: { ...state, scene: null, choices: [] } };
       }
       const generated = Boolean(progress.currentGeneratedSceneId);
@@ -73,7 +79,7 @@ export class StoryAuthorBodyPreviewService {
         ? await db.storyAiGeneratedScene.findFirst({ where: { id: progress.currentGeneratedSceneId!,
           userId, workId, progressId: progress.id, releaseId: release.id, status: 'ready' },
         select: { id: true, sourcePartId: true, continuationId: true, title: true, endingType: true } })
-        : await db.storyScene.findFirst({ where: { id: progress.currentSceneId!, status: 'published', fixtureSource: false },
+        : await db.storyScene.findFirst({ where: { id: currentSceneId!, status: 'published', fixtureSource: false },
           select: { id: true, partId: true, title: true, endingType: true } });
       if (!scene) this.changed();
       const partId = 'sourcePartId' in scene ? scene.sourcePartId : scene.partId;

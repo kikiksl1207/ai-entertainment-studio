@@ -90,6 +90,10 @@ import { StoryAuthorBodyTrialService } from './story-author-body-trial.service';
 import { StoryAuthorBodyTrialController } from './story-author-body-trial.controller';
 import { StoryAuthorBodyTrialStateService } from './story-author-body-trial-state.service';
 import { StoryAuthorBodyTrialStateController } from './story-author-body-trial-state.controller';
+import { StoryAuthorBodyReviewController } from './story-author-body-review.controller';
+import { StoryAuthorBodyReviewService } from './story-author-body-review.service';
+import { StoryAuthorBodyTrialReceiptController, StoryAuthorBodyTrialRecoveryController } from './story-author-body-trial-receipt.controller';
+import { StoryAuthorBodyTrialReceiptService } from './story-author-body-trial-receipt.service';
 
 @Module({
   imports: [ModerationModule, StoryUploadModule, CreatorStudioModule, UserAssetsModule],
@@ -107,6 +111,9 @@ import { StoryAuthorBodyTrialStateController } from './story-author-body-trial-s
     StoryAuthorBodyTrialCostController,
     StoryAuthorBodyTrialController,
     StoryAuthorBodyTrialStateController,
+    StoryAuthorBodyReviewController,
+    StoryAuthorBodyTrialReceiptController,
+    StoryAuthorBodyTrialRecoveryController,
     StoryAuthoredImportController,
     StoryProductionController,
     StoryProgressAdminController,
@@ -145,6 +152,8 @@ import { StoryAuthorBodyTrialStateController } from './story-author-body-trial-s
     StoryAuthorBodyTrialCostService,
     StoryAuthorBodyTrialStateService,
     StoryAuthorBodyTrialService,
+    StoryAuthorBodyReviewService,
+    StoryAuthorBodyTrialReceiptService,
     StoryAuthoredImportMultipartInterceptor,
     StoryProductionService,
     StoryProgressControlService,

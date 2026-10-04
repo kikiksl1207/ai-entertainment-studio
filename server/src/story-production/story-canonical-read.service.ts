@@ -6,6 +6,7 @@ import { ConfirmStoryCanonicalReadDto, StoryCanonicalReadQueryDto } from './dto/
 import { canonicalReadScopeChecksum, canonicalReadTextHash, StoryCanonicalReadIdentity } from './story-canonical-read.policy';
 import { canonicalStorySourceChecksum, validCanonicalStoryText } from './story-canonical-source.policy';
 import { isPublicStorySourceSafe, STORY_LOCALES } from './story-production.policy';
+import { canonicalEndingPosition } from './story-canonical-ending.store';
 
 const HASH = /^[a-f0-9]{64}$/;
 
@@ -75,8 +76,12 @@ export class StoryCanonicalReadService {
     if (lock) await db.$queryRaw(Prisma.sql`SELECT id FROM story_progress_route_nodes
       WHERE id = ${progress.routeNodeId!}::uuid AND progress_id = ${progress.id}::uuid FOR SHARE`);
     const route = await db.storyProgressRouteNode.findFirst({ where: { id: progress.routeNodeId!, progressId: progress.id,
-      workId: work.id, releaseId: release.id, targetSceneId: scene.id } });
+      workId: work.id, releaseId: release.id } });
     if (!route?.routeHash || !HASH.test(route.routeHash)) this.changed();
+    if (progress.status === 'completed') {
+      const ending = await canonicalEndingPosition(db, progress);
+      if (!ending || ending.routeNodeId !== route.id || ending.sceneId !== scene.id) this.changed();
+    } else if (route.targetSceneId !== scene.id) this.changed();
     const content = beat.content && typeof beat.content === 'object' && !Array.isArray(beat.content) ? beat.content : {};
     const sourceText = content[query.locale];
     if (!validCanonicalStoryText(sourceText)) this.changed('STORY_CANONICAL_READ_TRANSLATION_UNAVAILABLE');

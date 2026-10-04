@@ -5,6 +5,10 @@
   const record = value => value !== null && typeof value === "object" && !Array.isArray(value);
   const clone = value => JSON.parse(JSON.stringify(value));
   const failure = kind => Object.assign(new Error("Author trial unavailable"), { kind });
+  const ownerId = value => typeof value === "string" && Boolean(value.trim()) && value.length <= 320 && !/[\u0000-\u001f\u007f]/.test(value);
+  const commandKey = value => typeof value === "string" && /^[A-Za-z0-9._:-]{8,120}$/.test(value);
+  const journalLimit = 2048;
+  const maxJournalRevision = 2147483646;
   const positive = value => Number.isSafeInteger(value) && value > 0;
   const count = value => Number.isSafeInteger(value) && value >= 0;
   const money = value => typeof value === "string" && /^(0|[1-9][0-9]{0,11})\.[0-9]{6}$/.test(value);
@@ -14,6 +18,7 @@
   const copy = {
     ko: {
       title: "\uc791\uac00 \ubcf8\ubb38 \uc2dc\ud5d8", privacy: "\ube44\uacf5\uac1c \u00b7 \ubcf8\ubb38 \uc804\uc6a9", refresh: "\uc2dc\ud5d8 \uc0c1\ud0dc \uc0c8\ub85c\uace0\uce68", retry: "\uc774\uc804 \uc120\ud0dd \uc811\uc218 \ud655\uc778",
+      recover: "\ucd5c\uadfc \uc694\uccad \ucc3e\uae30", recoveryEmpty: "\ucd5c\uadfc \uc694\uccad \uae30\ub85d\uc744 \ucc3e\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4.", receiptResult: "\uc811\uc218 \uacb0\uacfc",
       ready: "\uc2dc\ud5d8 \uc0c1\ud0dc\ub97c \ud655\uc778\ud574 \uc8fc\uc138\uc694.", loading: "\uc2dc\ud5d8 \uc0c1\ud0dc \ud655\uc778 \uc911", submitting: "\uc120\ud0dd \uc811\uc218 \uc911", accepted: "\uc120\ud0dd\uc744 \uc811\uc218\ud588\uc2b5\ub2c8\ub2e4.",
       uncertain: "\uc811\uc218 \uacb0\uacfc \ud655\uc778 \ud544\uc694", unresolvedElsewhere: "\uc774\uc804 \uc791\ud488\uc758 \uc120\ud0dd \uc811\uc218 \ud655\uc778 \ud544\uc694", noWork: "\uc120\ud0dd\ub41c \uc791\ud488\uc774 \uc5c6\uc2b5\ub2c8\ub2e4.", generationFailed: "\ubcf8\ubb38 \uc0dd\uc131 \uc2e4\ud328", generationTimeout: "\ubcf8\ubb38 \uc0dd\uc131 \uc2dc\uac04 \ucd08\uacfc",
       approval_required: "\ubcf8\ubb38 \uc2dc\ud5d8 \uc2b9\uc778 \ub4f1\ub85d \ud544\uc694", approval_expired: "\uc2dc\ud5d8 \uc2b9\uc778 \ub9cc\ub8cc", release_changed: "\uc2b9\uc778 \ud6c4 \uacf5\uac1c\ubcf8 \ubcc0\uacbd", cost_unknown: "\ubbf8\ud655\uc778 \uc0dd\uc131 \ube44\uc6a9 \uc788\uc74c", budget_over_limit: "\uc2b9\uc778 \uc608\uc0b0 \ucd08\uacfc", approval_recorded: "\uc2dc\ud5d8 \uc2b9\uc778 \ub4f1\ub85d\ub428",
@@ -23,6 +28,7 @@
     },
     en: {
       title: "Author text trial", privacy: "Private \u00b7 Text only", refresh: "Refresh trial state", retry: "Check previous choice receipt",
+      recover: "Find recent request", recoveryEmpty: "No recent request record found.", receiptResult: "Receipt result",
       ready: "Check the trial state.", loading: "Checking trial state", submitting: "Submitting choice", accepted: "Choice accepted.", uncertain: "Choice receipt needs checking", unresolvedElsewhere: "A previous story's choice receipt needs checking", noWork: "No story selected.",
       generationFailed: "Text generation failed", generationTimeout: "Text generation timed out",
       approval_required: "Trial approval registration required", approval_expired: "Trial approval expired", release_changed: "Release changed after approval", cost_unknown: "Unconfirmed generation cost", budget_over_limit: "Approved budget exceeded", approval_recorded: "Trial approval recorded",
@@ -32,6 +38,7 @@
     },
     ja: {
       title: "\u4f5c\u8005\u306e\u672c\u6587\u30c6\u30b9\u30c8", privacy: "\u975e\u516c\u958b \u00b7 \u672c\u6587\u306e\u307f", refresh: "\u30c6\u30b9\u30c8\u72b6\u614b\u3092\u66f4\u65b0", retry: "\u524d\u306e\u9078\u629e\u306e\u53d7\u4ed8\u3092\u78ba\u8a8d",
+      recover: "\u6700\u8fd1\u306e\u30ea\u30af\u30a8\u30b9\u30c8\u3092\u63a2\u3059", recoveryEmpty: "\u6700\u8fd1\u306e\u30ea\u30af\u30a8\u30b9\u30c8\u8a18\u9332\u306f\u898b\u3064\u304b\u308a\u307e\u305b\u3093\u3067\u3057\u305f\u3002", receiptResult: "\u53d7\u4ed8\u7d50\u679c",
       ready: "\u30c6\u30b9\u30c8\u72b6\u614b\u3092\u78ba\u8a8d\u3057\u3066\u304f\u3060\u3055\u3044\u3002", loading: "\u72b6\u614b\u3092\u78ba\u8a8d\u4e2d", submitting: "\u9078\u629e\u3092\u53d7\u4ed8\u4e2d", accepted: "\u9078\u629e\u3092\u53d7\u3051\u4ed8\u3051\u307e\u3057\u305f\u3002", uncertain: "\u53d7\u4ed8\u7d50\u679c\u306e\u78ba\u8a8d\u304c\u5fc5\u8981", unresolvedElsewhere: "\u524d\u306e\u4f5c\u54c1\u306e\u53d7\u4ed8\u78ba\u8a8d\u304c\u5fc5\u8981", noWork: "\u4f5c\u54c1\u672a\u9078\u629e",
       generationFailed: "\u672c\u6587\u751f\u6210\u5931\u6557", generationTimeout: "\u672c\u6587\u751f\u6210\u306e\u6642\u9593\u5207\u308c",
       approval_required: "\u30c6\u30b9\u30c8\u627f\u8a8d\u306e\u767b\u9332\u304c\u5fc5\u8981", approval_expired: "\u627f\u8a8d\u671f\u9650\u5207\u308c", release_changed: "\u627f\u8a8d\u5f8c\u306b\u516c\u958b\u7248\u304c\u5909\u66f4", cost_unknown: "\u672a\u78ba\u8a8d\u306e\u751f\u6210\u8cbb\u7528", budget_over_limit: "\u627f\u8a8d\u4e88\u7b97\u8d85\u904e", approval_recorded: "\u627f\u8a8d\u767b\u9332\u6e08\u307f",
@@ -41,6 +48,7 @@
     },
     "zh-Hans": {
       title: "\u4f5c\u8005\u6b63\u6587\u6d4b\u8bd5", privacy: "\u79c1\u5bc6 \u00b7 \u4ec5\u6b63\u6587", refresh: "\u5237\u65b0\u6d4b\u8bd5\u72b6\u6001", retry: "\u786e\u8ba4\u4e0a\u6b21\u9009\u62e9\u56de\u6267",
+      recover: "\u67e5\u627e\u6700\u8fd1\u8bf7\u6c42", recoveryEmpty: "\u672a\u627e\u5230\u6700\u8fd1\u7684\u8bf7\u6c42\u8bb0\u5f55\u3002", receiptResult: "\u53d7\u7406\u7ed3\u679c",
       ready: "\u8bf7\u786e\u8ba4\u6d4b\u8bd5\u72b6\u6001\u3002", loading: "\u6b63\u5728\u786e\u8ba4\u72b6\u6001", submitting: "\u6b63\u5728\u63d0\u4ea4\u9009\u62e9", accepted: "\u9009\u62e9\u5df2\u63a5\u6536\u3002", uncertain: "\u9700\u8981\u786e\u8ba4\u63d0\u4ea4\u7ed3\u679c", unresolvedElsewhere: "\u9700\u8981\u786e\u8ba4\u4e0a\u4e00\u4f5c\u54c1\u7684\u9009\u62e9", noWork: "\u672a\u9009\u62e9\u4f5c\u54c1",
       generationFailed: "\u6b63\u6587\u751f\u6210\u5931\u8d25", generationTimeout: "\u6b63\u6587\u751f\u6210\u8d85\u65f6",
       approval_required: "\u9700\u8981\u767b\u8bb0\u6d4b\u8bd5\u6279\u51c6", approval_expired: "\u6279\u51c6\u5df2\u8fc7\u671f", release_changed: "\u6279\u51c6\u540e\u53d1\u5e03\u7248\u5df2\u53d8\u66f4", cost_unknown: "\u6709\u672a\u786e\u8ba4\u751f\u6210\u8d39\u7528", budget_over_limit: "\u8d85\u51fa\u6279\u51c6\u9884\u7b97", approval_recorded: "\u6d4b\u8bd5\u6279\u51c6\u5df2\u767b\u8bb0",
@@ -50,6 +58,7 @@
     },
     "zh-Hant": {
       title: "\u4f5c\u8005\u6b63\u6587\u6e2c\u8a66", privacy: "\u79c1\u5bc6 \u00b7 \u50c5\u6b63\u6587", refresh: "\u91cd\u65b0\u6574\u7406\u6e2c\u8a66\u72c0\u614b", retry: "\u78ba\u8a8d\u4e0a\u6b21\u9078\u64c7\u56de\u57f7",
+      recover: "\u5c0b\u627e\u6700\u8fd1\u8acb\u6c42", recoveryEmpty: "\u627e\u4e0d\u5230\u6700\u8fd1\u7684\u8acb\u6c42\u7d00\u9304\u3002", receiptResult: "\u53d7\u7406\u7d50\u679c",
       ready: "\u8acb\u78ba\u8a8d\u6e2c\u8a66\u72c0\u614b\u3002", loading: "\u6b63\u5728\u78ba\u8a8d\u72c0\u614b", submitting: "\u6b63\u5728\u63d0\u4ea4\u9078\u64c7", accepted: "\u9078\u64c7\u5df2\u63a5\u6536\u3002", uncertain: "\u9700\u8981\u78ba\u8a8d\u63d0\u4ea4\u7d50\u679c", unresolvedElsewhere: "\u9700\u8981\u78ba\u8a8d\u4e0a\u4e00\u4f5c\u54c1\u7684\u9078\u64c7", noWork: "\u672a\u9078\u64c7\u4f5c\u54c1",
       generationFailed: "\u6b63\u6587\u751f\u6210\u5931\u6557", generationTimeout: "\u6b63\u6587\u751f\u6210\u903e\u6642",
       approval_required: "\u9700\u8981\u767b\u8a18\u6e2c\u8a66\u6838\u51c6", approval_expired: "\u6838\u51c6\u5df2\u904e\u671f", release_changed: "\u6838\u51c6\u5f8c\u767c\u5e03\u7248\u5df2\u8b8a\u66f4", cost_unknown: "\u6709\u672a\u78ba\u8a8d\u751f\u6210\u8cbb\u7528", budget_over_limit: "\u8d85\u51fa\u6838\u51c6\u9810\u7b97", approval_recorded: "\u6e2c\u8a66\u6838\u51c6\u5df2\u767b\u8a18",
@@ -111,9 +120,19 @@
         value.privateInputReturned !== false || value.providerPayloadReturned !== false || value.internalCostReturned !== false ||
         value.progressApplied !== (value.status === "completed") || !["ai_generated", "ai_reused"].includes(value.provenance) ||
         !(value.resultGeneratedSceneId === null || uuid(value.resultGeneratedSceneId)) ||
-        (value.status === "completed" && value.resultGeneratedSceneId === null)) bad();
+        (value.status === "completed" ? value.resultGeneratedSceneId === null : value.resultGeneratedSceneId !== null)) bad();
     return { ...result, continuationId: value.continuationId.toLowerCase(), progressApplied: value.progressApplied,
       resultGeneratedSceneId: value.resultGeneratedSceneId?.toLowerCase() || null, provenance: value.provenance };
+  }
+  function parseReceiptEnvelope(value, command) {
+    if (!record(value) || value.contract !== "story-author-body-trial-receipt-v1" ||
+        !["workId", "choiceId"].every(key => uuid(value[key]) && value[key] === command[key]) ||
+        !["approvalId", "progressId"].every(key => uuid(value[key]) && value[key] === command.body[key]) ||
+        !positive(value.sourceRevision) || value.sourceRevision !== command.body.expectedRevision ||
+        !locales.includes(value.locale) || value.locale !== command.body.locale || value.readOnly !== true ||
+        value.generationAuthorized !== false || value.generationStarted !== false || value.imageGenerationStarted !== false ||
+        !record(value.receipt) || value.receipt.idempotentReplay !== true) throw failure("invalid");
+    return parseReceipt(value.receipt, command);
   }
   async function readJson(response, limit, current) {
     const size = response.headers?.get?.("content-length");
@@ -143,16 +162,82 @@
     if (!current()) throw failure("invalid");
     try { return JSON.parse(text); } catch (_) { throw failure("invalid"); }
   }
-  function createController({ fetch, identity, isCurrent, context, locale, visible, onChange = () => {}, onDispatch = () => {},
+  function exactFields(value, fields) {
+    return record(value) && Reflect.ownKeys(value).length === fields.length && fields.every(key => {
+      const descriptor = Object.getOwnPropertyDescriptor(value, key);
+      return descriptor?.enumerable === true && Object.prototype.hasOwnProperty.call(descriptor, "value");
+    });
+  }
+  function parseJournal(value, owner) {
+    if (!exactFields(value, ["version", "ownerId", "workId", "choiceId", "key", "body"]) || value.version !== 1 ||
+        !ownerId(value.ownerId) || value.ownerId !== owner || !commandKey(value.key) ||
+        !["workId", "choiceId"].every(key => uuid(value[key]) && value[key] === value[key].toLowerCase()) ||
+        !exactFields(value.body, ["approvalId", "progressId", "expectedRevision", "locale"]) ||
+        !["approvalId", "progressId"].every(key => uuid(value.body[key]) && value.body[key] === value.body[key].toLowerCase()) ||
+        !positive(value.body.expectedRevision) || value.body.expectedRevision > maxJournalRevision || !locales.includes(value.body.locale)) throw failure("unavailable");
+    const result = { version: 1, ownerId: value.ownerId, workId: value.workId, choiceId: value.choiceId, key: value.key,
+      body: { approvalId: value.body.approvalId, progressId: value.body.progressId,
+        expectedRevision: value.body.expectedRevision, locale: value.body.locale } };
+    if (new TextEncoder().encode(JSON.stringify(result)).byteLength > journalLimit) throw failure("unavailable");
+    return result;
+  }
+  const journalEntry = command => ({ version: 1, ownerId: command.ownerId, workId: command.workId,
+    choiceId: command.choiceId, key: command.key, body: { ...command.body } });
+  const matchesJournal = (left, right) => JSON.stringify(left) === JSON.stringify(right);
+  function parseRecovery(value, target) {
+    try {
+      if (!exactFields(value, ["contract", "workId", "readOnly", "generationAuthorized", "generationStarted", "imageGenerationStarted", "command"]) ||
+          value.contract !== "story-author-body-trial-recovery-v1" || !uuid(target?.workId) || !uuid(value.workId) ||
+          value.workId !== target.workId.toLowerCase() || value.readOnly !== true || value.generationAuthorized !== false ||
+          value.generationStarted !== false || value.imageGenerationStarted !== false) throw failure("invalid");
+      if (value.command === null) return null;
+      if (!exactFields(value.command, ["workId", "choiceId", "key", "body"]) || value.command.workId !== value.workId) throw failure("invalid");
+      const parsed = parseJournal({ version: 1, ownerId: "recovery", ...value.command }, "recovery");
+      return { workId: parsed.workId, choiceId: parsed.choiceId, key: parsed.key, body: parsed.body };
+    } catch (_) { throw failure("invalid"); }
+  }
+  function sessionJournal() {
+    const slot = owner => {
+      if (!ownerId(owner)) throw failure("unavailable");
+      return "lumina:author-body-trial:pending:v1:" + encodeURIComponent(owner);
+    };
+    function read(owner) {
+      const raw = window.sessionStorage.getItem(slot(owner));
+      if (raw === null) return null;
+      if (typeof raw !== "string" || raw.length > journalLimit || new TextEncoder().encode(raw).byteLength > journalLimit) throw failure("unavailable");
+      const value = JSON.parse(raw);
+      // Only our bounded canonical JSON is accepted, including no duplicate keys.
+      if (JSON.stringify(value) !== raw) throw failure("unavailable");
+      return parseJournal(value, owner);
+    }
+    return {
+      read,
+      write(value) {
+        const entry = parseJournal(value, value.ownerId);
+        if (read(entry.ownerId) !== null) throw failure("unavailable");
+        window.sessionStorage.setItem(slot(entry.ownerId), JSON.stringify(entry));
+        if (!matchesJournal(read(entry.ownerId), entry)) throw failure("unavailable");
+        return true;
+      },
+      remove(value) {
+        const entry = parseJournal(value, value.ownerId);
+        if (!matchesJournal(read(entry.ownerId), entry)) throw failure("unavailable");
+        window.sessionStorage.removeItem(slot(entry.ownerId));
+        if (read(entry.ownerId) !== null) throw failure("unavailable");
+        return true;
+      }
+    };
+  }
+  function createController({ fetch, identity, isCurrent, context, locale, visible, onChange = () => {}, onDispatch = () => {}, journal,
     makeIdempotencyKey = () => window.crypto.randomUUID() }) {
     let scope = null, ticket = 0, phase = "idle", messageKey = "ready", data = null, receipt = null, request = null, command = null;
+    let journalBlocked = false;
     function readScope() {
       let owner = null, value = {}, shown = false, language = "ko", rawLocale = "", available = false;
       try {
         value = context() || {}; shown = visible() === true; rawLocale = locale(); language = locales.includes(rawLocale) ? rawLocale : "ko";
         owner = identity(); available = typeof fetch === "function" && typeof isCurrent === "function" && typeof window.LuminaCreatorBodyPreview?.parsePreview === "function";
-        if (!record(owner) || typeof owner.ownerId !== "string" || !owner.ownerId.trim() || owner.ownerId.length > 320 ||
-            /[\u0000-\u001f\u007f]/.test(owner.ownerId) || !count(owner.epoch) || !isCurrent(owner)) owner = null;
+        if (!record(owner) || !ownerId(owner.ownerId) || !count(owner.epoch) || !isCurrent(owner)) owner = null;
       } catch (_) { owner = null; }
       return { owner: owner ? { ownerId: owner.ownerId, epoch: owner.epoch } : null,
         workId: typeof value.workId === "string" ? value.workId.toLowerCase() : "", sourceLocale: value.locale,
@@ -164,14 +249,54 @@
     const accessible = () => scope && initial(scope) === "ready";
     const sameCommand = () => command && accessible() && command.ownerId === scope.owner.ownerId &&
       command.workId === scope.workId && command.body.locale === scope.sourceLocale;
-    const canChoose = () => accessible() && phase === "ready" && !command && data?.approvalState.state === "approval_recorded" &&
+    const canRecover = () => accessible() && !command && !journalBlocked && !busy();
+    const canChoose = () => accessible() && phase === "ready" && !command && !journalBlocked && data?.approvalState.state === "approval_recorded" &&
       Date.parse(data.approvalState.approval.expiresAt) > Date.now() && data.preview.progress?.status === "active" &&
       data.preview.progress.scene && !data.preview.progress.scene.endingType && data.preview.progress.choices.length > 0;
     function state() {
       return clone({ ticket, phase, messageKey, locale: scope?.locale || "ko", data, receipt, busy: busy(),
-        canLoad: Boolean(accessible() && !busy()), canChoose: Boolean(canChoose()), canRetry: Boolean(sameCommand() && !busy()), unresolved: Boolean(command) });
+        canLoad: Boolean(accessible() && !busy()), canChoose: Boolean(canChoose()), canRetry: Boolean(sameCommand() && !busy()),
+        canRecover: Boolean(canRecover()), unresolved: Boolean(command) });
     }
     const emit = () => onChange(state());
+    // The injected journal is synchronous: read(ownerId), write(entry), remove(entry).
+    // Writes/removals must return true; read-back confirms the exact owner and command.
+    function readJournal(owner) {
+      if (!["read", "write", "remove"].every(key => typeof journal?.[key] === "function")) throw failure("unavailable");
+      const saved = journal.read(owner);
+      return saved === null ? null : parseJournal(saved, owner);
+    }
+    function restoreJournal() {
+      // A failed pre-dispatch draft stays unavailable until a fresh controller.
+      if (journal === undefined || !scope?.owner || (journalBlocked && !command)) return;
+      try {
+        const saved = readJournal(scope.owner.ownerId);
+        if (command?.ownerId === scope.owner.ownerId && !matchesJournal(saved, journalEntry(command))) throw failure("unavailable");
+        if (saved && (!command || command.ownerId !== saved.ownerId)) {
+          const { version, ...pending } = saved;
+          command = pending;
+        }
+      } catch (_) { journalBlocked = true; }
+    }
+    function persistCommand() {
+      if (journal === undefined) return;
+      try {
+        const entry = parseJournal(journalEntry(command), command.ownerId);
+        if (readJournal(entry.ownerId) !== null || journal.write(clone(entry)) !== true ||
+            !matchesJournal(readJournal(entry.ownerId), entry)) throw failure("unavailable");
+      } catch (_) { journalBlocked = true; throw failure("unavailable"); }
+    }
+    function retireCommand(sending) {
+      if (journal !== undefined) {
+        try {
+          const entry = journalEntry(sending);
+          if (!matchesJournal(readJournal(sending.ownerId), entry) || journal.remove(clone(entry)) !== true ||
+              readJournal(sending.ownerId) !== null) throw failure("unavailable");
+        } catch (_) { journalBlocked = true; throw failure("unavailable"); }
+      }
+      command = null;
+      journalBlocked = false;
+    }
     function clear() {
       ticket++; data = null; receipt = null; phase = "idle";
       const old = request; request = null; old?.abort();
@@ -180,13 +305,14 @@
     function setInitialMessage() {
       messageKey = initial(scope);
       if (messageKey === "ready" && command) { phase = "uncertain"; messageKey = sameCommand() ? "uncertain" : "unresolvedElsewhere"; }
+      else if (messageKey === "ready" && journalBlocked) { phase = "error"; messageKey = "unavailable"; }
     }
     function syncContext(notify = true) {
       const next = readScope();
       if (JSON.stringify(scope) === JSON.stringify(next)) return false;
-      clear(); scope = next; setInitialMessage(); if (notify) emit(); return true;
+      clear(); scope = next; restoreJournal(); setInitialMessage(); if (notify) emit(); return true;
     }
-    function invalidate() { clear(); scope = readScope(); setInitialMessage(); emit(); }
+    function invalidate() { clear(); scope = readScope(); restoreJournal(); setInitialMessage(); emit(); }
     function snapshot() { syncContext(); return state(); }
     function start(nextPhase, nextMessage) {
       phase = nextPhase; messageKey = nextMessage; receipt = null;
@@ -227,6 +353,7 @@
         messageKey = command ? sameCommand() ? "uncertain" : "unresolvedElsewhere" : approvalState.state !== "approval_recorded" ? approvalState.state :
           !progress ? "noProgress" : progress.status === "completed" || progress.scene?.endingType ? "ending" :
           progress.status !== "active" ? "generating" : !progress.scene ? "noScene" : "approval_recorded";
+        if (!command && journalBlocked) { phase = "error"; messageKey = "unavailable"; }
         emit(); return true;
       } catch (error) {
         if (!active.current()) return false;
@@ -236,21 +363,27 @@
       }
     }
     async function submit(replaying) {
-      const active = start("submitting", "submitting"), sending = command; data = null; emit();
+      const active = start("submitting", replaying ? "loading" : "submitting"), sending = command; data = null; emit();
       try {
-        const value = await responseValue("/api/v1/me/creator-studio/stories/" + encodeURIComponent(sending.workId) +
-          "/body-trial/choices/" + encodeURIComponent(sending.choiceId), { method: "POST",
-          headers: { "Content-Type": "application/json", "Idempotency-Key": sending.key }, body: JSON.stringify(sending.body) }, active, 16384);
+        const root = "/api/v1/me/creator-studio/stories/" + encodeURIComponent(sending.workId) +
+          "/body-trial/choices/" + encodeURIComponent(sending.choiceId);
+        const query = replaying ? "/receipt?" + ["approvalId", "progressId", "expectedRevision", "locale"]
+          .map(key => key + "=" + encodeURIComponent(sending.body[key])).join("&") : "";
+        const options = replaying ? { method: "GET", headers: { "Idempotency-Key": sending.key } } : { method: "POST",
+          headers: { "Content-Type": "application/json", "Idempotency-Key": sending.key }, body: JSON.stringify(sending.body) };
+        const value = await responseValue(root + query, options, active, 16384);
         if (!active.current()) return false;
-        receipt = parseReceipt(value, sending); command = null; phase = "accepted"; request = null;
+        const verified = replaying ? parseReceiptEnvelope(value, sending) : parseReceipt(value, sending);
+        retireCommand(sending);
+        receipt = verified; phase = "accepted"; request = null;
         messageKey = receipt.status === "failed" ? "generationFailed" : receipt.status === "timeout" ? "generationTimeout" :
           ["queued", "processing"].includes(receipt.status) ? "generating" :
           receipt.generationStarted === false && receipt.status === "completed" ? "ending" : "accepted";
         emit(); return true;
       } catch (error) {
         if (!active.current()) return false;
-        const rejected = !replaying && [400, 401, 403, 404, 409, 422].includes(error?.status);
-        if (rejected) command = null;
+        let rejected = !replaying && [400, 401, 403, 404, 409, 422].includes(error?.status);
+        if (rejected) { try { retireCommand(sending); } catch (_) { rejected = false; } }
         request = null; phase = rejected ? "error" : "uncertain";
         messageKey = rejected ? error.kind : "uncertain"; emit(); return false;
       }
@@ -258,16 +391,27 @@
     async function choose(choiceId, expectedTicket = null) {
       syncContext();
       if ((expectedTicket !== null && expectedTicket !== ticket) || !canChoose() || !uuid(choiceId)) return false;
+      restoreJournal();
+      if (command || journalBlocked) { setInitialMessage(); emit(); return false; }
       const choice = data.preview.progress.choices.find(value => value.id === choiceId.toLowerCase());
       if (!choice) return false;
+      const capturedTicket = ticket;
       let key;
       try { key = makeIdempotencyKey(); } catch (_) { key = null; }
-      if (typeof key !== "string" || !/^[A-Za-z0-9._:-]{8,120}$/.test(key)) {
+      if (!commandKey(key)) {
         data = null; phase = "error"; messageKey = "unavailable"; emit(); return false;
       }
       command = { ownerId: scope.owner.ownerId, workId: scope.workId, choiceId: choice.id, key,
         body: { approvalId: data.approvalState.approval.id, progressId: data.preview.progress.progressId,
           expectedRevision: data.preview.progress.revision, locale: scope.sourceLocale } };
+      const unsent = command;
+      try { persistCommand(); } catch (_) {
+        // No POST has been dispatched. Keep any stored entry, but do not claim this draft was submitted.
+        if (command === unsent) command = null;
+        data = null; phase = "error"; messageKey = "unavailable"; emit(); return false;
+      }
+      syncContext();
+      if (ticket !== capturedTicket || !sameCommand()) { setInitialMessage(); emit(); return false; }
       return submit(false);
     }
     async function retry(expectedTicket = null) {
@@ -275,8 +419,37 @@
       if ((expectedTicket !== null && expectedTicket !== ticket) || !sameCommand() || busy()) return false;
       return submit(true);
     }
+    async function recover(expectedTicket = null) {
+      syncContext();
+      if ((expectedTicket !== null && expectedTicket !== ticket) || !canRecover()) return false;
+      restoreJournal();
+      if (!canRecover()) { setInitialMessage(); emit(); return false; }
+      const target = { workId: scope.workId }, active = start("loading", "loading"); data = null; emit();
+      try {
+        const pending = parseRecovery(await responseValue("/api/v1/me/creator-studio/stories/" + encodeURIComponent(target.workId) +
+          "/body-trial/recovery", { method: "GET" }, active, journalLimit), target);
+        if (!active.current()) return false;
+        // A local command may have appeared while the lookup was in flight. Never replace it, even with null.
+        restoreJournal();
+        if (!active.current()) return false;
+        if (command || journalBlocked) { request = null; setInitialMessage(); emit(); return false; }
+        if (pending === null) { request = null; phase = "idle"; messageKey = "recoveryEmpty"; emit(); return true; }
+        command = { ownerId: active.owner.ownerId, ...pending };
+        persistCommand();
+        if (!active.current()) return false;
+        request = null; phase = "uncertain"; messageKey = sameCommand() ? "uncertain" : "unresolvedElsewhere";
+        emit(); return true;
+      } catch (error) {
+        if (!active.current()) return false;
+        // Unlike an unsent paid draft, a recovered command already has server evidence; retain it on storage failure.
+        request = null; phase = command ? "uncertain" : "error";
+        messageKey = journalBlocked ? "unavailable" : command ? sameCommand() ? "uncertain" : "unresolvedElsewhere" :
+          copy.ko[error?.kind] !== undefined ? error.kind : "transport";
+        emit(); return false;
+      }
+    }
     syncContext(false);
-    return { snapshot, syncContext, invalidate, load, choose, retry };
+    return { snapshot, syncContext, invalidate, load, choose, retry, recover };
   }
   function mount(host) {
     if (!host || host.dataset.bodyTrialMounted) return null;
@@ -295,11 +468,11 @@
       const button = element("button", "body-trial-tool"); button.type = "button";
       let icon;
       try { if (window.lucide?.icons?.[name]) icon = window.lucide.createElement(window.lucide.icons[name]); } catch (_) {}
-      if (!icon) icon = element("span", "", name === "RefreshCw" ? "\u21bb" : "\u21a9");
+      if (!icon) icon = element("span", "", name === "RefreshCw" ? "\u21bb" : name === "History" ? "\u25f7" : "\u21a9");
       icon.setAttribute("aria-hidden", "true"); button.append(icon); tools.append(button); return button;
     }
-    const refresh = iconButton("RefreshCw"), retry = iconButton("RotateCcw");
-    refresh.id = "writerBodyTrialRefresh"; retry.id = "writerBodyTrialRetry";
+    const refresh = iconButton("RefreshCw"), retry = iconButton("RotateCcw"), recover = iconButton("History");
+    refresh.id = "writerBodyTrialRefresh"; retry.id = "writerBodyTrialRetry"; recover.id = "writerBodyTrialRecover";
     header.append(heading, tools);
     const status = element("p", "body-trial-state"), content = element("div", "body-trial-content");
     status.id = "writerBodyTrialState"; content.id = "writerBodyTrialContent";
@@ -314,11 +487,12 @@
     function render(state) {
       const words = copy[state.locale]; title.textContent = words.title; privacy.textContent = words.privacy;
       host.lang = state.locale; host.setAttribute("aria-busy", String(state.busy));
-      for (const [button, label, enabled] of [[refresh, words.refresh, state.canLoad], [retry, words.retry, state.canRetry]]) {
+      for (const [button, label, enabled] of [[refresh, words.refresh, state.canLoad], [retry, words.retry, state.canRetry], [recover, words.recover, state.canRecover]]) {
         button.title = label; button.setAttribute("aria-label", label); button.disabled = !enabled;
       }
       retry.hidden = !state.unresolved;
-      status.textContent = words[state.messageKey]; status.className = "body-trial-state" + (["error", "uncertain"].includes(state.phase) ? " is-error" : "");
+      status.textContent = (state.receipt ? words.receiptResult + ": " : "") + words[state.messageKey];
+      status.className = "body-trial-state" + (["error", "uncertain"].includes(state.phase) ? " is-error" : "");
       content.replaceChildren();
       const budget = state.data?.approvalState.budget;
       if (budget) {
@@ -365,10 +539,11 @@
       isCurrent: owner => typeof window.LuminaCreatorStudioApi?.fetch === "function" && window.LuminaCreatorStudioApi?.isCurrent?.(owner) === true,
       context: () => ({ workId: document.getElementById("writerManuscriptWork")?.value || "", locale: document.getElementById("writerManuscriptLocale")?.value || "" }),
       locale: () => window.luminaI18n?.getLocale?.() || document.documentElement.lang || "ko", visible, onChange: render,
-      onDispatch: () => window.dispatchEvent(new Event("lumina:author-body-trial-progress-changed"))
+      onDispatch: () => window.dispatchEvent(new Event("lumina:author-body-trial-progress-changed")), journal: sessionJournal()
     });
     refresh.addEventListener("click", () => { if (!refresh.disabled) return controller.load(controller.snapshot().ticket); });
     retry.addEventListener("click", () => { if (!retry.disabled) return controller.retry(controller.snapshot().ticket); });
+    recover.addEventListener("click", () => { if (!recover.disabled) return controller.recover(controller.snapshot().ticket); });
     const sync = () => controller.syncContext(), erase = () => controller.invalidate();
     for (const name of ["storage", "lumina:authchange", "lumina:auth-expired", "pagehide"]) window.addEventListener(name, erase);
     for (const name of ["focus", "lumina:localechange", "pageshow"]) window.addEventListener(name, sync);
@@ -392,6 +567,6 @@
     }
     render(controller.snapshot()); return controller;
   }
-  window.LuminaCreatorBodyTrial = { createController, parseState, parseReceipt, mount, copy };
+  window.LuminaCreatorBodyTrial = { createController, parseState, parseReceipt, parseRecovery, mount, copy };
   if (typeof document !== "undefined") mount(document.getElementById("writerBodyTrial"));
 })();
