@@ -6,6 +6,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { StoryGenerationProfileService } from './story-generation-profile.service';
 import { continuationGenerationProfileSnapshot } from './story-continuation-context.policy';
 import { releaseChecksum } from './story-lifecycle.policy';
+import { brotliCompressSync } from 'zlib';
 
 const owner = '00000000-0000-4000-8000-000000000201';
 const workId = '00000000-0000-4000-8000-000000000202';
@@ -13,6 +14,18 @@ const manuscriptId = '00000000-0000-4000-8000-000000000203';
 const analysisId = '00000000-0000-4000-8000-000000000204';
 const profileId = '00000000-0000-4000-8000-000000000205';
 const styleEvidenceId = '00000000-0000-4000-8000-000000000206';
+const releaseId = '00000000-0000-4000-8000-000000000209';
+
+function publishedCompanyWork() {
+  return { id: workId, ownerUserId: owner, authorDisplayName: '루미나', fixtureSource: false,
+    status: 'published', activeReleaseId: releaseId, publishedAt: new Date('2026-09-23T00:00:00.000Z') };
+}
+
+function publishedCompanyRelease() {
+  const snapshot = { manuscriptVersionId: manuscriptId, branchGraphSnapshot: {}, endingSetSnapshot: {},
+    sceneAssetManifest: {}, localizedDisplaySnapshot: {} };
+  return { id: releaseId, workId, status: 'active', ...snapshot, checksum: releaseChecksum(snapshot) };
+}
 
 function sourceMocks(prisma: ReturnType<typeof fixture>['prisma']) {
   prisma.storyWork.findFirst.mockResolvedValue({ id: workId });
@@ -68,6 +81,7 @@ function fixture() {
     storyWork: { findFirst: jest.fn() },
     storyPublicationImportJob: { findFirst: jest.fn() },
     storyManuscriptVersion: { findFirst: jest.fn() },
+    storyRelease: { findFirst: jest.fn().mockResolvedValue(publishedCompanyRelease()) },
     storyAnalysisEvidence: { findMany: jest.fn(), count: jest.fn().mockResolvedValue(4),
       findFirst: jest.fn().mockResolvedValue({ id: styleEvidenceId }) },
     storyWorkGenerationProfile: {
@@ -88,6 +102,8 @@ function fixture() {
     storyWorkGenerationProfile: { findFirst: jest.fn(), findMany: jest.fn() },
     $transaction: jest.fn((callback: (client: typeof tx) => unknown) => callback(tx)),
   };
+  tx.storyManuscriptVersion.findFirst.mockResolvedValue({ id: manuscriptId, workId,
+    ownerUserId: owner, contentHash: 'a'.repeat(64) });
   return { prisma, tx, service: new StoryGenerationProfileService(prisma as unknown as PrismaService) };
 }
 
@@ -117,14 +133,158 @@ function sourceFingerprint() {
     analysisConfigHash: 'b'.repeat(64) })).digest('hex');
 }
 
+function privateCompanyIntakeFixture(compressed = false) {
+  const f = fixture();
+  sourceMocks(f.prisma);
+  const jobId = '00000000-0000-4000-8000-000000000207';
+  const auditId = '00000000-0000-4000-8000-000000000208';
+  const sourceBindingSha256 = 'e'.repeat(64);
+  const plan = { storyKey: 'monster', slug: 'company-private-story',
+    writerIntakeWorkflow: 'writer_review_before_choices_v1', sourceBindingSha256,
+    manuscript: { contentHash: 'a'.repeat(64) }, parts: [{}, {}], prompts: [] };
+  const work = { id: workId, ownerUserId: owner, slug: plan.slug, status: 'draft',
+    authorDisplayName: '루미나', fixtureSource: false, activeReleaseId: null, publishedAt: null,
+    coverManifest: { privateIntake: { contract: 'publication-writer-intake-v1', jobId,
+      sourceBindingSha256, manuscriptHash: 'a'.repeat(64) } } };
+  const manuscript = { id: manuscriptId, ownerUserId: owner, workId, contentHash: 'a'.repeat(64) };
+  const job = { id: jobId, actorUserId: owner, workId, releaseId: null, errorCode: null,
+    status: 'awaiting_author_review', storyKey: plan.storyKey, sourceBindingSha256,
+    planSnapshot: compressed ? { storageContract: 'story-publication-plan-br-base64-v1',
+      data: brotliCompressSync(Buffer.from(JSON.stringify(plan))).toString('base64') } : plan };
+  const audit = { id: auditId, actorUserId: owner, actorType: 'admin',
+    action: 'story_publication.private_writer_intake', targetType: 'story_work', targetId: workId,
+    metadata: { jobId, manuscriptVersionId: manuscriptId, manuscriptHash: manuscript.contentHash,
+      sourceBindingSha256, partCount: 2, analysisStarted: false, choicesGenerated: false, published: false } };
+  f.tx.storyWork.findFirst.mockResolvedValue(work);
+  f.tx.storyManuscriptVersion.findFirst.mockResolvedValue(manuscript);
+  f.tx.storyPublicationImportJob.findFirst.mockImplementation(({ where }) =>
+    where.status === 'awaiting_author_review' ? job : null);
+  f.tx.auditEvent.findFirst.mockImplementation(({ where }) =>
+    where.action === 'story_publication.private_writer_intake' ? audit : null);
+  const settings = reviewedSettings();
+  settings.sections.forEach(section => { section.decision = 'proposed'; });
+  const profile = profileRow({ sourceFingerprint: sourceFingerprint(), draftSettings: settings });
+  f.tx.storyWorkGenerationProfile.findFirst.mockResolvedValue(profile);
+  f.tx.storyWorkGenerationProfile.updateMany.mockResolvedValue({ count: 1 });
+  f.tx.storyWorkGenerationProfile.findUniqueOrThrow.mockResolvedValue(profileRow({ status: 'approved' }));
+  f.tx.storyAnalysisEvidence.findMany.mockResolvedValue([]);
+  return { ...f, work, manuscript, job, audit, profile, plan };
+}
+
+describe('private company intake profile auto-approval', () => {
+  it.each([false, true])('approves the exact latest trusted intake (compressed=%s)', async compressed => {
+    const f = privateCompanyIntakeFixture(compressed);
+
+    expect((await f.service.autoApproveCompany(owner, workId))?.profile.status).toBe('approved');
+    expect(f.tx.storyManuscriptVersion.findFirst).toHaveBeenCalledWith({
+      where: { workId, ownerUserId: owner }, orderBy: { version: 'desc' },
+      select: { id: true, workId: true, ownerUserId: true, contentHash: true },
+    });
+    expect(f.tx.storyWorkGenerationProfile.updateMany).toHaveBeenCalledTimes(1);
+    expect(f.tx.auditEvent.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({
+      actorType: 'system', action: 'story_generation_profile.company_auto_approved',
+      metadata: expect.objectContaining({ companyPrivateIntakeJobId: f.job.id,
+        companyPrivateIntakeAuditId: f.audit.id, companySourceBindingSha256: f.job.sourceBindingSha256,
+        companyManuscriptVersionId: manuscriptId }),
+    }) }));
+    expect(snapshotBarriers(f)).toHaveLength(1);
+  });
+
+  it.each([
+    'display-name-only', 'external-author', 'fixture', 'missing-audit', 'wrong-audit-actor',
+    'wrong-audit-target', 'old-manuscript-id', 'old-manuscript-hash', 'wrong-source-binding',
+    'wrong-plan-binding', 'wrong-job-owner', 'wrong-work-owner', 'newer-manuscript',
+    'newer-manuscript-same-hash', 'wrong-manuscript-owner', 'manual-revision', 'manual-section',
+    'stale-profile', 'malformed-compression',
+  ])('keeps %s out of private company intake auto-approval', async condition => {
+    const f = privateCompanyIntakeFixture();
+    switch (condition) {
+      case 'display-name-only': f.tx.storyPublicationImportJob.findFirst.mockResolvedValue(null); break;
+      case 'external-author': f.work.authorDisplayName = 'External author'; break;
+      case 'fixture': f.work.fixtureSource = true; break;
+      case 'missing-audit': f.tx.auditEvent.findFirst.mockResolvedValue(null); break;
+      case 'wrong-audit-actor': f.audit.actorType = 'user'; break;
+      case 'wrong-audit-target': f.audit.targetId = analysisId; break;
+      case 'old-manuscript-id': f.audit.metadata.manuscriptVersionId = analysisId; break;
+      case 'old-manuscript-hash': f.audit.metadata.manuscriptHash = 'f'.repeat(64); break;
+      case 'wrong-source-binding': f.audit.metadata.sourceBindingSha256 = 'f'.repeat(64); break;
+      case 'wrong-plan-binding': f.plan.sourceBindingSha256 = 'f'.repeat(64); break;
+      case 'wrong-job-owner': f.job.actorUserId = analysisId; break;
+      case 'wrong-work-owner': f.work.ownerUserId = analysisId; break;
+      case 'newer-manuscript': f.manuscript.id = analysisId; f.manuscript.contentHash = 'f'.repeat(64); break;
+      case 'newer-manuscript-same-hash': f.manuscript.id = analysisId; break;
+      case 'wrong-manuscript-owner': f.manuscript.ownerUserId = analysisId; break;
+      case 'manual-revision': f.profile.reviewRevision = 1; break;
+      case 'manual-section': f.profile.draftSettings = reviewedSettings(); break;
+      case 'stale-profile': f.profile.sourceFingerprint = 'f'.repeat(64); break;
+      case 'malformed-compression': f.job.planSnapshot = {
+        storageContract: 'story-publication-plan-br-base64-v1', data: 'invalid',
+      }; break;
+    }
+
+    expect(await f.service.autoApproveCompany(owner, workId)).toBeNull();
+    expect(f.tx.storyWorkGenerationProfile.updateMany).not.toHaveBeenCalled();
+    expect(f.tx.auditEvent.create).not.toHaveBeenCalled();
+    expect(snapshotBarriers(f)).toHaveLength(0);
+  });
+
+  it('does not approve a private company intake twice', async () => {
+    const f = privateCompanyIntakeFixture();
+    expect((await f.service.autoApproveCompany(owner, workId))?.profile.status).toBe('approved');
+    f.profile.status = 'approved';
+    expect(await f.service.autoApproveCompany(owner, workId)).toBeNull();
+    expect(f.tx.storyWorkGenerationProfile.updateMany).toHaveBeenCalledTimes(1);
+    expect(f.tx.auditEvent.create).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('published company source binding', () => {
+  function publishedFixture(proof: 'import' | 'audit') {
+    const f = privateCompanyIntakeFixture();
+    const work = publishedCompanyWork();
+    const release = publishedCompanyRelease();
+    const receipt = { id: 'company-import', releaseId };
+    const publication = { id: 'company-publication', afterData: { workId, releaseId, status: 'published' } };
+    f.tx.storyWork.findFirst.mockResolvedValue(work);
+    f.tx.storyRelease.findFirst.mockResolvedValue(release);
+    f.tx.storyPublicationImportJob.findFirst.mockResolvedValue(proof === 'import' ? receipt : null);
+    f.tx.auditEvent.findFirst.mockResolvedValue(proof === 'audit' ? publication : null);
+    return { ...f, work, release, receipt, publication };
+  }
+
+  it.each(['import', 'audit'] as const)('preserves current published %s approval', async proof => {
+    const f = publishedFixture(proof);
+    expect((await f.service.autoApproveCompany(owner, workId))?.profile.status).toBe('approved');
+    expect(f.tx.storyWorkGenerationProfile.updateMany).toHaveBeenCalledTimes(1);
+  });
+
+  it.each((['import', 'audit'] as const).flatMap(proof =>
+    ['old-receipt-release', 'new-manuscript-same-hash', 'new-manuscript-hash',
+      'different-release-manuscript', 'retired-release', 'corrupt-release'].map(condition => [proof, condition] as const)))
+    ('blocks %s with %s', async (proof, condition) => {
+      const f = publishedFixture(proof);
+      switch (condition) {
+        case 'old-receipt-release': f.receipt.releaseId = analysisId; f.publication.afterData.releaseId = analysisId; break;
+        case 'new-manuscript-same-hash': f.manuscript.id = analysisId; break;
+        case 'new-manuscript-hash': f.manuscript.contentHash = 'f'.repeat(64); break;
+        case 'different-release-manuscript': f.release.manuscriptVersionId = analysisId; break;
+        case 'retired-release': f.release.status = 'retired'; break;
+        case 'corrupt-release': f.release.checksum = 'f'.repeat(64); break;
+      }
+      expect(await f.service.autoApproveCompany(owner, workId)).toBeNull();
+      expect(f.tx.storyWorkGenerationProfile.updateMany).not.toHaveBeenCalled();
+      expect(f.tx.auditEvent.create).not.toHaveBeenCalled();
+    });
+});
+
 describe('StoryGenerationProfileService', () => {
   it('auto-approves only an unchanged, company-imported Lumina draft with an audit trail', async () => {
     const f = fixture();
     sourceMocks(f.prisma);
     const settings = reviewedSettings();
     settings.sections.forEach((section) => { section.decision = 'proposed'; });
-    f.tx.storyWork.findFirst.mockResolvedValue({ authorDisplayName: '루미나', fixtureSource: false });
-    f.tx.storyPublicationImportJob.findFirst.mockResolvedValue({ id: 'company-import' });
+    f.tx.storyWork.findFirst.mockResolvedValue(publishedCompanyWork());
+    f.tx.storyPublicationImportJob.findFirst.mockResolvedValue({ id: 'company-import', releaseId });
     f.tx.storyWorkGenerationProfile.findFirst.mockResolvedValue(profileRow({
       sourceFingerprint: sourceFingerprint(), draftSettings: settings,
     }));
@@ -153,7 +313,7 @@ describe('StoryGenerationProfileService', () => {
   it('does not auto-approve a copied Lumina display name without company import provenance', async () => {
     const f = fixture();
     sourceMocks(f.prisma);
-    f.tx.storyWork.findFirst.mockResolvedValue({ authorDisplayName: '루미나', fixtureSource: false });
+    f.tx.storyWork.findFirst.mockResolvedValue(publishedCompanyWork());
     f.tx.storyPublicationImportJob.findFirst.mockResolvedValue(null);
 
     expect(await f.service.autoApproveCompany(owner, workId)).toBeNull();
@@ -167,8 +327,8 @@ describe('StoryGenerationProfileService', () => {
     const settings = reviewedSettings();
     settings.sections.forEach((section) => { section.decision = 'proposed'; });
     settings.sections.find((section) => section.key === 'writing_style')!.value = { summary: 'Generic fallback' };
-    f.tx.storyWork.findFirst.mockResolvedValue({ authorDisplayName: '루미나', fixtureSource: false });
-    f.tx.storyPublicationImportJob.findFirst.mockResolvedValue({ id: 'company-import' });
+    f.tx.storyWork.findFirst.mockResolvedValue(publishedCompanyWork());
+    f.tx.storyPublicationImportJob.findFirst.mockResolvedValue({ id: 'company-import', releaseId });
     f.tx.storyWorkGenerationProfile.findFirst.mockResolvedValue(profileRow({
       sourceFingerprint: sourceFingerprint(), draftSettings: settings,
     }));
@@ -183,8 +343,8 @@ describe('StoryGenerationProfileService', () => {
     sourceMocks(f.prisma);
     const settings = reviewedSettings();
     settings.sections.forEach((section) => { section.decision = 'proposed'; });
-    f.tx.storyWork.findFirst.mockResolvedValue({ authorDisplayName: '루미나', fixtureSource: false });
-    f.tx.storyPublicationImportJob.findFirst.mockResolvedValue({ id: 'company-import' });
+    f.tx.storyWork.findFirst.mockResolvedValue(publishedCompanyWork());
+    f.tx.storyPublicationImportJob.findFirst.mockResolvedValue({ id: 'company-import', releaseId });
     f.tx.storyWorkGenerationProfile.findFirst.mockResolvedValue(profileRow({
       sourceFingerprint: sourceFingerprint(), draftSettings: settings,
     }));
@@ -203,9 +363,9 @@ describe('StoryGenerationProfileService', () => {
     sourceMocks(f.prisma);
     const settings = reviewedSettings();
     settings.sections.forEach((section) => { section.decision = 'proposed'; });
-    f.tx.storyWork.findFirst.mockResolvedValue({ authorDisplayName: '루미나', fixtureSource: false });
+    f.tx.storyWork.findFirst.mockResolvedValue(publishedCompanyWork());
     f.tx.storyPublicationImportJob.findFirst.mockResolvedValue(null);
-    f.tx.auditEvent.findFirst.mockResolvedValue({ id: 'company-publication' });
+    f.tx.auditEvent.findFirst.mockResolvedValue({ id: 'company-publication', afterData: { workId, releaseId } });
     f.tx.storyWorkGenerationProfile.findFirst.mockResolvedValue(profileRow({
       sourceFingerprint: sourceFingerprint(), draftSettings: settings,
     }));
@@ -217,8 +377,9 @@ describe('StoryGenerationProfileService', () => {
     expect(f.tx.auditEvent.findFirst).toHaveBeenCalledWith({
       where: { actorUserId: owner, actorType: 'admin',
         action: { in: ['story_approved_source.public_beta_published', 'story_upload.public_beta_published'] },
-        afterData: { path: ['workId'], equals: workId } },
-      select: { id: true },
+        afterData: { path: ['workId'], equals: workId },
+        AND: [{ afterData: { path: ['releaseId'], equals: releaseId } }] },
+      select: { id: true, afterData: true },
     });
     expect(f.tx.auditEvent.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ metadata: expect.objectContaining({
@@ -241,8 +402,8 @@ describe('StoryGenerationProfileService', () => {
   it('does not repeat auto-approval for an already approved company profile', async () => {
     const f = fixture();
     sourceMocks(f.prisma);
-    f.tx.storyWork.findFirst.mockResolvedValue({ authorDisplayName: '루미나', fixtureSource: false });
-    f.tx.storyPublicationImportJob.findFirst.mockResolvedValue({ id: 'company-import' });
+    f.tx.storyWork.findFirst.mockResolvedValue(publishedCompanyWork());
+    f.tx.storyPublicationImportJob.findFirst.mockResolvedValue({ id: 'company-import', releaseId });
     f.tx.storyWorkGenerationProfile.findFirst.mockResolvedValue(profileRow({
       sourceFingerprint: sourceFingerprint(), status: 'approved',
     }));
@@ -254,8 +415,8 @@ describe('StoryGenerationProfileService', () => {
   it('leaves manually edited company drafts for human review', async () => {
     const f = fixture();
     sourceMocks(f.prisma);
-    f.tx.storyWork.findFirst.mockResolvedValue({ authorDisplayName: '루미나', fixtureSource: false });
-    f.tx.storyPublicationImportJob.findFirst.mockResolvedValue({ id: 'company-import' });
+    f.tx.storyWork.findFirst.mockResolvedValue(publishedCompanyWork());
+    f.tx.storyPublicationImportJob.findFirst.mockResolvedValue({ id: 'company-import', releaseId });
     f.tx.storyWorkGenerationProfile.findFirst.mockResolvedValue(profileRow({
       sourceFingerprint: sourceFingerprint(), draftSettings: reviewedSettings(),
     }));

@@ -27,6 +27,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { SEMANTIC_PIPELINE } from './story-semantic-analysis.types';
 import { assertStoryVisualSettings, publicationVisualReference, STORY_VISUAL_REVIEW_VERSION } from './story-approved-visual.policy';
 import { continuationGenerationProfileSnapshot } from './story-continuation-context.policy';
+import { resolveCompanyPrivateIntakeSource, resolveCurrentCompanyPublicationBinding } from './story-company-source.policy';
 
 const EVIDENCE_TYPES = [
   'scene',
@@ -94,24 +95,34 @@ export class StoryGenerationProfileService implements OnApplicationBootstrap {
       await tx.$queryRaw(Prisma.sql`SELECT id FROM story_works WHERE id = ${workId}::uuid FOR UPDATE`);
       const work = await tx.storyWork.findFirst({
         where: { id: workId, ownerUserId: userId },
-        select: { authorDisplayName: true, fixtureSource: true },
+        select: { authorDisplayName: true, fixtureSource: true, activeReleaseId: true },
       });
       if (work?.authorDisplayName !== '루미나' || work.fixtureSource) return null;
       const companyImport = await tx.storyPublicationImportJob.findFirst({
-        where: { workId, actorUserId: userId, status: 'published' }, select: { id: true },
+        where: { workId, actorUserId: userId, status: 'published', releaseId: work.activeReleaseId },
+        select: { id: true, releaseId: true },
       });
-      const companyPublication = companyImport ? null : await tx.auditEvent.findFirst({
+      const companyPublication = companyImport || !work.activeReleaseId ? null : await tx.auditEvent.findFirst({
         where: { actorUserId: userId, actorType: 'admin',
           action: { in: ['story_approved_source.public_beta_published', 'story_upload.public_beta_published'] },
-          afterData: { path: ['workId'], equals: workId } },
-        select: { id: true },
+          afterData: { path: ['workId'], equals: workId },
+          AND: [{ afterData: { path: ['releaseId'], equals: work.activeReleaseId } }] },
+        select: { id: true, afterData: true },
       });
-      if (!companyImport && !companyPublication) return null;
+      const companyPublishedBinding = companyImport || companyPublication
+        ? await resolveCurrentCompanyPublicationBinding(tx, userId, workId, source.manuscript,
+          companyImport ? companyImport.releaseId : this.record(companyPublication!.afterData).releaseId) : null;
+      if ((companyImport || companyPublication) && !companyPublishedBinding) return null;
+      const companyPrivateIntake = companyImport || companyPublication ? null
+        : await resolveCompanyPrivateIntakeSource(tx, userId, workId, source.manuscript);
+      if (!companyImport && !companyPublication && !companyPrivateIntake) return null;
       const current = await tx.storyWorkGenerationProfile.findFirst({
         where: { workId }, orderBy: { profileVersion: 'desc' },
       });
       if (!current || current.analysisJobId !== source.analysis.id || current.status !== 'needs_review' ||
           current.sourceFingerprint !== this.sourceFingerprint(source) || current.reviewRevision !== 0) return null;
+      if (current.ownerUserId !== userId || current.workId !== workId ||
+          current.manuscriptVersionId !== source.manuscript.id) return null;
       const draft = normalizeCreatorGenerationProfile('story', current.draftSettings);
       if (draft.sections.some((section) => section.decision !== 'proposed')) return null;
       const style = draft.sections.find((section) => section.key === 'writing_style');
@@ -151,7 +162,9 @@ export class StoryGenerationProfileService implements OnApplicationBootstrap {
         afterData: { status: approved.status, reviewRevision: approved.reviewRevision,
           approvedFingerprint: approved.approvedFingerprint },
         metadata: { workId, analysisJobId: source.analysis.id,
-          ...(companyImport ? { companyImportJobId: companyImport.id } : { companyPublicationAuditId: companyPublication!.id }),
+          ...(companyImport ? { companyImportJobId: companyImport.id }
+            : companyPublication ? { companyPublicationAuditId: companyPublication.id } : companyPrivateIntake!),
+          ...(companyPublishedBinding ?? {}),
           approvedMemoryCount } } });
       return this.project(workId, source, approved);
     });
