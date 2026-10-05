@@ -1149,7 +1149,7 @@ test('journal: injected synchronous persistence precedes POST and reload restore
   assert.doesNotMatch(JSON.stringify(first.states), /must-not-persist|Private lost response/);
 });
 
-test('journal: actual sessionStorage mount survives full reload without LOAD, POST, or dispatch events', async () => {
+test('journal: sessionStorage reload stays idle and verified receipt invalidates siblings without POST', async () => {
   const storage = memoryStorage(), first = mounted(lostChoice, { storage });
   await first.load(); await first.choices()[1].fire('click');
   const saved = storage.values.get(journalSlot(id(8)));
@@ -1162,7 +1162,7 @@ test('journal: actual sessionStorage mount survives full reload without LOAD, PO
   assert.equal(next.choices().length, 0); assert.equal(next.retryButton().hidden, false); assert.equal(next.retryButton().disabled, false);
   assert.equal(await next.retry(), true);
   assertReplay(posts(first)[0], checks(next)[0], 5);
-  assert.equal(posts(next).length, 0); assert.equal(next.calls.length, 1); assert.equal(next.events.length, 0);
+  assert.equal(posts(next).length, 0); assert.equal(next.calls.length, 1); assert.equal(next.events.length, 1);
   assert.equal(storage.values.size, 0); assert.equal(next.retryButton().hidden, true);
 });
 
@@ -1197,7 +1197,7 @@ test('journal: owner slots never overwrite, restore, or retire another authentic
   assert.equal(storage.values.get(journalSlot(id(8))), savedA);
   const restoredB = mounted(undefined, { storage, owner: { ownerId: 'opaque-owner/B', epoch: 2 } });
   assert.equal(await restoredB.retry(), true); assert.equal(storage.values.has(journalSlot('opaque-owner/B')), false);
-  assert.equal(storage.values.get(journalSlot(id(8))), savedA); assert.equal(restoredB.events.length, 0);
+  assert.equal(storage.values.get(journalSlot(id(8))), savedA); assert.equal(restoredB.events.length, 1);
   assert.equal(checks(restoredB)[0].options.identity.ownerId, 'opaque-owner/B');
   const unauthenticated = mounted(undefined, { storage, owner: null });
   const reads = storage.operations.length;
@@ -1219,7 +1219,7 @@ for (const scope of ['work', 'source', 'both']) test(`journal: restored ${scope}
   assert.equal(posts(next).length, 0); assert.equal(storage.values.get(journalSlot(id(8))), saved);
   next.work.value = id(1); next.work.fire('change'); next.sourceLocale.value = 'ja'; next.sourceLocale.fire('change');
   assert.equal(next.retryButton().disabled, false); assert.equal(await next.retry(), true);
-  assertReplay(posts(first)[0], checks(next)[0]); assert.equal(next.events.length, 0); assert.equal(next.calls.length, 3);
+  assertReplay(posts(first)[0], checks(next)[0]); assert.equal(next.events.length, 1); assert.equal(next.calls.length, 3);
 });
 
 for (const stage of ['choice', 'receipt']) for (const [name, change] of Object.entries(scopeChanges)) {
@@ -1347,7 +1347,7 @@ for (const fault of ['getter', 'missing', 'read', 'write', 'remove', 'write-noop
     if (dispatched) {
       assert.equal(storage.values.size, 1); storage.faults.remove = false;
       storage.removeItem = key => storage.values.delete(key);
-      assert.equal(await view.retry(), true); assert.equal(view.events.length, 1); assert.equal(storage.values.size, 0);
+      assert.equal(await view.retry(), true); assert.equal(view.events.length, 2); assert.equal(storage.values.size, 0);
     }
   });
 }
@@ -1453,7 +1453,7 @@ for (const locale of locales) test(`journal: bounded opaque owner, longest safe 
   assert.equal(checks(view)[0].options.headers['Idempotency-Key'], saved.key);
   assert.deepEqual(Object.fromEntries(new URL(checks(view)[0].url, 'https://unit.invalid').searchParams),
     { ...saved.body, expectedRevision: String(saved.body.expectedRevision) });
-  assert.equal(posts(view).length, 0); assert.equal(view.events.length, 0); assert.equal(storage.values.size, 0);
+  assert.equal(posts(view).length, 0); assert.equal(view.events.length, 1); assert.equal(storage.values.size, 0);
 });
 
 for (const revision of [2147483645, 2147483646, 2147483647]) {
@@ -1583,7 +1583,7 @@ for (const sourceLocale of locales) test(`recovery: latest ${sourceLocale} comma
   assert.equal(view.retryButton().disabled, false); assert.equal(await view.retry(), true);
   assert.equal(checks(view)[0].options.headers['Idempotency-Key'], remote.key);
   assert.equal(new URL(checks(view)[0].url, 'https://unit.invalid').searchParams.get('locale'), sourceLocale);
-  assert.equal(posts(view).length, 0); assert.equal(view.events.length, 0); assert.equal(view.storage.values.size, 0);
+  assert.equal(posts(view).length, 0); assert.equal(view.events.length, 1); assert.equal(view.storage.values.size, 0);
 });
 
 test('recovery: null clears no command and does not reuse a previously loaded approval to enable paid choices', async () => {
@@ -1702,7 +1702,7 @@ for (const saved of [false, true]) test(`recovery: actual mount preserves server
   assert.equal(next.calls.length, 0); if (!saved) assert.equal(await next.recover(), true);
   assert.equal(next.retryButton().disabled, false); assert.equal(await next.retry(), true);
   assert.equal(checks(next)[0].options.headers['Idempotency-Key'], remote.key); assert.equal(posts(next).length, 0);
-  assert.equal(next.events.length, 0); assert.equal(storage.values.size, 0);
+  assert.equal(next.events.length, 1); assert.equal(storage.values.size, 0);
 });
 
 for (const status of [201, 204, 400, 401, 403, 404, 409, 422, 429, 500]) test(`recovery: HTTP ${status} authorizes nothing and never starts a replacement paid call`, async () => {
@@ -1823,14 +1823,14 @@ for (const language of locales) for (const [name, receipt, messageKey] of displa
     assert.equal(status(), view.api.copy[language].uncertain); assert.equal(view.calls.length, 1); assert.equal(checks(view).length, 0);
     assert.equal(await view.retry(), true);
     assert.equal(status(), receiptResultLabels[language] + ': ' + view.api.copy[language][messageKey]);
-    assert.equal(view.calls.length, 2); assert.equal(posts(view).length, 0); assert.equal(view.events.length, 0);
+    assert.equal(view.calls.length, 2); assert.equal(posts(view).length, 0); assert.equal(view.events.length, 1);
     assert.equal(view.choices().length, 0); assert.equal(view.storage.values.size, 0);
     assert.equal(checks(view)[0].options.headers['Idempotency-Key'], remote.key);
     assert.equal(new URL(checks(view)[0].url, 'https://unit.invalid').searchParams.get('expectedRevision'), '1');
     assert.equal(await view.load(), true);
     assert.equal(status(), view.api.copy[language].approval_recorded);
     assert.ok(view.choices().every(button => !button.disabled)); assert.equal(view.calls.length, 4);
-    assert.equal(posts(view).length, 0); assert.equal(view.events.length, 0);
+    assert.equal(posts(view).length, 0); assert.equal(view.events.length, 1);
   });
 }
 
@@ -1839,7 +1839,7 @@ for (const language of locales) test(`receipt result: ${language} also scopes in
   await view.load(); assert.equal(await view.choices()[0].fire('click'), true);
   assert.equal(walk(view.host).find(node => node.id === 'writerBodyTrialState').textContent,
     receiptResultLabels[language] + ': ' + view.api.copy[language].ending);
-  assert.equal(posts(view).length, 1); assert.equal(view.calls.length, 3); assert.equal(view.events.length, 1);
+  assert.equal(posts(view).length, 1); assert.equal(view.calls.length, 3); assert.equal(view.events.length, 2);
   assert.equal(view.retryButton().hidden, true); assert.equal(view.choices().length, 0);
 });
 
@@ -1855,7 +1855,7 @@ test('receipt result: an unverified receipt GET never gains the result prefix', 
 test('entry pairs the recovered trial script and stylesheet with a fresh matching cache revision', () => {
   const stylesheet = entry.match(/href="\/pages\/creator-body-trial\.css\?v=([^"&]+)"/)?.[1];
   const script = entry.match(/src="\/pages\/creator-body-trial\.js\?v=([^"&]+)"/)?.[1];
-  assert.equal(script, 'body-trial-recovery-20261004');
+  assert.equal(script, 'body-trial-settled-20261005');
   assert.equal(stylesheet, script);
   assert.doesNotMatch(entry, /creator-body-trial\.(?:css|js)\?v=body-trial-20261002/);
 });
@@ -1906,7 +1906,7 @@ test('mount forwards initial POST as an object and checks its receipt with a bod
   assert.equal(replay.options._retried, true); assert.equal(replay.options.cache, 'no-store');
   assert.equal(replay.options.token, 'existing-access-token'); assert.equal(view.retryButton().hidden, true);
   assert.equal(view.refreshAttempts(), 0); assert.equal(view.calls.length, 4);
-  assert.deepEqual(view.events, ['lumina:author-body-trial-progress-changed']);
+  assert.deepEqual(view.events, ['lumina:author-body-trial-progress-changed', 'lumina:author-body-trial-progress-changed']);
 });
 
 test('dispatch invalidates the independent read-only preview immediately, even when the response is lost', async () => {

@@ -228,7 +228,7 @@
       }
     };
   }
-  function createController({ fetch, identity, isCurrent, context, locale, visible, onChange = () => {}, onDispatch = () => {}, journal,
+  function createController({ fetch, identity, isCurrent, context, locale, visible, onChange = () => {}, onDispatch = () => {}, onSettled = () => {}, journal,
     makeIdempotencyKey = () => window.crypto.randomUUID() }) {
     let scope = null, ticket = 0, phase = "idle", messageKey = "ready", data = null, receipt = null, request = null, command = null;
     let journalBlocked = false;
@@ -379,6 +379,9 @@
         messageKey = receipt.status === "failed" ? "generationFailed" : receipt.status === "timeout" ? "generationTimeout" :
           ["queued", "processing"].includes(receipt.status) ? "generating" :
           receipt.generationStarted === false && receipt.status === "completed" ? "ending" : "accepted";
+        // A sibling may have reloaded the old route while the request was still pending.
+        onSettled();
+        if (!active.current()) return false;
         emit(); return true;
       } catch (error) {
         if (!active.current()) return false;
@@ -539,7 +542,8 @@
       isCurrent: owner => typeof window.LuminaCreatorStudioApi?.fetch === "function" && window.LuminaCreatorStudioApi?.isCurrent?.(owner) === true,
       context: () => ({ workId: document.getElementById("writerManuscriptWork")?.value || "", locale: document.getElementById("writerManuscriptLocale")?.value || "" }),
       locale: () => window.luminaI18n?.getLocale?.() || document.documentElement.lang || "ko", visible, onChange: render,
-      onDispatch: () => window.dispatchEvent(new Event("lumina:author-body-trial-progress-changed")), journal: sessionJournal()
+      onDispatch: () => window.dispatchEvent(new Event("lumina:author-body-trial-progress-changed")),
+      onSettled: () => window.dispatchEvent(new Event("lumina:author-body-trial-progress-changed")), journal: sessionJournal()
     });
     refresh.addEventListener("click", () => { if (!refresh.disabled) return controller.load(controller.snapshot().ticket); });
     retry.addEventListener("click", () => { if (!retry.disabled) return controller.retry(controller.snapshot().ticket); });

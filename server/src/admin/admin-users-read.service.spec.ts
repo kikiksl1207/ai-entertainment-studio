@@ -21,7 +21,7 @@ function fixture(rows = [account()]) {
   const tx = {
     $queryRaw: jest.fn().mockResolvedValue([]),
     user: {
-      count: jest.fn().mockResolvedValueOnce(87).mockResolvedValueOnce(2),
+      count: jest.fn().mockResolvedValue(0).mockResolvedValueOnce(87).mockResolvedValueOnce(2),
       findMany: jest.fn().mockResolvedValue(rows), findFirst: jest.fn().mockResolvedValue({ id: firstId }),
     },
     communityReport: { findMany: jest.fn().mockResolvedValue([]) },
@@ -51,7 +51,7 @@ describe('AdminUsersReadService (synthetic Prisma unit fixtures)', () => {
     const { service, tx, prisma } = fixture();
     const result = await service.getBackstageUsersOverview({ query: ' TEST ' });
     expect(result).toMatchObject({ totalAccounts: 87, filteredAccounts: 2, count: 1,
-      policy: { source: 'users', testAccountsIncluded: true, deletedAccountsIncluded: true, accountClassification: 'unavailable' } });
+      policy: { source: 'users', testAccountsIncluded: true, deletedAccountsIncluded: true, accountClassification: 'explicit_admin', realCustomerInference: false } });
     expect(result.items[0]).not.toHaveProperty('isTestAccount');
     expect(result.items[0]).not.toHaveProperty('isRealUser');
     expect(result.items[0].lastSeenAt).toBeNull();
@@ -334,5 +334,40 @@ describe('AdminUsersReadService (synthetic Prisma unit fixtures)', () => {
     const { service, tx } = fixture();
     tx.user.count.mockReset().mockRejectedValue(new Error('DB unavailable'));
     await expect(service.getBackstageUsersOverview({})).rejects.toThrow('DB unavailable');
+  });
+
+  it('keeps global and filtered explicit test counts separate from returned page counts', async () => {
+    const classified = { ...account(), testAccountClassification: { classification: 'test', revision: 3, updatedAt: new Date('2026-10-05') } };
+    const { service, tx } = fixture([classified]);
+    tx.user.count.mockReset().mockResolvedValueOnce(87).mockResolvedValueOnce(12).mockResolvedValueOnce(8).mockResolvedValueOnce(3);
+    const result = await service.getBackstageUsersOverview({});
+    expect(result.summary).toMatchObject({ globalTestAccounts: 8, globalUnclassifiedAccounts: 79,
+      filteredTestAccounts: 3, filteredUnclassifiedAccounts: 9 });
+    expect(result.items[0].testAccountClassification).toMatchObject({ classification: 'test', revision: 3, source: 'explicit_admin' });
+    expect(result.policy.realCustomerInference).toBe(false);
+  });
+
+  it.each(['test', 'unclassified'])('binds explicit classification %s to counts and cursor validation', async classification => {
+    const { service, tx } = fixture();
+    await service.getBackstageUsersOverview({ classification, cursor: firstId });
+    const where = tx.user.findMany.mock.calls[0][0].where;
+    expect(tx.user.count).toHaveBeenNthCalledWith(2, { where });
+    expect(tx.user.findFirst).toHaveBeenCalledWith({ where: { AND: [where, { id: firstId }] }, select: { id: true } });
+    if (classification === 'test') expect(where.testAccountClassification).toEqual({ is: { classification: 'test' } });
+    else expect(where.AND[0].OR).toEqual([{ testAccountClassification: { is: null } },
+      { testAccountClassification: { is: { classification: 'unclassified' } } }]);
+  });
+
+  it('never infers a test or ordinary customer classification from the name/email', async () => {
+    const { service } = fixture();
+    const result = await service.getBackstageUsersOverview({});
+    expect(result.items[0].testAccountClassification).toEqual({ classification: 'unclassified', revision: 0, source: 'unclassified', updatedAt: null });
+    expect(result.summary.globalUnclassifiedAccounts).toBe(87);
+  });
+
+  it('rejects malformed classification filter before accessing DB', async () => {
+    const { service, prisma } = fixture();
+    await expect(service.getBackstageUsersOverview({ classification: 'real_customer' })).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 });

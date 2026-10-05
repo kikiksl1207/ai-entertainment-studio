@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { parseTestAccountFilter } from './admin-test-account-policy';
 
 type UsersQuery = Record<string, string | undefined>;
 type UserPageEnrichment = {
@@ -30,6 +31,7 @@ export class AdminUsersReadService {
     const search = query.query?.trim() || query.q?.trim() || undefined;
     const email = query.email?.trim() || undefined;
     const status = query.status?.trim() || undefined;
+    const classification = parseTestAccountFilter(query.classification);
     const where: Prisma.UserWhereInput = {
       ...(status ? { status } : {}),
       ...(email ? { email: { contains: email, mode: 'insensitive' } } : {}),
@@ -40,6 +42,11 @@ export class AdminUsersReadService {
         { profile: { is: { publicHandle: { contains: search, mode: 'insensitive' } } } },
         ...(UUID.test(search) ? [{ id: search }] : []),
       ] } : {}),
+      ...(classification === 'test' ? { testAccountClassification: { is: { classification: 'test' } } } : {}),
+      ...(classification === 'unclassified' ? { AND: [{ OR: [
+        { testAccountClassification: { is: null } },
+        { testAccountClassification: { is: { classification: 'unclassified' } } },
+      ] }] } : {}),
     };
 
     // Counts and the cursor page share a snapshot; no account classification is inferred.
@@ -47,7 +54,7 @@ export class AdminUsersReadService {
       if (cursor && !await tx.user.findFirst({ where: { AND: [where, { id: cursor }] }, select: { id: true } })) {
         throw new BadRequestException('cursor is no longer valid for these filters; reload the first page');
       }
-      const [totalAccounts, filteredAccounts, rows] = await Promise.all([
+      const [totalAccounts, filteredAccounts, rows, globalTestAccounts, filteredTestAccounts] = await Promise.all([
         tx.user.count(),
         tx.user.count({ where }),
         tx.user.findMany({
@@ -56,6 +63,7 @@ export class AdminUsersReadService {
           orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
           select: {
             id: true, email: true, phoneNumber: true, status: true,
+            testAccountClassification: { select: { classification: true, revision: true, updatedAt: true } },
             createdAt: true, updatedAt: true, deletedAt: true,
             profile: { select: { displayName: true, publicHandle: true } },
             authAccounts: { select: { provider: true, lastLoginAt: true } },
@@ -67,6 +75,8 @@ export class AdminUsersReadService {
             } },
           },
         }),
+        tx.user.count({ where: { testAccountClassification: { is: { classification: 'test' } } } }),
+        tx.user.count({ where: { AND: [where, { testAccountClassification: { is: { classification: 'test' } } }] } }),
       ]);
       const hasMore = rows.length > take;
       const users = rows.slice(0, take);
@@ -102,6 +112,7 @@ export class AdminUsersReadService {
             SELECT event.id
             FROM audit_events AS event
             WHERE event.target_type = 'user' AND event.target_id = page.id
+              AND event.action <> 'user.test_account_classification'
             ORDER BY event.created_at DESC, event.id DESC
             LIMIT 1
           ) AS latest_action ON TRUE
@@ -146,6 +157,12 @@ export class AdminUsersReadService {
         const action = recentActions.find((event) => event.targetId === user.id);
         return {
           id: user.id, userId: user.id, email: user.email, phoneNumber: user.phoneNumber, status: user.status,
+          testAccountClassification: {
+            classification: user.testAccountClassification?.classification ?? 'unclassified',
+            revision: user.testAccountClassification?.revision ?? 0,
+            source: user.testAccountClassification ? 'explicit_admin' : 'unclassified',
+            updatedAt: user.testAccountClassification?.updatedAt ?? null,
+          },
           displayName: user.profile?.displayName ?? null, publicHandle: user.profile?.publicHandle ?? null,
           loginType: accounts[0]?.provider ?? null, loginTypes: accounts.map((account) => account.provider),
           walletBalanceLumina: wallet?.cachedBalance ?? new Prisma.Decimal(0), walletStatus: wallet?.status ?? null,
@@ -168,9 +185,11 @@ export class AdminUsersReadService {
       return {
         generatedAt: new Date(), items, count: items.length, hasMore,
         nextCursor: hasMore ? items.at(-1)!.id : null,
-        totalAccounts, filteredAccounts, filters: { search: search ?? null, email: email ?? null, status: status ?? null },
+        totalAccounts, filteredAccounts, filters: { search: search ?? null, email: email ?? null, status: status ?? null, classification },
         summary: {
           totalAccounts, filteredAccounts,
+          globalTestAccounts, globalUnclassifiedAccounts: totalAccounts - globalTestAccounts,
+          filteredTestAccounts, filteredUnclassifiedAccounts: filteredAccounts - filteredTestAccounts,
           suspendedInPage: items.filter((item) => item.status === 'suspended').length,
           deletedInPage: items.filter((item) => item.deletedAt).length,
           openReportsInPage: items.reduce((sum, item) => sum + item.openReportCount, 0),
@@ -178,7 +197,7 @@ export class AdminUsersReadService {
         },
         policy: {
           source: 'users', route: '/backstage/users', testAccountsIncluded: true,
-          deletedAccountsIncluded: true, accountClassification: 'unavailable',
+          deletedAccountsIncluded: true, accountClassification: 'explicit_admin', realCustomerInference: false,
           dangerActions: ['suspend', 'restore', 'delete', 'revoke_sessions'],
           reasonRequiredByUi: true, settlementFieldsIncluded: false,
         },

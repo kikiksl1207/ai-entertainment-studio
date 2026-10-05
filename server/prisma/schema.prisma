@@ -33,6 +33,7 @@ model User {
   paymentOrders                PaymentOrder[]
   auditEvents                  AuditEvent[]
   adminAccess                  AdminUser?                 @relation("AdminAccess")
+  testAccountClassification    AdminTestAccountState?
   createdAdminUsers            AdminUser[]                @relation("AdminCreatedBy")
   referralCode                 UserReferralCode?
   sentReferrals                ReferralReward[]           @relation("ReferralReferrer")
@@ -3417,6 +3418,36 @@ model OttPlaybackCommand {
   @@unique([ownerId, idempotencyKey])
   @@unique([progressId, toRevision])
   @@map("ott_playback_commands")
+}
+
+model AdminTestAccountState {
+  userId         String   @id @map("user_id") @db.Uuid
+  classification String
+  revision       Int
+  latestChangeId String   @unique @map("latest_change_id") @db.Uuid
+  updatedAt      DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  user           User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([classification, userId], map: "idx_admin_test_account_state_classification")
+  @@map("admin_test_account_states")
+}
+
+model AdminTestAccountChange {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId             String   @map("user_id") @db.Uuid
+  actorUserId        String   @map("actor_user_id") @db.Uuid
+  classification     String
+  expectedRevision   Int      @map("expected_revision")
+  revision           Int
+  reasonCode         String   @map("reason_code")
+  requestKeyHash     String   @map("request_key_hash") @db.Char(64)
+  requestFingerprint String   @map("request_fingerprint") @db.Char(64)
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([actorUserId, requestKeyHash], map: "uq_admin_test_account_actor_key")
+  @@unique([userId, revision], map: "uq_admin_test_account_user_revision")
+  @@unique([id, userId, revision, classification], map: "uq_admin_test_account_change_binding")
+  @@map("admin_test_account_changes")
 }
 
 model AuditEvent {
