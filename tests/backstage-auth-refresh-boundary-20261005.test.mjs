@@ -72,7 +72,7 @@ function harness() {
   const nodes = Object.fromEntries(['dashboardView', 'loginView', 'detailPanel', 'detailType', 'detailTitle', 'detailList',
     'detailMemo', 'detailHistoryList', 'detailForm', 'confirmModal', 'confirmType', 'confirmTitle', 'confirmMessage',
     'confirmPayload', 'confirmRunButton', 'logoutButton', 'passwordInput', 'loginStatus', 'googleButtonFallback',
-    'userRows', 'userRiskRows', 'usersClassificationFilter', 'usersStatus', 'more', 'help'].map(name => [name, new Element()]));
+    'userRows', 'userRiskRows', 'usersClassificationFilter', 'usersStatus', 'operatorEmail', 'more', 'help'].map(name => [name, new Element()]));
   nodes.loginView.classList.add('is-hidden'); nodes.confirmModal.classList.add('is-hidden');
   const context = { ...nodes, window: { LUMINA_API_BASE: 'https://synthetic-refresh.invalid' },
     localStorage: { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, String(value)),

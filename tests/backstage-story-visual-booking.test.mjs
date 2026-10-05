@@ -75,10 +75,10 @@ function assertInert(view) {
 }
 
 for (const changeSession of [false, true]) test(`the real shared helper never replays a confirmed POST after delayed 401 (changed operator: ${changeSession})`, async () => {
-  let auth = { accessToken: 'operator-A-token', refreshToken: 'operator-A-refresh' };
+  let auth = { accessToken: 'operator-A-token', refreshToken: 'operator-A-refresh', user: { id: id(900) } };
   const pending = deferred(), dispatched = deferred(), requests = [];
   let refreshes = 0;
-  const context = createContext({ window: {}, BACKSTAGE_API_BASE: 'https://offline.invalid',
+  const context = createContext({ window: {}, BACKSTAGE_API_BASE: 'https://offline.invalid', backstageAuthEpoch: 0,
     getBackstageAuth: () => auth,
     refreshBackstageAuthOnce: async () => { refreshes++; return auth; },
     fetch: async (url, options) => {
@@ -95,7 +95,7 @@ for (const changeSession of [false, true]) test(`the real shared helper never re
   controller.selectItem(item().generationId, controller.snapshot().revision);
   controller.acknowledge(true, controller.snapshot().revision); controller.requestConfirmation(controller.snapshot().revision);
   const operation = controller.reprepare(controller.snapshot().revision); await dispatched.promise;
-  if (changeSession) auth = { accessToken: 'operator-B-token', refreshToken: 'operator-B-refresh' };
+  if (changeSession) auth = { accessToken: 'operator-B-token', refreshToken: 'operator-B-refresh', user: { id: id(901) } };
   pending.resolve({ ok: false, status: 401, json: async () => ({ message: 'Expired synthetic session' }) }); await operation;
   const posts = requests.filter(request => request.options.method === 'POST');
   assert.equal(posts.length, 1); assert.equal(posts[0].options.headers.Authorization, 'Bearer operator-A-token');

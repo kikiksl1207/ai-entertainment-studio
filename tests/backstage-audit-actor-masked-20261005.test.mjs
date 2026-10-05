@@ -14,6 +14,7 @@ const runtime = [
   excerpt('function normalizePage(', 'function readSectionSearch('),
   excerpt('function escapeHtml(', 'function firstRoleName('),
   excerpt('function statusBadge(', 'function renderSettlementChildren('),
+  excerpt('function backstageErrorStatus(', 'function artistKnowledgeQueueErrorMessage('),
   excerpt('async function loadAdminsSection(', 'function renderUsersStatus('),
   excerpt('async function loadAuditPage(', 'function loadSection('),
   'this.api = { admins: loadAdminsSection, logs: loadAuditPage, escape: escapeHtml };',
