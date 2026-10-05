@@ -5,6 +5,8 @@ import { stableContinuationJson } from './story-continuation-context.policy';
 import { STORY_LOCALES } from './story-production.policy';
 
 export const AUTHOR_BODY_REVIEW_CONTRACT = 'story-author-body-review-v1';
+export const COMPANY_BODY_DELEGATION_CONTRACT = 'story-company-body-delegation-v1';
+export type BodyReviewApprovalBasis = 'human_review' | 'company_delegation';
 export const privateBodyReviewFlags = {
   generationStarted: false, imageGenerationStarted: false,
   publicationStarted: false, sharedReuseAuthorized: false,

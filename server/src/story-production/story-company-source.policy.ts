@@ -120,3 +120,32 @@ export async function resolveCurrentCompanyPublicationBinding(
   return { companyPublishedReleaseId: release.id, companyReleaseChecksum: release.checksum,
     companyManuscriptVersionId: manuscript.id };
 }
+
+export type CompanyPublishedSourceProof = CurrentCompanyPublicationBinding & {
+  companyPublicationJobId: string | null; companyPublicationAuditId: string | null;
+};
+
+export async function resolveCompanyPublishedSource(
+  db: CompanySourceDb & Pick<Prisma.TransactionClient, 'storyRelease'>,
+  ownerUserId: string, workId: string, source: { id: string; contentHash: string }, releaseId: string,
+): Promise<CompanyPublishedSourceProof | null> {
+  const job = await db.storyPublicationImportJob.findFirst({
+    where: { actorUserId: ownerUserId, workId, status: 'published', releaseId, errorCode: null },
+    select: { id: true, actorUserId: true, workId: true, status: true, releaseId: true, errorCode: true },
+    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+  });
+  if (job && (job.actorUserId !== ownerUserId || job.workId !== workId || job.status !== 'published' ||
+      job.releaseId !== releaseId || job.errorCode !== null)) return null;
+  const actions = ['story_approved_source.public_beta_published', 'story_upload.public_beta_published'];
+  const audit = job ? null : await db.auditEvent.findFirst({
+    where: { actorUserId: ownerUserId, actorType: 'admin', action: { in: actions },
+      afterData: { path: ['workId'], equals: workId }, AND: [{ afterData: { path: ['releaseId'], equals: releaseId } }] },
+    select: { id: true, actorUserId: true, actorType: true, action: true, afterData: true },
+    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+  });
+  if (!job && (!audit || audit.actorUserId !== ownerUserId || audit.actorType !== 'admin' ||
+      !actions.includes(audit.action) || record(audit.afterData)?.workId !== workId ||
+      record(audit.afterData)?.releaseId !== releaseId)) return null;
+  const binding = await resolveCurrentCompanyPublicationBinding(db, ownerUserId, workId, source, releaseId);
+  return binding ? { ...binding, companyPublicationJobId: job?.id ?? null, companyPublicationAuditId: audit?.id ?? null } : null;
+}

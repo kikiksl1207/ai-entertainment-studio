@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException, OnApplicationBootstrap, OnApplicationShutdown, ServiceUnavailableException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { isUUID } from 'class-validator';
@@ -7,21 +7,147 @@ import { StoryArtistParticipantService } from './story-artist-participant.servic
 import { storyAiResultChecksum } from './story-ai-result-checksum';
 import { continuationGenerationProfileSnapshot, continuationMemoryPins, parseContinuationGenerationProfilePin } from './story-continuation-context.policy';
 import {
-  AUTHOR_BODY_REVIEW_CONTRACT, AuthorBodyReviewInput, bodyReviewHash, bodyReviewKey,
+  AUTHOR_BODY_REVIEW_CONTRACT, COMPANY_BODY_DELEGATION_CONTRACT, AuthorBodyReviewInput, bodyReviewHash, bodyReviewKey,
   bodyReviewScope, normalizeBodyReviewInput, privateBodyReviewFlags,
 } from './story-author-body-review.policy';
-import { BodyReviewRow, bodyReviewById, bodyReviewByKey, insertBodyReview, latestBodyReview } from './story-author-body-review.store';
+import { BodyReviewRow, bodyReviewById, bodyReviewByKey, bodyReviewBlocksCompanyDelegation, insertBodyReview, latestBodyReview } from './story-author-body-review.store';
+import { resolveCompanyPublishedSource } from './story-company-source.policy';
 
 const record = (value: unknown): Record<string, unknown> => value && typeof value === 'object' && !Array.isArray(value)
   ? value as Record<string, unknown> : {};
 type Target = { progressId: string; progressRevision: number; sceneId: string; sourceBindingHash: string;
   bodyChecksum: string; ending: boolean };
 type Snapshot = { state: 'reviewable' | 'not_generated' | 'generation_pending' | 'source_changed';
-  target: Target | null; binding?: Record<string, unknown>; continuationId?: string };
+  target: Target | null; binding?: Record<string, unknown>; continuationId?: string; delegation?: Record<string, unknown> | null };
 
 @Injectable()
-export class StoryAuthorBodyReviewService {
+export class StoryAuthorBodyReviewService implements OnApplicationBootstrap, OnApplicationShutdown {
+  private readonly logger = new Logger(StoryAuthorBodyReviewService.name);
+  private readonly approvalRetries = new Map<string, number>();
+  private retryTimer: ReturnType<typeof setTimeout> | null = null;
+  private backgroundApproval: Promise<void> | null = null;
+  private recoveryScanPending = false;
+  private recoveryScanFailures = 0;
+  private recoveryCursor: string | null = null;
+  private stopping = false;
   constructor(private readonly prisma: PrismaService, private readonly participants: StoryArtistParticipantService) {}
+
+  onApplicationBootstrap() {
+    this.backgroundApproval = this.recoverCompanyApprovalsSafely()
+      .finally(() => { this.backgroundApproval = null; this.scheduleApprovalRetries(); });
+  }
+
+  async onApplicationShutdown() {
+    this.stopping = true;
+    if (this.retryTimer) clearTimeout(this.retryTimer);
+    this.retryTimer = null;
+    await this.backgroundApproval;
+    this.approvalRetries.clear();
+    this.recoveryScanPending = false;
+  }
+
+  deferCompanyContinuationApproval(continuationId: string) {
+    if (this.stopping || !isUUID(continuationId)) return;
+    if (!this.approvalRetries.has(continuationId)) this.approvalRetries.set(continuationId, 0);
+    this.scheduleApprovalRetries();
+  }
+
+  private scheduleApprovalRetries() {
+    if (this.stopping || this.retryTimer || this.backgroundApproval ||
+        (!this.recoveryScanPending && !this.approvalRetries.size)) return;
+    this.retryTimer = setTimeout(() => {
+      this.retryTimer = null;
+      this.backgroundApproval = (async () => {
+        if (this.recoveryScanPending) await this.recoverCompanyApprovalsSafely();
+        await this.retryCompanyApprovals();
+      })()
+        .catch(() => this.logger.warn('Company body approval retry deferred'))
+        .finally(() => { this.backgroundApproval = null; this.scheduleApprovalRetries(); });
+    }, 60_000);
+    this.retryTimer.unref();
+  }
+
+  private async retryCompanyApprovals() {
+    // Only approval writes are retried. The completed continuation is the durable recovery source.
+    for (const [id, attempts] of [...this.approvalRetries].slice(0, 25)) {
+      if (this.stopping) return;
+      try { await this.autoApproveCompanyContinuation(id); this.approvalRetries.delete(id); }
+      catch (error) {
+        if (error instanceof ConflictException || error instanceof BadRequestException ||
+            error instanceof NotFoundException || attempts + 1 >= 5) this.approvalRetries.delete(id);
+        else this.approvalRetries.set(id, attempts + 1);
+      }
+    }
+  }
+
+  private async recoverCompanyApprovalsSafely() {
+    try {
+      await this.recoverCompanyApprovals();
+      this.recoveryScanPending = false;
+      this.recoveryScanFailures = 0;
+    } catch {
+      this.recoveryScanPending = ++this.recoveryScanFailures <= 5;
+      this.logger.warn('Company body approval recovery scan deferred');
+    }
+  }
+
+  private async recoverCompanyApprovals() {
+    while (true) {
+      if (this.stopping) return;
+      const after = this.recoveryCursor;
+      const rows: Array<{ id: string; continuationId: string }> = await this.prisma.$queryRaw(Prisma.sql`
+        SELECT p.id, s.continuation_id AS "continuationId" FROM story_reader_progress p
+        JOIN story_works w ON w.id = p.work_id AND w.owner_user_id = p.user_id
+        JOIN story_ai_generated_scenes s ON s.id = p.current_generated_scene_id
+        WHERE w.author_display_name = ${'루미나'} AND w.fixture_source = false AND w.status = 'published'
+          AND p.status IN ('active','completed') AND (${after}::uuid IS NULL OR p.id > ${after}::uuid)
+        ORDER BY p.id LIMIT 100`);
+      if (!rows.length) return;
+      for (const row of rows) {
+        if (this.stopping) return;
+        try { await this.autoApproveCompanyContinuation(row.continuationId); }
+        catch (error) {
+          if (!(error instanceof ConflictException || error instanceof BadRequestException || error instanceof NotFoundException))
+            this.deferCompanyContinuationApproval(row.continuationId);
+          this.logger.warn('Company body approval recovery deferred');
+        }
+      }
+      this.recoveryCursor = rows[rows.length - 1].id;
+    }
+  }
+
+  async autoApproveCompanyContinuation(continuationId: string) {
+    if (!isUUID(continuationId)) return null;
+    const origin = await this.prisma.storyAiContinuation.findFirst({ where: { id: continuationId, status: 'completed' },
+      select: { userId: true, workId: true, locale: true } });
+    if (!origin) return null;
+    return this.write(async db => {
+      const work = await db.storyWork.findFirst({ where: { id: origin.workId, ownerUserId: origin.userId,
+        fixtureSource: false, authorDisplayName: '루미나', status: 'published' }, select: { id: true } });
+      if (!work) return null;
+      await this.owner(db, origin.userId, origin.workId, true);
+      const snapshot = await this.snapshot(db, origin.userId, origin.workId, origin.locale, true);
+      if (!snapshot.target || !snapshot.binding || !snapshot.delegation || snapshot.continuationId !== continuationId) return null;
+      const head = await latestBodyReview(db, origin.userId, origin.workId);
+      // Revisiting a scene must not undo even a superseded human decision or withdrawal.
+      if (await bodyReviewBlocksCompanyDelegation(db, origin.userId, origin.workId, snapshot.target.sceneId)) return null;
+      const requestHash = bodyReviewHash({ sourceBindingHash: snapshot.target.sourceBindingHash, delegation: snapshot.delegation });
+      const key = `company-body:${requestHash}`;
+      const previous = await bodyReviewByKey(db, origin.userId, origin.workId, key);
+      if (previous) return this.project(previous, head, snapshot);
+      const body: AuthorBodyReviewInput = { locale: origin.locale, sourceBindingHash: snapshot.target.sourceBindingHash,
+        expectedProgressRevision: snapshot.target.progressRevision, expectedReviewId: head?.id ?? null,
+        decision: 'approve', styleReviewed: false, charactersReviewed: false, timelineReviewed: false };
+      const row = await insertBodyReview(db, { id: randomUUID(), owner: origin.userId, work: origin.workId,
+        progress: snapshot.target.progressId, scene: snapshot.target.sceneId, continuation: continuationId,
+        binding: snapshot.binding, delegation: snapshot.delegation, body, version: (head?.version ?? 0) + 1, key, requestHash });
+      await db.auditEvent.create({ data: { actorType: 'system', action: 'story.author_body_review.company_delegated',
+        targetType: 'story_author_body_review', targetId: row.id, metadata: {
+          sourceBindingHash: body.sourceBindingHash, version: row.version, approvalBasis: 'company_delegation',
+          humanSemanticReview: false, publicationStarted: false, sharedReuseAuthorized: false } } });
+      return this.project(row, row, snapshot);
+    });
+  }
 
   private changed(): never { throw new ConflictException({ code: 'STORY_AUTHOR_BODY_REVIEW_SOURCE_CHANGED' }); }
 
@@ -29,7 +155,7 @@ export class StoryAuthorBodyReviewService {
     if (lock) await db.$queryRaw(Prisma.sql`SELECT id FROM story_works
       WHERE id = ${workId}::uuid AND owner_user_id = ${userId}::uuid FOR UPDATE`);
     const work = await db.storyWork.findFirst({ where: { id: workId, ownerUserId: userId, fixtureSource: false },
-      select: { id: true, status: true, activeReleaseId: true, publishedVersion: true, releaseRevision: true } });
+      select: { id: true, status: true, activeReleaseId: true, publishedVersion: true, releaseRevision: true, authorDisplayName: true } });
     if (!work) throw new NotFoundException({ code: 'STORY_AUTHOR_BODY_REVIEW_UNAVAILABLE' });
     return work;
   }
@@ -169,7 +295,10 @@ export class StoryAuthorBodyReviewService {
       analysisId: analysis.id, analysisVersion: analysis.analysisVersion, profilePin: profilePin ?? null,
       participantPin: participant?.pin ?? null, styleConsentId: consent.id, styleConsentRevision: consent.revision,
       capabilityRevision: capability.revision, endingKey, locale };
-    return { state: 'reviewable', binding, continuationId: origin.id, target: { progressId: progress.id,
+    const companySource = work.authorDisplayName === '루미나'
+      ? await resolveCompanyPublishedSource(db, userId, workId, manuscript, release.id) : null;
+    const delegation = companySource ? { contract: COMPANY_BODY_DELEGATION_CONTRACT, ...companySource } : null;
+    return { state: 'reviewable', binding, delegation, continuationId: origin.id, target: { progressId: progress.id,
       progressRevision: progress.progressRevision, sceneId: scene.id, sourceBindingHash: bodyReviewHash(binding), bodyChecksum: checksum, ending: Boolean(endingKey) } };
   }
 
@@ -182,11 +311,14 @@ export class StoryAuthorBodyReviewService {
   }
 
   private project(row: BodyReviewRow, head: BodyReviewRow | null, snapshot: Snapshot) {
-    return { id: row.id, locale: row.locale, version: row.version, decision: row.decision, styleReviewed: row.styleReviewed,
+    const authorityCurrent = row.approvalBasis !== 'company_delegation' ||
+      (snapshot.delegation && bodyReviewHash(row.delegationSnapshot) === bodyReviewHash(snapshot.delegation));
+    return { id: row.id, locale: row.locale, version: row.version, decision: row.decision, approvalBasis: row.approvalBasis,
+      styleReviewed: row.styleReviewed,
       charactersReviewed: row.charactersReviewed, timelineReviewed: row.timelineReviewed,
       createdAt: row.createdAt.toISOString(), withdrawnAt: row.withdrawnAt?.toISOString() ?? null,
       applicability: row.withdrawnAt ? 'withdrawn' : row.id !== head?.id ? 'superseded' :
-        row.sourceBindingHash === snapshot.target?.sourceBindingHash ? 'current' : 'stale' };
+        authorityCurrent && row.sourceBindingHash === snapshot.target?.sourceBindingHash ? 'current' : 'stale' };
   }
 
   async current(user: string, work: string, locale: string) {

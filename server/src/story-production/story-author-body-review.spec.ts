@@ -20,6 +20,12 @@ const valid = { locale: 'ko', sourceBindingHash: 'a'.repeat(64), expectedProgres
   expectedReviewId: null, decision: 'approve' as const, styleReviewed: true, charactersReviewed: true, timelineReviewed: true };
 
 describe('private author body review strict input', () => {
+  it('rejects client-supplied company delegation instead of manufacturing human review', () => {
+    for (const fields of [{ approvalBasis: 'company_delegation' }, { delegationSnapshot: {} },
+      { styleReviewed: false, charactersReviewed: false, timelineReviewed: false }]) {
+      expect(() => normalizeBodyReviewInput({ ...valid, ...fields } as never)).toThrow(BadRequestException);
+    }
+  });
   it.each(['/API/V1/ME/CREATOR-STUDIO/STORIES/id/BODY-REVIEW', '/api/me/creator-studio/stories/id/body-review/id/withdraw'])('marks parser errors private for routed case variants %s', url => {
     const response = { setHeader: jest.fn() }, next = jest.fn();
     authorBodyReviewPrivacyMiddleware({ url }, response, next);
@@ -98,6 +104,11 @@ describe('private author body review HTTP (isolated JWT, no operating auth)', ()
     expect(service.review).toHaveBeenCalledWith(user, work, valid, 'review-http-key');
     expect((await call('POST', `/${reviewId}/withdraw`, {})).status).toBe(201);
     expect(service.withdraw).toHaveBeenCalledWith(user, work, reviewId, 'review-http-key');
+  });
+  it('rejects client-supplied company delegation over the authenticated manual POST', async () => {
+    expect(await call('POST', '', { ...valid, approvalBasis: 'company_delegation' }))
+      .toEqual({ status: 400, cache: 'private, no-store' });
+    expect(service.review).not.toHaveBeenCalled();
   });
   it.each(['GET', 'POST'])('keeps unauthenticated %s private', async method => {
     expect(await call(method, method === 'GET' ? '?locale=ko' : '', method === 'GET' ? undefined : valid, false)).toEqual({ status: 401, cache: 'private, no-store' });

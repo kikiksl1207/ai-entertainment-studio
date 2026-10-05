@@ -87,14 +87,48 @@ function fixture() {
   const contextAssembler = { assemble: jest.fn().mockResolvedValue(approvedContext) };
   const moderation = { preview: jest.fn().mockReturnValue({ decision: 'allow' }) };
   const visuals = { registerGeneratedContinuationPrompt: jest.fn() };
+  const bodyReviews = { autoApproveCompanyContinuation: jest.fn(), deferCompanyContinuationApproval: jest.fn() };
   const executor = new StoryContinuationExecutor(
     queue, provider, economics as never, contextAssembler as never,
-    moderation as never, visuals as never,
+    moderation as never, visuals as never, bodyReviews as never,
   );
-  return { queue, provider, economics, contextAssembler, moderation, visuals, approvedContext, executor };
+  return { queue, provider, economics, contextAssembler, moderation, visuals, bodyReviews, approvedContext, executor };
 }
 
 describe('StoryContinuationExecutor', () => {
+  it('delegates only after successful settlement without another provider call', async () => {
+    const f = fixture();
+    f.bodyReviews.autoApproveCompanyContinuation.mockImplementation(async () => {
+      expect(f.economics.settleClaimedContinuation).toHaveBeenCalledTimes(1);
+    });
+    await expect(f.executor.executeOne('worker')).resolves.toMatchObject({ status: 'completed' });
+    expect(f.bodyReviews.autoApproveCompanyContinuation).toHaveBeenCalledWith(claim.continuationId);
+    expect(f.provider.generate).toHaveBeenCalledTimes(1);
+  });
+  it('keeps a paid completed result completed when delegated approval fails', async () => {
+    const f = fixture();
+    f.bodyReviews.autoApproveCompanyContinuation.mockRejectedValue(new Error('synthetic approval failure'));
+    await expect(f.executor.executeOne('worker')).resolves.toMatchObject({ status: 'completed' });
+    expect(f.provider.generate).toHaveBeenCalledTimes(1);
+    expect(f.economics.failClaimedContinuation).not.toHaveBeenCalled();
+    expect(f.queue.releaseForRetry).not.toHaveBeenCalled();
+    expect(f.bodyReviews.deferCompanyContinuationApproval).toHaveBeenCalledWith(claim.continuationId);
+  });
+  it('does not delegate a rejected settlement', async () => {
+    const f = fixture();
+    f.economics.settleClaimedContinuation.mockResolvedValue({ status: 'failed' });
+    await expect(f.executor.executeOne('worker')).resolves.toMatchObject({ status: 'failed' });
+    expect(f.bodyReviews.autoApproveCompanyContinuation).not.toHaveBeenCalled();
+  });
+  it('never fails the paid result even if approval retry registration also fails', async () => {
+    const f = fixture();
+    f.bodyReviews.autoApproveCompanyContinuation.mockRejectedValue(new Error('synthetic approval failure'));
+    f.bodyReviews.deferCompanyContinuationApproval.mockImplementation(() => { throw new Error('synthetic timer failure'); });
+    await expect(f.executor.executeOne('worker')).resolves.toMatchObject({ status: 'completed' });
+    expect(f.provider.generate).toHaveBeenCalledTimes(1);
+    expect(f.economics.failClaimedContinuation).not.toHaveBeenCalled();
+    expect(f.queue.releaseForRetry).not.toHaveBeenCalled();
+  });
   it('has an explicit admin runner entry point for a bounded single tick', async () => {
     const executeOne = jest.fn().mockResolvedValue({ status: 'idle' });
     const controller = new StoryEconomicsAdminController(
@@ -213,6 +247,18 @@ describe('StoryContinuationExecutor', () => {
     await expect(f.executor.executeOne('worker')).resolves.toMatchObject({ status: 'failed' });
     expect(f.queue.markDispatched).not.toHaveBeenCalled();
     expect(f.provider.generate).not.toHaveBeenCalled();
+    expect(f.economics.failClaimedContinuation).toHaveBeenCalledWith(
+      claim, 'provider_input_bound_exceeded', 'failed', undefined, true,
+    );
+  });
+
+  it('does not attach preflight rejection evidence to an unobserved preflight exception', async () => {
+    const f = fixture();
+    f.provider.preflight = jest.fn().mockRejectedValue(new StoryContinuationProviderError('provider_outcome_unknown', false));
+    await expect(f.executor.executeOne('worker')).resolves.toMatchObject({ status: 'failed' });
+    expect(f.queue.markDispatched).not.toHaveBeenCalled();
+    expect(f.provider.generate).not.toHaveBeenCalled();
+    expect(f.economics.failClaimedContinuation).toHaveBeenCalledWith(claim, 'provider_outcome_unknown', 'failed');
   });
 
   it('preflight cancellation can retry without dispatch or fence', async () => {

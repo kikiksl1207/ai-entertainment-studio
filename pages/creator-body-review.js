@@ -31,6 +31,7 @@
       source_changed: "\uc6d0\ubcf8 \ubcc0\uacbd \u00b7 \uc774\uc804 \uac80\ud1a0\ub294 \ud604\uc7ac \ubcf8\ubb38\uc5d0 \uc801\uc6a9\ub418\uc9c0 \uc54a\uc74c",
       uncertain: "\uac80\ud1a0 \uc811\uc218 \uacb0\uacfc \ud655\uc778 \ud544\uc694", unresolvedElsewhere: "\uc774\uc804 \uc791\ud488\u00b7\uc6d0\ubb38 \uc5b8\uc5b4\uc758 \uac80\ud1a0 \uc811\uc218 \ud655\uc778 \ud544\uc694",
       current: "\ud604\uc7ac \ubcf8\ubb38 \uac80\ud1a0", stale: "\ubcc0\uacbd \uc804 \ubcf8\ubb38 \uac80\ud1a0", superseded: "\ub300\uccb4\ub41c \uac80\ud1a0", withdrawn: "\ucca0\ud68c\ub41c \uac80\ud1a0", approved: "\uc2b9\uc778", rejected: "\ubc18\ub824",
+      companyDelegated: "\ud68c\uc0ac \uc704\uc784 \uc2b9\uc778",
       receipt: "\uac80\ud1a0 \uc811\uc218 \ud655\uc778\ub428", noWork: "\uc120\ud0dd\ub41c \uc791\ud488 \uc5c6\uc74c", unauthenticated: "\ub85c\uadf8\uc778 \ud544\uc694", forbidden: "\uc791\ud488 \uad8c\ud55c \uc5c6\uc74c", notFound: "\uc791\ud488\u00b7\uac80\ud1a0 \ucc3e\uc744 \uc218 \uc5c6\uc74c", conflict: "\ubcf8\ubb38\u00b7\uac80\ud1a0 \uc0c1\ud0dc \uc7ac\ud655\uc778 \ud544\uc694", invalid: "\uc751\ub2f5 \ud655\uc778 \uc2e4\ud328", transport: "\uc5f0\uacb0 \uc2e4\ud328", server: "\uc11c\ubc84 \uc751\ub2f5 \uc2e4\ud328", unavailable: "\uac80\ud1a0 \uc774\uc6a9 \ubd88\uac00", hidden: ""
     },
     en: {
@@ -41,6 +42,7 @@
       source_changed: "Source changed; earlier review does not apply to the current body",
       uncertain: "Review receipt needs checking", unresolvedElsewhere: "A previous story or source language's review receipt needs checking",
       current: "Current body review", stale: "Review of an earlier body", superseded: "Superseded review", withdrawn: "Withdrawn review", approved: "Approved", rejected: "Rejected",
+      companyDelegated: "Company-delegated approval",
       receipt: "Review receipt verified", noWork: "No story selected", unauthenticated: "Sign-in required", forbidden: "No permission for this story", notFound: "Story or review not found", conflict: "Body or review state needs checking", invalid: "Response verification failed", transport: "Connection failed", server: "Server response failed", unavailable: "Review unavailable", hidden: ""
     },
     ja: {
@@ -51,6 +53,7 @@
       source_changed: "\u539f\u6587\u5909\u66f4\u6e08\u307f\u30fb\u524d\u306e\u30ec\u30d3\u30e5\u30fc\u306f\u73fe\u5728\u306e\u672c\u6587\u306b\u9069\u7528\u3055\u308c\u307e\u305b\u3093",
       uncertain: "\u30ec\u30d3\u30e5\u30fc\u53d7\u4ed8\u7d50\u679c\u306e\u78ba\u8a8d\u304c\u5fc5\u8981", unresolvedElsewhere: "\u524d\u306e\u4f5c\u54c1\u30fb\u539f\u6587\u8a00\u8a9e\u306e\u53d7\u4ed8\u78ba\u8a8d\u304c\u5fc5\u8981",
       current: "\u73fe\u5728\u306e\u672c\u6587\u30ec\u30d3\u30e5\u30fc", stale: "\u5909\u66f4\u524d\u306e\u672c\u6587\u30ec\u30d3\u30e5\u30fc", superseded: "\u7f6e\u63db\u6e08\u307f\u30ec\u30d3\u30e5\u30fc", withdrawn: "\u64a4\u56de\u6e08\u307f\u30ec\u30d3\u30e5\u30fc", approved: "\u627f\u8a8d", rejected: "\u5374\u4e0b",
+      companyDelegated: "\u4f1a\u793e\u306e\u59d4\u4efb\u306b\u3088\u308b\u627f\u8a8d",
       receipt: "\u53d7\u4ed8\u78ba\u8a8d\u6e08\u307f", noWork: "\u4f5c\u54c1\u672a\u9078\u629e", unauthenticated: "\u30ed\u30b0\u30a4\u30f3\u304c\u5fc5\u8981", forbidden: "\u4f5c\u54c1\u306e\u6a29\u9650\u306a\u3057", notFound: "\u4f5c\u54c1\u30fb\u30ec\u30d3\u30e5\u30fc\u306a\u3057", conflict: "\u672c\u6587\u30fb\u30ec\u30d3\u30e5\u30fc\u306e\u518d\u78ba\u8a8d\u304c\u5fc5\u8981", invalid: "\u5fdc\u7b54\u78ba\u8a8d\u5931\u6557", transport: "\u63a5\u7d9a\u5931\u6557", server: "\u30b5\u30fc\u30d0\u30fc\u5fdc\u7b54\u5931\u6557", unavailable: "\u30ec\u30d3\u30e5\u30fc\u5229\u7528\u4e0d\u53ef", hidden: ""
     },
     "zh-Hans": {
@@ -61,6 +64,7 @@
       source_changed: "\u539f\u6587\u5df2\u66f4\u6539\uff1b\u65e7\u5ba1\u6838\u4e0d\u9002\u7528\u4e8e\u5f53\u524d\u6b63\u6587",
       uncertain: "\u9700\u8981\u786e\u8ba4\u5ba1\u6838\u56de\u6267", unresolvedElsewhere: "\u9700\u8981\u786e\u8ba4\u4e0a\u4e00\u4f5c\u54c1\u6216\u539f\u6587\u8bed\u8a00\u7684\u5ba1\u6838\u56de\u6267",
       current: "\u5f53\u524d\u6b63\u6587\u5ba1\u6838", stale: "\u65e7\u6b63\u6587\u5ba1\u6838", superseded: "\u5df2\u66ff\u4ee3\u7684\u5ba1\u6838", withdrawn: "\u5df2\u64a4\u56de\u7684\u5ba1\u6838", approved: "\u5df2\u6279\u51c6", rejected: "\u5df2\u9a73\u56de",
+      companyDelegated: "\u516c\u53f8\u59d4\u6258\u6279\u51c6",
       receipt: "\u5ba1\u6838\u56de\u6267\u5df2\u786e\u8ba4", noWork: "\u672a\u9009\u62e9\u4f5c\u54c1", unauthenticated: "\u9700\u8981\u767b\u5f55", forbidden: "\u65e0\u4f5c\u54c1\u6743\u9650", notFound: "\u672a\u627e\u5230\u4f5c\u54c1\u6216\u5ba1\u6838", conflict: "\u9700\u8981\u91cd\u65b0\u786e\u8ba4\u6b63\u6587\u6216\u5ba1\u6838\u72b6\u6001", invalid: "\u54cd\u5e94\u9a8c\u8bc1\u5931\u8d25", transport: "\u8fde\u63a5\u5931\u8d25", server: "\u670d\u52a1\u5668\u54cd\u5e94\u5931\u8d25", unavailable: "\u5ba1\u6838\u4e0d\u53ef\u7528", hidden: ""
     },
     "zh-Hant": {
@@ -71,6 +75,7 @@
       source_changed: "\u539f\u6587\u5df2\u8b8a\u66f4\uff1b\u820a\u5be9\u6838\u4e0d\u9069\u7528\u65bc\u76ee\u524d\u6b63\u6587",
       uncertain: "\u9700\u8981\u78ba\u8a8d\u5be9\u6838\u56de\u57f7", unresolvedElsewhere: "\u9700\u8981\u78ba\u8a8d\u4e0a\u4e00\u4f5c\u54c1\u6216\u539f\u6587\u8a9e\u8a00\u7684\u5be9\u6838\u56de\u57f7",
       current: "\u76ee\u524d\u6b63\u6587\u5be9\u6838", stale: "\u820a\u6b63\u6587\u5be9\u6838", superseded: "\u5df2\u53d6\u4ee3\u7684\u5be9\u6838", withdrawn: "\u5df2\u64a4\u56de\u7684\u5be9\u6838", approved: "\u5df2\u6838\u51c6", rejected: "\u5df2\u99c1\u56de",
+      companyDelegated: "\u516c\u53f8\u59d4\u8a17\u6838\u51c6",
       receipt: "\u5be9\u6838\u56de\u57f7\u5df2\u78ba\u8a8d", noWork: "\u672a\u9078\u64c7\u4f5c\u54c1", unauthenticated: "\u9700\u8981\u767b\u5165", forbidden: "\u7121\u4f5c\u54c1\u6b0a\u9650", notFound: "\u672a\u627e\u5230\u4f5c\u54c1\u6216\u5be9\u6838", conflict: "\u9700\u8981\u91cd\u65b0\u78ba\u8a8d\u6b63\u6587\u6216\u5be9\u6838\u72c0\u614b", invalid: "\u56de\u61c9\u9a57\u8b49\u5931\u6557", transport: "\u9023\u7dda\u5931\u6557", server: "\u4f3a\u670d\u5668\u56de\u61c9\u5931\u6557", unavailable: "\u5be9\u6838\u4e0d\u53ef\u7528", hidden: ""
     }
   };
@@ -80,14 +85,20 @@
     return new Date(day + "T" + time + "Z").toISOString().slice(0, 19) === day + "T" + time;
   }
   function parseRow(value) {
+    const hasBasis = record(value) && Object.hasOwn(value, "approvalBasis");
+    const approvalBasis = hasBasis ? value.approvalBasis : "human_review";
     if (!record(value) || !uuid(value.id) || !locales.includes(value.locale) || !positive(value.version) || !["approve", "reject"].includes(value.decision) ||
+        !["human_review", "company_delegation"].includes(approvalBasis) ||
         fields.some(key => typeof value[key] !== "boolean") ||
-        (value.decision === "approve" ? !fields.every(key => value[key]) : !fields.some(key => value[key])) ||
+        (approvalBasis === "company_delegation" ? value.decision !== "approve" || !fields.every(key => value[key] === false) :
+          value.decision === "approve" ? !fields.every(key => value[key]) : !fields.some(key => value[key])) ||
         !iso(value.createdAt) || !(value.withdrawnAt === null || iso(value.withdrawnAt)) ||
         (value.withdrawnAt !== null && Date.parse(value.withdrawnAt) < Date.parse(value.createdAt)) ||
         !["current", "stale", "superseded", "withdrawn"].includes(value.applicability) ||
         (value.applicability === "withdrawn") !== (value.withdrawnAt !== null)) throw failure("invalid");
     return { id: value.id.toLowerCase(), locale: value.locale, version: value.version, decision: value.decision,
+      // Preserve the legacy projection shape; omission is validated only as human review.
+      ...(hasBasis ? { approvalBasis } : {}),
       ...Object.fromEntries(fields.map(key => [key, value[key]])), createdAt: value.createdAt,
       withdrawnAt: value.withdrawnAt, applicability: value.applicability };
   }
@@ -124,7 +135,7 @@
       if (!uuid(command.reviewId) || review.id !== command.reviewId.toLowerCase() || review.withdrawnAt === null) throw failure("invalid");
     } else if (command?.body) {
       const body = command.body;
-      if (!hash(body.sourceBindingHash) || !positive(body.expectedProgressRevision) ||
+      if (review.approvalBasis === "company_delegation" || !hash(body.sourceBindingHash) || !positive(body.expectedProgressRevision) ||
           !(body.expectedReviewId === null || uuid(body.expectedReviewId)) || review.decision !== body.decision ||
           fields.some(key => typeof body[key] !== "boolean" || body[key] !== review[key]) ||
           (!value.idempotentReplay && review.withdrawnAt !== null)) throw failure("invalid");
@@ -404,7 +415,8 @@
       withdraw.hidden = !state.data?.review.latestReview || state.data.review.latestReview.withdrawnAt !== null;
       content.replaceChildren();
       const latest = state.data?.review.latestReview;
-      if (latest) content.append(element("p", "body-review-latest", words[latest.applicability] + ": " + words[latest.decision === "approve" ? "approved" : "rejected"]));
+      if (latest) content.append(element("p", "body-review-latest", words[latest.applicability] + ": " +
+        words[latest.approvalBasis === "company_delegation" ? "companyDelegated" : latest.decision === "approve" ? "approved" : "rejected"]));
       const scene = state.data?.review.target && state.data?.preview.progress?.scene;
       if (scene) {
         const source = element("div", "body-review-source"); source.lang = state.data.review.locale;

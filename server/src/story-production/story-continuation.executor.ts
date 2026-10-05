@@ -24,6 +24,7 @@ import { createStoryContinuationTimingPolicy } from './story-continuation-timing
 import { StoryVisualGenerationService } from './story-visual-generation.service';
 import { PREVIOUS_STORY_CONTINUATION_PROMPT_VERSION, STORY_CONTINUATION_PROMPT_VERSION } from './story-continuation-openai.schema';
 import { assertStoryContinuationQuality } from './story-continuation-quality.policy';
+import { StoryAuthorBodyReviewService } from './story-author-body-review.service';
 
 const CONTINUATION_TIMING = createStoryContinuationTimingPolicy();
 const PROVIDER_TIMEOUT_MS = CONTINUATION_TIMING.executorDeadlineMs;
@@ -40,6 +41,7 @@ export class StoryContinuationExecutor {
     private readonly contextAssembler: StoryContinuationContextAssembler,
     private readonly moderation: ModerationService,
     @Optional() private readonly visuals?: StoryVisualGenerationService,
+    @Optional() private readonly bodyReviews?: StoryAuthorBodyReviewService,
   ) {}
 
   async executeOne(workerId: string, signal?: AbortSignal) {
@@ -151,6 +153,14 @@ export class StoryContinuationExecutor {
           event: 'story_continuation_visual_prompt_registration_failed',
           continuationId: claim.continuationId,
         });
+      }
+      try {
+        await this.bodyReviews?.autoApproveCompanyContinuation(claim.continuationId);
+      } catch {
+        // Approval recovery is independent of the already-settled paid result.
+        try { this.bodyReviews?.deferCompanyContinuationApproval(claim.continuationId); }
+        catch { this.logger.warn({ event: 'story_continuation_company_body_retry_registration_failed' }); }
+        this.logger.warn({ event: 'story_continuation_company_body_approval_deferred' });
       }
       return { status: 'completed' as const, continuationId: claim.continuationId };
     } catch (error) {
