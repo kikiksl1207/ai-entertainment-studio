@@ -12,6 +12,7 @@ import {
   StoryPublicationAdminController,
 } from './story-lifecycle.controller';
 import { StoryLifecycleService } from './story-lifecycle.service';
+import { StoryCompanyFinalSubmissionService } from './story-company-final-submission.service';
 import { StoryImjinReleaseBridgeService } from './story-imjin-release-bridge.service';
 import {
   StoryAuthoredImportController,
@@ -158,6 +159,7 @@ import { StoryAuthorBodyTrialReceiptService } from './story-author-body-trial-re
     StoryProductionService,
     StoryProgressControlService,
     StoryLifecycleService,
+    StoryCompanyFinalSubmissionService,
     StoryImjinReleaseBridgeService,
     StoryEconomicsService,
     StoryVisualGenerationService,

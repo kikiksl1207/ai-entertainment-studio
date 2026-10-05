@@ -81,6 +81,8 @@ function fixture() {
     storyWork: { findFirst: jest.fn() },
     storyPublicationImportJob: { findFirst: jest.fn() },
     storyManuscriptVersion: { findFirst: jest.fn() },
+    storyAnalysisJob: { findFirst: jest.fn().mockResolvedValue({ id: analysisId,
+      sourceContentHash: 'a'.repeat(64), configHash: 'b'.repeat(64) }) },
     storyRelease: { findFirst: jest.fn().mockResolvedValue(publishedCompanyRelease()) },
     storyAnalysisEvidence: { findMany: jest.fn(), count: jest.fn().mockResolvedValue(4),
       findFirst: jest.fn().mockResolvedValue({ id: styleEvidenceId }) },
@@ -235,6 +237,85 @@ describe('private company intake profile auto-approval', () => {
     expect(await f.service.autoApproveCompany(owner, workId)).toBeNull();
     expect(f.tx.storyWorkGenerationProfile.updateMany).toHaveBeenCalledTimes(1);
     expect(f.tx.auditEvent.create).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('company profile approval operation source pin', () => {
+  const expectedSource = { manuscriptVersionId: manuscriptId, analysisJobId: analysisId };
+  const oldManuscriptId = '00000000-0000-4000-8000-000000000210';
+  const oldAnalysisId = '00000000-0000-4000-8000-000000000211';
+
+  function expectNoApprovalWrites(f: ReturnType<typeof privateCompanyIntakeFixture>) {
+    expect(f.tx.storyWorkGenerationProfile.create).not.toHaveBeenCalled();
+    expect(f.tx.storyWorkGenerationProfile.update).not.toHaveBeenCalled();
+    expect(f.tx.storyWorkGenerationProfile.updateMany).not.toHaveBeenCalled();
+    expect(f.tx.storyMemoryRecord.updateMany).not.toHaveBeenCalled();
+    expect(f.tx.storyMemoryRecord.createMany).not.toHaveBeenCalled();
+    expect(f.tx.auditEvent.create).not.toHaveBeenCalled();
+    expect(snapshotBarriers(f)).toHaveLength(0);
+  }
+
+  it('approves the matching operation source after rechecking it under the work lock', async () => {
+    const f = privateCompanyIntakeFixture();
+
+    expect((await f.service.autoApproveCompany(owner, workId, expectedSource))?.profile.status).toBe('approved');
+    expect(f.tx.$queryRaw.mock.calls[0][0].sql).toContain('FROM story_works');
+    expect(f.tx.$queryRaw.mock.calls[0][0].sql).toContain('FOR UPDATE');
+    expect(f.tx.storyManuscriptVersion.findFirst).toHaveBeenCalledWith({
+      where: { workId, ownerUserId: owner }, orderBy: { version: 'desc' },
+      select: { id: true, contentHash: true },
+    });
+    expect(f.tx.storyAnalysisJob.findFirst).toHaveBeenCalledWith({
+      where: { workId, manuscriptVersionId: manuscriptId, status: 'completed', pipeline: 'semantic_extraction_v1' },
+      orderBy: { analysisVersion: 'desc' }, select: { id: true, sourceContentHash: true, configHash: true },
+    });
+    expect(f.tx.$queryRaw.mock.invocationCallOrder[0])
+      .toBeLessThan(f.tx.storyManuscriptVersion.findFirst.mock.invocationCallOrder[0]);
+    expect(f.tx.storyAnalysisJob.findFirst.mock.invocationCallOrder[0])
+      .toBeLessThan(f.tx.storyWorkGenerationProfile.updateMany.mock.invocationCallOrder[0]);
+    expect(f.tx.storyWorkGenerationProfile.updateMany).toHaveBeenCalledTimes(1);
+    expect(f.tx.auditEvent.create).toHaveBeenCalledTimes(1);
+    expect(f.tx.auditEvent.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({
+      action: 'story_generation_profile.company_auto_approved',
+      metadata: expect.objectContaining({ analysisJobId: analysisId, companyManuscriptVersionId: manuscriptId }),
+    }) }));
+    expect(snapshotBarriers(f)).toHaveLength(1);
+  });
+
+  it.each([
+    ['manuscript', { manuscriptVersionId: oldManuscriptId, analysisJobId: analysisId }],
+    ['analysis', { manuscriptVersionId: manuscriptId, analysisJobId: oldAnalysisId }],
+  ] as const)('does not approve the current intake for a stale %s operation pin', async (_field, pin) => {
+    const f = privateCompanyIntakeFixture();
+
+    expect(await f.service.autoApproveCompany(owner, workId, pin)).toBeNull();
+    expectNoApprovalWrites(f);
+    expect(f.profile.status).toBe('needs_review');
+    expect(f.profile.reviewRevision).toBe(0);
+  });
+
+  it('does not approve when a new manuscript becomes latest between the pre-read and work lock', async () => {
+    const f = privateCompanyIntakeFixture();
+    const replacement = { ...f.manuscript,
+      id: '00000000-0000-4000-8000-000000000212', contentHash: 'f'.repeat(64) };
+    f.tx.$queryRaw.mockImplementationOnce(async () => {
+      expect(f.prisma.storyManuscriptVersion.findFirst).toHaveBeenCalledTimes(1);
+      expect(f.prisma.storyAnalysisJob.findFirst).toHaveBeenCalledTimes(1);
+      f.prisma.storyManuscriptVersion.findFirst.mockResolvedValue(replacement);
+      f.tx.storyManuscriptVersion.findFirst.mockResolvedValue(replacement);
+      return [{ id: workId }];
+    });
+
+    expect(await f.service.autoApproveCompany(owner, workId, expectedSource)).toBeNull();
+    expect(f.tx.storyManuscriptVersion.findFirst).toHaveBeenCalledWith({
+      where: { workId, ownerUserId: owner }, orderBy: { version: 'desc' },
+      select: { id: true, contentHash: true },
+    });
+    expect(f.tx.$queryRaw.mock.invocationCallOrder[0])
+      .toBeLessThan(f.tx.storyManuscriptVersion.findFirst.mock.invocationCallOrder[0]);
+    expectNoApprovalWrites(f);
+    expect(f.profile.status).toBe('needs_review');
+    expect(f.profile.reviewRevision).toBe(0);
   });
 });
 
@@ -440,28 +521,38 @@ describe('StoryGenerationProfileService', () => {
 
   it('checks company drafts beyond the first hundred review items', async () => {
     const f = fixture();
-    const createdAt = new Date('2026-09-23T00:00:00.000Z');
+    const createdAt = '2026-09-23 00:00:00.123456+00';
+    const idFor = (index: number) => `00000000-0000-4000-8000-${index.toString(16).padStart(12, '0')}`;
     const firstPage = Array.from({ length: 100 }, (_, index) => ({
-      id: `profile-${String(index).padStart(3, '0')}`,
+      id: idFor(index + 1),
       createdAt,
-      workId: `work-${index}`,
+      workId: idFor(index + 1000),
       ownerUserId: owner,
+      manuscriptVersionId: idFor(index + 2000),
+      analysisJobId: idFor(index + 3000),
     }));
-    const finalProfile = { id: 'profile-100', createdAt, workId, ownerUserId: owner };
-    f.prisma.storyWorkGenerationProfile.findMany
+    const finalProfile = { id: idFor(101), createdAt, workId, ownerUserId: owner,
+      manuscriptVersionId: manuscriptId, analysisJobId: analysisId };
+    const query = jest.fn()
       .mockResolvedValueOnce(firstPage)
       .mockResolvedValueOnce([finalProfile]);
+    Object.assign(f.prisma, { $queryRaw: query });
     const approve = jest.spyOn(f.service, 'autoApproveCompany').mockResolvedValue(null);
+    const now = jest.spyOn(Date, 'now').mockReturnValue(0);
 
-    await (f.service as any).approvePendingCompanyProfiles();
+    try { await (f.service as any).approvePendingCompanyProfiles(); }
+    finally { now.mockRestore(); }
 
     expect(approve).toHaveBeenCalledTimes(101);
-    expect(approve).toHaveBeenLastCalledWith(owner, workId);
-    expect(f.prisma.storyWorkGenerationProfile.findMany).toHaveBeenCalledTimes(2);
-    expect(f.prisma.storyWorkGenerationProfile.findMany.mock.calls[1][0].where.OR).toEqual([
-      { createdAt: { gt: createdAt } },
-      { createdAt, id: { gt: 'profile-099' } },
+    expect(approve).toHaveBeenLastCalledWith(owner, workId,
+      { manuscriptVersionId: manuscriptId, analysisJobId: analysisId });
+    expect(query).toHaveBeenCalledTimes(2);
+    expect(query.mock.calls[1][0].values).toEqual([
+      'needs_review', '\uB8E8\uBBF8\uB098', createdAt, firstPage[99].id, 100,
     ]);
+    expect(query.mock.calls[1][0].text.replace(/\s+/g, ' '))
+      .toContain('AND (profile.created_at, profile.id) > ($3::timestamptz, $4::uuid)');
+    expect(f.prisma.storyWorkGenerationProfile.findMany).not.toHaveBeenCalled();
   });
 
   it('recovers a missing draft for the owned latest completed semantic analysis without duplicating it', async () => {

@@ -1,11 +1,14 @@
 import {
   BadRequestException,
   ConflictException,
+  HttpException,
   Injectable,
+  Logger,
   NotFoundException,
   Optional,
+  ServiceUnavailableException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, type StoryWriterReview } from '@prisma/client';
 import { createHash } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import {
@@ -32,14 +35,17 @@ import { AuthorReviewProposalDto, SubmitWriterReviewDto } from './dto/story-auth
 import { StoryAuthorFinalReviewService } from './story-author-final-review.service';
 import { authorReviewConflict } from './story-author-final-review.policy';
 import { StoryStudioChoicePreparationService } from './story-studio-choice-preparation.service';
+import { StoryCompanyFinalSubmissionService } from './story-company-final-submission.service';
 
 @Injectable()
 export class StoryLifecycleService {
+  private readonly logger = new Logger(StoryLifecycleService.name);
   private readonly studioChoices: StoryStudioChoicePreparationService;
   constructor(
     private readonly prisma: PrismaService,
     @Optional() private readonly economics?: StoryEconomicsService,
     @Optional() private readonly authorReview?: StoryAuthorFinalReviewService,
+    @Optional() private readonly companySubmission?: StoryCompanyFinalSubmissionService,
   ) { this.studioChoices = new StoryStudioChoicePreparationService(prisma); }
 
   async lifecycle(userId: string, workId: string) {
@@ -530,23 +536,50 @@ export class StoryLifecycleService {
     if (!manuscript || !analysis || analysis.manuscriptVersionId !== manuscript.id || analysis.status !== 'completed') {
       throw new ConflictException('Completed actual analysis is required');
     }
-    const review = await this.prisma.storyWriterReview.upsert({
-      where: {
-        workId_manuscriptVersionId_analysisJobId: {
-          workId,
-          manuscriptVersionId: manuscript.id,
-          analysisJobId: analysis.id,
-        },
-      },
-      create: {
-        workId,
-        ownerUserId: userId,
-        manuscriptVersionId: manuscript.id,
-        analysisJobId: analysis.id,
-        state: 'analysis_ready',
-      },
-      update: {},
-    });
+    let review: StoryWriterReview;
+    try {
+      review = await this.prisma.$transaction(async tx => {
+        // Match automatic creation's work-first order before the unique review/FK insert.
+        await tx.$queryRaw(Prisma.sql`SELECT id FROM story_works WHERE id = ${workId}::uuid FOR UPDATE`);
+        const currentWork = await tx.storyWork.findFirst({ where: { id: workId, ownerUserId: userId } });
+        if (!currentWork) throw new NotFoundException('Story work not found');
+        const currentManuscript = await tx.storyManuscriptVersion.findFirst({
+          where: { id: manuscript.id, workId, ownerUserId: userId } });
+        const currentAnalysis = await tx.storyAnalysisJob.findUnique({ where: { id: analysis.id } });
+        if (!currentManuscript || !currentAnalysis || currentAnalysis.workId !== workId ||
+            currentAnalysis.manuscriptVersionId !== currentManuscript.id || currentAnalysis.status !== 'completed') {
+          throw new ConflictException('Completed actual analysis is required');
+        }
+        return tx.storyWriterReview.upsert({
+          where: { workId_manuscriptVersionId_analysisJobId: {
+            workId, manuscriptVersionId: currentManuscript.id, analysisJobId: currentAnalysis.id } },
+          create: { workId, ownerUserId: userId, manuscriptVersionId: currentManuscript.id,
+            analysisJobId: currentAnalysis.id, state: 'analysis_ready' },
+          update: {},
+        });
+      }, { maxWait: 5000, timeout: 30000 });
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      throw new ServiceUnavailableException({ code: 'WRITER_REVIEW_OPEN_RETRY',
+        message: 'The current manuscript review must be checked again' });
+    }
+    if (this.companySubmission) {
+      try {
+        const delegated = await this.companySubmission.autoSubmitReview(userId, review.id, review.revision);
+        if (delegated) return this.companySubmissionProjection(delegated);
+      } catch (error) {
+        this.logger.warn(`Company manuscript submission response needs reconciliation: ${error instanceof Error ? error.name : 'unknown error'}`);
+        try {
+          const latest = await this.prisma.storyWriterReview.findFirst({ where: { id: review.id, ownerUserId: userId, workId } });
+          if (!latest) throw new Error('Current owned review unavailable');
+          const current = await this.companySubmission.currentSubmittedReview(userId, latest.id);
+          return current ? this.companySubmissionProjection(current) : this.reviewProjection(latest);
+        } catch {
+          throw new ServiceUnavailableException({ code: 'COMPANY_FINAL_REVIEW_UNCONFIRMED',
+            message: 'The current manuscript submission must be checked again' });
+        }
+      }
+    }
     return this.reviewProjection(review);
   }
 
@@ -906,6 +939,15 @@ export class StoryLifecycleService {
       selectedMemoryCount: Array.isArray(run.selectedMemoryIds) ? run.selectedMemoryIds.length : 0,
       idempotentReplay,
     };
+  }
+
+  private companySubmissionProjection(delegated: NonNullable<Awaited<ReturnType<StoryCompanyFinalSubmissionService['autoSubmitReview']>>>) {
+    return { ...this.reviewProjection(delegated.review), approvalBasis: delegated.approvalBasis,
+      companySubmission: { contract: 'story-company-final-submission-v1', scope: 'manuscript_submission',
+        submissionId: delegated.submission.id, manuscriptVersionId: delegated.review.manuscriptVersionId,
+        manuscriptHash: delegated.submission.checksum, analysisJobId: delegated.review.analysisJobId,
+        reviewRevision: delegated.review.revision, bindingHash: delegated.bindingHash,
+        humanSemanticReview: false, published: false, generationStarted: false } };
   }
 
   private reviewProjection(review: any) {

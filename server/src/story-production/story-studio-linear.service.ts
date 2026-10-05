@@ -5,6 +5,8 @@ import { isUUID } from 'class-validator';
 import { PrismaService } from '../prisma/prisma.service';
 import { MaterializeStudioLinearDto, StudioVisualReferenceDetailDto, StudioVisualReferencePageDto } from './dto/story-studio-linear.dto';
 import { missingAuthoredSceneVisual } from './story-authored-beat-visual.policy';
+import { assertCompanyFinalSubmissionCurrent, COMPANY_FINAL_SUBMISSION_CONTRACT,
+  COMPANY_FINAL_SUBMISSION_PREFIX } from './story-company-final-submission.policy';
 import { releaseChecksum } from './story-lifecycle.policy';
 import { PreparedManuscript, prepareManuscript, preparePastedManuscript } from './story-manuscript-file.policy';
 import { StoryStudioChoicePreparationService } from './story-studio-choice-preparation.service';
@@ -117,8 +119,13 @@ export class StoryStudioLinearService {
   async preview(ownerUserId: string, workId: string, manuscriptVersionId: string) {
     if (![workId, manuscriptVersionId].every(id => isUUID(id))) reject('STUDIO_LINEAR_INVALID_ID');
     const { manuscript, prepared, analysis, review, consent } = await this.context(this.prisma, ownerUserId, workId, manuscriptVersionId);
-    const issues = analysis ? await this.prisma.storyContinuityIssue.findMany({ where: { workId,
-      analysisJobId: analysis.id, pathScope: 'author_original', pathKey: 'author_original', status: 'open' },
+    const submission = review ? await this.prisma.storyFinalSubmission.findUnique({ where: { reviewId: review.id } }) : null;
+    const companyAuthority = submission?.idempotencyKey?.startsWith(COMPANY_FINAL_SUBMISSION_PREFIX)
+      ? await assertCompanyFinalSubmissionCurrent(this.prisma, { ownerUserId, workId, review: review!, manuscript, submission }) : null;
+    // Keep the display and warnings bound to the same verified company receipt.
+    const previewAnalysisId = companyAuthority ? review!.analysisJobId : analysis?.id ?? null;
+    const issues = previewAnalysisId ? await this.prisma.storyContinuityIssue.findMany({ where: { workId,
+      analysisJobId: previewAnalysisId, pathScope: 'author_original', pathKey: 'author_original', status: 'open' },
       select: { severity: true, summary: true }, orderBy: { createdAt: 'asc' }, take: 1001 }) : [];
     const release = await this.prisma.storyRelease.findFirst({ where: { workId, manuscriptVersionId,
       status: 'candidate' }, orderBy: { version: 'desc' } });
@@ -132,11 +139,16 @@ export class StoryStudioLinearService {
     const visualReference = visualView.reference;
     const visualSource = (visualView.body as Record<string, unknown>).publicationVisualSource as {
       prompts: Array<{ sourceSceneKey: string; promptText: string; promptSha256: string }>; sceneBindings?: unknown };
-    return { manuscriptVersionId, manuscriptHash: manuscript.contentHash, analysisJobId: analysis?.id ?? null,
+    return { manuscriptVersionId, manuscriptHash: manuscript.contentHash, analysisJobId: previewAnalysisId,
       importedVisualReferences: { ...publicationVisualReferencePreview(
         visualView.body, manuscript.contentHash, visualReference.checksum, visualSource.prompts,
         visualSource.sceneBindings), guidanceOrigin: visualView.guidanceOrigin },
-      review: review ? { reviewId: review.id, state: review.state, revision: review.revision } : null,
+      review: review ? { reviewId: review.id, state: review.state, revision: review.revision,
+        ...(companyAuthority && submission ? { approvalBasis: companyAuthority.approvalBasis,
+          companySubmission: { contract: COMPANY_FINAL_SUBMISSION_CONTRACT, scope: 'manuscript_submission',
+            submissionId: submission.id, manuscriptVersionId: manuscript.id, manuscriptHash: manuscript.contentHash,
+            analysisJobId: review.analysisJobId, reviewRevision: review.revision, bindingHash: companyAuthority.bindingHash,
+            humanSemanticReview: false, published: false, generationStarted: false } } : {}) } : null,
       consent: consent ? { revision: consent.revision, active: consent.status === 'active' && consent.rightsConfirmed &&
         consent.aiBranchAllowed && consent.manuscriptVersionId === manuscriptVersionId &&
         consent.startsAt <= new Date() && (!consent.expiresAt || consent.expiresAt > new Date()) &&
@@ -287,6 +299,7 @@ export class StoryStudioLinearService {
         !review || review.state !== 'submitted' || review.analysisJobId !== analysis.id ||
         !submission || submission.status !== 'submitted' || submission.checksum !== manuscript.contentHash ||
         (contentHash && contentHash !== manuscript.contentHash)) reject('STUDIO_LINEAR_FINAL_REVIEW_REQUIRED');
+    await assertCompanyFinalSubmissionCurrent(db, { ownerUserId, workId, review, manuscript, submission });
     const issues = await db.storyContinuityIssue.findMany({ where: { workId, analysisJobId: analysis.id,
       pathScope: 'author_original', pathKey: 'author_original', status: 'open' }, select: { severity: true } });
     const decisions = review.decisions as Record<string, unknown>;

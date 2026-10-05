@@ -5,6 +5,7 @@ import { readerPartText } from './story-studio-reader-text.policy';
 import { publicationReaderProjection } from './story-publication-reader-projection.policy';
 import { publicationVisualSceneBindings } from './story-publication-visual-binding.policy';
 import { releaseChecksum } from './story-lifecycle.policy';
+import * as companyFinalSubmission from './story-company-final-submission.policy';
 
 function fixture(options: { withPreface?: boolean } = {}) {
   const ids = { owner: randomUUID(), work: randomUUID(), manuscript: randomUUID(), analysis: randomUUID(),
@@ -391,5 +392,71 @@ describe('generic Studio linear manuscript materialization', () => {
     ] })));
     expect(linearPartPlan(prepared, [{ partKey: 'p1', label: '원작 결말로 향한다' }])[0].text)
       .toBe('제목\n본문\n***\n대화');
+  });
+
+  describe('read-only company submission preview', () => {
+    afterEach(() => jest.restoreAllMocks());
+
+    it('returns only a current verified receipt without approval or materialization writes', async () => {
+      const f = fixture(), submissionId = randomUUID();
+      const review = { id: f.ids.review, workId: f.ids.work, ownerUserId: f.ids.owner,
+        manuscriptVersionId: f.ids.manuscript, analysisJobId: f.ids.analysis, state: 'submitted', revision: 2 };
+      const submission = { id: submissionId, reviewId: review.id,
+        idempotencyKey: `story-company-final-v1:${'a'.repeat(64)}` };
+      f.db.storyWriterReview.findFirst.mockResolvedValue(review);
+      f.db.storyFinalSubmission.findUnique.mockResolvedValue(submission);
+      const verify = jest.spyOn(companyFinalSubmission, 'assertCompanyFinalSubmissionCurrent')
+        .mockResolvedValue({ approvalBasis: 'company_delegation', bindingHash: 'b'.repeat(64) });
+      const result = await f.service.preview(f.ids.owner, f.ids.work, f.ids.manuscript);
+      expect(verify).toHaveBeenCalledWith(f.db, { ownerUserId: f.ids.owner, workId: f.ids.work,
+        review, manuscript: f.manuscript, submission });
+      expect(result.review).toEqual({ reviewId: review.id, state: 'submitted', revision: 2,
+        approvalBasis: 'company_delegation', companySubmission: { contract: 'story-company-final-submission-v1',
+          scope: 'manuscript_submission', submissionId, manuscriptVersionId: f.ids.manuscript,
+          manuscriptHash: f.manuscript.contentHash, analysisJobId: f.ids.analysis,
+          reviewRevision: 2, bindingHash: 'b'.repeat(64), humanSemanticReview: false,
+          published: false, generationStarted: false } });
+      expect(f.db.$transaction).not.toHaveBeenCalled(); expect(f.db.auditEvent.create).not.toHaveBeenCalled();
+      expect(f.db.storyRelease.create).not.toHaveBeenCalled(); expect(f.db.storyVisualPrompt.createMany).not.toHaveBeenCalled();
+      expect(f.db.storyStudioChoiceJob.create).not.toHaveBeenCalled();
+    });
+
+    it('rejects unverifiable company authority instead of returning a submitted success', async () => {
+      const f = fixture();
+      f.db.storyFinalSubmission.findUnique.mockResolvedValue({ idempotencyKey: `story-company-final-v1:${'a'.repeat(64)}` });
+      jest.spyOn(companyFinalSubmission, 'assertCompanyFinalSubmissionCurrent').mockRejectedValue(
+        new Error('Synthetic authority unavailable'));
+      await expect(f.service.preview(f.ids.owner, f.ids.work, f.ids.manuscript)).rejects.toThrow('Synthetic authority unavailable');
+      expect(f.db.$transaction).not.toHaveBeenCalled(); expect(f.db.auditEvent.create).not.toHaveBeenCalled();
+      expect(f.db.storyRelease.create).not.toHaveBeenCalled();
+    });
+
+    it('keeps a newly committed company review aligned after the earlier analysis read', async () => {
+      const f = fixture(), latestAnalysisId = randomUUID();
+      f.db.storyWriterReview.findFirst.mockResolvedValue({ id: f.ids.review, state: 'submitted', revision: 2,
+        analysisJobId: latestAnalysisId });
+      f.db.storyFinalSubmission.findUnique.mockResolvedValue({ id: randomUUID(),
+        idempotencyKey: `story-company-final-v1:${'a'.repeat(64)}` });
+      jest.spyOn(companyFinalSubmission, 'assertCompanyFinalSubmissionCurrent')
+        .mockResolvedValue({ approvalBasis: 'company_delegation', bindingHash: 'b'.repeat(64) });
+      const result = await f.service.preview(f.ids.owner, f.ids.work, f.ids.manuscript);
+      expect(result.analysisJobId).toBe(latestAnalysisId);
+      expect(result.review?.companySubmission?.analysisJobId).toBe(latestAnalysisId);
+      expect(f.db.storyContinuityIssue.findMany).toHaveBeenCalledWith(expect.objectContaining({
+        where: expect.objectContaining({ analysisJobId: latestAnalysisId }) }));
+      expect(f.db.$transaction).not.toHaveBeenCalled();
+      expect(f.db.auditEvent.create).not.toHaveBeenCalled();
+      expect(f.db.storyRelease.create).not.toHaveBeenCalled();
+      expect(f.db.storyStudioChoiceJob.create).not.toHaveBeenCalled();
+    });
+
+    it('keeps legacy manual review projection and does not invent company authority', async () => {
+      const f = fixture();
+      const verify = jest.spyOn(companyFinalSubmission, 'assertCompanyFinalSubmissionCurrent');
+      expect((await f.service.preview(f.ids.owner, f.ids.work, f.ids.manuscript)).review)
+        .toEqual({ reviewId: f.ids.review, state: 'submitted', revision: 6 });
+      expect(verify).not.toHaveBeenCalled(); expect(f.db.$transaction).not.toHaveBeenCalled();
+      expect(f.db.auditEvent.create).not.toHaveBeenCalled();
+    });
   });
 });

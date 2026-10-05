@@ -11,6 +11,8 @@ const root = fileURLToPath(new URL('..', import.meta.url));
 const artifacts = process.env.FINALIZE_BROWSER_ARTIFACTS || 'E:\\Codex\\LuminaStage\\qa-finalize-20260928';
 const executablePath = process.env.STORY_UI_BROWSER || process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE;
 const locales = ['ko', 'en', 'ja', 'zh-Hans', 'zh-Hant'];
+const companyStatuses = { ko: '회사 위임 · 원고 제출 완료', en: 'Company delegation · Manuscript submitted',
+  ja: '会社委任 · 原稿提出完了', 'zh-Hans': '公司委托 · 稿件已提交', 'zh-Hant': '公司委託 · 稿件已提交' };
 const widths = [1280, 390, 400];
 const mime = { '.css': 'text/css', '.js': 'text/javascript' };
 const source = await readFile(join(root, 'creator-studio/index.html'), 'utf8');
@@ -29,10 +31,20 @@ const bootstrap = `
     ready: false, profileStatus: 'approved', ownerId: 'synthetic-author', epoch: 1, manuscriptId: 'manuscript',
     jobStatus: null, serverLabels: {}, issues: [], calls: [], parts };
   qa.resume = resumed;
+  function companyReview() {
+    qa.companyReceipt ||= { contract: 'story-company-final-submission-v1', scope: 'manuscript_submission',
+      submissionId: '10000000-0000-4000-8000-000000000005', manuscriptVersionId: qa.manuscriptId,
+      manuscriptHash: qa.hash, analysisJobId: qa.analysisId, reviewRevision: 2, bindingHash: 'b'.repeat(64),
+      humanSemanticReview: false, published: false, generationStarted: false };
+    return { reviewId: qa.workId, state: 'submitted', revision: 2, approvalBasis: 'company_delegation',
+      companySubmission: { ...qa.companyReceipt, ...qa.companyReceiptOverride }, ...qa.companyReviewOverride };
+  }
   window.luminaI18n = { getLocale: () => qa.locale, setLocale: value => { qa.locale = value; window.dispatchEvent(new Event('lumina:localechange')); } };
   window.LuminaCreatorAnalysis = { completed: () => ({ manuscriptVersionId: qa.manuscriptId, workId: qa.workId, analysisJobId: qa.analysisId, identity: { ownerId: qa.ownerId, epoch: qa.epoch } }) };
   window.LuminaCreatorStudioApi = { isCurrent: identity => identity?.ownerId === qa.ownerId && identity?.epoch === qa.epoch, fetch: async (url, options = {}) => {
     qa.calls.push({ url, method: options.method || 'GET', body: options.body });
+    if (url.endsWith('/linear-draft/' + qa.manuscriptId) && qa.previewErrorCode)
+      return { ok: false, status: 409, json: async () => ({ code: qa.previewErrorCode }) };
     if (url.endsWith('/linear-draft/' + qa.manuscriptId) && qa.failPreview) {
       qa.failPreview = false;
       return { ok: false, status: 503, json: async () => ({ code: 'TEMPORARY_FAILURE' }) };
@@ -47,12 +59,17 @@ const bootstrap = `
         choiceCount: index < (qa.resume?.job?.completedParts ?? (qa.jobStatus === 'completed' ? 265 : 31)) ? 3 : 1,
         originalLabel: qa.serverLabels[part.partKey] || '' })), issues: qa.issues,
       ...(qa.importedVisualReferences ? { importedVisualReferences: qa.importedVisualReferences } : {}),
-      review: qa.resume?.submitted || qa.jobStatus ? { reviewId: 'review', state: 'submitted', revision: 5 } : null,
+      review: qa.companySubmitted ? companyReview()
+        : qa.resume?.submitted || qa.jobStatus ? { reviewId: 'review', state: 'submitted', revision: 5 } : null,
       consent: qa.reviewStatus === 'consent_changed' ? { active: true, revision: 2 } : qa.resume?.consented ? { active: true, revision: 1 } : null,
       releaseId: qa.resume?.releaseId || (qa.jobStatus ? qa.releaseId : null),
       choiceJob: qa.resume?.job || (qa.jobStatus ? { status: qa.jobStatus, completedParts: qa.jobStatus === 'completed' ? 265 : 31, totalParts: 265,
         errorCode: qa.jobError || (qa.reviewStatus === 'reset_ready' ? 'STUDIO_CHOICES_REPREPARATION_READY' : null) } : null),
       choiceWorkerAvailable: qa.resume?.workerAvailable, ready: qa.ready };
+    else if (url.endsWith('/reviews') && options.method === 'POST' && qa.companyMode) {
+      qa.companySubmitted = true;
+      data = companyReview();
+    }
     else if (url.endsWith('/generation-profile')) data = { workId: qa.workId, manuscript: { id: qa.manuscriptId }, analysis: { id: qa.analysisId },
       profile: { status: qa.profileStatus, approvedFingerprint: qa.fingerprint,
         approvedSettings: { schemaVersion: 'creator-generation-profile-v1', kind: 'story', sections: sections.map(key => ({ key, decision: 'accepted', value: { summary: '합성 분석' } })) },
@@ -121,9 +138,15 @@ async function withBrowser(run) {
   await mkdir(artifacts, { recursive: true });
   const site = server();
   await new Promise(resolve => site.listen(0, '127.0.0.1', resolve));
-  const browser = await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : {}) });
-  try { await run(browser, `http://127.0.0.1:${site.address().port}`); }
-  finally { await browser.close(); await new Promise(resolve => site.close(resolve)); }
+  let browser;
+  try {
+    browser = await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : {}) });
+    await run(browser, `http://127.0.0.1:${site.address().port}`);
+  } finally {
+    await browser?.close();
+    site.closeAllConnections();
+    await new Promise(resolve => site.close(resolve));
+  }
 }
 
 async function openReview(page, base) {
@@ -132,6 +155,221 @@ async function openReview(page, base) {
   await page.locator('#writerFinalOpen').click();
   await page.locator('.writer-final-part').first().waitFor();
 }
+
+test('company manuscript submission fits five locales without automatic rights or AI actions', { timeout: 120_000 }, async () => {
+  await withBrowser(async (browser, base) => {
+    for (const width of [1280, 390]) for (const locale of locales) {
+      const page = await browser.newPage({ viewport: { width, height: 844 } });
+      const errors = []; page.on('pageerror', error => errors.push(error.message));
+      try {
+        await page.goto(base + '/__finalize-qa');
+        await page.evaluate(locale => {
+          const qa = window.__finalizeQa;
+          Object.assign(qa, { locale, companyMode: true, hash: 'a'.repeat(64),
+            workId: '10000000-0000-4000-8000-000000000001',
+            manuscriptId: '10000000-0000-4000-8000-000000000002',
+            analysisId: '10000000-0000-4000-8000-000000000003' });
+          window.dispatchEvent(new Event('lumina:localechange'));
+        }, locale);
+        await page.locator('#writerFinalOpen').click();
+        await page.locator('.writer-final-part').first().waitFor();
+        await page.locator('#writerFinalSummaryReviewed').check();
+        await page.locator('#writerFinalPrepare').click();
+        await page.waitForFunction(() => window.__finalizeQa.companySubmitted &&
+          document.querySelector('#writerFinalStage').textContent.startsWith('5/5'));
+        assert.equal(await page.locator('#writerFinalState').textContent(), companyStatuses[locale]);
+        for (const name of ['ProposalReviewed', 'ContinuityReviewed', 'Reviewed', 'Rights', 'Ai', 'Warnings'])
+          assert.equal(await page.locator('#writerFinal' + name).isChecked(), false);
+        const writes = await page.evaluate(() => window.__finalizeQa.calls.filter(call => call.method !== 'GET'));
+        assert.equal(writes.length, 1); assert(writes[0].url.endsWith('/reviews'));
+        const bounds = await geometry(page);
+        assert.equal(bounds.documentWidth <= bounds.viewport, true);
+        assert.equal(bounds.titleOverflow, false);
+        assert.equal(bounds.modal.left >= 0 && bounds.modal.right <= width + 1, true);
+        assert.equal(bounds.buttons.every(button => button.left >= 0 && button.right <= width + 1), true);
+        assert.equal(await page.locator('#writerFinalState').evaluate(node => node.scrollWidth <= node.clientWidth + 1), true);
+        if ((locale === 'ko' && width === 390) || (locale === 'en' && width === 1280))
+          await page.screenshot({ path: join(artifacts, `company-final-${locale}-${width}.png`) });
+        assert.deepEqual(errors, []);
+      } finally { await page.close(); }
+    }
+  });
+});
+
+async function openCompanyReceipt(page, base, override = {}) {
+  await page.goto(base + '/__finalize-qa');
+  await page.evaluate(override => {
+    Object.assign(window.__finalizeQa, { locale: 'en', companyMode: true, companySubmitted: true,
+      hash: 'a'.repeat(64), workId: '10000000-0000-4000-8000-000000000001',
+      manuscriptId: '10000000-0000-4000-8000-000000000002',
+      analysisId: '10000000-0000-4000-8000-000000000003', ...override });
+    window.dispatchEvent(new Event('lumina:localechange'));
+  }, override);
+  await page.locator('#writerFinalOpen').click();
+  await page.waitForFunction(() => document.querySelector('#writerFinalState').textContent !== 'Checking manuscript and review status.');
+}
+
+test('company receipt GET reopening stays read-only in five locales on desktop and mobile', { timeout: 60_000 }, async () => {
+  await withBrowser(async (browser, base) => {
+    for (const width of [1280, 390]) {
+      const page = await browser.newPage({ viewport: { width, height: 844 } });
+      const errors = []; page.on('pageerror', error => errors.push(error.message));
+      try {
+        await openCompanyReceipt(page, base);
+        for (const locale of locales) {
+          const before = await page.evaluate(() => window.__finalizeQa.calls.length);
+          await page.evaluate(locale => window.luminaI18n.setLocale(locale), locale);
+          assert.equal(await page.locator('#writerFinalState').textContent(), companyStatuses[locale]);
+          assert.equal(await page.locator('#writerFinalEntryState').textContent(), companyStatuses[locale]);
+          assert.equal(await page.evaluate(() => window.__finalizeQa.calls.length), before);
+          assert.equal(await page.locator('#writerFinalState').evaluate(node => node.scrollWidth <= node.clientWidth + 1), true);
+          for (const name of ['Reviewed', 'Rights', 'Ai', 'Warnings'])
+            assert.equal(await page.locator('#writerFinal' + name).isChecked(), false);
+        }
+        await page.locator('#writerFinalRights').check();
+        await page.locator('#writerFinalAi').check();
+        await page.locator('#writerFinalClose').click();
+        await page.locator('#writerFinalOpen').click();
+        await page.waitForFunction(status => document.querySelector('#writerFinalState').textContent === status, companyStatuses['zh-Hant']);
+        for (const name of ['Reviewed', 'Rights', 'Ai', 'Warnings'])
+          assert.equal(await page.locator('#writerFinal' + name).isChecked(), false);
+        assert.equal(await page.evaluate(() => window.__finalizeQa.calls.some(call => call.method !== 'GET')), false);
+        assert.equal(await page.evaluate(() => window.__finalizeQa.calls.filter(call => call.url.endsWith('/linear-draft/' + window.__finalizeQa.manuscriptId)).length), 2);
+        const bounds = await geometry(page);
+        assert.equal(bounds.documentWidth <= width + 1 && bounds.modal.left >= -1 && bounds.modal.right <= width + 1, true);
+        await page.screenshot({ path: join(artifacts, `company-receipt-reopen-${width}.png`) });
+        assert.deepEqual(errors, []);
+      } finally { await page.close(); }
+    }
+  });
+});
+
+test('invalid or mixed company GET receipts block ready and preparation without retrying POST', { timeout: 60_000 }, async () => {
+  await withBrowser(async (browser, base) => {
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    const errors = []; page.on('pageerror', error => errors.push(error.message));
+    try {
+      const variants = [
+        ...Object.entries({ contract: 'other', scope: 'publication', submissionId: 'bad',
+          manuscriptVersionId: 'wrong', manuscriptHash: 'f'.repeat(64), analysisJobId: 'wrong',
+          reviewRevision: 3, bindingHash: 'bad', humanSemanticReview: true, published: true, generationStarted: true })
+          .map(([field, value]) => ({ companyReceiptOverride: { [field]: value } })),
+        ...[{ approvalBasis: 'human_review' }, { approvalBasis: null }, { companySubmission: null }, { revision: 3 }]
+          .map(companyReviewOverride => ({ companyReviewOverride })),
+        { previewErrorCode: 'COMPANY_FINAL_SUBMISSION_CHANGED' },
+      ];
+      for (const variant of variants) {
+        await openCompanyReceipt(page, base, { jobStatus: 'completed', ready: true, ...variant });
+        assert.match(await page.locator('#writerFinalState').textContent(), /review content changed/);
+        assert.doesNotMatch(await page.locator('#writerFinalState').textContent(), /Company delegation|All three choices are prepared|COMPANY_FINAL_/);
+        assert.notEqual(await page.locator('#writerFinalStage').textContent(), 'Choices prepared');
+        assert.equal(await page.locator('#writerFinalPrepare').isEnabled(), false);
+        await page.locator('#writerFinalPrepare').evaluate(node => node.dispatchEvent(new Event('click')));
+        assert.equal(await page.evaluate(() => window.__finalizeQa.calls.some(call => call.method !== 'GET' || call.url.endsWith('/choice-review'))), false);
+      }
+      assert.deepEqual(errors, []);
+    } finally { await page.close(); }
+  });
+});
+
+test('changed company GET evidence blocks explicit preparation and cannot revive a POST retry', { timeout: 60_000 }, async () => {
+  await withBrowser(async (browser, base) => {
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    try {
+      for (const variant of [
+        { companyReceiptOverride: { bindingHash: 'e'.repeat(64) } },
+        { companyReceiptOverride: { submissionId: '10000000-0000-4000-8000-000000000006' } },
+        { companySubmitted: false, resume: { submitted: true } },
+        { previewErrorCode: 'COMPANY_FINAL_SUBMISSION_CHANGED' },
+      ]) {
+        await openCompanyReceipt(page, base);
+        for (const name of ['Reviewed', 'Rights', 'Ai']) await page.locator('#writerFinal' + name).check();
+        await page.evaluate(value => Object.assign(window.__finalizeQa, value), variant);
+        await page.locator('#writerFinalPrepare').click();
+        await page.waitForFunction(() => document.querySelector('#writerFinalState').textContent.includes('review content changed'));
+        assert.equal(await page.locator('#writerFinalPrepare').isEnabled(), false);
+        await page.evaluate(() => {
+          Object.assign(window.__finalizeQa, { companySubmitted: true, companyReceiptOverride: {}, previewErrorCode: null, resume: null });
+          document.querySelector('#writerFinalPrepare').dispatchEvent(new Event('click'));
+        });
+        assert.equal(await page.locator('#writerFinalPrepare').isEnabled(), false);
+        assert.equal(await page.evaluate(() => window.__finalizeQa.calls.some(call => call.method !== 'GET')), false);
+      }
+    } finally { await page.close(); }
+  });
+});
+
+test('manual submitted GET reopening keeps the existing status and author consent path', { timeout: 60_000 }, async () => {
+  await withBrowser(async (browser, base) => {
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    try {
+      await page.goto(base + '/__finalize-qa');
+      await page.evaluate(() => {
+        window.__finalizeQa.locale = 'en';
+        window.__finalizeQa.resume = { submitted: true };
+        window.dispatchEvent(new Event('lumina:localechange'));
+      });
+      for (let reopen = 0; reopen < 2; reopen++) {
+        await page.locator('#writerFinalOpen').click();
+        await page.waitForFunction(() => document.querySelector('#writerFinalState').textContent.startsWith('Manuscript submission is saved.'));
+        assert.doesNotMatch(await page.locator('#writerFinalState').textContent(), /Company delegation/);
+        assert.equal(await page.locator('#writerFinalPrepare').isEnabled(), true);
+        for (const name of ['Reviewed', 'Rights', 'Ai']) assert.equal(await page.locator('#writerFinal' + name).isChecked(), false);
+        assert.equal(await page.evaluate(() => window.__finalizeQa.calls.some(call => call.method !== 'GET')), false);
+        await page.locator('#writerFinalClose').click();
+      }
+    } finally { await page.close(); }
+  });
+});
+
+test('delayed company GET cannot restore authority after closing or changing accounts', { timeout: 60_000 }, async () => {
+  await withBrowser(async (browser, base) => {
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    const errors = []; page.on('pageerror', error => errors.push(error.message));
+    try {
+      for (const invalidation of ['close', 'account']) {
+        await openCompanyReceipt(page, base, { jobStatus: 'queued' });
+        await page.evaluate(() => {
+          const api = window.LuminaCreatorStudioApi;
+          const original = api.fetch; let hold = true;
+          api.fetch = async (url, options) => {
+            const response = await original(url, options);
+            if (hold && url.endsWith('/linear-draft/' + window.__finalizeQa.manuscriptId)) {
+              hold = false; window.__heldCompanyRead = true;
+              await new Promise(resolve => { window.__releaseCompanyRead = resolve; });
+            }
+            return response;
+          };
+          window.dispatchEvent(new CustomEvent('lumina:story-choice-consent-reviewed', {
+            detail: { workId: window.__finalizeQa.workId, releaseId: window.__finalizeQa.releaseId } }));
+        });
+        await page.waitForFunction(() => window.__heldCompanyRead);
+        if (invalidation === 'close') {
+          await page.locator('#writerFinalClose').click();
+          await page.evaluate(() => { window.__finalizeQa.companyReceiptOverride = { published: true }; });
+          await page.locator('#writerFinalOpen').click();
+          await page.waitForFunction(() => document.querySelector('#writerFinalState').textContent.includes('review content changed'));
+        } else {
+          await page.evaluate(() => {
+            window.__finalizeQa.ownerId = 'synthetic-other-author';
+            window.__finalizeQa.epoch++;
+          });
+          await page.locator('#writerFinalModal').waitFor({ state: 'hidden' });
+          assert.equal(await page.locator('#writerFinalEntryState').textContent(), '');
+        }
+        await page.evaluate(async () => {
+          window.__releaseCompanyRead();
+          await Promise.resolve();
+        });
+        assert.equal(await page.locator('#writerFinalPrepare').isEnabled(), false);
+        if (invalidation === 'close') assert.match(await page.locator('#writerFinalState').textContent(), /review content changed/);
+        else assert.equal(await page.locator('#writerFinalEntryState').textContent(), '');
+        assert.equal(await page.evaluate(() => window.__finalizeQa.calls.some(call => call.method !== 'GET')), false);
+      }
+      assert.deepEqual(errors, []);
+    } finally { await page.close(); }
+  });
+});
 
 async function geometry(page) {
   return page.evaluate(() => {

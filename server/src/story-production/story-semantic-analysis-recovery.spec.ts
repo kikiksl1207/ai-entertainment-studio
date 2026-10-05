@@ -1,4 +1,5 @@
 import 'reflect-metadata';
+import { NotFoundException } from '@nestjs/common';
 import { GUARDS_METADATA, PATH_METADATA } from '@nestjs/common/constants';
 import { Decimal } from '@prisma/client/runtime/library';
 import { validate } from 'class-validator';
@@ -9,7 +10,7 @@ import { semanticPinHash, semanticPins } from './story-semantic-analysis.config'
 import { SemanticAnalysisService, streamedManuscriptHash } from './story-semantic-analysis.service';
 import { semanticTestConfig } from './story-semantic-analysis.test-fixture';
 
-function fixture() {
+function fixture(options: { companyDependency?: boolean } = {}) {
   const pins = semanticPins(semanticTestConfig());
   const body = { parts: [{ partKey: 'part-1', paragraphs: [{ kind: 'paragraph', text: 'Synthetic source.' }] }] };
   const job = {
@@ -40,8 +41,10 @@ function fixture() {
   const owned = jest.fn().mockResolvedValue(job);
   const provider = { readiness: jest.fn(), generate: jest.fn() };
   const profiles = { createDraftAtCompletion: jest.fn().mockResolvedValue({ status: 'needs_review' }), autoApproveCompany: jest.fn() };
-  const service = new SemanticAnalysisService({ prisma: db, owned } as never, provider as never, profiles as never);
-  return { job, body, aggregate, tx, db, provider, profiles, service, owned,
+  const companySubmission = { autoSubmitCompletedAnalysis: jest.fn().mockResolvedValue(null) };
+  const service = new SemanticAnalysisService({ prisma: db, owned } as never, provider as never, profiles as never,
+    options.companyDependency ? companySubmission as never : undefined);
+  return { job, body, aggregate, tx, db, provider, profiles, companySubmission, service, owned,
     recover: () => service.recoverProfile('owner', 'job', job.sourceContentHash) };
 }
 
@@ -130,5 +133,219 @@ describe('Local semantic generation-profile recovery', () => {
     expect(await validate(input)).toHaveLength(0);
     input.expectedSourceContentHash = '<private>';
     expect(await validate(input)).not.toHaveLength(0);
+  });
+});
+
+describe('Company final submission after explicit semantic profile recovery', () => {
+  afterEach(() => jest.restoreAllMocks());
+
+  function expectNoProvider(f: ReturnType<typeof fixture>) {
+    expect(f.provider.readiness).not.toHaveBeenCalled();
+    expect(f.provider.generate).not.toHaveBeenCalled();
+  }
+
+  function expectNoCompanyHook(f: ReturnType<typeof fixture>) {
+    expect(f.profiles.autoApproveCompany).not.toHaveBeenCalled();
+    expect(f.companySubmission.autoSubmitCompletedAnalysis).not.toHaveBeenCalled();
+    expectNoProvider(f);
+  }
+
+  // These stubs cover post-commit wiring only; native authority and receipt idempotency use the existing SQL tests.
+  it.each([
+    ['newly approved', { profile: { status: 'approved' } }],
+    ['already approved or otherwise unchanged', null],
+  ])('checks submission after recovery commits with a %s profile', async (_label, approval) => {
+    const f = fixture({ companyDependency: true });
+    const calls: string[] = [];
+    f.db.$transaction.mockImplementation(async run => {
+      const result = await run(f.tx);
+      calls.push('committed');
+      return result;
+    });
+    f.profiles.createDraftAtCompletion.mockImplementation(async () => {
+      calls.push('draft');
+      return { status: 'needs_review' };
+    });
+    f.tx.auditEvent.create.mockImplementation(async () => {
+      calls.push('recovery-audit');
+      return {};
+    });
+    f.profiles.autoApproveCompany.mockImplementation(async () => {
+      calls.push('profile');
+      return approval;
+    });
+    f.companySubmission.autoSubmitCompletedAnalysis.mockImplementation(async () => {
+      calls.push('submission');
+      return null;
+    });
+
+    expect(await f.recover()).toMatchObject({ status: 'completed', semanticCompleted: true,
+      approval: 'not_approved', memoryApproved: false });
+    expect(calls).toEqual(['draft', 'recovery-audit', 'committed', 'profile', 'submission']);
+    expect(f.profiles.autoApproveCompany).toHaveBeenCalledTimes(1);
+    expect(f.profiles.autoApproveCompany).toHaveBeenCalledWith('owner', 'work', {
+      manuscriptVersionId: 'source', analysisJobId: 'job',
+    });
+    expect(f.companySubmission.autoSubmitCompletedAnalysis).toHaveBeenCalledTimes(1);
+    expect(f.companySubmission.autoSubmitCompletedAnalysis).toHaveBeenCalledWith('owner', 'work', 'source', 'job');
+    expectNoProvider(f);
+  });
+
+  it('rechecks the same submission after a committed recovery replay without redrafting or another recovery audit', async () => {
+    const f = fixture({ companyDependency: true });
+    const calls: string[] = [];
+    f.db.$transaction.mockImplementation(async run => {
+      const result = await run(f.tx);
+      calls.push('committed');
+      return result;
+    });
+    f.profiles.autoApproveCompany.mockImplementation(async () => {
+      calls.push('profile');
+      return null;
+    });
+    f.companySubmission.autoSubmitCompletedAnalysis.mockImplementation(async () => {
+      calls.push('submission');
+      return null;
+    });
+
+    expect(await f.recover()).toMatchObject({ status: 'completed' });
+    Object.assign(f.job, { status: 'completed', phase: 'completed', errorCode: null });
+    f.tx.auditEvent.findFirst.mockResolvedValue({ id: 'synthetic-recovery-audit' } as never);
+    f.tx.$queryRaw.mockReset().mockResolvedValueOnce([{ id: 'work' }]).mockResolvedValueOnce([{ leaseActive: false }]);
+    expect(await f.recover()).toMatchObject({ status: 'completed', approval: 'not_approved', memoryApproved: false });
+
+    expect(calls).toEqual(['committed', 'profile', 'submission', 'committed', 'profile', 'submission']);
+    expect(f.profiles.createDraftAtCompletion).toHaveBeenCalledTimes(1);
+    expect(f.tx.storyAnalysisJob.update).toHaveBeenCalledTimes(2);
+    expect(f.tx.auditEvent.create).toHaveBeenCalledTimes(1);
+    expect(f.profiles.autoApproveCompany.mock.calls).toEqual([
+      ['owner', 'work', { manuscriptVersionId: 'source', analysisJobId: 'job' }],
+      ['owner', 'work', { manuscriptVersionId: 'source', analysisJobId: 'job' }],
+    ]);
+    expect(f.companySubmission.autoSubmitCompletedAnalysis.mock.calls).toEqual([
+      ['owner', 'work', 'source', 'job'], ['owner', 'work', 'source', 'job'],
+    ]);
+    expectNoProvider(f);
+  });
+
+  it.each(['invalid-hash', 'wrong-hash', 'foreign-owner', 'new-manuscript', 'changed-body', 'changed-config'])
+    ('does not invoke company finalization when recovery rejects %s', async reason => {
+      const f = fixture({ companyDependency: true });
+      let expectedHash = f.job.sourceContentHash;
+      let expectedStatus = 409;
+      let expectedCode: string | undefined = 'ANALYSIS_RECOVERY_SOURCE_CHANGED';
+      if (reason === 'invalid-hash') {
+        expectedHash = 'invalid';
+        expectedStatus = 400;
+        expectedCode = 'ANALYSIS_RECOVERY_SOURCE_INVALID';
+      } else if (reason === 'wrong-hash') expectedHash = 'b'.repeat(64);
+      else if (reason === 'foreign-owner') {
+        f.job.actorUserId = 'synthetic-other-owner';
+        expectedStatus = 404;
+        expectedCode = undefined;
+      } else if (reason === 'new-manuscript') {
+        f.tx.storyManuscriptVersion.findFirst.mockReset()
+          .mockResolvedValueOnce({ id: 'source', contentHash: f.job.sourceContentHash, locale: 'ko', structuredBody: f.body })
+          .mockResolvedValueOnce({ id: 'synthetic-new-source' });
+      } else if (reason === 'changed-body') f.body.parts[0].paragraphs[0].text = 'Changed synthetic source.';
+      else f.job.configHash = 'b'.repeat(64);
+
+      await expect(f.service.recoverProfile('owner', 'job', expectedHash)).rejects.toMatchObject({
+        status: expectedStatus, ...(expectedCode ? { response: { code: expectedCode } } : {}),
+      });
+      expect(f.tx.storyAnalysisJob.update).not.toHaveBeenCalled();
+      expectNoCompanyHook(f);
+    });
+
+  it('does not invoke company finalization when the initial owned lookup is denied', async () => {
+    const f = fixture({ companyDependency: true });
+    f.owned.mockRejectedValueOnce(new NotFoundException('Analysis job not found'));
+
+    await expect(f.recover()).rejects.toMatchObject({ status: 404 });
+    expect(f.db.$transaction).not.toHaveBeenCalled();
+    expectNoCompanyHook(f);
+  });
+
+  it('does not invoke company finalization when the recovery draft write fails', async () => {
+    const f = fixture({ companyDependency: true });
+    f.profiles.createDraftAtCompletion.mockRejectedValueOnce(new Error('Synthetic draft write failure'));
+
+    await expect(f.recover()).rejects.toMatchObject({ response: { code: 'ANALYSIS_PROFILE_RECOVERY_RETRY' } });
+    expect(f.tx.auditEvent.create).not.toHaveBeenCalled();
+    expectNoCompanyHook(f);
+  });
+
+  it('does not invoke company finalization when the recovery transaction fails to commit', async () => {
+    const f = fixture({ companyDependency: true });
+    // The callback finishes, but the transaction promise rejects; this is not a real SQL rollback assertion.
+    f.db.$transaction.mockImplementationOnce(async run => {
+      await run(f.tx);
+      throw new Error('Synthetic commit failure');
+    });
+
+    await expect(f.recover()).rejects.toMatchObject({ response: { code: 'ANALYSIS_PROFILE_RECOVERY_RETRY' } });
+    expect(f.tx.storyAnalysisJob.update).toHaveBeenLastCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ status: 'completed' }),
+    }));
+    expectNoCompanyHook(f);
+  });
+
+  it('keeps recovery completed when company profile approval fails and never attempts submission', async () => {
+    const f = fixture({ companyDependency: true });
+    const diagnostic = 'Synthetic private profile diagnostic';
+    const logged = jest.spyOn((f.service as any).logger, 'warn').mockImplementation(() => undefined);
+    f.profiles.autoApproveCompany.mockRejectedValueOnce(new Error(diagnostic));
+
+    expect(await f.recover()).toMatchObject({ status: 'completed', semanticCompleted: true,
+      approval: 'not_approved', memoryApproved: false });
+    expect(f.db.$transaction).toHaveBeenCalledTimes(1);
+    expect(f.tx.storyAnalysisJob.update).toHaveBeenLastCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ status: 'completed' }),
+    }));
+    expect(f.companySubmission.autoSubmitCompletedAnalysis).not.toHaveBeenCalled();
+    expect(logged).toHaveBeenCalledTimes(1);
+    expect(logged.mock.calls[0][0]).toContain('Error');
+    expect(JSON.stringify(logged.mock.calls)).not.toContain(diagnostic);
+    expectNoProvider(f);
+  });
+
+  it('keeps recovery completed when submission fails without logging the private diagnostic or retrying the provider', async () => {
+    const f = fixture({ companyDependency: true });
+    const diagnostic = 'Synthetic private submission diagnostic';
+    const logged = jest.spyOn((f.service as any).logger, 'warn').mockImplementation(() => undefined);
+    f.profiles.autoApproveCompany.mockResolvedValue(null);
+    f.companySubmission.autoSubmitCompletedAnalysis.mockRejectedValueOnce(new Error(diagnostic));
+
+    expect(await f.recover()).toMatchObject({ status: 'completed', semanticCompleted: true,
+      approval: 'not_approved', memoryApproved: false });
+    expect(f.db.$transaction).toHaveBeenCalledTimes(1);
+    expect(f.tx.storyAnalysisJob.update).toHaveBeenLastCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ status: 'completed' }),
+    }));
+    expect(f.companySubmission.autoSubmitCompletedAnalysis).toHaveBeenCalledTimes(1);
+    expect(logged).toHaveBeenCalledTimes(1);
+    expect(logged.mock.calls[0][0]).toContain('Error');
+    expect(JSON.stringify(logged.mock.calls)).not.toContain(diagnostic);
+    expectNoProvider(f);
+  });
+
+  it('keeps an ordinary writer unapproved when both company policies return null', async () => {
+    const f = fixture({ companyDependency: true });
+    // Ordinary sources are denied by the real policies; null stubs do not fabricate a successful approval or receipt.
+    f.profiles.autoApproveCompany.mockResolvedValue(null);
+    f.companySubmission.autoSubmitCompletedAnalysis.mockResolvedValue(null);
+
+    expect(await f.recover()).toMatchObject({ status: 'completed', approval: 'not_approved', memoryApproved: false });
+    expect(f.profiles.autoApproveCompany).toHaveBeenCalledWith('owner', 'work', {
+      manuscriptVersionId: 'source', analysisJobId: 'job',
+    });
+    await expect(f.profiles.autoApproveCompany.mock.results[0].value).resolves.toBeNull();
+    expect(f.companySubmission.autoSubmitCompletedAnalysis).toHaveBeenCalledWith('owner', 'work', 'source', 'job');
+    await expect(f.companySubmission.autoSubmitCompletedAnalysis.mock.results[0].value).resolves.toBeNull();
+    expect(f.tx.auditEvent.create).toHaveBeenCalledTimes(1);
+    expect(f.tx.auditEvent.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({
+      action: 'story_analysis.profile_recovered', afterData: expect.objectContaining({ approval: 'not_approved' }),
+    }) }));
+    expectNoProvider(f);
   });
 });

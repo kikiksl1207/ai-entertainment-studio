@@ -1,9 +1,11 @@
 import {
+  BeforeApplicationShutdown,
   ConflictException,
   Injectable,
   Logger,
   NotFoundException,
   OnApplicationBootstrap,
+  Optional,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { Prisma, type StoryAnalysisJob } from '@prisma/client';
@@ -28,6 +30,7 @@ import { SEMANTIC_PIPELINE } from './story-semantic-analysis.types';
 import { assertStoryVisualSettings, publicationVisualReference, STORY_VISUAL_REVIEW_VERSION } from './story-approved-visual.policy';
 import { continuationGenerationProfileSnapshot } from './story-continuation-context.policy';
 import { resolveCompanyPrivateIntakeSource, resolveCurrentCompanyPublicationBinding } from './story-company-source.policy';
+import { StoryCompanyFinalSubmissionService } from './story-company-final-submission.service';
 
 const EVIDENCE_TYPES = [
   'scene',
@@ -48,51 +51,106 @@ type ProfileEvidenceRow = {
   payload: unknown;
 };
 
-@Injectable()
-export class StoryGenerationProfileService implements OnApplicationBootstrap {
-  private readonly logger = new Logger(StoryGenerationProfileService.name);
-  constructor(private readonly prisma: PrismaService) {}
+type PendingCompanyProfile = {
+  id: string; createdAt: string; workId: string; ownerUserId: string;
+  manuscriptVersionId: string; analysisJobId: string;
+};
 
-  onApplicationBootstrap() {
-    void this.approvePendingCompanyProfiles().catch((error: unknown) => {
-      this.logger.warn(`Company story profile recovery stopped: ${error instanceof Error ? error.name : 'unknown error'}`);
+@Injectable()
+export class StoryGenerationProfileService implements OnApplicationBootstrap, BeforeApplicationShutdown {
+  private readonly logger = new Logger(StoryGenerationProfileService.name);
+  private bootstrapRecovery?: Promise<void>;
+  private bootstrapStopping = false;
+  constructor(private readonly prisma: PrismaService,
+    @Optional() private readonly companySubmission?: StoryCompanyFinalSubmissionService) {}
+
+  onApplicationBootstrap(): void {
+    if (this.bootstrapStopping || this.bootstrapRecovery) return;
+    const recovery: Promise<void> = this.approvePendingCompanyProfiles().catch((error: unknown) => {
+      this.logger.warn(`Company story profile recovery stopped: ${this.bootstrapErrorName(error)}`);
+    }).finally(() => {
+      if (this.bootstrapRecovery === recovery) this.bootstrapRecovery = undefined;
     });
+    this.bootstrapRecovery = recovery;
+  }
+
+  async beforeApplicationShutdown(): Promise<void> {
+    this.bootstrapStopping = true;
+    await this.bootstrapRecovery;
   }
 
   private async approvePendingCompanyProfiles() {
     const batchSize = 100;
-    let after: { createdAt: Date; id: string } | null = null;
-    while (true) {
-      const pending: Array<{ id: string; createdAt: Date; workId: string; ownerUserId: string }> =
-        await this.prisma.storyWorkGenerationProfile.findMany({
-          where: {
-            status: 'needs_review',
-            ...(after ? { OR: [
-              { createdAt: { gt: after.createdAt } },
-              { createdAt: after.createdAt, id: { gt: after.id } },
-            ] } : {}),
-          },
-          select: { id: true, createdAt: true, workId: true, ownerUserId: true },
-          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-          take: batchSize,
-        });
+    const startedAt = Date.now();
+    let after: Pick<PendingCompanyProfile, 'createdAt' | 'id'> | null = null;
+    for (let page = 0; page < 10; page++) {
+      if (!this.canStartBootstrapCandidate(startedAt)) return;
+      const pending: PendingCompanyProfile[] = await this.prisma.$queryRaw<PendingCompanyProfile[]>(Prisma.sql`
+        SELECT profile.id, profile.created_at::text AS "createdAt",
+          profile.work_id AS "workId", profile.owner_user_id AS "ownerUserId",
+          profile.manuscript_version_id AS "manuscriptVersionId", profile.analysis_job_id AS "analysisJobId"
+        FROM story_work_generation_profiles AS profile
+        JOIN story_works AS work ON work.id = profile.work_id AND work.owner_user_id = profile.owner_user_id
+        WHERE profile.status = ${'needs_review'} AND work.author_display_name = ${'루미나'}
+          AND work.fixture_source = false
+          ${after ? Prisma.sql`AND (profile.created_at, profile.id) > (${after.createdAt}::timestamptz, ${after.id}::uuid)` : Prisma.empty}
+        ORDER BY profile.created_at ASC, profile.id ASC LIMIT ${batchSize}
+      `);
       for (const profile of pending) {
+        if (!this.canStartBootstrapCandidate(startedAt)) return;
         try {
-          await this.autoApproveCompany(profile.ownerUserId, profile.workId);
+          const approved = await this.autoApproveCompany(profile.ownerUserId, profile.workId,
+            { manuscriptVersionId: profile.manuscriptVersionId, analysisJobId: profile.analysisJobId });
+          if (approved && this.companySubmission && !this.bootstrapStopping) {
+            await this.companySubmission.autoSubmitCompletedAnalysis(profile.ownerUserId, profile.workId,
+              profile.manuscriptVersionId, profile.analysisJobId);
+          }
         } catch (error) {
-          this.logger.warn(`Company story profile recovery skipped ${profile.workId}: ${error instanceof Error ? error.name : 'unknown error'}`);
+          this.logger.warn(`Company story profile recovery skipped: ${this.bootstrapErrorName(error)}`);
         }
       }
       if (pending.length < batchSize) return;
-      const last = pending[pending.length - 1];
+      const last: PendingCompanyProfile = pending[pending.length - 1];
       after = { createdAt: last.createdAt, id: last.id };
     }
+    this.logger.warn('Company story profile recovery reached the 1000-profile scan limit');
   }
 
-  async autoApproveCompany(userId: string, workId: string) {
+  private canStartBootstrapCandidate(startedAt: number) {
+    if (this.bootstrapStopping) return false;
+    if (Date.now() - startedAt < 10000) return true;
+    this.logger.warn('Company story profile recovery reached the 10-second time limit');
+    return false;
+  }
+
+  private bootstrapErrorName(error: unknown) {
+    if (error instanceof ConflictException) return 'ConflictException';
+    if (error instanceof Prisma.PrismaClientKnownRequestError) return 'PrismaClientKnownRequestError';
+    return error instanceof Error ? 'Error' : 'unknown error';
+  }
+
+  async autoApproveCompany(userId: string, workId: string,
+    expectedSource?: { manuscriptVersionId: string; analysisJobId: string }) {
     const source = await this.latestCompletedSource(userId, workId);
     return this.prisma.$transaction(async (tx) => {
       await tx.$queryRaw(Prisma.sql`SELECT id FROM story_works WHERE id = ${workId}::uuid FOR UPDATE`);
+      if (expectedSource) {
+        if (source.manuscript.id !== expectedSource.manuscriptVersionId ||
+            source.analysis.id !== expectedSource.analysisJobId) return null;
+        const currentManuscript = await tx.storyManuscriptVersion.findFirst({
+          where: { workId, ownerUserId: userId }, orderBy: { version: 'desc' },
+          select: { id: true, contentHash: true },
+        });
+        if (currentManuscript?.id !== expectedSource.manuscriptVersionId ||
+            currentManuscript.contentHash !== source.manuscript.contentHash) return null;
+        const currentAnalysis = await tx.storyAnalysisJob.findFirst({
+          where: { workId, manuscriptVersionId: currentManuscript.id, status: 'completed', pipeline: SEMANTIC_PIPELINE },
+          orderBy: { analysisVersion: 'desc' }, select: { id: true, sourceContentHash: true, configHash: true },
+        });
+        if (currentAnalysis?.id !== expectedSource.analysisJobId ||
+            currentAnalysis.sourceContentHash !== source.manuscript.contentHash ||
+            currentAnalysis.configHash !== source.analysis.configHash) return null;
+      }
       const work = await tx.storyWork.findFirst({
         where: { id: workId, ownerUserId: userId },
         select: { authorDisplayName: true, fixtureSource: true, activeReleaseId: true },
@@ -193,7 +251,7 @@ export class StoryGenerationProfileService implements OnApplicationBootstrap {
         const approved = await this.autoApproveCompany(userId, workId);
         if (approved) return approved;
       } catch (error) {
-        this.logger.warn(`Company story profile remained in review for ${workId}: ${error instanceof Error ? error.name : 'unknown error'}`);
+        this.logger.warn(`Company story profile remained in review: ${this.bootstrapErrorName(error)}`);
       }
     }
     return this.project(workId, source, profile);

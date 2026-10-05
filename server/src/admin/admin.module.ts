@@ -1,4 +1,4 @@
-import { MiddlewareConsumer, Module, NestModule, RequestMethod } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { AdminController } from './admin.controller';
 import { AdminService } from './admin.service';
 import { AdminUsersReadService } from './admin-users-read.service';
@@ -12,9 +12,6 @@ import { AdminTestAccountPrivacyMiddleware } from './admin-test-account.privacy'
 })
 export class AdminModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(AdminTestAccountPrivacyMiddleware).forRoutes(
-      { path: 'admin/api/v1/users/:userId/test-account-classification', method: RequestMethod.ALL },
-      { path: 'admin/api/v1/backstage/operations/users-overview', method: RequestMethod.ALL },
-    );
+    consumer.apply(AdminTestAccountPrivacyMiddleware).forRoutes(AdminController, AdminTestAccountController);
   }
 }

@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, HttpException, Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, ConflictException, HttpException, Injectable, Logger, NotFoundException, Optional, ServiceUnavailableException } from '@nestjs/common';
 import { Prisma, type StoryAnalysisChunk, type StoryAnalysisJob } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import { createHash, randomUUID } from 'crypto';
@@ -11,6 +11,7 @@ import { SEMANTIC_PIPELINE, STYLE_CATEGORIES, SemanticAnalysisError, type Semant
   type SourceCursor, type SourceRef, type SemanticUsage } from './story-semantic-analysis.types';
 import { StoryAnalysisDiscoveryQueryDto } from './dto/story-analysis-discovery.dto';
 import { StoryGenerationProfileService } from './story-generation-profile.service';
+import { StoryCompanyFinalSubmissionService } from './story-company-final-submission.service';
 
 @Injectable()
 export class SemanticAnalysisService {
@@ -20,6 +21,7 @@ export class SemanticAnalysisService {
     private readonly repository: SemanticAnalysisRepository,
     private readonly provider: SemanticAnalysisProvider,
     private readonly generationProfiles: StoryGenerationProfileService,
+    @Optional() private readonly companySubmission?: StoryCompanyFinalSubmissionService,
   ) {}
   private get db() { return this.repository.prisma; }
 
@@ -55,7 +57,7 @@ export class SemanticAnalysisService {
       throw new BadRequestException({ code: 'ANALYSIS_RECOVERY_SOURCE_INVALID' });
     try {
       const owned = await this.repository.owned(userId, id);
-      return await this.db.$transaction(async tx => {
+      const recovered = await this.db.$transaction(async tx => {
         // Use the writer's normal work lock, then fence the failed job. This is
         // local finalization only: no provider readiness, queueing or dispatch.
         const work = await tx.$queryRaw<Array<{ id: string }>>`
@@ -130,6 +132,10 @@ export class SemanticAnalysisService {
         } });
         return this.project(completed);
       }, { timeout: 10000 });
+      // The explicit recovery commits first; company submission failure must not repeat paid analysis.
+      if (this.companySubmission)
+        await this.finalizeCompanySubmission(userId, owned.workId, owned.manuscriptVersionId, id);
+      return recovered;
     } catch (error) {
       if (error instanceof HttpException) throw error;
       throw new ServiceUnavailableException({ code: 'ANALYSIS_PROFILE_RECOVERY_RETRY' });
@@ -490,13 +496,7 @@ export class SemanticAnalysisService {
             result: { ...jsonRecord(job.result), continuityEntryCount: count },
           } });
         });
-        if (job.actorUserId) {
-          try {
-            await this.generationProfiles.autoApproveCompany(job.actorUserId, job.workId);
-          } catch (error) {
-            this.logger.warn(`Company story profile remained in review for ${job.workId}: ${error instanceof Error ? error.name : 'unknown error'}`);
-          }
-        }
+        if (job.actorUserId) await this.finalizeCompanySubmission(job.actorUserId, job.workId, job.manuscriptVersionId, job.id);
       } catch (error) {
         if (error instanceof SemanticAnalysisError && error.code === 'analysis_lease_lost') throw error;
         throw new SemanticAnalysisError('analysis_profile_draft_unavailable');
@@ -534,6 +534,22 @@ export class SemanticAnalysisService {
           warningIssueCount: safeCount(result.warningIssueCount) + issues.filter(issue => issue.severity === 'warning').length },
       } });
     });
+  }
+
+  private async finalizeCompanySubmission(ownerUserId: string, workId: string, manuscriptVersionId: string, analysisJobId: string) {
+    try {
+      await this.generationProfiles.autoApproveCompany(ownerUserId, workId, { manuscriptVersionId, analysisJobId });
+    } catch (error) {
+      this.logger.warn(`Company story profile remains in review: ${error instanceof Error ? error.name : 'unknown error'}`);
+      return;
+    }
+    if (!this.companySubmission) return;
+    try {
+      await this.companySubmission.autoSubmitCompletedAnalysis(ownerUserId, workId, manuscriptVersionId, analysisJobId);
+    } catch (error) {
+      // Completed extraction is retained; the normal review POST can reconcile without another paid request.
+      this.logger.warn(`Company manuscript submission needs review reconciliation: ${error instanceof Error ? error.name : 'unknown error'}`);
+    }
   }
 }
 function profileRecoveryCandidate(job: StoryAnalysisJob) {

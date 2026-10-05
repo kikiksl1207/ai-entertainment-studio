@@ -34,6 +34,9 @@ function fixture({ missingJob = false, existingDraft = false, submittedOnly = fa
   summarylessProfile = false, failMaterializeOnce = false, failConsentResponseOnce = false,
   failPreviewAfterSubmit = false,
   failReadAfterMaterialize = false,
+  companySubmission = false, receiptOverride = {}, changedCompanyRead = false, failedCompanyRead = false,
+  changedCompanyProfile = false, companyReopen = false, readReviewOverride = {}, readReceiptOverride = {},
+  previewErrorCode = null, uiLocale = 'ko',
   workerAvailable } = {}) {
   const ids = ['writerFinalEntry', 'writerFinalModal', 'writerFinalParts', 'writerFinalIssues', 'writerFinalWarningsLabel', 'writerFinalState',
     'writerFinalEntryState', 'writerFinalPrepare', 'writerFinalOpen', 'writerFinalClose', 'writerFinalStage',
@@ -43,8 +46,11 @@ function fixture({ missingJob = false, existingDraft = false, submittedOnly = fa
   const elements = Object.fromEntries(ids.map(name => [name, new Element(name)]));
   const calls = [];
   const intervals = [];
-  let reviewState = existingDraft || submittedOnly ? 'submitted' : 'analysis_ready'; let revision = 1; let ready = false;
-  let reviewOpen = existingDraft || submittedOnly;
+  let currentOwnerId = id;
+  let reviewState = existingDraft || submittedOnly || companyReopen ? 'submitted' : 'analysis_ready';
+  let revision = companyReopen ? 2 : 1; let ready = false;
+  let reviewOpen = existingDraft || submittedOnly || companyReopen;
+  let companySaved = companyReopen;
   let profileFingerprint = 'a'.repeat(64);
   let submitted = existingDraft || submittedOnly; let consented = existingDraft; let materialized = existingDraft;
   let failedSubmitReads = 0;
@@ -53,8 +59,16 @@ function fixture({ missingJob = false, existingDraft = false, submittedOnly = fa
   let job = null;
   const scenes = [0, 1].map(index => ({ partKey: `p${index + 1}`, sceneId: `${index + 5}`.repeat(36).slice(0, 36),
     choiceCount: 1, originalLabel: `원래 길 ${index + 1}` }));
+  const companyReview = (receipt = {}, review = {}) => ({ reviewId: id, state: reviewState, revision,
+    approvalBasis: 'company_delegation', companySubmission: {
+      contract: 'story-company-final-submission-v1', scope: 'manuscript_submission',
+      submissionId: '55555555-5555-4555-8555-555555555555', manuscriptVersionId: manuscriptId,
+      manuscriptHash: 'a'.repeat(64), analysisJobId: analysisId, reviewRevision: 2,
+      bindingHash: 'd'.repeat(64), humanSemanticReview: false, published: false, generationStarted: false,
+      ...receipt }, ...review });
   const preview = () => ({ manuscriptVersionId: manuscriptId, manuscriptHash: 'a'.repeat(64),
-    analysisJobId: analysisId, issues, review: reviewOpen ? { reviewId: id, state: reviewState, revision } : null,
+    analysisJobId: analysisId, issues, review: companySaved ? companyReview(readReceiptOverride, readReviewOverride)
+      : reviewOpen ? { reviewId: id, state: reviewState, revision } : null,
     consent: consented ? { active: true, revision: 1 } : null,
     parts: [{ partKey: 'p1', title: '처음', endingExcerpt: '갈림길', nextPartTitle: '다음' },
       { partKey: 'p2', title: '다음', endingExcerpt: '결말', nextPartTitle: null }],
@@ -74,6 +88,7 @@ function fixture({ missingJob = false, existingDraft = false, submittedOnly = fa
     calls.push({ path, ...options });
     let result;
     if (path.endsWith(`/linear-draft/${manuscriptId}`)) {
+      if (previewErrorCode) return { ok: false, status: 409, json: async () => ({ code: previewErrorCode }) };
       if (failedSubmitReads > 0 || failedMaterializeReads > 0 || failNextPreview) {
         if (failedSubmitReads > 0) failedSubmitReads--;
         if (failedMaterializeReads > 0) failedMaterializeReads--;
@@ -88,7 +103,16 @@ function fixture({ missingJob = false, existingDraft = false, submittedOnly = fa
       expectedProfilePinHash: 'c'.repeat(64),
       expectedReleaseChecksum: 'checksum', resetRequiredScenes: 0, preparedScenes: job?.completedParts || 0,
       generationStarted: false };
-    else if (path.endsWith('/reviews')) { reviewOpen = true; result = { reviewId: id, state: reviewState, revision }; }
+    else if (path.endsWith('/reviews')) {
+      reviewOpen = true;
+      if (companySubmission) {
+        reviewState = 'submitted'; revision = 2; submitted = true; companySaved = true;
+        if (failedCompanyRead) failNextPreview = true;
+        if (changedCompanyProfile) profileFingerprint = 'b'.repeat(64);
+        result = companyReview(receiptOverride);
+        if (changedCompanyRead) revision++;
+      } else result = { reviewId: id, state: reviewState, revision };
+    }
     else if (path.endsWith('/transition')) {
       reviewState = options.body.toState; revision++;
       result = { reviewId: id, state: reviewState, revision };
@@ -126,11 +150,16 @@ function fixture({ missingJob = false, existingDraft = false, submittedOnly = fa
     return { ok: true, json: async () => result };
   };
   const document = { getElementById: name => elements[name], createElement: () => new Element(), addEventListener() {} };
-  const window = { confirm: () => true, LuminaCreatorStudioApi: { fetch, isCurrent: () => true },
+  const window = { confirm: () => true, LuminaCreatorStudioApi: { fetch, isCurrent: identity => identity?.ownerId === currentOwnerId },
+    luminaI18n: { getLocale: () => uiLocale },
     LuminaCreatorAnalysis: { completed: () => ({ manuscriptVersionId: manuscriptId, workId: id,
-      analysisJobId: analysisId, identity: { ownerId: id } }) }, addEventListener() {} };
+      analysisJobId: analysisId, identity: { ownerId: currentOwnerId } }) }, addEventListener() {} };
   vm.runInNewContext(script, { window, document, setInterval: callback => { intervals.push(callback); return intervals.length; }, console });
   return { elements, calls, scenes,
+    changeCompanyRead: (review = {}, receipt = {}) => { readReviewOverride = review; readReceiptOverride = receipt; },
+    forgetCompanyReceipt: () => { companySaved = false; },
+    changeAccount: () => { currentOwnerId = releaseId; intervals[0](); },
+    failPreview: code => { previewErrorCode = code; },
     refresh: () => intervals[1](),
     changeProfile: () => { profileFingerprint = 'b'.repeat(64); },
     setReady: value => { ready = value; },
@@ -144,6 +173,191 @@ function authorChecks(elements) {
   for (const name of ['SummaryReviewed', 'ProposalReviewed', 'ContinuityReviewed', 'Reviewed', 'Rights', 'Ai'])
     elements[`writerFinal${name}`].checked = true;
 }
+
+test('company manuscript submission refreshes without forged human checks, consent, materialization or paid retry', async () => {
+  const { elements, calls } = fixture({ companySubmission: true });
+  await elements.writerFinalOpen.fire('click');
+  elements.writerFinalSummaryReviewed.checked = true;
+  await elements.writerFinalPrepare.fire('click');
+  assert.equal(elements.writerFinalState.textContent, '회사 위임 · 원고 제출 완료');
+  assert.equal(calls.filter(call => call.method === 'POST').length, 1);
+  assert.equal(calls.some(call => /\/(transition|submit|style-consent|materialize|prepare-choices|retry-choices)$/.test(call.path)), false);
+  for (const name of ['ProposalReviewed', 'ContinuityReviewed', 'Reviewed', 'Rights', 'Ai', 'Warnings'])
+    assert.equal(elements[`writerFinal${name}`].checked, false);
+  await elements.writerFinalPrepare.fire('click');
+  assert.match(elements.writerFinalState.textContent, /권리·AI 승인 항목/);
+  assert.equal(calls.filter(call => call.method === 'POST').length, 1);
+});
+
+for (const [field, value] of Object.entries({ contract: 'other', scope: 'publication', submissionId: 'bad',
+  manuscriptVersionId: id, manuscriptHash: 'b'.repeat(64), analysisJobId: id, reviewRevision: 3,
+  bindingHash: 'bad', humanSemanticReview: true, published: true, generationStarted: true })) {
+  test(`company submission rejects an unverifiable ${field} before follow-up writes`, async () => {
+    const { elements, calls } = fixture({ companySubmission: true, receiptOverride: { [field]: value } });
+    await elements.writerFinalOpen.fire('click');
+    elements.writerFinalSummaryReviewed.checked = true;
+    await elements.writerFinalPrepare.fire('click');
+    assert.match(elements.writerFinalState.textContent, /원고 제출 상태를 확인할 수 없습니다/);
+    assert.equal(calls.filter(call => call.method === 'POST' || call.method === 'PUT').length, 1);
+  });
+}
+
+for (const option of ['changedCompanyRead', 'failedCompanyRead', 'changedCompanyProfile']) {
+  test(`company submission preserves an uncertain ${option} failure without paid retry`, async () => {
+    const { elements, calls } = fixture({ companySubmission: true, [option]: true });
+    await elements.writerFinalOpen.fire('click');
+    elements.writerFinalSummaryReviewed.checked = true;
+    await elements.writerFinalPrepare.fire('click');
+    assert.doesNotMatch(elements.writerFinalState.textContent, /회사 위임 · 원고 제출 완료/);
+    assert.equal(calls.filter(call => call.method === 'POST' || call.method === 'PUT').length, 1);
+  });
+}
+
+test('company POST reconciliation requires the same validated GET receipt before showing the company status', async () => {
+  for (const variant of [
+    { readReviewOverride: { companySubmission: null } },
+    { readReviewOverride: { approvalBasis: 'human_review' } },
+    { readReceiptOverride: { bindingHash: 'e'.repeat(64) } },
+    { readReceiptOverride: { submissionId: '66666666-6666-4666-8666-666666666666' } },
+  ]) {
+    const { elements, calls } = fixture({ companySubmission: true, ...variant });
+    await elements.writerFinalOpen.fire('click');
+    elements.writerFinalSummaryReviewed.checked = true;
+    await elements.writerFinalPrepare.fire('click');
+    assert.match(elements.writerFinalState.textContent, /검토 내용이 변경/);
+    assert.doesNotMatch(elements.writerFinalState.textContent, /회사 위임/);
+    assert.equal(elements.writerFinalPrepare.disabled, true);
+    authorChecks(elements);
+    await elements.writerFinalPrepare.fire('click');
+    assert.equal(calls.filter(call => call.method === 'POST' || call.method === 'PUT').length, 1);
+  }
+});
+
+test('company receipt GET and reopening show only the manuscript status in five locales without writes or consent checks', async () => {
+  const statuses = { ko: '회사 위임 · 원고 제출 완료', en: 'Company delegation · Manuscript submitted',
+    ja: '会社委任 · 原稿提出完了', 'zh-Hans': '公司委托 · 稿件已提交', 'zh-Hant': '公司委託 · 稿件已提交' };
+  for (const [uiLocale, status] of Object.entries(statuses)) {
+    const { elements, calls } = fixture({ companyReopen: true, uiLocale });
+    await elements.writerFinalOpen.fire('click');
+    assert.equal(elements.writerFinalState.textContent, status);
+    assert.equal(elements.writerFinalEntryState.textContent, status);
+    for (const name of ['Reviewed', 'Rights', 'Ai', 'Warnings']) assert.equal(elements[`writerFinal${name}`].checked, false);
+    elements.writerFinalRights.checked = true;
+    elements.writerFinalAi.checked = true;
+    elements.writerFinalClose.fire('click');
+    await elements.writerFinalOpen.fire('click');
+    assert.equal(elements.writerFinalState.textContent, status);
+    for (const name of ['Reviewed', 'Rights', 'Ai', 'Warnings']) assert.equal(elements[`writerFinal${name}`].checked, false);
+    await elements.writerFinalPrepare.fire('click');
+    assert.equal(calls.some(call => call.method === 'POST' || call.method === 'PUT'), false);
+    assert.equal(calls.filter(call => call.path.endsWith(`/linear-draft/${manuscriptId}`)).length, 2);
+  }
+});
+
+test('invalid or mixed company GET receipts block readiness and preparation without a POST retry', async () => {
+  const receipts = { contract: 'other', scope: 'publication', submissionId: 'bad', manuscriptVersionId: id,
+    manuscriptHash: 'b'.repeat(64), analysisJobId: id, reviewRevision: 3, bindingHash: 'bad',
+    humanSemanticReview: true, published: true, generationStarted: true };
+  const variants = Object.entries(receipts).map(([field, value]) => ({ readReceiptOverride: { [field]: value } }));
+  variants.push(...[{ approvalBasis: 'human_review' }, { approvalBasis: null }, { companySubmission: null },
+    { companySubmission: undefined }, { state: 'final_confirmation' }, { revision: 3 }, { reviewId: 'bad' }]
+    .map(readReviewOverride => ({ readReviewOverride })));
+  for (const variant of variants) {
+    const { elements, calls, setJob } = fixture({ companyReopen: true, existingDraft: true, ...variant });
+    setJob('completed', 2);
+    await elements.writerFinalOpen.fire('click');
+    assert.match(elements.writerFinalState.textContent, /검토 내용이 변경/);
+    assert.doesNotMatch(elements.writerFinalState.textContent, /회사 위임|선택지 3개가 모두 준비/);
+    assert.equal(elements.writerFinalPrepare.disabled, true);
+    assert.doesNotMatch(elements.writerFinalStage.textContent, /준비 완료/);
+    authorChecks(elements);
+    await elements.writerFinalPrepare.fire('click');
+    assert.equal(calls.some(call => call.method === 'POST' || call.method === 'PUT' || call.path.endsWith('/choice-review')), false);
+  }
+});
+
+test('changed or missing company receipt evidence stays blocked until reopening, never retrying submission', async () => {
+  for (const [review, receipt] of [
+    [{}, { bindingHash: 'e'.repeat(64) }],
+    [{}, { submissionId: '66666666-6666-4666-8666-666666666666' }],
+    [null, {}],
+    [{ revision: 3 }, {}],
+  ]) {
+    const { elements, calls, changeCompanyRead, forgetCompanyReceipt } = fixture({ companyReopen: true });
+    await elements.writerFinalOpen.fire('click');
+    authorChecks(elements);
+    if (review === null) forgetCompanyReceipt();
+    else changeCompanyRead(review, receipt);
+    await elements.writerFinalPrepare.fire('click');
+    assert.match(elements.writerFinalState.textContent, /검토 내용이 변경/);
+    assert.equal(elements.writerFinalPrepare.disabled, true);
+    changeCompanyRead();
+    const reads = calls.length;
+    await elements.writerFinalPrepare.fire('click');
+    assert.equal(calls.length, reads);
+    assert.equal(calls.some(call => call.method === 'POST' || call.method === 'PUT'), false);
+    if (review !== null) {
+      elements.writerFinalClose.fire('click');
+      await elements.writerFinalOpen.fire('click');
+      assert.equal(elements.writerFinalState.textContent, '회사 위임 · 원고 제출 완료');
+      assert.equal(elements.writerFinalRights.checked, false);
+      assert.equal(elements.writerFinalAi.checked, false);
+    }
+  }
+});
+
+test('COMPANY_FINAL_SUBMISSION_CHANGED maps GET failures to reviewChanged and blocks all writes', async () => {
+  for (const duringPrepare of [false, true]) {
+    const { elements, calls, failPreview } = fixture({ companyReopen: true });
+    if (!duringPrepare) failPreview('COMPANY_FINAL_SUBMISSION_CHANGED');
+    await elements.writerFinalOpen.fire('click');
+    if (duringPrepare) {
+      authorChecks(elements);
+      failPreview('COMPANY_FINAL_SUBMISSION_CHANGED');
+      await elements.writerFinalPrepare.fire('click');
+    }
+    assert.match(elements.writerFinalState.textContent, /검토 내용이 변경/);
+    assert.doesNotMatch(elements.writerFinalState.textContent, /COMPANY_FINAL_|회사 위임/);
+    assert.equal(elements.writerFinalPrepare.disabled, true);
+    assert.equal(calls.some(call => call.method === 'POST' || call.method === 'PUT'), false);
+  }
+});
+
+test('a valid company receipt preserves the separate existing choice readiness status', async () => {
+  const { elements, calls, setJob } = fixture({ companyReopen: true, existingDraft: true });
+  setJob('completed', 2);
+  await elements.writerFinalOpen.fire('click');
+  assert.match(elements.writerFinalState.textContent, /^회사 위임 · 원고 제출 완료\n선택지 3개가 모두 준비/);
+  assert.equal(elements.writerFinalStage.textContent, '선택지 준비 완료');
+  assert.equal(calls.some(call => call.method === 'POST' || call.method === 'PUT'), false);
+});
+
+test('company submission never replaces explicit author rights and AI consent', async () => {
+  const { elements, calls } = fixture({ companyReopen: true });
+  await elements.writerFinalOpen.fire('click');
+  elements.writerFinalReviewed.checked = true;
+  await elements.writerFinalPrepare.fire('click');
+  assert.equal(calls.some(call => call.method === 'POST' || call.method === 'PUT'), false);
+  elements.writerFinalRights.checked = true;
+  elements.writerFinalAi.checked = true;
+  await elements.writerFinalPrepare.fire('click');
+  assert.equal(calls.some(call => call.path.endsWith('/reviews') || call.path.endsWith('/submit')), false);
+  assert.equal(calls.filter(call => call.path.endsWith('/style-consent')).length, 1);
+  assert.equal(calls.filter(call => call.path.endsWith('/materialize')).length, 1);
+  assert.match(elements.writerFinalState.textContent, /^회사 위임 · 원고 제출 완료\nAI 선택지 준비가 대기 중/);
+});
+
+test('account changes close the company receipt and discard its current UI authority', async () => {
+  const { elements, calls, changeAccount } = fixture({ companyReopen: true });
+  await elements.writerFinalOpen.fire('click');
+  authorChecks(elements);
+  changeAccount();
+  assert.equal(elements.writerFinalModal.classList.contains('is-hidden'), true);
+  assert.equal(elements.writerFinalEntryState.textContent, '');
+  assert.equal(elements.writerFinalPrepare.disabled, true);
+  await elements.writerFinalPrepare.fire('click');
+  assert.equal(calls.some(call => call.method === 'POST' || call.method === 'PUT'), false);
+});
 
 async function advanceToConfirmation(elements) {
   authorChecks(elements);

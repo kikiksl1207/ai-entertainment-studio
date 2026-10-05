@@ -568,24 +568,21 @@ describe('admin test account privacy route review (offline mocks only)', () => {
     return { consumer, forRoutes, routes: forRoutes.mock.calls[0] };
   }
 
-  it('registers privacy middleware for exactly the two scoped paths, all methods, with no global or prefix wildcard', () => {
+  it('registers privacy middleware for both protected controllers without a global wildcard', () => {
     const { consumer, forRoutes, routes } = registrations();
     expect(consumer.apply).toHaveBeenCalledTimes(1);
     expect(consumer.apply).toHaveBeenCalledWith(AdminTestAccountPrivacyMiddleware);
     expect(forRoutes).toHaveBeenCalledTimes(1);
-    expect(routes).toEqual([
-      { path: 'admin/api/v1/users/:userId/test-account-classification', method: RequestMethod.ALL },
-      { path: 'admin/api/v1/backstage/operations/users-overview', method: RequestMethod.ALL },
-    ]);
+    expect(routes).toEqual([AdminController, AdminTestAccountController]);
     expect(Reflect.getMetadata(MODULE_METADATA.CONTROLLERS, AdminModule)).toEqual([AdminController, AdminTestAccountController]);
   });
 
-  it('aligns middleware paths with existing GET/POST classification and GET overview metadata without broadening guards', () => {
+  it('aligns protected controller paths without broadening existing guards or permissions', () => {
     const { routes } = registrations();
     const classificationPath = Reflect.getMetadata(PATH_METADATA, AdminTestAccountController).replace(/^\//, '');
-    const overviewPath = [Reflect.getMetadata(PATH_METADATA, AdminController).replace(/^\//, ''),
-      Reflect.getMetadata(PATH_METADATA, AdminController.prototype.getBackstageUsersOverview)].join('/');
-    expect(routes.map((route: any) => route.path)).toEqual([classificationPath, overviewPath]);
+    const adminPath = Reflect.getMetadata(PATH_METADATA, AdminController).replace(/^\//, '');
+    expect(routes.map((controller: any) => Reflect.getMetadata(PATH_METADATA, controller).replace(/^\//, '')))
+      .toEqual([adminPath, classificationPath]);
     expect(Reflect.getMetadata(METHOD_METADATA, AdminTestAccountController.prototype.get)).toBe(RequestMethod.GET);
     expect(Reflect.getMetadata(METHOD_METADATA, AdminTestAccountController.prototype.set)).toBe(RequestMethod.POST);
     expect(Reflect.getMetadata(METHOD_METADATA, AdminController.prototype.getBackstageUsersOverview)).toBe(RequestMethod.GET);
@@ -594,11 +591,7 @@ describe('admin test account privacy route review (offline mocks only)', () => {
     }
     expect(Reflect.getMetadata(ADMIN_PERMISSIONS_KEY, AdminTestAccountController)).toEqual(['*']);
     expect(Reflect.getMetadata(ADMIN_PERMISSIONS_KEY, AdminController.prototype.getBackstageUsersOverview)).toEqual(['users:read']);
-    const unrelatedPaths = ['me', 'backstage/summary', 'users/:userId',
-      'backstage/operations/users-overview/export', 'users/:userId/test-account-classification/history'];
-    for (const unrelated of unrelatedPaths) {
-      expect(routes.map((route: any) => route.path)).not.toContain(`admin/api/v1/${unrelated}`);
-    }
+    for (const controller of routes) expect(Reflect.getMetadata(PATH_METADATA, controller)).not.toContain('*');
   });
 
   it('sets private no-store headers before success or simulated 401/403/400 on either registered route', () => {
@@ -611,7 +604,7 @@ describe('admin test account privacy route review (offline mocks only)', () => {
         const headers: Record<string, string> = { 'cache-control': 'public, max-age=3600' };
         const response = { statusCode: 200, getHeader: (name: string) => headers[name.toLowerCase()],
           setHeader: jest.fn((name: string, value: string) => { headers[name.toLowerCase()] = value; }) };
-        const request = { path: route.path.replace(':userId', TARGET), method: 'GET' };
+        const request = { path: Reflect.getMetadata(PATH_METADATA, route).replace(':userId', TARGET), method: 'GET' };
         const next = jest.fn(() => {
           expect(headers).toEqual(expectedHeaders);
           response.statusCode = status;

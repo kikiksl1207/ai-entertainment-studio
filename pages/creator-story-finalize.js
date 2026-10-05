@@ -27,6 +27,7 @@
   };
   const copy = {
     ko: {
+      companySubmitted: "회사 위임 · 원고 제출 완료",
       entryTitle: "원고 최종 검토", entryIntro: "원래 이야기의 다음 경로와 AI 분기 권리를 확인하면 각 파트의 선택지 준비를 비공개로 요청합니다. 다시 열어 진행 상태를 확인할 수 있습니다.", open: "최종 검토 열기",
       eyebrow: "작가 확인", title: "원고와 원작 경로 최종 검토", close: "닫기", later: "나중에",
       intro: "분석 요약과 분기 제안, 설정 충돌을 차례로 검토해 주세요. 마지막 확정 후 선택지 3개를 서버에서 비공개로 준비합니다.",
@@ -60,6 +61,7 @@
       submitting: "작가의 최종 확정을 기록하고 있습니다.", submitUnconfirmed: "원고 제출 상태를 확인할 수 없습니다.", savingConsent: "원고 권리와 AI 분기 승인을 저장하고 있습니다.", materializing: "원고를 비공개 장면으로 정리하고 있습니다.", materializeUnconfirmed: "비공개 장면의 준비 상태를 확인할 수 없습니다.", jobUnconfirmed: "서버의 선택지 준비 작업을 확인할 수 없습니다. 아래 항목을 확인하고 다시 시도해 주세요.", choiceUnverified: "선택지 작업은 완료로 표시되지만 최종 준비 상태가 확인되지 않았습니다. 다시 열어 확인하고 계속되면 운영자에게 문의해 주세요.", failureRetain: "{reason} 준비된 파트는 보존됩니다. 다시 열어 이어서 진행해 주세요.", manuscriptChanged: "원고 또는 계정이 변경되었습니다.", requestFailed: "요청을 완료하지 못했습니다. 다시 시도해 주세요."
     },
     en: {
+      companySubmitted: "Company delegation · Manuscript submitted",
       entryTitle: "Final manuscript review", entryIntro: "Confirm the original story path and AI branching rights to request private choice preparation. Reopen to check progress.", open: "Open final review",
       eyebrow: "Author confirmation", title: "Final review of manuscript and original path", close: "Close", later: "Later",
       intro: "Review the analysis summary, branch proposals, and continuity issues in order. After final confirmation, the server privately prepares all three choices.",
@@ -93,6 +95,7 @@
       submitting: "Recording the author's final confirmation.", submitUnconfirmed: "Could not verify manuscript submission.", savingConsent: "Saving manuscript rights and AI branch consent.", materializing: "Preparing private scenes from the manuscript.", materializeUnconfirmed: "Could not verify private scene preparation.", jobUnconfirmed: "Could not verify the choice-preparation job. Confirm the items below and retry.", choiceUnverified: "The job reports completion, but final readiness is unverified. Reopen to check; contact an operator if it persists.", failureRetain: "{reason} Prepared parts are preserved. Reopen this screen to continue.", manuscriptChanged: "The manuscript or account changed.", requestFailed: "Could not complete the request. Please try again."
     },
     ja: {
+      companySubmitted: "会社委任 · 原稿提出完了",
       entryTitle: "原稿の最終確認", entryIntro: "原作の次の経路とAI分岐の権利を確認し、非公開の選択肢準備を依頼します。再度開いて進行状況を確認できます。", open: "最終確認を開く",
       eyebrow: "作者の確認", title: "原稿と原作経路の最終確認", close: "閉じる", later: "あとで", intro: "分析概要、分岐案、設定の矛盾を順に確認してください。最終確定後、3つの選択肢をサーバーで非公開のまま準備します。",
       summaryTitle: "原稿分析の概要", proposalTitle: "分岐案と原作経路", continuityTitle: "設定の矛盾", confirmationTitle: "最終確認",
@@ -125,6 +128,7 @@
       submitting: "作者の最終確定を記録しています。", submitUnconfirmed: "原稿の提出状態を確認できません。", savingConsent: "原稿の権利とAI分岐の承認を保存しています。", materializing: "原稿を非公開の場面として整理しています。", materializeUnconfirmed: "非公開の場面の準備状態を確認できません。", jobUnconfirmed: "選択肢準備ジョブを確認できません。下記の項目を確認して再試行してください。", choiceUnverified: "ジョブは完了と表示されていますが、最終準備状態を確認できません。再度開いて確認し、続く場合は運営者にお問い合わせください。", failureRetain: "{reason} 準備済みのパートは保持されます。開き直して続行してください。", manuscriptChanged: "原稿またはアカウントが変更されました。", requestFailed: "リクエストを完了できませんでした。もう一度お試しください。"
     },
     "zh-Hans": {
+      companySubmitted: "公司委托 · 稿件已提交",
       entryTitle: "稿件最终核对", entryIntro: "确认原故事的后续路径和 AI 分支授权后，将提交非公开的选项准备请求。可重新打开查看进度。", open: "打开最终核对",
       eyebrow: "作者确认", title: "稿件与原作路径最终核对", close: "关闭", later: "稍后", intro: "请依次核对分析摘要、分支建议和设定冲突。最终确认后，服务器会私下准备三个选项。",
       summaryTitle: "稿件分析摘要", proposalTitle: "分支建议与原作路径", continuityTitle: "设定冲突", confirmationTitle: "最终确认",
@@ -157,6 +161,7 @@
       submitting: "正在记录作者的最终确认。", submitUnconfirmed: "无法确认稿件提交状态。", savingConsent: "正在保存稿件权利及 AI 分支授权。", materializing: "正在将稿件整理为非公开场景。", materializeUnconfirmed: "无法确认非公开场景的准备状态。", jobUnconfirmed: "无法确认选项准备任务。请确认下方项目后重试。", choiceUnverified: "任务显示已完成，但最终准备状态未经确认。请重新打开查看；若持续如此，请联系运营人员。", failureRetain: "{reason} 已准备的部分会保留。请重新打开以继续。", manuscriptChanged: "稿件或账号已改变。", requestFailed: "无法完成请求，请重试。"
     },
     "zh-Hant": {
+      companySubmitted: "公司委託 · 稿件已提交",
       entryTitle: "稿件最終核對", entryIntro: "確認原故事的後續路徑與 AI 分支授權後，將提交非公開的選項準備請求。可重新開啟查看進度。", open: "開啟最終核對",
       eyebrow: "作者確認", title: "稿件與原作路徑最終核對", close: "關閉", later: "稍後", intro: "請依序核對分析摘要、分支建議與設定衝突。最終確認後，伺服器會私下準備三個選項。",
       summaryTitle: "稿件分析摘要", proposalTitle: "分支建議與原作路徑", continuityTitle: "設定衝突", confirmationTitle: "最終確認",
@@ -199,6 +204,8 @@
   let snapshot = null;
   let profile = null;
   let choiceReview = null;
+  // Receipt failures require reopening; a later background read cannot restore authority.
+  let companyReceiptBlocked = false;
   let active = null;
   let sessionRevision = 0;
   let loading = false;
@@ -237,7 +244,9 @@
   }
   function renderState() {
     if (!stateView) return;
-    const message = t(stateView.key, stateView.values);
+    const companyStatus = !companyReceiptBlocked && snapshot && validCompanySubmission(snapshot.review, snapshot);
+    const message = (companyStatus && !stateView.error && !["loading", "companySubmitted"].includes(stateView.key)
+      ? t("companySubmitted") + "\n" : "") + t(stateView.key, stateView.values);
     state.textContent = message;
     entryState.textContent = message;
     state.classList.toggle("is-danger", stateView.error);
@@ -248,6 +257,11 @@
     setState(retain ? "failureRetain" : reason, true, retain ? { reason } : {});
   }
   function uiError(key) { return Object.assign(new Error(key), { uiKey: key }); }
+  function rejectCompanyReceipt(key = "reviewChanged") {
+    companyReceiptBlocked = true;
+    choiceReview = null;
+    return uiError(key);
+  }
 
   function candidateScenesCurrent() {
     const source = snapshot?.parts;
@@ -266,7 +280,7 @@
   }
   function choicesReady() {
     const job = snapshot?.choiceJob;
-    return Boolean(choiceReview?.status === "current" && reviewMatchesSettings() &&
+    return Boolean(!companyReceiptBlocked && choiceReview?.status === "current" && reviewMatchesSettings() &&
       snapshot?.releaseId && snapshot.ready === true && validChoiceJob() && candidateScenesCurrent() &&
       snapshot.scenes.every(scene => scene.choiceCount === 3) && job?.status === "completed" &&
       choiceReview.preparedScenes === snapshot.parts?.length && choiceReview.resetRequiredScenes === 0 &&
@@ -307,6 +321,7 @@
     return null;
   }
   function setChoiceJobState() {
+    if (companyReceiptBlocked) return setState("reviewChanged", true);
     const job = snapshot?.choiceJob;
     if (snapshot?.releaseId) {
       if (!candidateScenesCurrent() || (job && !validChoiceJob())) return setState("jobUnconfirmed", true);
@@ -345,7 +360,7 @@
     prepare.textContent = t(action === "reset" ? "resetChoices" : action === "retry" ? "retry" :
       snapshot?.releaseId ? "prepare" : reviewSteps[reviewState]?.button || "prepare");
     prepare.disabled = busy || loading || refreshing || !current() || !snapshot || !profile || profile.profile.status !== "approved" ||
-      choicesReady() || snapshot.issuesTruncated ||
+      companyReceiptBlocked || choicesReady() || snapshot.issuesTruncated ||
       (snapshot.issues || []).some(issue => issue.severity === "critical") ||
       (Boolean(snapshot.releaseId) && (!candidateScenesCurrent() || (snapshot.choiceJob && !validChoiceJob()) ||
         !choiceReview || !reviewMatchesSettings() ||
@@ -380,6 +395,7 @@
     snapshot = null;
     profile = null;
     choiceReview = null;
+    companyReceiptBlocked = false;
     stateView = null;
     entryState.textContent = "";
     updatePrepareButton();
@@ -396,9 +412,11 @@
     }
     const data = await response.json().catch(() => null);
     if (active !== scope || sessionRevision !== revision || !current()) throw uiError("manuscriptChanged");
-    if (!response.ok) throw Object.assign(new Error("request"), {
-      status: response.status, code: data?.code || data?.error?.code || ""
-    });
+    if (!response.ok) {
+      const code = data?.code || data?.error?.code || "";
+      throw Object.assign(code === "COMPANY_FINAL_SUBMISSION_CHANGED" ? rejectCompanyReceipt() : new Error("request"),
+        { status: response.status, code });
+    }
     return data;
   }
   function routePath(suffix = "") {
@@ -412,7 +430,11 @@
         loaded.analysisJobId !== active.analysisJobId || !Array.isArray(loaded.parts) || !loaded.parts.length ||
         loaded.parts.some(part => typeof part?.partKey !== "string" || !part.partKey) ||
         new Set(loaded.parts.map(part => part.partKey)).size !== loaded.parts.length)
-      throw uiError("analysisMissing");
+      throw hasCompanySubmission(loaded?.review) || hasCompanySubmission(snapshot?.review)
+        ? rejectCompanyReceipt() : uiError("analysisMissing");
+    if ((hasCompanySubmission(loaded.review) && !validCompanySubmission(loaded.review, loaded)) ||
+        (hasCompanySubmission(snapshot?.review) && !sameCompanySubmission(snapshot.review, loaded.review)))
+      throw rejectCompanyReceipt();
     snapshot = loaded;
     window.LuminaCreatorVisualReferences?.show(snapshot, active);
     if (!loaded.releaseId) return loaded;
@@ -512,6 +534,43 @@
       settings.kind === "story" && Array.isArray(settings.sections) &&
       profileKeys.every(key => settings.sections.some(section => section.key === key &&
         section.value && typeof section.value === "object" && !Array.isArray(section.value)));
+  }
+  function validCompanySubmission(review, previous) {
+    const receipt = review?.companySubmission;
+    const uuid = value => typeof value === "string" && /^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(value);
+    return review?.approvalBasis === "company_delegation" && review.state === "submitted" &&
+      review.revision === 2 && uuid(review.reviewId) && uuid(receipt?.submissionId) &&
+      receipt.contract === "story-company-final-submission-v1" && receipt.scope === "manuscript_submission" &&
+      uuid(receipt.manuscriptVersionId) && uuid(receipt.analysisJobId) &&
+      typeof receipt.manuscriptHash === "string" && /^[a-f0-9]{64}$/.test(receipt.manuscriptHash) &&
+      receipt.manuscriptVersionId === active.manuscriptVersionId && receipt.manuscriptHash === previous.manuscriptHash &&
+      receipt.analysisJobId === active.analysisJobId && receipt.reviewRevision === review.revision &&
+      typeof receipt.bindingHash === "string" && /^[a-f0-9]{64}$/.test(receipt.bindingHash) &&
+      receipt.humanSemanticReview === false && receipt.published === false && receipt.generationStarted === false;
+  }
+  function hasCompanySubmission(review) {
+    return Boolean(review && (review.approvalBasis === "company_delegation" || Object.hasOwn(review, "companySubmission")));
+  }
+  function sameCompanySubmission(previous, latest) {
+    return hasCompanySubmission(latest) && previous.reviewId === latest.reviewId &&
+      previous.companySubmission?.submissionId === latest.companySubmission?.submissionId &&
+      previous.companySubmission?.bindingHash === latest.companySubmission?.bindingHash;
+  }
+  async function acceptCompanySubmission(review, previous) {
+    if (!validCompanySubmission(review, previous)) throw rejectCompanyReceipt("submitUnconfirmed");
+    const latest = await loadSnapshot();
+    const latestProfile = await request(`/stories/${encodeURIComponent(active.workId)}/generation-profile`);
+    if (!validProfile(latestProfile) || latestProfile.profile.status !== "approved" ||
+        latestProfile.profile.approvedFingerprint !== profile.profile.approvedFingerprint ||
+        !validCompanySubmission(latest.review, latest) || !sameCompanySubmission(review, latest.review) ||
+        latest.review?.reviewId !== review.reviewId || latest.review?.revision !== review.revision ||
+        latest.review?.state !== "submitted" || latest.releaseId ||
+        latest.manuscriptHash !== previous.manuscriptHash || latest.analysisJobId !== previous.analysisJobId ||
+        JSON.stringify(latest.parts) !== JSON.stringify(previous.parts) ||
+        JSON.stringify(latest.issues) !== JSON.stringify(previous.issues) ||
+        latest.issuesTruncated !== previous.issuesTruncated) throw rejectCompanyReceipt();
+    setState("companySubmitted");
+    state.scrollIntoView?.({ block: "nearest" });
   }
   function renderProfile() {
     summary.replaceChildren();
@@ -616,6 +675,7 @@
     loading = true;
     snapshot = null;
     choiceReview = null;
+    companyReceiptBlocked = false;
     previousFocus = document.activeElement;
     modal.classList.remove("is-hidden");
     document.getElementById("writerFinalClose").focus();
@@ -647,7 +707,7 @@
       else if ((snapshot.issues || []).some(issue => issue.severity === "critical")) setState("criticalIssues", true);
       else if (snapshot.releaseId) setChoiceJobState();
       else if (profile.profile.status !== "approved") setState("profilePending");
-      else if (snapshot.review?.state === "submitted") setState("resumeSubmitted");
+      else if (snapshot.review?.state === "submitted") setState(hasCompanySubmission(snapshot.review) ? "companySubmitted" : "resumeSubmitted");
       else setState("startReview");
     } catch (error) {
       if (sessionRevision === revision) { window.LuminaCreatorVisualReferences?.reset(); snapshot = null; profile = null; choiceReview = null; setFailure(error, "requestFailed"); }
@@ -694,7 +754,8 @@
         latest.issuesTruncated !== previous.issuesTruncated ||
         (!submittedSinceLastRead && (latest.review?.revision !== previous.review?.revision ||
           latest.review?.state !== previous.review?.state))) {
-      throw uiError("reviewChanged");
+      throw hasCompanySubmission(previous.review) || hasCompanySubmission(latest.review)
+        ? rejectCompanyReceipt() : uiError("reviewChanged");
     }
     return latest;
   }
@@ -719,9 +780,14 @@
       await assertFreshReview();
       let review = snapshot.review;
       if (!review) {
+        const previous = snapshot;
         review = await request(`/stories/${encodeURIComponent(active.workId)}/reviews`, {
           method: "POST", body: { manuscriptVersionId: active.manuscriptVersionId, analysisJobId: active.analysisJobId }
         });
+        if (hasCompanySubmission(review)) {
+          await acceptCompanySubmission(review, previous);
+          return;
+        }
         snapshot.review = review;
       }
       if (review.state !== reviewState) throw uiError("stepChanged");
@@ -799,7 +865,7 @@
     }
   }
   async function finalize() {
-    if (busy || loading || refreshing || !snapshot || !profile || profile.profile.status !== "approved" || choicesReady() || !current() ||
+    if (busy || loading || refreshing || companyReceiptBlocked || !snapshot || !profile || profile.profile.status !== "approved" || choicesReady() || !current() ||
         snapshot.issuesTruncated || (snapshot.issues || []).some(issue => issue.severity === "critical")) return;
     if (snapshot.releaseId) {
       if (!candidateScenesCurrent() || (snapshot.choiceJob && !validChoiceJob())) return;
@@ -905,8 +971,8 @@
       setChoiceJobState();
       renderChoiceConsentReview();
       updatePrepareButton();
-    } catch (_) {
-      if (sessionRevision === revision && current()) { choiceReview = null; setState("choiceReviewUnavailable", true); }
+    } catch (error) {
+      if (sessionRevision === revision && current()) { choiceReview = null; setFailure(error, "choiceReviewUnavailable"); }
     }
     finally {
       if (sessionRevision === revision) { refreshing = false; updatePrepareButton(); }

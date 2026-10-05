@@ -12,6 +12,7 @@ import { continuationGenerationProfileSnapshot, STORY_CONTINUATION_PROFILE_VIEW_
 import { SEMANTIC_PIPELINE } from './story-semantic-analysis.types';
 import { ManuscriptPart } from './story-production.policy';
 import { CHOICE_CONSENT_REAPPROVED, choiceConsentReceiptValid } from './story-studio-choice-consent.policy';
+import { assertCompanyFinalSubmissionCurrent } from './story-company-final-submission.policy';
 
 function fail(code: string): never {
   throw new ConflictException({ code, message: 'The reviewed manuscript and original route must be ready before choices are prepared' });
@@ -104,6 +105,7 @@ export class StoryStudioChoicePreparationService {
         !Array.isArray(consent.allowedLocales) || !consent.allowedLocales.includes('ko')) {
       fail('STUDIO_CHOICES_PUBLICATION_CONSENT_REQUIRED');
     }
+    await assertCompanyFinalSubmissionCurrent(tx, { ownerUserId, workId, review, manuscript, submission });
     if (tx.storyWorkGenerationProfile) {
       await tx.$queryRaw(Prisma.sql`SELECT id FROM story_work_generation_profiles WHERE work_id = ${workId}::uuid FOR SHARE`);
     }
@@ -324,6 +326,7 @@ export class StoryStudioChoicePreparationService {
     const submission = review ? await db.storyFinalSubmission.findUnique({ where: { reviewId: review.id } }) : null;
     if (!submission || submission.status !== 'submitted' || submission.checksum !== manuscript.contentHash ||
         submission.manuscriptVersionId !== manuscript.id) fail('STUDIO_CHOICES_FINAL_REVIEW_REQUIRED');
+    await assertCompanyFinalSubmissionCurrent(db, { ownerUserId, workId, review: review!, manuscript, submission });
     const consent = await db.storyStyleProfileConsent.findUnique({ where: { workId } });
     const now = new Date();
     if (!consent || consent.ownerUserId !== ownerUserId || consent.manuscriptVersionId !== manuscript.id ||

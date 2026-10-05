@@ -9,8 +9,9 @@ import { MANUSCRIPT_FILE_LIMITS } from './story-manuscript-file.policy';
 import { FixedRouteVisualBible } from './story-fixed-route-markdown.policy';
 import { releaseChecksum } from './story-lifecycle.policy';
 import { publicationVisualSceneBindings } from './story-publication-visual-binding.policy';
+import { PUBLICATION_AUTHOR_REVIEW_STATUS } from './story-publication-private-intake.constants';
 
-export const PUBLICATION_AUTHOR_REVIEW_STATUS = 'awaiting_author_review';
+export { PUBLICATION_AUTHOR_REVIEW_STATUS } from './story-publication-private-intake.constants';
 
 export type PrivatePublicationSource = {
   storyKey: string; slug: string; title: string; summary: string; coverPath: string;
