@@ -851,7 +851,8 @@
 }
 .story-beat-navigation button:focus-visible { outline: 2px solid #d4ff5f; outline-offset: 3px; }
 .story-beat-navigation button,
-.story-choice-list button { scroll-margin-block: calc(88px + env(safe-area-inset-bottom, 0px)); }
+.story-choice-list button,
+.story-ending-read .story-button { scroll-margin-block: calc(88px + env(safe-area-inset-bottom, 0px)); }
 
 .story-completed { padding: 32px 0; text-align: center; }
 .story-completed h2 { margin: 12px 0 0; font-size: 24px; }

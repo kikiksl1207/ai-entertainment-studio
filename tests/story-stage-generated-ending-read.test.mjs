@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { createHash, webcrypto } from 'node:crypto';
+import { setImmediate as tick } from 'node:timers/promises';
 import { runInNewContext } from 'node:vm';
 
 const source = await readFile(new URL('../pages/story-stage.js', import.meta.url), 'utf8');
@@ -288,188 +290,266 @@ test('a one-page generated ending visit does not automatically acknowledge readi
   }
 });
 
-test('explicit ending read saves a one-page or final grouped target and reloads without scrolling to start', async () => {
-  for (const options of [
-    { positions: [1] }, { positions: [1, 2] }, { position: 5 },
-  ]) {
-    const fixture = reader({ ...options, omitGeneratedSceneId: true });
-    const originalPosition = fixture.state.progress.currentBeatPosition;
-    const position = fixture.endingReadTarget().position;
-    assert.equal(Object.hasOwn(fixture.state.progress, 'currentGeneratedSceneId'), false);
-    assert.equal(fixture.requests.length, 0);
-    await fixture.loadScene({ restorePending: false });
-    assertCompleted(fixture, originalPosition, 3);
-    assert.equal(fixture.requests.length, 1);
-    assert.equal(fixture.requests[0].method, 'GET');
-    await fixture.confirmEndingRead();
-    assertCompleted(fixture, position, 10);
-    const entry = fixture.requests[1];
-    assert.equal(entry.path, '/api/v1/me/story-progress/progress-id/beat?locale=en');
-    assert.equal(entry.auth, true);
+// Borrow only the existing full-IIFE fixture, without registering its contract tests.
+const confirmationSuite = await readFile(new URL('./story-generated-ending-read-confirmation.test.mjs', import.meta.url), 'utf8');
+const canonical = await readFile(new URL('../pages/story-canonical-read.js', import.meta.url), 'utf8');
+const id = n => `30000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
+const endingReader = runInNewContext(
+  `${section(confirmationSuite, 'function projection(', 'function assertReadPost(')}; fixture`,
+  {
+    assert, source: source.replace(/\r\n/g, '\n'), canonical, runInNewContext, plain, id,
+    hash: text => createHash('sha256').update(text, 'utf8').digest('hex'),
+    sentences: { en: 'Synthetic ending.' }, webcrypto, tick, URL, URLSearchParams, TextEncoder, AbortController,
+    ArrayBuffer, Uint8Array,
+    decode: value => String(value).replace(/&#13;/g, '\r').replace(/&#39;/g, "'")
+      .replace(/&quot;/g, '"').replace(/&gt;/g, '>').replace(/&lt;/g, '<').replace(/&amp;/g, '&'),
+  },
+);
+
+function assertReceiptOnly(fixture, before) {
+  assert.deepEqual(plain(fixture.state.progress), before);
+  assert.equal(fixture.state.minimumRevision, before.revision);
+  assert.equal(fixture.state.busy, false);
+  assert.equal(fixture.state.endingReadOperation, null);
+  assert.ok(fixture.posts().every(entry => entry.path.endsWith('/generated-ending-read/confirm')));
+}
+
+test('full-page final navigation saves the cursor but does not confirm the ending', async () => {
+  const fixture = endingReader({ position: 0 });
+  await fixture.ready();
+  assert.equal(fixture.button(), null);
+  await fixture.api.turnBeat(1);
+  await fixture.api.turnBeat(1);
+  await fixture.ready();
+  assert.deepEqual(plain(fixture.posts().map(entry => entry.body.position)), [4, 6]);
+  assert.equal(fixture.state.progress.revision, 9);
+  assert.equal(fixture.state.endingRead.status, 'idle');
+  assert.equal(fixture.button().disabled, false);
+  assert.equal(fixture.posts().filter(entry => entry.path.endsWith('/confirm')).length, 0);
+});
+
+test('explicit ending read confirms one-page or final grouped text without a cursor write', async () => {
+  for (const options of [{ positions: [1], position: 0 }, { positions: [1, 2], position: 0 }, { position: 5 }]) {
+    const fixture = endingReader({ ...options, onScene: (entry, context) => {
+      delete context.server.currentGeneratedSceneId;
+      return plain(context.server);
+    } });
+    await fixture.ready();
+    const before = plain(fixture.state.progress);
+    const target = fixture.api.endingReadTarget();
+    assert.equal(fixture.posts().length, 0);
+    assert.equal(fixture.reviews().length, 1);
+    await fixture.confirm();
+    assertReceiptOnly(fixture, before);
+    const entry = fixture.posts()[0];
+    assert.equal(entry.path, `/api/v1/me/story-progress/${id(2)}/generated-ending-read/confirm`);
+    assert.deepEqual(Object.keys(entry.body).sort(), ['displayedAndRead', 'expectedRevision',
+      'expectedScopeChecksum', 'expectedSourceTextHash', 'fromPosition', 'idempotencyKey', 'locale']);
+    assert.equal(entry.body.fromPosition, target.fromPosition);
+    assert.equal(entry.body.expectedRevision, before.revision);
+    assert.equal(entry.body.locale, 'en');
+    assert.equal(entry.body.displayedAndRead, true);
+    assert.match(entry.body.expectedScopeChecksum, /^[0-9a-f]{64}$/);
+    assert.match(entry.body.expectedSourceTextHash, /^[0-9a-f]{64}$/);
+    assert.match(entry.body.idempotencyKey, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    assert.equal(entry.headers.Authorization, 'Bearer synthetic-reader-token');
+    assert.equal(entry.transport, 'fetch');
+    assert.equal(entry.cache, 'no-store');
     assert.ok(entry.signal);
-    assert.deepEqual(entry.body, { position, expectedRevision: 3 });
-    assert.equal(fixture.state.beatNotice, 'readSaved');
-    assert.deepEqual(fixture.scrollStarts, []);
-    assert.deepEqual(fixture.focuses.at(-1), { preventScroll: true });
-    await fixture.loadScene({ restorePending: false });
-    assertCompleted(fixture, position, 10);
-    await fixture.confirmEndingRead();
-    assert.deepEqual(fixture.requests.map((request) => request.method), ['GET', 'POST', 'GET']);
-    assert.deepEqual(fixture.scrollStarts, []);
+    assert.equal(fixture.state.endingRead.status, 'saved');
+    assert.equal(fixture.reviews().length, 2);
+    assert.equal(fixture.calls.filter(entry => entry.path.includes('/current-scene?')).length, 1);
+    await fixture.api.confirmEndingRead();
+    assert.equal(fixture.posts().length, 1);
+    await fixture.api.loadScene({ restorePending: false });
+    await fixture.ready();
+    assertReceiptOnly(fixture, before);
+    assert.equal(fixture.state.endingRead.status, 'saved');
+    await fixture.api.confirmEndingRead();
+    assert.equal(fixture.posts().length, 1);
   }
 });
 
-test('explicit ending read already-saved and ineligible targets never POST', async () => {
-  const saved = reader({ positions: [1], position: 1, omitGeneratedSceneId: true });
-  await saved.confirmEndingRead();
-  await saved.confirmEndingRead();
-  assertCompleted(saved, 1, 3);
-  assert.deepEqual(saved.requests, []);
-  const middle = reader({ omitGeneratedSceneId: true });
-  assert.equal(middle.endingReadTarget(), null);
-  await middle.confirmEndingRead();
-  assert.deepEqual(middle.requests, []);
+test('explicit ending read verified receipts and ineligible targets never POST', async () => {
+  const saved = endingReader({ positions: [1], position: 1,
+    onReview: (preview, entry, fixture) => ({ ...preview, confirmation: fixture.receipt(preview) }) });
+  await saved.ready();
+  const before = plain(saved.state.progress);
+  await saved.api.confirmEndingRead();
+  await saved.api.confirmEndingRead();
+  assertReceiptOnly(saved, before);
+  assert.equal(saved.posts().length, 0);
+  assert.equal(saved.state.endingRead.status, 'saved');
+  const middle = endingReader({ position: 0 });
+  await middle.ready();
+  assert.equal(middle.api.endingReadTarget().onFinalPage, false);
+  await middle.api.confirmEndingRead();
+  assert.equal(middle.reviews().length, 0);
+  assert.equal(middle.posts().length, 0);
   for (const change of [
-    (fixture) => { fixture.state.progress.status = 'active'; },
-    (fixture) => { fixture.state.scene.isGenerated = false; },
-    (fixture) => { fixture.state.scene = null; },
-    (fixture) => { fixture.state.scene.id = ''; },
-    (fixture) => { fixture.state.progress.scene = { ...fixture.state.progress.scene, id: 'other-progress-scene' }; },
-    (fixture) => { delete fixture.state.scene.deliveryState; },
-    (fixture) => { fixture.state.scene.deliveryState = 'artwork_pending'; },
-    (fixture) => { fixture.state.scene.endingType = 'author_main'; },
-    (fixture) => { fixture.state.sceneIdentity = 'reader-b'; },
-    (fixture) => fixture.setIdentity(''),
-    (fixture) => { fixture.state.choices = [{ id: 'choice-0' }]; },
-    (fixture) => { fixture.state.choices = null; },
-    (fixture) => { fixture.state.progress.revision = 0; },
-    (fixture) => { fixture.state.progress.revision = 3.5; },
-    (fixture) => { fixture.state.progress.currentBeatPosition = -1; },
-    (fixture) => { fixture.state.progress.currentBeatPosition = 0.5; },
-    (fixture) => { fixture.state.scene.beats[0].position = 0; },
-    (fixture) => { fixture.state.scene.beats[0].content = ' '; },
-    (fixture) => {
-      fixture.state.scene.beats[0].content = 'Complete sentence. Hidden unfinished tail';
-      const target = fixture.readableBeats().beats[0];
-      assert.equal(target.text, 'Complete sentence.');
-      assert.equal(target.trimmedTail, true);
+    fixture => { fixture.state.progress.status = 'active'; },
+    fixture => { fixture.state.scene.isGenerated = false; },
+    fixture => { fixture.state.scene = null; },
+    fixture => { fixture.state.scene.id = ''; },
+    fixture => { fixture.state.progress.scene = { ...fixture.state.progress.scene, id: id(99) }; },
+    fixture => { delete fixture.state.scene.deliveryState; },
+    fixture => { fixture.state.scene.deliveryState = 'artwork_pending'; },
+    fixture => { fixture.state.scene.endingType = 'author_main'; },
+    fixture => { fixture.state.sceneIdentity = 'other-reader'; },
+    fixture => fixture.setAuth(null),
+    fixture => { fixture.state.choices = [{ id: 'choice-0' }]; },
+    fixture => { fixture.state.choices = null; },
+    fixture => { fixture.state.progress.revision = 0; },
+    fixture => { fixture.state.progress.revision = 3.5; },
+    fixture => { fixture.state.progress.currentBeatPosition = -1; },
+    fixture => { fixture.state.progress.currentBeatPosition = 0.5; },
+    fixture => { fixture.state.scene.beats[0].position = 0; },
+    fixture => { fixture.state.scene.beats[0].content.value = ' '; },
+    fixture => {
+      fixture.state.scene.beats[0].content.value = 'Complete sentence. Hidden unfinished tail';
+      assert.equal(fixture.api.readableBeats().beats[0].trimmedTail, true);
     },
   ]) {
-    const fixture = reader({ positions: [1], omitGeneratedSceneId: true });
+    const fixture = endingReader({ positions: [1], position: 0 });
+    await fixture.ready();
     change(fixture);
-    assert.equal(fixture.endingReadTarget(), null);
-    await fixture.confirmEndingRead();
-    assert.deepEqual(fixture.requests, []);
+    assert.equal(fixture.api.endingReadTarget(), null);
+    const calls = fixture.calls.length;
+    await fixture.api.confirmEndingRead();
+    assert.equal(fixture.calls.length, calls);
+    assert.equal(fixture.posts().length, 0);
   }
   for (const change of [
-    (state) => { state.busy = true; },
-    (state) => { state.aiNotice = { kind: 'checking' }; },
-    (state) => { state.resetPreview = {}; },
+    state => { state.busy = true; },
+    state => { state.aiNotice = { kind: 'checking' }; },
+    state => { state.resetPreview = {}; },
   ]) {
-    const fixture = reader({ positions: [1], omitGeneratedSceneId: true });
+    const fixture = endingReader({ positions: [1], position: 0 });
+    await fixture.ready();
     change(fixture.state);
-    await fixture.confirmEndingRead();
-    assert.deepEqual(fixture.requests, []);
+    const calls = fixture.calls.length;
+    await fixture.api.confirmEndingRead();
+    assert.equal(fixture.calls.length, calls);
   }
 });
 
-test('explicit ending read serializes duplicate clicks and ignores late context or aborted responses', async () => {
+test('explicit ending read serializes duplicate clicks and ignores late context or aborted receipts', async () => {
   for (const change of [
     null,
-    (fixture) => fixture.setIdentity('reader-b'),
-    (fixture) => { fixture.state.locale = 'ko'; },
-    (fixture) => { fixture.state.progress.activeReleaseId = 'other-release'; },
-    (fixture) => { fixture.state.progress.revision = 30; fixture.state.minimumRevision = 30; },
-    (fixture) => { fixture.state.progress.status = 'ai_pending'; },
-    (fixture) => fixture.cancelBeatNavigation(),
+    fixture => fixture.setAuth({ user: { id: id(99) }, accessToken: 'other-token' }),
+    fixture => { fixture.state.locale = 'ko'; },
+    fixture => { fixture.state.progress.activeReleaseId = id(99); },
+    fixture => { fixture.state.progress.revision = 30; fixture.state.minimumRevision = 30; },
+    fixture => { fixture.state.progress.status = 'ai_pending'; },
+    fixture => fixture.api.cancelEndingRead(),
   ]) {
-    let release;
-    const gate = new Promise((resolve) => { release = resolve; });
-    const fixture = reader({ positions: [1], omitGeneratedSceneId: true, onPost: () => gate });
-    const pending = fixture.confirmEndingRead();
+    let release, started;
+    const gate = new Promise(resolve => { release = resolve; });
+    const dispatched = new Promise(resolve => { started = resolve; });
+    const fixture = endingReader({ positions: [1], position: 0, onPost: async (entry, context) => {
+      const receipt = context.receipt(context.review(entry));
+      started();
+      await gate;
+      return receipt;
+    } });
+    await fixture.ready();
+    const pending = fixture.confirm();
+    await dispatched;
     try {
       assert.equal(fixture.state.busy, true);
-      await fixture.confirmEndingRead();
-      assert.equal(fixture.requests.length, 1);
+      await fixture.api.confirmEndingRead();
+      assert.equal(fixture.posts().length, 1);
     } finally {
-      const response = fixture.ack(fixture.requests[0]);
       if (change) change(fixture);
       const before = plain(fixture.state.progress);
       const floor = fixture.state.minimumRevision;
-      release(response);
+      release();
       await pending;
-      if (change) {
-        assert.deepEqual(plain(fixture.state.progress), before);
-        assert.equal(fixture.state.minimumRevision, floor);
-        assert.notEqual(fixture.state.beatNotice, 'readSaved');
-      } else assertCompleted(fixture, 1, 10);
+      assert.deepEqual(plain(fixture.state.progress), before);
+      assert.equal(fixture.state.minimumRevision, floor);
     }
-    assert.equal(fixture.requests.length, 1);
+    assert.equal(fixture.posts().length, 1);
+    assert.equal(fixture.reviews().length, 2);
     assert.equal(fixture.state.busy, false);
-    assert.equal(fixture.state.beatOperation, null);
-    assert.deepEqual(fixture.scrollStarts, []);
+    assert.equal(fixture.state.endingReadOperation, null);
+    if (change) assert.notEqual(fixture.state.endingRead?.status, 'saved');
+    else assert.equal(fixture.state.endingRead.status, 'saved');
   }
 });
 
-test('explicit ending read unknown write outcomes GET-only refetch and permissions block without replay', async () => {
+test('explicit ending read unknown write outcomes reconcile receipts by GET only and auth denial blocks', async () => {
   for (const committed of [false, true]) {
-    const fixture = reader({ positions: [1], omitGeneratedSceneId: true, onPost: (entry, context) => {
+    const fixture = endingReader({ positions: [1], position: 0, onPost: (entry, context) => {
       if (committed) context.commit(entry);
       throw new Error('Unknown write outcome');
     } });
-    await fixture.confirmEndingRead();
-    assertCompleted(fixture, committed ? 1 : 0, committed ? 10 : 3);
-    assert.deepEqual(fixture.requests.map((request) => request.method), ['POST', 'GET']);
-    assert.equal(fixture.state.beatNotice, 'unconfirmed');
-    assert.deepEqual(fixture.scrollStarts, []);
-    if (committed) {
-      await fixture.confirmEndingRead();
-      assert.equal(fixture.requests.length, 2);
-    }
+    await fixture.ready();
+    const before = plain(fixture.state.progress);
+    await fixture.confirm();
+    assertReceiptOnly(fixture, before);
+    assert.equal(fixture.reviews().length, 3);
+    assert.equal(fixture.posts().length, 1);
+    assert.equal(fixture.state.endingRead.status, committed ? 'saved' : 'unknown');
+    await fixture.api.confirmEndingRead();
+    assert.equal(fixture.posts().length, 1);
+    assert.equal(fixture.reviews().length, committed ? 3 : 4);
   }
   for (const status of [401, 403]) {
-    const fixture = reader({ positions: [1], omitGeneratedSceneId: true, onPost: () => { throw { status }; } });
-    await fixture.confirmEndingRead();
-    assertCompleted(fixture, 0, 3);
+    const fixture = endingReader({ positions: [1], position: 0, onPost: () => { throw { status }; } });
+    await fixture.ready();
+    const before = plain(fixture.state.progress);
+    await fixture.confirm();
+    assertReceiptOnly(fixture, before);
     assert.equal(fixture.state.scene, null);
-    assert.deepEqual(fixture.blocks, [status === 401 ? 'loginRequired' : 'accessRequired']);
-    await fixture.confirmEndingRead();
-    assert.equal(fixture.requests.length, 1);
+    assert.equal(fixture.state.endingRead, null);
+    assert.equal(fixture.reviews().length, 2);
+    assert.equal(fixture.posts().length, 1);
+    const calls = fixture.calls.length;
+    await fixture.api.confirmEndingRead();
+    assert.equal(fixture.calls.length, calls);
   }
 });
 
-test('explicit ending read rejects malformed CAS/status/choice/scope replies without accepting confirmation', async () => {
-  for (const invalidate of [
-    (value) => { value.revision = 3; },
-    (value) => { value.revision = 10.5; },
-    (value) => { value.currentBeatPosition = 2; },
-    (value) => { value.status = 'active'; },
-    (value) => { value.choices = [{ id: 'choice-0' }]; },
-    (value) => { value.progressId = 'other-progress'; },
-    (value) => { value.scene.id = 'other-scene'; },
-    (value) => { value.releaseCapability.revision = 2; },
-    (value) => { value.scene.deliveryState = 'artwork_pending'; },
-    (value) => { delete value.scene.deliveryState; },
-    (value) => { value.scene.endingType = 'author_main'; },
-    (value) => { delete value.scene.endingType; },
-  ]) {
-    const fixture = reader({ positions: [1], omitGeneratedSceneId: true, onPost: (entry, context) => {
-      const invalid = context.ack(entry);
-      invalidate(invalid);
-      return invalid;
-    } });
-    await fixture.confirmEndingRead();
-    assertCompleted(fixture, 0, 3);
-    assert.deepEqual(fixture.requests[0].body, { position: 1, expectedRevision: 3 });
-    assert.deepEqual(fixture.requests.map((request) => request.method), ['POST', 'GET']);
-    assert.equal(fixture.state.beatNotice, 'unconfirmed');
-    assert.deepEqual(fixture.scrollStarts, []);
+test('explicit ending read rejects malformed review or receipt scope and stale confirmation revisions', async () => {
+  for (const [field, value] of Object.entries({
+    contract: 'other', receiptId: '', progressRevision: 7.5, progressId: id(99), workId: id(99),
+    sceneId: id(99), locale: 'ko', fromPosition: 2, throughPosition: 2,
+    scopeChecksum: 'f'.repeat(64), sourceTextHash: 'f'.repeat(64), progressMutated: true,
+  })) {
+    const fixture = endingReader({ positions: [1], position: 0,
+      onPost: (entry, context) => ({ ...context.receipt(context.review(entry)), [field]: value }) });
+    await fixture.ready();
+    const before = plain(fixture.state.progress);
+    await fixture.confirm();
+    assertReceiptOnly(fixture, before);
+    assert.equal(fixture.state.endingRead.status, 'unknown');
+    assert.equal(fixture.state.endingRead.receipt, null);
+    assert.equal(fixture.posts().length, 1);
+    assert.equal(fixture.reviews().length, 3);
   }
-  const conflict = reader({ positions: [1], omitGeneratedSceneId: true, onPost: () => {
-    throw { status: 409, body: { error: { code: 'STORY_PROGRESS_STALE_REVISION' } } };
-  } });
-  await conflict.confirmEndingRead();
-  assertCompleted(conflict, 0, 3);
-  assert.deepEqual(conflict.requests.map((request) => request.method), ['POST', 'GET']);
-  assert.equal(conflict.state.beatNotice, 'progressChanged');
+  for (const [field, value] of Object.entries({
+    contract: 'other', expectedRevision: 8, progressId: id(99), workId: id(99), sceneId: id(99),
+    locale: 'ko', fromPosition: 2, throughPosition: 2, sourceTextHash: 'f'.repeat(64), scopeChecksum: 'invalid',
+  })) {
+    const fixture = endingReader({ positions: [1], position: 0, onReview: (preview, entry, context) =>
+      context.reviews().length === 2 ? { ...preview, [field]: value } : preview });
+    await fixture.ready();
+    const before = plain(fixture.state.progress);
+    await fixture.confirm();
+    assertReceiptOnly(fixture, before);
+    assert.equal(fixture.state.endingRead.status, 'changed');
+    assert.equal(fixture.posts().length, 0);
+    assert.equal(fixture.reviews().length, 2);
+  }
+  const conflict = endingReader({ positions: [1], position: 0, onPost: () => { throw { status: 409 }; } });
+  await conflict.ready();
+  const before = plain(conflict.state.progress);
+  await conflict.confirm();
+  assertReceiptOnly(conflict, before);
+  assert.equal(conflict.state.endingRead.status, 'changed');
+  assert.equal(conflict.posts().length, 1);
+  assert.equal(conflict.reviews().length, 2);
+  await conflict.api.confirmEndingRead();
+  assert.equal(conflict.posts().length, 1);
+  assert.equal(conflict.reviews().length, 2);
 });

@@ -119,6 +119,79 @@ function fixture(includedAiRouteCount = 2) {
 }
 
 describe('recommended choice enqueue transaction', () => {
+  it.each([
+    ['missing previous scene', 'STORY_AI_CONTEXT_PART_UNAVAILABLE'],
+    ['missing previous choice', 'STORY_AI_CONTEXT_PART_UNAVAILABLE'],
+    ['unrelated previous choice', 'STORY_AI_CONTEXT_PART_UNAVAILABLE'],
+    ['missing previous title locale', 'STORY_AI_CONTEXT_LOCALE_UNAVAILABLE'],
+    ['missing previous choice locale', 'STORY_AI_CONTEXT_LOCALE_UNAVAILABLE'],
+  ])('rejects unavailable prior route context: %s before reservation', async (kind, code) => {
+    const f = fixture();
+    if (kind === 'missing previous scene') f.tx.storyScene.findMany.mockResolvedValue([]);
+    if (kind === 'missing previous choice') f.tx.storyChoice.findMany.mockResolvedValue([]);
+    if (kind === 'unrelated previous choice') f.tx.storyChoice.findMany.mockResolvedValue([
+      { id: 'choice-a', sceneId: 'unrelated', label: { ko: 'Synthetic' } },
+    ]);
+    if (kind === 'missing previous title locale') f.tx.storyScene.findMany.mockResolvedValue([
+      { id: 'opening', sceneKey: 'part-1-main', title: { en: 'Synthetic' }, endingType: null },
+    ]);
+    if (kind === 'missing previous choice locale') f.tx.storyChoice.findMany.mockResolvedValue([
+      { id: 'choice-a', sceneId: 'opening', label: { en: 'Synthetic' } },
+    ]);
+    const result = f.service.requestRecommendedChoiceTx(f.tx as never, f.input);
+    await expect(result).rejects.toMatchObject({
+      response: { code, retryable: false, progressMutated: false, generationStarted: false },
+    });
+    await expect(result).rejects.toBeInstanceOf(ForbiddenException);
+    try { await result; } catch (error) {
+      expect((error as ForbiddenException).getStatus()).toBe(403);
+      expect((error as ForbiddenException).getResponse()).toMatchObject({
+        messageKey: 'story.progress.aiGeneration.contextUnavailable',
+      });
+    }
+    expect(f.provider.readiness).not.toHaveBeenCalled();
+    expect(f.tx.storyAiAllowanceBucket.upsert).not.toHaveBeenCalled();
+    expect(f.createContinuation).not.toHaveBeenCalled();
+    expect(f.tx.storyAiUsageLedger.create).not.toHaveBeenCalled();
+    expect(f.tx.storyReaderProgress.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('keeps unexpected prior-route database failures distinct from domain rejections', async () => {
+    const f = fixture(), failure = new Error('synthetic_database_unavailable');
+    f.tx.storyChoice.findMany.mockRejectedValue(failure);
+    await expect(f.service.requestRecommendedChoiceTx(f.tx as never, f.input)).rejects.toBe(failure);
+    expect(f.provider.readiness).not.toHaveBeenCalled();
+    expect(f.tx.storyAiAllowanceBucket.upsert).not.toHaveBeenCalled();
+    expect(f.createContinuation).not.toHaveBeenCalled();
+    expect(f.tx.storyAiUsageLedger.create).not.toHaveBeenCalled();
+    expect(f.tx.storyReaderProgress.updateMany).not.toHaveBeenCalled();
+  });
+
+  it.each(['missing generated source', 'missing generated arrival'])('rejects unavailable generated prior route context: %s', async kind => {
+    const f = fixture();
+    Object.assign(f.input.progress, { pathSummary: [{ sourceGeneratedSceneId: 'prior-generated',
+      generatedSceneId: 'missing-arrival', choiceId: 'generated-choice' }] });
+    if (kind === 'missing generated arrival') {
+      f.tx.storyAiGeneratedScene.findMany.mockResolvedValue([{ id: 'prior-generated', title: { ko: 'Synthetic' }, endingType: null }]);
+      f.tx.storyAiGeneratedChoice.findMany.mockResolvedValue([{ id: 'generated-choice', sceneId: 'prior-generated', label: { ko: 'Synthetic' } }]);
+    }
+    await expect(f.service.requestRecommendedChoiceTx(f.tx as never, f.input)).rejects.toMatchObject({
+      response: { code: 'STORY_AI_CONTEXT_PART_UNAVAILABLE', generationStarted: false, progressMutated: false },
+    });
+    expect(f.createContinuation).not.toHaveBeenCalled();
+    expect(f.tx.storyAiAllowanceBucket.upsert).not.toHaveBeenCalled();
+    expect(f.tx.storyReaderProgress.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('keeps non-Error prior-route failures distinct from domain rejections', async () => {
+    const f = fixture(), failure = 'synthetic_non_error_failure';
+    f.tx.storyChoice.findMany.mockRejectedValue(failure);
+    await expect(f.service.requestRecommendedChoiceTx(f.tx as never, f.input)).rejects.toBe(failure);
+    expect(f.createContinuation).not.toHaveBeenCalled();
+    expect(f.tx.storyAiAllowanceBucket.upsert).not.toHaveBeenCalled();
+    expect(f.tx.storyReaderProgress.updateMany).not.toHaveBeenCalled();
+  });
+
   const approvedProfile = () => {
     const approvedSettings = {
       schemaVersion: 'creator-generation-profile-v1' as const,

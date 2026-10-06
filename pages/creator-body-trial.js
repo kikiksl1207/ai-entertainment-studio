@@ -67,6 +67,17 @@
       unauthenticated: "\u9700\u8981\u767b\u5165", forbidden: "\u7121\u6b64\u4f5c\u54c1\u6b0a\u9650", notFound: "\u672a\u627e\u5230\u4f5c\u54c1\u6216\u9032\u5ea6", conflict: "\u9700\u91cd\u65b0\u78ba\u8a8d\u9032\u5ea6\u3001\u6838\u51c6\u6216\u8cbb\u7528", invalid: "\u56de\u61c9\u9a57\u8b49\u5931\u6557", transport: "\u9023\u7dda\u5931\u6557", server: "\u4f3a\u670d\u5668\u56de\u61c9\u5931\u6557", unavailable: "\u66ab\u6642\u7121\u6cd5\u6e2c\u8a66", hidden: ""
     }
   };
+  const readLabels = {
+    ko: ["\ubcf8\ubb38 \uc77d\uae30 \uc644\ub8cc", "\ubcf8\ubb38 \uc77d\uae30 \uae30\ub85d \ud544\uc694", "\uc77d\uae30 \uae30\ub85d \uc800\uc7a5 \uc911", "\uc77d\uae30 \uae30\ub85d \uacb0\uacfc \ud655\uc778 \ud544\uc694"],
+    en: ["Mark text as read", "Reading record required", "Saving reading record", "Check reading record"],
+    ja: ["\u672c\u6587\u3092\u8aad\u307f\u7d42\u3048\u305f", "\u8aad\u66f8\u8a18\u9332\u304c\u5fc5\u8981", "\u8aad\u66f8\u8a18\u9332\u3092\u4fdd\u5b58\u4e2d", "\u8aad\u66f8\u8a18\u9332\u306e\u78ba\u8a8d\u304c\u5fc5\u8981"],
+    "zh-Hans": ["\u6b63\u6587\u5df2\u8bfb\u5b8c", "\u9700\u8981\u9605\u8bfb\u8bb0\u5f55", "\u6b63\u5728\u4fdd\u5b58\u9605\u8bfb\u8bb0\u5f55", "\u9700\u8981\u786e\u8ba4\u9605\u8bfb\u8bb0\u5f55"],
+    "zh-Hant": ["\u6b63\u6587\u5df2\u8b80\u5b8c", "\u9700\u8981\u95b1\u8b80\u7d00\u9304", "\u6b63\u5728\u5132\u5b58\u95b1\u8b80\u7d00\u9304", "\u9700\u8981\u78ba\u8a8d\u95b1\u8b80\u7d00\u9304"]
+  };
+  for (const language of locales) {
+    const [recordRead, readRequired, recordingRead, readUncertain] = readLabels[language];
+    Object.assign(copy[language], { recordRead, readRequired, recordingRead, readUncertain });
+  }
   function parseState(value, target) {
     const bad = () => { throw failure("invalid"); };
     if (!record(value) || !uuid(target?.workId) || value.contract !== "story-author-body-trial-state-v1" ||
@@ -250,12 +261,22 @@
     const sameCommand = () => command && accessible() && command.ownerId === scope.owner.ownerId &&
       command.workId === scope.workId && command.body.locale === scope.sourceLocale;
     const canRecover = () => accessible() && !command && !journalBlocked && !busy();
-    const canChoose = () => accessible() && phase === "ready" && !command && !journalBlocked && data?.approvalState.state === "approval_recorded" &&
-      Date.parse(data.approvalState.approval.expiresAt) > Date.now() && data.preview.progress?.status === "active" &&
-      data.preview.progress.scene && !data.preview.progress.scene.endingType && data.preview.progress.choices.length > 0;
+    const currentTrial = () => accessible() && phase === "ready" && !command && !journalBlocked && data?.approvalState.state === "approval_recorded" &&
+      Date.parse(data.approvalState.approval.expiresAt) > Date.now();
+    const activeTrial = () => currentTrial() && data.preview.progress?.status === "active" &&
+      data.preview.progress.scene && !data.preview.progress.scene.endingType;
+    const readableTrialBody = () => currentTrial() && data.preview.progress?.scene?.isGenerated === true &&
+      (activeTrial() || (data.preview.progress.status === "completed" &&
+        data.preview.progress.scene.endingType === "ai_generated" && data.preview.progress.choices.length === 0));
+    const readComplete = () => !data?.preview.progress?.scene?.isGenerated ||
+      Number.isSafeInteger(data.preview.progress.currentBeatPosition) &&
+      data.preview.progress.currentBeatPosition >= data.preview.progress.scene.beats.at(-1).position;
+    const canChoose = () => activeTrial() && readComplete() && data.preview.progress.choices.length > 0;
+    const canRecordRead = () => readableTrialBody() &&
+      Number.isSafeInteger(data.preview.progress.currentBeatPosition) && !readComplete();
     function state() {
       return clone({ ticket, phase, messageKey, locale: scope?.locale || "ko", data, receipt, busy: busy(),
-        canLoad: Boolean(accessible() && !busy()), canChoose: Boolean(canChoose()), canRetry: Boolean(sameCommand() && !busy()),
+        canLoad: Boolean(accessible() && !busy()), canChoose: Boolean(canChoose()), canRecordRead: Boolean(canRecordRead()), canRetry: Boolean(sameCommand() && !busy()),
         canRecover: Boolean(canRecover()), unresolved: Boolean(command) });
     }
     const emit = () => onChange(state());
@@ -326,7 +347,7 @@
       if (!active.current()) throw failure("invalid");
       if (options.method === "POST") onDispatch();
       if (!active.current()) throw failure("invalid");
-      const response = await fetch(url, { ...options, identity: active.owner, _retried: true, cache: "no-store",
+      const response = await fetch(url, { ...options, identity: active.owner, _retried: options.method !== "GET", cache: "no-store",
         headers: { "Cache-Control": "no-store", ...options.headers }, signal: active.abort.signal });
       if (!active.current()) { try { await response?.body?.cancel?.(); } catch (_) {} throw failure("invalid"); }
       if (!response || !Number.isInteger(response.status)) throw failure("invalid");
@@ -352,13 +373,47 @@
         const progress = preview.progress;
         messageKey = command ? sameCommand() ? "uncertain" : "unresolvedElsewhere" : approvalState.state !== "approval_recorded" ? approvalState.state :
           !progress ? "noProgress" : progress.status === "completed" || progress.scene?.endingType ? "ending" :
-          progress.status !== "active" ? "generating" : !progress.scene ? "noScene" : "approval_recorded";
+          progress.status !== "active" ? "generating" : !progress.scene ? "noScene" : !readComplete() ? "readRequired" : "approval_recorded";
         if (!command && journalBlocked) { phase = "error"; messageKey = "unavailable"; }
         emit(); return true;
       } catch (error) {
         if (!active.current()) return false;
         data = null; request = null; phase = command ? "uncertain" : "error";
         messageKey = command ? sameCommand() ? "uncertain" : "unresolvedElsewhere" : copy.ko[error?.kind] !== undefined ? error.kind : "transport";
+        emit(); return false;
+      }
+    }
+    async function recordRead(expectedTicket = null) {
+      syncContext();
+      if ((expectedTicket !== null && expectedTicket !== ticket) || !canRecordRead()) return false;
+      restoreJournal();
+      if (command || journalBlocked) { setInitialMessage(); emit(); return false; }
+      const progress = data.preview.progress, workId = scope.workId;
+      const body = { approvalId: data.approvalState.approval.id, progressId: progress.progressId,
+        expectedRevision: progress.revision, locale: scope.sourceLocale };
+      const beatPosition = progress.scene.beats.at(-1).position;
+      let key;
+      try { key = "read-" + makeIdempotencyKey(); } catch (_) { key = null; }
+      if (!commandKey(key)) { data = null; phase = "error"; messageKey = "unavailable"; emit(); return false; }
+      const active = start("submitting", "recordingRead"); data = null; emit();
+      try {
+        const value = await responseValue("/api/v1/me/creator-studio/stories/" + encodeURIComponent(workId) + "/body-trial/read-beats",
+          { method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": key }, body: JSON.stringify(body) }, active, 16384);
+        if (!active.current()) return false;
+        if (!record(value) || value.contract !== "story-author-body-trial-read-v1" || value.workId !== workId ||
+            value.progressId !== body.progressId || value.sourceRevision !== body.expectedRevision ||
+            value.revision !== body.expectedRevision + 1 || value.beatPosition !== beatPosition ||
+            typeof value.idempotentReplay !== "boolean" || value.generationStarted !== false ||
+            value.imageGenerationStarted !== false || value.readOnly !== false) throw failure("invalid");
+        request = null; phase = "accepted";
+        onSettled();
+        if (!active.current()) return false;
+        return load();
+      } catch (error) {
+        if (!active.current()) return false;
+        // A response can be lost after a read write. Only a fresh GET may unlock another choice.
+        data = null; request = null; phase = "error";
+        messageKey = [400, 401, 403, 404, 409, 422].includes(error?.status) ? error.kind : "readUncertain";
         emit(); return false;
       }
     }
@@ -452,7 +507,7 @@
       }
     }
     syncContext(false);
-    return { snapshot, syncContext, invalidate, load, choose, retry, recover };
+    return { snapshot, syncContext, invalidate, load, choose, recordRead, retry, recover };
   }
   function mount(host) {
     if (!host || host.dataset.bodyTrialMounted) return null;
@@ -516,6 +571,14 @@
         source.append(element("h4", "", progress.scene.title));
         for (const beat of progress.scene.beats) source.append(element("p", "body-trial-beat", beat.content));
       }
+      if (state.canRecordRead) {
+        const button = element("button", "body-trial-choice body-trial-read"); button.type = "button";
+        button.id = "writerBodyTrialRead"; button.title = words.recordRead;
+        try { if (window.lucide?.icons?.BookCheck) button.append(window.lucide.createElement(window.lucide.icons.BookCheck)); } catch (_) {}
+        button.append(element("span", "", words.recordRead));
+        const capturedTicket = state.ticket;
+        button.addEventListener("click", () => controller.recordRead(capturedTicket)); source.append(button);
+      }
       if (progress.choices.length) {
         const choices = element("ol", "body-trial-choices"); source.append(element("h4", "", words.choices), choices);
         for (const choice of progress.choices) {
@@ -530,6 +593,7 @@
     }
     controller = createController({
       fetch: (url, options) => {
+        if (options.method === "GET") return window.LuminaCreatorStudioApi.fetch(url, options);
         const auth = window.getAuth?.();
         const accessToken = auth?.accessToken || auth?.access_token || auth?.token || auth?.tokens?.accessToken || auth?.tokens?.access_token;
         if (typeof accessToken !== "string" || !accessToken) throw failure("unauthenticated");

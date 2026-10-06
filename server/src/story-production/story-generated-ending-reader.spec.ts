@@ -14,7 +14,7 @@ describe('generated ending reader projection', () => {
     const prisma = {
       storyReaderProgress: { findFirst: jest.fn().mockResolvedValue(progress) },
       storyAiGeneratedScene: { findFirst: jest.fn().mockResolvedValue({
-        id: 'ending-scene-id', progressId: 'progress-id', workId: 'work-id',
+        id: 'ending-scene-id', userId: 'reader-id', progressId: 'progress-id', workId: 'work-id',
         releaseId: 'release-id', sourcePartId: 'part-id', sceneKey: 'ai-ending-scene',
         title: { ko: '함께 맞은 결말' }, endingType: 'ai_generated', status: 'ready',
         visualManifest: {
@@ -30,7 +30,9 @@ describe('generated ending reader projection', () => {
       }) },
       storyWork: { findFirst: jest.fn().mockResolvedValue({
         id: 'work-id', status: 'published', fixtureSource: false, defaultLocale: 'ko',
+        activeReleaseId: 'release-id', publishedVersion: 1,
       }) },
+      storyRelease: { findFirst: jest.fn().mockResolvedValue({ id: 'release-id' }) },
       storyAiGeneratedBeat: { findMany: jest.fn().mockResolvedValue([{
         id: 'ending-beat-id', position: 1, beatType: 'paragraph',
         content: { ko: '함께 여기까지 왔다.' },

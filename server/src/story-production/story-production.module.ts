@@ -83,6 +83,8 @@ import { StoryInteractionApprovalController } from './story-interaction-approval
 import { StoryInteractionApprovalService } from './story-interaction-approval.service';
 import { StoryCanonicalReadController } from './story-canonical-read.controller';
 import { StoryCanonicalReadService } from './story-canonical-read.service';
+import { StoryGeneratedEndingReadController } from './story-generated-ending-read.controller';
+import { StoryGeneratedEndingReadService } from './story-generated-ending-read.service';
 import { StoryAuthorBodyPreviewController } from './story-author-body-preview.controller';
 import { StoryAuthorBodyPreviewService } from './story-author-body-preview.service';
 import { StoryAuthorBodyTrialCostController } from './story-author-body-trial-cost.controller';
@@ -108,6 +110,7 @@ import { StoryAuthorBodyTrialReceiptService } from './story-author-body-trial-re
     StoryBranchVisualReviewListController,
     StoryInteractionApprovalController,
     StoryCanonicalReadController,
+    StoryGeneratedEndingReadController,
     StoryAuthorBodyPreviewController,
     StoryAuthorBodyTrialCostController,
     StoryAuthorBodyTrialController,
@@ -149,6 +152,7 @@ import { StoryAuthorBodyTrialReceiptService } from './story-author-body-trial-re
     StoryBranchVisualReviewService,
     StoryInteractionApprovalService,
     StoryCanonicalReadService,
+    StoryGeneratedEndingReadService,
     StoryAuthorBodyPreviewService,
     StoryAuthorBodyTrialCostService,
     StoryAuthorBodyTrialStateService,

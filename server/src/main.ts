@@ -8,6 +8,7 @@ import { HttpExceptionFilter } from './common/http-exception.filter';
 import { createValidationException } from './common/validation-exception.factory';
 import { configureHttpRouting } from './common/http-routing';
 import { authorBodyReviewPrivacyMiddleware } from './story-production/story-author-body-review.privacy';
+import { generatedEndingReadPrivacyMiddleware } from './story-production/story-generated-ending-read.controller';
 import { authorBodyTrialReceiptPrivacyMiddleware } from './story-production/story-author-body-trial-receipt.controller';
 
 type RequestLike = {
@@ -34,6 +35,7 @@ export async function createApplication() {
   app.getHttpAdapter().getInstance().set('trust proxy', 1);
   app.use(requestIdMiddleware);
   app.use(authorBodyReviewPrivacyMiddleware);
+  app.use(generatedEndingReadPrivacyMiddleware);
   app.use(authorBodyTrialReceiptPrivacyMiddleware);
   app.use(
     helmet({

@@ -22,7 +22,7 @@ function fixture() {
   const state = {
     work: { id: workId, ownerUserId: owner, status: 'published', fixtureSource: false, activeReleaseId: releaseId, publishedVersion: 1 },
     progress: { id: progressId, userId: owner, workId, activeReleaseId: releaseId, storyVersion: 1,
-      progressRevision: 7, status: 'active', currentSceneId: null as string | null, currentGeneratedSceneId: sceneId as string | null },
+      progressRevision: 7, currentBeatPosition: 0, status: 'active', currentSceneId: null as string | null, currentGeneratedSceneId: sceneId as string | null },
     release: { id: releaseId, workId, status: 'active', version: 1 },
     scene: { id: sceneId, userId: owner, workId, progressId, releaseId, status: 'ready',
       sourcePartId: partId, continuationId, title: localized('PRIVATE BODY'), endingType: null as string | null },
@@ -74,6 +74,14 @@ describe('author own-current-body preview (synthetic database)', () => {
   const preview = (locale = 'ko') => f.service.preview(owner, workId, { locale });
   beforeEach(() => { f = fixture(); });
   afterEach(() => { for (const mutation of f.mutations) expect(mutation).not.toHaveBeenCalled(); });
+
+  it('preview current beat position remains a read-only stored field', async () => {
+    f.state.progress.currentBeatPosition = 1;
+    expect(await preview()).toMatchObject({ readOnly: true, progress: { currentBeatPosition: 1 } });
+    expect(f.db.storyReaderProgress.findUnique).toHaveBeenCalledWith(expect.objectContaining({
+      select: expect.objectContaining({ currentBeatPosition: true }),
+    }));
+  });
 
   it.each(STORY_LOCALES)('reads exact %s text, with no visual repair, AI, approval or progress mutation', async locale => {
     const response = await preview(locale);

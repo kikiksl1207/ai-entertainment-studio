@@ -630,12 +630,14 @@
     graphFocusSceneId: safeGraphId(new URLSearchParams(location.search).get("focusSceneId")),
     graph: null,
     scene: null,
+    scenePending: false,
     choices: [],
     busy: false,
     progress: null,
     customChoiceOpen: false,
     resetPreview: null,
-    workId: safeGraphId(new URLSearchParams(location.search).get("workId")),
+    workId: urlWorkIdClaim(new URLSearchParams(location.search)) || "",
+    workIdClaim: urlWorkIdClaim(new URLSearchParams(location.search)),
     controls: null,
     epoch: 0,
     minimumRevision: 0,
@@ -678,6 +680,8 @@
     beatNotice: "",
     canonicalRead: null,
     canonicalReadOperation: null,
+    endingRead: null,
+    endingReadOperation: null,
     visualRequestKey: "",
     visualRetry: null,
     pairedVisualSceneKey: "",
@@ -885,6 +889,14 @@
   function safeGraphId(value) {
     const normalized = typeof value === "string" ? value.trim() : "";
     return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(normalized) ? normalized : "";
+  }
+
+  function urlWorkIdClaim(params) {
+    const claims = params.getAll("workId");
+    if (!claims.length) return null;
+    if (claims.length !== 1) return "";
+    const claim = claims[0];
+    return claim && safeGraphId(claim) === claim ? claim.toLowerCase() : "";
   }
 
   function requestId(prefix = "story-choice") {
@@ -1690,9 +1702,11 @@
   }
 
   function canonicalReadTarget(reading = readableBeats()) {
-    if (!reading || state.sceneIdentity !== readerIdentity()) return null;
+    const workId = safeGraphId(state.progress?.workId);
+    if (state.scenePending || !reading || !workId || workId !== state.progress.workId || workId !== state.workId ||
+        (state.workIdClaim != null && state.workIdClaim !== workId) || state.sceneIdentity !== readerIdentity()) return null;
     return window.LuminaCanonicalRead?.target({ userId: readerIdentity(), sceneIdentity: state.sceneIdentity,
-      progressId: state.sessionId, workId: state.workId, locale: state.locale, progress: state.progress,
+      progressId: state.sessionId, workId, locale: state.locale, progress: state.progress,
       scene: state.scene, members: reading.beats[reading.index].canonicalMembers });
   }
 
@@ -1792,23 +1806,204 @@
   }
 
   function endingReadTarget(reading = readableBeats()) {
-    if (!reading || state.progress?.status !== "completed" || state.scene?.isGenerated !== true ||
+    const workId = safeGraphId(state.progress?.workId);
+    if (state.scenePending || !root.isConnected || !reading || !workId || workId !== state.progress.workId ||
+        workId !== state.workId || (state.workIdClaim != null && state.workIdClaim !== workId) ||
+        state.progress.progressId !== state.sessionId ||
+        state.progress?.status !== "completed" || state.scene?.isGenerated !== true ||
         state.scene.deliveryState !== "ready" || state.scene.endingType !== "ai_generated" ||
         typeof state.scene.id !== "string" || !state.scene.id || state.progress.scene?.id !== state.scene.id || !readerIdentity() ||
         state.sceneIdentity !== readerIdentity() || !Array.isArray(state.choices) || state.choices.length ||
         !Number.isSafeInteger(state.progress.revision) || state.progress.revision < 1 ||
         !Number.isSafeInteger(state.progress.currentBeatPosition) || state.progress.currentBeatPosition < 0 ||
-        reading.index !== reading.beats.length - 1) return null;
-    const target = reading.beats[reading.index];
-    return target?.position > 0 && !target.trimmedTail && target.text.trim() ? target : null;
+        !["ko", "en", "ja", "zh-Hans", "zh-Hant"].includes(state.locale)) return null;
+    const page = reading.beats.at(-1);
+    if (!page || page.trimmedTail || !page.text.trim() || !Array.isArray(state.scene.beats)) return null;
+    if (state.scene.beats.some((beat) => !Number.isSafeInteger(beat.position) || beat.position < 1 || beat.position > 40 ||
+        !(typeof beat.content === "string" || (typeof beat.content?.value === "string" &&
+          beat.content.locale === state.locale && beat.content.fallback === false)))) return null;
+    const rawMembers = state.scene.beats.filter((beat) => page.positions.includes(beat?.position))
+      .sort((left, right) => left.position - right.position);
+    if (rawMembers.length !== page.positions.length || rawMembers.some((beat) =>
+      typeof beat.id !== "string" || !beat.id.trim()) || new Set(rawMembers.map((beat) => beat.id)).size !== rawMembers.length) return null;
+    const source = (beat) => [beat.id, beat.position,
+      normalizeGeneratedReaderText(beatContent(beat.content) || beatContent(beat.text) || beatContent(beat.body))];
+    const members = rawMembers.map(source);
+    const route = JSON.stringify([location.pathname, location.search, location.hash]);
+    // Cursor and progress revision are not receipt identity; the ending body and route are.
+    const key = JSON.stringify([readerScope(), state.locale, route, state.progress.currentAct, state.progress.part?.id,
+      state.progress.path, state.scene.beats.map(source), state.scene.visualManifest]);
+    return { key, route, readingKey: reading.key, onFinalPage: reading.index === reading.beats.length - 1,
+      progressId: state.sessionId, workId, sceneId: state.scene.id, locale: state.locale,
+      revision: state.progress.revision, fromPosition: members[0][1], throughPosition: members.at(-1)[1],
+      source: JSON.stringify(members), segments: page.segments };
+  }
+
+  const ENDING_READ_COPY = {
+    ko: { checking: "읽기 확인 기록을 확인하고 있습니다.", saving: "읽기 확인을 저장하고 있습니다.", unknown: "읽기 확인 저장 여부를 확인하지 못했습니다.", changed: "본문이나 진행 기준이 변경되었습니다. 최신 페이지를 다시 열어 주세요.", unavailable: "읽기 확인을 저장할 수 없습니다.", check: "읽기 확인 기록 확인", refresh: "최신 페이지 확인" },
+    en: { checking: "Checking read confirmation.", saving: "Saving read confirmation.", unknown: "The read confirmation could not be verified.", changed: "The text or progress has changed. Open the latest page.", unavailable: "Read confirmation is unavailable.", check: "Check read confirmation", refresh: "Check latest page" },
+    ja: { checking: "読了確認の記録を確認しています。", saving: "読了確認を保存しています。", unknown: "読了確認の保存を確認できませんでした。", changed: "本文または進行状況が変わりました。最新ページを開いてください。", unavailable: "読了確認を保存できません。", check: "読了確認の記録を確認", refresh: "最新ページを確認" },
+    "zh-Hans": { checking: "正在核实阅读确认记录。", saving: "正在保存阅读确认。", unknown: "无法核实阅读确认是否已保存。", changed: "正文或进度已更改。请打开最新页面。", unavailable: "无法保存阅读确认。", check: "查看阅读确认记录", refresh: "查看最新页面" },
+    "zh-Hant": { checking: "正在核實閱讀確認紀錄。", saving: "正在儲存閱讀確認。", unknown: "無法核實閱讀確認是否已儲存。", changed: "正文或進度已變更。請開啟最新頁面。", unavailable: "無法儲存閱讀確認。", check: "查看閱讀確認紀錄", refresh: "查看最新頁面" },
+  };
+
+  function endingReadTr(key) {
+    return ENDING_READ_COPY[state.locale]?.[key] || ENDING_READ_COPY.en[key] || "";
+  }
+
+  function cancelEndingRead(preserve = false) {
+    const operation = state.endingReadOperation;
+    if (preserve && state.endingRead) {
+      state.endingRead.verifiedView = null;
+      state.endingRead.receipt = null;
+      state.endingRead.status = state.endingRead.posted ? "unknown" : "idle";
+    } else state.endingRead = null;
+    state.endingReadOperation = null;
+    operation?.controller.abort();
+    if (operation?.number != null && operation.number === state.operation) {
+      ++state.operation;
+      setBusy(false);
+    }
+  }
+
+  function endingReadDisplayed(target) {
+    const current = endingReadTarget();
+    if (!current?.onFinalPage || current.key !== target.key || current.readingKey !== target.readingKey) return false;
+    const article = root.querySelector("[data-story-scene-focus]");
+    if (!article?.isConnected || !root.contains(article) || article.closest("[hidden], [inert]") ||
+        article.dataset.readingKey !== target.readingKey) return false;
+    const expected = target.segments.flatMap((segment) => String(segment).split(/\n\s*\n/u).filter(Boolean));
+    const actual = Array.from(article.querySelectorAll("p"), (paragraph) => paragraph.textContent);
+    return expected.length === actual.length && expected.every((text, index) => text === actual[index]);
+  }
+
+  function endingReadReceiptMatches(receipt, preview) {
+    return receipt?.contract === "story-generated-ending-read-receipt-v1" && Boolean(safeGraphId(receipt.receiptId)) &&
+      ["progressId", "workId", "sceneId", "locale", "fromPosition", "throughPosition", "scopeChecksum", "sourceTextHash"]
+        .every((field) => receipt[field] === preview[field]) &&
+      Number.isSafeInteger(receipt.progressRevision) && receipt.progressRevision > 0 && receipt.progressRevision <= preview.expectedRevision &&
+      typeof receipt.confirmedAt === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(receipt.confirmedAt) &&
+      Number.isFinite(Date.parse(receipt.confirmedAt)) && typeof receipt.idempotentReplay === "boolean" &&
+      ["progressMutated", "generationStarted", "imageGenerationStarted", "meaningApproved", "qualityApproved", "publicationStarted"]
+        .every((field) => receipt[field] === false);
+  }
+
+  async function reviewEndingRead(target, operation, current) {
+    const crypto = window.crypto;
+    if (!crypto?.subtle || typeof TextEncoder !== "function") throw { status: 400 };
+    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(target.source));
+    if (!current()) return null;
+    const textHash = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+    const params = new URLSearchParams({ locale: target.locale, fromPosition: String(target.fromPosition) });
+    const preview = await request(`${progressPath("/generated-ending-read")}?${params}`, {
+      auth: true, signal: operation.controller.signal, _retried: true, cache: "no-store",
+    });
+    if (!current()) return null;
+    if (preview?.contract !== "story-generated-ending-read-review-v1" ||
+        !["progressId", "workId", "sceneId", "locale", "fromPosition", "throughPosition"].every((field) => preview[field] === target[field]) ||
+        preview.expectedRevision !== target.revision || preview.sourceTextHash !== textHash ||
+        !/^[0-9a-f]{64}$/.test(preview.scopeChecksum || "") || !Object.prototype.hasOwnProperty.call(preview, "confirmation")) throw { status: 409 };
+    if (preview.confirmation !== null && !endingReadReceiptMatches(preview.confirmation, preview)) throw new Error("Invalid ending read receipt");
+    return preview;
+  }
+
+  function prepareEndingRead(target) {
+    if (!target || state.endingRead?.key !== target.key) cancelEndingRead();
+    if (!target) return null;
+    const journal = state.endingRead || (state.endingRead = { key: target.key, receipt: null,
+      status: "idle", verifiedView: null, posted: false, idempotencyKey: null });
+    const view = JSON.stringify([target.readingKey, target.revision, state.epoch]);
+    if (!target.onFinalPage) {
+      if (state.endingReadOperation) cancelEndingRead(true);
+      journal.verifiedView = null;
+      journal.receipt = null;
+    } else if (journal.verifiedView !== view && !state.endingReadOperation) {
+      journal.receipt = null;
+      journal.status = "checking";
+    }
+    return journal;
+  }
+
+  async function checkEndingRead(explicit = false) {
+    const target = endingReadTarget();
+    if (!target?.onFinalPage || state.busy || aiRequestOpen() || state.resetPreview || state.endingReadOperation) return;
+    const journal = prepareEndingRead(target);
+    if (explicit && (journal.receipt || !endingReadDisplayed(target))) return;
+    const operation = { controller: new AbortController(), epoch: state.epoch,
+      number: explicit ? beginOperation() : null, article: root.querySelector("[data-story-scene-focus]"),
+      identity: readerIdentity(), auth: window.getAuth?.()?.accessToken || window.getAuth?.()?.tokens?.accessToken || window.getAuth?.()?.access_token };
+    state.endingReadOperation = operation;
+    const scoped = () => state.endingReadOperation === operation && state.endingRead === journal &&
+      operation.epoch === state.epoch && root.isConnected &&
+      operation.identity === readerIdentity() && operation.auth === (window.getAuth?.()?.accessToken || window.getAuth?.()?.tokens?.accessToken || window.getAuth?.()?.access_token) &&
+      (operation.number == null || operation.number === state.operation) && !state.resetPreview &&
+      target.revision === state.progress?.revision && endingReadDisplayed(target) &&
+      operation.article === root.querySelector("[data-story-scene-focus]");
+    const current = () => scoped() && !operation.controller.signal.aborted;
+    let timer = setTimeout(() => operation.controller.abort(), 15000);
+    journal.receipt = null;
+    journal.status = "checking";
+    const showStatus = () => {
+      const status = root.querySelector("[data-story-ending-read-status]");
+      if (status) status.textContent = endingReadTr(journal.status);
+    };
+    showStatus();
+    try {
+      let preview = await reviewEndingRead(target, operation, current);
+      if (!preview || !current()) return;
+      journal.receipt = preview.confirmation;
+      if (explicit && !preview.confirmation && !journal.posted) {
+        const key = journal.idempotencyKey || window.crypto?.randomUUID?.();
+        if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(key || "")) throw { status: 400 };
+        journal.idempotencyKey = key;
+        journal.posted = true;
+        journal.status = "saving";
+        showStatus();
+        try {
+          const receipt = await request(progressPath("/generated-ending-read/confirm"), {
+            method: "POST", auth: true, signal: operation.controller.signal, _retried: true, cache: "no-store",
+            body: { locale: target.locale, fromPosition: target.fromPosition, expectedRevision: preview.expectedRevision,
+              expectedScopeChecksum: preview.scopeChecksum, expectedSourceTextHash: preview.sourceTextHash,
+              idempotencyKey: key, displayedAndRead: true },
+          });
+          if (!current()) return;
+          if (!endingReadReceiptMatches(receipt, preview) || receipt.progressRevision !== preview.expectedRevision) throw new Error("Unconfirmed ending read receipt");
+          journal.receipt = receipt;
+        } catch (error) {
+          if (error?.status === 401 || error?.status === 403 || error?.status === 409) throw error;
+          if (!scoped()) return;
+          clearTimeout(timer);
+          operation.controller = new AbortController();
+          timer = setTimeout(() => operation.controller.abort(), 15000);
+          // Lost or invalid write responses are reconciled by GET only, never a POST replay.
+          preview = await reviewEndingRead(target, operation, current);
+          if (!preview || !current()) return;
+          journal.receipt = preview.confirmation;
+        }
+      }
+      if (current()) journal.status = journal.receipt ? "saved" : journal.posted ? "unknown" : "idle";
+    } catch (error) {
+      if (!scoped()) return;
+      if (error?.status === 401 || error?.status === 403) return blockScene(errorCopy(error));
+      journal.status = error?.status === 409 ? "changed" : [400, 404].includes(error?.status) ? "unavailable" : "unknown";
+    } finally {
+      clearTimeout(timer);
+      if (state.endingReadOperation === operation) {
+        const stillCurrent = scoped();
+        state.endingReadOperation = null;
+        if (["checking", "saving"].includes(journal.status)) journal.status = "unknown";
+        if (stillCurrent) journal.verifiedView = JSON.stringify([target.readingKey, target.revision, state.epoch]);
+        else cancelEndingRead();
+        if (operation.number != null) await finishOperation(operation.number);
+        if (stillCurrent && state.endingRead === journal && endingReadTarget()?.key === target.key) renderScene();
+      }
+    }
   }
 
   async function confirmEndingRead() {
-    const reading = readableBeats();
-    const target = endingReadTarget(reading);
-    if (!target || state.busy || aiRequestOpen() || state.resetPreview ||
-        state.progress.currentBeatPosition >= target.position) return;
-    await saveReaderBeat(reading, target, { confirmRead: true });
+    if (["changed", "unavailable", "saved"].includes(state.endingRead?.status)) return;
+    if (state.endingRead?.status === "unknown") return checkEndingRead();
+    return checkEndingRead(true);
   }
 
   async function turnBeat(direction) {
@@ -1826,7 +2021,8 @@
     await saveReaderBeat(reading, target);
   }
 
-  async function saveReaderBeat(reading, target, { confirmRead = false } = {}) {
+  async function saveReaderBeat(reading, target) {
+    cancelEndingRead(true);
     const epoch = state.epoch;
     const sessionId = state.sessionId;
     const identity = readerIdentity();
@@ -1852,14 +2048,12 @@
       if (payload?.progressId !== sessionId || !Number.isSafeInteger(payload.revision) || payload.revision <= revision ||
           payload.currentBeatPosition !== target.position || readerScope(payload) !== reading.scope ||
           !Array.isArray(payload.choices) || payload.choices.length > 3 || payload.status !== status ||
-          (status === "completed" && (payload.choices.length || payload.scene?.isGenerated !== true)) ||
-          (confirmRead && (payload.scene?.deliveryState !== "ready" || payload.scene?.endingType !== "ai_generated"))) throw new Error("Invalid beat projection");
+          (status === "completed" && (payload.choices.length || payload.scene?.isGenerated !== true))) throw new Error("Invalid beat projection");
       state.minimumRevision = Math.max(state.minimumRevision, payload.revision);
       state.progress = payload;
       state.scene = payload.scene;
       state.choices = payload.choices;
       state.completedBeat = null;
-      if (confirmRead) state.beatNotice = readerTr("readSaved");
     } catch (error) {
       if (!current()) return;
       if (error?.status === 401 || error?.status === 403) return blockScene(errorCopy(error));
@@ -1875,8 +2069,7 @@
         await finishOperation(operation);
         if (operation === state.operation && identity === readerIdentity() && sessionId === state.sessionId && locale === state.locale && state.scene) {
           renderScene();
-          if (confirmRead) root.querySelector("[data-story-scene-focus]")?.focus({ preventScroll: true });
-          else focusBeatStart();
+          focusBeatStart();
         }
       }
     }
@@ -1999,9 +2192,13 @@
   }
 
   function renderScene() {
+    if (state.endingReadOperation) cancelEndingRead(true);
     const scene = state.scene;
     if (!scene && state.progress?.status !== "completed") return renderState(tr("sceneFailed"), tr("loadErrorBody"), true);
-    if (pairedDeliveryPending(scene)) return renderPairedDelivery(scene);
+    if (pairedDeliveryPending(scene)) {
+      cancelEndingRead();
+      return renderPairedDelivery(scene);
+    }
     if (state.choices.length > 3) return blockScene(controlTr("sceneUnavailable"));
     const reading = readableBeats();
     const isEnding = state.progress?.status === "completed";
@@ -2019,8 +2216,11 @@
       ? `/character-chat?slug=${encodeURIComponent(participant.slug)}&storyProgressId=${encodeURIComponent(state.sessionId)}` : "";
     const lastBeat = reading.index === reading.beats.length - 1;
     const navigationBlocked = state.busy || aiRequestOpen() || !["active", "completed"].includes(state.progress?.status);
-    const endingRead = endingReadTarget(reading);
-    const endingReadSaved = endingRead && state.progress.currentBeatPosition >= endingRead.position;
+    const endingScope = endingReadTarget(reading);
+    const endingJournal = prepareEndingRead(endingScope);
+    const endingRead = endingScope?.onFinalPage ? endingScope : null;
+    const endingStatus = endingJournal?.status || "idle";
+    const endingReadSaved = endingRead && endingStatus === "saved" && endingJournal.receipt;
     const canonicalRead = canonicalReadTarget(reading);
     const canonicalStatus = canonicalRead && state.canonicalRead?.key === canonicalRead.key ? state.canonicalRead.status : "idle";
     rememberReadingScroll();
@@ -2076,8 +2276,10 @@
               ${isEnding ? `<span class="story-ending-label">${escapeHtml(tr("ending"))}</span>` : ""}
               ${reading.beats[reading.index].segments.flatMap((segment) => String(segment).split(/\n\s*\n/u).filter(Boolean)).map((paragraph) => `<p>${escapeHtml(paragraph).replace(/\r/g, "&#13;")}</p>`).join("")}
             </article>
-            ${endingRead ? `<div class="story-ending-read">
-              <button type="button" class="story-button story-button-secondary" data-story-ending-read ${navigationBlocked || state.resetPreview || endingReadSaved ? "disabled" : ""}>${escapeHtml(readerTr(endingReadSaved ? "readSaved" : "confirmRead"))}</button>
+            ${endingRead ? `<div class="story-ending-read story-canonical-read">
+              <button type="button" class="story-button story-button-secondary" data-story-ending-read ${navigationBlocked || state.resetPreview || endingReadSaved || ["checking", "saving", "changed", "unavailable"].includes(endingStatus) ? "disabled" : ""}>${escapeHtml(endingReadSaved ? readerTr("readSaved") : endingStatus === "unknown" ? endingReadTr("check") : readerTr("confirmRead"))}</button>
+              <p data-story-ending-read-status role="status">${escapeHtml(["idle", "saved"].includes(endingStatus) ? "" : endingReadTr(endingStatus))}</p>
+              ${["changed", "unavailable"].includes(endingStatus) ? `<button type="button" class="story-button story-button-secondary" data-story-ending-read-refresh ${navigationBlocked ? "disabled" : ""}>${escapeHtml(endingReadTr("refresh"))}</button>` : ""}
             </div>` : ""}
             ${canonicalRead ? `<div class="story-canonical-read">
               <button type="button" class="story-button story-button-secondary" data-story-canonical-read ${navigationBlocked || state.resetPreview || ["saved", "changed", "unavailable"].includes(canonicalStatus) ? "disabled" : ""}>${escapeHtml(canonicalReadTr(canonicalStatus === "saved" ? "saved" : canonicalStatus === "unknown" ? "retry" : "confirm"))}</button>
@@ -2108,6 +2310,7 @@
       root.insertAdjacentHTML("beforeend", renderResetDialog());
       root.querySelector("[data-story-reset-cancel]")?.focus();
     }
+    if (endingRead && endingStatus === "checking" && !state.endingReadOperation) checkEndingRead();
   }
 
   function actionStatus(message) {
@@ -2155,7 +2358,9 @@
   }
 
   function blockScene(message, retry = false) {
+    cancelEndingRead();
     cancelCanonicalRead();
+    state.scenePending = false;
     state.scene = null;
     state.choices = [];
     state.controls = null;
@@ -2681,6 +2886,7 @@
   }
 
   async function loadScene(options = {}) {
+    cancelEndingRead();
     const canonicalRead = options.preserveCanonicalRead === true ? state.canonicalRead : null;
     if (canonicalRead?.status === "saving") canonicalRead.status = "unknown";
     cancelCanonicalRead();
@@ -2690,12 +2896,15 @@
     const sessionId = state.sessionId;
     const identity = readerIdentity();
     const locale = state.locale;
-    const workId = state.workId;
-    const current = () => currentRequest(epoch, sessionId) && identity === readerIdentity() && locale === state.locale && workId === state.workId;
+    const workIdClaim = state.workIdClaim;
+    let workId = state.workId;
+    const current = () => currentRequest(epoch, sessionId) && identity === readerIdentity() && locale === state.locale &&
+      workId === state.workId && workIdClaim === state.workIdClaim;
     state.sceneIdentity = identity;
     state.beatNotice = "";
     state.controls = null;
     state.resetPreview = null;
+    state.scenePending = true;
     rememberReadingScroll();
     renderLoading(tr("sceneLoading"));
     try {
@@ -2704,15 +2913,27 @@
       if (payload?.progressId !== sessionId || !Number.isInteger(payload?.revision) || payload.revision < Math.max(1, state.minimumRevision)) throw new Error("Invalid progress projection");
       if (!Array.isArray(payload.choices)) throw new Error("Invalid choices projection");
       if (payload.choices.length > 3) return blockScene(controlTr("sceneUnavailable"));
+      if (workIdClaim != null && (!safeGraphId(workIdClaim) || workIdClaim !== workId)) throw new Error("Invalid URL work identity");
+      let resolvedWorkId = workId;
+      // Missing identity supports legacy display only; a present field must be authoritative and exact.
+      if (Object.prototype.hasOwnProperty.call(payload, "workId")) {
+        const payloadWorkId = safeGraphId(payload.workId);
+        if (!payloadWorkId || payloadWorkId !== payload.workId || (workId && payloadWorkId !== workId)) throw new Error("Invalid progress work identity");
+        resolvedWorkId = payloadWorkId;
+      }
+      const controls = await readControls(payload, sessionId, resolvedWorkId).catch(() => null);
+      if (!current()) return;
+      if (payload.revision < Math.max(1, state.minimumRevision)) throw new Error("Stale progress projection");
+      // Commit after controls so adoption cannot invalidate this request's original identity guard.
+      state.workId = workId = resolvedWorkId;
       state.minimumRevision = payload.revision;
       state.scene = payload?.scene || null;
       if (state.scene?.isGenerated === true) state.completedBeat = null;
       state.choices = payload.choices;
       state.progress = payload;
       state.customChoiceOpen = false;
-      const controls = await readControls(payload, sessionId, state.workId).catch(() => null);
-      if (!current()) return;
       state.controls = controls;
+      state.scenePending = false;
       if (canonicalRead && canonicalReadTarget()?.key === canonicalRead.key) state.canonicalRead = canonicalRead;
       renderScene();
       if (restorePending) restoreAiOperation();
@@ -2948,6 +3169,7 @@
   async function requestResetPreview(target) {
     const reset = resetCapability(state.progress);
     if (!reset || state.busy || aiRequestOpen() || state.resetPreview || !["full", "act"].includes(target) || !(target === "full" ? reset.canFullReset : reset.canActReset)) return;
+    cancelEndingRead();
     const epoch = state.epoch;
     const sessionId = state.sessionId;
     const operation = beginOperation();
@@ -3090,6 +3312,7 @@
     if (event.target.closest("[data-story-canonical-read]")) return confirmCanonicalRead();
     if (event.target.closest("[data-story-canonical-read-refresh]")) return loadScene();
     if (event.target.closest("[data-story-ending-read]")) return confirmEndingRead();
+    if (event.target.closest("[data-story-ending-read-refresh]")) return loadScene();
     const beatButton = event.target.closest("[data-story-beat]");
     if (beatButton) return turnBeat(beatButton.dataset.storyBeat === "previous" ? -1 : 1);
     if (event.target.closest("[data-story-visual-retry]")) {
@@ -3211,6 +3434,12 @@
     if (nextLocale === state.locale) return;
     state.locale = nextLocale;
     updateHeading();
+    if (state.endingReadOperation) {
+      cancelEndingRead();
+      state.localeDirty = false;
+      return loadScene();
+    }
+    cancelEndingRead();
     if (state.canonicalReadOperation) {
       cancelCanonicalRead();
       state.localeDirty = false;
@@ -3296,6 +3525,7 @@
   });
 
   window.addEventListener("popstate", () => {
+    cancelEndingRead();
     cancelCanonicalRead();
     if (state.dialog) dismissPack();
     cancelBeatNavigation();
@@ -3305,12 +3535,14 @@
     setBusy(false);
     const params = new URLSearchParams(location.search);
     state.sessionId = safeSessionId(params.get("sessionId"));
-    state.workId = safeGraphId(params.get("workId"));
-    state.graphWorkId = state.workId;
+    state.workIdClaim = urlWorkIdClaim(params);
+    state.workId = state.workIdClaim || "";
+    state.graphWorkId = safeGraphId(params.get("workId"));
     state.graphFocusSceneId = safeGraphId(params.get("focusSceneId"));
     state.minimumRevision = 0;
     state.progress = null;
     state.scene = null;
+    state.scenePending = false;
     state.choices = [];
     state.controls = null;
     state.resetPreview = null;
@@ -3326,6 +3558,7 @@
   window.addEventListener("pagehide", cancelAiPolling);
   window.addEventListener("pagehide", cancelBeatNavigation);
   window.addEventListener("pagehide", cancelCanonicalRead);
+  window.addEventListener("pagehide", () => cancelEndingRead());
 
   updateHeading();
   if (state.sessionId) loadScene();

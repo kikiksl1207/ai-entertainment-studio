@@ -37,6 +37,7 @@ export class SelectAuthorBodyTrialChoiceDto {
 }
 
 type AuthorBodyTrialChoiceService = {
+  recordAuthorBodyTrialRead(userId: string, workId: string, body: SelectAuthorBodyTrialChoiceDto, idempotencyKey: string): unknown;
   selectAuthorBodyTrialChoice(
     userId: string,
     workId: string,
@@ -70,6 +71,25 @@ class AuthorBodyTrialInputGuard implements CanActivate {
 @UseGuards(AuthorBodyTrialNoStoreGuard, JwtAuthGuard, AuthorBodyTrialInputGuard)
 export class StoryAuthorBodyTrialController {
   constructor(@Inject(StoryProductionService) private readonly stories: AuthorBodyTrialChoiceService) {}
+
+  @Post('read-beats')
+  @Header('Cache-Control', 'private, no-store')
+  readBeats(
+    @CurrentUser() user: AuthUser,
+    @Param('workId', ParseUUIDPipe) workId: string,
+    @Body(new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: true }))
+    body: SelectAuthorBodyTrialChoiceDto,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Req() request: { url: string },
+  ) {
+    if (new URL(request.url, 'http://localhost').search) {
+      throw new BadRequestException({ code: 'STORY_AUTHOR_BODY_TRIAL_INPUT_INVALID' });
+    }
+    if (typeof idempotencyKey !== 'string' || !/^[A-Za-z0-9._:-]{8,120}$/.test(idempotencyKey)) {
+      throw new BadRequestException({ code: 'STORY_AUTHOR_BODY_TRIAL_IDEMPOTENCY_KEY_INVALID' });
+    }
+    return this.stories.recordAuthorBodyTrialRead(user.id, workId, body, idempotencyKey);
+  }
 
   @Post('choices/:choiceId')
   @Header('Cache-Control', 'private, no-store')

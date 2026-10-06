@@ -15,7 +15,7 @@
       noProgress: "\uc774 \uc791\ud488\uc758 \ub0b4 \ub3c5\uc790 \uc9c4\ud589\uc774 \uc5c6\uc2b5\ub2c8\ub2e4.", noScene: "\ud604\uc7ac \uc9c4\ud589\uc5d0 \uc800\uc7a5\ub41c \uc7a5\uba74\uc774 \uc5c6\uc2b5\ub2c8\ub2e4.",
       generating: "\ud604\uc7ac \uc9c4\ud589\uc740 \uc0dd\uc131 \ub300\uae30 \ub610\ub294 \uc0dd\uc131 \uc911\uc785\ub2c8\ub2e4.", ending: "\uc5d4\ub529", body: "\ubcf8\ubb38", choices: "\uc800\uc7a5\ub41c \uc120\ud0dd\uc9c0",
       status: "\uc9c4\ud589 \uc0c1\ud0dc", revision: "\uacbd\ub85c \ubc84\uc804", version: "\uc2a4\ud1a0\ub9ac \ubc84\uc804", source: "\uc6d0\ubb38 \uc5b8\uc5b4",
-      statusActive: "\uc77d\ub294 \uc911", statusPending: "\uc0dd\uc131 \ub300\uae30 \ub610\ub294 \uc0dd\uc131 \uc911", statusCompleted: "\uc644\ub3c5", statusOther: "\uc0c1\ud0dc \ud655\uc778 \ud544\uc694",
+      statusActive: "\uc77d\ub294 \uc911", statusPending: "\uc0dd\uc131 \ub300\uae30 \ub610\ub294 \uc0dd\uc131 \uc911", statusCompleted: "\uc5d4\ub529 \ub3c4\ub2ec", statusOther: "\uc0c1\ud0dc \ud655\uc778 \ud544\uc694",
       endingOriginal: "\uc6d0\uc791 \uc5d4\ub529", endingAlternate: "\ub2e4\ub978 \uc6d0\uc791 \uc5d4\ub529", endingGenerated: "AI \ubd84\uae30 \uc5d4\ub529", endingOther: "\uc774\uc57c\uae30 \uc5d4\ub529",
       routeOriginal: "\uc6d0\uc791 \uacbd\ub85c", routeGeneration: "\uc0dd\uc131\uc774 \ud544\uc694\ud55c \ubd84\uae30", routeBranch: "\ubd84\uae30 \uacbd\ub85c", routeRejoin: "\uc6d0\uc791\uc73c\ub85c \ud569\ub958", routeEnding: "\uc5d4\ub529 \uacbd\ub85c", routeOther: "\ub2e4\ub978 \uacbd\ub85c",
       unauthenticated: "\ub85c\uadf8\uc778\uc774 \ud544\uc694\ud569\ub2c8\ub2e4. \ud604\uc7ac \ub85c\uadf8\uc778 \uc0c1\ud0dc\ub97c \ud655\uc778\ud574 \uc8fc\uc138\uc694.", forbidden: "\uc774 \uc791\ud488\uc758 \ubcf8\ubb38\uc744 \ud655\uc778\ud560 \uad8c\ud55c\uc774 \uc5c6\uc2b5\ub2c8\ub2e4.",
@@ -29,7 +29,7 @@
       noProgress: "You have no reader progress for this story.", noScene: "There is no saved scene in your current progress.",
       generating: "Your current progress is pending or generating.", ending: "Ending", body: "Text", choices: "Saved choices",
       status: "Progress status", revision: "Path version", version: "Story version", source: "Original language",
-      statusActive: "Reading", statusPending: "Pending or generating", statusCompleted: "Finished reading", statusOther: "Status needs checking",
+      statusActive: "Reading", statusPending: "Pending or generating", statusCompleted: "Ending reached", statusOther: "Status needs checking",
       endingOriginal: "Original ending", endingAlternate: "Alternate original ending", endingGenerated: "AI branch ending", endingOther: "Story ending",
       routeOriginal: "Original path", routeGeneration: "Branch requiring generation", routeBranch: "Branch path", routeRejoin: "Rejoin the original", routeEnding: "Ending path", routeOther: "Other path",
       unauthenticated: "Sign-in is required. Check your current session.", forbidden: "You do not have permission to view this story's text.",
@@ -43,7 +43,7 @@
       noProgress: "\u3053\u306e\u4f5c\u54c1\u306e\u81ea\u5206\u306e\u8aad\u8005\u9032\u884c\u306f\u3042\u308a\u307e\u305b\u3093\u3002", noScene: "\u73fe\u5728\u306e\u9032\u884c\u306b\u4fdd\u5b58\u3055\u308c\u305f\u30b7\u30fc\u30f3\u306f\u3042\u308a\u307e\u305b\u3093\u3002",
       generating: "\u73fe\u5728\u306e\u9032\u884c\u306f\u751f\u6210\u5f85\u3061\u3001\u307e\u305f\u306f\u751f\u6210\u4e2d\u3067\u3059\u3002", ending: "\u30a8\u30f3\u30c7\u30a3\u30f3\u30b0", body: "\u672c\u6587", choices: "\u4fdd\u5b58\u3055\u308c\u305f\u9078\u629e\u80a2",
       status: "\u9032\u884c\u72b6\u614b", revision: "\u7d4c\u8def\u306e\u30d0\u30fc\u30b8\u30e7\u30f3", version: "\u30b9\u30c8\u30fc\u30ea\u30fc\u30d0\u30fc\u30b8\u30e7\u30f3", source: "\u539f\u6587\u306e\u8a00\u8a9e",
-      statusActive: "\u8aad\u66f8\u4e2d", statusPending: "\u751f\u6210\u5f85\u3061\u3001\u307e\u305f\u306f\u751f\u6210\u4e2d", statusCompleted: "\u8aad\u4e86", statusOther: "\u72b6\u614b\u306e\u78ba\u8a8d\u304c\u5fc5\u8981",
+      statusActive: "\u8aad\u66f8\u4e2d", statusPending: "\u751f\u6210\u5f85\u3061\u3001\u307e\u305f\u306f\u751f\u6210\u4e2d", statusCompleted: "\u30a8\u30f3\u30c7\u30a3\u30f3\u30b0\u306b\u5230\u9054", statusOther: "\u72b6\u614b\u306e\u78ba\u8a8d\u304c\u5fc5\u8981",
       endingOriginal: "\u539f\u4f5c\u306e\u30a8\u30f3\u30c7\u30a3\u30f3\u30b0", endingAlternate: "\u5225\u306e\u539f\u4f5c\u30a8\u30f3\u30c7\u30a3\u30f3\u30b0", endingGenerated: "AI\u5206\u5c90\u306e\u30a8\u30f3\u30c7\u30a3\u30f3\u30b0", endingOther: "\u7269\u8a9e\u306e\u30a8\u30f3\u30c7\u30a3\u30f3\u30b0",
       routeOriginal: "\u539f\u4f5c\u306e\u7d4c\u8def", routeGeneration: "\u751f\u6210\u304c\u5fc5\u8981\u306a\u5206\u5c90", routeBranch: "\u5206\u5c90\u306e\u7d4c\u8def", routeRejoin: "\u539f\u4f5c\u306b\u5408\u6d41", routeEnding: "\u30a8\u30f3\u30c7\u30a3\u30f3\u30b0\u3078\u306e\u7d4c\u8def", routeOther: "\u5225\u306e\u7d4c\u8def",
       unauthenticated: "\u30ed\u30b0\u30a4\u30f3\u304c\u5fc5\u8981\u3067\u3059\u3002\u73fe\u5728\u306e\u30ed\u30b0\u30a4\u30f3\u72b6\u614b\u3092\u78ba\u8a8d\u3057\u3066\u304f\u3060\u3055\u3044\u3002", forbidden: "\u3053\u306e\u4f5c\u54c1\u306e\u672c\u6587\u3092\u78ba\u8a8d\u3059\u308b\u6a29\u9650\u304c\u3042\u308a\u307e\u305b\u3093\u3002",
@@ -57,7 +57,7 @@
       noProgress: "\u60a8\u5728\u6b64\u4f5c\u54c1\u4e2d\u6ca1\u6709\u8bfb\u8005\u8fdb\u5ea6\u3002", noScene: "\u5f53\u524d\u8fdb\u5ea6\u4e2d\u6ca1\u6709\u5df2\u4fdd\u5b58\u7684\u573a\u666f\u3002",
       generating: "\u5f53\u524d\u8fdb\u5ea6\u6b63\u5728\u7b49\u5f85\u751f\u6210\u6216\u751f\u6210\u4e2d\u3002", ending: "\u7ed3\u5c40", body: "\u6b63\u6587", choices: "\u5df2\u4fdd\u5b58\u7684\u9009\u9879",
       status: "\u8fdb\u5ea6\u72b6\u6001", revision: "\u8def\u7ebf\u7248\u672c", version: "\u6545\u4e8b\u7248\u672c", source: "\u539f\u6587\u8bed\u8a00",
-      statusActive: "\u9605\u8bfb\u4e2d", statusPending: "\u7b49\u5f85\u751f\u6210\u6216\u751f\u6210\u4e2d", statusCompleted: "\u5df2\u8bfb\u5b8c", statusOther: "\u72b6\u6001\u9700\u8981\u786e\u8ba4",
+      statusActive: "\u9605\u8bfb\u4e2d", statusPending: "\u7b49\u5f85\u751f\u6210\u6216\u751f\u6210\u4e2d", statusCompleted: "\u5df2\u5230\u8fbe\u7ed3\u5c40", statusOther: "\u72b6\u6001\u9700\u8981\u786e\u8ba4",
       endingOriginal: "\u539f\u4f5c\u7ed3\u5c40", endingAlternate: "\u5176\u4ed6\u539f\u4f5c\u7ed3\u5c40", endingGenerated: "AI\u5206\u652f\u7ed3\u5c40", endingOther: "\u6545\u4e8b\u7ed3\u5c40",
       routeOriginal: "\u539f\u4f5c\u8def\u7ebf", routeGeneration: "\u9700\u8981\u751f\u6210\u7684\u5206\u652f", routeBranch: "\u5206\u652f\u8def\u7ebf", routeRejoin: "\u56de\u5f52\u539f\u4f5c", routeEnding: "\u7ed3\u5c40\u8def\u7ebf", routeOther: "\u5176\u4ed6\u8def\u7ebf",
       unauthenticated: "\u9700\u8981\u767b\u5f55\u3002\u8bf7\u68c0\u67e5\u5f53\u524d\u767b\u5f55\u72b6\u6001\u3002", forbidden: "\u60a8\u65e0\u6743\u67e5\u770b\u6b64\u4f5c\u54c1\u7684\u6b63\u6587\u3002",
@@ -71,7 +71,7 @@
       noProgress: "\u60a8\u5728\u6b64\u4f5c\u54c1\u4e2d\u6c92\u6709\u8b80\u8005\u9032\u5ea6\u3002", noScene: "\u76ee\u524d\u9032\u5ea6\u4e2d\u6c92\u6709\u5df2\u5132\u5b58\u7684\u5834\u666f\u3002",
       generating: "\u76ee\u524d\u9032\u5ea6\u6b63\u5728\u7b49\u5f85\u751f\u6210\u6216\u751f\u6210\u4e2d\u3002", ending: "\u7d50\u5c40", body: "\u6b63\u6587", choices: "\u5df2\u5132\u5b58\u7684\u9078\u9805",
       status: "\u9032\u5ea6\u72c0\u614b", revision: "\u8def\u7dda\u7248\u672c", version: "\u6545\u4e8b\u7248\u672c", source: "\u539f\u6587\u8a9e\u8a00",
-      statusActive: "\u95b1\u8b80\u4e2d", statusPending: "\u7b49\u5f85\u751f\u6210\u6216\u751f\u6210\u4e2d", statusCompleted: "\u5df2\u8b80\u5b8c", statusOther: "\u72c0\u614b\u9700\u8981\u78ba\u8a8d",
+      statusActive: "\u95b1\u8b80\u4e2d", statusPending: "\u7b49\u5f85\u751f\u6210\u6216\u751f\u6210\u4e2d", statusCompleted: "\u5df2\u5230\u9054\u7d50\u5c40", statusOther: "\u72c0\u614b\u9700\u8981\u78ba\u8a8d",
       endingOriginal: "\u539f\u4f5c\u7d50\u5c40", endingAlternate: "\u5176\u4ed6\u539f\u4f5c\u7d50\u5c40", endingGenerated: "AI\u5206\u652f\u7d50\u5c40", endingOther: "\u6545\u4e8b\u7d50\u5c40",
       routeOriginal: "\u539f\u4f5c\u8def\u7dda", routeGeneration: "\u9700\u8981\u751f\u6210\u7684\u5206\u652f", routeBranch: "\u5206\u652f\u8def\u7dda", routeRejoin: "\u56de\u6b78\u539f\u4f5c", routeEnding: "\u7d50\u5c40\u8def\u7dda", routeOther: "\u5176\u4ed6\u8def\u7dda",
       unauthenticated: "\u9700\u8981\u767b\u5165\u3002\u8acb\u6aa2\u67e5\u76ee\u524d\u767b\u5165\u72c0\u614b\u3002", forbidden: "\u60a8\u7121\u6b0a\u67e5\u770b\u6b64\u4f5c\u54c1\u7684\u6b63\u6587\u3002",
@@ -105,8 +105,10 @@
       readOnly: true, imageGenerationStarted: false, progress: null };
     if (value.progress === null) return result;
     const progress = value.progress;
+    const hasReadPosition = Object.prototype.hasOwnProperty.call(progress || {}, "currentBeatPosition");
     if (!record(progress) || !uuid(progress.progressId) || !positive(progress.revision) || !positive(progress.storyVersion) ||
         !token(progress.status) || !Array.isArray(progress.choices) || progress.choices.length > 3 ||
+        (hasReadPosition && (!Number.isSafeInteger(progress.currentBeatPosition) || progress.currentBeatPosition < 0 || progress.currentBeatPosition > 40)) ||
         ((progress.scene === null || progress.status === "completed") && progress.choices.length !== 0)) bad();
     let scene = null;
     if (progress.scene !== null) {
@@ -121,6 +123,7 @@
         return { id: beat.id.toLowerCase(), position: beat.position, type: beat.type, content: beat.content };
       });
       scene = { id: source.id.toLowerCase(), isGenerated: source.isGenerated, title: source.title, beats, endingType: source.endingType };
+      if (hasReadPosition && source.isGenerated && progress.currentBeatPosition > lastPosition) bad();
     }
     const ids = new Set();
     const choices = progress.choices.map(choice => {
@@ -130,7 +133,8 @@
       return { id: choice.id.toLowerCase(), label: choice.label, routeKind: choice.routeKind };
     });
     result.progress = { progressId: progress.progressId.toLowerCase(), revision: progress.revision,
-      status: progress.status, storyVersion: progress.storyVersion, scene, choices };
+      status: progress.status, storyVersion: progress.storyVersion, scene, choices,
+      ...(hasReadPosition ? { currentBeatPosition: progress.currentBeatPosition } : {}) };
     return result;
   }
   async function readBody(response, current) {

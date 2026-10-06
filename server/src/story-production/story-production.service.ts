@@ -10,6 +10,7 @@ import {
 import { Prisma } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import { isUUID } from 'class-validator';
+import { createHash } from 'crypto';
 import {
   assertAtomicWalletDebitSucceeded,
   requireWalletMutationIdempotencyKey,
@@ -844,22 +845,36 @@ export class StoryProductionService {
     return this.currentProgress(userId, progress.id, body.locale);
   }
 
-  async currentProgress(userId: string, progressId: string, locale = 'ko') {
+  async currentProgress(userId: string, progressId: string, locale = 'ko', recoverVisualPrompts = true) {
     const progress = await this.prisma.storyReaderProgress.findFirst({
       where: { id: progressId, userId },
     });
     if (!progress) throw new NotFoundException('Story progress not found');
+    if (progress.status === 'completed' && (!progress.activeReleaseId ||
+      (progress.currentSceneId && progress.currentGeneratedSceneId))) {
+      throw new ConflictException({ code: 'STORY_COMPLETED_ENDING_UNAVAILABLE',
+        retryable: false, progressMutated: false });
+    }
     const participantArtist = this.storyParticipants
       ? await this.storyParticipants.projection(progress.id)
       : null;
     if (progress.currentGeneratedSceneId) {
-      return { ...(await this.generatedSceneProjection(progress, locale)), workId: progress.workId, participantArtist };
+      return { ...(await this.generatedSceneProjection(progress, locale, recoverVisualPrompts)), workId: progress.workId, participantArtist };
+    }
+    if (progress.status === 'completed') {
+      // Ending arrival needs the same stored evidence as canonical read confirmation.
+      const ending = await canonicalEndingPosition(this.prisma, progress, true);
+      if (!ending) throw new ConflictException({ code: 'STORY_COMPLETED_ENDING_UNAVAILABLE',
+        retryable: false, progressMutated: false });
+      return { ...(await this.sceneProjection({ ...progress, currentSceneId: ending.sceneId,
+        currentBeatPosition: progress.currentSceneId ? progress.currentBeatPosition : 0 }, locale, recoverVisualPrompts)),
+        workId: progress.workId, participantArtist };
     }
     if (!progress.currentSceneId) {
       const ending = await canonicalEndingPosition(this.prisma, progress, true);
       if (ending) {
         return { ...(await this.sceneProjection({ ...progress, currentSceneId: ending.sceneId,
-          currentBeatPosition: 0 }, locale)), workId: progress.workId, participantArtist };
+          currentBeatPosition: 0 }, locale, recoverVisualPrompts)), workId: progress.workId, participantArtist };
       }
       return {
         progressId,
@@ -875,7 +890,7 @@ export class StoryProductionService {
         participantArtist,
       };
     }
-    return { ...(await this.sceneProjection(progress, locale)), workId: progress.workId, participantArtist };
+    return { ...(await this.sceneProjection(progress, locale, recoverVisualPrompts)), workId: progress.workId, participantArtist };
   }
 
   async updateBeatProgress(
@@ -973,6 +988,111 @@ export class StoryProductionService {
       });
     }
     return this.currentProgress(userId, progressId, locale);
+  }
+
+  async recordAuthorBodyTrialRead(userId: string, workId: string,
+    body: { approvalId: string; progressId: string; expectedRevision: number; locale: string }, idempotencyKey?: string) {
+    if (!body || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).length !== 4 ||
+      Object.keys(body).some(key => !['approvalId', 'progressId', 'expectedRevision', 'locale'].includes(key)) ||
+      ![userId, workId, body.approvalId, body.progressId].every(id => typeof id === 'string' && isUUID(id)) ||
+      !Number.isSafeInteger(body.expectedRevision) || body.expectedRevision < 1 || body.expectedRevision > 2147483646 ||
+      !STORY_LOCALES.includes(body.locale as typeof STORY_LOCALES[number]) ||
+      typeof idempotencyKey !== 'string' || !/^[A-Za-z0-9._:-]{8,120}$/.test(idempotencyKey)) {
+      throw new BadRequestException({ code: 'STORY_AUTHOR_BODY_TRIAL_INPUT_INVALID' });
+    }
+    if (!this.authorBodyTrial) throw new ServiceUnavailableException('Author body trial unavailable');
+    userId = userId.toLowerCase(); workId = workId.toLowerCase();
+    const approvalId = body.approvalId.toLowerCase(), progressId = body.progressId.toLowerCase();
+    const contract = 'story-author-body-trial-read-v1' as const;
+    const commandHash = createHash('sha256').update(JSON.stringify([contract, userId, idempotencyKey])).digest('hex');
+    const requestFingerprint = createHash('sha256').update(JSON.stringify([
+      contract, userId, workId, approvalId, progressId, body.expectedRevision, body.locale,
+    ])).digest('hex');
+    return this.prisma.$transaction(async tx => {
+      await this.authorBodyTrial!.lockWorkTx(tx, userId, workId);
+      const approval = await this.authorBodyTrial!.authorizeTx(tx, userId, { workId, approvalId });
+      await this.authorBodyTrial!.assertCommittedBudgetTx(tx, approval);
+      // Serialize the same user's key across works as well as under the native work lock.
+      await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${`story-author-body-trial-read:${commandHash}`}, 2050))`);
+      const audits = await tx.auditEvent.findMany({ where: { actorType: 'user', actorUserId: userId,
+        action: 'story.author_body_trial.read_recorded', targetType: 'story_reader_progress',
+        metadata: { path: ['commandHash'], equals: commandHash } }, take: 2 });
+      const conflict = (code = 'STORY_AUTHOR_BODY_TRIAL_READ_CHANGED'): never => { throw new ConflictException({ code }); };
+      if (audits.length > 1) conflict('STORY_AUTHOR_BODY_TRIAL_READ_EVIDENCE_INVALID');
+      if (audits.length) {
+        const audit = audits[0];
+        const metadata = audit.metadata && typeof audit.metadata === 'object' && !Array.isArray(audit.metadata)
+          ? audit.metadata as Prisma.JsonObject : {};
+        if (metadata.requestFingerprint !== requestFingerprint || audit.targetId !== progressId) {
+          conflict('STORY_AUTHOR_BODY_TRIAL_READ_IDEMPOTENCY_CONFLICT');
+        }
+        const receipt = metadata.receipt && typeof metadata.receipt === 'object' && !Array.isArray(metadata.receipt)
+          ? metadata.receipt as Prisma.JsonObject : {};
+        if (audit.actorType !== 'user' || audit.actorUserId !== userId || metadata.commandHash !== commandHash ||
+          metadata.explicitRead !== true || metadata.meaningApproved !== false || metadata.qualityApproved !== false ||
+          metadata.publicationStarted !== false || receipt.contract !== contract || receipt.workId !== workId ||
+          receipt.progressId !== progressId || receipt.sourceRevision !== body.expectedRevision ||
+          receipt.revision !== body.expectedRevision + 1 || typeof receipt.beatPosition !== 'number' ||
+          !Number.isSafeInteger(receipt.beatPosition) || receipt.beatPosition < 1 || receipt.beatPosition > 40 ||
+          receipt.idempotentReplay !== false || receipt.generationStarted !== false ||
+          receipt.imageGenerationStarted !== false || receipt.readOnly !== false) {
+          conflict('STORY_AUTHOR_BODY_TRIAL_READ_EVIDENCE_INVALID');
+        }
+        return { contract, workId, progressId, sourceRevision: body.expectedRevision,
+          revision: body.expectedRevision + 1, beatPosition: receipt.beatPosition as number,
+          idempotentReplay: true, generationStarted: false as const, imageGenerationStarted: false as const, readOnly: false as const };
+      }
+      const work = await tx.storyWork.findFirst({ where: { id: workId, ownerUserId: userId,
+        status: 'published', fixtureSource: false }, select: { id: true, activeReleaseId: true, publishedVersion: true } });
+      const progress = await tx.storyReaderProgress.findFirst({ where: { id: progressId, userId, workId } });
+      if (!work || !progress || progress.userId !== userId || progress.workId !== workId ||
+        approval.userId !== userId || approval.workId !== workId) {
+        throw new NotFoundException({ code: 'STORY_AUTHOR_BODY_TRIAL_READ_UNAVAILABLE' });
+      }
+      if (!['active', 'completed'].includes(progress.status) || progress.currentSceneId || !progress.currentGeneratedSceneId ||
+        progress.activeReleaseId !== approval.releaseId || work.activeReleaseId !== approval.releaseId ||
+        progress.storyVersion !== work.publishedVersion || progress.capabilityRevision !== approval.capabilityRevision ||
+        !Number.isSafeInteger(progress.currentBeatPosition) || progress.currentBeatPosition < 0 || progress.currentBeatPosition > 40) conflict();
+      if (progress.progressRevision !== body.expectedRevision) conflict('STORY_PROGRESS_STALE_REVISION');
+      const scene = await tx.storyAiGeneratedScene.findFirst({ where: { id: progress.currentGeneratedSceneId!,
+        userId, workId, progressId, releaseId: approval.releaseId, status: 'ready' },
+        select: { id: true, continuationId: true, endingType: true } });
+      if (!scene) conflict();
+      if (progress.status === 'completed' ? scene!.endingType !== 'ai_generated' : Boolean(scene!.endingType)) conflict();
+      const origin = await tx.storyAiContinuation.findFirst({ where: { id: scene!.continuationId,
+        userId, workId, progressId, releaseId: approval.releaseId, status: 'completed', resultGeneratedSceneId: scene!.id },
+        select: { id: true } });
+      if (!origin) conflict();
+      const beats = await tx.storyAiGeneratedBeat.findMany({ where: { sceneId: scene!.id },
+        orderBy: [{ position: 'asc' }, { id: 'asc' }], take: 41, select: { id: true, position: true, beatType: true, content: true } });
+      if (!beats.length || beats.length > 40 || new Set(beats.map(beat => beat.id)).size !== beats.length ||
+        beats.some((beat, index) => {
+          const content = beat.content && typeof beat.content === 'object' && !Array.isArray(beat.content)
+            ? (beat.content as Prisma.JsonObject)[body.locale] : undefined;
+          return !isUUID(beat.id) || !Number.isSafeInteger(beat.position) || beat.position < 1 || beat.position > 40 ||
+            (index > 0 && beat.position <= beats[index - 1].position) ||
+            typeof beat.beatType !== 'string' || !/^[a-z][a-z0-9_-]{0,63}$/i.test(beat.beatType) ||
+            typeof content !== 'string' || !content.trim() || content.length > 64000 ||
+            /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(content) ||
+            /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(content);
+        })) conflict('STORY_AUTHOR_BODY_TRIAL_READ_BEATS_INVALID');
+      const beatPosition = beats[beats.length - 1].position;
+      if (progress.currentBeatPosition > beatPosition) conflict();
+      if (progress.currentBeatPosition === beatPosition) conflict('STORY_AUTHOR_BODY_TRIAL_READ_ALREADY_RECORDED');
+      const updated = await tx.storyReaderProgress.updateMany({ where: { id: progressId, userId, workId,
+        status: progress.status, progressRevision: body.expectedRevision, activeReleaseId: approval.releaseId,
+        currentSceneId: null, currentGeneratedSceneId: scene!.id, currentBeatPosition: progress.currentBeatPosition },
+        data: { currentBeatPosition: beatPosition, progressRevision: { increment: 1 }, updatedAt: new Date() } });
+      if (updated.count !== 1) conflict('STORY_PROGRESS_STALE_REVISION');
+      const receipt = { contract, workId, progressId, sourceRevision: body.expectedRevision,
+        revision: body.expectedRevision + 1, beatPosition, idempotentReplay: false,
+        generationStarted: false as const, imageGenerationStarted: false as const, readOnly: false as const };
+      await tx.auditEvent.create({ data: { actorType: 'user', actorUserId: userId,
+        action: 'story.author_body_trial.read_recorded', targetType: 'story_reader_progress', targetId: progressId,
+        metadata: { commandHash, requestFingerprint, receipt, explicitRead: true,
+          meaningApproved: false, qualityApproved: false, publicationStarted: false } } });
+      return receipt;
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: 20000 });
   }
 
   async selectAuthorBodyTrialChoice(userId: string, workId: string, choiceId: string,
@@ -1809,6 +1929,7 @@ export class StoryProductionService {
   private async generatedSceneProjection(
     progress: {
       id: string;
+      userId: string;
       workId: string;
       currentGeneratedSceneId: string | null;
       currentBeatPosition: number;
@@ -1821,6 +1942,7 @@ export class StoryProductionService {
       status: string;
     },
     locale: string,
+    recoverVisualPrompts = true,
   ) {
     const scene = await this.prisma.storyAiGeneratedScene.findFirst({
       where: {
@@ -1829,6 +1951,7 @@ export class StoryProductionService {
         workId: progress.workId,
         releaseId: progress.activeReleaseId ?? undefined,
         status: 'ready',
+        ...(progress.status === 'completed' ? { userId: progress.userId, endingType: 'ai_generated' } : {}),
       },
     });
     const part = scene
@@ -1843,10 +1966,20 @@ export class StoryProductionService {
       : null;
     const work = part
       ? await this.prisma.storyWork.findFirst({
-          where: { id: part.workId, status: 'published', fixtureSource: false },
+          where: { id: part.workId, status: 'published', fixtureSource: false,
+            ...(progress.status === 'completed' ? {
+              activeReleaseId: progress.activeReleaseId, publishedVersion: progress.storyVersion,
+            } : {}) },
         })
       : null;
     if (!scene || !part || !work) throw new NotFoundException('Generated story scene not found');
+    if (progress.status === 'completed' && !await this.prisma.storyRelease.findFirst({
+      where: { id: progress.activeReleaseId!, workId: progress.workId,
+        status: 'active', version: progress.storyVersion }, select: { id: true },
+    })) {
+      throw new ConflictException({ code: 'STORY_COMPLETED_ENDING_UNAVAILABLE',
+        retryable: false, progressMutated: false });
+    }
     let visualManifest = projectStoredStorySceneVisualManifest(scene.visualManifest, scene.sceneKey);
     if (!visualManifest && progress.activeReleaseId && this.visualGeneration?.sharedBranchManifest) {
       const shared = await this.visualGeneration.sharedBranchManifest(work.id, progress.activeReleaseId, scene.sceneKey, scene.visualManifest);
@@ -1873,7 +2006,7 @@ export class StoryProductionService {
       this.visualGeneration && progress.activeReleaseId && visualVariantKey !== null
         ? this.visualGeneration.readyVisuals(work.id, progress.activeReleaseId, [scene.sceneKey], visualVariantKey)
         : new Map<string, { sourceSceneKey: string; publicAssetPath: string }>(),
-      this.visualGeneration && progress.activeReleaseId && visualVariantKey !== null
+      recoverVisualPrompts && this.visualGeneration && progress.activeReleaseId && visualVariantKey !== null
         ? this.visualGeneration.promptKeys(work.id, progress.activeReleaseId, [scene.sceneKey])
         : new Set<string>(),
     ]);
@@ -1980,6 +2113,7 @@ export class StoryProductionService {
       status: string;
     },
     locale: string,
+    recoverVisualPrompts = true,
   ) {
     const scene = await this.prisma.storyScene.findFirst({ where: { id: progress.currentSceneId!, status: 'published', fixtureSource: false } });
     if (!scene || !isPublicStorySourceSafe({ fixtureSource: scene?.fixtureSource, manifest: scene?.visualManifest })) {
@@ -2014,7 +2148,7 @@ export class StoryProductionService {
     const [readyVisuals, promptKeys] = this.visualGeneration && progress.activeReleaseId && visualVariantKey !== null
       ? await Promise.all([
           this.visualGeneration.readyVisuals(work.id, progress.activeReleaseId, visualKeys, visualVariantKey),
-          this.visualGeneration.promptKeys(work.id, progress.activeReleaseId, visualKeys),
+          recoverVisualPrompts ? this.visualGeneration.promptKeys(work.id, progress.activeReleaseId, visualKeys) : new Set<string>(),
         ])
       : [new Map<string, { sourceSceneKey: string; publicAssetPath: string }>(), new Set<string>()];
     const canonicalVisual = readyVisuals.get(scene.sceneKey);

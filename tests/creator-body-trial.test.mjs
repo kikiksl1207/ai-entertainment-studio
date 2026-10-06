@@ -130,7 +130,7 @@ function assertReplay(first, replay, epoch = 1) {
   assert.equal(replay.options.headers['Content-Type'], undefined);
   assert.equal(replay.options.headers['Idempotency-Key'], first.options.headers['Idempotency-Key']);
   assert.deepEqual(clone(replay.options.identity), { ownerId: id(8), epoch });
-  assert.equal(replay.options._retried, true);
+  assert.equal(replay.options._retried, false);
   assert.equal(replay.options.cache, 'no-store');
 }
 
@@ -159,7 +159,7 @@ test('explicit load performs the two exact owner GETs in order, without authoriz
     `/api/v1/me/creator-studio/stories/${id(1)}/body-preview?locale=ko`
   ]);
   for (const { options } of view.calls) {
-    assert.equal(options.method, 'GET'); assert.equal(options._retried, true); assert.equal(options.cache, 'no-store');
+    assert.equal(options.method, 'GET'); assert.equal(options._retried, false); assert.equal(options.cache, 'no-store');
     assert.equal(options.headers['Cache-Control'], 'no-store'); assert.equal(options.body, undefined); assert.ok(options.signal);
     assert.deepEqual(clone(options.identity), { ownerId: id(8), epoch: 1 });
   }
@@ -1049,7 +1049,8 @@ function mounted(handler = ({ reply }) => reply(), settings = {}) {
     identity: () => owner,
     isCurrent: value => owner && owner.ownerId === value.ownerId && owner.epoch === value.epoch,
     fetch: async (url, options) => {
-      if (!options.token || !options._retried) refreshAttempts++;
+      // Count an actual refresh request, not the flags that permit read refresh.
+      if (url.includes('/auth/refresh')) { refreshAttempts++; throw new Error('Unexpected direct refresh request'); }
       const kind = options.method === 'POST' ? 'choice' : url.endsWith('/body-trial/recovery') ? 'recovery' : url.includes('/receipt?') ? 'receipt'
         : url.includes('/body-trial-state') ? 'state' : 'preview';
       const target = { workId: work.value, locale: sourceLocale.value }, call = { url, options, kind };
@@ -1527,7 +1528,7 @@ test('recovery: manual lookup persists the original server command and waits for
   assert.equal(lookup.options.method, 'GET'); assert.equal(lookup.options.body, undefined);
   assert.equal(lookup.options.headers['Idempotency-Key'], undefined); assert.equal(lookup.options.headers['Content-Type'], undefined);
   assert.equal(lookup.options.headers['Cache-Control'], 'no-store'); assert.equal(lookup.options.cache, 'no-store');
-  assert.equal(lookup.options._retried, true); assert.deepEqual(clone(lookup.options.identity), { ownerId: id(8), epoch: 5 });
+  assert.equal(lookup.options._retried, false); assert.deepEqual(clone(lookup.options.identity), { ownerId: id(8), epoch: 5 });
   assert.deepEqual(journal.entries.get(id(8)), { version: 1, ownerId: id(8), ...remote });
   assertUncertain(view); assert.equal(view.snapshot().canRetry, true); assert.equal(view.snapshot().canRecover, false);
   view.snapshot(); view.syncContext(); assert.equal(view.calls.length, 1); assert.equal(view.keys(), 0); assert.equal(dispatches, 0);
@@ -1564,7 +1565,7 @@ for (const uiLocale of locales) test(`recovery: mounted ${uiLocale} History tool
   assert.equal(view.retryButton().hidden, true); assert.equal(view.recoverButton().disabled, false);
   assert.equal(view.choices().length, 0); assert.equal(posts(view).length, 0); assert.equal(view.events.length, 0);
   assert.equal(view.storage.values.size, 0); assert.equal(view.refreshAttempts(), 0);
-  assert.equal(view.calls[0].options.token, 'existing-access-token'); assert.equal(view.calls[0].options._retried, true);
+  assert.equal(view.calls[0].options.token, undefined); assert.equal(view.calls[0].options._retried, false);
 });
 
 for (const sourceLocale of locales) test(`recovery: latest ${sourceLocale} command retains source locale until exact confirmation scope is selected`, async () => {
@@ -1855,7 +1856,7 @@ test('receipt result: an unverified receipt GET never gains the result prefix', 
 test('entry pairs the recovered trial script and stylesheet with a fresh matching cache revision', () => {
   const stylesheet = entry.match(/href="\/pages\/creator-body-trial\.css\?v=([^"&]+)"/)?.[1];
   const script = entry.match(/src="\/pages\/creator-body-trial\.js\?v=([^"&]+)"/)?.[1];
-  assert.equal(script, 'body-trial-settled-20261005');
+  assert.equal(script, 'body-read-20261006');
   assert.equal(stylesheet, script);
   assert.doesNotMatch(entry, /creator-body-trial\.(?:css|js)\?v=body-trial-20261002/);
 });
@@ -1872,7 +1873,7 @@ test('entry includes one unframed trial mount and loads trial after the shared A
   assert.ok(entry.indexOf('id="writerBodyTrial"') < entry.indexOf('id="story-intake"'));
 });
 
-test('mount stays idle and uses existing token with no shared API refresh, retry, or global network access', async () => {
+test('mount stays idle and forwards bodyless reads to the current shared authentication session', async () => {
   const view = mounted(); assert.equal(view.calls.length, 0);
   assert.equal(view.refresh().type, 'button'); assert.ok(view.refresh().title); assert.ok(view.refresh().getAttribute('aria-label'));
   assert.equal(view.retryButton().hidden, true);
@@ -1880,10 +1881,10 @@ test('mount stays idle and uses existing token with no shared API refresh, retry
   assert.equal(view.calls.length, 0);
   await view.load(); assert.equal(view.calls.length, 2);
   for (const { options } of view.calls) {
-    assert.equal(options.token, 'existing-access-token'); assert.equal(options._retried, true); assert.equal(options.cache, 'no-store');
+    assert.equal(options.token, undefined); assert.equal(options._retried, false); assert.equal(options.cache, 'no-store');
     assert.deepEqual(clone(options.identity), { ownerId: id(8), epoch: 1 });
   }
-  assert.equal(view.refreshAttempts(), 0); view.setToken(null); await view.load();
+  assert.equal(view.refreshAttempts(), 0); view.setToken(null); view.setOwner(null); await view.load();
   assert.equal(view.calls.length, 2); assert.equal(view.refreshAttempts(), 0);
   assert.doesNotMatch(view.host.textContent, /Private trial text/);
 });
@@ -1903,8 +1904,8 @@ test('mount forwards initial POST as an object and checks its receipt with a bod
   assert.equal(view.choices().length, 0); await view.retry();
   const replay = checks(view)[0];
   assertReplay(first, replay); assert.equal(posts(view).length, 1);
-  assert.equal(replay.options._retried, true); assert.equal(replay.options.cache, 'no-store');
-  assert.equal(replay.options.token, 'existing-access-token'); assert.equal(view.retryButton().hidden, true);
+  assert.equal(replay.options._retried, false); assert.equal(replay.options.cache, 'no-store');
+  assert.equal(replay.options.token, undefined); assert.equal(view.retryButton().hidden, true);
   assert.equal(view.refreshAttempts(), 0); assert.equal(view.calls.length, 4);
   assert.deepEqual(view.events, ['lumina:author-body-trial-progress-changed', 'lumina:author-body-trial-progress-changed']);
 });

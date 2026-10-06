@@ -54,7 +54,7 @@ export class StoryAuthorBodyPreviewService {
       const progress = await db.storyReaderProgress.findUnique({ where: { userId_workId: { userId, workId } },
         select: { id: true, userId: true, workId: true, activeReleaseId: true, storyVersion: true,
           progressRevision: true, status: true, currentSceneId: true, currentGeneratedSceneId: true,
-          routeNodeId: true, pathSummary: true } });
+          routeNodeId: true, pathSummary: true, currentBeatPosition: true } });
       const envelope = { contract: 'story-author-body-preview-v1' as const, workId, locale,
         readOnly: true as const, imageGenerationStarted: false as const };
       if (!progress) return { ...envelope, progress: null };
@@ -66,7 +66,7 @@ export class StoryAuthorBodyPreviewService {
         select: { id: true, version: true } });
       if (!release || release.version !== progress.storyVersion) this.changed();
       const state = { progressId: progress.id, revision: progress.progressRevision, status: progress.status,
-        storyVersion: progress.storyVersion };
+        storyVersion: progress.storyVersion, currentBeatPosition: progress.currentBeatPosition };
       let currentSceneId = progress.currentSceneId;
       if (!currentSceneId && !progress.currentGeneratedSceneId) {
         currentSceneId = (await canonicalEndingPosition(db, progress, true))?.sceneId ?? null;

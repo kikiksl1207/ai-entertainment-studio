@@ -506,6 +506,17 @@ export class StoryEconomicsService {
         workId: input.work.id,
         releaseId: input.release.id,
         progressId: input.progress.id,
+      }).catch((error: unknown) => {
+        if (!(error instanceof Error) ||
+            !['semantic_path_changed', 'localized_context_missing'].includes(error.message)) throw error;
+        throw new ForbiddenException({
+          code: error.message === 'localized_context_missing'
+            ? 'STORY_AI_CONTEXT_LOCALE_UNAVAILABLE' : 'STORY_AI_CONTEXT_PART_UNAVAILABLE',
+          messageKey: 'story.progress.aiGeneration.contextUnavailable',
+          retryable: false,
+          progressMutated: false,
+          generationStarted: false,
+        });
       }),
     ]);
     const [styleRows, reachedRows, planningRows] = memoryGroups;
