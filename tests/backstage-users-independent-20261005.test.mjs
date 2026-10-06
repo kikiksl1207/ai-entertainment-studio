@@ -33,8 +33,27 @@ function replaceExactly(source, from, to = '', count = 1) {
   return source.replaceAll(from, to);
 }
 
+function sourceWithoutFinanceTextDelta(source) {
+  const finance = JSON.parse(readFileSync(new URL('./fixtures/backstage-finance-text-safe4-delta-20261006.json', import.meta.url), 'utf8'));
+  assert.equal(finance.scope, 'safe4-finance-override-only');
+  assert.equal(finance.beforeSHA256, 'b3eb3399b7b61f97899fcede3a29218fffac22259c3a5411d58fa89417079ed7');
+  assert.equal(finance.afterSHA256, '62b920293ea88fc2f181d4c118eb725c60b214e298c8fa09ea7bea2a8034d26d');
+  assert.equal(finance.fullTextFunctionCount, 2);
+  assert.deepEqual(finance.names, ['settlementConversionEntryFromItem', 'renderDetailForm']);
+  assert.deepEqual(finance.changes.map(change => change.name), finance.names);
+  assert.equal(createHash('sha256').update(source).digest('hex'), finance.afterSHA256, 'Exact safe4 finance source before legacy classification inverse');
+  for (const change of finance.changes) {
+    assert.equal(createHash('sha256').update(change.beforeFullText).digest('hex'), change.beforeSHA256);
+    assert.equal(createHash('sha256').update(change.afterFullText).digest('hex'), change.afterSHA256);
+    source = replaceExactly(source, change.afterFullText, change.beforeFullText);
+  }
+  assert.equal(createHash('sha256').update(source).digest('hex'), finance.beforeSHA256, 'Every original800 byte restored before frozen8433/16 boundaries');
+  return source;
+}
+
 // Remove only enumerated classification additions before comparing the frozen legacy source.
 function sourceWithoutClassificationDelta(source) {
+  source = sourceWithoutFinanceTextDelta(source);
   for (const [start, end, expected] of [
     ['function setBackstageAuth(', 'function getSavedSection(', 'f69f197d003d0a1cb778f0cf89d27f755afbe97119766693a4753cd879f0bfe5'],
     ['async function backstageFetch(', 'window.LuminaBackstageApi =', '761a8ab40908305a450e5bca2651e2cbb8638db2ae23c42b9400b3d58a81c7e6'],

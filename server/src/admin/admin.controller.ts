@@ -233,7 +233,7 @@ export class AdminController {
   }
 
   @Get('backstage/operations/creator-access/diagnostics')
-  @RequireAdminPermissions('creators:read')
+  @RequireAdminPermissions('*')
   getBackstageCreatorAccessDiagnostics(@Query() query: AuditQuery) {
     return this.adminService.getBackstageCreatorAccessDiagnostics(query);
   }

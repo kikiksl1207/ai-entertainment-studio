@@ -23,6 +23,11 @@ import {
 import { buildPublicAssetUrl } from '../common/asset-url';
 import { PrismaService } from '../prisma/prisma.service';
 import { WALLET_LEDGER_SOURCE_CONTRACT } from '../wallet/wallet-server-authority-policy';
+import {
+  projectAdminFinancePaymentOrder, projectAdminFinanceRefund,
+  projectAdminFinanceSettlementRecord, projectAdminFinanceSettlementAudit,
+  projectAdminFinanceSettlementConversion,
+} from './admin-finance-read.policy';
 
 type AdminPayload = Record<string, unknown>;
 type AuditQuery = Record<string, string | undefined>;
@@ -2061,7 +2066,10 @@ export class AdminService {
         user.authAccounts.map((account) => ({
           userId: user.id,
           email: user.email,
-          ...account,
+          provider: account.provider,
+          providerUserId: this.maskProviderUserId(account.providerUserId),
+          lastLoginAt: account.lastLoginAt,
+          createdAt: account.createdAt,
         })),
       )
       .sort((left, right) => {
@@ -2109,8 +2117,10 @@ export class AdminService {
         createdAt: user.createdAt,
         profile: user.profile,
         authAccounts: user.authAccounts.map((account) => ({
-          ...account,
+          provider: account.provider,
           providerUserId: this.maskProviderUserId(account.providerUserId),
+          lastLoginAt: account.lastLoginAt,
+          createdAt: account.createdAt,
         })),
         artistOperators: user.artistOperators.map((operator) => ({
           operatorId: operator.id,
@@ -3149,7 +3159,7 @@ export class AdminService {
     const requesterIds = [...new Set(page.items.map((item) => item.requesterUserId))];
     const requesterMap = await this.settlementConversionRequesterMap(requesterIds);
     const items = page.items.map((row) =>
-      this.presentSettlementConversionForAdmin(row, requesterMap.get(row.requesterUserId)),
+      projectAdminFinanceSettlementConversion(row, requesterMap.get(row.requesterUserId)),
     );
     const [statusCounts, amountTotals] = await Promise.all([
       this.prisma.settlementLuminaConversionRequest.groupBy({
@@ -3469,18 +3479,9 @@ export class AdminService {
     });
 
     return {
-      record: this.settlementRecordSummary(record),
-      metadata: this.metadataObject(record.metadata),
-      auditEvents: auditEvents.map((event) => ({
-        id: event.id,
-        actorUserId: event.actorUserId,
-        actorType: event.actorType,
-        action: event.action,
-        beforeData: event.beforeData,
-        afterData: event.afterData,
-        metadata: event.metadata,
-        createdAt: event.createdAt,
-      })),
+      record: projectAdminFinanceSettlementRecord(record),
+      metadata: {},
+      auditEvents: auditEvents.map(projectAdminFinanceSettlementAudit),
       policy: {
         manualOnly: true,
         moneyTransfer: false,
@@ -4261,7 +4262,10 @@ export class AdminService {
       orderBy: { createdAt: 'desc' },
       include: this.paymentOrderInclude(),
       })
-      .then((rows) => this.paginated(rows, pagination.take));
+      .then((rows) => {
+        const page = this.paginated(rows, pagination.take);
+        return { ...page, items: page.items.map(projectAdminFinancePaymentOrder) };
+      });
   }
 
   async getPaymentOrder(orderId: string) {
@@ -4274,7 +4278,7 @@ export class AdminService {
       throw new NotFoundException('Payment order not found');
     }
 
-    return order;
+    return projectAdminFinancePaymentOrder(order);
   }
 
   async createPaymentRefund(user: AuthUser, orderId: string, input: AdminPayload) {
@@ -4367,7 +4371,10 @@ export class AdminService {
       orderBy: { createdAt: 'desc' },
       include: this.refundTransactionInclude(),
       })
-      .then((rows) => this.paginated(rows, pagination.take));
+      .then((rows) => {
+        const page = this.paginated(rows, pagination.take);
+        return { ...page, items: page.items.map(projectAdminFinanceRefund) };
+      });
   }
 
   async updateRefundTransaction(user: AuthUser, refundId: string, input: AdminPayload) {
@@ -4446,24 +4453,26 @@ export class AdminService {
   }
 
   async createAsset(user: AuthUser, input: AdminPayload) {
-    const asset = await this.prisma.asset.create({
-      data: {
-        assetType: this.string(input, 'assetType'),
-        visibility: this.string(input, 'visibility', 'public'),
-        storageProvider: this.string(input, 'storageProvider', 'local'),
-        storageKey: this.string(input, 'storageKey'),
-        mimeType: this.string(input, 'mimeType'),
-        fileSizeBytes: this.optionalBigInt(input, 'fileSizeBytes'),
-        width: this.optionalNumber(input, 'width'),
-        height: this.optionalNumber(input, 'height'),
-        durationSeconds: this.optionalDecimal(input, 'durationSeconds'),
-        checksum: this.optionalString(input, 'checksum'),
-        metadata: this.json(input, 'metadata'),
-      },
-    });
+    return this.prisma.$transaction(async tx => {
+      const asset = await tx.asset.create({
+        data: {
+          assetType: this.string(input, 'assetType'),
+          visibility: this.string(input, 'visibility', 'public'),
+          storageProvider: this.string(input, 'storageProvider', 'local'),
+          storageKey: this.string(input, 'storageKey'),
+          mimeType: this.string(input, 'mimeType'),
+          fileSizeBytes: this.optionalBigInt(input, 'fileSizeBytes'),
+          width: this.optionalNumber(input, 'width'),
+          height: this.optionalNumber(input, 'height'),
+          durationSeconds: this.optionalDecimal(input, 'durationSeconds'),
+          checksum: this.optionalString(input, 'checksum'),
+          metadata: this.json(input, 'metadata'),
+        },
+      });
 
-    await this.recordAudit(user, 'asset.create', 'asset', asset.id, null, asset);
-    return asset;
+      await this.recordAssetAllocation(tx, user, 'asset.create', asset);
+      return { ...asset, fileSizeBytes: asset.fileSizeBytes?.toString() ?? null };
+    });
   }
 
   async createAssetUploadIntent(user: AuthUser, input: AdminPayload) {
@@ -4483,55 +4492,66 @@ export class AdminService {
     );
     const publicUrl = this.buildPublicAssetUrl(storageKey);
 
-    const asset = await this.prisma.asset.create({
-      data: {
-        assetType,
-        visibility,
-        storageProvider,
-        storageKey,
-        mimeType,
-        fileSizeBytes,
-        width: this.optionalNumber(input, 'width'),
-        height: this.optionalNumber(input, 'height'),
-        durationSeconds: this.optionalDecimal(input, 'durationSeconds'),
-        checksum: this.optionalString(input, 'checksum'),
-        metadata: this.toJson({
-          ...this.json(input, 'metadata'),
-          uploadIntent: {
-            status: 'pending_upload',
-            fileName,
-            createdByUserId: user.id,
-            createdAt: new Date().toISOString(),
-          },
-        }),
-      },
-    });
-
-    const result = {
-      asset,
-      upload: {
-        method: 'PUT',
-        url: uploadUrl,
-        publicUrl,
-        storageProvider,
-        storageKey,
-        requiredHeaders: {
-          'content-type': mimeType,
+    return this.prisma.$transaction(async tx => {
+      const asset = await tx.asset.create({
+        data: {
+          assetType,
+          visibility,
+          storageProvider,
+          storageKey,
+          mimeType,
+          fileSizeBytes,
+          width: this.optionalNumber(input, 'width'),
+          height: this.optionalNumber(input, 'height'),
+          durationSeconds: this.optionalDecimal(input, 'durationSeconds'),
+          checksum: this.optionalString(input, 'checksum'),
+          metadata: this.toJson({
+            ...this.json(input, 'metadata'),
+            uploadIntent: {
+              status: 'pending_upload',
+              fileName,
+              createdByUserId: user.id,
+              createdAt: new Date().toISOString(),
+            },
+          }),
         },
-        expiresInSeconds,
-        mode: storageProvider === 'local' ? 'metadata_only' : 'direct_upload_ready',
-      },
-    };
+      });
 
-    await this.recordAudit(
-      user,
-      'asset.upload_intent.create',
-      'asset',
-      asset.id,
-      null,
-      result,
-    );
-    return result;
+      const result = {
+        asset: { ...asset, fileSizeBytes: asset.fileSizeBytes?.toString() ?? null },
+        upload: {
+          method: 'PUT',
+          url: uploadUrl,
+          publicUrl,
+          storageProvider,
+          storageKey,
+          requiredHeaders: {
+            'content-type': mimeType,
+          },
+          expiresInSeconds,
+          mode: storageProvider === 'local' ? 'metadata_only' : 'direct_upload_ready',
+        },
+      };
+
+      await this.recordAssetAllocation(tx, user, 'asset.upload_intent.create', asset);
+      return result;
+    });
+  }
+
+  private recordAssetAllocation(tx: Prisma.TransactionClient, user: AuthUser, action: string,
+    asset: Prisma.AssetGetPayload<{}>) {
+    // Persist allocation evidence atomically, without caller JSON or signed upload credentials.
+    return tx.auditEvent.create({ data: {
+      actorUserId: user.id, actorType: 'admin', action, targetType: 'asset', targetId: asset.id,
+      beforeData: Prisma.JsonNull, metadata: {},
+      afterData: {
+        id: asset.id, assetType: asset.assetType, visibility: asset.visibility,
+        storageProvider: asset.storageProvider, storageKey: asset.storageKey,
+        mimeType: asset.mimeType, fileSizeBytes: asset.fileSizeBytes?.toString() ?? null,
+        width: asset.width, height: asset.height,
+        durationSeconds: asset.durationSeconds?.toString() ?? null, checksum: asset.checksum,
+      },
+    } });
   }
 
   async confirmAssetUpload(user: AuthUser, assetId: string, input: AdminPayload) {

@@ -1157,7 +1157,7 @@ function settlementConversionEntryFromItem(item = {}) {
       localizeSettlementConversionStatus(item.status),
       item.note || item.adminNote || "-",
       item.status === "credited" ? "상세" : "처리"
-    ],
+    ].map((value) => escapeHtml(value)),
     meta: {
       conversionId: item.id,
       settlementKey: item.settlementKey,
@@ -1966,9 +1966,9 @@ function renderDetailForm(detail) {
     html = `
       <h3>정산금 충전 신청 처리</h3>
       <div class="detail-form-grid">
-        ${detailInput("신청 ID", "conversionId", detail?.meta?.conversionId || "", "text", true)}
+        ${detailInput("신청 ID", "conversionId", escapeHtml(detail?.meta?.conversionId || ""), "text", true)}
         ${detailInput("신청자", "requester", row[0] || "")}
-        ${detailInput("정산 키", "settlementKey", detail?.meta?.settlementKey || row[1] || "", "text", true)}
+        ${detailInput("정산 키", "settlementKey", detail?.meta?.settlementKey ? escapeHtml(detail.meta.settlementKey) : row[1] || "", "text", true)}
         ${detailInput("신청 금액", "amountKrw", amountKrw, "number")}
         ${detailInput("지급 루미나", "requestedLumina", requestedLumina, "number")}
         ${detailSelect("처리 상태", "conversionStatus", [
@@ -1977,7 +1977,7 @@ function renderDetailForm(detail) {
           { value: "credited", label: "지갑 반영 완료" },
           { value: "cancelled", label: "취소" }
         ], detail?.meta?.status === "approved" ? "approved" : detail?.meta?.status === "credited" ? "credited" : detail?.meta?.status === "cancelled" ? "cancelled" : detail?.meta?.status === "rejected" ? "rejected" : "approved")}
-        ${detailTextarea("운영 메모", "adminNote", detail?.meta?.adminNote || detail?.meta?.note || "정산금 충전 신청 금액, 정산 키, 지갑 반영 여부를 확인합니다.")}
+        ${detailTextarea("운영 메모", "adminNote", escapeHtml(detail?.meta?.adminNote || detail?.meta?.note || "정산금 충전 신청 금액, 정산 키, 지갑 반영 여부를 확인합니다."))}
       </div>
       <p class="detail-form-note">approved는 운영 승인, credited는 실제 루미나 지갑 반영 완료입니다. credited 처리 시 유저 지갑 잔액이 증가하므로 반드시 금액을 확인하세요.</p>
     `;
