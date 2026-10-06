@@ -20,6 +20,7 @@ import {
 import { StoryEconomicsAdminController } from './story-economics.controller';
 import { StoryContinuationContextError } from './story-continuation-context.assembler';
 import { STORY_CONTINUATION_PROMPT_VERSION } from './story-continuation-openai.schema';
+import { StoryContinuationOutputError } from './story-continuation-output.policy';
 
 const claim: StoryContinuationClaim = {
   continuationId: 'continuation-id',
@@ -431,8 +432,72 @@ describe('StoryContinuationExecutor', () => {
     expect(f.moderation.preview).not.toHaveBeenCalled();
     expect(f.economics.settleClaimedContinuation).not.toHaveBeenCalled();
     expect(f.economics.failClaimedContinuation).toHaveBeenCalledWith(
+      claim, 'continuation_output_invalid', 'failed', result.usage,
+    );
+  });
+
+  it('records an invalid choice contract with measured usage without a paid retry', async () => {
+    const f = fixture();
+    jest.mocked(f.provider.generate).mockResolvedValue({ ...result, nextChoices: result.nextChoices.slice(0, 2) });
+    await expect(f.executor.executeOne('worker')).resolves.toMatchObject({ status: 'failed' });
+    expect(f.economics.failClaimedContinuation).toHaveBeenCalledWith(
+      claim, 'continuation_output_invalid', 'failed', result.usage,
+    );
+    expect(f.provider.generate).toHaveBeenCalledTimes(1);
+    expect(f.queue.releaseForRetry).not.toHaveBeenCalled();
+    expect(f.queue.releaseNotAcceptedForRetry).not.toHaveBeenCalled();
+    expect(f.economics.settleClaimedContinuation).not.toHaveBeenCalled();
+    expect(f.visuals.registerGeneratedContinuationPrompt).not.toHaveBeenCalled();
+    expect(f.bodyReviews.autoApproveCompanyContinuation).not.toHaveBeenCalled();
+  });
+
+  it('records an unfinished final sentence with measured usage without a paid retry', async () => {
+    const f = fixture();
+    jest.mocked(f.provider.generate).mockResolvedValue({
+      ...result,
+      beats: Array.from({ length: 10 }, (_, index) => ({
+        beatType: 'paragraph' as const,
+        content: { ko: index === 9 ? 'unfinishedfragment'.repeat(12) : `Synthetic sentence ${index}.` },
+      })),
+    });
+    await expect(f.executor.executeOne('worker')).resolves.toMatchObject({ status: 'failed' });
+    expect(f.economics.failClaimedContinuation).toHaveBeenCalledWith(
+      claim, 'continuation_final_sentence_incomplete', 'failed', result.usage,
+    );
+    expect(f.provider.generate).toHaveBeenCalledTimes(1);
+    expect(f.queue.releaseForRetry).not.toHaveBeenCalled();
+    expect(f.queue.releaseNotAcceptedForRetry).not.toHaveBeenCalled();
+    expect(f.economics.settleClaimedContinuation).not.toHaveBeenCalled();
+    expect(f.moderation.preview).not.toHaveBeenCalled();
+    expect(f.visuals.registerGeneratedContinuationPrompt).not.toHaveBeenCalled();
+    expect(f.bodyReviews.autoApproveCompanyContinuation).not.toHaveBeenCalled();
+  });
+
+  it('does not persist a forged output failure code or its private message', async () => {
+    const f = fixture();
+    const error = Object.assign(new StoryContinuationOutputError('synthetic-private-message'), {
+      code: 'synthetic-private-code',
+    });
+    f.economics.settleClaimedContinuation.mockRejectedValue(error);
+    await f.executor.executeOne('worker');
+    expect(f.economics.failClaimedContinuation).toHaveBeenCalledWith(
+      claim, 'continuation_output_invalid', 'failed', result.usage,
+    );
+    expect(f.queue.releaseForRetry).not.toHaveBeenCalled();
+    expect(f.provider.generate).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not classify an arbitrary storage exception as a trusted output rejection', async () => {
+    const f = fixture();
+    f.economics.settleClaimedContinuation.mockRejectedValue(Object.assign(
+      new BadRequestException('synthetic-private-message'), { code: 'continuation_output_invalid' },
+    ));
+    await f.executor.executeOne('worker');
+    expect(f.economics.failClaimedContinuation).toHaveBeenCalledWith(
       claim, 'continuation_execution_failed', 'failed', result.usage,
     );
+    expect(f.queue.releaseForRetry).not.toHaveBeenCalled();
+    expect(f.provider.generate).toHaveBeenCalledTimes(1);
   });
 
   it.each(['provider_incomplete_output', 'provider_output_token_limit', 'provider_refusal',

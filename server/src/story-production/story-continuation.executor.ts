@@ -13,7 +13,11 @@ import {
 } from './story-continuation.repository';
 import { StoryContinuationContextAssembler } from './story-continuation-context.assembler';
 import { StoryContinuationContextError } from './story-continuation-context.assembler';
-import { normalizeLongStoryContinuationProse, validateStoryContinuationProviderResult } from './story-continuation-output.policy';
+import {
+  normalizeLongStoryContinuationProse,
+  StoryContinuationOutputError,
+  validateStoryContinuationProviderResult,
+} from './story-continuation-output.policy';
 import {
   assertStoryContinuationLengthBounds,
   sourceStoryContinuationLengthBounds,
@@ -234,6 +238,12 @@ function throwIfCancelled(signal?: AbortSignal) {
 }
 
 function normalizeProviderError(error: unknown) {
+  if (error instanceof StoryContinuationOutputError) {
+    const code = error.code === 'continuation_final_sentence_incomplete'
+      ? 'continuation_final_sentence_incomplete'
+      : 'continuation_output_invalid';
+    return new StoryContinuationProviderError(code, false);
+  }
   if (error instanceof StoryContinuationDispatchAuthorizationChanged) {
     return new StoryContinuationProviderError(error.code, false);
   }

@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { normalizeLongStoryContinuationProse, validateStoryContinuationProviderResult } from './story-continuation-output.policy';
+import { normalizeLongStoryContinuationProse, StoryContinuationOutputError, validateStoryContinuationProviderResult } from './story-continuation-output.policy';
 import type { StoryContinuationProviderResult } from './story-continuation.provider';
 
 const valid = {
@@ -19,6 +19,8 @@ describe('continuation output ending defense', () => {
       throw new Error('expected rejection');
     } catch (error) {
       expect(error).toBeInstanceOf(BadRequestException);
+      expect(error).toBeInstanceOf(StoryContinuationOutputError);
+      expect((error as StoryContinuationOutputError).code).toBe('continuation_output_invalid');
       expect((error as Error).message).toBe('Generated continuation ending key is invalid');
       expect((error as Error).message).not.toContain('private');
     }

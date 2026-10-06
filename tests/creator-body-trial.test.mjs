@@ -2132,7 +2132,7 @@ for (const language of locales) {
       assert.equal(note.textContent, historicalSeparationCopy[language]); assert.equal(note.getAttribute('role'), 'note');
       assert.ok(content.children.includes(note)); assert.equal(walk(amounts).includes(note), false);
       assert.deepEqual(walk(amounts).filter(node => node.tagName === 'DD').map(node => node.textContent),
-        ['10,000 KRW', '4,045.5895 KRW', currentUnknown ? view.api.copy[language].unknown : '5,954.4105 KRW']);
+        ['10,000 KRW', '4,046 KRW', currentUnknown ? view.api.copy[language].unknown : '5,954 KRW']);
       assert.equal(view.choices().length, 2);
       for (const button of view.choices()) {
         assert.equal(button.disabled, currentUnknown);
@@ -2155,4 +2155,56 @@ for (const language of locales) {
       assert.equal(posts(view).length, 0); assert.equal(view.calls.length, 2);
     });
   }
+}
+
+const wholeWonDisplayCases = [
+  ['0.000000', '0 KRW', '10,000 KRW'],
+  ['0.499999', '0 KRW', '10,000 KRW'],
+  ['0.500000', '1 KRW', '10,000 KRW'],
+  ['0.999999', '1 KRW', '9,999 KRW'],
+  ['91.138500', '91 KRW', '9,909 KRW'],
+  ['999.499999', '999 KRW', '9,001 KRW'],
+  ['999.500000', '1,000 KRW', '9,001 KRW'],
+  ['9999.499999', '9,999 KRW', '1 KRW'],
+  ['9999.500000', '10,000 KRW', '1 KRW'],
+  ['10000.000000', '10,000 KRW', '0 KRW'],
+  ['10000.000001', '10,000 KRW', '0 KRW'],
+  ['999999999999.499999', '999,999,999,999 KRW', '0 KRW'],
+  ['999999999999.500000', '1,000,000,000,000 KRW', '0 KRW'],
+];
+for (const language of locales) {
+  test(`whole-won display: ${language} rounds labels without changing exact budget or authorization`, async () => {
+    for (const [cost, spentLabel, remainingLabel] of wholeWonDisplayCases) {
+      const value = approvalState(), committed = BigInt(cost.replace('.', '')), cap = 10000000000n;
+      const remaining = cap > committed ? cap - committed : 0n;
+      value.state = committed > cap ? 'budget_over_limit' : 'approval_recorded';
+      Object.assign(value.budget, { knownActualCostKrw: cost, reservedMaximumCostKrw: '0.000000',
+        committedCostKrw: cost, remainingBudgetKrw: `${remaining / 1000000n}.${String(remaining % 1000000n).padStart(6, '0')}`,
+        pendingCount: 0 });
+      const before = clone(value);
+      const view = mounted(({ kind, reply }) => kind === 'state' ? response(value) : reply(), { language });
+      await view.load();
+      const budget = walk(view.host).find(node => node.className === 'body-trial-budget');
+      assert.deepEqual(walk(budget).filter(node => node.tagName === 'DD').map(node => node.textContent),
+        ['10,000 KRW', spentLabel, remainingLabel], cost);
+      assert.deepEqual(value, before, 'Rendering must not mutate source amounts');
+      assert.deepEqual(clone(view.api.parseState(value, { workId: id(1) })), before);
+      const status = walk(view.host).find(node => node.id === 'writerBodyTrialState');
+      assert.equal(status.textContent, view.api.copy[language][value.state]);
+      assert.ok(view.choices().every(button => button.disabled === (committed > cap)), cost);
+      if (committed > cap) for (const button of view.choices()) await button.fire('click');
+      assert.equal(posts(view).length, 0);
+    }
+  });
+}
+
+for (const cost of ['91.1385', '-1.000000', '1e2', 'NaN', null]) {
+  test(`whole-won display: malformed cost ${JSON.stringify(cost)} is not rendered or authorized`, async () => {
+    const value = approvalState(); value.budget.committedCostKrw = cost;
+    const view = mounted(({ kind, reply }) => kind === 'state' ? response(value) : reply());
+    await view.load();
+    assert.equal(walk(view.host).some(node => node.className === 'body-trial-budget'), false);
+    assert.equal(walk(view.host).find(node => node.id === 'writerBodyTrialState').textContent, view.api.copy.ko.invalid);
+    assert.equal(view.choices().length, 0); assert.equal(posts(view).length, 0);
+  });
 }

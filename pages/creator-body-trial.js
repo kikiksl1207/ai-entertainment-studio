@@ -74,9 +74,18 @@
     "zh-Hans": ["\u6b63\u6587\u5df2\u8bfb\u5b8c", "\u9700\u8981\u9605\u8bfb\u8bb0\u5f55", "\u6b63\u5728\u4fdd\u5b58\u9605\u8bfb\u8bb0\u5f55", "\u9700\u8981\u786e\u8ba4\u9605\u8bfb\u8bb0\u5f55"],
     "zh-Hant": ["\u6b63\u6587\u5df2\u8b80\u5b8c", "\u9700\u8981\u95b1\u8b80\u7d00\u9304", "\u6b63\u5728\u5132\u5b58\u95b1\u8b80\u7d00\u9304", "\u9700\u8981\u78ba\u8a8d\u95b1\u8b80\u7d00\u9304"]
   };
+  const noChoiceLabels = {
+    "ko": "\uc800\uc7a5\ub41c \ubcf8\ubb38\uc740 \uc77d\uc744 \uc218 \uc788\uc9c0\ub9cc \ub2e4\uc74c \uc120\ud0dd\uc9c0\uac00 \uc5c6\uc2b5\ub2c8\ub2e4. \ucd5c\uadfc \uc694\uccad\uc744 \ud655\uc778\ud574 \uc8fc\uc138\uc694.",
+    "en": "The saved text is available, but there are no next choices. Check the recent request.",
+    "ja": "\u4fdd\u5b58\u6e08\u307f\u306e\u672c\u6587\u306f\u8aad\u3081\u307e\u3059\u304c\u3001\u6b21\u306e\u9078\u629e\u80a2\u304c\u3042\u308a\u307e\u305b\u3093\u3002\u6700\u8fd1\u306e\u30ea\u30af\u30a8\u30b9\u30c8\u3092\u78ba\u8a8d\u3057\u3066\u304f\u3060\u3055\u3044\u3002",
+    "zh-Hans": "\u5df2\u4fdd\u5b58\u7684\u6b63\u6587\u4ecd\u53ef\u9605\u8bfb\uff0c\u4f46\u6ca1\u6709\u4e0b\u4e00\u6b65\u9009\u9879\u3002\u8bf7\u68c0\u67e5\u6700\u8fd1\u7684\u8bf7\u6c42\u3002",
+    "zh-Hant": "\u5df2\u5132\u5b58\u7684\u6b63\u6587\u4ecd\u53ef\u95b1\u8b80\uff0c\u4f46\u6c92\u6709\u4e0b\u4e00\u6b65\u9078\u9805\u3002\u8acb\u6aa2\u67e5\u6700\u8fd1\u7684\u8acb\u6c42\u3002",
+  };
+  const hasNoChoices = progress => progress?.status === "active" && progress.scene &&
+    !progress.scene.endingType && progress.choices.length === 0;
   for (const language of locales) {
     const [recordRead, readRequired, recordingRead, readUncertain] = readLabels[language];
-    Object.assign(copy[language], { recordRead, readRequired, recordingRead, readUncertain });
+    Object.assign(copy[language], { recordRead, readRequired, recordingRead, readUncertain, noChoices: noChoiceLabels[language] });
   }
   function parseState(value, target) {
     const bad = () => { throw failure("invalid"); };
@@ -373,7 +382,8 @@
         const progress = preview.progress;
         messageKey = command ? sameCommand() ? "uncertain" : "unresolvedElsewhere" : approvalState.state !== "approval_recorded" ? approvalState.state :
           !progress ? "noProgress" : progress.status === "completed" || progress.scene?.endingType ? "ending" :
-          progress.status !== "active" ? "generating" : !progress.scene ? "noScene" : !readComplete() ? "readRequired" : "approval_recorded";
+          progress.status !== "active" ? "generating" : !progress.scene ? "noScene" : !readComplete() ? "readRequired" :
+          hasNoChoices(progress) ? "noChoices" : "approval_recorded";
         if (!command && journalBlocked) { phase = "error"; messageKey = "unavailable"; }
         emit(); return true;
       } catch (error) {
@@ -537,9 +547,9 @@
     status.setAttribute("role", "status"); status.setAttribute("aria-live", "polite"); host.replaceChildren(header, status, content);
     const visible = () => !shell.hidden && !section.hidden && !host.hidden && section.classList.contains("is-active") && document.visibilityState !== "hidden";
     const formatMoney = value => {
-      const [whole, fraction] = value.split(".");
-      const suffix = fraction.replace(/0+$/, "");
-      return whole.replace(/\B(?=(\d{3})+(?!\d))/g, ",") + (suffix ? "." + suffix : "") + " KRW";
+      // Round only the label; budget checks retain the exact micro-won amount.
+      const whole = ((micros(value) + 500000n) / 1000000n).toString();
+      return whole.replace(/\B(?=(\d{3})+(?!\d))/g, ",") + " KRW";
     };
     let controller;
     function render(state) {
@@ -578,6 +588,10 @@
         button.append(element("span", "", words.recordRead));
         const capturedTicket = state.ticket;
         button.addEventListener("click", () => controller.recordRead(capturedTicket)); source.append(button);
+      }
+      if (hasNoChoices(progress) && state.messageKey !== "noChoices" && !state.unresolved) {
+        const note = element("p", "body-trial-state", words.noChoices);
+        note.id = "writerBodyTrialNoChoices"; note.lang = state.locale; note.setAttribute("role", "note"); source.append(note);
       }
       if (progress.choices.length) {
         const choices = element("ol", "body-trial-choices"); source.append(element("h4", "", words.choices), choices);

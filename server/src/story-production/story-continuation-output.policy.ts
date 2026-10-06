@@ -7,6 +7,16 @@ const MAX_BEAT_BYTES = 14_000;
 const SENTENCE_END = /[.!?。！？…]+[”"'’)]*$/u;
 const SENTENCE_BOUNDARY = /[.!?。！？…]+[”"'’)]*\s*/gu;
 
+export type StoryContinuationOutputFailureCode =
+  | 'continuation_output_invalid'
+  | 'continuation_final_sentence_incomplete';
+
+export class StoryContinuationOutputError extends BadRequestException {
+  constructor(message: string, readonly code: StoryContinuationOutputFailureCode = 'continuation_output_invalid') {
+    super(message);
+  }
+}
+
 export function normalizeLongStoryContinuationProse(value: StoryContinuationProviderResult, locale: string) {
   if (value.beats.length < 10) return value;
   const beats: StoryContinuationProviderResult['beats'] = [];
@@ -22,13 +32,15 @@ export function normalizeLongStoryContinuationProse(value: StoryContinuationProv
     }
   }
   const last = beats.at(-1);
-  if (!last || last.beatType === 'scene_break') invalid('Generated continuation final sentence is incomplete');
+  if (!last || last.beatType === 'scene_break') {
+    invalid('Generated continuation final sentence is incomplete', 'continuation_final_sentence_incomplete');
+  }
   const text = last!.content[locale].trimEnd();
   if (!SENTENCE_END.test(text)) {
     let completeEnd = 0;
     for (const match of text.matchAll(SENTENCE_BOUNDARY)) completeEnd = (match.index ?? 0) + match[0].length;
     if (!completeEnd || Array.from(text.slice(completeEnd)).length > 120) {
-      invalid('Generated continuation final sentence is incomplete');
+      invalid('Generated continuation final sentence is incomplete', 'continuation_final_sentence_incomplete');
     }
     last!.content[locale] = text.slice(0, completeEnd).trimEnd();
   }
@@ -194,6 +206,6 @@ function usageRecord(value: StoryContinuationProviderResult['usage']) {
   return result as StoryContinuationProviderResult['usage'];
 }
 
-function invalid(message: string): never {
-  throw new BadRequestException(message);
+function invalid(message: string, code: StoryContinuationOutputFailureCode = 'continuation_output_invalid'): never {
+  throw new StoryContinuationOutputError(message, code);
 }
