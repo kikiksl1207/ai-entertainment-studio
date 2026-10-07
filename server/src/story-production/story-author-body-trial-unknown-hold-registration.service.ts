@@ -102,6 +102,15 @@ export class StoryAuthorBodyTrialUnknownHoldRegistrationService {
           approval.approvedBudgetKrw.gt(10000) || approval.approvedBudgetKrw.decimalPlaces() > 6 ||
           approval.approvedBudgetKrw.toFixed(6) !== command.expectedApprovedBudgetKrw ||
           timestamp(command.expiresAt) > timestamp(approval.expiresAt)) blocked();
+        // Preserve PostgreSQL microseconds; a JavaScript Date loses the last three digits.
+        const dispatchPins = await tx.$queryRaw<Array<{ dispatchStartedAtUtc: string | null }>>(Prisma.sql`
+          SELECT to_char(dispatch_started_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "dispatchStartedAtUtc"
+          FROM story_ai_continuations
+          WHERE id = ${command.continuationId}::uuid AND user_id = ${command.userId}::uuid AND work_id = ${command.workId}::uuid
+          FOR SHARE`);
+        const dispatchPin = dispatchPins.length === 1 ? dispatchPins[0].dispatchStartedAtUtc : null;
+        if (typeof dispatchPin !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z$/.test(dispatchPin) ||
+          !Number.isSafeInteger(Date.parse(dispatchPin))) blocked();
         const rows = await tx.storyAiContinuation.findMany({ where: { userId: command.userId, workId: command.workId },
           orderBy: { id: 'asc' }, take: 1001,
           select: { id: true, userId: true, workId: true, releaseId: true, releaseChecksum: true, manuscriptVersionId: true,
@@ -118,6 +127,7 @@ export class StoryAuthorBodyTrialUnknownHoldRegistrationService {
           target.manuscriptVersionId !== approval.manuscriptVersionId || target.styleConsentId !== approval.styleConsentId ||
           target.styleConsentRevision !== approval.styleConsentRevision || target.capabilityRevision !== approval.capabilityRevision ||
           target.analysisJobId !== approval.analysisJobId || target.analysisVersion !== approval.analysisVersion) blocked();
+        if (Date.parse(dispatchPin) !== timestamp(target.dispatchStartedAt)) blocked();
         const snapshot = await this.costs.snapshotTx(tx, command.userId, command.workId);
         const summary = summarizeApprovedAuthorBodyTrialCosts(snapshot, approval);
         if (summary.unknownCostCount !== 1 ||
@@ -175,7 +185,7 @@ export class StoryAuthorBodyTrialUnknownHoldRegistrationService {
           const updated = await tx.storyAiContinuation.updateMany({ where: { id: target.id, userId: command.userId,
             workId: command.workId, authorBodyTrialApprovalId: approval.id, requestKind: 'recommended_choice', status: 'failed',
             failureCode: 'provider_outcome_unknown', attemptCount: 1, maxAttempts: 1, actualCostKrw: null,
-            dispatchStartedAt: target.dispatchStartedAt, contextReferences: { equals: target.contextReferences as Prisma.InputJsonValue } },
+            dispatchStartedAt: dispatchPin, contextReferences: { equals: target.contextReferences as Prisma.InputJsonValue } },
             data: { contextReferences: { ...(target.contextReferences as Prisma.JsonObject), [AUTHOR_BODY_TRIAL_UNKNOWN_HOLD_PROPERTY]: json } } });
           if (updated.count !== 1) blocked();
         }

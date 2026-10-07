@@ -65,7 +65,8 @@ function fixture() {
   // Previously pinned approval reference is synthetic here; no production approval is written.
   approval.approvalReference = authorBodyTrialHistoricalSeparationReference(historical, approval.createdAt);
   const state = { rows: [...old, target], ledger: [...historical.ledger, ...entries(target)],
-    audits: [] as AuthorBodyTrialUnknownHoldAuditBinding[], casCount: 1, events: [] as string[] };
+    audits: [] as AuthorBodyTrialUnknownHoldAuditBinding[], casCount: 1, events: [] as string[],
+    dispatchStartedAtUtc: undefined as string | null | undefined, casDispatchStartedAtUtc: undefined as string | undefined };
   const snapshot = (): AuthorBodyTrialCostSnapshot => ({ userId: approval.userId, workId: approval.workId, complete: true,
     continuations: state.rows.map(costRow), ledger: state.ledger });
   const command: AuthorBodyTrialUnknownHoldRegistrationCommand = { userId: approval.userId, workId: approval.workId,
@@ -79,12 +80,23 @@ function fixture() {
     const fn = jest.fn(() => { throw new Error('Forbidden synthetic write'); }); forbidden.push(fn); return fn;
   };
   const tx = {
+    $queryRaw: jest.fn(async (query: Prisma.Sql) => {
+      state.events.push('dispatch-pin');
+      expect(query.strings.join('?')).toContain('FOR SHARE');
+      expect(query.values).toEqual([command.continuationId, command.userId, command.workId]);
+      if (target.id !== command.continuationId || target.userId !== command.userId || target.workId !== command.workId) return [];
+      return [{ dispatchStartedAtUtc: state.dispatchStartedAtUtc === undefined
+        ? target.dispatchStartedAt?.toISOString().replace(/Z$/, '000Z') ?? null : state.dispatchStartedAtUtc }];
+    }),
     storyAiContinuation: { create: noWrite(), update: noWrite(), delete: noWrite(),
       findMany: jest.fn(async () => { state.events.push('rows'); return state.rows; }),
       updateMany: jest.fn(async ({ where, data }: any) => {
         state.events.push('cas');
         expect(Object.keys(data)).toEqual(['contextReferences']);
+        const expectedDispatch = state.casDispatchStartedAtUtc ?? state.dispatchStartedAtUtc ??
+          target.dispatchStartedAt?.toISOString().replace(/Z$/, '000Z');
         if (state.casCount !== 1 || where.id !== target.id || where.status !== 'failed' || where.actualCostKrw !== null ||
+          where.dispatchStartedAt !== expectedDispatch ||
           JSON.stringify(where.contextReferences.equals) !== JSON.stringify(target.contextReferences)) return { count: state.casCount === 1 ? 0 : state.casCount };
         target.contextReferences = cloneJson(data.contextReferences); return { count: 1 };
       }) },
@@ -135,7 +147,7 @@ describe('server-only unknown hold registration (mock DB source, no runtime proo
     expect(result).toMatchObject({ registrationState: 'registered', generationAuthorized: false, generationStarted: false,
       budget: { unknownCostCount: 1, historicalUnknownCostCount: 2, provisionalHeldCount: 1,
         provisionalHeldAmountKrw: '300.000000', unresolvedUnheldCount: 0, budgetCheckPassed: true, mayReserve: false } });
-    expect(f.state.events).toEqual(['authorize', 'rows', 'snapshot', 'audits', 'audit-create', 'cas']);
+    expect(f.state.events).toEqual(['authorize', 'dispatch-pin', 'rows', 'snapshot', 'audits', 'audit-create', 'cas']);
     expect(f.tx.auditEvent.create).toHaveBeenCalledTimes(1); expect(f.tx.storyAiContinuation.updateMany).toHaveBeenCalledTimes(1);
     expect(f.state.audits[0]).toMatchObject({ actorType: 'system', actorUserId: f.command.userId,
       action: AUTHOR_BODY_TRIAL_UNKNOWN_HOLD_ACTION, targetType: 'story_ai_continuation', targetId: f.target.id });
@@ -154,6 +166,42 @@ describe('server-only unknown hold registration (mock DB source, no runtime proo
     expect(second.budget.requestedHoldState).toBe('reused'); expect(JSON.stringify(f.persisted())).toBe(serialized);
     expect(f.tx.auditEvent.create).toHaveBeenCalledTimes(1); expect(f.tx.storyAiContinuation.updateMany).toHaveBeenCalledTimes(1);
     expect(f.trials.authorizeTx).toHaveBeenCalledTimes(2);
+  });
+
+  it('preserves all six database timestamp digits in the exact context CAS', async () => {
+    f.target.dispatchStartedAt = new Date('2026-02-01T11:59:20.123Z');
+    f.state.dispatchStartedAtUtc = '2026-02-01T11:59:20.123456Z';
+    f.command.expectedEvidenceSha256 = authorBodyTrialUnknownHoldEvidenceSha256(f.snapshot(), f.target.id);
+    const before = JSON.stringify(f.snapshot());
+    expect((await f.service.registerCurrentUnknown(f.command)).registrationState).toBe('registered');
+    expect(f.tx.storyAiContinuation.updateMany.mock.calls[0][0].where.dispatchStartedAt).toBe(f.state.dispatchStartedAtUtc);
+    expect(JSON.stringify(f.snapshot())).toBe(before);
+    expect(f.tx.$queryRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([null, '2026-02-01T11:59:20.000Z', 'not-a-date', '2026-02-01T11:59:21.000000Z'])
+    ('blocks a missing, shortened or mismatched database timestamp before audit creation: %p', async pin => {
+      f.state.dispatchStartedAtUtc = pin;
+      await expect(f.service.registerCurrentUnknown(f.command)).rejects.toBeInstanceOf(ConflictException);
+      expect(f.tx.auditEvent.create).not.toHaveBeenCalled(); expect(f.tx.storyAiContinuation.updateMany).not.toHaveBeenCalled();
+    });
+
+  it('rejects an ambiguous dispatch pin instead of falling back to the Date', async () => {
+    f.tx.$queryRaw.mockResolvedValueOnce([{ dispatchStartedAtUtc: '2026-02-01T11:59:20.000000Z' },
+      { dispatchStartedAtUtc: '2026-02-01T11:59:20.000000Z' }]);
+    await expect(f.service.registerCurrentUnknown(f.command)).rejects.toBeInstanceOf(ConflictException);
+    expect(f.tx.auditEvent.create).not.toHaveBeenCalled();
+  });
+
+  it('rolls back the audit if the exact microsecond CAS pin no longer matches', async () => {
+    f.target.dispatchStartedAt = new Date('2026-02-01T11:59:20.123Z');
+    f.state.dispatchStartedAtUtc = '2026-02-01T11:59:20.123456Z';
+    f.state.casDispatchStartedAtUtc = '2026-02-01T11:59:20.123457Z';
+    f.command.expectedEvidenceSha256 = authorBodyTrialUnknownHoldEvidenceSha256(f.snapshot(), f.target.id);
+    const before = JSON.stringify(f.target.contextReferences);
+    await expect(f.service.registerCurrentUnknown(f.command)).rejects.toBeInstanceOf(ConflictException);
+    expect(f.tx.auditEvent.create).toHaveBeenCalledTimes(1); expect(f.state.audits).toHaveLength(0);
+    expect(JSON.stringify(f.target.contextReferences)).toBe(before);
   });
 
   it.each(['key', 'hash', 'expiry', 'approval', 'unknown', 'cap', 'reference', 'acknowledgement'])
