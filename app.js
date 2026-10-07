@@ -446,6 +446,9 @@ const I18N_DICT = {
   "detail.gallery.official": { "ko-KR": "공식 이미지", "ja-JP": "公式画像", "en-US": "Official Images", "zh-CN": "官方图片", "zh-Hant": "官方圖片" },
   "detail.gallery.previous": { "ko-KR": "이전", "ja-JP": "前へ", "en-US": "Previous", "zh-CN": "上一张", "zh-Hant": "上一張" },
   "detail.gallery.next": { "ko-KR": "다음", "ja-JP": "次へ", "en-US": "Next", "zh-CN": "下一张", "zh-Hant": "下一張" },
+  "detail.gallery.error": { "ko-KR": "이미지를 불러오지 못했습니다.", "ja-JP": "画像を読み込めませんでした。", "en-US": "Image could not be loaded.", "zh-CN": "无法加载图片。", "zh-Hant": "無法載入圖片。" },
+  "detail.gallery.retry": { "ko-KR": "이미지 다시 불러오기", "ja-JP": "画像を再読み込み", "en-US": "Retry image", "zh-CN": "重新加载图片", "zh-Hant": "重新載入圖片" },
+  "detail.gallery.loading": { "ko-KR": "불러오는 중…", "ja-JP": "読み込み中…", "en-US": "Loading…", "zh-CN": "加载中…", "zh-Hant": "載入中…" },
   "feed.follow.action": { "ko-KR": "팔로우", "ja-JP": "フォロー", "en-US": "Follow", "zh-CN": "关注", "zh-Hant": "追蹤" },
   "feed.block.label": { "ko-KR": "차단", "ja-JP": "ブロック", "en-US": "Block", "zh-CN": "屏蔽", "zh-Hant": "封鎖" },
   "feed.block.action": { "ko-KR": "이 사용자 차단", "ja-JP": "このユーザーをブロック", "en-US": "Block this user", "zh-CN": "屏蔽此用户", "zh-Hant": "封鎖此使用者" },
@@ -5919,6 +5922,19 @@ function initGallerySlider(items, artistName) {
   const pages = [];
   for (let i = 0; i < items.length; i += perPage) pages.push(items.slice(i, i + perPage));
 
+  const galleryText = (key, fallback) => typeof t === "function" ? t(key) : fallback;
+  function retryImageUrl(source) {
+    try {
+      const url = new URL(source, window.location.href);
+      // Preserve opaque query parameters and all external image URLs.
+      if (["http:", "https:"].includes(url.protocol) && url.origin === window.location.origin && !url.search) {
+        url.searchParams.set("retry", String(Date.now()));
+        return url.href;
+      }
+    } catch {}
+    return source;
+  }
+
   pages.forEach((pageItems, pageIdx) => {
     const page = document.createElement("div");
     page.style.cssText = "min-width:100%;width:100%;height:100%;flex-shrink:0;scroll-snap-align:start;";
@@ -5939,12 +5955,51 @@ function initGallerySlider(items, artistName) {
       img.alt     = item.caption || "";
       img.loading = globalIdx < perPage ? "eager" : "lazy";
       img.style.cssText = "width:100%;height:100%;object-fit:cover;object-position:center top;display:block;transition:transform 260ms ease;";
+      const recovery = document.createElement("div");
+      recovery.setAttribute("data-gallery-recovery", "");
+      recovery.style.cssText = "position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:8px;text-align:center;";
+      const failureText = document.createElement("span");
+      failureText.setAttribute("role", "status");
+      failureText.style.cssText = "font-size:14px;line-height:1.4;overflow-wrap:anywhere;";
+      const retry = document.createElement("button");
+      retry.type = "button";
+      retry.setAttribute("data-gallery-image-retry", "");
+      retry.textContent = "↻";
+      retry.style.cssText = "width:44px;height:44px;flex:none;border:1px solid currentColor;border-radius:6px;background:transparent;color:inherit;font-size:24px;cursor:pointer;";
+      const updateRetryLabel = () => {
+        const label = galleryText("detail.gallery.retry", "Retry image");
+        retry.title = label; retry.setAttribute("aria-label", label);
+      };
+      updateRetryLabel();
+      recovery.appendChild(failureText); recovery.appendChild(retry);
+      img.onload = () => {
+        if (signal.aborted || !cell.isConnected) return;
+        recovery.style.display = "none";
+        img.style.visibility = "visible";
+        zoom.style.visibility = "visible";
+        retry.disabled = false;
+      };
       img.onerror = () => {
+        if (signal.aborted || !cell.isConnected) return;
         if (!img.dataset.retried) {
           img.dataset.retried = "1";
-          img.src = item.src + (item.src.includes("?") ? "&" : "?") + "retry=1";
+          img.src = retryImageUrl(item.src);
+          return;
         }
+        img.style.visibility = "hidden";
+        zoom.style.visibility = "hidden";
+        failureText.textContent = galleryText("detail.gallery.error", "Image could not be loaded.");
+        updateRetryLabel();
+        retry.disabled = false;
+        recovery.style.display = "flex";
       };
+      retry.addEventListener("click", event => {
+        event.stopPropagation();
+        if (signal.aborted || !cell.isConnected || retry.disabled) return;
+        retry.disabled = true;
+        failureText.textContent = galleryText("detail.gallery.loading", "Loading…");
+        img.src = retryImageUrl(item.src);
+      }, { signal });
       img.addEventListener("mouseover",  () => { img.style.transform = "scale(1.05)"; });
       img.addEventListener("mouseout",   () => { img.style.transform = "scale(1)";    });
 
@@ -5956,6 +6011,7 @@ function initGallerySlider(items, artistName) {
 
       cell.appendChild(img);
       cell.appendChild(zoom);
+      cell.appendChild(recovery);
       grid.appendChild(cell);
     });
 

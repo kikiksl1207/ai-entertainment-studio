@@ -352,7 +352,7 @@ export class FanEngagementService {
   }
 
   async getMySummary(userId: string, query: FanEngagementQuery) {
-    const locale = this.locale(query.locale);
+    const locale = this.summaryLocale(query.locale);
     const now = new Date();
     const today = this.kstDateBucket(now);
     const [ledger, pointTotals, participationTotals, achievements, titles] = await this.prisma.$transaction(async tx => Promise.all([
@@ -416,7 +416,7 @@ export class FanEngagementService {
         statusKey: `fanAchievement.status.${row.status}`,
         category: row.achievement.category,
         categoryKey: `fanAchievement.category.${row.achievement.category}`,
-        copy: this.achievementCopy(row.achievement.copy, row.achievement.code),
+        copy: this.achievementCopy(row.achievement.copy, row.achievement.code, locale),
         badgeIconKey: row.achievement.badgeIconKey,
         progress: {
           current: row.progressCurrent,
@@ -953,12 +953,13 @@ export class FanEngagementService {
     };
   }
 
-  private achievementCopy(value: Prisma.JsonValue, code: string) {
+  private achievementCopy(value: Prisma.JsonValue, code: string, locale = 'ko') {
     const copy = this.metadataObject(value);
+    const labels = { ...this.labels(copy, 'ko'), ...this.labels(copy, locale) };
     return {
       titleKey: this.copyKey(copy, 'titleKey', `achievement.${code}.title`),
       descriptionKey: this.copyKey(copy, 'descriptionKey', `achievement.${code}.description`),
-      labels: this.labels(copy, 'ko'),
+      labels: Object.keys(labels).length ? labels : undefined,
     };
   }
 
@@ -1136,6 +1137,12 @@ export class FanEngagementService {
 
   private locale(value: string | undefined) {
     return value === 'ko' ? 'ko' : 'ko';
+  }
+
+  private summaryLocale(value: string | undefined) {
+    return value === 'en' || value === 'ja' || value === 'zh-Hans' || value === 'zh-Hant'
+      ? value
+      : 'ko';
   }
 
   private optionalUuid(value: string | undefined, field: string) {

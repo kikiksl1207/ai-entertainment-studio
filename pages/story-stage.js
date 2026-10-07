@@ -1840,11 +1840,11 @@
   }
 
   const ENDING_READ_COPY = {
-    ko: { checking: "읽기 확인 기록을 확인하고 있습니다.", saving: "읽기 확인을 저장하고 있습니다.", unknown: "읽기 확인 저장 여부를 확인하지 못했습니다.", changed: "본문이나 진행 기준이 변경되었습니다. 최신 페이지를 다시 열어 주세요.", unavailable: "읽기 확인을 저장할 수 없습니다.", check: "읽기 확인 기록 확인", refresh: "최신 페이지 확인" },
-    en: { checking: "Checking read confirmation.", saving: "Saving read confirmation.", unknown: "The read confirmation could not be verified.", changed: "The text or progress has changed. Open the latest page.", unavailable: "Read confirmation is unavailable.", check: "Check read confirmation", refresh: "Check latest page" },
-    ja: { checking: "読了確認の記録を確認しています。", saving: "読了確認を保存しています。", unknown: "読了確認の保存を確認できませんでした。", changed: "本文または進行状況が変わりました。最新ページを開いてください。", unavailable: "読了確認を保存できません。", check: "読了確認の記録を確認", refresh: "最新ページを確認" },
-    "zh-Hans": { checking: "正在核实阅读确认记录。", saving: "正在保存阅读确认。", unknown: "无法核实阅读确认是否已保存。", changed: "正文或进度已更改。请打开最新页面。", unavailable: "无法保存阅读确认。", check: "查看阅读确认记录", refresh: "查看最新页面" },
-    "zh-Hant": { checking: "正在核實閱讀確認紀錄。", saving: "正在儲存閱讀確認。", unknown: "無法核實閱讀確認是否已儲存。", changed: "正文或進度已變更。請開啟最新頁面。", unavailable: "無法儲存閱讀確認。", check: "查看閱讀確認紀錄", refresh: "查看最新頁面" },
+    ko: { checking: "읽기 확인 기록을 확인하고 있습니다.", saving: "읽기 확인을 저장하고 있습니다.", unknown: "읽기 확인 저장 여부를 확인하지 못했습니다.", changed: "읽기 확인 기준이 변경되었습니다. 최신 페이지를 다시 열어 주세요.", unavailable: "읽기 확인을 저장할 수 없습니다.", check: "읽기 확인 기록 확인", refresh: "최신 페이지 확인" },
+    en: { checking: "Checking read confirmation.", saving: "Saving read confirmation.", unknown: "The read confirmation could not be verified.", changed: "The read confirmation criteria have changed. Please reopen the latest page.", unavailable: "Read confirmation is unavailable.", check: "Check read confirmation", refresh: "Check latest page" },
+    ja: { checking: "読了確認の記録を確認しています。", saving: "読了確認を保存しています。", unknown: "読了確認の保存を確認できませんでした。", changed: "読了確認の基準が変更されました。最新のページを開き直してください。", unavailable: "読了確認を保存できません。", check: "読了確認の記録を確認", refresh: "最新ページを確認" },
+    "zh-Hans": { checking: "正在核实阅读确认记录。", saving: "正在保存阅读确认。", unknown: "无法核实阅读确认是否已保存。", changed: "阅读确认标准已更改。请重新打开最新页面。", unavailable: "无法保存阅读确认。", check: "查看阅读确认记录", refresh: "查看最新页面" },
+    "zh-Hant": { checking: "正在核實閱讀確認紀錄。", saving: "正在儲存閱讀確認。", unknown: "無法核實閱讀確認是否已儲存。", changed: "閱讀確認標準已變更。請重新開啟最新頁面。", unavailable: "無法儲存閱讀確認。", check: "查看閱讀確認紀錄", refresh: "查看最新頁面" },
   };
 
   function endingReadTr(key) {

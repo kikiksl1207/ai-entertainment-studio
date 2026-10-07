@@ -780,6 +780,8 @@
 }
 
 .dm-send-feedback p { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.dm-dock .dm-send-feedback { grid-column: 1 / -1; margin: 0; }
+.dm-dock .dm-send-feedback:has(> #chatSendStatus:empty):has(> #chatCheckMessages[hidden]) { display: none; }
 .dm-send-feedback [data-state="error"] { color: #ffabbc; }
 .dm-send-feedback [data-state="success"] { color: #9fe1bd; }
 .dm-send-feedback button {
@@ -2639,7 +2641,7 @@ select.dm-field-input option {
 
 @media (max-width: 767px) {
   .page-character-chat:has(#chatRoomShell:not([hidden])) {
-    padding-bottom: 80px;
+    padding-bottom: var(--chat-dock-space, 80px);
   }
 
   .page-character-chat #chatRoomShell {

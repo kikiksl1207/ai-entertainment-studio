@@ -333,6 +333,33 @@ export class StoryAuthorBodyReviewService implements OnApplicationBootstrap, OnA
     }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
   }
 
+  async memoryPreparation(user: string, work: string, locale: string) {
+    const { userId, workId } = bodyReviewScope(user, work, locale ?? '');
+    return this.prisma.$transaction(async db => {
+      await db.$executeRaw(Prisma.sql`SET TRANSACTION READ ONLY`);
+      await this.owner(db, userId, workId);
+      const snapshot = await this.safeSnapshot(db, userId, workId, locale);
+      const head = await latestBodyReview(db, userId, workId);
+      const binding = record(snapshot.binding);
+      const participant = binding.participantPin ? record(binding.participantPin) : null;
+      return { contract: 'story-author-body-memory-preparation-v1', ...privateBodyReviewFlags,
+        workId, locale, readOnly: true, state: snapshot.state, bodyReviewable: snapshot.state === 'reviewable',
+        target: snapshot.target, sourcePins: snapshot.target ? {
+          releaseId: binding.releaseId, releaseChecksum: binding.releaseChecksum,
+          releaseVersion: binding.releaseVersion, releaseRevision: binding.releaseRevision,
+          manuscriptVersionId: binding.manuscriptVersionId, manuscriptHash: binding.manuscriptHash,
+          routeNodeId: binding.routeNodeId, routeHash: binding.routeHash, routeStepHash: binding.routeStepHash,
+          sourceRouteNodeId: binding.sourceRouteNodeId, sourceRouteHash: binding.sourceRouteHash,
+          continuationId: binding.continuationId, materializedHash: binding.materializedHash,
+        } : null,
+        participantReference: snapshot.target && participant ? { id: participant.id, artistId: participant.artistId,
+          participantFingerprint: participant.participantFingerprint } : null,
+        latestBodyReview: head ? this.project(head, head, snapshot) : null,
+        generatedEventApprovalSupported: false, generatedEventReadProofAvailable: false,
+        chatCurrentIdentityClaimed: false, readerMemoryApplied: false };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
+  }
+
   private async write<T>(action: (db: Prisma.TransactionClient) => Promise<T>): Promise<T> {
     for (let attempt = 0; ; attempt++) {
       try { return await this.prisma.$transaction(action, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }); }

@@ -35,34 +35,6 @@ function localizedText(value: Prisma.JsonValue, locale = 'ko'): string | null {
   return null;
 }
 
-function attributedDialogues(value: Prisma.JsonValue, artistName: string): string[] {
-  if (artistName.length < 2) return [];
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return [];
-  const record = value as Prisma.JsonObject;
-  const spokenLines: string[] = [];
-  const seen = new Set<string>();
-  for (const locale of STORY_LOCALES) {
-    const text = record[locale];
-    if (typeof text !== 'string') continue;
-    for (const line of text.normalize('NFC').split(/\r?\n/u)) {
-      const trimmed = line.trim();
-      for (const separator of [':', '：']) {
-        const prefix = `${artistName}${separator}`;
-        if (!trimmed.startsWith(prefix)) continue;
-        const spoken = trimmed.slice(prefix.length).trim();
-        if (spoken.length >= 2 && spoken.length <= 400 && !seen.has(spoken)) {
-          spokenLines.push(spoken);
-          seen.add(spoken);
-        }
-        break;
-      }
-      if (spokenLines.length >= MAX_MEMORY_ITEMS) return spokenLines;
-    }
-    if (spokenLines.length) return spokenLines;
-  }
-  return spokenLines;
-}
-
 function routeGeneratedSceneReadLimits(
   pathSummary: Prisma.JsonValue,
   currentGeneratedSceneId: string | null,
@@ -99,8 +71,6 @@ export async function loadStoryChatMemoryContext(
 ): Promise<StoryChatMemoryContext> {
   // A saving caller must already hold its exact progress/revision fence.
   if (transaction && transaction !== prisma) throw new Error('Memory save must use the caller transaction');
-  let artistName = input.artistDisplayName.trim().normalize('NFC');
-
   const progresses = await prisma.storyReaderProgress.findMany({
     where: {
       ...(input.progressId ? { id: input.progressId } : {}),
@@ -135,7 +105,6 @@ export async function loadStoryChatMemoryContext(
     const artists = await transaction.$queryRaw<Array<{ displayName: string }>>`SELECT display_name AS "displayName"
       FROM artists WHERE id = ${input.artistId}::uuid AND status = 'active' FOR UPDATE`;
     if (artists.length !== 1) return unverifiedStoryMemoryContext();
-    artistName = artists[0].displayName.trim().normalize('NFC');
     await transaction.$queryRaw`SELECT id FROM artist_story_identity_profiles
       WHERE artist_id = ${input.artistId}::uuid ORDER BY profile_version DESC FOR SHARE`;
     await transaction.$queryRaw`SELECT id FROM story_progress_artist_participants
@@ -143,18 +112,6 @@ export async function loadStoryChatMemoryContext(
     if (progress.activeReleaseId) await transaction.$queryRaw`SELECT r.id FROM story_releases r
       JOIN story_manuscript_versions m ON m.id = r.manuscript_version_id
       WHERE r.id = ${progress.activeReleaseId}::uuid AND r.work_id = ${progress.workId}::uuid FOR SHARE OF r, m`;
-    const generatedIds = [...routeGeneratedSceneReadLimits(progress.pathSummary,
-      progress.currentGeneratedSceneId, progress.currentBeatPosition).keys()]
-      .filter(id => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id));
-    if (generatedIds.length) {
-      await transaction.$queryRaw(Prisma.sql`SELECT id FROM story_ai_generated_scenes
-        WHERE id IN (${Prisma.join(generatedIds.map(id => Prisma.sql`${id}::uuid`))})
-          AND user_id = ${input.userId}::uuid AND progress_id = ${progress.id}::uuid ORDER BY id FOR SHARE`);
-      await transaction.$queryRaw(Prisma.sql`SELECT id FROM story_ai_generated_beats
-        WHERE scene_id IN (${Prisma.join(generatedIds.map(id => Prisma.sql`${id}::uuid`))})
-          AND beat_type IN ('paragraph', 'dialogue')
-        ORDER BY scene_id, position LIMIT ${MAX_ROUTE_SCENES * 40} FOR SHARE`);
-    }
   }
   const items: StoryChatMemoryItem[] = [];
   let canonicalFingerprint: string | undefined;
@@ -192,20 +149,6 @@ export async function loadStoryChatMemoryContext(
       select: { id: true },
     });
     if (!approvedProfile) continue;
-    const scenes = sceneIds.length ? await prisma.storyAiGeneratedScene.findMany({
-      where: {
-        id: { in: sceneIds }, userId: input.userId, workId: progress.workId,
-        releaseId: progress.activeReleaseId, progressId: progress.id, status: 'ready',
-      },
-      select: { id: true, title: true },
-    }) : [];
-    const sceneById = new Map(scenes.map((scene) => [scene.id, scene]));
-    const beats = scenes.length ? await prisma.storyAiGeneratedBeat.findMany({
-      where: { sceneId: { in: scenes.map((scene) => scene.id) }, beatType: { in: ['paragraph', 'dialogue'] } },
-      select: { sceneId: true, position: true, content: true },
-      orderBy: [{ sceneId: 'asc' }, { position: 'asc' }],
-      take: MAX_ROUTE_SCENES * 40,
-    }) : [];
     const work = await prisma.storyWork.findFirst({
       where: { id: progress.workId, activeReleaseId: progress.activeReleaseId, status: 'published', fixtureSource: false },
       select: { title: true },
@@ -214,21 +157,9 @@ export async function loadStoryChatMemoryContext(
     if (!workTitle) continue;
     const canonical = await loadCanonicalStoryMemory(prisma, input, progress, transaction);
     if (canonical.items.length) canonicalFingerprint = canonical.fingerprint;
-    const progressItems: StoryChatMemoryItem[] = [];
-    for (const sceneId of sceneIds) {
-      const scene = sceneById.get(sceneId);
-      if (!scene) continue;
-      const sceneTitle = localizedText(scene.title);
-      if (!sceneTitle) continue;
-      for (const beat of beats) {
-        if (beat.sceneId !== sceneId) continue;
-        if (beat.position > readLimits.get(sceneId)!) continue;
-        for (const artistDialogue of attributedDialogues(beat.content, artistName)) {
-          progressItems.push({ workTitle, sceneTitle, artistDialogue });
-        }
-      }
-    }
-    items.push(...progressItems.reverse(), ...canonical.items);
+    // Ready/read generated prose has no reviewed interaction evidence. A name
+    // prefix alone cannot establish that the character spoke in this route.
+    items.push(...canonical.items);
     if (items.length >= MAX_MEMORY_ITEMS) break;
   }
   if (!items.length) return unverifiedStoryMemoryContext();

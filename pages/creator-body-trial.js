@@ -83,9 +83,82 @@
   };
   const hasNoChoices = progress => progress?.status === "active" && progress.scene &&
     !progress.scene.endingType && progress.choices.length === 0;
+  const nextCostLabels = {
+    "ko": ["\ub2e4\uc74c \ubcf8\ubb38 \uc2dc\ud5d8 \ucd5c\ub300","\ub2e4\uc74c \ubcf8\ubb38 \uc2dc\ud5d8 \ucd5c\ub300 \ube44\uc6a9 \ud655\uc778 \ud544\uc694"],
+    "en": ["Next text trial maximum","Next text trial maximum cost needs checking."],
+    "ja": ["\u6b21\u306e\u672c\u6587\u30c6\u30b9\u30c8\u306e\u6700\u5927\u8cbb\u7528","\u6b21\u306e\u672c\u6587\u30c6\u30b9\u30c8\u306e\u6700\u5927\u8cbb\u7528\u306e\u78ba\u8a8d\u304c\u5fc5\u8981"],
+    "zh-Hans": ["\u4e0b\u6b21\u6b63\u6587\u6d4b\u8bd5\u8d39\u7528\u4e0a\u9650","\u9700\u8981\u786e\u8ba4\u4e0b\u6b21\u6b63\u6587\u6d4b\u8bd5\u7684\u8d39\u7528\u4e0a\u9650"],
+    "zh-Hant": ["\u4e0b\u6b21\u6b63\u6587\u6e2c\u8a66\u8cbb\u7528\u4e0a\u9650","\u9700\u8981\u78ba\u8a8d\u4e0b\u6b21\u6b63\u6587\u6e2c\u8a66\u7684\u8cbb\u7528\u4e0a\u9650"]
+  };
   for (const language of locales) {
     const [recordRead, readRequired, recordingRead, readUncertain] = readLabels[language];
-    Object.assign(copy[language], { recordRead, readRequired, recordingRead, readUncertain, noChoices: noChoiceLabels[language] });
+    const [nextCostMaximum, nextCostUnavailable] = nextCostLabels[language];
+    Object.assign(copy[language], { recordRead, readRequired, recordingRead, readUncertain, noChoices: noChoiceLabels[language],
+      nextCostMaximum, nextCostUnavailable });
+  }
+  const quoteReasons = ["approval_required", "approval_expired", "release_changed", "cost_unknown", "budget_over_limit",
+    "pending_cost", "approval_pins_changed", "invalid_next_maximum", "next_cost_exceeds_remaining"];
+  function nextCostQuote(value, state) {
+    if (!["nextMaximumCostKrw", "nextCostQuoteState", "nextCostQuoteReason"].some(key => Object.prototype.hasOwnProperty.call(value, key))) return {};
+    const withheld = reason => ({ nextMaximumCostKrw: null, nextCostQuoteState: "withheld", nextCostQuoteReason: reason });
+    if (value.nextCostQuoteState !== "prepared" || value.nextCostQuoteReason !== null || !money(value.nextMaximumCostKrw) ||
+        micros(value.nextMaximumCostKrw) <= 0n) {
+      return withheld(value.nextCostQuoteState === "withheld" && value.nextMaximumCostKrw === null &&
+        quoteReasons.includes(value.nextCostQuoteReason) ? value.nextCostQuoteReason : "invalid_next_maximum");
+    }
+    if (state.state !== "approval_recorded") return withheld(state.state);
+    if (Date.parse(state.approval.expiresAt) <= Date.now()) return withheld("approval_expired");
+    if (state.budget.unknownCostCount > 0) return withheld("cost_unknown");
+    if (state.budget.pendingCount > 0 || micros(state.budget.reservedMaximumCostKrw) > 0n) return withheld("pending_cost");
+    if (micros(value.nextMaximumCostKrw) > micros(state.budget.remainingBudgetKrw)) return withheld("next_cost_exceeds_remaining");
+    return { nextMaximumCostKrw: value.nextMaximumCostKrw, nextCostQuoteState: "prepared", nextCostQuoteReason: null };
+  }
+  const sourceLabels = {
+    "ko": ["\ubcf8\ubb38 \ucd9c\ucc98 \ud655\uc778", "\ubcf8\ubb38 \ucd9c\ucc98", "\ud604\uc7ac \ubcf8\ubb38 \ucd9c\ucc98 \uc77c\uce58", "\ud604\uc7ac \ubcf8\ubb38 \uae30\uc900 \ubcc0\uacbd", "\ud604\uc7ac AI \ubcf8\ubb38 \uc5c6\uc74c", "\ubcf8\ubb38 \uc0dd\uc131 \ub300\uae30", "\ucd9c\ucc98 \ud655\uc778 \uc911", "\uacf5\uac1c \ubc84\uc804", "\uc9c4\ud589 \uae30\uc900", "\ubcf8\ubb38 \ud310\ub2e8", "\uae30\ub85d \uc5c6\uc74c", "\ud68c\uc0ac \uc704\uc784 \uc2b9\uc778", "\uc791\uac00 \uac80\ud1a0 \uc2b9\uc778", "\ubc18\ub824", "\ucca0\ud68c", "\uc774\uc804 \uae30\ub85d"],
+    "en": ["Check text source", "Text source", "Current text source matches", "Text source changed", "No current AI text", "Text generation pending", "Checking source", "Published version", "Progress revision", "Text decision", "No record", "Company-delegated approval", "Author-reviewed approval", "Rejected", "Withdrawn", "Previous record"],
+    "ja": ["\u672c\u6587\u306e\u51fa\u5178\u3092\u78ba\u8a8d", "\u672c\u6587\u306e\u51fa\u5178", "\u73fe\u5728\u306e\u672c\u6587\u3068\u51fa\u5178\u304c\u4e00\u81f4", "\u672c\u6587\u306e\u51fa\u5178\u304c\u5909\u66f4", "\u73fe\u5728\u306eAI\u672c\u6587\u306a\u3057", "\u672c\u6587\u751f\u6210\u5f85\u3061", "\u51fa\u5178\u3092\u78ba\u8a8d\u4e2d", "\u516c\u958b\u30d0\u30fc\u30b8\u30e7\u30f3", "\u9032\u884c\u30ea\u30d3\u30b8\u30e7\u30f3", "\u672c\u6587\u306e\u5224\u65ad", "\u8a18\u9332\u306a\u3057", "\u4f1a\u793e\u59d4\u4efb\u306b\u3088\u308b\u627f\u8a8d", "\u4f5c\u8005\u78ba\u8a8d\u306b\u3088\u308b\u627f\u8a8d", "\u5374\u4e0b", "\u64a4\u56de", "\u904e\u53bb\u306e\u8a18\u9332"],
+    "zh-Hans": ["\u786e\u8ba4\u6b63\u6587\u6765\u6e90", "\u6b63\u6587\u6765\u6e90", "\u5f53\u524d\u6b63\u6587\u6765\u6e90\u4e00\u81f4", "\u6b63\u6587\u6765\u6e90\u5df2\u53d8\u66f4", "\u65e0\u5f53\u524dAI\u6b63\u6587", "\u7b49\u5f85\u6b63\u6587\u751f\u6210", "\u6b63\u5728\u786e\u8ba4\u6765\u6e90", "\u53d1\u5e03\u7248\u672c", "\u8fdb\u5ea6\u7248\u672c", "\u6b63\u6587\u5ba1\u6838", "\u65e0\u8bb0\u5f55", "\u516c\u53f8\u59d4\u6258\u6279\u51c6", "\u4f5c\u8005\u5ba1\u6838\u6279\u51c6", "\u9a73\u56de", "\u64a4\u56de", "\u5386\u53f2\u8bb0\u5f55"],
+    "zh-Hant": ["\u78ba\u8a8d\u6b63\u6587\u4f86\u6e90", "\u6b63\u6587\u4f86\u6e90", "\u76ee\u524d\u6b63\u6587\u4f86\u6e90\u4e00\u81f4", "\u6b63\u6587\u4f86\u6e90\u5df2\u8b8a\u66f4", "\u7121\u76ee\u524dAI\u6b63\u6587", "\u7b49\u5f85\u6b63\u6587\u751f\u6210", "\u6b63\u5728\u78ba\u8a8d\u4f86\u6e90", "\u767c\u5e03\u7248\u672c", "\u9032\u5ea6\u7248\u672c", "\u6b63\u6587\u5be9\u6838", "\u7121\u7d00\u9304", "\u516c\u53f8\u59d4\u8a17\u6838\u51c6", "\u4f5c\u8005\u5be9\u6838\u6838\u51c6", "\u99c1\u56de", "\u64a4\u56de", "\u6b77\u53f2\u7d00\u9304"]
+  };
+  function parseSourcePreparation(value, target, preview) {
+    const bad = () => { throw failure("invalid"); };
+    if (!record(target) || !uuid(target.workId) || !locales.includes(target.locale) ||
+        !record(value) || value.contract !== "story-author-body-memory-preparation-v1" ||
+        value.workId !== target.workId || value.locale !== target.locale || value.readOnly !== true ||
+        ["generationStarted", "imageGenerationStarted", "publicationStarted", "sharedReuseAuthorized",
+          "generatedEventApprovalSupported", "generatedEventReadProofAvailable", "chatCurrentIdentityClaimed",
+          "readerMemoryApplied"].some(key => value[key] !== false) ||
+        !["reviewable", "not_generated", "generation_pending", "source_changed"].includes(value.state) ||
+        value.bodyReviewable !== (value.state === "reviewable")) bad();
+    const empty = state => ({ state, releaseVersion: null, progressRevision: null, bodyReview: null });
+    if (value.state !== "reviewable") {
+      if (value.target !== null || value.sourcePins !== null || value.participantReference !== null) bad();
+      return empty(value.state);
+    }
+    const pin = value.target, source = value.sourcePins, progress = preview?.progress;
+    const digest = v => typeof v === "string" && /^[a-f0-9]{64}$/.test(v);
+    if (!record(pin) || !record(source) || !uuid(pin.progressId) || !positive(pin.progressRevision) || !uuid(pin.sceneId) ||
+        !digest(pin.sourceBindingHash) || !digest(pin.bodyChecksum) || typeof pin.ending !== "boolean" ||
+        !positive(source.releaseVersion) || !count(source.releaseRevision) || !uuid(source.releaseId) ||
+        !uuid(source.manuscriptVersionId) || !digest(source.releaseChecksum) || !digest(source.manuscriptHash)) bad();
+    if (preview?.workId !== target.workId || preview?.locale !== target.locale || !progress?.scene?.isGenerated ||
+        progress.progressId !== pin.progressId || progress.revision !== pin.progressRevision || progress.scene.id !== pin.sceneId ||
+        progress.storyVersion !== source.releaseVersion ||
+        Boolean(progress.scene.endingType) !== pin.ending) return empty("source_changed");
+    let review = null;
+    if (value.latestBodyReview !== null) {
+      const row = value.latestBodyReview;
+      if (!record(row) || !uuid(row.id) || !locales.includes(row.locale) || !positive(row.version) ||
+          !["approve", "reject"].includes(row.decision) || !["human_review", "company_delegation"].includes(row.approvalBasis) ||
+          !["current", "stale", "withdrawn", "superseded"].includes(row.applicability) ||
+          ["styleReviewed", "charactersReviewed", "timelineReviewed"].some(key => typeof row[key] !== "boolean") ||
+          (row.applicability === "current" && row.locale !== target.locale) ||
+          (row.approvalBasis === "human_review" && row.decision === "approve" &&
+            ["styleReviewed", "charactersReviewed", "timelineReviewed"].some(key => !row[key])) ||
+          (row.approvalBasis === "company_delegation" && ["styleReviewed", "charactersReviewed", "timelineReviewed"].some(key => row[key]))) bad();
+      review = { decision: row.decision, approvalBasis: row.approvalBasis, applicability: row.applicability };
+    }
+    return { state: "reviewable", releaseVersion: source.releaseVersion, progressRevision: pin.progressRevision, bodyReview: review };
   }
   function parseState(value, target) {
     const bad = () => { throw failure("invalid"); };
@@ -96,7 +169,7 @@
       generationAuthorized: false, currentAuthorizationVerified: false, imageGenerationStarted: false, state: value.state, approval: null, budget: null };
     if (value.state === "approval_required") {
       if (value.approval !== null || value.budget !== null) bad();
-      return base;
+      return Object.assign(base, nextCostQuote(value, base));
     }
     const approval = value.approval, budget = value.budget;
     if (!record(approval) || !uuid(approval.id) || typeof approval.expiresAt !== "string" ||
@@ -121,7 +194,7 @@
         (value.state === "cost_unknown" && known) || (value.state === "budget_over_limit" && (!known || committed <= cap))) bad();
     base.approval = { id: approval.id.toLowerCase(), expiresAt: approval.expiresAt };
     base.budget = Object.fromEntries([...amounts, ...counts, ...(scoped ? scopeFields : []), "remainingBudgetKrw", "evidenceReadyForBudgetCheck"].map(key => [key, budget[key]]));
-    return base;
+    return Object.assign(base, nextCostQuote(value, base));
   }
   function parseReceipt(value, command) {
     const bad = () => { throw failure("invalid"); };
@@ -252,6 +325,7 @@
     makeIdempotencyKey = () => window.crypto.randomUUID() }) {
     let scope = null, ticket = 0, phase = "idle", messageKey = "ready", data = null, receipt = null, request = null, command = null;
     let journalBlocked = false;
+    let sourceInspection = null;
     function readScope() {
       let owner = null, value = {}, shown = false, language = "ko", rawLocale = "", available = false;
       try {
@@ -270,6 +344,7 @@
     const sameCommand = () => command && accessible() && command.ownerId === scope.owner.ownerId &&
       command.workId === scope.workId && command.body.locale === scope.sourceLocale;
     const canRecover = () => accessible() && !command && !journalBlocked && !busy();
+    const canInspectSource = () => accessible() && phase === "ready" && !command && !journalBlocked && !busy() && Boolean(data?.preview.progress?.scene);
     const currentTrial = () => accessible() && phase === "ready" && !command && !journalBlocked && data?.approvalState.state === "approval_recorded" &&
       Date.parse(data.approvalState.approval.expiresAt) > Date.now();
     const activeTrial = () => currentTrial() && data.preview.progress?.status === "active" &&
@@ -284,7 +359,7 @@
     const canRecordRead = () => readableTrialBody() &&
       Number.isSafeInteger(data.preview.progress.currentBeatPosition) && !readComplete();
     function state() {
-      return clone({ ticket, phase, messageKey, locale: scope?.locale || "ko", data, receipt, busy: busy(),
+      return clone({ ticket, phase, messageKey, locale: scope?.locale || "ko", data, receipt, sourceInspection, canInspectSource: Boolean(canInspectSource()), busy: busy(),
         canLoad: Boolean(accessible() && !busy()), canChoose: Boolean(canChoose()), canRecordRead: Boolean(canRecordRead()), canRetry: Boolean(sameCommand() && !busy()),
         canRecover: Boolean(canRecover()), unresolved: Boolean(command) });
     }
@@ -328,7 +403,7 @@
       journalBlocked = false;
     }
     function clear() {
-      ticket++; data = null; receipt = null; phase = "idle";
+      ticket++; data = null; receipt = null; sourceInspection = null; phase = "idle";
       const old = request; request = null; old?.abort();
       // An aborted POST may already have committed. Keep its exact key until a verified receipt.
     }
@@ -345,7 +420,7 @@
     function invalidate() { clear(); scope = readScope(); restoreJournal(); setInitialMessage(); emit(); }
     function snapshot() { syncContext(); return state(); }
     function start(nextPhase, nextMessage) {
-      phase = nextPhase; messageKey = nextMessage; receipt = null;
+      phase = nextPhase; messageKey = nextMessage; receipt = null; sourceInspection = null;
       const ownTicket = ++ticket, owner = { ...scope.owner }, abort = new AbortController();
       request = abort;
       const current = () => { syncContext(); return ticket === ownTicket; };
@@ -392,6 +467,25 @@
         messageKey = command ? sameCommand() ? "uncertain" : "unresolvedElsewhere" : copy.ko[error?.kind] !== undefined ? error.kind : "transport";
         emit(); return false;
       }
+    }
+    async function inspectSource(expectedTicket = null) {
+      syncContext();
+      if ((expectedTicket !== null && expectedTicket !== ticket) || !canInspectSource()) return false;
+      const target = { workId: scope.workId, locale: scope.sourceLocale }, preview = data.preview;
+      const previousMessage = messageKey, active = start("loading", messageKey);
+      sourceInspection = { phase: "loading", data: null, messageKey: null }; emit();
+      try {
+        const value = await responseValue("/api/v1/me/creator-studio/stories/" + encodeURIComponent(target.workId) +
+          "/body-review/memory-preparation?locale=" + encodeURIComponent(target.locale), { method: "GET" }, active, 16384);
+        if (!active.current()) return false;
+        sourceInspection = { phase: "ready", data: parseSourcePreparation(value, target, preview), messageKey: null };
+      } catch (error) {
+        if (!active.current()) return false;
+        sourceInspection = { phase: "error", data: null, messageKey: copy.ko[error?.kind] !== undefined ? error.kind : "transport" };
+      }
+      if (!active.current()) return false;
+      request = null; phase = "ready"; messageKey = previousMessage; emit();
+      return sourceInspection.phase === "ready";
     }
     async function recordRead(expectedTicket = null) {
       syncContext();
@@ -517,7 +611,7 @@
       }
     }
     syncContext(false);
-    return { snapshot, syncContext, invalidate, load, choose, recordRead, retry, recover };
+    return { snapshot, syncContext, invalidate, load, choose, recordRead, retry, recover, inspectSource };
   }
   function mount(host) {
     if (!host || host.dataset.bodyTrialMounted) return null;
@@ -536,33 +630,54 @@
       const button = element("button", "body-trial-tool"); button.type = "button";
       let icon;
       try { if (window.lucide?.icons?.[name]) icon = window.lucide.createElement(window.lucide.icons[name]); } catch (_) {}
-      if (!icon) icon = element("span", "", name === "RefreshCw" ? "\u21bb" : name === "History" ? "\u25f7" : "\u21a9");
+      if (!icon) icon = element("span", "", name === "RefreshCw" ? "\u21bb" : name === "History" ? "\u25f7" : name === "Info" ? "i" : "\u21a9");
       icon.setAttribute("aria-hidden", "true"); button.append(icon); tools.append(button); return button;
     }
     const refresh = iconButton("RefreshCw"), retry = iconButton("RotateCcw"), recover = iconButton("History");
+    const inspect = iconButton("Info"); inspect.id = "writerBodyTrialSourceInspect";
     refresh.id = "writerBodyTrialRefresh"; retry.id = "writerBodyTrialRetry"; recover.id = "writerBodyTrialRecover";
     header.append(heading, tools);
     const status = element("p", "body-trial-state"), content = element("div", "body-trial-content");
     status.id = "writerBodyTrialState"; content.id = "writerBodyTrialContent";
     status.setAttribute("role", "status"); status.setAttribute("aria-live", "polite"); host.replaceChildren(header, status, content);
     const visible = () => !shell.hidden && !section.hidden && !host.hidden && section.classList.contains("is-active") && document.visibilityState !== "hidden";
-    const formatMoney = value => {
-      // Round only the label; budget checks retain the exact micro-won amount.
-      const whole = ((micros(value) + 500000n) / 1000000n).toString();
-      return whole.replace(/\B(?=(\d{3})+(?!\d))/g, ",") + " KRW";
+    const formatMoney = (value, maximum = false, unit = " KRW") => {
+      // Only labels round: balances use nearest won, maxima round up; checks retain exact micro-won.
+      const whole = ((micros(value) + (maximum ? 999999n : 500000n)) / 1000000n).toString();
+      return whole.replace(/\B(?=(\d{3})+(?!\d))/g, ",") + unit;
     };
-    let controller;
+    let controller, expiryTimer = null;
+    function scheduleExpiry(state) {
+      if (expiryTimer !== null) { window.clearTimeout(expiryTimer); expiryTimer = null; }
+      const trial = state.data?.approvalState;
+      if (state.phase !== "ready" || state.busy || state.unresolved || trial?.state !== "approval_recorded" ||
+          typeof window.setTimeout !== "function" || typeof window.clearTimeout !== "function") return;
+      const expires = Date.parse(trial.approval.expiresAt), delay = expires - Date.now(), ticket = state.ticket;
+      if (delay <= 0) return;
+      // This deadline only refreshes local display; it never polls, dispatches, or extends approval.
+      expiryTimer = window.setTimeout(() => {
+        expiryTimer = null;
+        const current = controller.snapshot();
+        if (current.ticket !== ticket) return;
+        render(current);
+      }, Math.min(delay, 2147483647));
+    }
     function render(state) {
+      scheduleExpiry(state);
       const words = copy[state.locale]; title.textContent = words.title; privacy.textContent = words.privacy;
       host.lang = state.locale; host.setAttribute("aria-busy", String(state.busy));
       for (const [button, label, enabled] of [[refresh, words.refresh, state.canLoad], [retry, words.retry, state.canRetry], [recover, words.recover, state.canRecover]]) {
         button.title = label; button.setAttribute("aria-label", label); button.disabled = !enabled;
       }
       retry.hidden = !state.unresolved;
-      status.textContent = (state.receipt ? words.receiptResult + ": " : "") + words[state.messageKey];
+      inspect.title = sourceLabels[state.locale][0]; inspect.setAttribute("aria-label", inspect.title);
+      inspect.disabled = !state.canInspectSource;
+      const expired = state.phase === "ready" && !state.unresolved && state.data?.approvalState.state === "approval_recorded" &&
+        Date.parse(state.data.approvalState.approval.expiresAt) <= Date.now();
+      status.textContent = (state.receipt ? words.receiptResult + ": " : "") + words[expired ? "approval_expired" : state.messageKey];
       status.className = "body-trial-state" + (["error", "uncertain"].includes(state.phase) ? " is-error" : "");
       content.replaceChildren();
-      const budget = state.data?.approvalState.budget;
+      const trial = state.data?.approvalState, budget = trial?.budget;
       if (budget) {
         const metadata = element("dl", "body-trial-budget");
         for (const [label, value] of [[words.approved, budget.approvedBudgetKrw], [words.committed, budget.committedCostKrw], [words.remaining, budget.remainingBudgetKrw]]) {
@@ -573,6 +688,36 @@
           const historical = element("p", "body-trial-state", words.historicalUnknownSeparated);
           historical.id = "writerBodyTrialHistoricalCosts"; historical.setAttribute("role", "note"); content.append(historical);
         }
+      }
+      if (trial) {
+        const quote = nextCostQuote(trial, trial), prepared = state.phase === "ready" && !state.busy && !state.unresolved &&
+          quote.nextCostQuoteState === "prepared";
+        const reasonKey = { approval_required: "approval_required", approval_expired: "approval_expired", release_changed: "release_changed",
+          cost_unknown: "cost_unknown", budget_over_limit: "budget_over_limit", pending_cost: "generating", approval_pins_changed: "conflict" }[quote.nextCostQuoteReason];
+        const label = prepared ? words.nextCostMaximum + " " + formatMoney(quote.nextMaximumCostKrw, true, state.locale === "ko" ? "\uc6d0" : " KRW")
+          : words.nextCostUnavailable + (reasonKey ? ": " + words[reasonKey] : "");
+        const notice = element("p", "body-trial-state", label);
+        notice.id = "writerBodyTrialNextCost"; notice.setAttribute("role", "note"); content.append(notice);
+      }
+      const inspected = state.sourceInspection, labels = sourceLabels[state.locale];
+      if (inspected) {
+        const panel = element("section", "body-trial-source-status"); panel.id = "writerBodyTrialSourceStatus";
+        panel.append(element("h4", "", labels[1]));
+        const message = inspected.phase === "loading" ? labels[6] : inspected.phase === "error" ? words[inspected.messageKey] :
+          labels[{ reviewable: 2, source_changed: 3, not_generated: 4, generation_pending: 5 }[inspected.data.state]];
+        const notice = element("p", "body-trial-state", message); notice.setAttribute("role", "status"); panel.append(notice);
+        if (inspected.data?.state === "reviewable") {
+          const review = inspected.data.bodyReview;
+          const decision = !review ? labels[10] : review.applicability === "withdrawn" ? labels[14] :
+            review.applicability !== "current" ? labels[15] : review.decision === "reject" ? labels[13] :
+            labels[review.approvalBasis === "company_delegation" ? 11 : 12];
+          const values = element("dl", "body-trial-budget");
+          for (const [label, value] of [[labels[7], inspected.data.releaseVersion], [labels[8], inspected.data.progressRevision], [labels[9], decision]]) {
+            const row = element("div"); row.append(element("dt", "", label), element("dd", "", String(value))); values.append(row);
+          }
+          panel.append(values);
+        }
+        content.append(panel);
       }
       const progress = state.data?.preview.progress;
       if (!progress) return;
@@ -626,7 +771,8 @@
     refresh.addEventListener("click", () => { if (!refresh.disabled) return controller.load(controller.snapshot().ticket); });
     retry.addEventListener("click", () => { if (!retry.disabled) return controller.retry(controller.snapshot().ticket); });
     recover.addEventListener("click", () => { if (!recover.disabled) return controller.recover(controller.snapshot().ticket); });
-    const sync = () => controller.syncContext(), erase = () => controller.invalidate();
+    inspect.addEventListener("click", () => { if (!inspect.disabled) return controller.inspectSource(controller.snapshot().ticket); });
+    const sync = () => { controller.syncContext(); render(controller.snapshot()); }, erase = () => controller.invalidate();
     for (const name of ["storage", "lumina:authchange", "lumina:auth-expired", "pagehide"]) window.addEventListener(name, erase);
     for (const name of ["focus", "lumina:localechange", "pageshow"]) window.addEventListener(name, sync);
     document.addEventListener("lumina:auth-expired", erase); document.addEventListener("visibilitychange", erase);
@@ -649,6 +795,6 @@
     }
     render(controller.snapshot()); return controller;
   }
-  window.LuminaCreatorBodyTrial = { createController, parseState, parseReceipt, parseRecovery, mount, copy };
+  window.LuminaCreatorBodyTrial = { createController, parseState, parseReceipt, parseRecovery, parseSourcePreparation, mount, copy };
   if (typeof document !== "undefined") mount(document.getElementById("writerBodyTrial"));
 })();

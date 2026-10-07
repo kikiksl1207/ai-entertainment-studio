@@ -4,69 +4,112 @@ import { GUARDS_METADATA, HEADERS_METADATA, PATH_METADATA } from '@nestjs/common
 import { Prisma } from '@prisma/client';
 import { createHash, randomUUID } from 'crypto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { StoryGeneratedEndingReadService } from './story-generated-ending-read.service';
+import { fixture } from '../../test/fixtures/story-generated-ending-read.fixture';
 import { generatedEndingReadPrivacyMiddleware, StoryGeneratedEndingReadController } from './story-generated-ending-read.controller';
 import { ConfirmStoryGeneratedEndingReadDto, StoryGeneratedEndingReadQueryDto } from './dto/story-generated-ending-read.dto';
 import { STORY_LOCALES } from './story-production.policy';
 
-function fixture() {
-  const userId = randomUUID(), progressId = randomUUID(), workId = randomUUID(), sceneId = randomUUID();
-  const releaseId = randomUUID(), manuscriptId = randomUUID(), ownerUserId = randomUUID(), partId = randomUUID();
-  const routeId = randomUUID(), parentId = randomUUID(), originId = randomUUID(), sourceSceneId = randomUUID();
-  const progress = { id: progressId, userId, workId, currentSceneId: null as string | null,
-    currentGeneratedSceneId: sceneId as string | null, activeReleaseId: releaseId, routeNodeId: routeId,
-    status: 'completed', storyVersion: 1, currentAct: 1, progressRevision: 3, currentBeatPosition: 2,
-    pathSummary: [{ generatedSceneId: sceneId }] };
-  const work = { id: workId, ownerUserId, activeReleaseId: releaseId, publishedVersion: 1, status: 'published',
-    fixtureSource: false, slug: 'ending-read', coverManifest: {}, priceLumina: new Prisma.Decimal(0) };
-  const release = { id: releaseId, workId, manuscriptVersionId: manuscriptId, status: 'active', checksum: 'a'.repeat(64), version: 1 };
-  const manuscript = { id: manuscriptId, workId, ownerUserId, contentHash: 'b'.repeat(64) };
-  const scene = { id: sceneId, userId, progressId, workId, releaseId, sourcePartId: partId, continuationId: originId,
-    status: 'ready', endingType: 'ai_generated', provenance: 'ai_generated', resultChecksum: 'c'.repeat(64) };
-  const part = { id: partId, workId, status: 'published', fixtureSource: false, actNumber: 1, priceLumina: new Prisma.Decimal(0) };
-  const origin = { id: originId, userId, progressId, workId, releaseId, status: 'completed', resultGeneratedSceneId: sceneId,
-    releaseChecksum: release.checksum, manuscriptVersionId: manuscriptId, sourceRouteNodeId: parentId,
-    sourceSceneId, sourceGeneratedSceneId: null, sourcePartId: partId };
-  const route = { id: routeId, parentId, progressId, workId, releaseId, routeHash: null,
-    narrativeStep: { generatedSceneId: sceneId, sourceSceneId, sourceGeneratedSceneId: null, provenance: 'ai_generated' } };
-  const beats = [1, 2].map(position => ({ id: randomUUID(), sceneId, position, beatType: 'paragraph',
-    content: Object.fromEntries(STORY_LOCALES.map(locale => [locale, `${locale} page ${position}\\nExact ending.`])) }));
-  const find = (row: object) => jest.fn(async ({ where }: { where: Record<string, unknown> }) =>
-    Object.entries(where).every(([key, value]) => row[key as keyof typeof row] === value) ? row : null);
-  const rows: Array<Record<string, unknown>> = [];
-  const tx = { $executeRaw: jest.fn(async (_sql: Prisma.Sql) => 0), $queryRaw: jest.fn(async (_sql: Prisma.Sql) => []),
-    storyReaderProgress: { findFirst: find(progress), updateMany: jest.fn() }, storyWork: { findFirst: find(work) },
-    storyRelease: { findFirst: find(release) }, storyManuscriptVersion: { findFirst: find(manuscript) },
-    storyAiGeneratedScene: { findFirst: find(scene) }, storyPart: { findFirst: find(part) },
-    storyAiContinuation: { findFirst: find(origin), create: jest.fn() }, storyProgressRouteNode: { findFirst: find(route) },
-    storyAiGeneratedBeat: { findMany: jest.fn(async () => beats) }, storyAiGeneratedChoice: { count: jest.fn(async () => 0) },
-    userEntitlement: { findFirst: jest.fn(async () => null) },
-    auditEvent: { findMany: jest.fn(async ({ where }: { where: { actorType: string; actorUserId: string; action: string;
-      targetId?: string; metadata: { path: string[]; equals: string } } }) => rows.filter(row =>
-      row.actorType === where.actorType && row.actorUserId === where.actorUserId && row.action === where.action &&
-      (!where.targetId || row.targetId === where.targetId) &&
-      (row.metadata as Record<string, unknown>)[where.metadata.path[0]] === where.metadata.equals)),
-      create: jest.fn(async ({ data }: { data: Record<string, unknown> }) => {
-        const row = { ...data, id: randomUUID(), createdAt: new Date() }; rows.push(row); return row;
-      }) } };
-  const prisma = { $transaction: jest.fn(async (run: (db: typeof tx) => Promise<unknown>, _options: unknown) => {
-    const before = rows.length;
-    try { return await run(tx); } catch (error) { rows.splice(before); throw error; }
-  }) };
-  const page = (locale = 'ko') => ({ progressId, workId, status: progress.status, revision: progress.progressRevision,
-    storyVersion: progress.storyVersion, choices: [], scene: { id: sceneId, isGenerated: true,
-      deliveryState: 'ready', endingType: 'ai_generated', visualManifest: { ready: true },
-      beats: beats.map(beat => ({ id: beat.id, position: beat.position, content: { value: beat.content[locale] } })) } });
-  const stories = { currentProgress: jest.fn(async (_user: string, _progress: string, locale: string) => page(locale)) };
-  const service = new StoryGeneratedEndingReadService(prisma as never, stories as never);
-  const preview = (locale = 'ko', fromPosition = 1) => service.preview(userId, progressId, { locale, fromPosition });
-  const input = async (locale = 'ko'): Promise<ConfirmStoryGeneratedEndingReadDto> => { const p = await preview(locale); return { locale, fromPosition: 1,
-    expectedRevision: p.expectedRevision, expectedScopeChecksum: p.scopeChecksum, expectedSourceTextHash: p.sourceTextHash,
-    idempotencyKey: randomUUID(), displayedAndRead: true }; };
-  const confirm = (body: ConfirmStoryGeneratedEndingReadDto) => service.confirm(userId, progressId, body);
-  return { userId, progressId, progress, work, release, manuscript, scene, part, origin, route, beats, rows, tx,
-    prisma, stories, page, service, preview, input, confirm };
-}
+
+describe('ending artwork asset transactional boundary', () => {
+  it.each(['missing', 'private', 'type', 'mime', 'checksum', 'path', 'pending'])('rejects %s artwork before receipt persistence', async kind => {
+    const f = fixture(), body = await f.input();
+    if (kind === 'missing') f.tx.asset.findFirst.mockResolvedValue(null);
+    if (kind === 'private') f.asset.visibility = 'private';
+    if (kind === 'type') f.asset.assetType = 'video';
+    if (kind === 'mime') f.asset.mimeType = 'image/png';
+    if (kind === 'checksum') f.asset.checksum = 'invalid';
+    if (kind === 'path' || kind === 'pending') f.stories.currentProgress.mockImplementation(async (_u, _p, locale) => ({ ...f.page(locale),
+      scene: { ...f.page(locale).scene, visualManifest: { background: { state: kind === 'pending' ? 'pending' : 'ready',
+        publicAssetPath: kind === 'path' ? '/assets/story/unbound.webp' : `/api/v1/story-visual-assets/${f.asset.id}` } } } }));
+    await expect(f.confirm(body)).rejects.toMatchObject({ response: { code: 'STORY_GENERATED_ENDING_READ_ARTWORK_CHANGED' } });
+    expect(f.rows).toHaveLength(0);
+    expect(f.tx.storyReaderProgress.updateMany).not.toHaveBeenCalled();
+  });
+  it.each(['checksum', 'metadata', 'storage'])('binds changed %s to a new scope rather than accepting the old page', async kind => {
+    const f = fixture(), body = await f.input();
+    if (kind === 'checksum') f.asset.checksum = '2'.repeat(64);
+    if (kind === 'metadata') f.asset.metadata.identity = 'changed';
+    if (kind === 'storage') f.asset.storageKey = 'replacement.webp';
+    await expect(f.confirm(body)).rejects.toMatchObject({ response: { code: 'STORY_GENERATED_ENDING_READ_SCOPE_CHANGED' } });
+    expect(f.rows).toHaveLength(0);
+  });
+  it('rejects withdrawal after a ready preflight but before its receipt transaction', async () => {
+    const f = fixture(), body = await f.input();
+    f.stories.currentProgress.mockImplementation(async (_u, _p, locale) => {
+      const projected = f.page(locale); f.asset.visibility = 'private'; return projected;
+    });
+    await expect(f.confirm(body)).rejects.toMatchObject({ response: { code: 'STORY_GENERATED_ENDING_READ_ARTWORK_CHANGED' } });
+    expect(f.rows).toHaveLength(0);
+  });
+  it('locks the matching asset before validating it and writing the audit', async () => {
+    const f = fixture(), body = await f.input(); f.tx.$queryRaw.mockClear(); f.tx.asset.findFirst.mockClear();
+    await f.confirm(body);
+    const lockIndex = f.tx.$queryRaw.mock.calls.findIndex(([query]) => /FROM assets[\s\S]*FOR SHARE/u.test(query.sql));
+    expect(lockIndex).toBeGreaterThanOrEqual(0);
+    const callOrder = f.tx.$queryRaw.mock.invocationCallOrder[lockIndex];
+    expect(callOrder).toBeLessThan(f.tx.asset.findFirst.mock.invocationCallOrder[0]);
+    expect(f.tx.asset.findFirst.mock.invocationCallOrder[0]).toBeLessThan(f.tx.auditEvent.create.mock.invocationCallOrder[0]);
+  });
+  it('keeps GET read-only without acquiring a write-transaction row lock', async () => {
+    const f = fixture(); await f.preview();
+    expect(f.tx.asset.findFirst).toHaveBeenCalledTimes(1);
+    expect(f.tx.$queryRaw.mock.calls.some(([query]) => /FROM assets/u.test(query.sql))).toBe(false);
+    expect(f.rows).toHaveLength(0);
+  });
+  it('does not expose asset metadata or storage details in the receipt', async () => {
+    const f = fixture(), value = await f.confirm(await f.input()), encoded = JSON.stringify(value);
+    expect(encoded).not.toContain(f.asset.id); expect(encoded).not.toContain(f.asset.storageKey);
+    expect(encoded).not.toContain('synthetic'); expect(encoded).not.toContain('metadata');
+    expect(value).toMatchObject({ meaningApproved: false, qualityApproved: false });
+  });
+});
+
+describe('ending artwork supplementary compatibility', () => {
+  it.each(['?download=1', '#fragment', '/', '%2f', ' ', '/../replacement', '/extra'])('rejects asset URI suffix %s without a receipt', async suffix => {
+    const f = fixture(), body = await f.input();
+    f.stories.currentProgress.mockImplementation(async (_u, _p, locale) => ({ ...f.page(locale), scene: { ...f.page(locale).scene,
+      visualManifest: { background: { state: 'ready', publicAssetPath: `/api/v1/story-visual-assets/${f.asset.id}${suffix}` } } } }));
+    await expect(f.confirm(body)).rejects.toMatchObject({ response: { code: 'STORY_GENERATED_ENDING_READ_ARTWORK_CHANGED' } });
+    expect(f.rows).toHaveLength(0);
+  });
+  it('withholds the old scope after a storage-provider-only replacement', async () => {
+    const f = fixture(), body = await f.input(); f.asset.storageProvider = 'replacement';
+    await expect(f.confirm(body)).rejects.toMatchObject({ response: { code: 'STORY_GENERATED_ENDING_READ_SCOPE_CHANGED' } });
+    expect(f.rows).toHaveLength(0);
+  });
+  it('preserves a synthetic pre-guard audit without promoting it to a current receipt', async () => {
+    const f = fixture(), preview = await f.preview(), oldScope = '0'.repeat(64);
+    const old = { id: randomUUID(), actorType: 'user', actorUserId: f.userId, action: 'story.generated_ending_read.confirmed',
+      targetType: 'story_reader_progress', targetId: f.progressId, metadata: { scopeChecksum: oldScope, explicitRead: true,
+        meaningApproved: false, qualityApproved: false, publicationStarted: false, receipt: { ...preview, scopeChecksum: oldScope } } };
+    f.rows.push(old); const unchanged = JSON.stringify(old);
+    expect((await f.preview()).confirmation).toBeNull(); expect(f.rows).toHaveLength(1); expect(JSON.stringify(old)).toBe(unchanged);
+    await f.confirm(await f.input()); expect(f.rows).toHaveLength(2); expect(JSON.stringify(old)).toBe(unchanged);
+  });
+  it('does not reuse an old command key for a different guarded scope', async () => {
+    const f = fixture(), body = await f.input();
+    const commandHash = createHash('sha256').update(JSON.stringify(['story.generated_ending_read.confirmed', f.userId, body.idempotencyKey])).digest('hex');
+    f.rows.push({ id: randomUUID(), actorType: 'user', actorUserId: f.userId, action: 'story.generated_ending_read.confirmed',
+      targetType: 'story_reader_progress', targetId: f.progressId, metadata: { scopeChecksum: '0'.repeat(64), commandHash, fingerprint: '4'.repeat(64) } });
+    const before = JSON.stringify(f.rows);
+    await expect(f.confirm(body)).rejects.toMatchObject({ response: { code: 'STORY_GENERATED_ENDING_READ_IDEMPOTENCY_CONFLICT' } });
+    expect(JSON.stringify(f.rows)).toBe(before);
+  });
+  it('does not show a post-confirmation replaced asset as the same current read receipt', async () => {
+    const f = fixture(); await f.confirm(await f.input()); f.asset.metadata.identity = 'replacement-after-read';
+    expect((await f.preview()).confirmation).toBeNull(); expect(f.rows).toHaveLength(1);
+  });
+});
+
+describe('newline artwork URI hardening', () => {
+  it.each(['\n', '\r\n'])('rejects a trailing line ending before reading the asset', async suffix => {
+    const f = fixture(); f.tx.asset.findFirst.mockResolvedValue(f.asset);
+    f.stories.currentProgress.mockImplementation(async (_u, _p, locale) => ({ ...f.page(locale), scene: { ...f.page(locale).scene,
+      visualManifest: { background: { state: 'ready', publicAssetPath: `/api/v1/story-visual-assets/${f.asset.id}${suffix}` } } } }));
+    await expect(f.preview()).rejects.toMatchObject({ response: { code: 'STORY_GENERATED_ENDING_READ_ARTWORK_CHANGED' } });
+    expect(f.tx.asset.findFirst).not.toHaveBeenCalled(); expect(f.rows).toHaveLength(0);
+  });
+});
 
 describe('generated ending explicit read confirmation', () => {
   it.each(STORY_LOCALES)('queries %s last-page metadata without treating a cursor as a receipt', async locale => {
@@ -150,7 +193,8 @@ describe('generated ending explicit read confirmation', () => {
     if (kind === 'route') f.route.routeHash = 'f'.repeat(64) as never;
     if (kind === 'release') f.release.checksum = 'd'.repeat(64), f.origin.releaseChecksum = f.release.checksum;
     if (kind === 'visual') f.stories.currentProgress.mockImplementation(async (_u, _p, locale) => ({ ...f.page(locale),
-      scene: { ...f.page(locale).scene, visualManifest: { ready: false } } }));
+      scene: { ...f.page(locale).scene, visualManifest: { background: { ...f.page(locale).scene.visualManifest.background,
+        altKey: 'changed' } } } }));
     if (kind === 'part') {
       const partId = randomUUID(); f.part.id = partId; f.scene.sourcePartId = partId; f.origin.sourcePartId = partId;
     }

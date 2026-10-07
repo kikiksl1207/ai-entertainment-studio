@@ -514,6 +514,8 @@ function renderCharacterDetail() {
           const img = event.target;
           if (img.matches(".gallery-slide img") && img.dataset.retried === "1") {
             const slide = img.closest(".gallery-slide");
+            // The slider keeps its image attached for explicit recovery.
+            if (slide.querySelector("[data-gallery-recovery]")) return;
             slide.classList.add("is-image-unavailable");
             slide.removeAttribute("data-lightbox");
             slide.style.cursor = "default";

@@ -308,7 +308,8 @@ export class ArtistsService {
     const uploadIntent = metadata.uploadIntent;
     const lifecycle = metadata.lifecycle;
 
-    if (this.isRecord(lifecycle) && lifecycle.status === 'archived') {
+    if (Object.prototype.hasOwnProperty.call(metadata, 'lifecycle') &&
+        (!this.isRecord(lifecycle) || lifecycle.status !== 'active')) {
       return false;
     }
 

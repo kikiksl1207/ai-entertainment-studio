@@ -9620,8 +9620,8 @@ describe('ChatService.generateMessage provider beta', () => {
     expect(prisma.storyReaderProgress.findMany).not.toHaveBeenCalled();
   });
 
-  it('sends only read, attributed story dialogue to the same artist chat', async () => {
-    const tx = persistTx('기차역에서 함께 있었지.');
+  it('keeps raw read generated dialogue unverified while preserving current-route history and saved turns', async () => {
+    const tx = persistTx('No reviewed shared memory is available.');
     const prisma = prismaForGenerate(tx);
     const selectedProgressId = '00000000-0000-4000-8000-000000000981';
     const progress = {
@@ -9643,8 +9643,8 @@ describe('ChatService.generateMessage provider beta', () => {
       },
     ));
     const memoryContext: StoryChatMemoryContext = {
-      source: 'attributed_story_dialogue',
-      items: [{ workTitle: '함께한 이야기', sceneTitle: '기차역', artistDialogue: '여기서 기다릴게.' }],
+      source: 'no_verified_interaction',
+      items: [],
     };
     const memoryMarker = storyChatMemoryMarker(memoryContext);
     prisma.chatMessage.findMany.mockImplementation(({ where }) => Promise.resolve(
@@ -9666,7 +9666,7 @@ describe('ChatService.generateMessage provider beta', () => {
     const llmProvider = {
       readiness: jest.fn().mockReturnValue(readyState),
       generate: jest.fn().mockResolvedValue({
-        body: '기차역에서 함께 있었지.',
+        body: 'No reviewed shared memory is available.',
         usage: { provider: 'openai', model: 'gpt-5-mini', inputTokens: 11, outputTokens: 12, estimatedCostKrw: '0.00' },
         safetyMetadata: { requestId: 'req-story-memory' },
       }),
@@ -9683,11 +9683,12 @@ describe('ChatService.generateMessage provider beta', () => {
 
     expect(llmProvider.generate).toHaveBeenCalledWith(expect.objectContaining({
       recentMessages: [{ senderType: 'user', messageType: 'text', body: '이 경로의 이전 대화' }],
-      storyMemoryContext: {
-        source: 'attributed_story_dialogue',
-        items: [{ workTitle: '함께한 이야기', sceneTitle: '기차역', artistDialogue: '여기서 기다릴게.' }],
-      },
+      storyMemoryContext: memoryContext,
     }));
+    expect(prisma.storyAiGeneratedScene.findMany).not.toHaveBeenCalled();
+    expect(prisma.storyAiGeneratedBeat.findMany).not.toHaveBeenCalled();
+    expect(JSON.stringify(llmProvider.generate.mock.calls)).not.toContain('artistSaid');
+    expect(JSON.stringify(llmProvider.generate.mock.calls)).not.toContain('여기서 기다릴게.');
     const routeMarker = {
       version: 2, progressId: selectedProgressId, workId: 'work-1', releaseId: 'release-1',
       routeNodeId: 'route-node-1', resetEpoch: null, identityApprovedFingerprint: 'approved',

@@ -290,13 +290,23 @@ export class StoryArtistParticipantService {
     });
     if (!row) return null;
     const thumbnail = this.thumbnail(row.artist.artistAssets);
+    let visualIdentityReady = false;
+    if (row.identityProfileId && this.stringArray(row.referenceAssetIds).length) {
+      try {
+        visualIdentityReady = Boolean((await this.visualReferences(progressId))?.references.length);
+      } catch (error) {
+        const response = error instanceof ConflictException ? error.getResponse() : null;
+        if (!response || typeof response !== 'object' ||
+            (response as { code?: string }).code !== 'STORY_PARTICIPANT_IDENTITY_CHANGED') throw error;
+      }
+    }
     return {
       artistId: row.artistId,
       slug: row.artist.slug,
       displayName: row.artist.displayName,
       selectionSource: row.selectionSource,
       thumbnail,
-      visualIdentityReady: Boolean(row.identityProfileId && this.stringArray(row.referenceAssetIds).length),
+      visualIdentityReady,
       locked: true,
     };
   }
@@ -546,8 +556,8 @@ export class StoryArtistParticipantService {
   private publicReady(value: Prisma.JsonValue) {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return true;
     const lifecycle = (value as Record<string, Prisma.JsonValue>).lifecycle;
-    return !lifecycle || typeof lifecycle !== 'object' || Array.isArray(lifecycle) ||
-      (lifecycle as Record<string, Prisma.JsonValue>).status !== 'archived';
+    return lifecycle === undefined || (lifecycle !== null && typeof lifecycle === 'object' &&
+      !Array.isArray(lifecycle) && (lifecycle as Record<string, Prisma.JsonValue>).status === 'active');
   }
 
   private stringArray(value: Prisma.JsonValue) {

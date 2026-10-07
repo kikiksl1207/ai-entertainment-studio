@@ -845,6 +845,7 @@
   opacity: 1;
 }
 .story-beat-navigation button:disabled { pointer-events: none; }
+.story-reader-shell:has([data-story-ending-read-refresh]) .story-beat-navigation button:disabled { visibility: hidden; }
 .story-beat-navigation button:hover:not(:disabled) {
   border-color: #d4ff5f;
   background: #25272e;

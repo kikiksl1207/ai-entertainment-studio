@@ -364,3 +364,91 @@ describe('AdminService asset allocation transaction subunit', () => {
     expectOnlyTransaction(h);
   });
 });
+
+describe('AdminService narrow asset conflict classification', () => {
+  let fetchSpy: jest.SpyInstance<ReturnType<typeof fetch>, Parameters<typeof fetch>>;
+  beforeEach(() => {
+    fetchSpy = jest.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('EXTERNAL_FETCH_FORBIDDEN'));
+  });
+  afterEach(() => {
+    try { expect(fetchSpy).not.toHaveBeenCalled(); } finally { fetchSpy.mockRestore(); }
+  });
+
+  function collision(modelName = 'Asset', target = ['storage_provider', 'storage_key']) {
+    return new Prisma.PrismaClientKnownRequestError(CANARY + '/private-key', {
+      code: 'P2002', clientVersion: 'qa-existing-sdk', meta: { modelName, target },
+    });
+  }
+
+  it.each(operations)('maps real SDK model-scoped asset collisions to redacted409 after transaction rejection for %s', async (_name, invoke) => {
+    const error = collision(), h = harness({ assetError: error });
+    const result = await invoke(h).then(() => null, rejection => rejection);
+    expect(result.getStatus()).toBe(409);
+    expect(result.getResponse()).toEqual({ code: 'ADMIN_ASSET_STORAGE_CONFLICT' });
+    expect(JSON.stringify(result.getResponse())).not.toContain(CANARY);
+    expect(h.tx.asset.create).toHaveBeenCalledTimes(1);
+    expect(h.tx.auditEvent.create).not.toHaveBeenCalled();
+    expect(h.stagedAssets).toEqual([]);
+    expect(h.committedAssets).toEqual([]);
+    expect(h.committedAudits).toEqual([]);
+    expectOnlyTransaction(h);
+    expect(h.trace).toEqual(['transaction.begin', 'asset.create', 'transaction.reject']);
+  });
+
+  it.each(operations)('keeps actual SDK audit collisions distinct with no commit or retry for %s', async (_name, invoke) => {
+    const error = collision('AuditEvent', ['id']), h = harness({ auditError: error });
+    await expect(invoke(h)).rejects.toBe(error);
+    expect(h.tx.asset.create).toHaveBeenCalledTimes(1);
+    expect(h.tx.auditEvent.create).toHaveBeenCalledTimes(1);
+    expect(h.stagedAssets).toHaveLength(1);
+    expect(h.committedAssets).toEqual([]);
+    expect(h.committedAudits).toEqual([]);
+    expectOnlyTransaction(h);
+    expect(h.trace).toEqual(['transaction.begin', 'asset.create', 'audit.create', 'transaction.reject']);
+  });
+
+  it.each(operations)('preserves unrelated and impostor transaction errors by identity/value for %s', async (_name, invoke) => {
+    const fields = { name: 'PrismaClientKnownRequestError', code: 'P2002',
+      meta: { modelName: 'Asset', target: ['storage_provider', 'storage_key'] } };
+    const errors: unknown[] = [collision('Asset', ['id']), fields, Object.assign(new Error(CANARY), fields),
+      Object.assign(Object.create(Prisma.PrismaClientKnownRequestError.prototype), fields),
+      Symbol(CANARY), 0, new Error('P2002 storage_provider storage_key ' + CANARY)];
+    for (const error of errors) {
+      const h = harness();
+      h.db.$transaction.mockRejectedValueOnce(error);
+      await expect(invoke(h)).rejects.toBe(error);
+      expect(h.tx.asset.create).not.toHaveBeenCalled();
+      expect(h.tx.auditEvent.create).not.toHaveBeenCalled();
+      expect(h.stagedAssets).toEqual([]);
+      expect(h.committedAssets).toEqual([]);
+      expect(h.committedAudits).toEqual([]);
+      expectOnlyTransaction(h);
+    }
+  });
+
+  it.each(operations)('waits for final transaction rejection before exposing409, without retry for %s', async (_name, invoke) => {
+    const h = harness(), error = collision();
+    let rejectTransaction!: (reason: Error) => void;
+    h.db.$transaction.mockImplementationOnce(async work => {
+      await work(h.tx);
+      return new Promise((_resolve, reject) => { rejectTransaction = reject; });
+    });
+    let settled = false;
+    const observed = invoke(h).then(value => { settled = true; return value; },
+      rejection => { settled = true; return rejection; });
+    for (let turn = 0; turn < 12; turn += 1) await Promise.resolve();
+    expect(h.tx.asset.create).toHaveBeenCalledTimes(1);
+    expect(h.tx.auditEvent.create).toHaveBeenCalledTimes(1);
+    expect(h.stagedAssets).toHaveLength(1);
+    expect(settled).toBe(false);
+    expect(h.committedAssets).toEqual([]);
+    expect(h.committedAudits).toEqual([]);
+    rejectTransaction(error);
+    const result = await observed;
+    expect(result.getStatus()).toBe(409);
+    expect(result.getResponse()).toEqual({ code: 'ADMIN_ASSET_STORAGE_CONFLICT' });
+    expect(h.committedAssets).toEqual([]);
+    expect(h.committedAudits).toEqual([]);
+    expectOnlyTransaction(h);
+  });
+});

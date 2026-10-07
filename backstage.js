@@ -1342,6 +1342,9 @@ function backstageUserFacingError(error, fallback = "요청을 처리하지 못�
   if (status === 403) {
     return "이 작업에 필요한 운영자 권한이 없어요. 권한을 확인해 주세요.";
   }
+  if (status === 409 && error?.body?.error?.code === "ADMIN_ASSET_STORAGE_CONFLICT") {
+    return "이미 등록된 자산이에요. 기존 자산을 확인해 주세요.";
+  }
   return fallback;
 }
 

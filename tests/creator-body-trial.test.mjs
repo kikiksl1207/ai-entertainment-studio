@@ -147,7 +147,8 @@ test('exports the agreed API and remains idle without storage, polling, or autom
   assert.equal(view.calls.length, 0);
   assert.equal(view.keys(), 0);
   assert.equal(unresolved(view), false);
-  assert.doesNotMatch(source, /localStorage|indexedDB|setInterval|setTimeout|sendBeacon|innerHTML|outerHTML|insertAdjacentHTML/);
+  assert.doesNotMatch(source, /localStorage|indexedDB|setInterval|sendBeacon|innerHTML|outerHTML|insertAdjacentHTML/);
+  assert.doesNotMatch(source.slice(source.indexOf('  function createController('), source.indexOf('  function mount(')), /setTimeout/);
   assert.doesNotMatch(source, /\/approve|\/images|\/payments|\/generate|\/continuations/);
 });
 
@@ -1549,11 +1550,15 @@ test('recovery: legacy controller without an injected journal still supports man
 });
 
 for (const uiLocale of locales) test(`recovery: mounted ${uiLocale} History tooltip, accessible icon, and null notice stay manual`, async () => {
-  const icons = [], lucide = { icons: { RefreshCw: 'RefreshCw', RotateCcw: 'RotateCcw', History: 'History' },
+  const icons = [], lucide = { icons: { RefreshCw: 'RefreshCw', RotateCcw: 'RotateCcw', History: 'History', Info: 'Info' },
     createElement: icon => { icons.push(icon); return new Element('svg'); } };
   const view = mounted(undefined, { language: uiLocale, lucide });
-  assert.deepEqual(icons.slice(-3), ['RefreshCw', 'RotateCcw', 'History']);
-  assert.equal(walk(view.host).filter(node => node.className === 'body-trial-tool').length, 3);
+  assert.deepEqual(icons.slice(-4), ['RefreshCw', 'RotateCcw', 'History', 'Info']);
+  assert.equal(walk(view.host).filter(node => node.className === 'body-trial-tool').length, 4);
+  const inspect = walk(view.host).find(node => node.id === 'writerBodyTrialSourceInspect');
+  assert.equal(inspect.type, 'button'); assert.equal(inspect.disabled, true);
+  assert.equal(inspect.getAttribute('aria-label'), inspect.title);
+  assert.equal(inspect.children[0].getAttribute('aria-hidden'), 'true');
   assert.equal(view.recoverButton().id, 'writerBodyTrialRecover'); assert.equal(view.recoverButton().type, 'button');
   assert.equal(view.recoverButton().title, view.api.copy[uiLocale].recover);
   assert.equal(view.recoverButton().getAttribute('aria-label'), view.api.copy[uiLocale].recover);
@@ -1563,6 +1568,7 @@ for (const uiLocale of locales) test(`recovery: mounted ${uiLocale} History tool
   assert.equal(await view.recover(), true); assert.equal(view.calls.length, 1); assert.equal(view.calls[0].kind, 'recovery');
   assert.equal(walk(view.host).find(node => node.id === 'writerBodyTrialState').textContent, view.api.copy[uiLocale].recoveryEmpty);
   assert.equal(view.retryButton().hidden, true); assert.equal(view.recoverButton().disabled, false);
+  assert.equal(inspect.disabled, true);
   assert.equal(view.choices().length, 0); assert.equal(posts(view).length, 0); assert.equal(view.events.length, 0);
   assert.equal(view.storage.values.size, 0); assert.equal(view.refreshAttempts(), 0);
   assert.equal(view.calls[0].options.token, undefined); assert.equal(view.calls[0].options._retried, false);
@@ -1782,14 +1788,14 @@ for (const kind of ['transport', 'bad-json', 'declared-size', 'actual-size', 'st
   assert.doesNotMatch(JSON.stringify(view.snapshot()), /Private transport/);
 });
 
-test('recovery: three icon slots retain fixed widths and columns with a wrapping mobile header', () => {
-  assert.match(css, /body-trial-tools\s*\{[^}]*display: grid;[^}]*grid-template-columns: repeat\(3, 44px\);[^}]*width: 148px;[^}]*gap: 8px/);
-  for (const [name, column] of [['Refresh', 1], ['Retry', 2], ['Recover', 3]]) {
+test('recovery: four icon slots retain fixed widths and columns with a wrapping mobile header', () => {
+  assert.match(css, /body-trial-tools\s*\{[^}]*display: grid;[^}]*grid-template-columns: repeat\(4, 44px\);[^}]*width: 200px;[^}]*gap: 8px/);
+  for (const [name, column] of [['Refresh', 1], ['Retry', 2], ['Recover', 3], ['SourceInspect', 4]]) {
     assert.match(css, new RegExp(`#writerBodyTrial${name}\\s*\\{ grid-column: ${column}; \\}`));
   }
   assert.match(css, /body-trial-tool\s*\{[^}]*grid-row: 1/);
   assert.match(css, /@media \(max-width: 420px\)[\s\S]*body-trial-header \{ grid-template-columns: minmax\(0, 1fr\)/);
-  assert.match(css, /body-trial-tools \{ justify-self: end/); assert.equal(3 * 44 + 2 * 8, 148);
+  assert.match(css, /body-trial-tools \{ justify-self: end/); assert.equal(4 * 44 + 3 * 8, 200);
 });
 
 test('recovery: source remains entirely ASCII and labels the locator as a recent request rather than current progress', () => {
@@ -1989,7 +1995,7 @@ test('mounted hide/show in one task erases a pending response and cannot repopul
 
 test('trial CSS keeps wrapping prose, fixed icon targets, responsive type, and private print exclusion', () => {
   assert.match(css, /font-family: Pretendard/); assert.match(css, /font-size: 18px/);
-  assert.match(css, /grid-template-columns: minmax\(0, 1fr\) 148px/);
+  assert.match(css, /grid-template-columns: minmax\(0, 1fr\) 200px/);
   assert.match(css, /width: 44px;\s*height: 44px/); assert.match(css, /min-height: 44px/);
   assert.match(css, /white-space: pre-wrap/); assert.match(css, /overflow-wrap: anywhere/); assert.match(css, /letter-spacing: 0/);
   assert.match(css, /font-size: 17px/); assert.match(css, /@media print[^\n]*#writerBodyTrial[^\n]*display: none/);
@@ -2208,3 +2214,231 @@ for (const cost of ['91.1385', '-1.000000', '1e2', 'NaN', null]) {
     assert.equal(view.choices().length, 0); assert.equal(posts(view).length, 0);
   });
 }
+
+const nextCostUiCopy = {
+  "ko": [
+    "\ub2e4\uc74c \ubcf8\ubb38 \uc2dc\ud5d8 \ucd5c\ub300",
+    "\ub2e4\uc74c \ubcf8\ubb38 \uc2dc\ud5d8 \ucd5c\ub300 \ube44\uc6a9 \ud655\uc778 \ud544\uc694"
+  ],
+  "en": [
+    "Next text trial maximum",
+    "Next text trial maximum cost needs checking."
+  ],
+  "ja": [
+    "\u6b21\u306e\u672c\u6587\u30c6\u30b9\u30c8\u306e\u6700\u5927\u8cbb\u7528",
+    "\u6b21\u306e\u672c\u6587\u30c6\u30b9\u30c8\u306e\u6700\u5927\u8cbb\u7528\u306e\u78ba\u8a8d\u304c\u5fc5\u8981"
+  ],
+  "zh-Hans": [
+    "\u4e0b\u6b21\u6b63\u6587\u6d4b\u8bd5\u8d39\u7528\u4e0a\u9650",
+    "\u9700\u8981\u786e\u8ba4\u4e0b\u6b21\u6b63\u6587\u6d4b\u8bd5\u7684\u8d39\u7528\u4e0a\u9650"
+  ],
+  "zh-Hant": [
+    "\u4e0b\u6b21\u6b63\u6587\u6e2c\u8a66\u8cbb\u7528\u4e0a\u9650",
+    "\u9700\u8981\u78ba\u8a8d\u4e0b\u6b21\u6b63\u6587\u6e2c\u8a66\u7684\u8cbb\u7528\u4e0a\u9650"
+  ]
+};
+function nextCostUiState(amount = '300.000000', workId = id(1)) {
+  const value = approvalState(workId);
+  Object.assign(value, { nextMaximumCostKrw: amount, nextCostQuoteState: 'prepared', nextCostQuoteReason: null });
+  Object.assign(value.budget, { reservedMaximumCostKrw: '0.000000', committedCostKrw: '0.250001',
+    remainingBudgetKrw: '9999.749999', pendingCount: 0 });
+  return value;
+}
+const nextCostNotices = view => walk(view.host).filter(node => node.id === 'writerBodyTrialNextCost');
+const nextCostExpected = (language, amount) => nextCostUiCopy[language][0] + ' ' + amount + (language === 'ko' ? '\uc6d0' : ' KRW');
+function assertNextCostReadOnly(view, expectedReads = 2) {
+  assert.equal(posts(view).length, 0);
+  assert.equal(view.refreshAttempts(), 0);
+  assert.equal(view.calls.length, expectedReads);
+  assert.ok(view.calls.every(call => call.options.method === 'GET' && call.options.body === undefined));
+}
+for (const language of locales) {
+  test(`next-cost UI: ${language} displays exactly one prepared maximum without authorizing or dispatching`, async () => {
+    const value = nextCostUiState(), before = clone(value);
+    const view = mounted(({ kind, reply }) => kind === 'state' ? response(value) : reply(), { language });
+    assert.equal(view.calls.length, 0); await view.load();
+    for (let i = 0; i < 3; i++) {
+      if (i > 0) await view.load();
+      const notices = nextCostNotices(view);
+      assert.equal(notices.length, 1); assert.equal(notices[0].textContent, nextCostExpected(language, '300'));
+      assert.equal(notices[0].getAttribute('role'), 'note');
+      const content = walk(view.host).find(node => node.id === 'writerBodyTrialContent');
+      const budget = walk(view.host).find(node => node.className === 'body-trial-budget');
+      assert.ok(content.children.includes(notices[0])); assert.equal(walk(budget).includes(notices[0]), false);
+    }
+    const parsed = view.api.parseState(value, { workId: id(1) });
+    assert.equal(parsed.nextMaximumCostKrw, '300.000000');
+    assert.equal(parsed.readOnly, true); assert.equal(parsed.generationAuthorized, false);
+    assert.equal(parsed.currentAuthorizationVerified, false); assert.equal(parsed.imageGenerationStarted, false);
+    assert.equal(parsed.approval.expiresAt, future); assert.deepEqual(value, before);
+    assert.ok(view.choices().every(button => !button.disabled), 'Quote never replaces the existing selection gate');
+    assertNextCostReadOnly(view, 6);
+  });
+
+  test(`next-cost UI: ${language} rounds positive ceilings up and retains exact internal amounts`, async () => {
+    for (const [amount, label] of [['0.000001', '1'], ['0.499999', '1'], ['0.500000', '1'], ['1.000000', '1'],
+      ['300.000001', '301'], ['999.499999', '1,000'], ['999.500000', '1,000'], ['9999.749999', '10,000']]) {
+      const value = nextCostUiState(amount), before = clone(value);
+      const view = mounted(({ kind, reply }) => kind === 'state' ? response(value) : reply(), { language });
+      await view.load();
+      assert.equal(nextCostNotices(view)[0].textContent, nextCostExpected(language, label));
+      assert.equal(view.api.parseState(value, { workId: id(1) }).nextMaximumCostKrw, amount);
+      assert.deepEqual(value, before);
+      const budget = walk(view.host).find(node => node.className === 'body-trial-budget');
+      assert.deepEqual(walk(budget).filter(node => node.tagName === 'DD').map(node => node.textContent),
+        ['10,000 KRW', '0 KRW', '10,000 KRW'], 'Existing balance rounding remains unchanged');
+      assertNextCostReadOnly(view);
+    }
+  });
+
+  test(`next-cost UI: ${language} invalid or incomplete quote never displays a zero or a numeric permission`, async () => {
+    for (const amount of [null, undefined, 300, -1, NaN, Infinity, -Infinity, '0.000000', '-1.000000',
+      'NaN', 'Infinity', '-Infinity', '300.0000000', '300.0', '300', '00300.000000', '3e2', ' 300.000000', {}, [], '<script>private</script>']) {
+      const value = nextCostUiState(amount);
+      if (amount === undefined) delete value.nextMaximumCostKrw;
+      const view = mounted(({ kind, reply }) => kind === 'state' ? response(value) : reply(), { language });
+      await view.load();
+      assert.equal(nextCostNotices(view).length, 1);
+      assert.equal(nextCostNotices(view)[0].textContent, nextCostUiCopy[language][1]);
+      const parsed = view.api.parseState(value, { workId: id(1) });
+      assert.equal(parsed.nextMaximumCostKrw, null); assert.equal(parsed.nextCostQuoteState, 'withheld');
+      assert.equal(parsed.generationAuthorized, false); assert.equal(parsed.currentAuthorizationVerified, false);
+      assert.ok(view.choices().every(button => !button.disabled), 'Malformed quote does not broaden or replace existing gating');
+      assertNextCostReadOnly(view);
+    }
+  });
+
+  test(`next-cost UI: ${language} withheld reasons are localized safely and never expose arbitrary reason text`, async () => {
+    const reasons = ['approval_required', 'approval_expired', 'release_changed', 'cost_unknown', 'budget_over_limit',
+      'pending_cost', 'approval_pins_changed', 'invalid_next_maximum', 'next_cost_exceeds_remaining', '<script>private provider detail</script>'];
+    for (const reason of reasons) {
+      const value = nextCostUiState(null); value.nextCostQuoteState = 'withheld'; value.nextCostQuoteReason = reason;
+      const view = mounted(({ kind, reply }) => kind === 'state' ? response(value) : reply(), { language });
+      await view.load();
+      assert.ok(nextCostNotices(view)[0].textContent.startsWith(nextCostUiCopy[language][1]));
+      assert.doesNotMatch(nextCostNotices(view)[0].textContent, /300|0 KRW|0\uc6d0|script|private|provider detail/);
+      assert.equal(view.api.parseState(value, { workId: id(1) }).nextMaximumCostKrw, null);
+      assertNextCostReadOnly(view);
+    }
+  });
+
+  test(`next-cost UI: ${language} legacy responses display a check-needed status without inventing quote fields`, async () => {
+    const value = approvalState();
+    const view = mounted(({ kind, reply }) => kind === 'state' ? response(value) : reply(), { language });
+    await view.load();
+    assert.equal(nextCostNotices(view)[0].textContent, nextCostUiCopy[language][1]);
+    assert.deepEqual(clone(view.api.parseState(value, { workId: id(1) })), value);
+    assert.ok(view.choices().every(button => !button.disabled));
+    assertNextCostReadOnly(view);
+  });
+}
+
+for (const mode of ['missing-state', 'missing-reason', 'contradictory-reason', 'contradictory-withheld', 'unknown-state',
+  'expired', 'release-changed', 'unknown-cost', 'pending', 'reserved', 'next-over-budget', 'approval-missing']) {
+  test(`next-cost UI: prepared value is withheld for ${mode} without changing existing context gating`, async () => {
+    const value = nextCostUiState();
+    if (mode === 'missing-state') delete value.nextCostQuoteState;
+    if (mode === 'missing-reason') delete value.nextCostQuoteReason;
+    if (mode === 'contradictory-reason') value.nextCostQuoteReason = 'approval_expired';
+    if (mode === 'contradictory-withheld') value.nextCostQuoteState = 'withheld';
+    if (mode === 'unknown-state') value.nextCostQuoteState = 'authorized';
+    if (mode === 'expired') value.approval.expiresAt = past;
+    if (mode === 'release-changed') value.state = 'release_changed';
+    if (mode === 'unknown-cost') { value.state = 'cost_unknown'; Object.assign(value.budget,
+      { unknownCostCount: 1, remainingBudgetKrw: null, evidenceReadyForBudgetCheck: false }); }
+    if (mode === 'pending') value.budget.pendingCount = 1;
+    if (mode === 'reserved') Object.assign(value.budget, { reservedMaximumCostKrw: '1.000000',
+      committedCostKrw: '1.250001', remainingBudgetKrw: '9998.749999' });
+    if (mode === 'next-over-budget') value.nextMaximumCostKrw = '9999.750000';
+    if (mode === 'approval-missing') { value.state = 'approval_required'; value.approval = null; value.budget = null; }
+    const view = mounted(({ kind, reply }) => kind === 'state' ? response(value) : reply());
+    await view.load();
+    assert.equal(nextCostNotices(view).length, 1);
+    assert.ok(nextCostNotices(view)[0].textContent.startsWith(nextCostUiCopy.ko[1]));
+    assert.doesNotMatch(nextCostNotices(view)[0].textContent, /300\uc6d0|0\uc6d0/);
+    const parsed = view.api.parseState(value, { workId: id(1) });
+    assert.equal(parsed.nextMaximumCostKrw, null); assert.equal(parsed.nextCostQuoteState, 'withheld');
+    assert.equal(parsed.generationAuthorized, false); assert.equal(parsed.currentAuthorizationVerified, false);
+    const legacy = clone(value);
+    delete legacy.nextMaximumCostKrw; delete legacy.nextCostQuoteState; delete legacy.nextCostQuoteReason;
+    const oldGate = screen(({ kind, reply }) => kind === 'state' ? response(legacy) : reply());
+    await oldGate.load();
+    assert.ok(view.choices().every(button => button.disabled === !oldGate.snapshot().canChoose));
+    assertNextCostReadOnly(view);
+  });
+}
+
+test('next-cost UI: exact equality fits, one micro-won over does not fit, regardless of identical rounded labels', async () => {
+  for (const [amount, prepared] of [['300.000000', true], ['300.000001', false]]) {
+    const value = nextCostUiState(amount);
+    Object.assign(value.budget, { knownActualCostKrw: '9700.000000', committedCostKrw: '9700.000000', remainingBudgetKrw: '300.000000' });
+    const view = mounted(({ kind, reply }) => kind === 'state' ? response(value) : reply());
+    await view.load();
+    assert.equal(nextCostNotices(view)[0].textContent, prepared ? nextCostExpected('ko', '300') : nextCostUiCopy.ko[1]);
+    assert.equal(view.api.parseState(value, { workId: id(1) }).nextMaximumCostKrw, prepared ? amount : null);
+    assertNextCostReadOnly(view);
+  }
+});
+
+for (const flag of ['generationAuthorized', 'currentAuthorizationVerified', 'imageGenerationStarted']) {
+  test(`next-cost UI: a prepared quote never accepts unauthorized true flag ${flag}`, async () => {
+    const value = nextCostUiState(); value[flag] = true;
+    const view = mounted(({ kind, reply }) => kind === 'state' ? response(value) : reply());
+    await view.load();
+    assert.equal(nextCostNotices(view).length, 0); assert.equal(view.choices().length, 0);
+    assert.equal(walk(view.host).find(node => node.id === 'writerBodyTrialState').textContent, view.api.copy.ko.invalid);
+    assert.equal(posts(view).length, 0); assert.equal(view.calls.length, 1);
+  });
+}
+
+const nextCostInvalidate = {
+  account: view => { view.setOwner({ ownerId: id(9), epoch: 2 }); view.window.fire('lumina:authchange'); },
+  epoch: view => { view.setOwner({ ownerId: id(8), epoch: 2 }); view.window.fire('lumina:authchange'); },
+  work: view => { view.work.value = id(9); view.work.fire('change'); },
+  source: view => { view.sourceLocale.value = 'ja'; view.sourceLocale.fire('change'); },
+  language: view => { view.locale('en'); view.window.fire('lumina:localechange'); },
+  hidden: view => { view.host.hidden = true; view.mutate(view.host); },
+  visibility: view => { view.document.visibilityState = 'hidden'; view.document.fire('visibilitychange'); }
+};
+for (const [name, invalidate] of Object.entries(nextCostInvalidate)) {
+  for (const responseKind of ['state', 'preview']) {
+    test(`next-cost UI: stale ${responseKind} response after ${name} cannot restore a quote or dispatch`, async () => {
+      const pending = deferred(), reached = deferred();
+      const view = mounted(({ kind, target, reply }) => {
+        if (kind === responseKind) { reached.resolve(); return pending.promise; }
+        return kind === 'state' ? response(nextCostUiState('300.000000', target.workId)) : reply();
+      });
+      const task = view.load();
+      await reached.promise;
+      assert.ok(view.calls.some(call => call.kind === responseKind));
+      assert.equal(nextCostNotices(view).length, 0);
+      invalidate(view);
+      pending.resolve(response(responseKind === 'state' ? nextCostUiState() : preview()));
+      await task;
+      assert.equal(nextCostNotices(view).length, 0); assert.equal(view.choices().length, 0);
+      assert.equal(posts(view).length, 0); assert.equal(view.refreshAttempts(), 0);
+    });
+  }
+  test(`next-cost UI: current quote and captured choice clear immediately on ${name}`, async () => {
+    const view = mounted(({ kind, reply }) => kind === 'state' ? response(nextCostUiState()) : reply());
+    await view.load(); const oldChoice = view.choices()[0];
+    assert.equal(nextCostNotices(view).length, 1);
+    invalidate(view);
+    assert.equal(nextCostNotices(view).length, 0); await oldChoice.fire('click');
+    assert.equal(posts(view).length, 0); assert.equal(view.refreshAttempts(), 0);
+  });
+}
+
+test('next-cost UI: unknown POST outcome clears the ceiling and receipt verification stays GET-only', async () => {
+  const view = mounted(({ kind, reply }) => kind === 'state' ? response(nextCostUiState())
+    : kind === 'choice' ? Promise.reject(new TypeError('Synthetic lost receipt')) : reply());
+  await view.load(); await view.choices()[0].fire('click');
+  assert.equal(posts(view).length, 1);
+  assert.equal(nextCostNotices(view).length, 0);
+  assert.equal(walk(view.host).find(node => node.id === 'writerBodyTrialState').textContent, view.api.copy.ko.uncertain);
+  await view.retry();
+  assert.equal(posts(view).length, 1);
+  assert.equal(view.calls.filter(call => call.kind === 'receipt').length, 1);
+  assert.equal(view.calls.find(call => call.kind === 'receipt').options.method, 'GET');
+  assert.equal(view.refreshAttempts(), 0);
+});

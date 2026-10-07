@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   Param,
   Patch,
   Post,
@@ -69,6 +70,7 @@ export class MyFanEngagementController {
   constructor(private readonly fanEngagementService: FanEngagementService) {}
 
   @Get('summary')
+  @Header('Cache-Control', 'private, no-store')
   getSummary(@CurrentUser() user: AuthUser, @Query() query: FanEngagementQuery) {
     return this.fanEngagementService.getMySummary(user.id, query);
   }

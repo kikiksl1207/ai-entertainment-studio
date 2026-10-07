@@ -4,6 +4,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
+import { storyChatHistoryPrivacyMiddleware } from './chat/story-chat-history.privacy';
 import { HttpExceptionFilter } from './common/http-exception.filter';
 import { createValidationException } from './common/validation-exception.factory';
 import { configureHttpRouting } from './common/http-routing';
@@ -34,6 +35,7 @@ export async function createApplication() {
   const configService = app.get(ConfigService);
   app.getHttpAdapter().getInstance().set('trust proxy', 1);
   app.use(requestIdMiddleware);
+  app.use(storyChatHistoryPrivacyMiddleware);
   app.use(authorBodyReviewPrivacyMiddleware);
   app.use(generatedEndingReadPrivacyMiddleware);
   app.use(authorBodyTrialReceiptPrivacyMiddleware);

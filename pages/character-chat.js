@@ -20,9 +20,11 @@
     loadPromise: null,
     busy: false,
     uncertain: false,
+    routeInvalidated: false,
     knownMessageIds: new Set(),
     accountKey: null,
     epoch: 0,
+    routeEpoch: 0,
     expiredToken: null,
     expiryToken: null,
     expiryTimer: null,
@@ -146,17 +148,22 @@
   }
 
   function basicChatContext() {
-    return { key: basicChatState.accountKey, epoch: basicChatState.epoch };
+    return { key: basicChatState.accountKey, epoch: basicChatState.epoch, routeEpoch: basicChatState.routeEpoch };
   }
 
   function isBasicChatContextCurrent(context) {
     return Boolean(context?.key && context.key === basicChatState.accountKey &&
-      context.epoch === basicChatState.epoch && basicChatAccountKey() === context.key);
+      context.epoch === basicChatState.epoch && context.routeEpoch === basicChatState.routeEpoch && basicChatAccountKey() === context.key);
   }
 
   function isConversationListContextCurrent(context) {
     return context && context.key === basicChatState.accountKey &&
       context.epoch === basicChatState.epoch && basicChatAccountKey() === context.key;
+  }
+
+  function isCharacterRoomEntryContextCurrent(context) {
+    return isConversationListContextCurrent(context) &&
+      context.routeEpoch === basicChatState.routeEpoch && !basicChatState.routeInvalidated;
   }
 
   function assertBasicChatContext(context) {
@@ -173,6 +180,7 @@
     if (key === basicChatState.accountKey) return false;
     basicChatState.accountKey = key;
     basicChatState.epoch++;
+    basicChatState.routeEpoch++;
     for (const controller of basicChatState.controllers) controller.abort();
     basicChatState.controllers.clear();
     basicChatState.loadPromise = null;
@@ -182,6 +190,7 @@
     basicChatState.uncertain = false;
     basicChatState.uncertainBody = null;
     basicChatState.uncertainKind = null;
+    basicChatState.routeInvalidated = false;
     conversationListState.busyId = null;
     if (!basicChatState.roomSlug) {
       const list = $("chatListItems");
@@ -202,13 +211,11 @@
     if (key && basicChatState.roomSlug) {
       const context = basicChatContext();
       loadBasicChatRoom(basicChatState.roomSlug, context).then(() => {
-        if (basicChatState.epoch === context.epoch && !basicChatState.busy && !basicChatState.uncertain) setBasicChatStatus(null);
+        if (isBasicChatContextCurrent(context) && !basicChatState.busy && !basicChatState.uncertain) setBasicChatStatus(null);
       }).catch(error => {
-        if (basicChatState.epoch === context.epoch && !basicChatState.busy && !error?.chatAuthChanged) {
-          const routeChanged = error?.status === 409 &&
-            (error?.body?.code || error?.body?.error?.code) === "STORY_CHAT_ROUTE_CHANGED";
-          if (routeChanged) renderBasicMessages([]);
-          setBasicChatStatus(routeChanged ? "routeChanged" : error?.chatReason || "loadError", "error");
+        if (isBasicChatContextCurrent(context) && !basicChatState.busy && !error?.chatAuthChanged) {
+          if (isBasicStoryRouteChanged(error)) invalidateBasicStoryRoute();
+          else setBasicChatStatus(error?.chatReason || "loadError", "error");
         }
       });
       void loadPremiumRoomDetailState(basicChatState.roomSlug, context);
@@ -449,7 +456,7 @@
   function renderWelcomeBubble(slug, artist) {
     const bubble = $("chatWelcomeBubble");
     if (!bubble) return;
-    if (!slug) {
+    if (!slug || basicChatState.routeInvalidated) {
       bubble.hidden = true;
       return;
     }
@@ -643,6 +650,7 @@
   }
 
   async function fetchStarterPrompts(slug, context = basicChatContext()) {
+    if (!isCharacterRoomEntryContextCurrent(context)) return null;
     if (!slug) {
       setFallback("아티스트 정보가 없어 추천 인사말을 불러오지 못했어요. 아티스트 목록에서 다시 들어와 주세요.");
       // slug 없음 — tone 도 모르니 generic fallback 그대로 유지
@@ -676,9 +684,9 @@
         `/api/v1/chat/starter-prompts?artistSlug=${encodeURIComponent(slug)}`,
         { auth: true, throwOnError: true }
       );
-      return isConversationListContextCurrent(context) ? data : null;
+      return isCharacterRoomEntryContextCurrent(context) ? data : null;
     } catch (error) {
-      if (!isConversationListContextCurrent(context)) return null;
+      if (!isCharacterRoomEntryContextCurrent(context)) return null;
       // 401/403/404/기타 — fallback 5종을 보여주고 안내만 표시
       if (error?.status === 401 || error?.status === 403) {
         setFallback("로그인하면 아티스트 맞춤 첫 인사를 받을 수 있어요. 지금은 추천 인사말을 먼저 보여드릴게요.");
@@ -746,7 +754,7 @@
     const input = $("chatInput");
     const button = $("chatSendBtn");
     if (!input || !button) return;
-    button.disabled = basicChatState.busy || basicChatState.uncertain || !input.value.trim() || input.value.trim().length > 500;
+    button.disabled = basicChatState.busy || basicChatState.uncertain || basicChatState.routeInvalidated || !input.value.trim() || input.value.trim().length > 500;
     button.setAttribute("aria-disabled", String(button.disabled));
     button.title = basicChatCopy("send");
   }
@@ -769,6 +777,32 @@
   function showBasicChatCheck(show) {
     const button = $("chatCheckMessages");
     if (button) button.hidden = !show;
+  }
+
+  function isBasicStoryRouteChanged(error) {
+    return error?.status === 409 &&
+      (error?.body?.code || error?.body?.error?.code) === "STORY_CHAT_ROUTE_CHANGED";
+  }
+
+  function invalidateBasicStoryRoute() {
+    if (basicChatState.routeInvalidated) return;
+    basicChatState.routeInvalidated = true;
+    // Retire pending responses as well as the visible transcript; keep the draft.
+    basicChatState.routeEpoch++;
+    for (const controller of basicChatState.controllers) controller.abort();
+    basicChatState.controllers.clear();
+    basicChatState.loadPromise = null;
+    basicChatState.sessionId = null;
+    basicChatState.knownMessageIds = new Set();
+    basicChatState.uncertain = false;
+    basicChatState.uncertainBody = null;
+    basicChatState.uncertainKind = null;
+    renderBasicMessages([]);
+    const welcome = $("chatWelcomeBubble");
+    if (welcome) welcome.hidden = true;
+    showBasicChatCheck(false);
+    setBasicChatBusy(false);
+    setBasicChatStatus("routeChanged", "error");
   }
 
   function basicChatStoryProgressId() {
@@ -922,7 +956,7 @@
 
   async function checkBasicChatMessages() {
     syncBasicChatAccount();
-    if (!basicChatState.uncertain || basicChatState.busy) return;
+    if (!basicChatState.uncertain || basicChatState.busy || basicChatState.routeInvalidated) return;
     const context = basicChatContext();
     setBasicChatBusy(true);
     setBasicChatStatus("checking");
@@ -947,8 +981,11 @@
       } else {
         setBasicChatStatus("stillUncertain", "error");
       }
-    } catch (_) {
-      if (isBasicChatContextCurrent(context)) setBasicChatStatus("stillUncertain", "error");
+    } catch (error) {
+      if (isBasicChatContextCurrent(context)) {
+        if (isBasicStoryRouteChanged(error)) invalidateBasicStoryRoute();
+        else setBasicChatStatus("stillUncertain", "error");
+      }
     } finally {
       if (isBasicChatContextCurrent(context)) setBasicChatBusy(false);
     }
@@ -977,6 +1014,13 @@
   function bindBasicChatComposer(slug) {
     const form = $("chatInputForm");
     if (!form) return;
+    if (typeof ResizeObserver === "function") {
+      const dockObserver = new ResizeObserver(() => {
+        const space = Math.max(80, Math.ceil(form.getBoundingClientRect().height) + 16);
+        document.documentElement.style.setProperty("--chat-dock-space", space + "px");
+      });
+      dockObserver.observe(form);
+    }
     const input = $("chatInput");
     const check = $("chatCheckMessages");
     const note = $("chatBasicNote");
@@ -998,7 +1042,7 @@
       event.preventDefault();
       syncBasicChatAccount();
       const body = input.value.trim();
-      if (!body || body.length > 500 || basicChatState.busy || basicChatState.uncertain) return;
+      if (!body || body.length > 500 || basicChatState.busy || basicChatState.uncertain || basicChatState.routeInvalidated) return;
       if (!basicChatState.accountKey) {
         setBasicChatStatus("login", "error");
         if (typeof openAuthModal === "function") openAuthModal("login", { returnTo: { href: window.location.pathname + window.location.search, label: "캐릭터 채팅" } });
@@ -1056,9 +1100,8 @@
           basicChatState.uncertainKind = generationStarted ? "generate" : "create";
           showBasicChatCheck(true);
           setBasicChatStatus("uncertain", "error");
-        } else if (error?.status === 409 &&
-            (error?.body?.code || error?.body?.error?.code) === "STORY_CHAT_ROUTE_CHANGED") {
-          setBasicChatStatus("routeChanged", "error");
+        } else if (isBasicStoryRouteChanged(error)) {
+          invalidateBasicStoryRoute();
         } else if (error?.status === 409 &&
             (error?.body?.code || error?.body?.error?.code) === "STORY_CHAT_MEMORY_CHANGED") {
           setBasicChatStatus("memoryChanged", "error");
@@ -1282,28 +1325,29 @@
    * 응답 스키마(greeting/status/starterOptions/directInput/tone/policy)를 chatTones 와 동일 키로 매핑.
    * 실패 시 null 을 반환하면 호출자는 로컬 fallback (chatTones) 으로 떨어진다.
    * mutation 없음. read-only GET. */
-  async function fetchCharacterCatalog(slug) {
-    if (!slug) return null;
+  async function fetchCharacterCatalog(slug, context = basicChatContext()) {
+    if (!slug || !chatAuthToken() || !isCharacterRoomEntryContextCurrent(context)) return null;
     if (typeof apiFetch !== "function") return null;
     try {
       const data = await apiFetch(
         "/api/v1/chat/character-catalog?artistSlug=" + encodeURIComponent(slug),
-        { auth: false, throwOnError: true }
+        { auth: true, throwOnError: true }
       );
-      if (!data || typeof data !== "object") return null;
+      if (!isCharacterRoomEntryContextCurrent(context)) return null;
+      const record = value => value !== null && typeof value === "object" && !Array.isArray(value);
+      const text = value => typeof value === "string" && value.trim() ? value.trim() : null;
+      if (!record(data) || !record(data.status) || !record(data.greeting)) return null;
+      const label = text(data.status.labelKo), description = text(data.status.descriptionKo), greeting = text(data.greeting.text);
+      if (!label || !description || !greeting) return null;
       // 응답에서 톤만 추려서 chatTones 형태로 정규화
       return {
-        statusLine: data.status || data.statusLine || null,
-        welcomeMessage: data.greeting || data.welcomeMessage || null,
-        lastMessagePreview: data.greetingPreview || data.lastMessagePreview || data.greeting || null,
+        statusLine: label + " · " + description,
+        welcomeMessage: greeting,
+        lastMessagePreview: greeting,
         starters: Array.isArray(data.starterOptions)
-          ? data.starterOptions.slice(0, STARTER_MAX).map((opt, idx) => ({
-              key: opt.key || String.fromCharCode(65 + idx),
-              label: opt.label || ("선택지 " + (idx + 1)),
-              message: opt.message || opt.text || ""
-            }))
-          : null,
-        policy: data.policy || null
+          ? data.starterOptions.slice(0, STARTER_MAX).filter(opt => record(opt) && text(opt.key) && text(opt.label) && typeof opt.message === "string")
+            .map(opt => ({ key: text(opt.key), label: text(opt.label), message: opt.message }))
+          : null
       };
     } catch (_) {
       /* 404/네트워크 실패: 로컬 fallback 사용 */
@@ -2247,8 +2291,8 @@
     const entryContext = basicChatContext();
 
     // #226 character-catalog 백엔드 머지되면 자동으로 캐릭터별 톤이 덮어쓰여짐.
-    fetchCharacterCatalog(slug).then((catalogTone) => {
-      if (!catalogTone || !isConversationListContextCurrent(entryContext)) return;
+    fetchCharacterCatalog(slug, entryContext).then((catalogTone) => {
+      if (!catalogTone || !isCharacterRoomEntryContextCurrent(entryContext)) return;
       const chars = (window.LuminaStaticData && window.LuminaStaticData.characters) || [];
       const character = chars.find(c => c && c.slug === slug) || null;
       if (catalogTone.statusLine) setText("chatHeroSummary", catalogTone.statusLine);
@@ -2266,7 +2310,7 @@
 
     if (isMuted(slug)) return;
     const data = await fetchStarterPrompts(slug, entryContext);
-    if (data && isConversationListContextCurrent(entryContext)) applyStarterResponse(slug, data);
+    if (data && isCharacterRoomEntryContextCurrent(entryContext)) applyStarterResponse(slug, data);
   }
 
   if (document.readyState === "loading") {

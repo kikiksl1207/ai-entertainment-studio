@@ -328,12 +328,12 @@
             <svg viewBox="0 0 24 24" aria-hidden="true" width="22" height="22"><path d="M3.5 11.5L20 4l-7.4 16-2-7.4z" fill="currentColor"/></svg>
             <span class="sr-only">보내기</span>
           </button>
+          <div class="dm-send-feedback" role="status" aria-live="polite">
+            <p id="chatSendStatus"></p>
+            <button type="button" id="chatCheckMessages" hidden>메시지 확인</button>
+          </div>
         </form>
         <p class="dm-foot-note" id="chatBasicNote">기본 대화 · 답변 생성에는 시간이 걸릴 수 있어요.</p>
-        <div class="dm-send-feedback" role="status" aria-live="polite">
-          <p id="chatSendStatus"></p>
-          <button type="button" id="chatCheckMessages" hidden>메시지 확인</button>
-        </div>
         <!-- #343 — 좁은 화면에서 한 문단이 길게 줄바뀜되지 않게 짧은 문장 두 개로 분리. -->
         <p class="dm-foot-note dm-foot-rankings">
           소통/후원 랭킹: <a class="text-link" href="/chat-rankings">소통·후원 랭킹</a>

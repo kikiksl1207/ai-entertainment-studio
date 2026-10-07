@@ -1,3 +1,4 @@
+import { rethrowAdminAssetConflict } from './admin-asset-conflict.policy';
 import {
   BadRequestException,
   ConflictException,
@@ -4472,7 +4473,7 @@ export class AdminService {
 
       await this.recordAssetAllocation(tx, user, 'asset.create', asset);
       return { ...asset, fileSizeBytes: asset.fileSizeBytes?.toString() ?? null };
-    });
+    }).catch(rethrowAdminAssetConflict);
   }
 
   async createAssetUploadIntent(user: AuthUser, input: AdminPayload) {
@@ -4535,7 +4536,7 @@ export class AdminService {
 
       await this.recordAssetAllocation(tx, user, 'asset.upload_intent.create', asset);
       return result;
-    });
+    }).catch(rethrowAdminAssetConflict);
   }
 
   private recordAssetAllocation(tx: Prisma.TransactionClient, user: AuthUser, action: string,

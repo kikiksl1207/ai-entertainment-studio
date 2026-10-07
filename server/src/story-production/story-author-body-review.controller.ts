@@ -44,6 +44,12 @@ export class StoryAuthorBodyReviewController {
     return this.reviews.current(user.id, workId, new URL(req.url, 'http://localhost').searchParams.get('locale')!);
   }
 
+  @Get('memory-preparation')
+  @Header('Cache-Control', 'private, no-store')
+  memoryPreparation(@CurrentUser() user: AuthUser, @Param('workId', ParseUUIDPipe) workId: string, @Req() req: { url: string }) {
+    return this.reviews.memoryPreparation(user.id, workId, new URL(req.url, 'http://localhost').searchParams.get('locale')!);
+  }
+
   @Post()
   @Header('Cache-Control', 'private, no-store')
   review(@CurrentUser() user: AuthUser, @Param('workId', ParseUUIDPipe) workId: string,

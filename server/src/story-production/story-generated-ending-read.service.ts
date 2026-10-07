@@ -7,6 +7,8 @@ import { ConfirmStoryGeneratedEndingReadDto, StoryGeneratedEndingReadQueryDto } 
 import { StoryProductionService } from './story-production.service';
 import { isPublicStorySourceSafe, STORY_LOCALES } from './story-production.policy';
 import { validCanonicalStoryText } from './story-canonical-source.policy';
+import { currentApprovedStoryVisual } from './story-approved-visual-context.policy';
+import { parseContinuationGenerationProfilePin } from './story-continuation-context.policy';
 
 const HASH = /^[a-f0-9]{64}$/;
 const ACTION = 'story.generated_ending_read.confirmed';
@@ -41,6 +43,23 @@ export class StoryGeneratedEndingReadService {
       this.changed('STORY_GENERATED_ENDING_READ_DELIVERY_UNAVAILABLE');
     }
     return { ...page, scene };
+  }
+
+  private async artwork(db: Prisma.TransactionClient,
+    page: Awaited<ReturnType<StoryGeneratedEndingReadService['delivery']>>, lock: boolean) {
+    const background = record(record(page.scene.visualManifest).background);
+    const path = typeof background.publicAssetPath === 'string' ? background.publicAssetPath : '';
+    const id = path.startsWith('/api/v1/story-visual-assets/') ? path.slice('/api/v1/story-visual-assets/'.length) : '';
+    if (background.state !== 'ready' || id.length !== 36 || !isUUID(id)) this.changed('STORY_GENERATED_ENDING_READ_ARTWORK_CHANGED');
+    // A ready projection is not enough: the asset can be withdrawn before receipt persistence.
+    if (lock) await db.$queryRaw(Prisma.sql`SELECT id FROM assets WHERE id = ${id}::uuid FOR SHARE`);
+    const asset = await db.asset.findFirst({ where: { id, assetType: 'image', visibility: 'public',
+      mimeType: 'image/webp', checksum: { not: null } },
+      select: { id: true, checksum: true, storageProvider: true, storageKey: true, metadata: true } });
+    const lifecycle = record(asset?.metadata).lifecycle;
+    if (!asset || !HASH.test(asset.checksum!) ||
+      (lifecycle !== undefined && record(lifecycle).status !== 'active')) this.changed('STORY_GENERATED_ENDING_READ_ARTWORK_CHANGED');
+    return hash([asset!.id, asset!.checksum, asset!.storageProvider, asset!.storageKey, asset!.metadata]);
   }
 
   private async source(db: Prisma.TransactionClient, userId: string, progressId: string,
@@ -78,6 +97,19 @@ export class StoryGeneratedEndingReadService {
     if (!scene || !part || !origin || origin.sourcePartId !== scene.sourcePartId || !HASH.test(scene.resultChecksum) || origin.releaseChecksum !== release!.checksum ||
       origin.manuscriptVersionId !== manuscript!.id || part.actNumber !== progress.currentAct ||
       !['ai_generated', 'ai_reused'].includes(scene.provenance)) this.changed();
+    // Approval reads made before this transaction cannot protect a later consent withdrawal.
+    if (lock) await db.$queryRaw(Prisma.sql`SELECT id FROM story_style_profile_consents
+      WHERE work_id = ${work!.id}::uuid FOR SHARE`);
+    const approval = await currentApprovedStoryVisual(db, work!, manuscript!.id).catch(error => {
+      if (error instanceof ConflictException) this.changed('STORY_GENERATED_ENDING_READ_ARTWORK_CHANGED');
+      throw error;
+    });
+    let boundPin, currentPin;
+    try {
+      boundPin = parseContinuationGenerationProfilePin(record(origin!.contextReferences).generationProfilePin);
+      currentPin = parseContinuationGenerationProfilePin(approval?.approvalIdentity as Prisma.JsonValue | undefined);
+    } catch { this.changed('STORY_GENERATED_ENDING_READ_ARTWORK_CHANGED'); }
+    if (hash(boundPin ?? null) !== hash(currentPin ?? null)) this.changed('STORY_GENERATED_ENDING_READ_ARTWORK_CHANGED');
     if (await db.storyAiGeneratedChoice.count({ where: { sceneId: scene!.id } })) this.changed();
     if (lock) await db.$queryRaw(Prisma.sql`SELECT id FROM story_progress_route_nodes
       WHERE id = ${progress.routeNodeId!}::uuid AND progress_id = ${progressId}::uuid FOR SHARE`);
@@ -115,6 +147,7 @@ export class StoryGeneratedEndingReadService {
       (typeof beat.content === 'string' ? beat.content : record(beat.content).value) !== record(beats[index].content)[query.locale])) this.changed();
     const sourceTextHash = hash(beats.filter(beat => beat.position >= query.fromPosition).map(beat => [beat.id, beat.position,
       (record(beat.content)[query.locale] as string).replace(/\\r\\n|\\n|\\r/gu, '\n')]));
+    const artworkHash = await this.artwork(db, page, lock);
     // Cursor revisions gate the command, but ordinary pagination must not erase an unchanged read receipt.
     const scopeChecksum = hash({ contract: 'story-generated-ending-read-scope-v1', userId, progressId,
       workId: work!.id, ownerUserId: work!.ownerUserId, releaseId: release!.id, releaseChecksum: release!.checksum,
@@ -122,7 +155,8 @@ export class StoryGeneratedEndingReadService {
       sceneId: scene!.id, partId: part!.id, actNumber: part!.actNumber, sceneChecksum: scene!.resultChecksum, originId: origin!.id,
       routeId: route!.id, routeHash: route!.routeHash, arrivalHash: hash(arrival), pathHash: hash(progress.pathSummary),
       bodyHash: hash(beats.map(beat => [beat.id, beat.position, beat.beatType, beat.content])),
-      visualHash: hash(page.scene!.visualManifest), locale: query.locale, fromPosition: query.fromPosition,
+      visualHash: hash(page.scene!.visualManifest), artworkHash, authorVisualApprovalHash: approval?.fingerprint ?? null,
+      locale: query.locale, fromPosition: query.fromPosition,
       throughPosition, sourceTextHash });
     return { userId, progressId, workId: work!.id, sceneId: scene!.id, locale: query.locale, fromPosition: query.fromPosition,
       throughPosition, expectedRevision: progress.progressRevision, scopeChecksum, sourceTextHash };
