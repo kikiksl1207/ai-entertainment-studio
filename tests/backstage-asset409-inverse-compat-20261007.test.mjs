@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import { sourceWithoutAsset409Delta } from './support/backstage-asset409-inverse-compat-20261007.mjs';
 
 const currentBytes = readFileSync(new URL('../backstage.js', import.meta.url));
-const current = currentBytes.toString('utf8');
+const current = currentBytes.toString('utf8').replace(/\r\n/g, '\n');
 const fixture = JSON.parse(readFileSync(
   new URL('./fixtures/backstage-asset409-exact3-delta-20261007.json', import.meta.url), 'utf8'));
 const branch = fixture.afterFullText;
@@ -14,7 +14,7 @@ const rejects = (source, message, delta) => assert.throws(
   () => sourceWithoutAsset409Delta(source, delta), { name: 'AssertionError', message });
 
 test('asset409 inverse: exact current branch restores the complete operating080 source pin', () => {
-  assert.equal(sha(currentBytes), '1843ebacfa7779c72756263196e930c2b8a45d5211bca617fa3d7f629bbfb409');
+  assert.equal(sha(current), '1843ebacfa7779c72756263196e930c2b8a45d5211bca617fa3d7f629bbfb409');
   assert.equal(current.split(branch).length - 1, 1);
   assert.equal(branch.split('\n').length - 1, 3);
   assert.equal(Buffer.byteLength(branch), 177);
@@ -54,7 +54,7 @@ test('asset409 inverse: rejects unrelated trailing-byte drift with the branch st
 test('asset409 inverse: rejects same-length unrelated source drift', () => {
   const drift = current.replace('function backstageUserFacingError(', 'function backstageUserFacingErr0r(');
   assert.notEqual(drift, current);
-  assert.equal(Buffer.byteLength(drift), currentBytes.length);
+  assert.equal(Buffer.byteLength(drift), Buffer.byteLength(current));
   assert.equal(drift.split(branch).length - 1, 1);
   rejects(drift, /Exact asset409 current full-source SHA256/);
 });
@@ -77,4 +77,20 @@ test('asset409 inverse: rejects coordinated branch and full-source fixture repin
   rejects(drift, /Exact asset409 inverse fixture pins/, {
     ...fixture, afterFullText: changedBranch, branchSHA256: sha(changedBranch), afterSHA256: sha(drift),
   });
+});
+
+test('asset409 inverse: CRLF checkout restores the same pinned Git baseline', () => {
+  const crlf = current.replace(/\n/g, '\r\n');
+  assert.equal(sha(sourceWithoutAsset409Delta(crlf)), fixture.beforeSHA256);
+});
+
+test('asset409 inverse: CRLF checkout still rejects an unrelated extra line', () => {
+  rejects(current.replace(/\n/g, '\r\n') + '\r\n', /Exact asset409 current full-source SHA256/);
+});
+
+test('asset409 inverse: CRLF normalization does not remove lone content CR', () => {
+  const drift = current.replace(/\n/g, '\r\n')
+    .replace('function backstageUserFacingError(', 'function\r backstageUserFacingError(');
+  assert.notEqual(drift.replace(/\r\n/g, '\n'), current);
+  rejects(drift, /Exact asset409 current full-source SHA256/);
 });

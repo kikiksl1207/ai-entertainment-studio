@@ -17,6 +17,8 @@ const fixture = Object.freeze(JSON.parse(readFileSync(
 const sha = source => createHash('sha256').update(source).digest('hex');
 
 export function sourceWithoutAsset409Delta(source, delta = fixture) {
+  // Check canonical Git bytes, preserving every difference except checkout CRLF.
+  source = source.replace(/\r\n/g, '\n');
   assert.deepEqual(delta, pinned, 'Exact asset409 inverse fixture pins');
   assert.equal(sha(delta.afterFullText), pinned.branchSHA256, 'Exact asset409 three-line branch SHA256');
   assert.equal(delta.afterFullText.split('\n').length - 1, 3, 'Exact asset409 added line count');
@@ -24,6 +26,6 @@ export function sourceWithoutAsset409Delta(source, delta = fixture) {
   assert.equal(source.split(anchoredBranch).length - 1, 1, 'Exact asset409 branch count');
   assert.equal(sha(source), pinned.afterSHA256, 'Exact asset409 current full-source SHA256');
   const restored = source.replace(anchoredBranch, '\n' + delta.beforeFullText);
-  assert.equal(sha(restored), pinned.beforeSHA256, 'Every original080 byte restored before finance/classification inverse');
+  assert.equal(sha(restored), pinned.beforeSHA256, 'Every original080 Git byte restored before finance/classification inverse');
   return restored;
 }
