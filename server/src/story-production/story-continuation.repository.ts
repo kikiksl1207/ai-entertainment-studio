@@ -21,12 +21,21 @@ export class StoryContinuationDispatchAuthorizationChanged extends Error {
   }
 }
 
+export class StoryContinuationDispatchLeaseInsufficient extends Error {
+  readonly code = 'dispatch_lease_insufficient';
+
+  constructor() {
+    super('Story AI continuation dispatch lease has insufficient time');
+  }
+}
+
 export abstract class StoryContinuationQueueRepository {
   abstract claimExpiredTerminal(workerId: string, leaseMs: number): Promise<StoryContinuationClaim | null>;
   abstract claimNext(workerId: string, leaseMs: number): Promise<StoryContinuationClaim | null>;
   abstract markDispatched(
     claim: StoryContinuationClaim,
     authorize: (tx: Prisma.TransactionClient) => Promise<boolean>,
+    minimumRemainingMs?: number,
   ): Promise<void>;
   abstract releaseNotAcceptedForRetry(claim: StoryContinuationClaim, retryAt: Date): Promise<void>;
   abstract releaseForRetry(
@@ -167,22 +176,44 @@ export class PrismaStoryContinuationQueueRepository extends StoryContinuationQue
   async markDispatched(
     claim: StoryContinuationClaim,
     authorize: (tx: Prisma.TransactionClient) => Promise<boolean>,
+    minimumRemainingMs = 0,
   ): Promise<void> {
+    if (!Number.isSafeInteger(minimumRemainingMs) || minimumRemainingMs < 0 || minimumRemainingMs > 300_000) {
+      throw new RangeError('Story AI continuation dispatch minimum time is invalid');
+    }
     // Approval locks and the fence commit together, then release before any HTTP request.
     const dispatched = await this.prisma.$transaction(async tx => {
-      if (!await authorize(tx)) return false;
+      if (!await authorize(tx)) return 'authorization_changed' as const;
+      if (minimumRemainingMs > 0) {
+        const rows = await tx.$queryRaw<{ lease_has_room: boolean }[]>(Prisma.sql`
+          SELECT lease_expires_at >= clock_timestamp() +
+            (${minimumRemainingMs}::double precision * INTERVAL '1 millisecond') AS lease_has_room
+          FROM story_ai_continuations
+          WHERE id = ${claim.continuationId}::uuid AND status = 'processing'
+            AND request_kind = 'recommended_choice'
+            AND lease_token = ${claim.leaseToken} AND attempt_count = ${claim.attemptCount}
+            AND lease_expires_at > clock_timestamp() AND dispatch_started_at IS NULL
+          FOR UPDATE
+        `);
+        if (rows.length !== 1) throw new ConflictException('Story AI continuation dispatch lease is stale');
+        if (rows[0].lease_has_room === false) return 'lease_insufficient' as const;
+        if (rows[0].lease_has_room !== true) throw new ConflictException('Story AI continuation dispatch time is unavailable');
+      }
       const updated = await tx.$executeRaw(Prisma.sql`
         UPDATE story_ai_continuations SET dispatch_started_at = clock_timestamp()
         WHERE id = ${claim.continuationId}::uuid AND status = 'processing'
           AND request_kind = 'recommended_choice'
           AND lease_token = ${claim.leaseToken} AND attempt_count = ${claim.attemptCount}
           AND lease_expires_at > clock_timestamp() AND dispatch_started_at IS NULL
+          AND lease_expires_at >= clock_timestamp() +
+            (${minimumRemainingMs}::double precision * INTERVAL '1 millisecond')
       `);
       if (updated !== 1) throw new ConflictException('Story AI continuation dispatch lease is stale');
-      return true;
+      return 'dispatched' as const;
     });
     // Only a confirmed transaction with no fence may report a definite pre-provider rejection.
-    if (!dispatched) throw new StoryContinuationDispatchAuthorizationChanged();
+    if (dispatched === 'authorization_changed') throw new StoryContinuationDispatchAuthorizationChanged();
+    if (dispatched === 'lease_insufficient') throw new StoryContinuationDispatchLeaseInsufficient();
   }
 
   async releaseNotAcceptedForRetry(claim: StoryContinuationClaim, retryAt: Date): Promise<void> {

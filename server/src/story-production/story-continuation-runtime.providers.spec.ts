@@ -7,6 +7,7 @@ import { StoryContinuationExecutor } from './story-continuation.executor';
 import { StoryContinuationWorker } from './story-continuation.worker';
 import {
   STORY_CONTINUATION_OPENAI_PROVIDER,
+  STORY_CONTINUATION_TIMING_PROVIDER,
   STORY_CONTINUATION_WORKER_PROVIDER,
 } from './story-continuation-runtime.providers';
 
@@ -14,6 +15,7 @@ describe('story continuation runtime factory wiring', () => {
   it('registers the opt-in factories in the production module', () => {
     const providers = Reflect.getMetadata(MODULE_METADATA.PROVIDERS, StoryProductionModule);
     expect(providers).toContain(STORY_CONTINUATION_OPENAI_PROVIDER);
+    expect(providers).toContain(STORY_CONTINUATION_TIMING_PROVIDER);
     expect(providers).toContain(STORY_CONTINUATION_WORKER_PROVIDER);
     expect(providers.filter((entry: any) => entry.provide === StoryContinuationProvider)).toHaveLength(1);
   });
@@ -24,6 +26,7 @@ describe('story continuation runtime factory wiring', () => {
       { provide: ConfigService, useValue: { get: () => undefined } },
       { provide: StoryContinuationExecutor, useValue: executor },
       STORY_CONTINUATION_OPENAI_PROVIDER,
+      STORY_CONTINUATION_TIMING_PROVIDER,
       STORY_CONTINUATION_WORKER_PROVIDER,
     ] }).compile();
     await module.init();

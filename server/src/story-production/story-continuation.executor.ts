@@ -1,4 +1,4 @@
-import { Injectable, Logger, Optional } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { ModerationService } from '../moderation/moderation.service';
 import { StoryEconomicsService } from './story-economics.service';
 import {
@@ -10,6 +10,7 @@ import {
 import {
   StoryContinuationQueueRepository,
   StoryContinuationDispatchAuthorizationChanged,
+  StoryContinuationDispatchLeaseInsufficient,
 } from './story-continuation.repository';
 import { StoryContinuationContextAssembler } from './story-continuation-context.assembler';
 import { StoryContinuationContextError } from './story-continuation-context.assembler';
@@ -24,19 +25,20 @@ import {
   StoryContinuationLengthPolicyError,
   validateStoryContinuationNarrativeLength,
 } from './story-continuation-length.policy';
-import { createStoryContinuationTimingPolicy } from './story-continuation-timing.policy';
+import { assertStoryContinuationTimingPolicy, createStoryContinuationTimingPolicy,
+  type StoryContinuationTimingPolicy } from './story-continuation-timing.policy';
+import { STORY_CONTINUATION_TIMING_POLICY } from './story-continuation-timing.config';
 import { StoryVisualGenerationService } from './story-visual-generation.service';
 import { PREVIOUS_STORY_CONTINUATION_PROMPT_VERSION, STORY_CONTINUATION_PROMPT_VERSION } from './story-continuation-openai.schema';
 import { assertStoryContinuationQuality } from './story-continuation-quality.policy';
 import { StoryAuthorBodyReviewService } from './story-author-body-review.service';
 
 const CONTINUATION_TIMING = createStoryContinuationTimingPolicy();
-const PROVIDER_TIMEOUT_MS = CONTINUATION_TIMING.executorDeadlineMs;
-const LEASE_MS = CONTINUATION_TIMING.leaseMs;
 
 @Injectable()
 export class StoryContinuationExecutor {
   private readonly logger = new Logger(StoryContinuationExecutor.name);
+  private readonly timing: StoryContinuationTimingPolicy;
 
   constructor(
     private readonly queue: StoryContinuationQueueRepository,
@@ -46,11 +48,15 @@ export class StoryContinuationExecutor {
     private readonly moderation: ModerationService,
     @Optional() private readonly visuals?: StoryVisualGenerationService,
     @Optional() private readonly bodyReviews?: StoryAuthorBodyReviewService,
-  ) {}
+    @Optional() @Inject(STORY_CONTINUATION_TIMING_POLICY) timing: StoryContinuationTimingPolicy = CONTINUATION_TIMING,
+  ) {
+    assertStoryContinuationTimingPolicy(timing);
+    this.timing = Object.freeze({ ...timing });
+  }
 
   async executeOne(workerId: string, signal?: AbortSignal) {
     if (signal?.aborted) return { status: 'cancelled' as const };
-    const expired = await this.queue.claimExpiredTerminal(workerId, LEASE_MS);
+    const expired = await this.queue.claimExpiredTerminal(workerId, this.timing.leaseMs);
     if (expired) {
       const unknown = Boolean(expired.dispatchStartedAt);
       await this.economics.failClaimedContinuation(expired,
@@ -63,7 +69,7 @@ export class StoryContinuationExecutor {
     if (!readiness.enabled) {
       return { status: 'disabled' as const, reason: readiness.reason ?? 'provider_not_ready' };
     }
-    const claim = await this.queue.claimNext(workerId, LEASE_MS);
+    const claim = await this.queue.claimNext(workerId, this.timing.leaseMs);
     if (!claim) return { status: 'idle' as const };
     let providerStarted = false;
     let fenceAttempted = false;
@@ -98,7 +104,8 @@ export class StoryContinuationExecutor {
       throwIfCancelled(signal);
       fenceAttempted = true;
       await this.queue.markDispatched(claim,
-        tx => this.economics.continuationDispatchAuthorization(tx, claim));
+        tx => this.economics.continuationDispatchAuthorization(tx, claim),
+        this.timing.executorDeadlineMs + this.timing.settlementMs + this.timing.clockMarginMs);
       if (signal?.aborted) throw new StoryContinuationProviderError('provider_outcome_unknown', false);
       providerStarted = true;
       const providerResult = await runWithAbortTimeout(
@@ -106,7 +113,7 @@ export class StoryContinuationExecutor {
           request,
           signal,
         ),
-        PROVIDER_TIMEOUT_MS,
+        this.timing.executorDeadlineMs,
         signal,
       );
       measuredUsage = storyContinuationMeasuredUsage(providerResult?.usage);
@@ -177,6 +184,7 @@ export class StoryContinuationExecutor {
       }
       // A settlement/database error after generation must not replay a potentially paid call.
       if (fenceAttempted && !(error instanceof StoryContinuationDispatchAuthorizationChanged) &&
+          !(error instanceof StoryContinuationDispatchLeaseInsufficient) &&
           (!providerStarted || providerError.retryable) &&
           !(providerStarted && providerError.code === 'provider_rate_limited')) {
         providerError = new StoryContinuationProviderError('provider_outcome_unknown', false);
@@ -190,7 +198,7 @@ export class StoryContinuationExecutor {
         }
         return { status: 'retry_wait' as const, continuationId: claim.continuationId };
       }
-      if (!fenceAttempted && preflightRejected) {
+      if ((!fenceAttempted && preflightRejected) || error instanceof StoryContinuationDispatchLeaseInsufficient) {
         await this.economics.failClaimedContinuation(claim, providerError.code, 'failed', undefined, true);
       } else {
         await this.economics.failClaimedContinuation(
@@ -245,6 +253,9 @@ function normalizeProviderError(error: unknown) {
     return new StoryContinuationProviderError(code, false);
   }
   if (error instanceof StoryContinuationDispatchAuthorizationChanged) {
+    return new StoryContinuationProviderError(error.code, false);
+  }
+  if (error instanceof StoryContinuationDispatchLeaseInsufficient) {
     return new StoryContinuationProviderError(error.code, false);
   }
   if (error instanceof StoryContinuationContextError) {

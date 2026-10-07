@@ -5,6 +5,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { StoryAuthorBodyTrialCostService } from './story-author-body-trial-cost.service';
 import { StoryAuthorBodyTrialBudgetError, summarizeApprovedAuthorBodyTrialCosts } from './story-author-body-trial-budget.policy';
 import { continuationGenerationProfileSnapshot } from './story-continuation-context.policy';
+import { StoryAuthorBodyTrialUnknownHoldError } from './story-author-body-trial-unknown-hold.policy';
+import { AUTHOR_BODY_TRIAL_UNKNOWN_HOLD_PROPERTY } from './story-author-body-trial-unknown-hold-proof';
 
 type NextCostQuote = { nextMaximumCostKrw: string | null; nextCostQuoteState: 'prepared' | 'withheld';
   nextCostQuoteReason: string | null };
@@ -48,9 +50,10 @@ export class StoryAuthorBodyTrialStateService {
         approval.approvedBudgetKrw.lte(0) || approval.approvedBudgetKrw.gt(10000)) {
         throw new ConflictException({ code: 'STORY_AUTHOR_BODY_TRIAL_STATE_UNAVAILABLE' });
       }
-      let summary;
+      let summary, snapshot;
       try {
-        summary = summarizeApprovedAuthorBodyTrialCosts(await this.costs.snapshotTx(tx, userId, workId), approval);
+        snapshot = await this.costs.snapshotTx(tx, userId, workId);
+        summary = summarizeApprovedAuthorBodyTrialCosts(snapshot, approval);
       } catch (error) {
         if (!(error instanceof StoryAuthorBodyTrialBudgetError)) throw error;
         throw new ConflictException({ code: 'STORY_AUTHOR_BODY_TRIAL_COST_EVIDENCE_INCOMPLETE' });
@@ -58,17 +61,46 @@ export class StoryAuthorBodyTrialStateService {
       const remaining = approval.approvedBudgetKrw.minus(summary.committedCostKrw);
       const known = summary.unknownCostCount === 0;
       // This is a recorded approval snapshot, not a dispatch grant. POST revalidates every pinned criterion.
-      const state = approval.expiresAt <= new Date() ? 'approval_expired' as const
-        : approval.releaseId !== work.activeReleaseId ? 'release_changed' as const
-        : !known ? 'cost_unknown' as const
-        : remaining.lt(0) ? 'budget_over_limit' as const : 'approval_recorded' as const;
-      const quote = state !== 'approval_recorded' ? withheldNextCost(state)
+      let state: 'approval_expired' | 'release_changed' | 'cost_unknown' | 'budget_over_limit' |
+        'approval_recorded' | 'approval_recorded_with_provisional_hold' =
+        approval.expiresAt <= new Date() ? 'approval_expired'
+        : approval.releaseId !== work.activeReleaseId ? 'release_changed'
+        : !known ? 'cost_unknown'
+        : remaining.lt(0) ? 'budget_over_limit' : 'approval_recorded';
+      let quote = state !== 'approval_recorded' ? withheldNextCost(state)
         : summary.pendingCount > 0 ? withheldNextCost('pending_cost')
         : await this.nextCostQuoteTx(tx, work, approval, remaining);
+      let provisional: Awaited<ReturnType<StoryAuthorBodyTrialCostService['provisionalBudgetTx']>> = null;
+      if (state !== 'approval_expired' && state !== 'release_changed' && snapshot.continuations.some(row => row.contextReferences &&
+        typeof row.contextReferences === 'object' && !Array.isArray(row.contextReferences) &&
+        Object.prototype.hasOwnProperty.call(row.contextReferences, AUTHOR_BODY_TRIAL_UNKNOWN_HOLD_PROPERTY))) {
+        // This read-only pin check prepares a quote, never a dispatch grant or a human review.
+        const pinQuote = await this.nextCostQuoteTx(tx, work, approval, approval.approvedBudgetKrw);
+        if (pinQuote.nextCostQuoteState === 'prepared') {
+          try { provisional = await this.costs.provisionalBudgetTx(tx, approval, snapshot, true); }
+          catch (error) {
+            if (!(error instanceof StoryAuthorBodyTrialUnknownHoldError)) throw error;
+            throw new ConflictException({ code: 'STORY_AUTHOR_BODY_TRIAL_UNKNOWN_HOLD_EVIDENCE_INCOMPLETE' });
+          }
+          if (provisional?.budgetCheckPassed && provisional.unresolvedUnheldCount === 0) {
+            state = 'approval_recorded_with_provisional_hold';
+            quote = summary.pendingCount > 0 ? withheldNextCost('pending_cost')
+              : new Prisma.Decimal(pinQuote.nextMaximumCostKrw!).gt(provisional.remainingBudgetIncludingHoldsKrw)
+                ? withheldNextCost('next_cost_exceeds_remaining') : pinQuote;
+          }
+        } else quote = pinQuote;
+      }
       return { ...base, ...quote, state, approval: { id: approval.id, expiresAt: approval.expiresAt.toISOString() },
         budget: { ...summary, approvedBudgetKrw: approval.approvedBudgetKrw.toFixed(6),
           remainingBudgetKrw: known ? (remaining.lt(0) ? '0.000000' : remaining.toFixed(6)) : null,
-          evidenceReadyForBudgetCheck: known } };
+          evidenceReadyForBudgetCheck: known,
+          ...(provisional ? { provisionalHeldAmountKrw: provisional.provisionalHeldAmountKrw,
+            provisionalHeldCount: provisional.provisionalHeldCount, unresolvedUnheldCount: provisional.unresolvedUnheldCount,
+            budgetCommittedIncludingHoldsKrw: provisional.budgetCommittedIncludingHoldsKrw,
+            remainingBudgetIncludingHoldsKrw: provisional.remainingBudgetIncludingHoldsKrw,
+            provisionalHoldExpiresAt: provisional.provisionalHoldExpiresAt,
+            budgetCheckPassed: provisional.budgetCheckPassed,
+            holdIsProviderCharge: false as const, holdIsGuaranteedLiabilityCeiling: false as const } : {}) } };
     }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
   }
 

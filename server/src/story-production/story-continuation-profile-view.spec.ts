@@ -4,7 +4,7 @@ import {
   creatorGenerationProfileFingerprint,
   normalizeCreatorGenerationProfile,
 } from '../generation-profile/creator-generation-profile.policy';
-import { continuationGenerationProfileSnapshot } from './story-continuation-context.policy';
+import { continuationGenerationProfileSnapshot, STORY_CONTINUATION_PROFILE_VIEW_VERSION } from './story-continuation-context.policy';
 import { koreanContinuationContext } from './story-continuation-korean-context.fixture';
 import { preflightStoryContinuationOpenAiRequest } from './story-continuation-openai.prompt';
 import type { StoryContinuationOpenAiConfig } from './story-continuation-openai.config';
@@ -41,7 +41,48 @@ function approvedLongBookProfile() {
   };
 }
 
+function withBranchSummary(summary: string, decision = 'edited') {
+  const profile = approvedLongBookProfile();
+  profile.approvedSettings = normalizeCreatorGenerationProfile('story', {
+    ...profile.approvedSettings,
+    sections: profile.approvedSettings.sections.map(section => section.key !== 'branch_behavior'
+      ? section : { ...section, decision, value: { ...section.value, summary } }),
+  });
+  profile.approvedFingerprint = creatorGenerationProfileFingerprint(profile.sourceFingerprint, profile.approvedSettings);
+  return profile;
+}
+
 describe('Long-book generation profile prompt view', () => {
+  it('retains the complete approved branching constraint, including guidance beyond the summary excerpt', () => {
+    const summary = `${'Maintain selected branch consequences. '.repeat(12)}Only resolve the branch when its established conflict is resolved; never import the author ending as an occurred event.`;
+    const { approved, pin } = continuationGenerationProfileSnapshot(withBranchSummary(summary) as never);
+    const branch = approved.sections.find(section => section.key === 'branch_behavior')!.value;
+    expect(branch.summary).toBe(summary);
+    expect(branch.referenceScope).toBe('production_constraint');
+    expect(pin.approvedFingerprint).toBe(withBranchSummary(summary).approvedFingerprint);
+    expect(STORY_CONTINUATION_PROFILE_VIEW_VERSION).toBe('story-profile-prompt-v4');
+    expect(Buffer.byteLength(JSON.stringify(approved), 'utf8')).toBeLessThanOrEqual(16_384);
+  });
+
+  it('fails closed when full approved branching guidance cannot fit the bounded context', () => {
+    const profile = withBranchSummary('가'.repeat(6_000));
+    expect(() => continuationGenerationProfileSnapshot(profile as never))
+      .toThrow('generation_profile_context_too_large');
+  });
+
+  it.each(['unknown', 'removed', 'proposed'])('never promotes %s branch guidance into approved context', decision => {
+    const { approved } = continuationGenerationProfileSnapshot(withBranchSummary('DO_NOT_INCLUDE_UNAPPROVED_ENDING', decision) as never);
+    expect(approved.sections.some(section => section.key === 'branch_behavior')).toBe(false);
+    expect(JSON.stringify(approved)).not.toContain('DO_NOT_INCLUDE_UNAPPROVED_ENDING');
+  });
+
+  it('does not synthesize an ending instruction when approved guidance is absent', () => {
+    const { approved } = continuationGenerationProfileSnapshot(withBranchSummary('Keep branch consequences.') as never);
+    expect(approved.sections.find(section => section.key === 'branch_behavior')!.value.summary)
+      .toBe('Keep branch consequences.');
+    expect(JSON.stringify(approved)).not.toMatch(/endingEligibility|mustEnd|completionStage/);
+  });
+
   it('keeps every approved section and representative evidence within a bounded prompt', () => {
     const profile = approvedLongBookProfile();
     const { pin, approved } = continuationGenerationProfileSnapshot(profile as never);

@@ -104,7 +104,7 @@ test('a late comment submission cannot update another modal or account', async (
       dataset: { postId: 'post' }, closest() { return this; },
       querySelector: selector => selector === 'textarea' ? textarea : selector === "button[type='submit']" ? submit : null,
     };
-    context._feedCommentModalEl = { querySelector: () => form };
+    context._feedCommentModalEl = { querySelector: () => form, _feedParentReadVerified: true, _feedParentReadOwner: 'a' };
     const pending = deferred();
     let calls = 0;
     context.apiFetch = () => { calls++; return pending.promise; };

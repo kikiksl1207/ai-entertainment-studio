@@ -78,6 +78,35 @@ postgres('read-only trial receipt recovery (isolated PostgreSQL and real HTTP, n
       visuals: await db.storyVisualGeneration.count() };
   }
 
+  it.each([
+    ['dispatch_lease_insufficient', 'lease_time_insufficient'],
+    ['provider_outcome_unknown', 'provider_outcome_unknown'],
+    ['synthetic-private-diagnostic', null],
+  ])('safe failure description %s stays read-only and never certifies an unknown cost', async (code, reason) => {
+    const f = await prepared(), accepted = await f.choose() as { continuationId: string }, leaseToken = randomUUID();
+    await db.storyAiContinuation.update({ where: { id: accepted.continuationId }, data: { status: 'processing',
+      leaseToken, leaseOwner: 'synthetic-failure-view', leaseExpiresAt: new Date(Date.now() + 60000), attemptCount: 1 } });
+    // No no-send proof is provided: a reason alone must never settle this as free.
+    await f.economics.failClaimedContinuation({ continuationId: accepted.continuationId, leaseToken,
+      attemptCount: 1, maxAttempts: 1 } as never, code!, 'failed');
+    const before = await state(f);
+    for (let index = 0; index < 2; index++) {
+      const result = await f.lookup();
+      expect(result).toMatchObject({ readOnly: true, generationAuthorized: false, generationStarted: false,
+        receipt: { failureReason: reason, status: 'failed', internalCostReturned: false, progressApplied: false } });
+      expect(result.receipt).not.toHaveProperty('failureCode');
+      expect(result.receipt).not.toHaveProperty('actualCostKrw');
+      expect(JSON.stringify(result)).not.toContain('synthetic-private-diagnostic');
+    }
+    await expect(f.lookup(f.body, f.reader.id)).rejects.toMatchObject({ status: 404 });
+    await expect(f.lookup({ ...f.body, expectedRevision: 2 })).rejects.toMatchObject({ status: 404 });
+    expect(await new StoryAuthorBodyTrialCostService(db as never).current(f.owner.id, f.work.id))
+      .toMatchObject({ unknownCostCount: 1, evidenceReadyForBudgetCheck: false });
+    expect(await state(f)).toEqual(before);
+    expect(before.continuations[0].actualCostKrw).toBeNull();
+    expect(f.provider.generate).not.toHaveBeenCalled();
+  });
+
   it('recovers the original locator after client storage loss without mutations or a generation grant', async () => {
     const f = await prepared();
     const absent = await state(f);

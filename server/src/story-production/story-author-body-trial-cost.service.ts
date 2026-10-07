@@ -1,8 +1,18 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, type StoryAuthorBodyTrialApproval } from '@prisma/client';
 import { isUUID } from 'class-validator';
 import { PrismaService } from '../prisma/prisma.service';
 import { StoryAuthorBodyTrialBudgetError, summarizeAuthorBodyTrialCosts, type AuthorBodyTrialCostSnapshot } from './story-author-body-trial-budget.policy';
+import { evaluateAuthorBodyTrialUnknownHolds } from './story-author-body-trial-unknown-hold.policy';
+import { AUTHOR_BODY_TRIAL_UNKNOWN_HOLD_ACTION, AUTHOR_BODY_TRIAL_UNKNOWN_HOLD_PROPERTY,
+  decodeAuthorBodyTrialUnknownHoldProof, StoryAuthorBodyTrialUnknownHoldProofError } from './story-author-body-trial-unknown-hold-proof';
+import { StoryAuthorBodyTrialUnknownHoldError } from './story-author-body-trial-unknown-hold.policy';
+
+type PersistedCostSnapshot = Omit<AuthorBodyTrialCostSnapshot, 'continuations'> & {
+  continuations: (AuthorBodyTrialCostSnapshot['continuations'][number] & {
+    contextReferences: Prisma.JsonValue; failureCode: string | null;
+  })[];
+};
 
 @Injectable()
 export class StoryAuthorBodyTrialCostService {
@@ -23,7 +33,13 @@ export class StoryAuthorBodyTrialCostService {
         throw new ConflictException({ code: 'STORY_AUTHOR_BODY_TRIAL_COST_UNAVAILABLE' });
       }
       try {
-        const costs = summarizeAuthorBodyTrialCosts(await this.snapshotTx(db, userId, workId));
+        const snapshot = await this.snapshotTx(db, userId, workId);
+        const costs = summarizeAuthorBodyTrialCosts(snapshot);
+        if (snapshot.continuations.some(row => row.actualCostKrw !== null && row.contextReferences &&
+          typeof row.contextReferences === 'object' && !Array.isArray(row.contextReferences) &&
+          Object.prototype.hasOwnProperty.call(row.contextReferences, AUTHOR_BODY_TRIAL_UNKNOWN_HOLD_PROPERTY))) {
+          throw new ConflictException({ code: 'STORY_AUTHOR_BODY_TRIAL_COST_EVIDENCE_INCOMPLETE' });
+        }
         return { contract: 'story-author-body-trial-cost-v1' as const, workId,
           scope: 'all_recommended_body_requests_for_author_work' as const,
           readOnly: true as const, generationAuthorized: false as const,
@@ -37,7 +53,7 @@ export class StoryAuthorBodyTrialCostService {
   }
 
   // The caller owns the write transaction and scope locks; the public GET remains read-only.
-  async snapshotTx(db: Prisma.TransactionClient, userId: string, workId: string): Promise<AuthorBodyTrialCostSnapshot> {
+  async snapshotTx(db: Prisma.TransactionClient, userId: string, workId: string): Promise<PersistedCostSnapshot> {
       // Include old releases and reset routes: neither erases provider spending.
       const continuations = await db.storyAiContinuation.findMany({
         where: { userId, workId, requestKind: 'recommended_choice' }, orderBy: { id: 'asc' }, take: 1001,
@@ -98,7 +114,9 @@ export class StoryAuthorBodyTrialCostService {
               proof.continuationId === row.id && proof.attemptCount === 1 &&
               ((row.failureCode === 'generation_authorization_changed' && proof.kind === 'authorization_rejected_before_dispatch_v1') ||
                 (typeof row.failureCode === 'string' && proof.failureCode === row.failureCode &&
-                  proof.kind === 'provider_preflight_rejected_before_dispatch_v1'))),
+                  (proof.kind === 'provider_preflight_rejected_before_dispatch_v1' ||
+                    (row.failureCode === 'dispatch_lease_insufficient' &&
+                      proof.kind === 'lease_insufficient_before_dispatch_v1'))))),
             sharedResultReused: Boolean(row.contextReferences && typeof row.contextReferences === 'object' &&
               !Array.isArray(row.contextReferences) && row.contextReferences.sharedResultReused === true),
             sharedResultEvidenceVerified: Boolean(shared && scene && shared.workId === workId &&
@@ -111,5 +129,49 @@ export class StoryAuthorBodyTrialCostService {
           ledger: recommendedLedger.map(row => ({ ...row, estimatedCostKrw: row.estimatedCostKrw.toFixed(6),
             actualCostKrw: row.actualCostKrw?.toFixed(6) ?? null })),
         };
+  }
+
+  // A matching stored audit is necessary, but the caller must also verify today's approval pins.
+  async provisionalBudgetTx(db: Prisma.TransactionClient, approval: StoryAuthorBodyTrialApproval,
+    snapshot: PersistedCostSnapshot, currentPinsVerified: boolean, nextMaximumCostKrw = '0.000000') {
+    const stored = snapshot.continuations.filter(row => row.contextReferences &&
+      typeof row.contextReferences === 'object' && !Array.isArray(row.contextReferences) &&
+      Object.prototype.hasOwnProperty.call(row.contextReferences, AUTHOR_BODY_TRIAL_UNKNOWN_HOLD_PROPERTY));
+    if (!stored.length) return null;
+    if (stored.length !== 1 || !currentPinsVerified || stored[0].failureCode !== 'provider_outcome_unknown' ||
+      stored[0].authorBodyTrialApprovalId !== approval.id) {
+      throw new ConflictException({ code: 'STORY_AUTHOR_BODY_TRIAL_UNKNOWN_HOLD_EVIDENCE_INCOMPLETE' });
+    }
+    const row = stored[0];
+    const envelope = (row.contextReferences as Prisma.JsonObject)[AUTHOR_BODY_TRIAL_UNKNOWN_HOLD_PROPERTY];
+    const hold = envelope && typeof envelope === 'object' && !Array.isArray(envelope) ? envelope.hold : null;
+    const key = hold && typeof hold === 'object' && !Array.isArray(hold) ? hold.idempotencyKey : null;
+    if (typeof key !== 'string' || key !== key.toLowerCase() || !isUUID(key)) {
+      throw new ConflictException({ code: 'STORY_AUTHOR_BODY_TRIAL_UNKNOWN_HOLD_EVIDENCE_INCOMPLETE' });
+    }
+    const audits = await db.auditEvent.findMany({ where: { action: AUTHOR_BODY_TRIAL_UNKNOWN_HOLD_ACTION,
+      OR: [{ targetId: row.id },
+        { actorUserId: approval.userId, metadata: { path: ['proof', 'acknowledgement', 'workId'], equals: approval.workId } },
+        { metadata: { path: ['proof', 'hold', 'idempotencyKey'], equals: key } }] }, orderBy: { id: 'asc' }, take: 2,
+      select: { id: true, actorUserId: true, actorType: true, action: true, targetType: true,
+        targetId: true, metadata: true, createdAt: true } });
+    if (audits.length !== 1) {
+      throw new ConflictException({ code: 'STORY_AUTHOR_BODY_TRIAL_UNKNOWN_HOLD_EVIDENCE_INCOMPLETE' });
+    }
+    try {
+    const proof = decodeAuthorBodyTrialUnknownHoldProof(
+      (row.contextReferences as Prisma.JsonObject)[AUTHOR_BODY_TRIAL_UNKNOWN_HOLD_PROPERTY], audits[0]);
+    if (proof.hold.continuationId !== row.id) {
+      throw new ConflictException({ code: 'STORY_AUTHOR_BODY_TRIAL_UNKNOWN_HOLD_EVIDENCE_INCOMPLETE' });
+    }
+    const now = new Date(), normalized = { ...approval, approvedBudgetKrw: approval.approvedBudgetKrw.toFixed(6) };
+    const result = evaluateAuthorBodyTrialUnknownHolds({ now, snapshot, approval: normalized,
+      currentAuthorization: { verified: currentPinsVerified, checkedAt: now, approval: normalized },
+      acknowledgement: proof.acknowledgement, holdsComplete: true, existingHolds: [proof.hold], nextMaximumCostKrw });
+    return { ...result, provisionalHoldExpiresAt: proof.hold.expiresAt.toISOString() };
+    } catch (error) {
+      if (!(error instanceof StoryAuthorBodyTrialUnknownHoldProofError) && !(error instanceof StoryAuthorBodyTrialUnknownHoldError)) throw error;
+      throw new ConflictException({ code: 'STORY_AUTHOR_BODY_TRIAL_UNKNOWN_HOLD_EVIDENCE_INCOMPLETE' });
+    }
   }
 }

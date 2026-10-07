@@ -157,7 +157,7 @@ describe('StoryContinuationExecutor', () => {
     jest.mocked(f.queue.markDispatched).mockImplementation(() => new Promise((resolve) => { commit = resolve; }));
     const pending = f.executor.executeOne('worker');
     for (let i = 0; i < 10; i++) await Promise.resolve();
-    expect(f.queue.markDispatched).toHaveBeenCalledWith(claim, expect.any(Function));
+    expect(f.queue.markDispatched).toHaveBeenCalledWith(claim, expect.any(Function), 110_000);
     expect(f.provider.generate).not.toHaveBeenCalled();
     commit();
     await expect(pending).resolves.toMatchObject({ status: 'completed' });

@@ -1,5 +1,5 @@
 import { Prisma } from '@prisma/client';
-import { localizedContinuationText } from './story-continuation-context.policy';
+import { continuationCanonicalPartIds, localizedContinuationText } from './story-continuation-context.policy';
 
 export const STORY_CONTINUATION_ROUTE_VIEW_VERSION = 'story-route-continuity-v1';
 const MAX_ROUTE_STEPS = 512;
@@ -50,6 +50,8 @@ export async function assembleContinuationRouteContinuity(prisma: any, input: {
   const generatedSceneIds = steps.flatMap((step) => step.sourceGeneratedSceneId ? [step.sourceGeneratedSceneId] : []);
   const canonicalSceneIds = steps.flatMap((step) => !step.sourceGeneratedSceneId
     ? [step.sourceSceneId ?? step.sceneId].filter((id): id is string => Boolean(id)) : []);
+  const canonicalPartIds = canonicalSceneIds.length
+    ? await continuationCanonicalPartIds(prisma, input.workId) : [];
   const [canonicalChoices, customChoices, generatedChoices, canonicalScenes, generatedScenes] = await Promise.all([
     canonicalIds.length ? prisma.storyChoice.findMany({ where: { id: { in: canonicalIds } },
       select: { id: true, sceneId: true, label: true } }) : [],
@@ -60,7 +62,7 @@ export async function assembleContinuationRouteContinuity(prisma: any, input: {
     generatedIds.length ? prisma.storyAiGeneratedChoice.findMany({ where: { id: { in: generatedIds } },
       select: { id: true, sceneId: true, label: true } }) : [],
     canonicalSceneIds.length ? prisma.storyScene.findMany({ where: {
-      id: { in: canonicalSceneIds }, status: 'published', fixtureSource: false,
+      id: { in: canonicalSceneIds }, partId: { in: canonicalPartIds }, status: 'published', fixtureSource: false,
     }, select: { id: true, title: true } }) : [],
     generatedSceneIds.length ? prisma.storyAiGeneratedScene.findMany({ where: {
       id: { in: generatedSceneIds }, userId: input.userId, workId: input.workId,

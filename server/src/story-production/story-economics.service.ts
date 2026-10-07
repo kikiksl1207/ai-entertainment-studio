@@ -2574,7 +2574,8 @@ export class StoryEconomicsService {
           actualCostKrw: body.actualCostKrw ?? null,
           ...(confirmedNoDispatch ? { contextReferences: { ...jsonRecord(continuation.contextReferences),
             noProviderDispatchEvidence: {
-              kind: preflightRejectedBeforeDispatch ? 'provider_preflight_rejected_before_dispatch_v1'
+              kind: preflightRejectedBeforeDispatch ? (body.failureCode === 'dispatch_lease_insufficient'
+                ? 'lease_insufficient_before_dispatch_v1' : 'provider_preflight_rejected_before_dispatch_v1')
                 : 'authorization_rejected_before_dispatch_v1',
               continuationId: continuation.id, attemptCount: 1,
               ...(preflightRejectedBeforeDispatch ? { failureCode: body.failureCode } : {}),

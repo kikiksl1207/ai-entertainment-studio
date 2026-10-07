@@ -49,7 +49,7 @@ export type StoryContinuationSemanticPathStep = {
 };
 
 const MAX_SEMANTIC_PATH_STEPS = 12;
-export const STORY_CONTINUATION_PROFILE_VIEW_VERSION = 'story-profile-prompt-v3';
+export const STORY_CONTINUATION_PROFILE_VIEW_VERSION = 'story-profile-prompt-v4';
 const MAX_PROFILE_VIEW_BYTES = 16_384;
 const PROFILE_VIEW_LIMITS = [
   { summary: 240, detail: 160, title: 80, categoryExample: 120 },
@@ -100,6 +100,14 @@ export function continuationPathHash(path: StoryContinuationSemanticPathStep[]) 
   return continuationHash(path);
 }
 
+export async function continuationCanonicalPartIds(prisma: any, workId: string): Promise<string[]> {
+  const parts = await prisma.storyPart.findMany({
+    where: { workId, status: 'published', fixtureSource: false },
+    select: { id: true },
+  });
+  return parts.map((part: { id: string }) => part.id);
+}
+
 export async function assembleContinuationSemanticPath(
   prisma: any,
   input: {
@@ -129,10 +137,13 @@ export async function assembleContinuationSemanticPath(
       (entry.sourceGeneratedSceneId ? generatedChoiceIds : canonicalChoiceIds).add(entry.choiceId);
     }
   }
+  const canonicalPartIds = canonicalSceneIds.size
+    ? await continuationCanonicalPartIds(prisma, input.workId) : [];
   const [canonicalScenes, generatedScenes, canonicalChoices, generatedChoices] = await Promise.all([
     canonicalSceneIds.size
       ? prisma.storyScene.findMany({
-          where: { id: { in: [...canonicalSceneIds] }, status: 'published', fixtureSource: false },
+          where: { id: { in: [...canonicalSceneIds] }, partId: { in: canonicalPartIds },
+            status: 'published', fixtureSource: false },
           select: { id: true, title: true, endingType: true },
         })
       : [],
@@ -268,7 +279,10 @@ function continuationProfileValue(
   const projected: Record<string, unknown> = {};
   for (const [field, item] of Object.entries(value)) {
     if (['observations', 'categories', 'referenceScope'].includes(field)) continue;
-    projected[field] = field === 'summary' ? profileText(item, limits.summary) : item;
+    // Branching instructions can end with an approved condition or exception.
+    // Preserve them whole; the total view cap rejects oversized rules before dispatch.
+    projected[field] = field === 'summary' && key !== 'branch_behavior'
+      ? profileText(item, limits.summary) : item;
   }
   // The author's complete manuscript is a reference, never this reader's history.
   // Even an earlier canonical event may not have happened on a divergent route.

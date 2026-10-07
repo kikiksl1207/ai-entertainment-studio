@@ -2,6 +2,7 @@ import { ForbiddenException } from '@nestjs/common';
 import { Decimal } from '@prisma/client/runtime/library';
 import { StoryEconomicsService } from './story-economics.service';
 import { STORY_CONTINUATION_PROMPT_VERSION } from './story-continuation-openai.schema';
+import { STORY_CONTINUATION_PROFILE_VIEW_VERSION } from './story-continuation-context.policy';
 import {
   creatorGenerationProfileFingerprint,
   normalizeCreatorGenerationProfile,
@@ -485,7 +486,7 @@ describe('recommended choice enqueue transaction', () => {
       id: 'profile-id', profileVersion: 2, reviewRevision: 4,
       approvedFingerprint: profile.approvedFingerprint,
     });
-    expect(data.contextReferences.generationProfileViewVersion).toBe('story-profile-prompt-v3');
+    expect(data.contextReferences.generationProfileViewVersion).toBe(STORY_CONTINUATION_PROFILE_VIEW_VERSION);
     expect(f.provider.preflight).toHaveBeenCalledWith(expect.objectContaining({
       approvedContext: expect.objectContaining({
         generationProfile: expect.objectContaining({

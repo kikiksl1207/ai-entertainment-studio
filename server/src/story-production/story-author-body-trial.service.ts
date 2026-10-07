@@ -4,11 +4,15 @@ import { isUUID } from 'class-validator';
 import { StoryAuthorBodyTrialCostService } from './story-author-body-trial-cost.service';
 import { StoryAuthorBodyTrialBudgetError, summarizeApprovedAuthorBodyTrialCosts } from './story-author-body-trial-budget.policy';
 import { continuationGenerationProfileSnapshot } from './story-continuation-context.policy';
+import { StoryAuthorBodyTrialUnknownHoldError } from './story-author-body-trial-unknown-hold.policy';
+import { AUTHOR_BODY_TRIAL_UNKNOWN_HOLD_PROPERTY } from './story-author-body-trial-unknown-hold-proof';
 
 export type AuthorBodyTrialScope = { workId: string; approvalId: string };
 
 @Injectable()
 export class StoryAuthorBodyTrialService {
+  private readonly currentAuthorizations = new WeakMap<Prisma.TransactionClient,
+    { approval: StoryAuthorBodyTrialApproval; checkedAt: number }>();
   constructor(private readonly costs: StoryAuthorBodyTrialCostService) {}
 
   private changed(code = 'STORY_AUTHOR_BODY_TRIAL_APPROVAL_CHANGED'): never {
@@ -70,6 +74,8 @@ export class StoryAuthorBodyTrialService {
     if (profile) {
       try { continuationGenerationProfileSnapshot(profile); } catch { this.changed(); }
     }
+    if (!Number.isFinite(approval.expiresAt.getTime()) || approval.expiresAt <= new Date()) this.changed();
+    this.currentAuthorizations.set(tx, { approval, checkedAt: Date.now() });
     return approval;
   }
 
@@ -80,14 +86,26 @@ export class StoryAuthorBodyTrialService {
 
   async assertCommittedBudgetTx(tx: Prisma.TransactionClient, approval: StoryAuthorBodyTrialApproval) {
     try {
-      const summary = summarizeApprovedAuthorBodyTrialCosts(await this.costs.snapshotTx(tx, approval.userId, approval.workId), approval);
-      if (summary.unknownCostCount) this.changed('STORY_AUTHOR_BODY_TRIAL_COST_UNKNOWN');
+      const snapshot = await this.costs.snapshotTx(tx, approval.userId, approval.workId);
+      const summary = summarizeApprovedAuthorBodyTrialCosts(snapshot, approval);
+      const hasHold = snapshot.continuations.some(row => row.contextReferences && typeof row.contextReferences === 'object' &&
+        !Array.isArray(row.contextReferences) && Object.prototype.hasOwnProperty.call(row.contextReferences, AUTHOR_BODY_TRIAL_UNKNOWN_HOLD_PROPERTY));
+      if (summary.unknownCostCount || hasHold) {
+        const verified = this.currentAuthorizations.get(tx);
+        const age = verified ? Date.now() - verified.checkedAt : -1;
+        const fresh = verified?.approval === approval && age >= 0 && age <= 10000 && approval.expiresAt > new Date();
+        if (!fresh || !hasHold) this.changed('STORY_AUTHOR_BODY_TRIAL_COST_UNKNOWN');
+        const provisional = await this.costs.provisionalBudgetTx(tx, approval, snapshot, fresh);
+        if (!provisional || provisional.unresolvedUnheldCount > 0) this.changed('STORY_AUTHOR_BODY_TRIAL_COST_UNKNOWN');
+        if (!provisional.budgetCheckPassed) this.changed('STORY_AUTHOR_BODY_TRIAL_BUDGET_EXCEEDED');
+        return { ...summary, approvedBudgetKrw: approval.approvedBudgetKrw.toFixed(6), provisional };
+      }
       if (new Prisma.Decimal(summary.committedCostKrw).gt(approval.approvedBudgetKrw)) {
         this.changed('STORY_AUTHOR_BODY_TRIAL_BUDGET_EXCEEDED');
       }
       return { ...summary, approvedBudgetKrw: approval.approvedBudgetKrw.toFixed(6) };
     } catch (error) {
-      if (!(error instanceof StoryAuthorBodyTrialBudgetError)) throw error;
+      if (!(error instanceof StoryAuthorBodyTrialBudgetError) && !(error instanceof StoryAuthorBodyTrialUnknownHoldError)) throw error;
       this.changed('STORY_AUTHOR_BODY_TRIAL_COST_EVIDENCE_INCOMPLETE');
     }
   }

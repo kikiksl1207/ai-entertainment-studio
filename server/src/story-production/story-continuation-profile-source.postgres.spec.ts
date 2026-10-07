@@ -17,7 +17,9 @@ postgres('approved manuscript source boundaries (dedicated loopback PostgreSQL, 
   beforeAll(() => {
     const url = new URL(process.env.STORY_TEST_DATABASE_URL!);
     if (url.protocol !== 'postgresql:' || url.hostname !== '127.0.0.1' || url.port !== '55432' ||
-        url.username !== 'lumina_qa' || url.pathname !== '/lumina_story_qa' || url.search || url.hash) {
+        url.username !== 'lumina_qa' ||
+        !(url.pathname === '/lumina_story_qa' || /^\/lumina_guidance_qa_20261007_[a-f0-9]{12}$/.test(url.pathname)) ||
+        url.search || url.hash) {
       throw new Error('Dedicated loopback lumina_story_qa database required');
     }
     process.env.STORY_AI_REGION = 'KR';
@@ -30,7 +32,7 @@ postgres('approved manuscript source boundaries (dedicated loopback PostgreSQL, 
     await db?.$disconnect();
   });
 
-  it('pins source-tagged author plans separately from reader history and rejects a changed approval', async () => {
+  it('persists full branch guidance and source-tagged plans separately, then rejects stale view or approval', async () => {
     const network = jest.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('network prohibited'));
     try {
       const f = await activationFixture(db);
@@ -42,6 +44,7 @@ postgres('approved manuscript source boundaries (dedicated loopback PostgreSQL, 
       await db.storyReleaseCapability.update({ where: { releaseId: f.release.id }, data: { aiInputTokenLimit: 8192 } });
       const analysis = await db.storyAnalysisJob.findFirstOrThrow({ where: { workId: f.work.id } });
       const sourceRef = `analysis:${randomUUID()}`;
+      const branchSummary = `${'Keep the consequences of the selected branch. '.repeat(12)}Resolve only conflicts actually established on this route; do not assume the original ending happened.`;
       const settings = normalizeCreatorGenerationProfile('story', {
         schemaVersion: 'creator-generation-profile-v1', kind: 'story',
         sections: STORY_PROFILE_SECTION_KEYS.map((key) => ({
@@ -49,7 +52,7 @@ postgres('approved manuscript source boundaries (dedicated loopback PostgreSQL, 
             ? { summary: 'The mother dies on the original route in part 32.', observations: [
                 { title: 'Original ending', detail: 'ORIGINAL_FUTURE_DEATH', sourceRef },
               ] }
-            : { summary: `${key} approved constraint` },
+            : { summary: key === 'branch_behavior' ? branchSummary : `${key} approved constraint` },
           evidence: key === 'timeline' ? [{ sourceType: 'manuscript',
             sourceRef: `${sourceRef}:PART-32:17`, summary: 'Synthetic future source' }] : [],
         })),
@@ -74,6 +77,8 @@ postgres('approved manuscript source boundaries (dedicated loopback PostgreSQL, 
         f.choice.id, start.revision, 'ko', randomUUID()) as { continuationId: string; status: string };
       expect(queued.status).toBe('queued');
       expect(contexts).toHaveLength(1);
+      expect(contexts[0].generationProfile?.sections.find(section => section.key === 'branch_behavior')?.value)
+        .toMatchObject({ summary: branchSummary, referenceScope: 'production_constraint' });
       const timeline = contexts[0].generationProfile?.sections.find(section => section.key === 'timeline')?.value;
       expect(timeline).toMatchObject({ referenceScope: 'author_plan_not_route_history', observations: [{
         detail: 'ORIGINAL_FUTURE_DEATH', sourceRef, sourcePartKey: 'PART-32', sourceParagraphIndex: 17,
@@ -91,6 +96,14 @@ postgres('approved manuscript source boundaries (dedicated loopback PostgreSQL, 
       const assembler = new StoryContinuationContextAssembler(db as never);
       const claim = { continuationId: queued.continuationId, leaseToken, attemptCount: 1, maxAttempts: 3, request: {} as never };
       await expect(assembler.assemble(claim)).resolves.toMatchObject({ generationProfile: contexts[0].generationProfile });
+      const currentReferences = persisted.contextReferences as Record<string, any>;
+      await db.storyAiContinuation.update({ where: { id: queued.continuationId }, data: {
+        contextReferences: { ...currentReferences, generationProfileViewVersion: 'story-profile-prompt-v3' },
+      } });
+      await expect(assembler.assemble(claim)).rejects.toThrow('pinned_context_changed');
+      await db.storyAiContinuation.update({ where: { id: queued.continuationId }, data: {
+        contextReferences: currentReferences,
+      } });
       await db.storyWorkGenerationProfile.update({ where: { id: profile.id }, data: { reviewRevision: 2 } });
       await expect(assembler.assemble(claim)).rejects.toThrow('pinned_context_changed');
       expect(f.provider.generate).not.toHaveBeenCalled();

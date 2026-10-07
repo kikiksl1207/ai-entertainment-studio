@@ -2,6 +2,8 @@ import type { BeforeApplicationShutdown, OnApplicationBootstrap, OnModuleDestroy
 import { randomUUID } from 'crypto';
 import type { StoryContinuationProvider } from './story-continuation.provider';
 import { configInteger, inRange, type StoryContinuationConfigReader } from './story-continuation-openai.config';
+import { assertStoryContinuationTimingPolicy, createStoryContinuationTimingPolicy,
+  type StoryContinuationTimingPolicy } from './story-continuation-timing.policy';
 
 export type StoryContinuationWorkerConfig = {
   enabled: boolean;
@@ -10,12 +12,14 @@ export type StoryContinuationWorkerConfig = {
   drainMs: number;
 };
 
-export function readStoryContinuationWorkerConfig(reader: StoryContinuationConfigReader): StoryContinuationWorkerConfig {
+export function readStoryContinuationWorkerConfig(reader: StoryContinuationConfigReader,
+  timing: StoryContinuationTimingPolicy = createStoryContinuationTimingPolicy()): StoryContinuationWorkerConfig {
+  assertStoryContinuationTimingPolicy(timing);
   return {
     enabled: reader.get('STORY_CONTINUATION_WORKER_ENABLED') === 'true',
     pollMs: configInteger(reader, 'STORY_CONTINUATION_WORKER_POLL_MS', 1_000),
     maxBackoffMs: configInteger(reader, 'STORY_CONTINUATION_WORKER_MAX_BACKOFF_MS', 30_000),
-    drainMs: configInteger(reader, 'STORY_CONTINUATION_WORKER_DRAIN_MS', 35_000),
+    drainMs: configInteger(reader, 'STORY_CONTINUATION_WORKER_DRAIN_MS', timing.drainMs),
   };
 }
 

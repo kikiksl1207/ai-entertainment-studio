@@ -69,7 +69,8 @@ function fixture(progressExists = true, inputTokenLimit = 1000) {
   const prisma = {
     storyAiContinuation: { findUnique: jest.fn().mockResolvedValue(continuation) },
     storyReaderProgress: { findFirst: jest.fn().mockResolvedValue(progressExists ? { pathSummary } : null) },
-    storyPart: { findFirst: jest.fn().mockResolvedValue({ id: 'part-id' }) },
+    storyPart: { findFirst: jest.fn().mockResolvedValue({ id: 'part-id' }),
+      findMany: jest.fn().mockResolvedValue([{ id: 'part-id' }]) },
     storyScene: {
       findFirst: jest.fn().mockResolvedValue(scene),
       findMany: jest.fn().mockResolvedValue([{ id: 'prior', title: { ko: '이전 장면' }, endingType: null }]),

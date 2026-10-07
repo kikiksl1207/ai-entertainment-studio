@@ -32,6 +32,7 @@ import {
 } from './story-manuscript-file.controller';
 import {
   STORY_CONTINUATION_OPENAI_PROVIDER,
+  STORY_CONTINUATION_TIMING_PROVIDER,
   STORY_CONTINUATION_WORKER_PROVIDER,
 } from './story-continuation-runtime.providers';
 import {
@@ -90,6 +91,7 @@ import { StoryAuthorBodyPreviewService } from './story-author-body-preview.servi
 import { StoryAuthorBodyTrialCostController } from './story-author-body-trial-cost.controller';
 import { StoryAuthorBodyTrialCostService } from './story-author-body-trial-cost.service';
 import { StoryAuthorBodyTrialService } from './story-author-body-trial.service';
+import { StoryAuthorBodyTrialUnknownHoldRegistrationService } from './story-author-body-trial-unknown-hold-registration.service';
 import { StoryAuthorBodyTrialController } from './story-author-body-trial.controller';
 import { StoryAuthorBodyTrialStateService } from './story-author-body-trial-state.service';
 import { StoryAuthorBodyTrialStateController } from './story-author-body-trial-state.controller';
@@ -157,6 +159,7 @@ import { StoryAuthorBodyTrialReceiptService } from './story-author-body-trial-re
     StoryAuthorBodyTrialCostService,
     StoryAuthorBodyTrialStateService,
     StoryAuthorBodyTrialService,
+    StoryAuthorBodyTrialUnknownHoldRegistrationService,
     StoryAuthorBodyReviewService,
     StoryAuthorBodyTrialReceiptService,
     StoryAuthoredImportMultipartInterceptor,
@@ -184,6 +187,7 @@ import { StoryAuthorBodyTrialReceiptService } from './story-author-body-trial-re
       useClass: PersistedStoryReusableResultApprovalGate,
     },
     STORY_CONTINUATION_OPENAI_PROVIDER,
+    STORY_CONTINUATION_TIMING_PROVIDER,
     STORY_CONTINUATION_WORKER_PROVIDER,
     {
       provide: StoryContinuationQueueRepository,

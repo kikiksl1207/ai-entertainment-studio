@@ -144,6 +144,11 @@ export class StoryAuthorBodyTrialReceiptService {
         receipt = { contract: stored.contract, continuationId: current.id, status: current.status,
           revisionAfterRequest: scope.expectedRevision + 1, progressApplied: current.status === 'completed',
           privateInputReturned: false, providerPayloadReturned: false, internalCostReturned: false,
+          // Advisory only: failure text cannot certify usage, cost, or permission to retry.
+          failureReason: current.status === 'failed'
+            ? current.failureCode === 'dispatch_lease_insufficient' ? 'lease_time_insufficient'
+              : current.failureCode === 'provider_outcome_unknown' ? 'provider_outcome_unknown' : null
+            : null,
           resultGeneratedSceneId: current.resultGeneratedSceneId, provenance: reused ? 'ai_reused' : 'ai_generated',
           imageGenerationStarted: false, idempotentReplay: true };
       }

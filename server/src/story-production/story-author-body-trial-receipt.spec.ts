@@ -51,6 +51,35 @@ function prepared() {
 }
 
 describe('private receipt does not dispatch or grant a new trial', () => {
+  it.each([
+    ['failed', 'dispatch_lease_insufficient', 'lease_time_insufficient'],
+    ['failed', 'provider_outcome_unknown', 'provider_outcome_unknown'],
+    ['failed', 'synthetic-private-diagnostic', null], ['failed', null, null],
+    ['failed', 'DISPATCH_LEASE_INSUFFICIENT', null], ['timeout', 'dispatch_lease_insufficient', null],
+    ['timeout', 'provider_outcome_unknown', null], ['queued', 'dispatch_lease_insufficient', null],
+    ['processing', 'provider_outcome_unknown', null], ['completed', 'dispatch_lease_insufficient', null],
+  ])('allowlists advisory failure description for %s/%s without usage or retry claims', async (status, failureCode, reason) => {
+    const f = prepared(), continuationId = randomUUID();
+    const resultGeneratedSceneId = status === 'completed' ? randomUUID() : null;
+    Object.assign(f.receipt, { continuationId, failureReason: 'untrusted-stored-reason', actualCostKrw: '0' });
+    const approval = await f.tx.storyAuthorBodyTrialApproval.findFirst();
+    f.tx.storyAiContinuation.findFirst.mockResolvedValue({ id: continuationId, releaseId: approval.releaseId,
+      requestKind: 'recommended_choice', idempotencyKey: 'recommended-choice:' + key, sourceProgressRevision: 4,
+      locale: 'ko', maxAttempts: 1, recommendedChoiceId: choiceId, generatedChoiceId: null, status,
+      failureCode, resultGeneratedSceneId, contextReferences: {}, actualCostKrw: null,
+      providerPayload: 'synthetic-private-diagnostic' });
+    f.tx.storyAiGeneratedScene.findFirst.mockResolvedValue({ id: resultGeneratedSceneId });
+    const before = JSON.stringify(f.receipt), result = await f.get();
+    expect(result.receipt).toMatchObject({ failureReason: reason, internalCostReturned: false });
+    expect(result.generationAuthorized).toBe(false);
+    expect(Object.keys(result.receipt)).not.toEqual(expect.arrayContaining(['failureCode']));
+    expect(Object.keys(result.receipt)).not.toEqual(expect.arrayContaining(['actualCostKrw']));
+    expect(JSON.stringify(result)).not.toContain('synthetic-private-diagnostic');
+    expect(JSON.stringify(result)).not.toContain('untrusted-stored-reason');
+    expect(JSON.stringify(f.receipt)).toBe(before);
+    expect(f.tx.$executeRaw).toHaveBeenCalledTimes(1);
+    expect(f.tx.$executeRaw.mock.calls[0][0].strings.join('')).toContain('SET TRANSACTION READ ONLY');
+  });
   it('reads a recorded canonical receipt even when its approval is revoked; private fields are allowlisted', async () => {
     const f = prepared(), result = await f.get();
     expect(result).toMatchObject({ contract: 'story-author-body-trial-receipt-v1', approvalId, progressId, locale: 'ko',

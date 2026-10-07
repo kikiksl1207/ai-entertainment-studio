@@ -1,5 +1,6 @@
 import { storyContinuationModelEncoding } from './story-continuation-tokenizer';
-import { createStoryContinuationTimingPolicy } from './story-continuation-timing.policy';
+import { assertStoryContinuationTimingPolicy, createStoryContinuationTimingPolicy,
+  type StoryContinuationTimingPolicy } from './story-continuation-timing.policy';
 
 const CONTINUATION_TIMING = createStoryContinuationTimingPolicy();
 
@@ -17,9 +18,12 @@ export type StoryContinuationOpenAiConfig = {
   maxOutputTokens: number;
   maxResponseBytes: number;
   visualAssetPath: string;
+  timing?: StoryContinuationTimingPolicy;
 };
 
-export function readStoryContinuationOpenAiConfig(reader: StoryContinuationConfigReader): StoryContinuationOpenAiConfig {
+export function readStoryContinuationOpenAiConfig(reader: StoryContinuationConfigReader,
+  timing: StoryContinuationTimingPolicy = CONTINUATION_TIMING): StoryContinuationOpenAiConfig {
+  assertStoryContinuationTimingPolicy(timing);
   const text = (key: string) => String(reader.get(key) ?? '').trim();
   const enabled = text('STORY_CONTINUATION_PROVIDER_ENABLED') === 'true';
   return {
@@ -32,17 +36,21 @@ export function readStoryContinuationOpenAiConfig(reader: StoryContinuationConfi
     timeoutMs: configInteger(
       reader,
       'STORY_CONTINUATION_REQUEST_TIMEOUT_MS',
-      CONTINUATION_TIMING.providerDeadlineMs,
+      timing.providerDeadlineMs,
     ),
     maxInputTokens: configInteger(reader, 'STORY_CONTINUATION_MAX_INPUT_TOKENS', 32_768),
     maxOutputTokens: configInteger(reader, 'STORY_CONTINUATION_MAX_OUTPUT_TOKENS', 32_768),
     maxResponseBytes: configInteger(reader, 'STORY_CONTINUATION_MAX_RESPONSE_BYTES', 200_000),
     visualAssetPath: text('STORY_CONTINUATION_VISUAL_ASSET_PATH'),
+    timing: Object.freeze({ ...timing }),
   };
 }
 
 export function storyContinuationConfigFailure(config: StoryContinuationOpenAiConfig): string | undefined {
   if (!config.enabled) return 'provider_disabled';
+  const timing = config.timing ?? CONTINUATION_TIMING;
+  try { assertStoryContinuationTimingPolicy(timing); }
+  catch { return 'provider_timing_configuration_invalid'; }
   if (config.provider !== 'openai') return 'provider_configuration_mismatch';
   // No rolling aliases: deployments must deliberately pin a dated snapshot.
   if (!/^[a-zA-Z0-9._-]+-\d{4}-\d{2}-\d{2}$/.test(config.model)) return 'provider_model_not_pinned';
@@ -53,7 +61,7 @@ export function storyContinuationConfigFailure(config: StoryContinuationOpenAiCo
   if (!/^\/assets\/[a-zA-Z0-9/_-]+\.(?:webp|png|jpg|jpeg)$/.test(config.visualAssetPath)) {
     return 'provider_visual_not_configured';
   }
-  if (!inRange(config.timeoutMs, 100, CONTINUATION_TIMING.providerDeadlineMs) ||
+  if (!inRange(config.timeoutMs, 100, timing.providerDeadlineMs) ||
       !inRange(config.maxInputTokens, 1, 128_000) ||
       !inRange(config.maxOutputTokens, 16, 32_768) ||
       !inRange(config.maxResponseBytes, 1_024, 1_000_000)) return 'provider_limits_invalid';

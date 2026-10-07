@@ -137,6 +137,28 @@ describe('author body trial cost service (synthetic records, no providers)', () 
         !['wrong-code', 'wrong-id', 'missing-proof'].includes(mode));
     });
 
+  it.each(['valid', 'wrong-code', 'wrong-id', 'wrong-kind', 'later-attempt', 'fenced', 'nonzero-usage', 'missing-proof'])
+    ('recognizes the dedicated committed lease-rejection proof conservatively: %s', async mode => {
+      const row = f.complete() as any;
+      row.status = 'failed'; row.actualCostKrw = decimal('0'); row.dispatchStartedAt = null;
+      row.failureCode = 'dispatch_lease_insufficient';
+      row.contextReferences = { noProviderDispatchEvidence: {
+        kind: 'lease_insufficient_before_dispatch_v1', continuationId: row.id,
+        attemptCount: 1, failureCode: row.failureCode } };
+      const ledger = f.state.ledger[1];
+      Object.assign(ledger, { status: 'failed', eventKind: 'new_route_failed', actualCostKrw: decimal('0'),
+        inputTokens: 0, outputTokens: 0, cachedInputTokens: 0, imageUnits: 0 });
+      if (mode === 'wrong-code') row.failureCode = 'provider_outcome_unknown';
+      if (mode === 'wrong-id') row.contextReferences.noProviderDispatchEvidence.continuationId = randomUUID();
+      if (mode === 'wrong-kind') row.contextReferences.noProviderDispatchEvidence.kind = 'unsupported_v1';
+      if (mode === 'later-attempt') row.attemptCount = 2;
+      if (mode === 'fenced') row.dispatchStartedAt = new Date();
+      if (mode === 'nonzero-usage') ledger.outputTokens = 1;
+      if (mode === 'missing-proof') row.contextReferences = {};
+      expect(await f.service.current(owner, workId)).toMatchObject({ unknownCostCount:
+        mode === 'valid' || mode === 'fenced' ? 0 : 1 });
+    });
+
   it.each(['continuations', 'ledger', 'orphan', 'foreign-row', 'contradiction'])('rejects incomplete or contradictory evidence: %s', async mode => {
     const row = f.complete();
     if (mode === 'continuations') f.state.continuations = Array.from({ length: 1001 }, () => row);

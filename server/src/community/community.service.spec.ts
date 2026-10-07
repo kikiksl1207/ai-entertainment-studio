@@ -267,7 +267,18 @@ describe('CommunityService authenticated feed read block guard', () => {
         where: {
           id: postId,
           status: 'published',
+          visibility: 'public',
           deletedAt: null,
+          NOT: [
+            { body: { equals: 'test', mode: 'insensitive' } },
+            { body: { contains: 'testtest', mode: 'insensitive' } },
+            { body: { equals: 'sample', mode: 'insensitive' } },
+            { body: { equals: 'fixture', mode: 'insensitive' } },
+            { body: { equals: '\ud14c\uc2a4\ud2b8' } },
+            { body: { contains: '\uc784\uc2dc\ubb38\uad6c' } },
+            { body: { contains: '\uc0d8\ud50c\ubb38\uad6c' } },
+            { body: { contains: 'QA358', mode: 'insensitive' } },
+          ],
           authorUserId: { notIn: [authorId] },
         },
       }),
@@ -295,7 +306,18 @@ describe('CommunityService authenticated feed read block guard', () => {
     expect(prisma.communityPost.findFirst.mock.calls[0][0].where).toEqual({
       id: postId,
       status: 'published',
+      visibility: 'public',
       deletedAt: null,
+      NOT: [
+        { body: { equals: 'test', mode: 'insensitive' } },
+        { body: { contains: 'testtest', mode: 'insensitive' } },
+        { body: { equals: 'sample', mode: 'insensitive' } },
+        { body: { equals: 'fixture', mode: 'insensitive' } },
+        { body: { equals: '\ud14c\uc2a4\ud2b8' } },
+        { body: { contains: '\uc784\uc2dc\ubb38\uad6c' } },
+        { body: { contains: '\uc0d8\ud50c\ubb38\uad6c' } },
+        { body: { contains: 'QA358', mode: 'insensitive' } },
+      ],
     });
     expect(prisma.userBlock.findMany).toHaveBeenCalledTimes(viewerUserId ? 1 : 0);
   });
@@ -1278,7 +1300,18 @@ describe('CommunityService Lumina Feed post edit/delete contract', () => {
         where: {
           id: postId,
           status: 'published',
+          visibility: 'public',
           deletedAt: null,
+          NOT: [
+            { body: { equals: 'test', mode: 'insensitive' } },
+            { body: { contains: 'testtest', mode: 'insensitive' } },
+            { body: { equals: 'sample', mode: 'insensitive' } },
+            { body: { equals: 'fixture', mode: 'insensitive' } },
+            { body: { equals: '\ud14c\uc2a4\ud2b8' } },
+            { body: { contains: '\uc784\uc2dc\ubb38\uad6c' } },
+            { body: { contains: '\uc0d8\ud50c\ubb38\uad6c' } },
+            { body: { contains: 'QA358', mode: 'insensitive' } },
+          ],
         },
       }),
     );

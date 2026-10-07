@@ -4888,7 +4888,7 @@ function bindLuminaFeedDelete() {
   });
 }
 
-/* #309 — 타래 배지 클릭. 상세 projection을 우선 사용하고 목록 projection을 fallback으로 표시.
+/* #309 — 타래 배지 클릭. 현재 상세 projection이 확인된 뒤에만 본문을 표시.
    contract: GET /api/v1/lumina-feed/posts/:postId.
    배지가 카드 클릭(아티스트 라우팅)에 묻히지 않도록 stopPropagation. */
 let _feedThreadModalEl = null;
@@ -4971,8 +4971,7 @@ function showFeedThreadModalShell(post) {
 async function openFeedThreadModal(postId) {
   if (window.feedReadsBlockedForViewer?.()) return;
   const owner = feedModalViewerKey();
-  const cached = _luminaFeedItems.find(post => String(post.id) === String(postId)) || null;
-  showFeedThreadModalShell(cached);
+  showFeedThreadModalShell(null);
   const modal = _feedThreadModalEl;
   const current = () => modal === _feedThreadModalEl && owner === feedModalViewerKey() && !window.feedReadsBlockedForViewer?.();
   try {
@@ -4982,7 +4981,7 @@ async function openFeedThreadModal(postId) {
     if (!current()) return;
     const serverPost = res?.post || res?.data?.post || res;
     if (!serverPost?.id || String(serverPost.id) !== String(postId)) throw new Error("invalid thread response");
-    const normalized = normalizeFeedPost({ ...(cached || {}), ...(serverPost || {}) });
+    const normalized = normalizeFeedPost(serverPost);
     const idx = _luminaFeedItems.findIndex(post => String(post.id) === String(postId));
     if (idx >= 0) _luminaFeedItems[idx] = normalized;
     if (_feedThreadModalEl) {
@@ -5097,8 +5096,11 @@ function bindLuminaFeedLike() {
 
 let _feedCommentModalEl = null;
 let _feedCommentLoadSeq = 0;
-function openFeedCommentModal(post) {
+async function openFeedCommentModal(post) {
   if (window.feedReadsBlockedForViewer?.()) return;
+  const postId = String(post?.id || "");
+  if (!postId) return;
+  const owner = feedModalViewerKey();
   closeFeedCommentModal();
   const modal = document.createElement("div");
   modal.className = "feed-comment-modal";
@@ -5113,23 +5115,24 @@ function openFeedCommentModal(post) {
         <button class="feed-comment-modal-close" type="button" data-feed-comment-close aria-label="닫기">×</button>
       </header>
       <div class="feed-comment-post">
-        <strong>${feedEscapeHtml(post.authorName || "Lumina User")}</strong>
-        <p>${feedEscapeHtml(post.body || "")}</p>
+        <p class="feed-comment-state">글을 불러오고 있어요…</p>
       </div>
       <div class="feed-comment-list" data-feed-comment-list>
         <p class="feed-comment-state">댓글을 불러오고 있어요…</p>
       </div>
       <form class="feed-comment-form" data-feed-comment-form>
-        <textarea rows="3" maxlength="300" placeholder="댓글을 남겨보세요." aria-label="댓글 입력"></textarea>
+        <textarea rows="3" maxlength="300" placeholder="댓글을 남겨보세요." aria-label="댓글 입력" disabled></textarea>
         <div class="feed-comment-form-actions">
           <span class="feed-comment-counter" aria-live="polite" aria-atomic="true">0 / 300</span>
           <p class="feed-comment-message" data-feed-comment-message hidden></p>
-          <button type="submit">등록</button>
+          <button type="submit" disabled>등록</button>
         </div>
       </form>
     </div>
   `;
-  modal.querySelector("[data-feed-comment-form]").dataset.postId = post.id || "";
+  modal.querySelector("[data-feed-comment-form]").dataset.postId = postId;
+  modal._feedParentReadVerified = false;
+  modal._feedParentReadOwner = null;
   document.body.appendChild(modal);
   document.body.style.overflow = "hidden";
   _feedCommentModalEl = modal;
@@ -5145,8 +5148,48 @@ function openFeedCommentModal(post) {
       else                  delete commentCounter.dataset.state;
     });
   }
-  loadFeedComments(post.id);
-  setTimeout(() => modal.querySelector("textarea")?.focus(), 80);
+  const current = () => modal === _feedCommentModalEl && owner === feedModalViewerKey() &&
+    String(modal.querySelector("[data-feed-comment-form]")?.dataset.postId || "") === postId && !window.feedReadsBlockedForViewer?.();
+  try {
+    const res = await apiFetch(`/api/v1/lumina-feed/posts/${encodeURIComponent(postId)}`, {
+      auth: typeof isLoggedIn === "function" && isLoggedIn(), throwOnError: true
+    });
+    if (!current()) return;
+    const serverPost = res?.post || res?.data?.post || res;
+    if (!serverPost?.id || String(serverPost.id) !== postId) throw new Error("invalid comment parent response");
+    const normalized = normalizeFeedPost(serverPost);
+    const idx = _luminaFeedItems.findIndex(item => String(item.id) === postId);
+    if (idx >= 0) _luminaFeedItems[idx] = normalized;
+    modal.querySelector(".feed-comment-post").innerHTML =
+      `<strong>${feedEscapeHtml(normalized.authorName || "Lumina User")}</strong><p>${feedEscapeHtml(normalized.body)}</p>`;
+    modal._feedParentReadVerified = true;
+    modal._feedParentReadOwner = owner;
+    const form = modal.querySelector("[data-feed-comment-form]");
+    form.querySelector("textarea").disabled = false;
+    form.querySelector("button[type='submit']").disabled = false;
+    await loadFeedComments(postId);
+    if (current() && modal._feedParentReadVerified) {
+      setTimeout(() => { if (current() && modal._feedParentReadVerified) modal.querySelector("textarea")?.focus(); }, 80);
+    }
+  } catch (err) {
+    if (!current()) return;
+    console.warn("[Lumina feed comment parent]", { status: err?.status || null });
+    clearFeedCommentParentRead(modal);
+    const list = modal.querySelector("[data-feed-comment-list]");
+    if (list) list.innerHTML = `<p class="feed-comment-state">댓글을 불러올 수 없어요.</p>`;
+  }
+}
+
+function clearFeedCommentParentRead(modal) {
+  modal._feedParentReadVerified = false;
+  modal._feedParentReadOwner = null;
+  const parent = modal.querySelector(".feed-comment-post");
+  if (parent) parent.innerHTML = `<p class="feed-comment-state">글을 불러오지 못했어요. 잠시 뒤 다시 시도해 주세요.</p>`;
+  const form = modal.querySelector("[data-feed-comment-form]");
+  const textarea = form?.querySelector("textarea");
+  const submit = form?.querySelector("button[type='submit']");
+  if (textarea) textarea.disabled = true;
+  if (submit) submit.disabled = true;
 }
 
 function closeFeedCommentModal() {
@@ -5189,6 +5232,7 @@ async function loadFeedComments(postId) {
   } catch (err) {
     if (!current()) return;
     console.warn("[Lumina feed comments] 조회 실패:", err?.status);
+    if (err?.status === 403 || err?.status === 404) clearFeedCommentParentRead(modal);
     list.innerHTML = `<p class="feed-comment-state">댓글 목록은 잠시 후 다시 불러와 주세요.</p>`;
   }
 }
@@ -5223,7 +5267,8 @@ function bindLuminaFeedComment() {
     const owner = feedModalViewerKey();
     const modal = _feedCommentModalEl;
     const current = () => modal === _feedCommentModalEl && owner === feedModalViewerKey() &&
-      modal?.querySelector("[data-feed-comment-form]") === form && form.dataset.postId === postId && !window.feedReadsBlockedForViewer?.();
+      modal?.querySelector("[data-feed-comment-form]") === form && form.dataset.postId === postId &&
+      modal._feedParentReadVerified === true && modal._feedParentReadOwner === owner && !window.feedReadsBlockedForViewer?.();
     if (!current()) return;
     const textarea = form.querySelector("textarea");
     const message = form.querySelector("[data-feed-comment-message]");
@@ -5263,7 +5308,7 @@ function bindLuminaFeedComment() {
         message.hidden = false;
       }
     } finally {
-      if (submitBtn) submitBtn.disabled = false;
+      if (submitBtn && current()) submitBtn.disabled = false;
     }
   });
 }

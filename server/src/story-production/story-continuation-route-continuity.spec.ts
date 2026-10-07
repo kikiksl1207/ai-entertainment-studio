@@ -36,6 +36,7 @@ function fixture(count = 80) {
   })));
   const prisma = {
     $queryRaw: jest.fn((_strings, routeNodeId) => routeNodeId === 'branch' ? otherBranch : rows),
+    storyPart: { findMany: jest.fn().mockResolvedValue([{ id: 'part-id' }]) },
     storyChoice: { findMany: jest.fn().mockResolvedValue([]) },
     storyCustomChoice: { findMany: jest.fn().mockResolvedValue([]) },
     storyScene: { findMany: jest.fn().mockResolvedValue([]) },

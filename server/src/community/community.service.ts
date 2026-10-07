@@ -1925,6 +1925,13 @@ export class CommunityService {
       throw new BadRequestException('cursor must be a post UUID');
     }
 
+    const blockedUserIds = viewerUserId
+      ? await this.getBlockedRelationshipUserIds(viewerUserId)
+      : [];
+    if (blockedUserIds.includes(rootPost.authorUserId)) {
+      throw new NotFoundException('Post not found');
+    }
+
     const where = {
       status: 'published',
       visibility: 'public',
@@ -1934,6 +1941,7 @@ export class CommunityService {
         path: ['threadContinuation', 'rootPostId'],
         equals: rootPost.id,
       },
+      authorUserId: blockedUserIds.length ? { notIn: blockedUserIds } : undefined,
     } as Prisma.CommunityPostWhereInput;
     const posts = await this.prisma.communityPost.findMany({
       where,
@@ -2291,10 +2299,14 @@ export class CommunityService {
   }
 
   async getReplies(postId: string, query: CommunityQuery, viewerUserId?: string) {
-    await this.findVisiblePost(postId);
+    const post = await this.findPublicPost(postId);
     const blockedUserIds = viewerUserId
       ? await this.getBlockedRelationshipUserIds(viewerUserId)
       : [];
+
+    if (blockedUserIds.includes(post.authorUserId)) {
+      throw new NotFoundException('Post not found');
+    }
 
     const replies = await this.prisma.communityReply.findMany({
       where: {
@@ -5480,7 +5492,9 @@ export class CommunityService {
       where: {
         id: postId,
         status: 'published',
+        visibility: 'public',
         deletedAt: null,
+        ...this.publicFeedCleanupGuardWhere(),
         ...(blockedUserIds.length ? { authorUserId: { notIn: blockedUserIds } } : {}),
       },
       include: this.postInclude(),
@@ -5539,12 +5553,8 @@ export class CommunityService {
   }) {
     try {
       await this.notificationsService.createNotification(input);
-    } catch (error) {
-      this.logger.warn(
-        `Failed to create notification ${input.type} for user ${input.userId}: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      );
+    } catch {
+      this.logger.warn('Failed to create community notification');
     }
   }
 
