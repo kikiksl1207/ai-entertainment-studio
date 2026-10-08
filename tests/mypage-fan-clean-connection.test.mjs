@@ -13,6 +13,9 @@ const lf = bytes => new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).d
 // Read-only CLEAN fragments were pinned after CRLF->LF only, independently of forward products.
 const snapshots = Object.freeze({
   app: '4489be417124bd10b57da60da95daec1661528ebc75d0c03891714035dd390b0',
+  appAuth: '96dbd8ce9100e2cad2183e936e6070ae55408a753a266ab43f15a2fdf1a926b7',
+  appReady: 'c545e18a4623306fa780ed14e70958c39da706a72de7ed4f999a20638988e1e5',
+  appI18n: '24be790bfcac2c334bf594f063fba01edda9162b1c9981a510dd6cb4589529ab',
   html: '0ed829c2ddfc02daa836627f97afbbafb138a7aa559447903909a14c3caa56f9',
   css: '1f83fcf68a3f4e0e8e1d114fe25eab2151b9d0ea074a0c9d8ebcca596770453d',
   htmlPrefix: 'aaa394f1cb5af7390bb6d64b0f5cd96ac2ab13008ffa0733cdff6d1854d8187d',
@@ -29,7 +32,9 @@ function baseline(variable, pin, fallback) {
   assert.equal(sha(text), pin, variable + ' CRLF->LF source pin');
   return text;
 }
-const app = baseline('MYPAGE_FAN_BASELINE_APP', snapshots.app, new URL('../app.js', import.meta.url));
+const app = process.env.MYPAGE_FAN_BASELINE_APP
+  ? baseline('MYPAGE_FAN_BASELINE_APP', snapshots.app)
+  : lf(readFileSync(new URL('../app.js', import.meta.url)));
 const beforeHtml = baseline('MYPAGE_FAN_BASELINE_HTML', snapshots.html);
 const beforeCss = baseline('MYPAGE_FAN_BASELINE_CSS', snapshots.css);
 function fragment(start, end) {
@@ -39,8 +44,12 @@ function fragment(start, end) {
 }
 const authSource = fragment('const API_BASE =', 'const I18N_LOCALES =');
 const markReadySource = fragment('function markAppReady() {', 'async function init() {');
+const i18nExportSource = fragment('window.luminaI18n = {', '\n  };');
+assert.equal(sha(authSource), snapshots.appAuth, 'Consumed auth CRLF->LF source pin');
+assert.equal(sha(markReadySource), snapshots.appReady, 'Consumed ready marker CRLF->LF source pin');
+assert.equal(sha(i18nExportSource), snapshots.appI18n, 'Consumed i18n export CRLF->LF source pin');
 assert.match(authSource, /_retryDepth === 0/);
-assert.doesNotMatch(fragment('window.luminaI18n = {', '\n  };'), /whenReady/);
+assert.doesNotMatch(i18nExportSource, /whenReady/);
 const tick = async () => { for (let i = 0; i < 48; i++) await Promise.resolve(); };
 const clone = value => JSON.parse(JSON.stringify(value));
 const deferred = () => {
