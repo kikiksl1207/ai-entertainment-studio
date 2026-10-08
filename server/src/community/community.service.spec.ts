@@ -31,6 +31,7 @@ type PrismaMock = ReturnType<typeof createPrismaMock>;
 function createPrismaMock() {
   const prisma: any = {
     $transaction: jest.fn(async (callback: any) => callback(prisma)),
+    $queryRaw: jest.fn().mockResolvedValue([]),
     user: {
       findFirst: jest.fn().mockResolvedValue({ id: authorId }),
     },

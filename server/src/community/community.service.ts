@@ -5291,46 +5291,52 @@ export class CommunityService {
       const visitorHash = input.visitorHash
         ? this.hashVisitor(input.visitorHash)
         : null;
-      const dedupeSince = new Date(Date.now() - SEARCH_EVENT_DEDUPE_WINDOW_MS);
       const duplicateMatchers = [
         ...(input.userId ? [{ userId: input.userId }] : []),
         ...(visitorHash ? [{ visitorHash }] : []),
       ];
-      const recentDuplicate = duplicateMatchers.length
-        ? await this.prisma.feedSearchEvent.findFirst({
-            where: {
-              normalizedKeyword: input.normalizedKeyword,
-              searchType: input.searchType,
-              language: input.language,
-              createdAt: { gte: dedupeSince },
-              OR: duplicateMatchers,
-            },
-            select: { id: true },
-          })
-        : null;
+      const lockKeys = [
+        ...(input.userId ? [['user', input.userId]] : []),
+        ...(visitorHash ? [['visitor', visitorHash]] : []),
+      ].map(([kind, identity]) => createHash('sha256').update(JSON.stringify([
+        'feed-search-event-v1', input.normalizedKeyword, input.searchType,
+        input.language, kind, identity,
+      ])).digest().readBigInt64BE(0));
 
-      if (recentDuplicate) {
-        return;
-      }
-
-      await this.prisma.feedSearchEvent.create({
-        data: {
-          userId: input.userId ?? null,
-          visitorHash,
-          keyword: input.keyword,
-          normalizedKeyword: input.normalizedKeyword,
-          searchType: input.searchType,
-          language: input.language,
-          resultCount: input.resultCount,
-          metadata: this.toJson(input.metadata),
-        },
-      });
-    } catch (error) {
-      this.logger.warn(
-        `Failed to record feed search event: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      );
+      await this.prisma.$transaction(async (tx) => {
+        // Lock both OR identities in a stable order, then read the committed winner.
+        for (const key of [...new Set(lockKeys)].sort((a, b) => a < b ? -1 : a > b ? 1 : 0)) {
+          await tx.$queryRaw`SELECT pg_advisory_xact_lock(${key}::bigint)::text`;
+        }
+        const dedupeSince = new Date(Date.now() - SEARCH_EVENT_DEDUPE_WINDOW_MS);
+        const recentDuplicate = duplicateMatchers.length
+          ? await tx.feedSearchEvent.findFirst({
+              where: {
+                normalizedKeyword: input.normalizedKeyword,
+                searchType: input.searchType,
+                language: input.language,
+                createdAt: { gte: dedupeSince },
+                OR: duplicateMatchers,
+              },
+              select: { id: true },
+            })
+          : null;
+        if (recentDuplicate) return;
+        await tx.feedSearchEvent.create({
+          data: {
+            userId: input.userId ?? null,
+            visitorHash,
+            keyword: input.keyword,
+            normalizedKeyword: input.normalizedKeyword,
+            searchType: input.searchType,
+            language: input.language,
+            resultCount: input.resultCount,
+            metadata: this.toJson(input.metadata),
+          },
+        });
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted });
+    } catch {
+      this.logger.warn('Failed to record feed search event');
     }
   }
 
