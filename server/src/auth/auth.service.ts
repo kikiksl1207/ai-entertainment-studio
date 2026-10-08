@@ -2019,78 +2019,80 @@ export class AuthService {
     }
 
     const now = new Date();
-    const [updatedUser, revokedSessions] = await this.prisma.$transaction([
-      this.prisma.user.update({
-        where: { id: userId },
-        data: {
-          status: 'deleted',
-          deletedAt: now,
-          updatedAt: now,
-        },
-        select: {
-          id: true,
-          email: true,
-          status: true,
-          deletedAt: true,
-          updatedAt: true,
-        },
-      }),
-      this.prisma.userRefreshToken.updateMany({
-        where: {
-          userId,
-          revokedAt: null,
-        },
-        data: {
-          revokedAt: now,
-        },
-      }),
-      this.prisma.userActionToken.updateMany({
-        where: {
-          userId,
-          consumedAt: null,
-        },
-        data: {
-          consumedAt: now,
-        },
-      }),
-      this.prisma.userReferralCode.updateMany({
-        where: {
-          userId,
-          status: 'active',
-        },
-        data: {
-          status: 'inactive',
-          updatedAt: now,
-        },
-      }),
-    ]);
+    return this.prisma.$transaction(async (tx) => {
+      const [updatedUser, revokedSessions] = await Promise.all([
+        tx.user.update({
+          where: { id: userId },
+          data: {
+            status: 'deleted',
+            deletedAt: now,
+            updatedAt: now,
+          },
+          select: {
+            id: true,
+            email: true,
+            status: true,
+            deletedAt: true,
+            updatedAt: true,
+          },
+        }),
+        tx.userRefreshToken.updateMany({
+          where: {
+            userId,
+            revokedAt: null,
+          },
+          data: {
+            revokedAt: now,
+          },
+        }),
+        tx.userActionToken.updateMany({
+          where: {
+            userId,
+            consumedAt: null,
+          },
+          data: {
+            consumedAt: now,
+          },
+        }),
+        tx.userReferralCode.updateMany({
+          where: {
+            userId,
+            status: 'active',
+          },
+          data: {
+            status: 'inactive',
+            updatedAt: now,
+          },
+        }),
+      ]);
 
-    await this.prisma.auditEvent.create({
-      data: {
-        actorUserId: userId,
-        actorType: 'user',
-        action: 'user.self_delete',
-        targetType: 'user',
-        targetId: userId,
-        beforeData: this.toJson({
-          id: user.id,
-          email: user.email,
-          status: user.status,
-          deletedAt: user.deletedAt,
-        }),
-        afterData: this.toJson(updatedUser),
-        metadata: this.toJson({
-          reason: this.truncateNullable(input.reason, 500),
-          revokedSessionCount: revokedSessions.count,
-        }),
-      },
+      await tx.auditEvent.create({
+        data: {
+          actorUserId: userId,
+          actorType: 'user',
+          action: 'user.self_delete',
+          targetType: 'user',
+          targetId: userId,
+          beforeData: this.toJson({
+            id: user.id,
+            email: user.email,
+            status: user.status,
+            deletedAt: user.deletedAt,
+          }),
+          afterData: this.toJson(updatedUser),
+          metadata: this.toJson({
+            reason: this.truncateNullable(input.reason, 500),
+            revokedSessionCount: revokedSessions.count,
+          }),
+        },
+      });
+
+      return {
+        ok: true,
+        user: updatedUser,
+        revokedSessionCount: revokedSessions.count,
+      };
     });
-
-    return {
-      ok: true,
-      user: updatedUser,
-      revokedSessionCount: revokedSessions.count,
-    };
   }
 
   async listActiveSessions(userId: string) {

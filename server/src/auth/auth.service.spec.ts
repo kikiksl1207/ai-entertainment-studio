@@ -780,10 +780,6 @@ describe('AuthService action token flows', () => {
     prisma.userActionToken.updateMany.mockResolvedValue({ count: 3 });
     prisma.userReferralCode.updateMany.mockResolvedValue({ count: 1 });
     prisma.auditEvent.create.mockResolvedValue({ id: 'audit-1' });
-    prisma.$transaction.mockImplementationOnce(
-      async (operations: Array<Promise<unknown>>) => Promise.all(operations),
-    );
-
     await expect(
       service.deleteAccount(userId, {
         reason: 'safe account closure reason',
