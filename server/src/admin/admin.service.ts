@@ -1020,12 +1020,14 @@ export class AdminService {
     const applicationWhere: Prisma.DebutApplicationWhereInput = this.clean({
       status,
       OR: search
-        ? [
-            { applicantName: { contains: search, mode: 'insensitive' } },
-            { displayName: { contains: search, mode: 'insensitive' } },
-            { contactEmail: { contains: search, mode: 'insensitive' } },
-            { user: { email: { contains: search, mode: 'insensitive' } } },
-          ]
+        ? canViewContact
+          ? [
+              { applicantName: { contains: search, mode: 'insensitive' } },
+              { displayName: { contains: search, mode: 'insensitive' } },
+              { contactEmail: { contains: search, mode: 'insensitive' } },
+              { user: { email: { contains: search, mode: 'insensitive' } } },
+            ]
+          : [{ displayName: { contains: search, mode: 'insensitive' } }]
         : undefined,
     });
 
@@ -1139,9 +1141,9 @@ export class AdminService {
             id: application.id,
             userId: application.userId,
             status: application.status,
-            realName: application.applicantName,
+            realName: canViewContact ? application.applicantName : null,
             stageName: application.displayName,
-            applicantName: application.applicantName,
+            applicantName: canViewContact ? application.applicantName : null,
             displayName: application.displayName,
             participationType: application.participationType,
             shareTierRequested: application.shareTierRequested,
@@ -1171,7 +1173,7 @@ export class AdminService {
             updatedAt: application.updatedAt,
             user: {
               id: application.user.id,
-              email: application.user.email,
+              email: canViewContact ? application.user.email : null,
               status: application.user.status,
               profile: application.user.profile,
               artists: application.user.artistOperators.map((operator) => operator.artist),

@@ -13,6 +13,7 @@ import { generatedEndingReadPrivacyMiddleware } from './story-production/story-g
 import { authorBodyTrialReceiptPrivacyMiddleware } from './story-production/story-author-body-trial-receipt.controller';
 import { settingsPrivacyMiddleware } from './auth/auth-settings.privacy';
 import { notificationPrivacyMiddleware } from './notifications/notifications.privacy';
+import { fanEngagementPrivacyMiddleware } from './fan-engagement/fan-engagement.privacy';
 
 type RequestLike = {
   headers: Record<string, string | string[] | undefined>;
@@ -43,6 +44,7 @@ export async function createApplication() {
   app.use(authorBodyTrialReceiptPrivacyMiddleware);
   app.use(settingsPrivacyMiddleware);
   app.use(notificationPrivacyMiddleware);
+  app.use(fanEngagementPrivacyMiddleware);
   app.use(
     helmet({
       crossOriginResourcePolicy: { policy: 'cross-origin' },
