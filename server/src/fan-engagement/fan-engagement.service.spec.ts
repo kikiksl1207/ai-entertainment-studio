@@ -344,9 +344,13 @@ describe('FanEngagementService.createMissionParticipation', () => {
 
 describe('FanEngagementService fan title/public summary', () => {
   it('equips an owned active title and clears any previous equipped title', async () => {
-    const prisma = createPrismaMock();
+    const prisma = createPrismaMock() as PrismaMock & { $queryRaw: jest.Mock };
     const title = fanTitle();
     const equippedAt = new Date('2026-05-10T01:00:00.000Z');
+    prisma.$queryRaw = jest.fn()
+      .mockResolvedValueOnce([{ id: userId }])
+      .mockResolvedValueOnce([{ id: title.titleId }])
+      .mockResolvedValueOnce([{ id: title.id }]);
     prisma.userFanTitle.findFirst.mockResolvedValue(title);
     prisma.userFanTitle.updateMany.mockResolvedValue({ count: 1 });
     prisma.userFanTitle.update.mockResolvedValue(
@@ -357,9 +361,24 @@ describe('FanEngagementService fan title/public summary', () => {
       titleCode: 'concept_scout',
     });
 
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(3);
+    expect(prisma.$queryRaw).toHaveBeenNthCalledWith(1, expect.any(Array), userId);
+    expect(prisma.$queryRaw).toHaveBeenNthCalledWith(2, expect.any(Array), 'concept_scout');
+    expect(prisma.$queryRaw).toHaveBeenNthCalledWith(3, expect.any(Array), userId, title.titleId);
+    expect(prisma.userFanTitle.findFirst).toHaveBeenCalledWith({
+      where: { id: title.id, userId, status: 'active',
+        title: { code: 'concept_scout', status: 'active' } },
+      include: { title: true },
+    });
     expect(prisma.userFanTitle.updateMany).toHaveBeenCalledWith({
-      where: { userId, equipped: true },
+      where: { userId, equipped: true, id: { not: title.id } },
       data: expect.objectContaining({ equipped: false, equippedAt: null }),
+    });
+    expect(prisma.userFanTitle.update).toHaveBeenCalledWith({
+      where: { id: title.id, userId, status: 'active',
+        title: { code: 'concept_scout', status: 'active' } },
+      data: { equipped: true, equippedAt: expect.any(Date), updatedAt: expect.any(Date) },
+      include: { title: true },
     });
     expect(result).toMatchObject({
       equipped: {
@@ -380,7 +399,12 @@ describe('FanEngagementService fan title/public summary', () => {
   });
 
   it('rejects title equip when the user does not own the title', async () => {
-    const prisma = createPrismaMock();
+    const prisma = createPrismaMock() as PrismaMock & { $queryRaw: jest.Mock };
+    const title = fanTitle();
+    prisma.$queryRaw = jest.fn()
+      .mockResolvedValueOnce([{ id: userId }])
+      .mockResolvedValueOnce([{ id: title.titleId }])
+      .mockResolvedValueOnce([]);
     prisma.userFanTitle.findFirst.mockResolvedValue(null);
 
     await expect(
@@ -391,6 +415,13 @@ describe('FanEngagementService fan title/public summary', () => {
         messageKey: 'fanTitle.notOwned',
       },
     });
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(3);
+    expect(prisma.$queryRaw).toHaveBeenNthCalledWith(1, expect.any(Array), userId);
+    expect(prisma.$queryRaw).toHaveBeenNthCalledWith(2, expect.any(Array), 'missing_title');
+    expect(prisma.$queryRaw).toHaveBeenNthCalledWith(3, expect.any(Array), userId, title.titleId);
+    expect(prisma.userFanTitle.findFirst).not.toHaveBeenCalled();
+    expect(prisma.userFanTitle.updateMany).not.toHaveBeenCalled();
+    expect(prisma.userFanTitle.update).not.toHaveBeenCalled();
   });
 
   it('returns only public fan title and badge data for public summaries', async () => {

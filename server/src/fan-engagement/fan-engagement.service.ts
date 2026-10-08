@@ -393,6 +393,7 @@ export class FanEngagementService {
     const balance = pointTotals.reduce((sum, row) => sum + (row.direction === 'spend' ? -1 : 1) * (row._sum.points ?? 0), 0);
     const lifetimeEarned = pointTotals.find(row => row.direction === 'earn')?._sum.points ?? 0;
     const participation = participationTotals[0];
+    const equippedTitle = titles.find((row) => row.equipped && row.status === 'active' && row.title.status === 'active');
 
     return {
       generatedAt: now.toISOString(),
@@ -425,11 +426,13 @@ export class FanEngagementService {
         earnedAt: row.earnedAt,
       })),
       titles: {
-        equipped: this.presentEquippedTitle(titles.find((row) => row.equipped)),
+        equipped: this.presentEquippedTitle(equippedTitle),
         items: titles.map((row) => ({
           code: row.title.code,
           status: row.status,
           statusKey: `fanTitle.status.${row.status}`,
+          equipped: row.id === equippedTitle?.id,
+          canEquip: row.status === 'active' && row.title.status === 'active',
           rarity: row.title.rarity,
           rarityKey: `fanTitle.rarity.${row.title.rarity}`,
           copy: this.titleCopy(row.title.copy, row.title.code),
@@ -451,38 +454,64 @@ export class FanEngagementService {
   }
 
   async equipTitle(userId: string, input: FanEngagementBody) {
-    const titleCode = this.string(input, 'titleCode');
-    const ownedTitle = await this.prisma.userFanTitle.findFirst({
-      where: {
-        userId,
-        status: 'active',
-        title: { code: titleCode, status: 'active' },
-      },
-      include: { title: true },
-    });
-
-    if (!ownedTitle) {
-      throw this.notFoundError(
-        'FAN_TITLE_NOT_OWNED',
-        'Fan title is not owned by this user',
-        'fanTitle.notOwned',
-        { titleCode },
-      );
+    if (!input || typeof input !== 'object' || Array.isArray(input)) {
+      throw this.badRequestError({
+        code: 'INVALID_REQUEST',
+        message: 'Request body must be an object',
+        messageKey: 'fanEngagement.validation.invalidRequest',
+      });
     }
-
-    const equippedAt = new Date();
+    const titleCode = this.string(input, 'titleCode');
+    const notOwned = () => this.notFoundError(
+      'FAN_TITLE_NOT_OWNED',
+      'Fan title is not owned by this user',
+      'fanTitle.notOwned',
+      { titleCode },
+    );
     const equipped = await this.prisma.$transaction(async (tx) => {
+      // Serialize even the first equip; title and ownership locks fence revocation through commit.
+      const lockedUsers = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT id FROM public.users WHERE id = ${userId}::uuid FOR NO KEY UPDATE
+      `;
+      if (lockedUsers.length !== 1) throw notOwned();
+      const lockedTitles = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT id FROM public.fan_titles WHERE code = ${titleCode} FOR SHARE
+      `;
+      if (lockedTitles.length !== 1) throw notOwned();
+      const lockedOwnership = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT id FROM public.user_fan_titles
+        WHERE user_id = ${userId}::uuid AND title_id = ${lockedTitles[0].id}::uuid FOR UPDATE
+      `;
+      if (lockedOwnership.length !== 1) throw notOwned();
+      const ownedTitle = await tx.userFanTitle.findFirst({
+        where: {
+          id: lockedOwnership[0].id,
+          userId,
+          status: 'active',
+          title: { code: titleCode, status: 'active' },
+        },
+        include: { title: true },
+      });
+      if (!ownedTitle) throw notOwned();
+
+      const equippedAt = new Date();
       await tx.userFanTitle.updateMany({
-        where: { userId, equipped: true },
+        where: { userId, equipped: true, id: { not: ownedTitle.id } },
         data: { equipped: false, equippedAt: null, updatedAt: equippedAt },
       });
+      if (ownedTitle.equipped) return ownedTitle;
 
       return tx.userFanTitle.update({
-        where: { id: ownedTitle.id },
+        where: {
+          id: ownedTitle.id,
+          userId,
+          status: 'active',
+          title: { code: titleCode, status: 'active' },
+        },
         data: { equipped: true, equippedAt, updatedAt: equippedAt },
         include: { title: true },
       });
-    });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted });
 
     return {
       equipped: this.presentEquippedTitle(equipped),
