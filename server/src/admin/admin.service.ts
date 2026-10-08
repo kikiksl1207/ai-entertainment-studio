@@ -4234,6 +4234,9 @@ export class AdminService {
 
   getPaymentOrders(query: AuditQuery) {
     const pagination = this.adminPagination(query);
+    if (query.userId !== undefined && typeof query.userId !== 'string') {
+      throw new BadRequestException('userId must be a string');
+    }
     const orderNo = this.optionalString(query, 'orderNo');
     const search = this.optionalString(query, 'query') ?? this.optionalString(query, 'q');
     const where: Prisma.PaymentOrderWhereInput = this.clean({
