@@ -5,7 +5,9 @@ import { runInNewContext } from 'node:vm';
 
 const source = readFileSync(new URL('../pages/popular-vote.js', import.meta.url), 'utf8');
 
-async function renderMonthlyArchive({ campaignStart, picks, monthlyRequestFails = false, now = '2026-09-27T00:00:00.000Z' }) {
+async function renderMonthlyArchive({ campaignStart, picks, monthlyRequestFails = false,
+  yearChampionRequestFails = false, returnChampion = false, translations = {},
+  now = '2026-09-27T00:00:00.000Z' }) {
   const roots = {
     yearChampion: { innerHTML: '' },
     monthlyPicksGrid: { innerHTML: '' },
@@ -15,7 +17,7 @@ async function renderMonthlyArchive({ campaignStart, picks, monthlyRequestFails 
       super(...(args.length ? args : [now]));
     }
   }
-  const window = { location: { search: '' } };
+  const window = { location: { search: '' }, luminaI18n: { t: key => translations[key] ?? key } };
   const context = {
     window,
     document: { getElementById: (id) => roots[id] ?? null },
@@ -30,6 +32,7 @@ async function renderMonthlyArchive({ campaignStart, picks, monthlyRequestFails 
         if (monthlyRequestFails) throw new Error('monthly API unavailable');
         return picks;
       }
+      if (yearChampionRequestFails) throw new Error('year champion API unavailable');
       return { champion: null };
     },
     loadBoostState: async () => {},
@@ -43,8 +46,26 @@ async function renderMonthlyArchive({ campaignStart, picks, monthlyRequestFails 
   };
   runInNewContext(source, context);
   await window.initPopularVotePage();
-  return roots.monthlyPicksGrid.innerHTML;
+  return returnChampion ? roots.yearChampion.innerHTML : roots.monthlyPicksGrid.innerHTML;
 }
+
+test('distinguishes a failed annual read from a confirmed empty champion', async () => {
+  const normal = await renderMonthlyArchive({ picks: [], returnChampion: true });
+  assert.match(normal, /vote-year-waiting/);
+  assert.doesNotMatch(normal, /집계 확인 불가/);
+  const failed = await renderMonthlyArchive({ picks: [], returnChampion: true, yearChampionRequestFails: true });
+  assert.match(failed, /집계 확인 불가/);
+  assert.doesNotMatch(failed, /vote-year-waiting/);
+});
+
+test('uses the existing translated unavailable message after an annual read failure', async () => {
+  for (const message of ['Unavailable', '集計を確認できません', '无法确认统计', '無法確認統計']) {
+    const html = await renderMonthlyArchive({ picks: [], returnChampion: true, yearChampionRequestFails: true,
+      translations: { 'pick.status.unavailable': message } });
+    assert.ok(html.includes(message));
+    assert.doesNotMatch(html, /vote-year-waiting/);
+  }
+});
 
 test('shows each completed month without inventing a missing winner', async () => {
   const html = await renderMonthlyArchive({

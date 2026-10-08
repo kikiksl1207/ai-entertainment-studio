@@ -4,6 +4,7 @@ let _popularVote = {
   monthlyPicks: [],       // 월간 1위 배열 (해당 연도)
   monthlyPicksLoaded: false,
   yearChampion: null,     // { year, champion, rankings, rule }
+  yearChampionLoaded: false,
   archiveYear: null,
   monthKey: null,
   loaded: false
@@ -97,6 +98,7 @@ async function loadPopularVoteState() {
       monthlyPicksLoaded: monthlyPicks !== null,
       // year-champion 응답: { year, champion, rankings, rule } — 객체 통째로 저장
       yearChampion: yearChampion,
+      yearChampionLoaded: yearChampion !== null,
       archiveYear: year,
       monthKey: scope.monthKey,
       loaded: true
@@ -320,7 +322,11 @@ function renderHallOfFameTab() {
   // champion은 row 구조: { rankNo, artist, totalFreeLikes, totalLuminaBoosts, totalWeightedScore } 또는 null
   const championWrapper = _popularVote.yearChampion;
   const champion = championWrapper?.champion || null;
-  if (champion) {
+  if (!_popularVote.yearChampionLoaded) {
+    championRoot.innerHTML = `<div class="vote-empty">${_popularVote.loaded
+      ? pickText("pick.status.unavailable", "집계 확인 불가")
+      : pickText("pick.status.loading", "불러오는 중…")}</div>`;
+  } else if (champion) {
     const championArtist = getCharacterBySlug(champion.artist?.slug || champion.slug || champion.artistSlug);
     if (championArtist) {
       const championScore = champion.totalWeightedScore ?? champion.totalFreeLikes ?? champion.totalScore ?? champion.score ?? 0;
@@ -483,6 +489,7 @@ function renderArchiveYearOptions() {
       const year = Number(select.value);
       if (!Number.isInteger(year) || year < 2026 || year > kstCurrentYear()) return;
       if (popularVoteRefresh) await popularVoteRefresh;
+      if (Number(select.value) !== year) return;
       _popularVote.archiveYear = year;
       renderArchiveLoading();
       await refreshPopularVotePage();
@@ -511,7 +518,8 @@ function refreshPopularVotePage() {
       const latest = kstPickScope();
       if (scope.queryKey !== latest.queryKey) {
         _popularVote = { ..._popularVote, mainPick: null, monthlyPicks: [], monthlyPicksLoaded: false,
-          yearChampion: null, archiveYear: scope.monthKey !== latest.monthKey ? latest.year : _popularVote.archiveYear,
+          yearChampion: null, yearChampionLoaded: false,
+          archiveYear: scope.monthKey !== latest.monthKey ? latest.year : _popularVote.archiveYear,
           monthKey: null, loaded: false };
         archiveSettlementRefreshKey = null;
         renderMainPickTab();

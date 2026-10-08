@@ -3617,6 +3617,71 @@ async function handleGoogleTokenResponse(tokenResponse) {
 let _currentCampaign = null;
 let _rankings = []; // [{ slug, likes }]
 let _userLikedSlugs = new Set(); // 이번 세션에 좋아요 누른 슬러그
+let _pickSession = authRequestSession();
+let _pickEpoch = 0;
+let _pickQuotaVersion = 0;
+// Keep uncertain intent keys in page memory, including across account replacement.
+const _freeLikeAttempts = new Map();
+
+function pickOwnerId(auth = getAuth()) {
+  const id = auth?.user?.id || auth?.user?.userId;
+  return typeof id === "string" && id.trim() ? id : null;
+}
+
+function freeLikeAttemptScope(ownerId, campaignId, artistId) {
+  return JSON.stringify([ownerId, campaignId, artistId]);
+}
+
+function freeLikePending(slug) {
+  const ownerId = pickOwnerId();
+  const artistId = getCharacterBySlug(slug)?.id;
+  if (!ownerId || !artistId || !_currentCampaign?.id) return false;
+  return Boolean(_freeLikeAttempts.get(freeLikeAttemptScope(ownerId, _currentCampaign.id, artistId))?.pending);
+}
+
+function syncPickSession() {
+  if (authRequestSessionCurrent(_pickSession)) {
+    _pickSession = authRequestSession();
+    return;
+  }
+  _pickSession = authRequestSession();
+  ++_pickEpoch;
+  ++_pickQuotaVersion;
+  _freeLikeQuota = null;
+  _freeLikeQuotaState = isLoggedIn() ? "unknown" : "anonymous";
+  _userLikedSlugs.clear();
+  document.querySelectorAll("[data-like-slug]").forEach(btn => {
+    btn.classList.remove("is-liked");
+    btn.disabled = !getCharacterBySlug(btn.dataset.likeSlug)?.id || freeLikePending(btn.dataset.likeSlug);
+    btn.setAttribute("aria-label", t("pick.action.support"));
+    btn.title = t("pick.action.support");
+  });
+  updateHeroQuotaDisplay();
+}
+
+function pickRequestCurrent(epoch, campaignId) {
+  syncPickSession();
+  return epoch === _pickEpoch && isLoggedIn() && authRequestSessionCurrent(_pickSession)
+    && (campaignId === undefined || campaignId === _currentCampaign?.id);
+}
+
+if (typeof window !== "undefined") {
+  window.addEventListener("lumina:authchange", syncPickSession);
+  window.addEventListener("storage", event => {
+    if (event.key === AUTH_STORAGE_KEY || event.key === null) syncPickSession();
+  });
+}
+
+function freeLikeUnknownMessage() {
+  const messages = {
+    "ko-KR": "응원 결과를 확인하지 못했어요. 같은 요청으로 다시 확인해 주세요.",
+    "ja-JP": "応援の結果を確認できません。同じリクエストで再確認してください。",
+    "en-US": "The support result is unconfirmed. Retry the same request to check it.",
+    "zh-CN": "应援结果尚未确认。请重试同一请求以确认结果。",
+    "zh-Hant": "應援結果尚未確認。請重試同一請求以確認結果。"
+  };
+  return messages[_currentLocale] || messages["en-US"];
+}
 
 function rankingMetricNumber(value) {
   if (value == null) return null;
@@ -3745,6 +3810,7 @@ function formatLikeCount(n) {
 }
 
 function likeButtonHTML(slug, extraClass = "") {
+  syncPickSession();
   const count = getLikesCount(slug);
   const canVote = Boolean(getCharacterBySlug(slug)?.id);
   const liked = _userLikedSlugs.has(slug) ? " is-liked" : "";
@@ -3757,7 +3823,7 @@ function likeButtonHTML(slug, extraClass = "") {
     ? (isPickPage ? t("pick.action.support") : "루미나 픽에서 응원하기")
     : (isPickPage ? t("pick.action.unavailable") : "응원 기능 연결 중");
   return `
-    <button class="like-btn${cls}${liked}" data-like-slug="${feedEscapeHtml(slug)}" type="button" aria-label="${feedEscapeHtml(tooltip)}" title="${feedEscapeHtml(tooltip)}" ${canVote ? "" : "disabled"}>
+    <button class="like-btn${cls}${liked}" data-like-slug="${feedEscapeHtml(slug)}" type="button" aria-label="${feedEscapeHtml(tooltip)}" title="${feedEscapeHtml(tooltip)}" ${canVote && !freeLikePending(slug) ? "" : "disabled"}>
       <svg class="like-heart" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
         <path d="M12 21s-7.5-4.5-9.5-9.5C1 8.5 3.5 5.5 7 5.5c2 0 3.5 1 5 2.5 1.5-1.5 3-2.5 5-2.5 3.5 0 6 3 4.5 6-2 5-9.5 9.5-9.5 9.5z"/>
       </svg>
@@ -3766,6 +3832,7 @@ function likeButtonHTML(slug, extraClass = "") {
 }
 
 async function handleLike(slug, btnEl) {
+  syncPickSession();
   if (!_currentCampaign?.id) {
     alert("현재 진행 중인 좋아요 캠페인이 없습니다.");
     return;
@@ -3774,37 +3841,60 @@ async function handleLike(slug, btnEl) {
     openAuthModal("login", { returnTo: currentAuthReturn("루미나 픽 응원") });
     return;
   }
-  if (_userLikedSlugs.has(slug)) {
+  const ownerId = pickOwnerId();
+  const campaignId = _currentCampaign.id;
+  const artist = typeof slug === "string" ? _artists.find(a => a.slug === slug) : null;
+  if (!ownerId || !artist || typeof artist.id !== "string" || !artist.id.trim()) {
+    alert(t("pick.action.unavailable"));
+    return;
+  }
+  const artistId = artist.id;
+  const scope = freeLikeAttemptScope(ownerId, campaignId, artistId);
+  let attempt = _freeLikeAttempts.get(scope);
+  if (attempt?.pending) return;
+  if (_userLikedSlugs.has(slug) && (!attempt || attempt.confirmed)) {
     openPaidLikeModal(slug);
     return;
   }
-
+  if (!attempt) {
+    attempt = { key: generateIdempotencyKey(), pending: false, confirmed: false };
+    _freeLikeAttempts.set(scope, attempt);
+  }
+  const epoch = _pickEpoch;
+  attempt.pending = true;
+  updateLikeButtons(slug);
   if (btnEl) btnEl.disabled = true;
 
   try {
-    // 백엔드는 artistId를 요구함 (명세 페이지에 정확한 형식 명시 안 됨).
-    // _artists에서 slug로 찾아 id가 있으면 그걸 사용, 없으면 slug fallback.
-    // artistSlug도 함께 보내서 백엔드가 어느 필드를 받든 동작하도록 안전망 둠.
-    const artist = _artists.find(a => a.slug === slug);
-    const artistIdValue = artist?.id || slug;
-
-    await apiFetch(`/api/v1/boost-campaigns/${_currentCampaign.id}/free-like`, {
+    const result = await apiFetch(`/api/v1/boost-campaigns/${campaignId}/free-like`, {
       method: "POST",
-      body: { artistId: artistIdValue, artistSlug: slug },
+      body: { artistId, artistSlug: slug, idempotencyKey: attempt.key },
+      headers: { "Idempotency-Key": attempt.key },
       auth: true,
       throwOnError: true
     });
+    if (!pickRequestCurrent(epoch, campaignId)) return;
+    const event = result?.event;
+    if (!event || typeof event.id !== "string" || !event.id || event.userId !== ownerId
+      || event.campaignId !== campaignId || event.artistId !== artistId
+      || typeof result.idempotentReplay !== "boolean") {
+      throw new Error("Unconfirmed free-like response");
+    }
+    attempt.confirmed = true;
     // 성공: 클라이언트 상태 즉시 업데이트 (낙관적 갱신)
     _userLikedSlugs.add(slug);
-    const rank = _rankings.find(r => r.slug === slug);
-    if (rank) rank.likes += 1;
-    else _rankings.push({ slug, likes: 1 });
+    if (!result.idempotentReplay) {
+      const rank = _rankings.find(r => r.slug === slug);
+      if (rank) rank.likes += 1;
+      else _rankings.push({ slug, likes: 1 });
+    }
     updateLikeButtons(slug);
     if (document.getElementById("voteTabs")) window.refreshPopularVotePage?.();
     // Q1 답변 권장: 좋아요 성공 후 rankings 재호출로 정확한 순위/점수 갱신
     // (실패해도 낙관적 갱신은 유지 — 사용자 경험 영향 없음)
-    apiFetch(`/api/v1/boost-campaigns/${_currentCampaign.id}/rankings?period=month`)
+    apiFetch(`/api/v1/boost-campaigns/${campaignId}/rankings?period=month`)
       .then(rankingsData => {
+        if (!pickRequestCurrent(epoch, campaignId)) return;
         if (rankingsData) {
           const list = Array.isArray(rankingsData) ? rankingsData : (rankingsData?.rankings || rankingsData?.items || []);
           if (Array.isArray(list) && list.length > 0) {
@@ -3816,12 +3906,12 @@ async function handleLike(slug, btnEl) {
           }
         }
       })
-      .catch(err => console.warn("[Lumina] 랭킹 재로드 실패 (낙관적 갱신 유지):", err));
+      .catch(() => {});
 
     // 좋아요 후 무료 한도 잔여 갱신 (루미나 픽 hero 패널 업데이트)
     loadFreeLikeQuota().then(updateHeroQuotaDisplay);
   } catch (err) {
-    console.error("[Lumina] 좋아요 실패:", err);
+    if (!pickRequestCurrent(epoch, campaignId)) return;
     // Q1 답변 기준 에러 코드 분기:
     // - 일일 한도: 400 + message="Daily free like limit exceeded"
     // - active artist 없음: 400 + message="Active artist not found"
@@ -3829,7 +3919,13 @@ async function handleLike(slug, btnEl) {
     // - 인증 실패: 401
     const msg = err.body?.message || err.message || "";
     const isDailyLimit = err.status === 400 && /daily free like limit/i.test(msg);
-    if (isDailyLimit) {
+    if (!Number.isInteger(err.status) || err.status >= 500) {
+      ++_pickQuotaVersion;
+      _freeLikeQuota = null;
+      _freeLikeQuotaState = "unknown";
+      updateHeroQuotaDisplay();
+      alert(freeLikeUnknownMessage());
+    } else if (isDailyLimit) {
       openPaidLikeModal(slug);
     } else if (err.status === 401) {
       clearAuth();
@@ -3842,7 +3938,11 @@ async function handleLike(slug, btnEl) {
     } else {
       alert("좋아요 실패: " + (msg || "잠시 후 다시 시도해주세요"));
     }
-    if (btnEl) btnEl.disabled = false;
+  } finally {
+    attempt.pending = false;
+    // Reproject current ownership without accepting the retired request's result.
+    updateLikeButtons(slug);
+    if (pickRequestCurrent(epoch, campaignId) && btnEl) btnEl.disabled = freeLikePending(slug);
   }
 }
 
@@ -4069,10 +4169,11 @@ async function openPaidLikeModal(slug) {
 }
 
 function updateLikeButtons(slug) {
+  syncPickSession();
   document.querySelectorAll(`[data-like-slug="${slug}"]`).forEach(btn => {
     const liked = _userLikedSlugs.has(slug);
     btn.classList.toggle("is-liked", liked);
-    btn.disabled = false;
+    btn.disabled = !getCharacterBySlug(slug)?.id || freeLikePending(slug);
     btn.setAttribute("aria-label", liked ? "좋아요 추가 응원" : "좋아요");
     btn.title = liked ? "유료 좋아요 추가 응원" : (btn.title || "좋아요");
     const countEl = btn.querySelector(".like-count");
@@ -5830,29 +5931,51 @@ function adaptShortform(api) {
    2026-05-02 차모 신규 추가 API: GET /api/v1/me/free-like-quota
    응답: { campaign, dailyLimit, usedToday, remaining, resetsAt } */
 let _freeLikeQuota = null;
+let _freeLikeQuotaState = "idle";
 
 async function loadFreeLikeQuota() {
+  syncPickSession();
+  const epoch = _pickEpoch;
+  const version = ++_pickQuotaVersion;
   if (!isLoggedIn()) {
     _freeLikeQuota = null;
+    _freeLikeQuotaState = "anonymous";
+    updateHeroQuotaDisplay();
     return;
   }
+  _freeLikeQuota = null;
+  _freeLikeQuotaState = pickOwnerId() ? "loading" : "unknown";
+  updateHeroQuotaDisplay();
+  if (!pickOwnerId()) return;
   try {
-    _freeLikeQuota = await apiFetch("/api/v1/me/free-like-quota", { auth: true, throwOnError: true });
+    const data = await apiFetch("/api/v1/me/free-like-quota", { auth: true, throwOnError: true });
+    if (!pickRequestCurrent(epoch) || version !== _pickQuotaVersion) return;
+    if (!Number.isInteger(data?.dailyLimit) || data.dailyLimit < 0
+      || !Number.isInteger(data?.remaining) || data.remaining < 0 || data.remaining > data.dailyLimit) {
+      _freeLikeQuotaState = "unknown";
+    } else {
+      _freeLikeQuota = data;
+      _freeLikeQuotaState = "ready";
+    }
   } catch (err) {
-    console.warn("[Lumina] 무료 좋아요 한도 조회 실패:", err);
+    if (!pickRequestCurrent(epoch) || version !== _pickQuotaVersion) return;
     _freeLikeQuota = null;
+    _freeLikeQuotaState = "unknown";
   }
+  updateHeroQuotaDisplay();
 }
 
 function updateHeroQuotaDisplay() {
   const heroQuotaEl = document.getElementById("heroQuotaLabel");
   if (!heroQuotaEl) return;
-  if (_freeLikeQuota && typeof _freeLikeQuota.dailyLimit === "number") {
-    const remaining = _freeLikeQuota.remaining ?? 0;
+  if (_freeLikeQuotaState === "ready" && _freeLikeQuota) {
+    const remaining = _freeLikeQuota.remaining;
     const limit = _freeLikeQuota.dailyLimit;
     heroQuotaEl.textContent = t("pick.hero.quota")
       .replace("{remaining}", String(remaining))
       .replace("{limit}", String(limit));
+  } else if (isLoggedIn()) {
+    heroQuotaEl.textContent = t(_freeLikeQuotaState === "loading" ? "pick.status.loading" : "pick.status.unavailable");
   } else {
     heroQuotaEl.textContent = t("pick.hero.oneVote");
   }

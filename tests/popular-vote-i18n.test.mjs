@@ -145,6 +145,8 @@ test('locale changes redraw archive and ranking UI without translating artist or
 });
 
 test('primary support button and quota label follow the active locale', () => {
+  const authSource = appSource.slice(appSource.indexOf('const API_BASE ='), appSource.indexOf('const I18N_LOCALES ='));
+  const sessionSource = appSource.slice(appSource.indexOf('let _currentCampaign = null;'), appSource.indexOf('function rankingMetricNumber('));
   const escapeSource = appSource.slice(
     appSource.indexOf('function feedEscapeHtml('),
     appSource.indexOf('function normalizeFeedAuthorType('),
@@ -154,23 +156,27 @@ test('primary support button and quota label follow the active locale', () => {
     appSource.indexOf('\nasync function handleLike('),
   );
   const quotaSource = appSource.slice(
-    appSource.indexOf('function updateHeroQuotaDisplay()'),
+    appSource.indexOf('let _freeLikeQuota = null;'),
     appSource.indexOf('/* ── 렌더링: 비공개', appSource.indexOf('function updateHeroQuotaDisplay()')),
   );
   let locale = 'en-US';
   const label = { textContent: '' };
+  const authValue = JSON.stringify({ accessToken: 'synthetic-i18n-token', user: { id: 'synthetic-i18n-owner' } });
   const context = {
-    document: { getElementById: id => id === 'voteTabs' ? {} : label },
+    document: { getElementById: id => id === 'voteTabs' ? {} : label, querySelectorAll: () => [] },
+    localStorage: { getItem: () => authValue },
+    window: { addEventListener() {} },
     _currentLocale: locale,
-    _userLikedSlugs: new Set(),
-    _freeLikeQuota: { dailyLimit: 5, remaining: 3 },
-    getCharacterBySlug: () => ({ id: 1 }),
+    getCharacterBySlug: () => ({ id: 'synthetic-i18n-artist' }),
     getLikesCount: () => 1200,
     formatLikeCount: String,
     t: key => dictionary[key]?.[locale] ?? key,
     Intl,
   };
-  runInNewContext(`${escapeSource}\n${buttonSource}\n${quotaSource}\nthis.render = { likeButtonHTML, updateHeroQuotaDisplay };`, context);
+  runInNewContext(`${authSource}\n${sessionSource}\n${escapeSource}\n${buttonSource}\n${quotaSource}\n
+    _currentCampaign = { id: 'synthetic-i18n-campaign' };
+    _freeLikeQuota = { dailyLimit: 5, remaining: 3 }; _freeLikeQuotaState = 'ready';
+    this.render = { likeButtonHTML, updateHeroQuotaDisplay };`, context);
   assert.match(context.render.likeButtonHTML('artist-0'), /Support in Lumina Pick/);
   assert.match(context.render.likeButtonHTML('artist-0'), /1.2K/);
   context.render.updateHeroQuotaDisplay();
