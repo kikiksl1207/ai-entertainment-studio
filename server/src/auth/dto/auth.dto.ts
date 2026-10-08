@@ -20,7 +20,7 @@ const normalizeString = ({ value }: { value: unknown }) =>
 const normalizeEmail = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim().toLowerCase() : value;
 
-export const SUPPORTED_LOCALES = ['ko-KR', 'ja-JP', 'en-US', 'zh-CN'] as const;
+export const SUPPORTED_LOCALES = ['ko-KR', 'ja-JP', 'en-US', 'zh-CN', 'zh-Hant'] as const;
 const PASSWORD_MIN_LENGTH = 8;
 const PASSWORD_MAX_LENGTH = 128;
 const PASSWORD_MIN_LENGTH_MESSAGE_KEY = 'auth.password.minLength';

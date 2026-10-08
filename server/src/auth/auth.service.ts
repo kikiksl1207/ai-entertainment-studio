@@ -2911,6 +2911,10 @@ export class AuthService {
       return 'en-US';
     }
 
+    if (base === 'zh-HANT' || base === 'zh-TW' || base === 'zh-HK' || base === 'zh-MO') {
+      return 'zh-Hant';
+    }
+
     if (base === 'zh' || base === 'zh-CN' || base === 'zh-HANS') {
       return 'zh-CN';
     }
