@@ -486,3 +486,207 @@ test('responsive type and layout use unframed, wrapping content and a fixed 44px
   assert.doesNotMatch(css, /^\s*(?:min-)?width:\s*(?:3[3-9]\d|[4-9]\d\d)px|\d(?:vw|cqw)|linear-gradient|box-shadow|overflow-y|position:\s*(fixed|absolute)/m);
   assert.doesNotMatch(source, /element\(["'](?:article|dialog)["']|className\s*=\s*["'][^"']*card/);
 });
+
+
+
+const selectedContextLabels = {
+  ko: { work: '\uc6d0\uace0 \uc900\ube44 \uc791\ud488', empty: '\ubbf8\uc120\ud0dd', source: '\uc6d0\ubb38 \uc5b8\uc5b4' },
+  en: { work: 'Manuscript story', empty: 'Not selected', source: 'Original language' },
+  ja: { work: '\u539f\u7a3f\u306e\u4f5c\u54c1', empty: '\u672a\u9078\u629e', source: '\u539f\u6587\u306e\u8a00\u8a9e' },
+  'zh-Hans': { work: '\u7a3f\u4ef6\u4f5c\u54c1', empty: '\u672a\u9009\u62e9', source: '\u539f\u6587\u8bed\u8a00' },
+  'zh-Hant': { work: '\u7a3f\u4ef6\u4f5c\u54c1', empty: '\u672a\u9078\u64c7', source: '\u539f\u6587\u8a9e\u8a00' },
+};
+const selectedContextLanguages = ['\ud55c\uad6d\uc5b4', 'English', '\u65e5\u672c\u8a9e', '\u7b80\u4f53\u4e2d\u6587', '\u7e41\u9ad4\u4e2d\u6587'];
+const selectedContextNode = view => walk(view.host).find(node => node.id === 'writerBodyPreviewSelection');
+function selectSourceLocale(view, locale = 'ko', label = selectedContextLanguages[locales.indexOf(locale)] || 'Unsupported language') {
+  const option = new Element('option'); option.value = locale; option.textContent = label;
+  view.sourceLocale.value = locale; view.sourceLocale.replaceChildren(option); view.sourceLocale.options = [option]; view.sourceLocale.selectedOptions = [option];
+  view.sourceLocale.fire('change');
+}
+function selectManuscript(view, title = 'Synthetic manuscript A', workId = id(1)) {
+  if (!view.sourceLocale.selectedOptions) selectSourceLocale(view, view.sourceLocale.value);
+  const option = new Element('option'); option.value = workId; option.textContent = title;
+  view.work.value = workId; view.work.replaceChildren(option); view.work.options = [option]; view.work.selectedOptions = [option];
+  view.work.fire('change');
+  return option;
+}
+
+test('selected context: five languages show only the manuscript selection without requests', () => {
+  const controller = screen();
+  assert.deepEqual(Object.keys(controller.snapshot()).sort(), ['busy', 'canLoad', 'data', 'locale', 'messageKey', 'phase', 'ticket']);
+  for (const [index, locale] of locales.entries()) {
+    const view = mounted(), words = selectedContextLabels[locale];
+    view.locale(locale); view.window.fire('lumina:localechange');
+    view.work.value = ''; view.work.fire('change');
+    assert.equal(selectedContextNode(view).textContent, `${words.work}: ${words.empty}`);
+    assert.equal(view.button().disabled, true);
+    view.sourceLocale.value = locale; selectManuscript(view);
+    assert.equal(selectedContextNode(view).textContent, `${words.work}: Synthetic manuscript A \u00b7 ${words.source}: ${selectedContextLanguages[index]}`);
+    const publicWork = new Element('select'); publicWork.setAttribute('data-interaction-work', '');
+    publicWork.value = id(9); view.document.append(publicWork); publicWork.fire('change');
+    assert.equal(selectedContextNode(view).textContent.includes('Synthetic manuscript A'), true);
+    assert.equal(view.work.value, id(1)); assert.equal(view.host.lang, locale);
+    assert.equal(view.button().disabled, false); assert.equal(view.calls.length, 0); assert.equal(view.refreshPosts(), 0);
+    assert.equal(selectedContextNode(view).tagName, 'P'); assert.equal(selectedContextNode(view).className, 'body-preview-private');
+    assert.match(css, /\.body-preview-private \{[^}]*font-size: 14px/);
+    assert.equal(walk(view.host).filter(node => node.tagName === 'BUTTON').length, 1);
+  }
+});
+
+test('selected context: invalid, missing and mismatched options never supply a work title', () => {
+  for (const [workId, optionId, title, disabled, sourceLocale = 'ko'] of [
+    ['', id(9), 'Synthetic public work', true], ['../unsafe', '../unsafe', 'Unsafe target', true],
+    [id(1), id(9), 'Synthetic public work', false], [id(1), id(1), '', false],
+    [id(1), id(1), 'Unsupported language target', true, 'zh'],
+  ]) {
+    const view = mounted(); view.sourceLocale.value = sourceLocale;
+    selectManuscript(view, title, optionId); view.work.value = workId; view.work.fire('input');
+    assert.equal(selectedContextNode(view).textContent, '\uc6d0\uace0 \uc900\ube44 \uc791\ud488: \ubbf8\uc120\ud0dd');
+    assert.equal(view.button().disabled, disabled); assert.equal(view.calls.length, 0);
+    assert.equal(selectedContextNode(view).textContent.includes(id(9)), false);
+  }
+  for (const control of ['work', 'sourceLocale']) {
+    const view = mounted(); selectManuscript(view); view[control].disabled = true; view.mutate(view[control]);
+    assert.ok(view.observers.find(observer => observer.target === view[control]).options.attributeFilter.includes('disabled'));
+    assert.equal(selectedContextNode(view).textContent, ''); assert.equal(view.calls.length, 0);
+  }
+  const view = mounted(); selectManuscript(view);
+  view.sourceLocale.selectedOptions[0].value = 'en'; view.sourceLocale.fire('input');
+  assert.equal(selectedContextNode(view).textContent.includes('Synthetic manuscript A'), false);
+  assert.equal(view.calls.length, 0);
+});
+
+test('selected context: authentication, selection and language invalidate without automatic loads', async () => {
+  for (const change of ['logout', 'account', 'auth-event', 'work', 'source', 'ui', 'hidden']) {
+    const view = mounted(); selectManuscript(view); await view.click();
+    assert.equal(view.host.textContent.includes('Private text'), true);
+    if (change === 'logout') { view.setOwner(null); view.window.fire('lumina:authchange'); }
+    if (change === 'account') { view.setOwner({ ownerId: id(9), epoch: 2 }); view.shell.hidden = true; view.window.fire('lumina:authchange'); }
+    if (change === 'auth-event') view.window.fire('lumina:authchange');
+    if (change === 'work') selectManuscript(view, 'Synthetic manuscript B', id(9));
+    if (change === 'source') selectSourceLocale(view, 'en');
+    if (change === 'ui') { view.locale('ja'); view.window.fire('lumina:localechange'); }
+    if (change === 'hidden') { view.document.visibilityState = 'hidden'; view.document.fire('visibilitychange'); }
+    assert.equal(view.host.textContent.includes('Private text'), false);
+    assert.equal(view.calls.length, 1); assert.equal(view.refreshPosts(), 0);
+    if (['logout', 'account', 'auth-event', 'hidden'].includes(change)) {
+      assert.equal(selectedContextNode(view).textContent.includes('Synthetic manuscript A'), false);
+      assert.equal(selectedContextNode(view).textContent, '');
+      assert.equal(view.button().disabled, change !== 'auth-event');
+    } else if (change === 'work') {
+      assert.equal(selectedContextNode(view).textContent.includes('Synthetic manuscript A'), false);
+      assert.equal(selectedContextNode(view).textContent.includes('Synthetic manuscript B'), true);
+    } else if (change === 'source') assert.equal(selectedContextNode(view).textContent.endsWith('English'), true);
+    else assert.equal(selectedContextNode(view).textContent.startsWith(selectedContextLabels.ja.work), true);
+  }
+});
+
+test('selected context: late responses cannot restore old titles, languages or body text', async () => {
+  for (const change of ['work', 'source', 'logout']) {
+    const pending = deferred(), view = mounted(() => pending.promise); selectManuscript(view);
+    const task = view.click(); assert.equal(view.calls.length, 1);
+    if (change === 'work') selectManuscript(view, 'Synthetic manuscript B', id(9));
+    if (change === 'source') selectSourceLocale(view, 'en');
+    if (change === 'logout') { view.setOwner(null); view.window.fire('lumina:authchange'); }
+    const current = selectedContextNode(view).textContent;
+    assert.equal(view.calls[0].options.signal.aborted, true);
+    pending.resolve(response()); assert.equal(await task, false);
+    assert.equal(selectedContextNode(view).textContent, current);
+    assert.equal(view.host.textContent.includes('Private text'), false);
+    assert.equal(view.calls.length, 1); assert.equal(view.calls[0].options.method, 'GET');
+    assert.equal(view.calls[0].options.body, undefined); assert.equal(view.refreshPosts(), 0);
+  }
+});
+
+test('selected context: title text stays literal and option refresh never fetches or changes the selected work', () => {
+  const view = mounted(), attack = '<img src=x onerror=attack()><script>steal()</script>';
+  const option = selectManuscript(view, attack);
+  assert.equal(selectedContextNode(view).textContent.includes(attack), true);
+  assert.equal(walk(view.host).filter(node => ['IMG', 'SCRIPT', 'A', 'IFRAME'].includes(node.tagName)).length, 0);
+  option.textContent = 'Synthetic renamed manuscript'; view.mutate(view.work);
+  assert.equal(selectedContextNode(view).textContent.includes(attack), false);
+  assert.equal(selectedContextNode(view).textContent.includes('Synthetic renamed manuscript'), true);
+  assert.equal(view.calls.length, 0); assert.equal(view.refreshPosts(), 0);
+  assert.equal(view.work.value, id(1)); assert.equal(view.button().disabled, false);
+  selectSourceLocale(view, 'ko', 'Synthetic current locale label');
+  assert.equal(selectedContextNode(view).textContent.endsWith('Synthetic current locale label'), true);
+  view.window.LuminaCreatorStudioApi.identity = () => { throw new Error('Private identity diagnostic'); };
+  view.window.fire('focus');
+  assert.equal(selectedContextNode(view).textContent, ''); assert.equal(view.calls.length, 0);
+  assert.equal(view.host.textContent.includes('Private identity diagnostic'), false);
+});
+
+test('selected context: identity replacement cannot rebind the same private options after focus or a late GET', async () => {
+  for (const owner of [{ ownerId: id(9), epoch: 1 }, { ownerId: id(8), epoch: 2 }]) {
+    const pending = deferred(), view = mounted(() => pending.promise); selectManuscript(view);
+    const first = view.work.options[0], second = new Element('option'); second.value = id(9); second.textContent = 'Synthetic alternate story';
+    view.work.options.push(second); view.work.append(second); view.mutate(view.work);
+    const task = view.click();
+    first.textContent = 'Synthetic pending rename'; view.mutate(view.work);
+    assert.equal(selectedContextNode(view).textContent.includes('Synthetic pending rename'), true);
+    assert.equal(view.button().disabled, true); assert.equal(view.calls.length, 1);
+    view.setOwner(owner);
+    pending.resolve(response()); assert.equal(await task, false);
+    assert.equal(selectedContextNode(view).textContent, ''); assert.equal(view.host.textContent.includes('Private text'), false);
+    view.window.fire('lumina:authchange'); assert.equal(selectedContextNode(view).textContent, '');
+    for (const type of ['focus', 'pageshow']) { view.window.fire(type); assert.equal(selectedContextNode(view).textContent, ''); }
+    view.work.fire('change'); view.mutate(view.work); assert.equal(selectedContextNode(view).textContent, '');
+    view.work.value = second.value; view.work.selectedOptions = [second]; view.work.fire('change');
+    assert.equal(selectedContextNode(view).textContent, '');
+    selectSourceLocale(view, 'en'); assert.equal(selectedContextNode(view).textContent, '');
+    first.textContent = 'Synthetic old owner rename'; view.mutate(view.work);
+    assert.equal(selectedContextNode(view).textContent, ''); assert.equal(view.calls.length, 1); assert.equal(view.refreshPosts(), 0);
+    selectManuscript(view, 'Synthetic new owner story', id(9));
+    assert.equal(selectedContextNode(view).textContent.includes('Synthetic new owner story'), true);
+    assert.equal(view.calls.length, 1); assert.equal(view.calls[0].options.signal.aborted, true);
+  }
+});
+
+test('selected context: disabled, unauthenticated and invalid selectors never advance the private option binding', () => {
+  for (const mode of ['work-disabled', 'locale-disabled', 'unauthenticated', 'invalid-work', 'invalid-locale', 'invalid-title']) {
+    const view = mounted(); selectManuscript(view);
+    const oldOptions = view.work.options, oldOption = oldOptions[0], owner = { ownerId: id(9), epoch: 2 };
+    const candidate = new Element('option'); candidate.value = id(9); candidate.textContent = 'Synthetic unvalidated story';
+    view.setOwner(mode === 'unauthenticated' ? null : owner);
+    view.work.options = [candidate]; view.work.selectedOptions = [candidate]; view.work.value = candidate.value;
+    if (mode === 'work-disabled') view.work.disabled = true;
+    if (mode === 'locale-disabled') view.sourceLocale.disabled = true;
+    if (mode === 'invalid-work') view.work.value = candidate.value = '../unsafe';
+    if (mode === 'invalid-locale') view.sourceLocale.value = 'xx';
+    if (mode === 'invalid-title') candidate.textContent = '';
+    view.mutate(view.work);
+    assert.equal(selectedContextNode(view).textContent.includes('Synthetic unvalidated story'), false);
+    view.setOwner(owner); view.work.disabled = false; view.sourceLocale.disabled = false;
+    view.work.options = oldOptions; view.work.selectedOptions = [oldOption]; view.work.value = oldOption.value;
+    view.sourceLocale.value = 'ko'; view.work.fire('change');
+    assert.equal(selectedContextNode(view).textContent, '');
+    selectManuscript(view, 'Synthetic validated replacement', id(9));
+    assert.equal(selectedContextNode(view).textContent.includes('Synthetic validated replacement'), true);
+    assert.equal(view.calls.length, 0); assert.equal(view.refreshPosts(), 0);
+  }
+});
+
+test('selected context: partial option mutations cannot relabel retained nodes for a new identity', () => {
+  for (const owner of [{ ownerId: id(9), epoch: 1 }, { ownerId: id(8), epoch: 2 }]) {
+    for (const mutation of ['append', 'remove', 'reorder', 'replace-unselected']) {
+      const view = mounted(); const selected = selectManuscript(view, 'Synthetic prior owner story');
+      const other = new Element('option'); other.value = id(9); other.textContent = 'Synthetic prior alternate';
+      view.work.options.push(other); view.mutate(view.work);
+      view.setOwner(owner); view.window.fire('lumina:authchange');
+      const fresh = new Element('option'); fresh.value = id(7); fresh.textContent = 'Synthetic new current story';
+      view.work.options = mutation === 'append' ? [selected, other, fresh] : mutation === 'remove' ? [selected]
+        : mutation === 'reorder' ? [other, selected] : [selected, fresh];
+      view.mutate(view.work);
+      assert.equal(selectedContextNode(view).textContent, '', mutation);
+      view.work.options = [other, fresh]; view.work.value = other.value; view.work.selectedOptions = [other];
+      view.work.fire('change');
+      assert.equal(selectedContextNode(view).textContent, '', 'An old unselected node cannot become current');
+      view.work.value = fresh.value; view.work.selectedOptions = [fresh]; view.work.fire('change');
+      assert.equal(selectedContextNode(view).textContent.includes('Synthetic new current story'), true);
+      view.work.options = [fresh, selected]; view.work.value = selected.value; view.work.selectedOptions = [selected];
+      view.work.fire('change');
+      assert.equal(selectedContextNode(view).textContent, '', 'Reinserting an old node cannot renew its scope');
+      assert.equal(view.calls.length, 0); assert.equal(view.refreshPosts(), 0);
+    }
+  }
+});

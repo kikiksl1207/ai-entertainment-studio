@@ -1862,7 +1862,7 @@ test('receipt result: an unverified receipt GET never gains the result prefix', 
 test('entry pairs the recovered trial script and stylesheet with a fresh matching cache revision', () => {
   const stylesheet = entry.match(/href="\/pages\/creator-body-trial\.css\?v=([^"&]+)"/)?.[1];
   const script = entry.match(/src="\/pages\/creator-body-trial\.js\?v=([^"&]+)"/)?.[1];
-  assert.equal(script, 'body-read-20261006');
+  assert.equal(script, 'body-selected-scope-20261008');
   assert.equal(stylesheet, script);
   assert.doesNotMatch(entry, /creator-body-trial\.(?:css|js)\?v=body-trial-20261002/);
 });
@@ -2303,7 +2303,7 @@ for (const language of locales) {
       const parsed = view.api.parseState(value, { workId: id(1) });
       assert.equal(parsed.nextMaximumCostKrw, null); assert.equal(parsed.nextCostQuoteState, 'withheld');
       assert.equal(parsed.generationAuthorized, false); assert.equal(parsed.currentAuthorizationVerified, false);
-      assert.ok(view.choices().every(button => !button.disabled), 'Malformed quote does not broaden or replace existing gating');
+      assert.ok(view.choices().every(button => button.disabled), 'Malformed quote blocks a new choice');
       assertNextCostReadOnly(view);
     }
   });
@@ -2335,7 +2335,7 @@ for (const language of locales) {
 
 for (const mode of ['missing-state', 'missing-reason', 'contradictory-reason', 'contradictory-withheld', 'unknown-state',
   'expired', 'release-changed', 'unknown-cost', 'pending', 'reserved', 'next-over-budget', 'approval-missing']) {
-  test(`next-cost UI: prepared value is withheld for ${mode} without changing existing context gating`, async () => {
+  test(`next-cost UI: prepared value is withheld for ${mode} and blocks a new choice`, async () => {
     const value = nextCostUiState();
     if (mode === 'missing-state') delete value.nextCostQuoteState;
     if (mode === 'missing-reason') delete value.nextCostQuoteReason;
@@ -2359,11 +2359,7 @@ for (const mode of ['missing-state', 'missing-reason', 'contradictory-reason', '
     const parsed = view.api.parseState(value, { workId: id(1) });
     assert.equal(parsed.nextMaximumCostKrw, null); assert.equal(parsed.nextCostQuoteState, 'withheld');
     assert.equal(parsed.generationAuthorized, false); assert.equal(parsed.currentAuthorizationVerified, false);
-    const legacy = clone(value);
-    delete legacy.nextMaximumCostKrw; delete legacy.nextCostQuoteState; delete legacy.nextCostQuoteReason;
-    const oldGate = screen(({ kind, reply }) => kind === 'state' ? response(legacy) : reply());
-    await oldGate.load();
-    assert.ok(view.choices().every(button => button.disabled === !oldGate.snapshot().canChoose));
+    assert.ok(view.choices().every(button => button.disabled));
     assertNextCostReadOnly(view);
   });
 }
@@ -2376,6 +2372,7 @@ test('next-cost UI: exact equality fits, one micro-won over does not fit, regard
     await view.load();
     assert.equal(nextCostNotices(view)[0].textContent, prepared ? nextCostExpected('ko', '300') : nextCostUiCopy.ko[1]);
     assert.equal(view.api.parseState(value, { workId: id(1) }).nextMaximumCostKrw, prepared ? amount : null);
+    assert.ok(view.choices().every(button => button.disabled === !prepared));
     assertNextCostReadOnly(view);
   }
 });
@@ -2441,4 +2438,327 @@ test('next-cost UI: unknown POST outcome clears the ceiling and receipt verifica
   assert.equal(view.calls.filter(call => call.kind === 'receipt').length, 1);
   assert.equal(view.calls.find(call => call.kind === 'receipt').options.method, 'GET');
   assert.equal(view.refreshAttempts(), 0);
+});
+
+
+function selectCaption(view, title = 'Synthetic current story', locale = 'ko') {
+  const story = new Element('option'); story.value = view.work.value; story.selected = true; story.textContent = title;
+  const language = new Element('option'); language.value = locale; language.selected = true; language.textContent = locale;
+  view.work.options = [story]; view.sourceLocale.value = locale; view.sourceLocale.options = [language];
+  view.work.fire('change');
+  return walk(view.host).find(node => node.id === 'writerBodyTrialSelectedContext');
+}
+for (const locale of ['ko', 'en', 'ja', 'zh-Hans', 'zh-Hant']) {
+  test(`trial caption shows only the selected manuscript context without a request: ${locale}`, () => {
+    const view = mounted(); const caption = selectCaption(view, 'Synthetic current story', locale);
+    assert.equal(caption.textContent, `Synthetic current story \u00b7 ${locale}`);
+    assert.equal(caption.lang, locale); assert.equal(caption.hidden, false); assert.equal(view.calls.length, 0);
+    assert.equal(view.refresh().disabled, false);
+  });
+}
+test('trial caption uses text and clears immediately on identity and selection changes', () => {
+  const view = mounted(); const title = '<img src=x onerror=unsafe()>Synthetic story';
+  const caption = selectCaption(view, title);
+  assert.equal(caption.textContent, title + ' \u00b7 ko'); assert.equal(caption.children.length, 0);
+  view.setOwner({ ownerId: id(9), epoch: 2 }); view.window.fire('lumina:authchange');
+  assert.equal(caption.textContent, ''); assert.equal(caption.hidden, true);
+  view.setOwner(null); view.window.fire('lumina:authchange');
+  assert.equal(caption.textContent, ''); assert.equal(caption.hidden, true);
+  view.setOwner({ ownerId: id(8), epoch: 2 }); view.work.value = ''; view.work.fire('change');
+  assert.equal(caption.textContent, ''); assert.equal(caption.hidden, true); assert.equal(view.calls.length, 0);
+});
+test('trial caption does not use missing, duplicate, disabled, or unsupported selector metadata', () => {
+  for (const mode of ['missing', 'duplicate', 'disabled', 'invalidLocale', 'unselected']) {
+    const view = mounted(); const caption = selectCaption(view);
+    if (mode === 'missing') view.work.options = [];
+    if (mode === 'duplicate') view.work.options.push(view.work.options[0]);
+    if (mode === 'disabled') view.work.disabled = true;
+    if (mode === 'invalidLocale') view.sourceLocale.value = 'xx';
+    if (mode === 'unselected') view.work.options[0].selected = false;
+    view.work.fire('change');
+    assert.equal(caption.textContent, '', mode); assert.equal(caption.hidden, true, mode); assert.equal(view.calls.length, 0);
+  }
+});
+test('trial caption follows label and disabled mutations without loading or resetting a body request', async () => {
+  let release;
+  const view = mounted(({ kind, reply }) => kind === 'state' ? new Promise(resolve => { release = () => resolve(reply()); }) : reply());
+  const caption = selectCaption(view);
+  const loading = view.load(); assert.equal(view.calls.length, 1);
+  view.work.options[0].textContent = 'Synthetic renamed story'; view.mutate(view.work);
+  assert.equal(caption.textContent, 'Synthetic renamed story \u00b7 ko'); assert.equal(view.refresh().disabled, true);
+  view.work.disabled = true; view.mutate(view.work);
+  assert.equal(caption.textContent, ''); assert.equal(caption.hidden, true); assert.equal(view.calls.length, 1);
+  view.work.disabled = false; view.mutate(view.work); assert.equal(view.calls.length, 1);
+  release(); await loading;
+});
+test('trial caption cannot rebind an old option list after owner or epoch changes and late rendering', async () => {
+  for (const replacement of [{ ownerId: id(9), epoch: 1 }, { ownerId: id(8), epoch: 2 }]) {
+    let release;
+    const view = mounted(({ kind, reply }) => kind === 'state' ? new Promise(resolve => { release = () => resolve(reply()); }) : reply());
+    const caption = selectCaption(view, 'Synthetic prior owner story'); const loading = view.load();
+    view.setOwner(replacement); view.window.fire('lumina:authchange'); release(); await loading;
+    view.window.fire('focus'); view.work.fire('change'); view.mutate(view.work);
+    assert.equal(caption.textContent, ''); assert.equal(caption.hidden, true); assert.equal(view.calls.length, 1);
+    selectCaption(view, 'Synthetic current owner story');
+    assert.equal(caption.textContent, 'Synthetic current owner story \u00b7 ko'); assert.equal(caption.hidden, false);
+    assert.equal(view.calls.length, 1);
+  }
+});
+
+for (const language of locales) {
+  for (const mode of ['prepared', 'withheld', 'cost_unknown', 'approval_expired', 'expired-clock']) {
+    test(`cost-gate review: ${language} ${mode} matches choice controls and preserves unavailable amounts`, async () => {
+      const value = nextCostUiState();
+      let message = 'approval_recorded';
+      if (mode === 'withheld') {
+        Object.assign(value, { nextMaximumCostKrw: null, nextCostQuoteState: 'withheld', nextCostQuoteReason: 'approval_pins_changed' });
+      } else if (mode === 'cost_unknown') {
+        value.state = message = 'cost_unknown';
+        Object.assign(value.budget, { unknownCostCount: 1, evidenceReadyForBudgetCheck: false, remainingBudgetKrw: null,
+          historicalUnknownCostCount: 2, costScope: 'approved_historical_unknown_separation' });
+        Object.assign(value, { nextMaximumCostKrw: null, nextCostQuoteState: 'withheld', nextCostQuoteReason: 'cost_unknown' });
+      } else if (mode === 'approval_expired' || mode === 'expired-clock') {
+        if (mode === 'approval_expired') value.state = 'approval_expired';
+        value.approval.expiresAt = past; message = 'approval_expired';
+        Object.assign(value, { nextMaximumCostKrw: null, nextCostQuoteState: 'withheld', nextCostQuoteReason: 'approval_expired' });
+      }
+      const input = clone(value);
+      const view = mounted(({ kind, reply }) => kind === 'state' ? response(value) : reply(), { language });
+      assert.equal(await view.load(), true);
+      assert.equal(walk(view.host).find(node => node.id === 'writerBodyTrialState').textContent, view.api.copy[language][message]);
+      const notice = nextCostNotices(view)[0].textContent;
+      assert.equal(notice, mode === 'prepared' ? nextCostExpected(language, '300') : nextCostUiCopy[language][1] + ': ' +
+        view.api.copy[language][mode === 'withheld' ? 'conflict' : message]);
+      const amounts = walk(view.host).find(node => node.className === 'body-trial-budget');
+      assert.deepEqual(walk(amounts).filter(node => node.tagName === 'DD').map(node => node.textContent),
+        ['10,000 KRW', '0 KRW', mode === 'cost_unknown' ? view.api.copy[language].unknown : '10,000 KRW']);
+      assert.equal(walk(amounts).filter(node => node.tagName === 'DD').length, 3, 'Do not invent a missing held amount');
+      assert.ok(view.choices().length > 0);
+      assert.ok(view.choices().every(button => button.disabled === (mode !== 'prepared')));
+      const parsed = view.api.parseState(value, { workId: id(1) });
+      assert.equal(parsed.generationAuthorized, false); assert.equal(parsed.currentAuthorizationVerified, false);
+      assert.equal(Object.hasOwn(parsed.budget, 'provisionalHeldAmountKrw'), false);
+      if (mode !== 'prepared') {
+        assert.equal(parsed.nextMaximumCostKrw, null);
+        assert.doesNotMatch(notice, /0 KRW|0\uc6d0|300/);
+        for (const button of view.choices()) await button.fire('click');
+        assert.equal(posts(view).length, 0); assert.equal(view.storage.operations.some(([operation]) => operation === 'write'), false);
+      }
+      assert.deepEqual(value, input, 'Never mutate the supplied server state');
+      assert.equal(view.calls.length, 2);
+    });
+  }
+  for (const kind of ['state', 'preview']) {
+    test(`cost-gate review: ${language} ${kind} 401 remains an unauthenticated read`, async () => {
+      const view = mounted(({ kind: actual, reply }) => actual === kind ? response({ diagnostic: 'private' }, 401) : reply(), { language });
+      assert.equal(await view.load(), false);
+      assert.equal(walk(view.host).find(node => node.id === 'writerBodyTrialState').textContent, view.api.copy[language].unauthenticated);
+      assert.equal(nextCostNotices(view).length, 0); assert.equal(view.choices().length, 0);
+      assert.doesNotMatch(view.host.textContent, /private|300|0 KRW/);
+      assert.equal(posts(view).length, 0); assert.equal(view.refreshAttempts(), 0);
+      assert.equal(view.calls.length, kind === 'state' ? 1 : 2);
+    });
+  }
+}
+test('cost-gate review: withheld blocks direct controller submission before allocating a key', async () => {
+  const value = nextCostUiState(null);
+  Object.assign(value, { nextCostQuoteState: 'withheld', nextCostQuoteReason: 'approval_pins_changed' });
+  const view = screen(({ kind, reply }) => kind === 'state' ? response(value) : reply());
+  assert.equal(await view.load(), true);
+  assert.equal(view.snapshot().canChoose, false);
+  assert.equal(await view.choose(id(6), view.snapshot().ticket), false);
+  assert.equal(view.keys(), 0); assert.equal(posts(view).length, 0); assert.equal(view.snapshot().unresolved, false);
+});
+
+test('trial caption rejects retained selected and unselected nodes after partial identity-list changes', () => {
+  for (const owner of [{ ownerId: id(9), epoch: 1 }, { ownerId: id(8), epoch: 2 }]) {
+    for (const mutation of ['append', 'remove', 'reorder', 'replace-unselected']) {
+      const view = mounted(); const caption = selectCaption(view, 'Synthetic prior owner story');
+      const selected = view.work.options[0], other = new Element('option');
+      other.value = id(9); other.textContent = 'Synthetic prior alternate'; other.selected = false;
+      view.work.options.push(other); view.mutate(view.work);
+      view.setOwner(owner); view.window.fire('lumina:authchange');
+      const fresh = new Element('option'); fresh.value = id(7); fresh.textContent = 'Synthetic new current story'; fresh.selected = false;
+      view.work.options = mutation === 'append' ? [selected, other, fresh] : mutation === 'remove' ? [selected]
+        : mutation === 'reorder' ? [other, selected] : [selected, fresh];
+      view.mutate(view.work);
+      assert.equal(caption.textContent, '', mutation); assert.equal(caption.hidden, true);
+      view.work.options = [other, fresh]; selected.selected = false; other.selected = true;
+      view.work.value = other.value; view.work.fire('change');
+      assert.equal(caption.textContent, '', 'An old unselected node cannot become current');
+      other.selected = false; fresh.selected = true; view.work.value = fresh.value; view.work.fire('change');
+      assert.equal(caption.textContent, 'Synthetic new current story \u00b7 ko'); assert.equal(caption.hidden, false);
+      view.work.options = [fresh, selected]; fresh.selected = false; selected.selected = true;
+      view.work.value = selected.value; view.work.fire('change');
+      assert.equal(caption.textContent, '', 'Reinserting an old node cannot renew its scope');
+      assert.equal(caption.hidden, true); assert.equal(view.calls.length, 0); assert.equal(view.refreshAttempts(), 0);
+    }
+  }
+});
+
+for (const language of locales) {
+  for (const mode of ['approval_required', 'approval_expired', 'release_changed', 'cost_unknown', 'budget_over_limit',
+    'withheld-null', 'withheld-zero', 'prepared', 'legacy', 'expired-clock']) {
+    test(`completed body trial: ${language} saved ending stays separate from ${mode}`, async () => {
+      const value = mode === 'legacy' ? approvalState() : nextCostUiState();
+      let reason = null;
+      if (['approval_required', 'approval_expired', 'release_changed', 'cost_unknown', 'budget_over_limit'].includes(mode)) {
+        value.state = mode; reason = mode;
+        if (mode === 'approval_required') { value.approval = null; value.budget = null; }
+        if (mode === 'approval_expired') value.approval.expiresAt = past;
+        if (mode === 'cost_unknown') Object.assign(value.budget, {
+          unknownCostCount: 1, evidenceReadyForBudgetCheck: false, remainingBudgetKrw: null
+        });
+        if (mode === 'budget_over_limit') Object.assign(value.budget, {
+          approvedBudgetKrw: '0.100000', remainingBudgetKrw: '0.000000'
+        });
+      } else if (mode === 'withheld-null') reason = 'approval_pins_changed';
+      else if (mode === 'withheld-zero') value.nextMaximumCostKrw = '0.000000';
+      else if (mode === 'expired-clock') { value.approval.expiresAt = past; reason = 'approval_expired'; }
+      if (reason) Object.assign(value, {
+        nextMaximumCostKrw: null, nextCostQuoteState: 'withheld', nextCostQuoteReason: reason
+      });
+      const body = preview(id(1), language);
+      Object.assign(body.progress, { status: 'completed', revision: 2, currentBeatPosition: 1, choices: [] });
+      const input = clone(value), originalBody = clone(body);
+      const handler = ({ kind, reply }) => kind === 'state' ? response(value) : kind === 'preview' ? response(body) : reply();
+      const view = mounted(handler, { language, sourceLocale: language });
+      assert.equal(view.calls.length, 0);
+      assert.equal(await view.load(), true);
+      const words = view.api.copy[language], status = walk(view.host).find(node => node.id === 'writerBodyTrialState');
+      assert.equal(status.textContent, words.ending);
+      assert.equal(status.className, 'body-trial-state');
+      assert.equal(walk(view.host).find(node => node.className === 'body-trial-beat').textContent,
+        body.progress.scene.beats[0].content);
+      assert.equal(view.choices().length, 0);
+      assert.equal(walk(view.host).some(node => ['writerBodyTrialRead', 'writerBodyTrialNoChoices'].includes(node.id)), false);
+      const parsed = view.api.parseState(value, { workId: id(1) }), notice = nextCostNotices(view)[0].textContent;
+      if (mode === 'prepared') assert.equal(notice, nextCostExpected(language, '300'));
+      else {
+        const reasonKey = reason === 'approval_pins_changed' ? 'conflict' : reason;
+        assert.equal(notice, nextCostUiCopy[language][1] + (reasonKey ? ': ' + words[reasonKey] : ''));
+        assert.doesNotMatch(notice, /300|0 KRW|0\uc6d0/);
+        if (mode === 'legacy') assert.equal(Object.hasOwn(parsed, 'nextMaximumCostKrw'), false);
+        else { assert.equal(parsed.nextMaximumCostKrw, null); assert.equal(parsed.nextCostQuoteState, 'withheld'); }
+      }
+      assert.equal(parsed.generationAuthorized, false); assert.equal(parsed.currentAuthorizationVerified, false);
+      const direct = screen(handler); direct.set.source(language); direct.set.language(language);
+      assert.equal(await direct.load(), true); assert.equal(direct.snapshot().messageKey, 'ending');
+      assert.equal(direct.snapshot().canChoose, false); assert.equal(direct.snapshot().canRecordRead, false);
+      assert.equal(await direct.choose(id(5)), false); assert.equal(await direct.recordRead(), false);
+      assert.equal(direct.keys(), 0); assert.equal(posts(direct).length, 0); assert.equal(direct.calls.length, 2);
+      assert.deepEqual(view.calls.map(call => [call.kind, call.options.method]), [['state', 'GET'], ['preview', 'GET']]);
+      assert.equal(posts(view).length, 0); assert.equal(view.refreshAttempts(), 0); assert.equal(view.events.length, 0);
+      assert.equal(view.storage.operations.some(([operation]) => operation !== 'read'), false);
+      assert.deepEqual(value, input); assert.deepEqual(body, originalBody);
+    });
+  }
+
+  for (const boundary of ['same-command', 'other-command', 'journal-blocked']) {
+    test(`completed body trial: ${language} ${boundary} stays above ending and blocks direct commands`, async () => {
+      const value = nextCostUiState(), body = preview(id(1), language);
+      Object.assign(body.progress, { status: 'completed', revision: 2, currentBeatPosition: 0, choices: [] });
+      Object.assign(body.progress.scene, { isGenerated: true, endingType: 'ai_generated' });
+      const handler = ({ kind, reply }) => kind === 'state' ? response(value) : kind === 'preview' ? response(body) : reply();
+      const entry = pendingRecord({ workId: boundary === 'other-command' ? id(9) : id(1),
+        body: { ...expectedBody, locale: language } });
+      const storage = memoryStorage(), journal = structuredJournal();
+      if (boundary === 'journal-blocked') {
+        storage.faults.read = true; journal.read = () => { throw new Error('Synthetic journal failure'); };
+      } else {
+        storage.values.set(journalSlot(id(8)), JSON.stringify(entry)); journal.entries.set(id(8), entry);
+      }
+      const expected = boundary === 'journal-blocked' ? 'unavailable' : boundary === 'other-command' ? 'unresolvedElsewhere' : 'uncertain';
+      const view = mounted(handler, { storage, language, sourceLocale: language });
+      assert.equal(await view.load(), true);
+      assert.equal(walk(view.host).find(node => node.id === 'writerBodyTrialState').textContent, view.api.copy[language][expected]);
+      assert.equal(nextCostNotices(view)[0].textContent, nextCostUiCopy[language][1]);
+      assert.equal(view.choices().length, 0); assert.equal(walk(view.host).some(node => node.id === 'writerBodyTrialRead'), false);
+      assert.equal(storage.operations.some(([operation]) => operation !== 'read'), false);
+      const direct = screen(handler, { journal }); direct.set.source(language); direct.set.language(language);
+      assert.equal(await direct.load(), true); assert.equal(direct.snapshot().messageKey, expected);
+      assert.equal(direct.snapshot().canChoose, false); assert.equal(direct.snapshot().canRecordRead, false);
+      assert.equal(await direct.choose(id(6)), false); assert.equal(await direct.recordRead(), false);
+      assert.equal(direct.keys(), 0); assert.equal(posts(direct).length, 0); assert.equal(direct.calls.length, 2);
+      if (boundary !== 'journal-blocked') {
+        assert.deepEqual(journal.entries.get(id(8)), entry);
+        assert.equal(storage.values.get(journalSlot(id(8))), JSON.stringify(entry));
+      }
+      assert.equal(posts(view).length, 0); assert.equal(view.calls.length, 2); assert.equal(view.events.length, 0);
+    });
+  }
+
+  for (const boundary of ['scene-marker', 'expired-scene-marker', 'missing-progress', 'unapproved-missing-progress']) {
+    test(`completed body trial: ${language} ${boundary} is not completion evidence`, async () => {
+      const value = nextCostUiState(), body = preview(id(1), language);
+      if (boundary.includes('missing-progress')) body.progress = null;
+      else { body.progress.scene.endingType = 'author_main'; body.progress.choices = []; }
+      if (boundary === 'expired-scene-marker') { value.state = 'approval_expired'; value.approval.expiresAt = past; }
+      if (boundary === 'unapproved-missing-progress') { value.state = 'approval_required'; value.approval = null; value.budget = null; }
+      const expected = boundary === 'missing-progress' ? 'noProgress' : value.state;
+      const view = screen(({ kind, reply }) => kind === 'state' ? response(value) : kind === 'preview' ? response(body) : reply());
+      view.set.source(language); view.set.language(language);
+      assert.equal(await view.load(), true); assert.equal(view.snapshot().messageKey, expected);
+      assert.notEqual(view.snapshot().messageKey, 'ending');
+      assert.equal(view.snapshot().canChoose, false); assert.equal(view.snapshot().canRecordRead, false);
+      assert.equal(await view.choose(id(5)), false); assert.equal(await view.recordRead(), false);
+      assert.equal(view.keys(), 0); assert.equal(posts(view).length, 0); assert.equal(view.calls.length, 2);
+    });
+  }
+
+  test(`completed body trial: ${language} a failed fresh read cannot retain ending evidence`, async () => {
+    const value = approvalState(), body = preview(id(1), language); let fail = false;
+    value.state = 'approval_required'; value.approval = null; value.budget = null;
+    Object.assign(body.progress, { status: 'completed', revision: 2, choices: [] });
+    const view = mounted(({ kind, reply }) => kind === 'state' ? fail ? response(null, 401) : response(value)
+      : kind === 'preview' ? response(body) : reply(), { language, sourceLocale: language });
+    assert.equal(await view.load(), true);
+    assert.equal(walk(view.host).find(node => node.id === 'writerBodyTrialState').textContent, view.api.copy[language].ending);
+    fail = true; assert.equal(await view.load(), false);
+    assert.equal(walk(view.host).find(node => node.id === 'writerBodyTrialState').textContent, view.api.copy[language].unauthenticated);
+    assert.equal(nextCostNotices(view).length, 0);
+    assert.equal(walk(view.host).some(node => node.className === 'body-trial-beat'), false);
+    assert.equal(posts(view).length, 0); assert.equal(view.calls.length, 3);
+  });
+
+  test(`completed body trial: ${language} clock expiry still blocks direct saved-body read`, async () => {
+    let now = Date.parse('2026-10-08T04:00:00.000Z');
+    class ClockDate extends Date { static now() { return now; } }
+    const value = nextCostUiState(), body = preview(id(1), language);
+    value.approval.expiresAt = new Date(now + 1000).toISOString();
+    Object.assign(body.progress, { status: 'completed', revision: 2, currentBeatPosition: 0, choices: [] });
+    Object.assign(body.progress.scene, { isGenerated: true, endingType: 'ai_generated' });
+    const view = screen(({ kind, reply }) => kind === 'state' ? response(value) : kind === 'preview' ? response(body) : reply(),
+      { vm: { Date: ClockDate } });
+    view.set.source(language); view.set.language(language);
+    assert.equal(await view.load(), true); assert.equal(view.snapshot().messageKey, 'ending');
+    assert.equal(view.snapshot().canRecordRead, true, 'Preserve existing approved generated-ending read policy');
+    now += 1000;
+    assert.equal(view.snapshot().messageKey, 'ending'); assert.equal(view.snapshot().canRecordRead, false);
+    assert.equal(await view.recordRead(), false); assert.equal(await view.choose(id(5)), false);
+    assert.equal(view.keys(), 0); assert.equal(posts(view).length, 0); assert.equal(view.calls.length, 2);
+  });
+}
+
+test('completed body trial: local expiry timer preserves ending while withholding the next quote', async () => {
+  const value = nextCostUiState(), body = preview();
+  Object.assign(body.progress, { status: 'completed', revision: 2, currentBeatPosition: 1, choices: [] });
+  const view = mounted(({ kind, reply }) => kind === 'state' ? response(value) : kind === 'preview' ? response(body) : reply());
+  const timers = new Map(); let timerId = 0;
+  view.window.setTimeout = callback => { timers.set(++timerId, callback); return timerId; };
+  view.window.clearTimeout = key => timers.delete(key);
+  value.approval.expiresAt = new Date(Date.now() + 1000).toISOString();
+  assert.equal(await view.load(), true);
+  const status = walk(view.host).find(node => node.id === 'writerBodyTrialState');
+  assert.equal(status.textContent, view.api.copy.ko.ending);
+  assert.equal(nextCostNotices(view)[0].textContent, nextCostExpected('ko', '300'));
+  assert.equal(timers.size, 1);
+  await new Promise(resolve => setTimeout(resolve, Math.max(0, Date.parse(value.approval.expiresAt) - Date.now()) + 10));
+  const [key, callback] = timers.entries().next().value; timers.delete(key); callback();
+  assert.equal(status.textContent, view.api.copy.ko.ending);
+  assert.equal(nextCostNotices(view)[0].textContent, nextCostUiCopy.ko[1] + ': ' + view.api.copy.ko.approval_expired);
+  assert.doesNotMatch(nextCostNotices(view)[0].textContent, /300|0 KRW|0\uc6d0/);
+  assert.equal(view.choices().length, 0); assert.equal(walk(view.host).some(node => node.id === 'writerBodyTrialRead'), false);
+  assert.equal(posts(view).length, 0); assert.equal(view.calls.length, 2); assert.equal(view.events.length, 0);
+  assert.equal(timers.size, 0);
 });

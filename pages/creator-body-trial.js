@@ -402,7 +402,8 @@
     const readComplete = () => !data?.preview.progress?.scene?.isGenerated ||
       Number.isSafeInteger(data.preview.progress.currentBeatPosition) &&
       data.preview.progress.currentBeatPosition >= data.preview.progress.scene.beats.at(-1).position;
-    const canChoose = () => activeTrial() && readComplete() && data.preview.progress.choices.length > 0;
+    const canChoose = () => activeTrial() && readComplete() && data.preview.progress.choices.length > 0 &&
+      nextCostQuote(data.approvalState, data.approvalState).nextCostQuoteState !== "withheld";
     const canRecordRead = () => readableTrialBody() &&
       Number.isSafeInteger(data.preview.progress.currentBeatPosition) && !readComplete();
     function state() {
@@ -502,8 +503,9 @@
         if (!active.current()) return false;
         data = { approvalState, preview }; request = null; phase = command ? "uncertain" : "ready";
         const progress = preview.progress;
-        messageKey = command ? sameCommand() ? "uncertain" : "unresolvedElsewhere" : !recordedTrial(approvalState.state) ? approvalState.state :
-          !progress ? "noProgress" : progress.status === "completed" || progress.scene?.endingType ? "ending" :
+        // Saved completion does not grant permission for another trial.
+        messageKey = command ? sameCommand() ? "uncertain" : "unresolvedElsewhere" : progress?.status === "completed" ? "ending" :
+          !recordedTrial(approvalState.state) ? approvalState.state : !progress ? "noProgress" :
           progress.status !== "active" ? "generating" : !progress.scene ? "noScene" : !readComplete() ? "readRequired" :
           hasNoChoices(progress) ? "noChoices" : approvalState.state;
         if (!command && journalBlocked) { phase = "error"; messageKey = "unavailable"; }
@@ -672,7 +674,8 @@
       return node;
     };
     const header = element("header", "body-trial-header"), heading = element("div"), title = element("h3"), privacy = element("p", "body-trial-private");
-    title.id = "writerBodyTrialTitle"; heading.append(title, privacy);
+    const selectedContext = element("p", "body-trial-private"); selectedContext.id = "writerBodyTrialSelectedContext";
+    title.id = "writerBodyTrialTitle"; heading.append(title, privacy, selectedContext);
     const tools = element("div", "body-trial-tools");
     function iconButton(name) {
       const button = element("button", "body-trial-tool"); button.type = "button";
@@ -695,6 +698,7 @@
       return whole.replace(/\B(?=(\d{3})+(?!\d))/g, ",") + unit;
     };
     let controller, expiryTimer = null;
+    const selectedContextScopes = new WeakMap();
     function scheduleExpiry(state) {
       if (expiryTimer !== null) { window.clearTimeout(expiryTimer); expiryTimer = null; }
       const trial = state.data?.approvalState;
@@ -714,13 +718,36 @@
       scheduleExpiry(state);
       const words = copy[state.locale]; title.textContent = words.title; privacy.textContent = words.privacy;
       host.lang = state.locale; host.setAttribute("aria-busy", String(state.busy));
+      selectedContext.textContent = ""; selectedContext.hidden = true;
+      try {
+        const owner = window.LuminaCreatorStudioApi?.identity?.();
+        const work = document.getElementById("writerManuscriptWork"), sourceLocale = document.getElementById("writerManuscriptLocale");
+        const workOptions = Array.from(work?.options || []).filter(option => option.selected && option.value === work.value);
+        const languageOptions = Array.from(sourceLocale?.options || []).filter(option => option.selected && option.value === sourceLocale.value);
+        if (visible() && record(owner) && ownerId(owner.ownerId) && count(owner.epoch) &&
+            window.LuminaCreatorStudioApi?.isCurrent?.(owner) === true && !work?.disabled && !sourceLocale?.disabled &&
+            uuid(work?.value?.toLowerCase()) && locales.includes(sourceLocale?.value) &&
+            workOptions.length === 1 && languageOptions.length === 1) {
+          const name = workOptions[0].textContent.trim(), language = languageOptions[0].textContent.trim();
+          const options = Array.from(work.options);
+          // Retained nodes never acquire a new scope through unrelated list mutations.
+          if (name && language) {
+            for (const option of options) if (!selectedContextScopes.has(option)) selectedContextScopes.set(option, { ownerId: owner.ownerId, epoch: owner.epoch });
+          }
+          const scope = selectedContextScopes.get(workOptions[0]);
+          if (name && language && scope?.ownerId === owner.ownerId && scope.epoch === owner.epoch) {
+            selectedContext.textContent = name + " \u00b7 " + language; selectedContext.lang = sourceLocale.value;
+            selectedContext.hidden = false;
+          }
+        }
+      } catch (_) {}
       for (const [button, label, enabled] of [[refresh, words.refresh, state.canLoad], [retry, words.retry, state.canRetry], [recover, words.recover, state.canRecover]]) {
         button.title = label; button.setAttribute("aria-label", label); button.disabled = !enabled;
       }
       retry.hidden = !state.unresolved;
       inspect.title = sourceLabels[state.locale][0]; inspect.setAttribute("aria-label", inspect.title);
       inspect.disabled = !state.canInspectSource;
-      const expired = state.phase === "ready" && !state.unresolved && recordedTrial(state.data?.approvalState.state) &&
+      const expired = state.phase === "ready" && !state.unresolved && state.messageKey !== "ending" && recordedTrial(state.data?.approvalState.state) &&
         trialDeadline(state.data.approvalState) <= Date.now();
       status.textContent = (state.receipt ? words.receiptResult + ": " : "") + words[expired ? "approval_expired" : state.messageKey];
       status.className = "body-trial-state" + (["error", "uncertain"].includes(state.phase) ? " is-error" : "");
@@ -827,9 +854,10 @@
     recover.addEventListener("click", () => { if (!recover.disabled) return controller.recover(controller.snapshot().ticket); });
     inspect.addEventListener("click", () => { if (!inspect.disabled) return controller.inspectSource(controller.snapshot().ticket); });
     const sync = () => { controller.syncContext(); render(controller.snapshot()); }, erase = () => controller.invalidate();
-    for (const name of ["storage", "lumina:authchange", "lumina:auth-expired", "pagehide"]) window.addEventListener(name, erase);
+    const erasePrivate = () => { erase(); selectedContext.textContent = ""; selectedContext.hidden = true; };
+    for (const name of ["storage", "lumina:authchange", "lumina:auth-expired", "pagehide"]) window.addEventListener(name, erasePrivate);
     for (const name of ["focus", "lumina:localechange", "pageshow"]) window.addEventListener(name, sync);
-    document.addEventListener("lumina:auth-expired", erase); document.addEventListener("visibilitychange", erase);
+    document.addEventListener("lumina:auth-expired", erasePrivate); document.addEventListener("visibilitychange", erasePrivate);
     for (const id of ["writerManuscriptWork", "writerManuscriptLocale"]) {
       const control = document.getElementById(id);
       for (const name of ["input", "change"]) control?.addEventListener(name, erase);
@@ -844,7 +872,7 @@
       }
       for (const id of ["writerManuscriptWork", "writerManuscriptLocale"]) {
         const control = document.getElementById(id);
-        if (control) new MutationObserver(sync).observe(control, { childList: true, subtree: true, attributes: true, attributeFilter: ["value", "selected"] });
+        if (control) new MutationObserver(sync).observe(control, { childList: true, subtree: true, attributes: true, attributeFilter: ["value", "selected", "disabled"] });
       }
     }
     render(controller.snapshot()); return controller;

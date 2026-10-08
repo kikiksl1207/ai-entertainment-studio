@@ -9,7 +9,7 @@ test('Studio uses a new consistent version for the explicit read script, preview
   for (const asset of assets) {
     const matches = tags.filter(url => url.pathname === asset);
     assert.equal(matches.length, 1);
-    assert.equal(matches[0].searchParams.get('v'), 'body-read-20261006');
+    assert.equal(matches[0].searchParams.get('v'), 'body-selected-scope-20261008');
   }
   assert(html.indexOf('/pages/creator-studio.js') < html.indexOf('/pages/creator-body-trial.js'));
   assert(html.indexOf('/pages/creator-body-preview.js') < html.indexOf('/pages/creator-body-trial.js'));
