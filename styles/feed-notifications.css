@@ -1,0 +1,106 @@
+[data-feed-notifications-root] { margin-top: 12px; min-width: 0; }
+.feed-notifications-open,
+.feed-notifications-command {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 40px;
+  max-width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #494953;
+  border-radius: 6px;
+  background: #24252c;
+  color: #f4f4f6;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.3;
+  letter-spacing: 0;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.feed-notifications-open:hover,
+.feed-notifications-command:hover:not(:disabled) { background: #34353f; }
+.feed-notifications-command:disabled { opacity: .48; cursor: default; }
+.feed-notifications-command:focus-visible,
+.feed-notifications-open:focus-visible,
+.feed-notifications-status:focus-visible { outline: 2px solid #79dac9; outline-offset: 3px; }
+/* Official black-stroke SVGs render in a separate image document. */
+.feed-notifications-icon { width: 20px; height: 20px; flex: 0 0 20px; object-fit: contain; filter: invert(1); }
+.feed-notifications-badge {
+  min-width: 20px;
+  padding: 2px 5px;
+  border-radius: 6px;
+  background: #79dac9;
+  color: #14191b;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.feed-notifications-panel {
+  position: fixed;
+  inset: 16px 16px auto auto;
+  box-sizing: border-box;
+  width: min(420px, calc(100% - 32px));
+  max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px);
+  margin: 0;
+  padding: 16px;
+  border: 1px solid #494953;
+  border-radius: 8px;
+  background: #191a20;
+  color: #f4f4f6;
+  overflow: hidden;
+  letter-spacing: 0;
+  z-index: 100;
+}
+.feed-notifications-panel[open] { display: flex; flex-direction: column; gap: 10px; }
+.feed-notifications-panel::backdrop { background: rgba(0, 0, 0, .55); }
+.feed-notifications-header,
+.feed-notifications-tools,
+.feed-notifications-filters,
+.feed-notifications-footer { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; flex-shrink: 0; }
+.feed-notifications-header { justify-content: space-between; }
+.feed-notifications-header h2 {
+  min-width: 0;
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: 0;
+  overflow-wrap: anywhere;
+}
+.feed-notifications-count,
+.feed-notifications-status { margin: 0; font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; flex-shrink: 0; }
+.feed-notifications-count { min-height: 20px; color: #79dac9; font-variant-numeric: tabular-nums; }
+.feed-notifications-status { color: #d4d5dc; }
+.feed-notifications-filters .feed-notifications-command { flex: 1 1 0; }
+.feed-notifications-filters [aria-pressed="true"] { border-color: #e994b6; background: #422d39; }
+.feed-notifications-tools { justify-content: space-between; }
+.feed-notifications-list {
+  min-height: 0;
+  flex: 1 1 auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.feed-notifications-item { display: flex; align-items: flex-start; gap: 10px; padding: 14px 0; border-top: 1px solid #363740; }
+.feed-notifications-content { min-width: 0; flex: 1 1 0; }
+.feed-notifications-content h3 { margin: 0; font-size: 14px; font-weight: 500; line-height: 1.5; letter-spacing: 0; }
+.feed-notifications-item.is-unread h3 { font-weight: 700; color: #fff; }
+.feed-notifications-content p { margin: 5px 0 8px; font-size: 13px; line-height: 1.6; color: #d4d5dc; white-space: pre-wrap; }
+.feed-notifications-content h3,
+.feed-notifications-content p,
+.feed-notifications-content time { overflow-wrap: anywhere; }
+.feed-notifications-content time { font-size: 12px; color: #aeb0bd; }
+.feed-notifications-read { flex: 0 1 108px; }
+.feed-notifications-footer { justify-content: center; }
+[data-feed-notifications-root] [hidden] { display: none !important; }
+@media (max-width: 480px) {
+  .feed-notifications-panel { inset: 8px 8px auto auto; width: calc(100% - 16px); max-height: calc(100dvh - 16px); padding: 12px; }
+  .feed-notifications-item { flex-wrap: wrap; }
+  .feed-notifications-content { flex-basis: 100%; }
+  .feed-notifications-read { flex: 0 0 auto; margin-left: auto; }
+}

@@ -8,6 +8,7 @@
     <script>(function(){if(window.history&&history.replaceState&&location.pathname.length>1&&location.pathname.charAt(location.pathname.length-1)==="/"){history.replaceState(null,"",location.pathname.slice(0,-1)+location.search+location.hash);}})();</script>
     <link rel="stylesheet" href="/styles.css" />
     <link rel="stylesheet" href="/styles/lumina-feed.css?v=feed-report-safety-20261001" />
+    <link rel="stylesheet" href="/styles/feed-notifications.css?v=notification-read-20261008" />
     <!-- SEO description: 초기 안정 카피. 에밀리 최종안 도착 시 한 줄 교체. -->
     <meta name="description" content="아티스트와 팬이 같은 공간에서 만나는 소통 무대. 루미나 피드에서 작품, 후기, 응원을 함께 나눠요." />
     <meta name="robots" content="noindex, nofollow" />
@@ -94,6 +95,10 @@
             </nav>
             <header class="feed-page-head">
               <p class="feed-page-eyebrow">Lumina Feed</p>
+              <div data-feed-notifications-root>
+                <button id="feedNotificationsOpen" class="feed-notifications-open" type="button"
+                  aria-haspopup="dialog" aria-expanded="false" aria-label="알림" title="알림" hidden></button>
+              </div>
               <div class="feed-tabs" role="tablist" aria-label="피드 필터" data-i18n-aria="feed.filter.navigation">
                 <button class="feed-tab is-active" data-feed-filter="all" role="tab" aria-selected="true" data-i18n="feed.filter.all">전체</button>
                 <button class="feed-tab" data-feed-filter="following" role="tab" aria-selected="false" data-i18n="feed.filter.following">팔로잉</button>
@@ -327,6 +332,7 @@
     <script src="/pages/feed-report.js?v=feed-report-safety-20261001"></script>
     <script src="/pages/premium-chat-hub.js"></script>
     <script src="/app.js?v=feed-report-safety-20261001"></script>
+    <script src="/pages/feed-notifications.js?v=notification-read-20261008"></script>
     <!-- ── 모바일 하단 탭바 (768px 이하 노출, #017 — 2026-05-02) ── -->
     <nav class="mobile-tabbar" aria-label="모바일 하단 메뉴">
       <a href="/" class="mobile-tab" data-tab-key="index"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.5L12 4l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg><span data-i18n="tab.home">홈</span></a>
