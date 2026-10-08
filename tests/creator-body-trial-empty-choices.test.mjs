@@ -93,7 +93,9 @@ for (const locale of locales) {
 
 for (const [name, change, key] of [
   ['normal choices', ({ saved }) => { saved.progress.choices = preview().progress.choices; }, 'approval_recorded'],
-  ['author ending', ({ saved }) => { saved.progress.scene.endingType = 'author_main'; }, 'ending'],
+  ['author ending', ({ saved }) => { saved.progress.status = 'completed'; saved.progress.scene.endingType = 'author_main'; }, 'ending'],
+  ['uncompleted author ending metadata', ({ saved }) => { saved.progress.scene.endingType = 'author_main'; }, 'approval_recorded'],
+  ['uncompleted generated ending metadata', ({ saved }) => { saved.progress.scene.endingType = 'ai_generated'; }, 'approval_recorded'],
   ['generated ending', ({ saved }) => { saved.progress.status = 'completed'; saved.progress.scene.endingType = 'ai_generated'; }, 'ending'],
   ['generating', ({ saved }) => { saved.progress.status = 'generating'; }, 'generating'],
   ['no scene', ({ saved }) => { saved.progress.scene = null; }, 'noScene'],
