@@ -123,41 +123,43 @@ export class PopularVoteService {
       throw new BadRequestException('Campaign has no positive-score winner to finalize');
     }
 
-    const created = await this.prisma.monthlyPickWinner.createMany({
-      data: [{
-        campaignId: campaign.id,
-        artistId: winner.artist.id,
-        year,
-        month,
-        rankNo: winner.rankNo,
-        totalFreeLikes: winner.totalFreeLikes,
-        totalLuminaBoosts: winner.totalLuminaBoosts,
-        totalWeightedScore: winner.totalWeightedScore,
-        metadata: this.toJson({
-          finalizedByUserId: user.id,
-          source: 'admin_manual',
-        }),
-      }],
-      skipDuplicates: true,
-    });
-    const result = await this.prisma.monthlyPickWinner.findUniqueOrThrow({
-      where: { year_month: { year, month } },
-      include: this.monthlyPickInclude(),
-    });
-
-    if (created.count) {
-      await this.recordAudit(user, 'popular_vote.monthly_pick.finalize', result.id, {
-        campaignId: campaign.id,
-        year,
-        month,
-        artistId: winner.artist.id,
+    return this.prisma.$transaction(async (tx) => {
+      const created = await tx.monthlyPickWinner.createMany({
+        data: [{
+          campaignId: campaign.id,
+          artistId: winner.artist.id,
+          year,
+          month,
+          rankNo: winner.rankNo,
+          totalFreeLikes: winner.totalFreeLikes,
+          totalLuminaBoosts: winner.totalLuminaBoosts,
+          totalWeightedScore: winner.totalWeightedScore,
+          metadata: this.toJson({
+            finalizedByUserId: user.id,
+            source: 'admin_manual',
+          }),
+        }],
+        skipDuplicates: true,
       });
-    }
+      const result = await tx.monthlyPickWinner.findUniqueOrThrow({
+        where: { year_month: { year, month } },
+        include: this.monthlyPickInclude(),
+      });
 
-    return {
-      winner: result,
-      rankings: created.count ? rankings : [],
-    };
+      if (created.count) {
+        await this.recordAudit(user, 'popular_vote.monthly_pick.finalize', result.id, {
+          campaignId: campaign.id,
+          year,
+          month,
+          artistId: winner.artist.id,
+        }, tx);
+      }
+
+      return {
+        winner: result,
+        rankings: created.count ? rankings : [],
+      };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted });
   }
 
   async archiveCompletedMonths(now = new Date()) {
@@ -463,8 +465,9 @@ export class PopularVoteService {
     action: string,
     targetId: string,
     metadata: Record<string, unknown>,
+    db: Pick<Prisma.TransactionClient, 'auditEvent'> = this.prisma,
   ) {
-    return this.prisma.auditEvent.create({
+    return db.auditEvent.create({
       data: {
         actorUserId: user.id,
         actorType: 'admin',

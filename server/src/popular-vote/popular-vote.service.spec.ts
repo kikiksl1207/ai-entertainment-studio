@@ -29,6 +29,7 @@ const minChaeon = {
 
 function createHarness() {
   const prisma = {
+    $transaction: jest.fn(async (callback: (tx: unknown) => Promise<unknown>): Promise<unknown> => callback(prisma)),
     boostCampaign: {
       findFirst: jest.fn(),
       findUnique: jest.fn(),
