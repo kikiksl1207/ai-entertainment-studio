@@ -777,6 +777,15 @@ export class RewardsService {
       });
 
       if (existingLedger) {
+        const wallet = await tx.walletAccount.findUnique({
+          where: { userId_currencyCode: { userId, currencyCode: DEFAULT_CURRENCY } },
+        });
+        if (!wallet || existingLedger.walletAccountId !== wallet.id ||
+            existingLedger.direction !== 'credit' || !new Decimal(existingLedger.amount).equals(rewardAmount) ||
+            existingLedger.ledgerType !== 'birthday_bonus' || existingLedger.referenceType !== 'user' ||
+            existingLedger.referenceId !== wallet.userId) {
+          throw new BadRequestException('Birthday reward ledger does not match this wallet');
+        }
         return {
           ledger: existingLedger,
           idempotentReplay: true,
