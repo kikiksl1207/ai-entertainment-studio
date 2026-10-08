@@ -10,7 +10,13 @@ function excerpt(name, next) {
   assert.ok(start >= 0 && end > start, `Missing actual function boundary: ${name}`);
   return source.slice(start, end);
 }
+const nativeContextStart = source.indexOf('let creatorsNativeReadProof =');
+const nativeContextEnd = source.indexOf('function syncCurrentAdminContext(', nativeContextStart);
+assert.ok(nativeContextStart >= 0 && nativeContextEnd > nativeContextStart, 'Missing actual creators context declarations');
+const nativeContextSource = source.slice(nativeContextStart, nativeContextEnd);
 const runtime = [
+  nativeContextSource,
+  excerpt('getCurrentSection', 'saveActiveSection'),
   excerpt('escapeHtml', 'firstRoleName'),
   excerpt('localHistoryRows', 'mergeLogRows'),
   excerpt('mergeLogRows', 'setStatus'),
@@ -51,6 +57,10 @@ function harness(history = []) {
     detailType: textNode(), detailList: body, detailMemo: { value: 'old synthetic draft' },
     document: {
       getElementById: id => nodes[id] || null,
+      querySelector(selector) {
+        assert.equal(selector, '.dashboard-main');
+        return { getAttribute(name) { assert.equal(name, 'data-active-section'); return 'overview'; } };
+      },
       querySelectorAll: selector => { assert.equal(selector, 'tr.is-selected'); return [previousRow]; },
     },
     tableMeta: Object.fromEntries(Object.keys(nodes).map(id => [id, {

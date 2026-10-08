@@ -10,6 +10,7 @@ function excerpt(start, end) {
   return source.slice(from, to);
 }
 const runtime = [
+  excerpt('function creatorsNativeIsTable(', 'function creatorsNativeIsDetail('),
   excerpt('function readActionHistory(', 'function writeActionHistory('),
   excerpt('function localHistoryRows(', 'function setStatus('),
   excerpt('function formatHistoryTime(', 'function renderDetailHistory('),

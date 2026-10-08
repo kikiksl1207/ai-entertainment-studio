@@ -362,12 +362,14 @@ test('the four initial moderation tables render loading notices without reading 
       assert.equal(sampleKeys.has(key), false, `Initial rendering must not access sample ${key}`);
       return [];
     } }),
+    sectionState: {},
     mergeLogRows: rows => rows,
     renderRows(id) { assert.equal(Object.values(targets).includes(id), false, `No initial row actions for ${id}`); },
   };
   runInNewContext([
     segment('const tableMeta =', 'const sectionLoaders ='),
     segment('function renderLoadingRow(', 'function renderFallbackNote('),
+    segment('let creatorsNativeReadProof =', 'function syncCurrentAdminContext('),
     initial, 'renderBackstageTables();',
   ].join('\n'), context);
   for (const root of Object.values(roots)) {

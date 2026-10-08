@@ -18,6 +18,7 @@ const authConstants = ['BACKSTAGE_AUTH_KEY', 'SHARED_AUTH_KEYS'].map(name => {
   return line[0];
 }).join('\n');
 const runtime = [authConstants,
+  excerpt('creatorsNativeIsTable', 'creatorsNativeIsDetail'),
   excerpt('getBackstageAuth', 'setBackstageAuth'),
   excerpt('normalizeAuthPayload', 'refreshBackstageAuthOnce'),
   excerpt('canAccessBackstageSection', 'applyPermissionVisibility'),

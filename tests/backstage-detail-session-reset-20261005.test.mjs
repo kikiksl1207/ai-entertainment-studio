@@ -254,6 +254,7 @@ function harness() {
         assert.fail(`Unmodeled document selector: ${selector}`);
       },
       querySelectorAll(selector) {
+        if (selector === '#creators .text-action') return [];
         if (selector === 'tr.is-selected') return tree.walk().filter(node => node.matches(selector));
         if (selector === '.section-block') return [users];
         if (selector === '.sidebar-nav a') return [nav];

@@ -16,6 +16,14 @@ assert.equal(ast.parseDiagnostics.length, 0, 'Finance source must parse');
 const names = ['escapeHtml', 'won', 'krw', 'formatCount', 'localizeWorkflowStatus',
   'localizeSettlementConversionStatus', 'settlementConversionRequester', 'settlementConversionEntryFromItem',
   'statusBadge', 'renderRows', 'selectDetailButton', 'renderDetailPanel', 'detailInput', 'detailTextarea', 'detailSelect', 'renderDetailForm'];
+const currentSectionNode = ast.statements.find(statement => ts.isFunctionDeclaration(statement)
+  && statement.name?.text === 'getCurrentSection');
+assert.ok(currentSectionNode, 'Missing actual current-section helper');
+const currentSectionSource = source.slice(currentSectionNode.getStart(ast), currentSectionNode.end);
+const nativeContextStart = source.indexOf('let creatorsNativeReadProof =');
+const nativeContextEnd = source.indexOf('function syncCurrentAdminContext(', nativeContextStart);
+assert.ok(nativeContextStart >= 0 && nativeContextEnd > nativeContextStart, 'Missing actual creators context declarations');
+const nativeContextSource = source.slice(nativeContextStart, nativeContextEnd);
 const excerpts = names.map(name => {
   const node = ast.statements.find(statement => ts.isFunctionDeclaration(statement) && statement.name?.text === name);
   assert.ok(node, `Missing exact product function: ${name}`);
@@ -61,14 +69,19 @@ function sink() {
 }
 function harness() {
   const nodes = { settlementConversionRows: sink() };
-  const context = createContext({ document: { getElementById: id => nodes[id] || null, querySelectorAll: () => [] },
+  const context = createContext({ document: { getElementById: id => nodes[id] || null, querySelectorAll: () => [],
+    querySelector(selector) {
+      assert.equal(selector, '.dashboard-main');
+      return { getAttribute(name) { assert.equal(name, 'data-active-section'); return 'payouts'; } };
+    } },
     detailPanel: sink(), detailType: sink(), detailTitle: sink(), detailList: sink(),
     detailForm: sink(), detailMemo: sink(), selectedDetail: null, statusClassMap: {},
     canWriteBackstageDetail: () => false, canAccessBackstageSection: () => true,
     renderSettlementChildren: () => { throw new Error('Not a conversion sink'); },
     detailDraftKey: () => 'synthetic-finance-draft', restoreDetailDraft: () => {},
     renderDetailHistory: () => {}, updateDetailActions: () => {}, syncUserClassificationPanel: () => {} });
-  runInContext(metaSource + '\n' + excerpts.map(excerpt => excerpt.body).join('\n'), context);
+  runInContext(metaSource + '\n' + nativeContextSource + '\n' + currentSectionSource + '\n'
+    + excerpts.map(excerpt => excerpt.body).join('\n'), context);
   const detail = entry => ({ tableId: 'settlementConversionRows', type: 'Synthetic finance',
     labels: ['Requester', 'Settlement key', 'Amount', 'Lumina', 'Status', 'Note', 'Action'],
     row: entry.row, meta: entry.meta });

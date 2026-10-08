@@ -12,19 +12,26 @@ function fragment(name) {
   const end = source.slice(start + 1).search(/^(?:(?:async )?function |const |let |window\.|document\.)/m);
   return source.slice(start, end < 0 ? source.length : start + 1 + end);
 }
+const nativeContextStart = source.indexOf('let creatorsNativeReadProof =');
+const nativeContextEnd = source.indexOf('function syncCurrentAdminContext(', nativeContextStart);
+assert.ok(nativeContextStart >= 0 && nativeContextEnd > nativeContextStart, 'Missing actual creators context declarations');
+const nativeContextSource = source.slice(nativeContextStart, nativeContextEnd);
 function fixture(error, invalidate) {
   let requests = 0, hidden = false, owner = 'synthetic-owner', history = 0, reloads = 0, updates = 0;
   const preview = { canRunApi: true, targetType: 'artistAsset', actionGroup: 'Synthetic asset',
     apiRequest: { method: 'POST', path: '/admin/api/v1/assets/upload-intents', body: { mimeType: 'image/webp' } } };
   const context = createContext({ pendingActionPreview: preview, backstagePendingActionRoleContext: null,
     confirmRunButton: { disabled: false, textContent: '' }, confirmMessage: { textContent: '' }, confirmPayload: { innerHTML: '' },
-    dashboardView: { classList: { contains: () => hidden } }, document: { querySelector: () => null }, console: { debug() {} },
+    dashboardView: { classList: { contains: () => hidden } }, document: { querySelector: selector =>
+      selector === '.dashboard-main' ? { getAttribute(name) {
+        assert.equal(name, 'data-active-section'); return 'assets';
+      } } : null }, console: { debug() {} },
     getBackstageAuth: () => ({ accessToken: 'synthetic', user: { id: owner } }),
     backstageRoleContextKey: () => 'synthetic-context', backstageRolesReady: () => true, backstageVerifiedRolesCurrent: () => true,
     runBackstageRequest: async () => { requests++; if (invalidate === 'owner') owner = 'changed-owner'; if (invalidate === 'hidden') hidden = true; throw error; },
     renderConfirmSummary: (_value, result) => JSON.stringify(result), appendActionHistory: () => { history++; },
     reloadCurrentSectionAfterAction: async () => { reloads++; }, updateSelectedRowStatus: () => { updates++; } });
-  runInContext(['backstageErrorStatus', 'backstageUserFacingError', 'runPreparedAction'].map(fragment).join('\n'), context);
+  runInContext(nativeContextSource + '\n' + ['getCurrentSection', 'backstageErrorStatus', 'backstageUserFacingError', 'runPreparedAction'].map(fragment).join('\n'), context);
   return { context, run: () => context.runPreparedAction(), counts: () => ({ requests, history, reloads, updates }) };
 }
 for (const [label, status, code, expected] of [

@@ -134,6 +134,7 @@ function harness() {
         assert.fail(`Unmodeled document selector: ${selector}`);
       },
       querySelectorAll(selector) {
+        if (selector === '#creators .text-action') return [];
         if (selector === '.sidebar-nav a') return links;
         if (selector === '.section-block') return Object.values(sections);
         if (selector === '#admins .text-action, #adminRows .row-action') return adminButtons;

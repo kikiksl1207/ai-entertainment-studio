@@ -11,6 +11,7 @@ function excerpt(start, end) {
   return source.slice(from, to);
 }
 const runtime = [
+  excerpt('function creatorsNativeIsTable(', 'function creatorsNativeIsDetail('),
   excerpt('function normalizePage(', 'function readSectionSearch('),
   excerpt('function escapeHtml(', 'function firstRoleName('),
   excerpt('function statusBadge(', 'function renderSettlementChildren('),

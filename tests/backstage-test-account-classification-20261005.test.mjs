@@ -117,6 +117,7 @@ function harness(permissions = ['*'], { actualRows = false } = {}) {
     backstageFetch: (path, options) => new Promise((resolve, reject) => listCalls.push({ path, options, resolve, reject })),
   };
   const rowRuntime = actualRows ? [segment('const statusClassMap = {', 'const backstageRows = {'),
+    segment('function creatorsNativeIsTable(', 'function creatorsNativeIsDetail('),
     segment('function escapeHtml(', 'function firstRoleName('),
     segment('function statusBadge(', 'function renderSettlementChildren(')].join('\n') : '';
   runInNewContext(rowRuntime + '\n' + runtime, context, { filename: 'backstage.js:classification-synthetic' });
@@ -455,12 +456,18 @@ test('detail snapshot uses the dedicated classification as the sole userRows sou
   const calls = [];
   const panel = { classList: { remove: value => calls.push(value) } };
   const context = { selectedDetail: null, detailPanel: panel, detailType: {}, detailTitle: {}, detailList: {}, detailMemo: { value: 'prior memo' },
+    sectionState: {}, document: { querySelector(selector) {
+      assert.equal(selector, '.dashboard-main');
+      return { getAttribute(name) { assert.equal(name, 'data-active-section'); return 'users'; } };
+    } },
     renderDetailForm: detail => calls.push(['form', detail]),
     renderDetailHistory: detail => calls.push(['history', detail]),
     updateDetailActions: detail => calls.push(['actions', detail]),
     syncUserClassificationPanel: detail => { calls.push(['classification', detail]); context.dedicated = context.current; },
   };
-  runInNewContext(segment('function renderDetailPanel(', 'function openQuickAction(') + '\nthis.render = renderDetailPanel;', context);
+  runInNewContext(segment('let creatorsNativeReadProof =', 'function syncCurrentAdminContext(') + '\n'
+    + segment('function getCurrentSection(', 'function saveActiveSection(') + '\n'
+    + segment('function renderDetailPanel(', 'function openQuickAction(') + '\nthis.render = renderDetailPanel;', context);
   for (const current of ['test revision 1', 'unclassified revision 2']) {
     context.current = current;
     const row = Array.from({ length: 12 }, (_, index) => `value-${index}`);
@@ -510,7 +517,10 @@ test('detail snapshot preserves the exact renderDetailPanel anchor outside the u
 }
 
 `;
-  const panel = segment('function renderDetailPanel(', 'function openQuickAction(').replaceAll('\r\n', '\n');
+  const guardedPanel = segment('function renderDetailPanel(', 'function openQuickAction(').replaceAll('\r\n', '\n');
+  const readonlyGuard = '  if (!detailPanel || !detail || creatorsNativeReadonlyRestricted(detail)) return;';
+  assert.equal(guardedPanel.split(readonlyGuard).length, 2, 'Exactly the independently tested creator read-only guard is restored for the historical anchor');
+  const panel = guardedPanel.replace(readonlyGuard, '  if (!detailPanel || !detail) return;');
   const titleChange = '  detailTitle.textContent = typeof detail.titleText === "string"\n    ? detail.titleText : detail.row?.[2] || detail.row?.[0] || "상세 정보";';
   assert.equal(panel.split(titleChange).length, 2, 'Only the separately tested textContent title handoff can differ');
   assert.equal(panel.replace(titleChange, '  detailTitle.textContent = detail.row?.[2] || detail.row?.[0] || "상세 정보";')
