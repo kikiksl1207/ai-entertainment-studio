@@ -176,76 +176,140 @@ export class NotificationsService {
       throw new BadRequestException('cursor must be a UUID');
     }
 
-    const where = this.clean({
-      userId,
-      type,
-      readAt:
-        status === 'unread' ? null : status === 'read' ? { not: null } : undefined,
-    }) satisfies Prisma.UserNotificationWhereInput;
-
-    const [rows, unreadCount] = await Promise.all([
-      this.prisma.userNotification.findMany({
-        where,
-        take: take + 1,
-        ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+    return this.notificationTransaction(async (tx) => {
+      const scope = this.visibleNotificationSql(userId);
+      let position = Prisma.empty;
+      if (cursor) {
+        const anchors = await tx.$queryRaw<{ id: string }[]>(Prisma.sql`
+          SELECT n.id FROM user_notifications n
+          WHERE ${scope} AND n.id = ${cursor}::uuid LIMIT 1
+        `);
+        if (!anchors.length) throw new BadRequestException('cursor is unavailable');
+        position = Prisma.sql`AND (n.created_at, n.id) < (
+          (SELECT anchor.created_at FROM user_notifications anchor
+            WHERE anchor.user_id = ${userId}::uuid AND anchor.id = ${cursor}::uuid), ${cursor}::uuid
+        )`;
+      }
+      const statusFilter = status === 'unread' ? Prisma.sql`AND n.read_at IS NULL` :
+        status === 'read' ? Prisma.sql`AND n.read_at IS NOT NULL` : Prisma.empty;
+      const typeFilter = type ? Prisma.sql`AND n.type = ${type}` : Prisma.empty;
+      const ids = await tx.$queryRaw<{ id: string }[]>(Prisma.sql`
+        SELECT n.id FROM user_notifications n WHERE ${scope}
+        ${statusFilter} ${typeFilter} ${position}
+        ORDER BY n.created_at DESC, n.id DESC LIMIT ${take + 1}
+      `);
+      const counts = await tx.$queryRaw<{ unreadCount: number }[]>(Prisma.sql`
+        SELECT COUNT(*)::integer AS "unreadCount" FROM user_notifications n
+        WHERE ${scope} AND n.read_at IS NULL
+      `);
+      const page = ids.slice(0, take);
+      const rows = page.length ? await tx.userNotification.findMany({
+        where: { userId, id: { in: page.map((item) => item.id) } },
         include: this.notificationInclude(),
-        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-      }),
-      this.prisma.userNotification.count({
-        where: { userId, readAt: null },
-      }),
-    ]);
-
-    const hasNextPage = rows.length > take;
-    const notifications = rows.slice(0, take);
-
-    return {
-      notifications: await Promise.all(
-        notifications.map((notification) => this.toNotificationView(notification)),
-      ),
-      unreadCount,
-      nextCursor: hasNextPage ? notifications[notifications.length - 1]?.id ?? null : null,
-    };
+      }) : [];
+      const byId = new Map(rows.map((row) => [row.id, row]));
+      const notifications = await Promise.all(page.map(async ({ id }) => {
+        const row = byId.get(id);
+        if (!row) throw new NotFoundException('Notification not found');
+        return this.toNotificationView(row, tx);
+      }));
+      return {
+        notifications, unreadCount: counts[0].unreadCount,
+        nextCursor: ids.length > take ? page[page.length - 1]?.id ?? null : null,
+      };
+    });
   }
 
   async unreadCount(userId: string) {
-    const unreadCount = await this.prisma.userNotification.count({
-      where: { userId, readAt: null },
+    return this.notificationTransaction(async (tx) => {
+      const counts = await tx.$queryRaw<{ unreadCount: number }[]>(Prisma.sql`
+        SELECT COUNT(*)::integer AS "unreadCount" FROM user_notifications n
+        WHERE ${this.visibleNotificationSql(userId)} AND n.read_at IS NULL
+      `);
+      return { unreadCount: counts[0].unreadCount };
     });
-
-    return { unreadCount };
   }
 
   async markRead(userId: string, notificationId: string) {
-    if (!UUID_PATTERN.test(notificationId)) {
+    if (typeof notificationId !== 'string' || !UUID_PATTERN.test(notificationId)) {
       throw new BadRequestException('notificationId must be a UUID');
     }
 
-    const notification = await this.prisma.userNotification.findFirst({
-      where: { id: notificationId, userId },
-      select: { id: true, readAt: true },
+    return this.notificationTransaction(async (tx) => {
+      const ids = await tx.$queryRaw<{ id: string; readAt: Date | null }[]>(Prisma.sql`
+        SELECT n.id, n.read_at AS "readAt" FROM user_notifications n
+        WHERE ${this.visibleNotificationSql(userId)} AND n.id = ${notificationId}::uuid LIMIT 1
+      `);
+      if (!ids.length) throw new NotFoundException('Notification not found');
+      if (ids[0].readAt === null) {
+        await tx.$executeRaw(Prisma.sql`
+          UPDATE user_notifications n SET read_at = CURRENT_TIMESTAMP
+          WHERE ${this.visibleNotificationSql(userId)} AND n.id = ${notificationId}::uuid AND n.read_at IS NULL
+        `);
+      }
+      const notification = await tx.userNotification.findUnique({
+        where: { id: ids[0].id }, include: this.notificationInclude(),
+      });
+      if (!notification) throw new NotFoundException('Notification not found');
+      return { notification: await this.toNotificationView(notification, tx) };
     });
-
-    if (!notification) {
-      throw new NotFoundException('Notification not found');
-    }
-
-    const updated = await this.prisma.userNotification.update({
-      where: { id: notification.id },
-      data: notification.readAt ? {} : { readAt: new Date() },
-      include: this.notificationInclude(),
-    });
-
-    return { notification: await this.toNotificationView(updated) };
   }
 
   async markAllRead(userId: string) {
-    const result = await this.prisma.userNotification.updateMany({
-      where: { userId, readAt: null },
-      data: { readAt: new Date() },
+    return this.notificationTransaction(async (tx) => {
+      const updatedCount = await tx.$executeRaw(Prisma.sql`
+        UPDATE user_notifications n SET read_at = CURRENT_TIMESTAMP
+        WHERE ${this.visibleNotificationSql(userId)} AND n.read_at IS NULL
+      `);
+      return { ok: true, updatedCount };
     });
+  }
 
-    return { ok: true, updatedCount: result.count };
+  private async notificationTransaction<T>(operation: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await this.prisma.$transaction(operation, {
+          isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead,
+        });
+      } catch (error) {
+        const known = error && typeof error === 'object' && 'code' in error;
+        const sqlState = known && 'meta' in error && error.meta && typeof error.meta === 'object' && 'code' in error.meta
+          ? error.meta.code : null;
+        const conflict = known && (error.code === 'P2034' ||
+          (error.code === 'P2010' && (sqlState === '40001' || sqlState === '40P01')));
+        if (attempt >= 2 || !conflict) throw error;
+      }
+    }
+  }
+
+  private noActiveBlockSql(userId: string, other: Prisma.Sql) {
+    return Prisma.sql`NOT EXISTS (
+      SELECT 1 FROM user_blocks b WHERE b.status = 'active' AND b.deleted_at IS NULL AND
+        ((b.blocker_user_id = ${userId}::uuid AND b.blocked_user_id = ${other}) OR
+         (b.blocked_user_id = ${userId}::uuid AND b.blocker_user_id = ${other}))
+    )`;
+  }
+
+  // Generic notification targets have no post relation; keep the same visibility predicate in SQL for pages, counts and writes.
+  private visibleNotificationSql(userId: string) {
+    return Prisma.sql`
+      n.user_id = ${userId}::uuid
+      AND ${this.noActiveBlockSql(userId, Prisma.sql`n.actor_user_id`)}
+      AND (
+        (n.target_type IS DISTINCT FROM 'community_post' AND n.type NOT LIKE 'feed.%') OR
+        EXISTS (
+          SELECT 1 FROM community_posts p
+          WHERE n.target_type = 'community_post' AND p.id = n.target_id
+            AND p.status = 'published' AND p.visibility = 'public' AND p.deleted_at IS NULL
+            AND ${this.noActiveBlockSql(userId, Prisma.sql`p.author_user_id`)}
+            AND NOT EXISTS (
+              SELECT 1 FROM community_hidden_posts h
+              WHERE h.post_id = p.id AND h.user_id = ${userId}::uuid
+                AND h.status = 'active' AND h.deleted_at IS NULL
+            )
+        )
+      )
+    `;
   }
 
   async createNotification(input: CreateNotificationInput) {
@@ -301,9 +365,15 @@ export class NotificationsService {
     return settings.activityNotifications;
   }
 
-  private async toNotificationView(notification: any) {
+  private async toNotificationView(notification: any, client: Prisma.TransactionClient = this.prisma) {
+    const feed = notification.type.startsWith('feed.');
+    const template = this.notificationTemplate(notification.type);
+    const projected = feed ? {
+      ...notification, title: template.defaultTitle, body: template.defaultBody ?? null,
+      metadata: { messageKey: template.messageKey, titleKey: template.titleKey, bodyKey: template.bodyKey ?? null },
+    } : notification;
     const avatarAsset = notification.actorUser?.profile?.avatarAssetId
-      ? await this.prisma.asset.findUnique({
+      ? await client.asset.findUnique({
           where: { id: notification.actorUser.profile.avatarAssetId },
           select: { storageKey: true },
         })
@@ -312,12 +382,12 @@ export class NotificationsService {
     return {
       id: notification.id,
       type: notification.type,
-      title: notification.title,
-      body: notification.body,
-      i18n: this.notificationI18n(notification),
+      title: projected.title,
+      body: projected.body,
+      i18n: this.notificationI18n(projected),
       targetType: notification.targetType,
       targetId: notification.targetId,
-      metadata: notification.metadata,
+      metadata: projected.metadata,
       readAt: notification.readAt,
       createdAt: notification.createdAt,
       actor: notification.actorUser
@@ -348,7 +418,6 @@ export class NotificationsService {
       actorUser: {
         select: {
           id: true,
-          email: true,
           profile: {
             select: {
               displayName: true,
@@ -369,6 +438,7 @@ export class NotificationsService {
   }
 
   private take(value: string | undefined) {
+    if (value !== undefined && typeof value !== 'string') throw new BadRequestException('take must be a string');
     const parsed = Number(value ?? 20);
 
     if (!Number.isInteger(parsed) || parsed < 1 || parsed > 100) {
@@ -379,6 +449,7 @@ export class NotificationsService {
   }
 
   private optionalString(value: unknown) {
+    if (value !== undefined && value !== null && typeof value !== 'string') throw new BadRequestException('query values must be strings');
     return typeof value === 'string' && value.trim() ? value.trim() : undefined;
   }
 
