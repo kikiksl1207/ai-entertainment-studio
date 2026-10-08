@@ -11,6 +11,7 @@ import { configureHttpRouting } from './common/http-routing';
 import { authorBodyReviewPrivacyMiddleware } from './story-production/story-author-body-review.privacy';
 import { generatedEndingReadPrivacyMiddleware } from './story-production/story-generated-ending-read.controller';
 import { authorBodyTrialReceiptPrivacyMiddleware } from './story-production/story-author-body-trial-receipt.controller';
+import { settingsPrivacyMiddleware } from './auth/auth-settings.privacy';
 
 type RequestLike = {
   headers: Record<string, string | string[] | undefined>;
@@ -39,6 +40,7 @@ export async function createApplication() {
   app.use(authorBodyReviewPrivacyMiddleware);
   app.use(generatedEndingReadPrivacyMiddleware);
   app.use(authorBodyTrialReceiptPrivacyMiddleware);
+  app.use(settingsPrivacyMiddleware);
   app.use(
     helmet({
       crossOriginResourcePolicy: { policy: 'cross-origin' },
