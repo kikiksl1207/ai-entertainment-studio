@@ -1,0 +1,143 @@
+{
+  "scope": "backstage-creators-native-readonly-entry-delta-v1",
+  "baselineHead": "76be78c2dfa35c3bf28943ddbd0233160907426c",
+  "beforeSHA256": "df5f352bae0df49a066035feba1feb9806ff24c2cf35d5e263a8233ed2bf3863",
+  "afterSHA256": "4780764cf1325e73798af337b3b7bb074dadf96a2a892e94dbd0b36dfc2c342f",
+  "edits": [
+    {
+      "label": "native-me-start",
+      "before": "async function verifyAdminAccess() {\n  const epoch = backstageAuthEpoch;",
+      "after": "async function verifyAdminAccess() {\n  const creatorsNativeContextBefore = creatorsNativeStoredContext();\n  const epoch = backstageAuthEpoch;"
+    },
+    {
+      "label": "native-me-proof",
+      "before": "  applyAdminContext(adminContext);\n  checkCurrent();",
+      "after": "  const currentCreatorsAuth = getBackstageAuth();\n  const creatorsNativeContextUnchanged = creatorsNativeStoredContext() === creatorsNativeContextBefore\n    || !currentCreatorsAuth?.user?.adminUser && !currentAdminRoleName() && currentAdminPermissions().length === 0\n      && (currentCreatorsAuth?.accessToken !== auth?.accessToken || currentCreatorsAuth?.refreshToken !== auth?.refreshToken);\n  applyAdminContext(adminContext);\n  checkCurrent();\n  if (creatorsNativeContextUnchanged) rememberCreatorsNativeReadContext(adminContext);\n  else creatorsNativeReadProof = null;"
+    },
+    {
+      "label": "row-details",
+      "before": "      if (index === row.length - 1) {",
+      "after": "      if (index === row.length - 1) {\n        if (creatorsNativeIsTable(targetId) && creatorsNativeReadonlyRestricted()) return `<td>${content}</td>`;"
+    },
+    {
+      "label": "local-history",
+      "before": "function appendActionHistory(preview, result = {}) {\n  if (!preview) return null;",
+      "after": "function appendActionHistory(preview, result = {}) {\n  if (!preview || !creatorsNativePreviewCurrent(preview)) return null;"
+    },
+    {
+      "label": "detail-panel",
+      "before": "function renderDetailPanel(detail) {\n  if (!detailPanel || !detail) return;",
+      "after": "function renderDetailPanel(detail) {\n  if (!detailPanel || !detail || creatorsNativeReadonlyRestricted(detail)) return;"
+    },
+    {
+      "label": "quick-action",
+      "before": "function openQuickAction(button) {",
+      "after": "function openQuickAction(button) {\n  if (creatorsNativeReadonlyRestricted()) return;"
+    },
+    {
+      "label": "inline-action",
+      "before": "function handleInlineAction(button) {",
+      "after": "function handleInlineAction(button) {\n  if (creatorsNativeReadonlyRestricted(selectedDetail)) return;"
+    },
+    {
+      "label": "draft",
+      "before": "function saveDetailDraft() {",
+      "after": "function saveDetailDraft() {\n  if (creatorsNativeReadonlyRestricted(selectedDetail)) return;"
+    },
+    {
+      "label": "detail-form",
+      "before": "function renderDetailForm(detail) {\n  if (!detailForm) return;",
+      "after": "function renderDetailForm(detail) {\n  if (!detailForm) return;\n  if (creatorsNativeReadonlyRestricted(detail)) {\n    detailForm.classList.add(\"is-hidden\");\n    detailForm.innerHTML = \"\";\n    detailForm.dataset.draftKey = \"\";\n    return;\n  }"
+    },
+    {
+      "label": "action-request",
+      "before": "function buildActionRequest(detail, action) {",
+      "after": "function buildActionRequest(detail, action) {\n  if (creatorsNativeReadonlyRestricted(detail)) return null;"
+    },
+    {
+      "label": "preview-start",
+      "before": "function buildActionPreview(action) {\n  const detail = selectedDetail;\n  if (!detail) return null;",
+      "after": "function buildActionPreview(action) {\n  const detail = selectedDetail;\n  if (!detail || creatorsNativeReadonlyRestricted(detail)) return null;"
+    },
+    {
+      "label": "preview-fence",
+      "before": "  return base;\n}\n\nfunction settlementStatusLabel(status) {",
+      "after": "  if (getCurrentSection() === \"creators\" || creatorsNativeIsDetail(detail)) {\n    const context = creatorsNativeStoredContext();\n    if (!context || getCurrentSection() !== \"creators\" || dashboardView.classList.contains(\"is-hidden\")) return null;\n    const auth = getBackstageAuth();\n    creatorsNativePreviewContexts.set(base, { epoch: backstageAuthEpoch, context,\n      owner: auth.user.id || auth.user.userId, accessToken: auth.accessToken, refreshToken: auth.refreshToken });\n  }\n  return base;\n}\n\nfunction settlementStatusLabel(status) {"
+    },
+    {
+      "label": "row-action-result",
+      "before": "function updateSelectedRowStatus(preview) {",
+      "after": "function updateSelectedRowStatus(preview) {\n  if (!creatorsNativePreviewCurrent(preview)) return;"
+    },
+    {
+      "label": "pending-start",
+      "before": "  const preview = pendingActionPreview;\n  if (!preview?.canRunLocally && !preview?.canRunApi) return;",
+      "after": "  const preview = pendingActionPreview;\n  if (!preview?.canRunLocally && !preview?.canRunApi) return;\n  if (!creatorsNativePreviewCurrent(preview)) return;"
+    },
+    {
+      "label": "pending-late",
+      "before": "    return pendingActionPreview === preview && Boolean(operatorId)",
+      "after": "    return pendingActionPreview === preview && creatorsNativePreviewCurrent(preview) && Boolean(operatorId)"
+    },
+    {
+      "label": "initial-samples",
+      "before": "  renderRows(\"creatorRows\", backstageRows.creators, 7);\n  renderRows(\"creatorImageRequestRows\", backstageRows.creatorImageRequests, 5);\n  renderLoadingRow(\"artistKnowledgeUrlRows\", \"자료 URL 심사 큐는 운영자 권한 확인 후 불러옵니다.\");\n  renderRows(\"aiCreatorRows\", backstageRows.aiCreators, 5);",
+      "after": "  if (creatorsNativeReadonlyCurrent() || sectionState.creators?.nativeReadonly === true) {\n    [\"creatorRows\", \"creatorImageRequestRows\", \"artistKnowledgeUrlRows\", \"aiCreatorRows\"].forEach(id => renderLoadingRow(id));\n  } else {\n    renderRows(\"creatorRows\", backstageRows.creators, 7);\n    renderRows(\"creatorImageRequestRows\", backstageRows.creatorImageRequests, 5);\n    renderLoadingRow(\"artistKnowledgeUrlRows\", \"자료 URL 심사 큐는 운영자 권한 확인 후 불러옵니다.\");\n    renderRows(\"aiCreatorRows\", backstageRows.aiCreators, 5);\n  }"
+    },
+    {
+      "label": "helpers",
+      "before": "function syncCurrentAdminContext(adminUsers = []) {",
+      "after": "// BEGIN creators-native-readonly-20261009\nlet creatorsNativeReadProof = null;\nconst creatorsNativePreviewContexts = new WeakMap();\nconst creatorsNativeRejectedPreviews = new WeakSet();\nconst creatorsNativeHiddenControls = new WeakMap();\n\nfunction creatorsNativeStoredContext(auth = getBackstageAuth()) {\n  const user = auth?.user, admin = user?.adminUser;\n  const owner = user?.id || user?.userId;\n  const role = admin?.roleName || admin?.role?.name || admin?.adminRole;\n  if (!owner || !(auth.accessToken || auth.refreshToken) || admin?.status !== \"active\"\n      || typeof role !== \"string\" || !Array.isArray(admin.permissions)\n      || !admin.permissions.every(permission => typeof permission === \"string\")) return null;\n  return JSON.stringify([owner, admin.id ?? null, admin.status, role,\n    adminPermissionList(admin.permissions).sort()]);\n}\n\nfunction rememberCreatorsNativeReadContext(data) {\n  const auth = getBackstageAuth(), admin = data?.admin;\n  creatorsNativeReadProof = null;\n  if (!auth || data?.user?.id !== (auth.user?.id || auth.user?.userId)\n      || admin?.status !== \"active\" || typeof admin.role !== \"string\"\n      || !Array.isArray(admin.permissions)\n      || !admin.permissions.every(permission => typeof permission === \"string\")) return;\n  const granted = adminPermissionList(admin.permissions);\n  const context = JSON.stringify([data.user.id, admin.id ?? null, admin.status, admin.role, granted.slice().sort()]);\n  if (context === creatorsNativeStoredContext()) {\n    creatorsNativeReadProof = { epoch: backstageAuthEpoch, context, granted };\n  }\n}\n\nfunction creatorsNativeReadonlyCurrent() {\n  const proof = creatorsNativeReadProof;\n  if (!proof || proof.epoch !== backstageAuthEpoch || proof.context !== creatorsNativeStoredContext()) return false;\n  if (canAccessBackstageSection(\"creators\", false)) return false;\n  return [\"*\", \"creators:read\", \"creators:write\", \"creators:*\"].some(permission => proof.granted.includes(permission));\n}\n\nfunction creatorsNativeIsTable(tableId) {\n  return [\"creatorRows\", \"creatorImageRequestRows\", \"artistKnowledgeUrlRows\", \"aiCreatorRows\"].includes(tableId);\n}\n\nfunction creatorsNativeIsDetail(detail) {\n  return creatorsNativeIsTable(detail?.tableId) || getCurrentSection() === \"creators\" && detail?.tableId === \"quickAction\"\n    && [\"데뷔 신청 목록\", \"이미지 제작 요청\", \"AI 아티스트 추가\"].includes(detail?.row?.[0]);\n}\n\nfunction creatorsNativeReadonlyRestricted(detail = null) {\n  return (getCurrentSection() === \"creators\" || creatorsNativeIsDetail(detail))\n    && (creatorsNativeReadonlyCurrent() || sectionState.creators?.nativeReadonly === true);\n}\n\nfunction creatorsNativePreviewCurrent(preview) {\n  if (creatorsNativeReadonlyRestricted()) {\n    if (preview && typeof preview === \"object\") creatorsNativeRejectedPreviews.add(preview);\n    return false;\n  }\n  if (creatorsNativeRejectedPreviews.has(preview)) return false;\n  const fence = creatorsNativePreviewContexts.get(preview);\n  if (!fence) return ![\"debutApplication\", \"creatorImageRequest\", \"artistKnowledgeUrl\"].includes(preview?.targetType)\n    && !(getCurrentSection() === \"creators\" && preview?.targetType === \"aiArtist\");\n  const current = getBackstageAuth();\n  const normalRefreshMissing = current && !current.user?.adminUser && !currentAdminRoleName()\n    && currentAdminPermissions().length === 0\n    && (current.user?.id || current.user?.userId) === fence.owner\n    && (current.accessToken !== fence.accessToken || current.refreshToken !== fence.refreshToken);\n  return fence.epoch === backstageAuthEpoch && (fence.context === creatorsNativeStoredContext() || normalRefreshMissing)\n    && getCurrentSection() === \"creators\" && !dashboardView.classList.contains(\"is-hidden\");\n}\n\nfunction syncCreatorsNativeReadonlyView() {\n  if (typeof document === \"undefined\") return;\n  const restricted = creatorsNativeReadonlyCurrent() || sectionState.creators?.nativeReadonly === true;\n  document.querySelectorAll(\"#creators .text-action\").forEach(button => {\n    if (restricted) {\n      if (!creatorsNativeHiddenControls.has(button)) {\n        creatorsNativeHiddenControls.set(button, { hidden: button.hidden, disabled: button.disabled });\n      }\n      button.hidden = true;\n      button.disabled = true;\n    } else if (creatorsNativeHiddenControls.has(button)) {\n      Object.assign(button, creatorsNativeHiddenControls.get(button));\n      creatorsNativeHiddenControls.delete(button);\n    }\n  });\n  if (!restricted || !(getCurrentSection() === \"creators\" || creatorsNativeIsDetail(selectedDetail))) return;\n  selectedDetail = null;\n  detailPanel?.classList.add(\"is-hidden\");\n  if (detailForm) {\n    detailForm.classList.add(\"is-hidden\");\n    detailForm.innerHTML = \"\";\n    detailForm.dataset.draftKey = \"\";\n  }\n  if (pendingActionPreview && typeof pendingActionPreview === \"object\") creatorsNativeRejectedPreviews.add(pendingActionPreview);\n  closeConfirmModal();\n}\n// END creators-native-readonly-20261009\n\nfunction syncCurrentAdminContext(adminUsers = []) {"
+    },
+    {
+      "label": "entry-admission",
+      "before": "function canAccessBackstageSection(sectionId) {",
+      "after": "function canAccessBackstageSection(sectionId, allowNativeReadonly = true) {\n  if (allowNativeReadonly && sectionId === \"creators\" && creatorsNativeReadonlyCurrent()) return true;"
+    },
+    {
+      "label": "controls-sync",
+      "before": "  const canManageAdmins = canAccessBackstageSection(\"admins\");",
+      "after": "  syncCreatorsNativeReadonlyView();\n  const canManageAdmins = canAccessBackstageSection(\"admins\");"
+    },
+    {
+      "label": "read-context",
+      "before": "    if (!user || !(auth.accessToken || auth.refreshToken)) return null;\n    return JSON.stringify([user.id || user.userId, user.adminUser?.id ?? null,",
+      "after": "    if (!user || !(auth.accessToken || auth.refreshToken)) return null;\n    if (creatorsNativeReadonlyCurrent()) return creatorsNativeStoredContext(auth);\n    return JSON.stringify([user.id || user.userId, user.adminUser?.id ?? null,"
+    },
+    {
+      "label": "read-start",
+      "before": "    const auth = getBackstageAuth(), context = creatorsReadContext(), epoch = backstageAuthEpoch;",
+      "after": "    const nativeReadonly = creatorsNativeReadonlyCurrent();\n    const auth = getBackstageAuth(), context = creatorsReadContext(), epoch = backstageAuthEpoch;"
+    },
+    {
+      "label": "read-state",
+      "before": "    const state = { rows: [], artistOptions: [], accessRows: [], knowledgeRows: [], loading: true,\n      status: \"loading\", imageStatus: \"loading\", knowledgeStatus: \"loading\" };",
+      "after": "    const state = { rows: [], artistOptions: [], accessRows: [], knowledgeRows: [], loading: true,\n      status: \"loading\", imageStatus: \"loading\", knowledgeStatus: \"loading\", nativeReadonly };"
+    },
+    {
+      "label": "read-current",
+      "before": "    const isCurrent = () => sessionCurrent() && context === creatorsReadContext() && canAccessBackstageSection(\"creators\");",
+      "after": "    const isCurrent = () => sessionCurrent() && context === creatorsReadContext() && canAccessBackstageSection(\"creators\")\n      && (!nativeReadonly || creatorsNativeReadonlyCurrent());"
+    },
+    {
+      "label": "read-return",
+      "before": "    return { state, context, operatorId, isCurrent, refreshContextMissing,",
+      "after": "    return { state, context, operatorId, isCurrent, refreshContextMissing, nativeReadonly,"
+    },
+    {
+      "label": "refresh-proof",
+      "before": "    applyAdminContext(data);\n    return read.isCurrent();",
+      "after": "    applyAdminContext(data);\n    rememberCreatorsNativeReadContext(data);\n    return read.isCurrent();"
+    },
+    {
+      "label": "aux-scope",
+      "before": "  const state = read.state;\n  const canReadImages = [\"*\", \"assets:read\", \"assets:write\", \"assets:*\"].some(permission => read.permissions.includes(permission));\n  const canReadKnowledge = [\"*\", \"artists:read\", \"artists:write\", \"artists:*\"].some(permission => read.permissions.includes(permission));",
+      "after": "  const state = read.state;\n  syncCreatorsNativeReadonlyView();\n  const canReadImages = !read.nativeReadonly && [\"*\", \"assets:read\", \"assets:write\", \"assets:*\"].some(permission => read.permissions.includes(permission));\n  const canReadKnowledge = !read.nativeReadonly && [\"*\", \"artists:read\", \"artists:write\", \"artists:*\"].some(permission => read.permissions.includes(permission));"
+    },
+    {
+      "label": "resolve-details",
+      "before": "function resolveExecutableEndpoint(endpoint = \"\", detail = null, action = \"memo\") {",
+      "after": "function resolveExecutableEndpoint(endpoint = \"\", detail = null, action = \"memo\") {\n  if (creatorsNativeReadonlyRestricted(detail)) return null;"
+    }
+  ]
+}

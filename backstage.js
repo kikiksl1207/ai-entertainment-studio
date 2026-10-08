@@ -815,6 +815,7 @@ function adminApiPath(path) {
   return `/admin/api/v1${path}`;
 }
 async function verifyAdminAccess() {
+  const creatorsNativeContextBefore = creatorsNativeStoredContext();
   const epoch = backstageAuthEpoch;
   const auth = getBackstageAuth();
   const operatorId = auth?.user?.id || auth?.user?.userId;
@@ -838,8 +839,14 @@ async function verifyAdminAccess() {
     error.status = 403;
     throw error;
   }
+  const currentCreatorsAuth = getBackstageAuth();
+  const creatorsNativeContextUnchanged = creatorsNativeStoredContext() === creatorsNativeContextBefore
+    || !currentCreatorsAuth?.user?.adminUser && !currentAdminRoleName() && currentAdminPermissions().length === 0
+      && (currentCreatorsAuth?.accessToken !== auth?.accessToken || currentCreatorsAuth?.refreshToken !== auth?.refreshToken);
   applyAdminContext(adminContext);
   checkCurrent();
+  if (creatorsNativeContextUnchanged) rememberCreatorsNativeReadContext(adminContext);
+  else creatorsNativeReadProof = null;
   await backstageFetch(adminApiPath("/audit-events?take=1"), { auth: true, isCurrent }).catch(error => {
     if (error?.code === "BACKSTAGE_SESSION_CHANGED") throw error;
     return null;
@@ -873,6 +880,7 @@ function renderRows(targetId, rows, statusIndex) {
           ? `<strong class="settlement-amount">${cell}</strong>`
           : cell;
       if (index === row.length - 1) {
+        if (creatorsNativeIsTable(targetId) && creatorsNativeReadonlyRestricted()) return `<td>${content}</td>`;
         const payload = encodeURIComponent(JSON.stringify({ tableId: targetId, type: meta.type, labels: meta.labels, row, meta: rowMeta }));
         return `<td><button class="row-action" type="button" data-detail="${payload}">${content}</button></td>`;
       }
@@ -1459,7 +1467,7 @@ function renderDetailHistory(detail) {
 }
 
 function appendActionHistory(preview, result = {}) {
-  if (!preview) return null;
+  if (!preview || !creatorsNativePreviewCurrent(preview)) return null;
   const entry = {
     id: `BH-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     detailKey: preview.detailKey || detailHistoryKey(selectedDetail),
@@ -1484,7 +1492,7 @@ function appendActionHistory(preview, result = {}) {
 }
 
 function renderDetailPanel(detail) {
-  if (!detailPanel || !detail) return;
+  if (!detailPanel || !detail || creatorsNativeReadonlyRestricted(detail)) return;
   selectedDetail = detail;
   detailPanel.classList.remove("is-hidden");
   detailType.textContent = detail.type || "Detail";
@@ -1503,6 +1511,7 @@ function renderDetailPanel(detail) {
 }
 
 function openQuickAction(button) {
+  if (creatorsNativeReadonlyRestricted()) return;
   const label = button.textContent.trim();
   const section = button.closest(".section-block");
   const sectionTitle = section?.querySelector(".section-title h2")?.textContent?.trim() || "백스테이지";
@@ -1585,6 +1594,7 @@ function applySectionFilter(button) {
 }
 
 function handleInlineAction(button) {
+  if (creatorsNativeReadonlyRestricted(selectedDetail)) return;
   const action = button.dataset.inlineAction;
   const help = document.querySelector(".detail-help");
   const previewBox = detailForm?.querySelector('[data-tone-preview-box]');
@@ -1677,6 +1687,7 @@ function restoreDetailDraft(key) {
 }
 
 function saveDetailDraft() {
+  if (creatorsNativeReadonlyRestricted(selectedDetail)) return;
   if (!detailForm || detailForm.classList.contains("is-hidden")) return;
   const key = detailForm.dataset.draftKey;
   if (!key) return;
@@ -1687,6 +1698,12 @@ function saveDetailDraft() {
 
 function renderDetailForm(detail) {
   if (!detailForm) return;
+  if (creatorsNativeReadonlyRestricted(detail)) {
+    detailForm.classList.add("is-hidden");
+    detailForm.innerHTML = "";
+    detailForm.dataset.draftKey = "";
+    return;
+  }
   detailForm.classList.add("is-hidden");
   detailForm.innerHTML = "";
   detailForm.dataset.draftKey = "";
@@ -2574,6 +2591,7 @@ function buildArtistProfilePayload(form = {}) {
 }
 
 function buildActionRequest(detail, action) {
+  if (creatorsNativeReadonlyRestricted(detail)) return null;
   const tableId = detail?.tableId || "quickAction";
   const row = detail?.row || [];
   const meta = detail?.meta || {};
@@ -2977,6 +2995,7 @@ function buildActionRequest(detail, action) {
 }
 
 function resolveExecutableEndpoint(endpoint = "", detail = null, action = "memo") {
+  if (creatorsNativeReadonlyRestricted(detail)) return null;
   const mutation = action !== "memo" ? buildActionRequest(detail, action) : null;
   if (mutation) return mutation;
   const match = String(endpoint).trim().match(/^(GET|POST|PATCH|DELETE)\s+(\/admin\/api\/v1\/\S+)$/);
@@ -3063,7 +3082,7 @@ async function reloadCurrentSectionAfterAction() {
 
 function buildActionPreview(action) {
   const detail = selectedDetail;
-  if (!detail) return null;
+  if (!detail || creatorsNativeReadonlyRestricted(detail)) return null;
   const memo = detailMemo.value.trim();
   const row = detail.row || [];
   const target = row[0] || "-";
@@ -3118,6 +3137,13 @@ function buildActionPreview(action) {
     canRunApi: creatorApprovalNeedsArtist || walletAdjustmentMissingNote ? false : Boolean(apiRequest),
     apiRequest: creatorApprovalNeedsArtist || walletAdjustmentMissingNote ? null : apiRequest
   };
+  if (getCurrentSection() === "creators" || creatorsNativeIsDetail(detail)) {
+    const context = creatorsNativeStoredContext();
+    if (!context || getCurrentSection() !== "creators" || dashboardView.classList.contains("is-hidden")) return null;
+    const auth = getBackstageAuth();
+    creatorsNativePreviewContexts.set(base, { epoch: backstageAuthEpoch, context,
+      owner: auth.user.id || auth.user.userId, accessToken: auth.accessToken, refreshToken: auth.refreshToken });
+  }
   return base;
 }
 
@@ -3202,6 +3228,7 @@ function optimisticStatusForPreview(preview) {
 }
 
 function updateSelectedRowStatus(preview) {
+  if (!creatorsNativePreviewCurrent(preview)) return;
   const status = optimisticStatusForPreview(preview);
   if (!status || !selectedDetail) return;
   const statusIndex = selectedDetail.labels?.findIndex((label) => label === "상태") ?? -1;
@@ -3315,11 +3342,12 @@ function closeConfirmModal() {
 async function runPreparedAction() {
   const preview = pendingActionPreview;
   if (!preview?.canRunLocally && !preview?.canRunApi) return;
+  if (!creatorsNativePreviewCurrent(preview)) return;
   const auth = getBackstageAuth();
   const operatorId = auth?.user?.id || auth?.user?.userId;
   const isCurrent = () => {
     const current = getBackstageAuth();
-    return pendingActionPreview === preview && Boolean(operatorId)
+    return pendingActionPreview === preview && creatorsNativePreviewCurrent(preview) && Boolean(operatorId)
       && (current?.accessToken || current?.refreshToken)
       && (current?.user?.id || current?.user?.userId) === operatorId
       && !dashboardView.classList.contains("is-hidden");
@@ -3395,10 +3423,14 @@ function renderBackstageTables() {
   renderRows("riskRows", backstageRows.risk, 3);
   renderLoadingRow("userRows");
   renderLoadingRow("userRiskRows");
-  renderRows("creatorRows", backstageRows.creators, 7);
-  renderRows("creatorImageRequestRows", backstageRows.creatorImageRequests, 5);
-  renderLoadingRow("artistKnowledgeUrlRows", "자료 URL 심사 큐는 운영자 권한 확인 후 불러옵니다.");
-  renderRows("aiCreatorRows", backstageRows.aiCreators, 5);
+  if (creatorsNativeReadonlyCurrent() || sectionState.creators?.nativeReadonly === true) {
+    ["creatorRows", "creatorImageRequestRows", "artistKnowledgeUrlRows", "aiCreatorRows"].forEach(id => renderLoadingRow(id));
+  } else {
+    renderRows("creatorRows", backstageRows.creators, 7);
+    renderRows("creatorImageRequestRows", backstageRows.creatorImageRequests, 5);
+    renderLoadingRow("artistKnowledgeUrlRows", "자료 URL 심사 큐는 운영자 권한 확인 후 불러옵니다.");
+    renderRows("aiCreatorRows", backstageRows.aiCreators, 5);
+  }
   renderLoadingRow("aiAssetRows", "AI 콘텐츠 탭에서 운영 현황을 불러옵니다.");
   renderLoadingRow("aiPostRows", "AI 콘텐츠 탭에서 운영 현황을 불러옵니다.");
   renderLoadingRow("moderationRows");
@@ -3467,6 +3499,104 @@ function currentAdminPermissions() {
   );
 }
 
+// BEGIN creators-native-readonly-20261009
+let creatorsNativeReadProof = null;
+const creatorsNativePreviewContexts = new WeakMap();
+const creatorsNativeRejectedPreviews = new WeakSet();
+const creatorsNativeHiddenControls = new WeakMap();
+
+function creatorsNativeStoredContext(auth = getBackstageAuth()) {
+  const user = auth?.user, admin = user?.adminUser;
+  const owner = user?.id || user?.userId;
+  const role = admin?.roleName || admin?.role?.name || admin?.adminRole;
+  if (!owner || !(auth.accessToken || auth.refreshToken) || admin?.status !== "active"
+      || typeof role !== "string" || !Array.isArray(admin.permissions)
+      || !admin.permissions.every(permission => typeof permission === "string")) return null;
+  return JSON.stringify([owner, admin.id ?? null, admin.status, role,
+    adminPermissionList(admin.permissions).sort()]);
+}
+
+function rememberCreatorsNativeReadContext(data) {
+  const auth = getBackstageAuth(), admin = data?.admin;
+  creatorsNativeReadProof = null;
+  if (!auth || data?.user?.id !== (auth.user?.id || auth.user?.userId)
+      || admin?.status !== "active" || typeof admin.role !== "string"
+      || !Array.isArray(admin.permissions)
+      || !admin.permissions.every(permission => typeof permission === "string")) return;
+  const granted = adminPermissionList(admin.permissions);
+  const context = JSON.stringify([data.user.id, admin.id ?? null, admin.status, admin.role, granted.slice().sort()]);
+  if (context === creatorsNativeStoredContext()) {
+    creatorsNativeReadProof = { epoch: backstageAuthEpoch, context, granted };
+  }
+}
+
+function creatorsNativeReadonlyCurrent() {
+  const proof = creatorsNativeReadProof;
+  if (!proof || proof.epoch !== backstageAuthEpoch || proof.context !== creatorsNativeStoredContext()) return false;
+  if (canAccessBackstageSection("creators", false)) return false;
+  return ["*", "creators:read", "creators:write", "creators:*"].some(permission => proof.granted.includes(permission));
+}
+
+function creatorsNativeIsTable(tableId) {
+  return ["creatorRows", "creatorImageRequestRows", "artistKnowledgeUrlRows", "aiCreatorRows"].includes(tableId);
+}
+
+function creatorsNativeIsDetail(detail) {
+  return creatorsNativeIsTable(detail?.tableId) || getCurrentSection() === "creators" && detail?.tableId === "quickAction"
+    && ["데뷔 신청 목록", "이미지 제작 요청", "AI 아티스트 추가"].includes(detail?.row?.[0]);
+}
+
+function creatorsNativeReadonlyRestricted(detail = null) {
+  return (getCurrentSection() === "creators" || creatorsNativeIsDetail(detail))
+    && (creatorsNativeReadonlyCurrent() || sectionState.creators?.nativeReadonly === true);
+}
+
+function creatorsNativePreviewCurrent(preview) {
+  if (creatorsNativeReadonlyRestricted()) {
+    if (preview && typeof preview === "object") creatorsNativeRejectedPreviews.add(preview);
+    return false;
+  }
+  if (creatorsNativeRejectedPreviews.has(preview)) return false;
+  const fence = creatorsNativePreviewContexts.get(preview);
+  if (!fence) return !["debutApplication", "creatorImageRequest", "artistKnowledgeUrl"].includes(preview?.targetType)
+    && !(getCurrentSection() === "creators" && preview?.targetType === "aiArtist");
+  const current = getBackstageAuth();
+  const normalRefreshMissing = current && !current.user?.adminUser && !currentAdminRoleName()
+    && currentAdminPermissions().length === 0
+    && (current.user?.id || current.user?.userId) === fence.owner
+    && (current.accessToken !== fence.accessToken || current.refreshToken !== fence.refreshToken);
+  return fence.epoch === backstageAuthEpoch && (fence.context === creatorsNativeStoredContext() || normalRefreshMissing)
+    && getCurrentSection() === "creators" && !dashboardView.classList.contains("is-hidden");
+}
+
+function syncCreatorsNativeReadonlyView() {
+  if (typeof document === "undefined") return;
+  const restricted = creatorsNativeReadonlyCurrent() || sectionState.creators?.nativeReadonly === true;
+  document.querySelectorAll("#creators .text-action").forEach(button => {
+    if (restricted) {
+      if (!creatorsNativeHiddenControls.has(button)) {
+        creatorsNativeHiddenControls.set(button, { hidden: button.hidden, disabled: button.disabled });
+      }
+      button.hidden = true;
+      button.disabled = true;
+    } else if (creatorsNativeHiddenControls.has(button)) {
+      Object.assign(button, creatorsNativeHiddenControls.get(button));
+      creatorsNativeHiddenControls.delete(button);
+    }
+  });
+  if (!restricted || !(getCurrentSection() === "creators" || creatorsNativeIsDetail(selectedDetail))) return;
+  selectedDetail = null;
+  detailPanel?.classList.add("is-hidden");
+  if (detailForm) {
+    detailForm.classList.add("is-hidden");
+    detailForm.innerHTML = "";
+    detailForm.dataset.draftKey = "";
+  }
+  if (pendingActionPreview && typeof pendingActionPreview === "object") creatorsNativeRejectedPreviews.add(pendingActionPreview);
+  closeConfirmModal();
+}
+// END creators-native-readonly-20261009
+
 function syncCurrentAdminContext(adminUsers = []) {
   const auth = getBackstageAuth();
   const email = auth?.user?.email;
@@ -3484,7 +3614,8 @@ function syncCurrentAdminContext(adminUsers = []) {
   applyPermissionVisibility();
 }
 
-function canAccessBackstageSection(sectionId) {
+function canAccessBackstageSection(sectionId, allowNativeReadonly = true) {
+  if (allowNativeReadonly && sectionId === "creators" && creatorsNativeReadonlyCurrent()) return true;
   if (sectionId === "overview" || sectionId === "logs") return true;
   const role = currentAdminRoleName();
   const permissions = currentAdminPermissions();
@@ -3525,6 +3656,7 @@ function applyPermissionVisibility() {
     section.classList.toggle("is-permission-hidden", !canAccessBackstageSection(section.id));
     section.classList.toggle("is-hidden", !canAccessBackstageSection(section.id));
   });
+  syncCreatorsNativeReadonlyView();
   const canManageAdmins = canAccessBackstageSection("admins");
   document.querySelectorAll('#admins .text-action, #adminRows .row-action').forEach((button) => {
     button.disabled = !canManageAdmins;
@@ -4537,17 +4669,19 @@ async function loadCreatorsSection() {
   function creatorsReadContext() {
     const auth = getBackstageAuth(), user = auth?.user;
     if (!user || !(auth.accessToken || auth.refreshToken)) return null;
+    if (creatorsNativeReadonlyCurrent()) return creatorsNativeStoredContext(auth);
     return JSON.stringify([user.id || user.userId, user.adminUser?.id ?? null,
       user.adminUser?.status ?? null, currentAdminRoleName(), currentAdminPermissions().slice().sort()]);
   }
 
   function beginCreatorsSectionRead() {
+    const nativeReadonly = creatorsNativeReadonlyCurrent();
     const auth = getBackstageAuth(), context = creatorsReadContext(), epoch = backstageAuthEpoch;
     const operatorId = auth?.user?.id || auth?.user?.userId;
     if (!context || !operatorId || dashboardView.classList.contains("is-hidden")
         || getCurrentSection() !== "creators" || !canAccessBackstageSection("creators")) return null;
     const state = { rows: [], artistOptions: [], accessRows: [], knowledgeRows: [], loading: true,
-      status: "loading", imageStatus: "loading", knowledgeStatus: "loading" };
+      status: "loading", imageStatus: "loading", knowledgeStatus: "loading", nativeReadonly };
     sectionState.creators = state;
     const sessionCurrent = () => {
       const current = getBackstageAuth();
@@ -4556,7 +4690,8 @@ async function loadCreatorsSection() {
         && Boolean(current?.accessToken || current?.refreshToken)
         && !dashboardView.classList.contains("is-hidden") && getCurrentSection() === "creators";
     };
-    const isCurrent = () => sessionCurrent() && context === creatorsReadContext() && canAccessBackstageSection("creators");
+    const isCurrent = () => sessionCurrent() && context === creatorsReadContext() && canAccessBackstageSection("creators")
+      && (!nativeReadonly || creatorsNativeReadonlyCurrent());
     // Native refresh returns a normal user without /admin/me context. Never infer grants from that user.
     const refreshContextMissing = () => {
       const current = getBackstageAuth();
@@ -4564,7 +4699,7 @@ async function loadCreatorsSection() {
         && currentAdminPermissions().length === 0
         && (current.accessToken !== auth.accessToken || current.refreshToken !== auth.refreshToken);
     };
-    return { state, context, operatorId, isCurrent, refreshContextMissing,
+    return { state, context, operatorId, isCurrent, refreshContextMissing, nativeReadonly,
       transportCurrent: () => isCurrent() || refreshContextMissing(), permissions: currentAdminPermissions() };
   }
 
@@ -4601,6 +4736,7 @@ async function loadCreatorsSection() {
       throw error;
     }
     applyAdminContext(data);
+    rememberCreatorsNativeReadContext(data);
     return read.isCurrent();
   }
 
@@ -4618,8 +4754,9 @@ async function loadCreatorsSection() {
   const read = beginCreatorsSectionRead();
   if (!read) return;
   const state = read.state;
-  const canReadImages = ["*", "assets:read", "assets:write", "assets:*"].some(permission => read.permissions.includes(permission));
-  const canReadKnowledge = ["*", "artists:read", "artists:write", "artists:*"].some(permission => read.permissions.includes(permission));
+  syncCreatorsNativeReadonlyView();
+  const canReadImages = !read.nativeReadonly && ["*", "assets:read", "assets:write", "assets:*"].some(permission => read.permissions.includes(permission));
+  const canReadKnowledge = !read.nativeReadonly && ["*", "artists:read", "artists:write", "artists:*"].some(permission => read.permissions.includes(permission));
   renderLoadingRow("creatorRows");
   renderLoadingRow("creatorImageRequestRows");
   renderLoadingRow("artistKnowledgeUrlRows");

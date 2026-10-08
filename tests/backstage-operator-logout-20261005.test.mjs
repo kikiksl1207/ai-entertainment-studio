@@ -138,6 +138,7 @@ function harness() {
         if (selector === '.section-block') return Object.values(sections);
         if (selector === '#admins .text-action, #adminRows .row-action') return adminButtons;
         if (selector === 'tr.is-selected') return [];
+        if (selector === '#creators .text-action') return [];
         assert.fail(`Unmodeled document selector list: ${selector}`);
       },
     },

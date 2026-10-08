@@ -17,6 +17,12 @@ export function sourceExcerpts(text = source) {
     ['constants', 'const BACKSTAGE_API_BASE =', 'const loginView ='],
     ['selection', 'let selectedDetail =', 'const sectionState ='],
     ['authStorage', 'function getBackstageAuth(', 'function getSavedSection('],
+    ...(text.includes('// BEGIN creators-native-readonly-20261009') ? [
+      ['currentSection', 'function getSavedSection(', 'function readDetailDrafts('],
+      ['firstValue', 'function firstValue(', 'function splitTargetUsers('],
+      ['creatorsNativeHelpers', 'function currentAdminRoleName(', 'function syncCurrentAdminContext('],
+      ['nativeSectionAccess', 'function canAccessBackstageSection(', 'function applyPermissionVisibility('],
+    ] : []),
     ['normalizeRefresh', 'function normalizeAuthPayload(', 'function applyAdminContext('],
     ['paths', 'function publicApiPath(', 'async function verifyAdminAccess('],
     ['fetch', 'async function backstageFetch(', 'window.LuminaBackstageApi ='],
@@ -84,6 +90,9 @@ function harness() {
       },
       querySelector(selector) {
         if (selector === '.detail-help') return nodes.help;
+        if (selector === '.dashboard-main') return { getAttribute(name) {
+          assert.equal(name, 'data-active-section'); return 'users';
+        } };
         if (selector === '[data-load-more="users"]') return nodes.more;
         assert.fail(`Unmodeled DOM selector: ${selector}`);
       },

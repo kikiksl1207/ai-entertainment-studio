@@ -206,6 +206,9 @@ function runtime(source, transport) {
   return [
     segment(source, 'function publicApiPath(', 'async function verifyAdminAccess('),
     segment(source, 'function statusBadge(', 'function renderSettlementChildren('),
+    ...(source.includes('function creatorsNativeIsTable(') ? [
+      segment(source, 'function creatorsNativeIsTable(', 'function creatorsNativeIsDetail('),
+    ] : []),
     segment(source, 'function normalizePage(', 'function currentSettlementPeriod('),
     segment(source, 'function setLoadMore(', 'function renderFallbackNote('),
     segment(source, 'function backstageErrorStatus(', 'function backstageUserFacingError('),
