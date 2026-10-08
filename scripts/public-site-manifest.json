@@ -20,7 +20,7 @@
     "pages/creator-story-interactions.css", "pages/creator-story-interactions.js", "pages/creator-story-visual-booking.css",
     "pages/creator-story-visual-booking.js", "pages/creator-story-visual-references.js", "pages/creator-story-visual-review.css",
     "pages/creator-story-visual-review.js", "pages/creator-studio.js", "pages/fan-engagement.js", "pages/feed-report.js", "pages/home.js",
-    "pages/lumina-feed.js", "pages/feed-notifications.js", "pages/mypage.js", "pages/ott-graph-preview.js", "pages/ott-private-preview.js", "pages/ott.js",
+    "pages/lumina-feed.js", "pages/feed-notifications.js", "pages/mypage.js", "pages/mypage-titles.js", "pages/ott-graph-preview.js", "pages/ott-private-preview.js", "pages/ott.js",
     "pages/popular-vote.js", "pages/premium-chat-hub.js", "pages/premium-chat-support.js", "pages/shortform.js",
     "pages/story-canonical-read.js", "pages/story-stage.js", "pages/story-upload.js", "pages/user-profile.js",
     "styles/business.css", "styles/character-catalog.css", "styles/character-chat.css", "styles/character-detail.css", "styles/charge.css",

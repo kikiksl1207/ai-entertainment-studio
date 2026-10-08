@@ -1274,6 +1274,17 @@
   gap: 10px;
   margin-top: 16px;
 }
+.mypage-title-chips button.mypage-title-chip {
+  border-radius: 8px;
+  font-family: inherit;
+  max-width: 100%;
+  flex-wrap: wrap;
+  min-height: 44px;
+  text-align: start;
+}
+.mypage-title-chips button.mypage-title-chip:not(:disabled) { cursor: pointer; }
+.mypage-title-chips button.mypage-title-chip:focus-visible { outline: 2px solid #6df0c0; outline-offset: 3px; }
+.mypage-title-chips .mypage-title-chip-label { white-space: normal; overflow-wrap: anywhere; min-width: 0; }
 .mypage-title-chip {
   --chip-surface: rgba(180, 140, 255, 0.16);
   --chip-ink: #d6b8ff;
@@ -1378,6 +1389,27 @@
   line-height: 1.55;
   letter-spacing: 0;
 }
+
+.mypage-fan-summary { margin-top: 24px; padding-top: 18px; border-top: 1px solid rgba(220, 210, 240, 0.18); }
+.mypage-fan-summary h3 { margin: 0 0 14px; font-size: 16px; line-height: 1.5; letter-spacing: 0; }
+.mypage-fan-metrics { margin: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; }
+.mypage-fan-metrics > div { min-width: 0; }
+.mypage-fan-metrics dt { color: var(--muted); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.mypage-fan-metrics dd { margin: 6px 0 0; min-height: 30px; font-size: 20px; line-height: 1.5; overflow-wrap: anywhere; }
+#mypageFanStatus { margin: 12px 0 0; min-height: 20px; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.mypage-achievements { margin-top: 24px; padding-top: 18px; border-top: 1px solid rgba(220, 210, 240, 0.18); }
+.mypage-achievements h3 { margin: 0 0 14px; font-size: 16px; line-height: 1.5; letter-spacing: 0; }
+.mypage-achievement-list { margin: 0; padding: 0; list-style: none; }
+.mypage-achievement { padding: 12px 0; border-bottom: 1px solid rgba(220, 210, 240, 0.12); }
+.mypage-achievement-head { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, auto); gap: 8px 12px; align-items: start; }
+.mypage-achievement-name { min-width: 0; font-size: 14px; font-weight: 700; line-height: 1.5; letter-spacing: 0; overflow-wrap: anywhere; }
+.mypage-achievement-state { max-width: 128px; color: var(--muted); font-size: 12px; line-height: 1.75; overflow-wrap: anywhere; }
+.mypage-achievement-description { margin: 6px 0 0; color: var(--muted); font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+.mypage-achievement-meta { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 8px; color: var(--muted); font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+.mypage-achievement-meta > * { min-width: 0; max-width: 100%; }
+#mypageAchievementStatus { margin: 12px 0 0; min-height: 20px; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.mypage-achievement-retry { min-width: 44px; min-height: 44px; margin-top: 8px; }
+@media (max-width: 640px) { .mypage-fan-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
 @media (max-width: 640px) {
   /* 모바일: 칭호 칩 클릭 시 조건 인라인 노출. ChipState 줄바꿈 자동 처리 */
