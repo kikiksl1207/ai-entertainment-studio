@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { runInNewContext } from 'node:vm';
 import { sourceWithoutAsset409Delta } from './support/backstage-asset409-inverse-compat-20261007.mjs';
+import { sourceWithoutCreatorsReadDelta } from './support/backstage-creators-read-inverse-compat-20261009.mjs';
 
 const current = readFileSync(new URL('../backstage.js', import.meta.url), 'utf8').replaceAll('\r\n', '\n');
 // Freeze the pre-feature oracle so commits and shallow CI checkouts cannot change it.
@@ -54,6 +55,7 @@ function sourceWithoutFinanceTextDelta(source) {
 
 // Remove only enumerated classification additions before comparing the frozen legacy source.
 function sourceWithoutClassificationDelta(source) {
+  source = sourceWithoutCreatorsReadDelta(source);
   source = sourceWithoutAsset409Delta(source);
   source = sourceWithoutFinanceTextDelta(source);
   for (const [start, end, expected] of [

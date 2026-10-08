@@ -4466,60 +4466,158 @@ async function loadUsersPage(append = true) {
 }
 
 async function loadCreatorsSection() {
-  sectionState.creators = { rows: [], artistOptions: [], accessRows: [], knowledgeRows: [] };
+  function creatorsReadContext() {
+    const auth = getBackstageAuth(), user = auth?.user;
+    if (!user || !(auth.accessToken || auth.refreshToken)) return null;
+    return JSON.stringify([user.id || user.userId, user.adminUser?.id ?? null,
+      user.adminUser?.status ?? null, currentAdminRoleName(), currentAdminPermissions().slice().sort()]);
+  }
+
+  function beginCreatorsSectionRead() {
+    const auth = getBackstageAuth(), context = creatorsReadContext(), epoch = backstageAuthEpoch;
+    const operatorId = auth?.user?.id || auth?.user?.userId;
+    if (!context || !operatorId || dashboardView.classList.contains("is-hidden")
+        || getCurrentSection() !== "creators" || !canAccessBackstageSection("creators")) return null;
+    const state = { rows: [], artistOptions: [], accessRows: [], knowledgeRows: [], loading: true,
+      status: "loading", imageStatus: "loading", knowledgeStatus: "loading" };
+    sectionState.creators = state;
+    const sessionCurrent = () => {
+      const current = getBackstageAuth();
+      return sectionState.creators === state && epoch === backstageAuthEpoch
+        && operatorId === (current?.user?.id || current?.user?.userId)
+        && Boolean(current?.accessToken || current?.refreshToken)
+        && !dashboardView.classList.contains("is-hidden") && getCurrentSection() === "creators";
+    };
+    const isCurrent = () => sessionCurrent() && context === creatorsReadContext() && canAccessBackstageSection("creators");
+    // Native refresh returns a normal user without /admin/me context. Never infer grants from that user.
+    const refreshContextMissing = () => {
+      const current = getBackstageAuth();
+      return sessionCurrent() && !current?.user?.adminUser && !currentAdminRoleName()
+        && currentAdminPermissions().length === 0
+        && (current.accessToken !== auth.accessToken || current.refreshToken !== auth.refreshToken);
+    };
+    return { state, context, operatorId, isCurrent, refreshContextMissing,
+      transportCurrent: () => isCurrent() || refreshContextMissing(), permissions: currentAdminPermissions() };
+  }
+
+  function validCreatorsReadPage(page) {
+    return Boolean(page && !Array.isArray(page) && Array.isArray(page.items)
+      && page.items.every(item => item && typeof item === "object" && !Array.isArray(item))
+      && typeof page.hasMore === "boolean"
+      && (page.hasMore ? typeof page.nextCursor === "string" && page.nextCursor.trim().length > 0 : page.nextCursor === null));
+  }
+
+  function validCreatorAiReadItem(artist) {
+    return Boolean(artist && typeof artist === "object" && !Array.isArray(artist)
+      && [artist.id, artist.slug, artist.status].every(value => typeof value === "string" && value.trim().length > 0)
+      && Array.isArray(artist.missing)
+      && artist.missing.every(value => typeof value === "string" && value.trim().length > 0));
+  }
+
+  async function confirmCreatorsReadContext(read) {
+    if (read.isCurrent()) return true;
+    if (!read.refreshContextMissing()) return false;
+    const data = await backstageFetch(adminApiPath("/me"), { auth: true, isCurrent: read.transportCurrent });
+    if (!read.transportCurrent()) return false;
+    if (data?.user?.id !== read.operatorId || data?.admin?.status !== "active"
+        || typeof data.admin.role !== "string" || !Array.isArray(data.admin.permissions)
+        || !data.admin.permissions.every(permission => typeof permission === "string")) {
+      throw new Error("운영자 조회 문맥을 확인하지 못했습니다.");
+    }
+    const verifiedContext = JSON.stringify([data.user.id, data.admin.id ?? null, data.admin.status,
+      data.admin.role, adminPermissionList(data.admin.permissions).sort()]);
+    if (verifiedContext !== read.context) {
+      if (!read.refreshContextMissing()) return false;
+      const error = new Error("운영자 권한이 변경되었습니다. 문맥을 다시 확인해 주세요.");
+      error.code = "CREATORS_READ_CONTEXT_CHANGED";
+      throw error;
+    }
+    applyAdminContext(data);
+    return read.isCurrent();
+  }
+
+  async function creatorsAuxRead(path, allowed, read) {
+    if (!allowed) return { status: "restricted", page: null };
+    try {
+      const page = await backstageFetch(adminApiPath(path), { auth: true, isCurrent: read.transportCurrent });
+      if (!validCreatorsReadPage(page)) throw new Error("목록 응답 형식이 올바르지 않습니다.");
+      return { status: "ready", page };
+    } catch (error) {
+      return { status: "unknown", page: null, error };
+    }
+  }
+
+  const read = beginCreatorsSectionRead();
+  if (!read) return;
+  const state = read.state;
+  const canReadImages = ["*", "assets:read", "assets:write", "assets:*"].some(permission => read.permissions.includes(permission));
+  const canReadKnowledge = ["*", "artists:read", "artists:write", "artists:*"].some(permission => read.permissions.includes(permission));
   renderLoadingRow("creatorRows");
   renderLoadingRow("creatorImageRequestRows");
   renderLoadingRow("artistKnowledgeUrlRows");
   renderLoadingRow("aiCreatorRows");
   try {
-    const [data, imageRequestsPage, knowledgeUrlsPage] = await Promise.all([
-      backstageFetch(adminApiPath("/backstage/operations/creators?take=20"), { auth: true }),
-      backstageFetch(adminApiPath("/creator-image-requests?take=20"), { auth: true }).catch(() => null),
-      backstageFetch(adminApiPath("/backstage/operations/artist-knowledge-urls?take=20"), { auth: true })
-        .catch((error) => ({ error, __failed: true }))
+    const [data, images, knowledge] = await Promise.all([
+      backstageFetch(adminApiPath("/backstage/operations/creators?take=20"), { auth: true, isCurrent: read.transportCurrent }),
+      creatorsAuxRead("/creator-image-requests?take=20", canReadImages, read),
+      creatorsAuxRead("/backstage/operations/artist-knowledge-urls?take=20", canReadKnowledge, read)
     ]);
-    const applicationsPage = normalizePage(data?.applications || data);
-    const activeCreators = data?.activeCreators || [];
-    const artistOptions = data?.aiArtists || [];
-    sectionState.creators.artistOptions = artistOptions;
-    sectionState.creators.accessRows = activeCreators;
+    if (!await confirmCreatorsReadContext(read)) return;
+    if (!validCreatorsReadPage(data?.applications) || typeof data?.permissions?.contactAccessAllowed !== "boolean"
+        || !data.applications.items.every(item => typeof item.contactAccessAllowed === "boolean"
+          && item.contactAccessAllowed === data.permissions.contactAccessAllowed)
+        || !Array.isArray(data.activeCreators)
+        || !Array.isArray(data.aiArtists)
+        || !data.activeCreators.every(item => item && typeof item === "object" && !Array.isArray(item))
+        || !data.aiArtists.every(validCreatorAiReadItem)) {
+      throw new Error("크리에이터 목록 응답 형식이 올바르지 않습니다.");
+    }
+    const applicationsPage = data.applications;
+    const activeCreators = data.activeCreators;
+    const artistOptions = data.aiArtists;
+    const imageRequestsPage = images.page;
+    const knowledgeUrlsPage = knowledge.page;
     const accessByUserId = new Map(activeCreators.map((operator) => [operator.userId, operator]));
-    const accessByEmail = new Map(activeCreators.map((operator) => [operator.user?.email, operator]).filter(([email]) => Boolean(email)));
-    const rows = applicationsPage.items.map((item) => ({
-      row: (() => {
-        const access = accessByUserId.get(item.userId) || accessByEmail.get(item.user?.email);
-        const linkedArtist = access?.artist || item.user?.artists?.[0] || item.artist;
-        const contactEmail = item.contactAccessAllowed ? item.contactEmail || "-" : item.contactEmail || item.contactMasked || "권한 제한";
-        const loginEmail = item.user?.email || item.email || "-";
-        return [
-          item.realName || item.applicantName || "-",
-          item.stageName || item.displayName || "-",
-          item.loginType || item.loginProvider || item.provider || item.applicationChannel || "-",
-          loginEmail,
-          contactEmail,
-          linkedArtist?.displayName || linkedArtist?.name || linkedArtist?.slug || "미연결",
-          access?.status === "active" && !access?.revokedAt ? "입장 가능" : "권한 없음",
-          item.inactive30Days ? "장기미접속" : localizeWorkflowStatus(item.status),
-          access?.status === "active" ? "권한 확인" : item.needsFollowUp ? "확인 요청" : "신청 보기"
-        ];
-      })(),
-      meta: {
-        ...creatorNameParts(item),
-        applicationId: item.id || item.applicationId,
-        status: item.status,
-        email: item.user?.email || item.contactEmail || item.email,
-        preferredContactTime: item.preferredContactTime || item.metadata?.preferredContactTime,
-        portfolioUrl: item.portfolioUrl,
-        artistSlug: normalizeArtistSlugValue(item.artist?.slug, item.artistSlug, item.metadata?.artistSlug, item.metadata?.artist?.slug),
-        artistId: item.artist?.id || item.artistId || item.metadata?.artistId || accessByUserId.get(item.userId)?.artistId || accessByEmail.get(item.user?.email)?.artistId,
-        artistExists: Boolean(item.artist?.id || item.artistId || item.artist?.slug || item.artistSlug || accessByUserId.get(item.userId) || accessByEmail.get(item.user?.email)),
-        existingArtistSlug: normalizeArtistSlugValue(item.artist?.slug, item.artistSlug, accessByUserId.get(item.userId)?.artist?.slug, accessByEmail.get(item.user?.email)?.artist?.slug),
-        studioAccessStatus: accessByUserId.get(item.userId)?.status || accessByEmail.get(item.user?.email)?.status || "none",
-        applicationType: item.applicationType || item.metadata?.applicationType,
-        applicationChannel: item.applicationChannel || item.metadata?.applicationChannel
-      }
-    }));
-    const aiRows = (data?.aiArtists || []).map((artist) => ({
+    const accessByEmail = new Map(data.permissions.contactAccessAllowed
+      ? activeCreators.map((operator) => [operator.user?.email, operator]).filter(([email]) => Boolean(email)) : []);
+    const rows = applicationsPage.items.map((item) => {
+      const contactAllowed = item.contactAccessAllowed;
+      const access = accessByUserId.get(item.userId) || (contactAllowed ? accessByEmail.get(item.user?.email) : undefined);
+      return {
+        row: (() => {
+          const linkedArtist = access?.artist || item.user?.artists?.[0] || item.artist;
+          const contactEmail = contactAllowed ? item.contactEmail || "-" : item.contactEmail || item.contactMasked || "권한 제한";
+          const loginEmail = contactAllowed ? item.user?.email || item.email || "-" : "-";
+          return [
+            contactAllowed ? item.realName || item.applicantName || "-" : "-",
+            item.stageName || item.displayName || "-",
+            item.loginType || item.loginProvider || item.provider || item.applicationChannel || "-",
+            loginEmail,
+            contactEmail,
+            linkedArtist?.displayName || linkedArtist?.name || linkedArtist?.slug || "미연결",
+            access?.status === "active" && !access?.revokedAt ? "입장 가능" : "권한 없음",
+            item.inactive30Days ? "장기미접속" : localizeWorkflowStatus(item.status),
+            access?.status === "active" ? "권한 확인" : item.needsFollowUp ? "확인 요청" : "신청 보기"
+          ];
+        })(),
+        meta: {
+          ...(contactAllowed ? creatorNameParts(item) : { realName: null, stageName: firstValue(item.stageName, item.displayName) }),
+          applicationId: item.id || item.applicationId,
+          status: item.status,
+          email: contactAllowed ? item.user?.email || item.contactEmail || item.email : null,
+          preferredContactTime: item.preferredContactTime || item.metadata?.preferredContactTime,
+          portfolioUrl: item.portfolioUrl,
+          artistSlug: normalizeArtistSlugValue(item.artist?.slug, item.artistSlug, item.metadata?.artistSlug, item.metadata?.artist?.slug),
+          artistId: item.artist?.id || item.artistId || item.metadata?.artistId || accessByUserId.get(item.userId)?.artistId || accessByEmail.get(item.user?.email)?.artistId,
+          artistExists: Boolean(item.artist?.id || item.artistId || item.artist?.slug || item.artistSlug || accessByUserId.get(item.userId) || accessByEmail.get(item.user?.email)),
+          existingArtistSlug: normalizeArtistSlugValue(item.artist?.slug, item.artistSlug, accessByUserId.get(item.userId)?.artist?.slug, accessByEmail.get(item.user?.email)?.artist?.slug),
+          studioAccessStatus: accessByUserId.get(item.userId)?.status || accessByEmail.get(item.user?.email)?.status || "none",
+          applicationType: item.applicationType || item.metadata?.applicationType,
+          applicationChannel: item.applicationChannel || item.metadata?.applicationChannel
+        }
+      };
+    });
+    const aiRows = data.aiArtists.map((artist) => ({
       row: [
         artist.displayName || artist.name || artist.slug || "-",
         artist.category || artist.type || artist.publicProfile?.characterType || "-",
@@ -4557,8 +4655,7 @@ async function loadCreatorsSection() {
         resultAssetIds: request.resultAssetIds || []
       }
     }));
-    const knowledgeQueueError = knowledgeUrlsPage?.__failed ? knowledgeUrlsPage.error : null;
-    const knowledgeRows = knowledgeQueueError ? [] : normalizePage(knowledgeUrlsPage).items.map((item) => {
+    const knowledgeRows = knowledge.status !== "ready" ? [] : knowledgeUrlsPage.items.map((item) => {
       const artistName = item.artist?.displayName || item.artist?.slug || item.artistId?.slice?.(0, 8) || "-";
       const summary = compactText(item.summary || item.description || item.url, 56);
       return {
@@ -4586,25 +4683,42 @@ async function loadCreatorsSection() {
         }
       };
     });
+    if (!read.isCurrent()) return;
+    state.rows = rows;
+    state.artistOptions = artistOptions;
+    state.accessRows = activeCreators;
+    state.knowledgeRows = knowledgeRows;
+    state.status = "ready";
+    state.imageStatus = images.status;
+    state.knowledgeStatus = knowledge.status;
     if (rows.length) renderRows("creatorRows", rows, 7);
     else renderLoadingRow("creatorRows", "표시할 신청 내역이 없습니다.");
-    if (imageRequestRows.length) renderRows("creatorImageRequestRows", imageRequestRows, 5);
+    if (images.status === "restricted") renderErrorRow("creatorImageRequestRows", "이미지 제작 요청 조회 권한이 없습니다.");
+    else if (images.status === "unknown") renderErrorRow("creatorImageRequestRows", backstageUserFacingError(images.error, "이미지 제작 요청을 불러오지 못했습니다."));
+    else if (imageRequestRows.length) renderRows("creatorImageRequestRows", imageRequestRows, 5);
     else renderLoadingRow("creatorImageRequestRows", "표시할 이미지 제작 요청이 없습니다.");
-    sectionState.creators.knowledgeRows = knowledgeRows;
-    if (knowledgeQueueError) renderLoadingRow("artistKnowledgeUrlRows", artistKnowledgeQueueErrorMessage(knowledgeQueueError));
+    if (knowledge.status === "restricted") renderErrorRow("artistKnowledgeUrlRows", "자료 URL 심사 큐 조회 권한이 없습니다.");
+    else if (knowledge.status === "unknown") renderErrorRow("artistKnowledgeUrlRows", artistKnowledgeQueueErrorMessage(knowledge.error));
     else if (knowledgeRows.length) renderRows("artistKnowledgeUrlRows", knowledgeRows, 1);
     else renderLoadingRow("artistKnowledgeUrlRows", "심사할 자료 URL이 없습니다.");
     if (aiRows.length) renderRows("aiCreatorRows", aiRows, 5);
     else renderLoadingRow("aiCreatorRows", "표시할 AI 아티스트가 없습니다.");
   } catch (error) {
-    renderRows("creatorRows", backstageRows.creators, 7);
-    renderRows("creatorImageRequestRows", backstageRows.creatorImageRequests, 5);
-    renderLoadingRow("artistKnowledgeUrlRows", backstageUserFacingError(error, "자료 URL 심사 큐를 불러오지 못했습니다."));
-    renderRows("aiCreatorRows", backstageRows.aiCreators, 5);
-    renderFallbackNote("creatorRows");
-    renderFallbackNote("creatorImageRequestRows");
-    renderFallbackNote("artistKnowledgeUrlRows");
-    renderFallbackNote("aiCreatorRows");
+    if (!read.isCurrent() && !read.refreshContextMissing()) return;
+    state.rows = [];
+    state.artistOptions = [];
+    state.accessRows = [];
+    state.knowledgeRows = [];
+    state.status = "unknown";
+    state.imageStatus = "unknown";
+    state.knowledgeStatus = "unknown";
+    const message = error?.code === "CREATORS_READ_CONTEXT_CHANGED"
+      ? "운영자 권한이 변경되었습니다. 문맥을 다시 확인해 주세요."
+      : backstageUserFacingError(error, "크리에이터 목록을 불러오지 못했습니다.");
+    ["creatorRows", "creatorImageRequestRows", "artistKnowledgeUrlRows", "aiCreatorRows"]
+      .forEach(id => renderErrorRow(id, message));
+  } finally {
+    if (read.isCurrent() || read.refreshContextMissing()) state.loading = false;
   }
 }
 

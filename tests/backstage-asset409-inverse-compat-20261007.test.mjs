@@ -3,9 +3,10 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { sourceWithoutAsset409Delta } from './support/backstage-asset409-inverse-compat-20261007.mjs';
+import { sourceWithoutCreatorsReadDelta } from './support/backstage-creators-read-inverse-compat-20261009.mjs';
 
 const currentBytes = readFileSync(new URL('../backstage.js', import.meta.url));
-const current = currentBytes.toString('utf8').replace(/\r\n/g, '\n');
+const current = sourceWithoutCreatorsReadDelta(currentBytes.toString('utf8').replace(/\r\n/g, '\n'));
 const fixture = JSON.parse(readFileSync(
   new URL('./fixtures/backstage-asset409-exact3-delta-20261007.json', import.meta.url), 'utf8'));
 const branch = fixture.afterFullText;
