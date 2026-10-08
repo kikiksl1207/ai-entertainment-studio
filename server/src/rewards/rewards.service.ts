@@ -166,18 +166,19 @@ export class RewardsService {
   }
 
   async claimDailyAttendance(userId: string) {
-    await this.ensureActiveUser(userId);
     const serviceDate = this.getKoreanServiceDate();
     const idempotencyKey = `daily_attendance:${userId}:${this.formatServiceDate(serviceDate)}`;
-    const priorConsecutiveDays = await this.countPriorConsecutiveAttendanceDays(
-      userId,
-      serviceDate,
-    );
-    const streakDay = priorConsecutiveDays + 1;
-    const cycleDay = ((streakDay - 1) % DAILY_ATTENDANCE_REWARD_SCHEDULE.length) + 1;
-    const rewardAmount = new Decimal(DAILY_ATTENDANCE_REWARD_SCHEDULE[cycleDay - 1]);
 
     return this.prisma.$transaction(async (tx) => {
+      // Share activation's lock order before reading current eligibility and cap.
+      await tx.$queryRaw`
+        SELECT id FROM public.users WHERE id = ${userId}::uuid FOR NO KEY UPDATE
+      `;
+      await tx.$queryRaw`
+        SELECT id FROM public.wallet_accounts
+        WHERE user_id = ${userId}::uuid AND currency_code = ${DEFAULT_CURRENCY} FOR UPDATE
+      `;
+      await this.ensureActiveUser(userId, tx);
       const existingReward = await tx.dailyAttendanceReward.findUnique({
         where: {
           userId_serviceDate: {
@@ -194,6 +195,15 @@ export class RewardsService {
           policy: this.getDailyAttendancePolicy(),
         };
       }
+
+      const priorConsecutiveDays = await this.countPriorConsecutiveAttendanceDays(
+        userId,
+        serviceDate,
+        tx,
+      );
+      const streakDay = priorConsecutiveDays + 1;
+      const cycleDay = ((streakDay - 1) % DAILY_ATTENDANCE_REWARD_SCHEDULE.length) + 1;
+      const rewardAmount = new Decimal(DAILY_ATTENDANCE_REWARD_SCHEDULE[cycleDay - 1]);
 
       const promoLedger = await tx.walletLedger.aggregate({
         where: this.promoRewardLedgerWhere(userId),
@@ -274,7 +284,7 @@ export class RewardsService {
         },
         policy: this.getDailyAttendancePolicy(),
       };
-    });
+    }, { isolationLevel: 'ReadCommitted' });
   }
 
   getDailyAttendancePolicy() {
@@ -992,8 +1002,12 @@ export class RewardsService {
     throw new BadRequestException('Failed to generate referral code');
   }
 
-  private async countPriorConsecutiveAttendanceDays(userId: string, serviceDate: Date) {
-    const rewards = await this.prisma.dailyAttendanceReward.findMany({
+  private async countPriorConsecutiveAttendanceDays(
+    userId: string,
+    serviceDate: Date,
+    db: Prisma.TransactionClient = this.prisma,
+  ) {
+    const rewards = await db.dailyAttendanceReward.findMany({
       where: {
         userId,
         serviceDate: { lt: serviceDate },
