@@ -440,3 +440,20 @@ tr.is-selected td { background: #faf5ff; }
     font-size: 11px;
   }
 }
+
+/* BEGIN backstage-login-width-20261009 */
+@media (max-width: 760px) {
+  .backstage-login { grid-template-columns: minmax(0, 1fr); }
+  .backstage-login > * { min-width: 0; max-width: 100%; }
+  .backstage-login .login-form,
+  .backstage-login .login-form label {
+    grid-template-columns: minmax(0, 1fr);
+    min-width: 0;
+    max-width: 100%;
+  }
+  .backstage-login .login-form input,
+  .backstage-login .google-action-shell,
+  .backstage-login .google-button-mount { min-width: 0; max-width: 100%; }
+  .backstage-login .form-status { overflow-wrap: anywhere; }
+}
+/* END backstage-login-width-20261009 */

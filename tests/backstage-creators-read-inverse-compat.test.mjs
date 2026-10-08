@@ -3,8 +3,9 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { sourceWithoutCreatorsReadDelta } from './support/backstage-creators-read-inverse-compat-20261009.mjs';
+import { sourceWithoutLoginWidthDelta } from './support/backstage-login-width-inverse-20261009.mjs';
 
-const current = readFileSync(new URL('../backstage.js', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+const current = sourceWithoutLoginWidthDelta(readFileSync(new URL('../backstage.js', import.meta.url), 'utf8').replace(/\r\n/g, '\n'));
 const fixture = JSON.parse(readFileSync(
   new URL('./fixtures/backstage-creators-read-exact-delta-20261009.json', import.meta.url), 'utf8'));
 const sha = value => createHash('sha256').update(value, 'utf8').digest('hex');

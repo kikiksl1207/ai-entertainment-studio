@@ -656,26 +656,94 @@ function initGoogleAuth() {
   return true;
 }
 
+// BEGIN backstage-login-width-20261009
+let googleLoginWidthOwner = null;
+let googleLoginRenderedWidth = 0;
+let googleLoginWidthRendering = false;
+
+function stopGoogleLoginWidthObserver() {
+  const owner = googleLoginWidthOwner;
+  if (!owner) return;
+  googleLoginWidthOwner = null;
+  owner.observer?.disconnect();
+  window.removeEventListener("resize", owner.refresh);
+  window.removeEventListener("pagehide", owner.dispose);
+}
+
+function googleLoginWidthVisible() {
+  return Boolean(loginView && !loginView.classList.contains("is-hidden") && !loginView.hidden
+    && loginView.isConnected !== false && googleButton?.isConnected !== false
+    && googleButtonMount?.isConnected !== false);
+}
+
+function observeGoogleLoginWidth() {
+  if (googleLoginWidthOwner) return;
+  const owner = { observer: null, refresh: null, dispose: null };
+  owner.refresh = () => {
+    if (googleLoginWidthOwner !== owner) return;
+    if (!googleLoginWidthVisible()) {
+      stopGoogleLoginWidthObserver();
+      return;
+    }
+    try {
+      renderGoogleLoginButton();
+    } catch {
+      googleButtonFallback.hidden = false;
+    }
+  };
+  owner.dispose = () => {
+    if (googleLoginWidthOwner === owner) stopGoogleLoginWidthObserver();
+  };
+  googleLoginWidthOwner = owner;
+  if (typeof window.ResizeObserver === "function") {
+    owner.observer = new window.ResizeObserver(owner.refresh);
+    owner.observer.observe(googleButton);
+    owner.observer.observe(googleButtonMount);
+  }
+  window.addEventListener("resize", owner.refresh);
+  window.addEventListener("pagehide", owner.dispose);
+}
+
 function renderGoogleLoginButton() {
-  if (!window.google?.accounts?.id || !googleButtonMount) {
+  if (!window.google?.accounts?.id || !googleButton || !googleButtonMount || !googleButtonFallback) {
     return false;
   }
-  if (googleButtonMount.childElementCount) return true;
+  if (!googleLoginWidthVisible()) {
+    stopGoogleLoginWidthObserver();
+    return true;
+  }
+  observeGoogleLoginWidth();
+  const availableWidth = Math.floor(googleButton.getBoundingClientRect().width);
+  if (!Number.isFinite(availableWidth) || availableWidth <= 0) return true;
+  const width = Math.min(400, Math.max(240, availableWidth));
+  if (googleLoginWidthRendering || width === googleLoginRenderedWidth) return true;
 
-  const availableWidth = Math.floor(googleButton.getBoundingClientRect().width || 400);
-  google.accounts.id.renderButton(googleButtonMount, {
-    type: "standard",
-    theme: "outline",
-    size: "large",
-    text: "signin_with",
-    shape: "pill",
-    logo_alignment: "left",
-    width: Math.min(400, Math.max(240, availableWidth)),
-    locale: "ko"
-  });
-  googleButtonFallback.hidden = true;
-  return true;
+  googleLoginWidthRendering = true;
+  try {
+    googleButtonMount.replaceChildren();
+    google.accounts.id.renderButton(googleButtonMount, {
+      type: "standard",
+      theme: "outline",
+      size: "large",
+      text: "signin_with",
+      shape: "pill",
+      logo_alignment: "left",
+      width,
+      locale: "ko"
+    });
+    googleLoginRenderedWidth = width;
+    googleButtonFallback.hidden = true;
+    return true;
+  } catch (error) {
+    googleLoginRenderedWidth = 0;
+    googleButtonFallback.hidden = false;
+    stopGoogleLoginWidthObserver();
+    throw error;
+  } finally {
+    googleLoginWidthRendering = false;
+  }
 }
+// END backstage-login-width-20261009
 
 async function prepareGoogleLoginButton() {
   await loadGoogleSDK();

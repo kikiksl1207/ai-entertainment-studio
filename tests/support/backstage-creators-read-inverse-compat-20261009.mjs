@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import { sourceWithoutLoginWidthDelta } from './backstage-login-width-inverse-20261009.mjs';
 
 const pinned = Object.freeze({
   scope: 'backstage-creators-read-exact-function-only',
@@ -21,7 +22,7 @@ const sha = source => createHash('sha256').update(source, 'utf8').digest('hex');
 
 export function sourceWithoutCreatorsReadDelta(source, delta = fixture) {
   assert.equal(typeof source, 'string', 'Creator read inverse source type');
-  source = source.replace(/\r\n/g, '\n');
+  source = sourceWithoutLoginWidthDelta(source.replace(/\r\n/g, '\n'));
   const { beforeFullText, afterFullText, ...metadata } = delta;
   assert.deepEqual(metadata, pinned, 'Exact creator read inverse fixture metadata');
   assert.equal(typeof beforeFullText, 'string', 'Creator read inverse before span type');
