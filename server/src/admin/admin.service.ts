@@ -5830,7 +5830,7 @@ export class AdminService {
       this.throwArtistKnowledgeBadRequest(
         'ARTIST_KNOWLEDGE_URL_INVALID_ID',
         'artistKnowledgeUrl.error.invalidId',
-        '?�료 URL ?�청 ?�보�??�인??주세??',
+        '자료 URL 요청 정보를 확인해 주세요.',
         { field: 'artistId' },
       );
     }
@@ -5842,7 +5842,7 @@ export class AdminService {
       this.throwArtistKnowledgeBadRequest(
         'ARTIST_KNOWLEDGE_URL_STATUS_INVALID',
         'artistKnowledgeUrl.error.statusInvalid',
-        '?�료 URL ?�태 ?�터�??�인??주세??',
+        '자료 URL 상태 필터를 확인해 주세요.',
         { supportedStatuses: ARTIST_URL_KNOWLEDGE_STATUSES },
       );
     }
@@ -5901,7 +5901,7 @@ export class AdminService {
       this.throwArtistKnowledgeBadRequest(
         'ARTIST_KNOWLEDGE_URL_AUDIT_ACTION_INVALID',
         'artistKnowledgeUrl.error.auditActionInvalid',
-        '?�?�� URL 媛먯�???��??꾪꽣???뺤씤??二쇱�??',
+        '자료 URL 감사 로그 필터를 확인해 주세요.',
         { supportedActions },
       );
     }
@@ -5910,7 +5910,7 @@ export class AdminService {
       this.throwArtistKnowledgeBadRequest(
         'ARTIST_KNOWLEDGE_URL_INVALID_ID',
         'artistKnowledgeUrl.error.invalidId',
-        '?�?�� URL ?붿껌 ?뺣낫???뺤씤??二쇱�??',
+        '자료 URL 요청 정보를 확인해 주세요.',
         { field: 'targetId' },
       );
     }
@@ -5919,7 +5919,7 @@ export class AdminService {
       this.throwArtistKnowledgeBadRequest(
         'ARTIST_KNOWLEDGE_URL_INVALID_ID',
         'artistKnowledgeUrl.error.invalidId',
-        '?�?�� URL ?붿껌 ?뺣낫???뺤씤??二쇱�??',
+        '자료 URL 요청 정보를 확인해 주세요.',
         { field: 'artistId' },
       );
     }
@@ -6380,7 +6380,7 @@ export class AdminService {
       this.throwArtistKnowledgeBadRequest(
         'ARTIST_KNOWLEDGE_URL_INVALID_ID',
         'artistKnowledgeUrl.error.invalidId',
-        '?�료 URL ?�청 ?�보�??�인??주세??',
+        '자료 URL 요청 정보를 확인해 주세요.',
         { field },
       );
     }

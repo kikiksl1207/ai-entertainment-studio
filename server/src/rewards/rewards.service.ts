@@ -528,11 +528,14 @@ export class RewardsService {
     };
   }
 
-  async getActivationProgress(userId: string) {
-    await this.ensureActiveUser(userId);
-    const [user, promoLedger, paidOrders, counts, attendanceRewards] =
+  async getActivationProgress(
+    userId: string,
+    db: Prisma.TransactionClient = this.prisma,
+  ) {
+    await this.ensureActiveUser(userId, db);
+    const [user, promoLedger, paidOrders, counts, attendanceRewards, questLedgers] =
       await Promise.all([
-        this.prisma.user.findUniqueOrThrow({
+        db.user.findUniqueOrThrow({
           where: { id: userId },
           include: {
             profile: true,
@@ -540,20 +543,32 @@ export class RewardsService {
             walletAccounts: true,
           },
         }),
-        this.prisma.walletLedger.aggregate({
+        db.walletLedger.aggregate({
           where: this.promoRewardLedgerWhere(userId),
           _sum: { amount: true },
         }),
-        this.prisma.paymentOrder.findMany({
+        db.paymentOrder.findMany({
           where: { userId, status: 'paid' },
           include: { luminaProduct: true, refunds: true },
           orderBy: { createdAt: 'asc' },
         }),
-        this.activationCounts(userId),
-        this.prisma.dailyAttendanceReward.findMany({
+        this.activationCounts(userId, db),
+        db.dailyAttendanceReward.findMany({
           where: { userId },
           orderBy: { serviceDate: 'desc' },
           take: 7,
+        }),
+        db.walletLedger.findMany({
+          where: {
+            walletAccount: { userId, currencyCode: DEFAULT_CURRENCY },
+            direction: 'credit',
+            idempotencyKey: {
+              in: Object.keys(CLAIMABLE_ACTIVATION_QUESTS).map(
+                code => `activation_quest:${userId}:${code}`,
+              ),
+            },
+          },
+          select: { idempotencyKey: true, amount: true, ledgerType: true },
         }),
       ]);
     const promoEarnedLumina = new Decimal(promoLedger._sum.amount ?? 0);
@@ -561,7 +576,7 @@ export class RewardsService {
       (sum, order) => sum.plus(order.luminaProduct.luminaAmount),
       new Decimal(0),
     );
-    const firstChargeBonusLedger = await this.prisma.walletLedger.aggregate({
+    const firstChargeBonusLedger = await db.walletLedger.aggregate({
       where: {
         direction: 'credit',
         ledgerType: 'first_charge_bonus',
@@ -640,6 +655,16 @@ export class RewardsService {
         hasCover: Boolean(user.profile?.coverAssetId),
         counts,
         paidOrdersCount: paidOrders.length,
+      }).map(item => {
+        const quest = Object.prototype.hasOwnProperty.call(CLAIMABLE_ACTIVATION_QUESTS, item.code)
+          ? CLAIMABLE_ACTIVATION_QUESTS[item.code as ClaimableActivationQuestCode]
+          : undefined;
+        const claimed = quest && questLedgers.some(ledger =>
+          ledger.idempotencyKey === `activation_quest:${userId}:${item.code}` &&
+          ledger.ledgerType === quest.ledgerType &&
+          new Decimal(ledger.amount).equals(quest.rewardLumina),
+        );
+        return claimed ? { ...item, claimStatus: 'claimed' } : item;
       }),
       policy: this.getActivationPolicy(),
     };
@@ -812,58 +837,20 @@ export class RewardsService {
   }
 
   async claimActivationQuest(userId: string, code: string) {
-    await this.ensureActiveUser(userId);
     const questCode = this.claimableQuestCode(code);
     const quest = CLAIMABLE_ACTIVATION_QUESTS[questCode];
     const idempotencyKey = `activation_quest:${userId}:${questCode}`;
 
-    const [existingLedger, progress] = await Promise.all([
-      this.prisma.walletLedger.findUnique({
-        where: { idempotencyKey },
-      }),
-      this.getActivationProgress(userId),
-    ]);
-
-    if (existingLedger) {
-      return {
-        quest: this.activationQuestStatusFromProgress(questCode, progress),
-        ledger: existingLedger,
-        idempotentReplay: true,
-        walletCredited: false,
-        caps: progress.caps,
-        policy: this.activationQuestClaimPolicy(),
-      };
-    }
-
-    const questStatus = this.activationQuestStatusFromProgress(questCode, progress);
-
-    if (!questStatus.completed) {
-      throw new BadRequestException({
-        code: 'ACTIVATION_QUEST_NOT_COMPLETED',
-        message: 'Activation quest condition is not completed yet',
-        details: {
-          quest: questStatus,
-        },
-      });
-    }
-
-    const rewardAmount = new Decimal(quest.rewardLumina);
-    const remainingPromoLumina = new Decimal(progress.caps.freePromo.remainingLumina);
-
-    if (remainingPromoLumina.lessThan(rewardAmount)) {
-      throw new BadRequestException({
-        code: 'FREE_PROMO_REWARD_CAP_EXCEEDED',
-        message: 'Free promotional reward cap would be exceeded',
-        details: {
-          capLumina: progress.caps.freePromo.capLumina,
-          earnedLumina: progress.caps.freePromo.earnedLumina,
-          remainingLumina: progress.caps.freePromo.remainingLumina,
-          requestedLumina: rewardAmount.toString(),
-        },
-      });
-    }
-
     return this.prisma.$transaction(async (tx) => {
+      // Serialize quest checks and credit on the same wallet, including the first claim.
+      await tx.$queryRaw`
+        SELECT id FROM public.users WHERE id = ${userId}::uuid FOR NO KEY UPDATE
+      `;
+      await tx.$queryRaw`
+        SELECT id FROM public.wallet_accounts
+        WHERE user_id = ${userId}::uuid AND currency_code = ${DEFAULT_CURRENCY} FOR UPDATE
+      `;
+      await this.ensureActiveUser(userId, tx);
       const wallet = await tx.walletAccount.findUnique({
         where: {
           userId_currencyCode: {
@@ -875,6 +862,46 @@ export class RewardsService {
 
       if (!wallet || wallet.status !== 'active') {
         throw new BadRequestException('Active wallet not found');
+      }
+
+      const existingLedger = await tx.walletLedger.findUnique({ where: { idempotencyKey } });
+      const progress = await this.getActivationProgress(userId, tx);
+      const questStatus = this.activationQuestStatusFromProgress(questCode, progress);
+      if (existingLedger) {
+        if (existingLedger.walletAccountId !== wallet.id || existingLedger.direction !== 'credit' ||
+            !new Decimal(existingLedger.amount).equals(quest.rewardLumina) ||
+            existingLedger.ledgerType !== quest.ledgerType) {
+          throw new BadRequestException('Activation quest ledger does not match this wallet');
+        }
+        return {
+          quest: { ...questStatus, claimStatus: 'claimed' },
+          ledger: existingLedger,
+          idempotentReplay: true,
+          walletCredited: false,
+          caps: progress.caps,
+          policy: this.activationQuestClaimPolicy(),
+        };
+      }
+      if (!questStatus.completed) {
+        throw new BadRequestException({
+          code: 'ACTIVATION_QUEST_NOT_COMPLETED',
+          message: 'Activation quest condition is not completed yet',
+          details: { quest: questStatus },
+        });
+      }
+      const rewardAmount = new Decimal(quest.rewardLumina);
+      const remainingPromoLumina = new Decimal(progress.caps.freePromo.remainingLumina);
+      if (remainingPromoLumina.lessThan(rewardAmount)) {
+        throw new BadRequestException({
+          code: 'FREE_PROMO_REWARD_CAP_EXCEEDED',
+          message: 'Free promotional reward cap would be exceeded',
+          details: {
+            capLumina: progress.caps.freePromo.capLumina,
+            earnedLumina: progress.caps.freePromo.earnedLumina,
+            remainingLumina: progress.caps.freePromo.remainingLumina,
+            requestedLumina: rewardAmount.toString(),
+          },
+        });
       }
 
       const ledger = await tx.walletLedger.create({
@@ -921,15 +948,21 @@ export class RewardsService {
               .plus(rewardAmount)
               .toString(),
             remainingLumina: remainingPromoLumina.minus(rewardAmount).toString(),
+            usedRate: new Decimal(progress.caps.freePromo.earnedLumina)
+              .plus(rewardAmount)
+              .div(FREE_PROMO_REWARD_CAP_LUMINA)
+              .mul(100)
+              .toDecimalPlaces(2)
+              .toString(),
           },
         },
         policy: this.activationQuestClaimPolicy(),
       };
-    });
+    }, { isolationLevel: 'ReadCommitted' });
   }
 
-  private async ensureActiveUser(userId: string) {
-    const user = await this.prisma.user.findFirst({
+  private async ensureActiveUser(userId: string, db: Prisma.TransactionClient = this.prisma) {
+    const user = await db.user.findFirst({
       where: {
         id: userId,
         status: 'active',
@@ -1007,7 +1040,7 @@ export class RewardsService {
     return next;
   }
 
-  private async activationCounts(userId: string) {
+  private async activationCounts(userId: string, db: Prisma.TransactionClient = this.prisma) {
     const [
       feedPosts,
       feedLikes,
@@ -1017,25 +1050,25 @@ export class RewardsService {
       fanLetters,
       paidLikes,
     ] = await Promise.all([
-      this.prisma.communityPost.count({
+      db.communityPost.count({
         where: { authorUserId: userId, deletedAt: null },
       }),
-      this.prisma.communityReaction.count({
+      db.communityReaction.count({
         where: { userId, reactionType: 'like' },
       }),
-      this.prisma.communityReply.count({
+      db.communityReply.count({
         where: { authorUserId: userId, deletedAt: null },
       }),
-      this.prisma.artistFollow.count({
+      db.artistFollow.count({
         where: { userId, status: 'active', deletedAt: null },
       }),
-      this.prisma.userFollow.count({
+      db.userFollow.count({
         where: { followerUserId: userId, status: 'active', deletedAt: null },
       }),
-      this.prisma.fanLetter.count({
+      db.fanLetter.count({
         where: { senderUserId: userId },
       }),
-      this.prisma.artistBoostEvent.count({
+      db.artistBoostEvent.count({
         where: { userId, boostType: 'lumina_boost' },
       }),
     ]);
