@@ -760,25 +760,18 @@ export class RewardsService {
       identitySubjectHash,
       currentYear,
     );
-    const progress = await this.getActivationProgress(userId);
     const rewardAmount = new Decimal(BIRTHDAY_REWARD_LUMINA);
-    const remainingPromoLumina = new Decimal(progress.caps.freePromo.remainingLumina);
-
-    if (remainingPromoLumina.lessThan(rewardAmount)) {
-      throw new BadRequestException({
-        code: 'FREE_PROMO_REWARD_CAP_EXCEEDED',
-        message: 'Free promotional reward cap would be exceeded',
-        details: {
-          capLumina: progress.caps.freePromo.capLumina,
-          earnedLumina: progress.caps.freePromo.earnedLumina,
-          remainingLumina: progress.caps.freePromo.remainingLumina,
-          requestedLumina: rewardAmount.toString(),
-          ledgerType: 'birthday_bonus',
-        },
-      });
-    }
 
     return this.prisma.$transaction(async (tx) => {
+      // Share attendance/activation locks before reading the promotional cap.
+      await tx.$queryRaw`
+        SELECT id FROM public.users WHERE id = ${userId}::uuid FOR NO KEY UPDATE
+      `;
+      await tx.$queryRaw`
+        SELECT id FROM public.wallet_accounts
+        WHERE user_id = ${userId}::uuid AND currency_code = ${DEFAULT_CURRENCY} FOR UPDATE
+      `;
+
       const existingLedger = await tx.walletLedger.findUnique({
         where: { idempotencyKey },
       });
@@ -790,6 +783,23 @@ export class RewardsService {
           walletCredited: false,
           policy: this.birthdayRewardPolicy(),
         };
+      }
+
+      const progress = await this.getActivationProgress(userId, tx);
+      const remainingPromoLumina = new Decimal(progress.caps.freePromo.remainingLumina);
+
+      if (remainingPromoLumina.lessThan(rewardAmount)) {
+        throw new BadRequestException({
+          code: 'FREE_PROMO_REWARD_CAP_EXCEEDED',
+          message: 'Free promotional reward cap would be exceeded',
+          details: {
+            capLumina: progress.caps.freePromo.capLumina,
+            earnedLumina: progress.caps.freePromo.earnedLumina,
+            remainingLumina: progress.caps.freePromo.remainingLumina,
+            requestedLumina: rewardAmount.toString(),
+            ledgerType: 'birthday_bonus',
+          },
+        });
       }
 
       const wallet = await tx.walletAccount.upsert({
@@ -843,7 +853,7 @@ export class RewardsService {
         walletCredited: true,
         policy: this.birthdayRewardPolicy(),
       };
-    });
+    }, { isolationLevel: 'ReadCommitted' });
   }
 
   async claimActivationQuest(userId: string, code: string) {
