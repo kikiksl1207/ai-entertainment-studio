@@ -20,6 +20,7 @@
     trial.budget?.provisionalHeldCount === 1 ? Date.parse(trial.budget.provisionalHoldExpiresAt) : Infinity);
   const copy = {
     ko: {
+      approvedProfileContextTooLarge: "\uc2b9\uc778\ub41c \uc791\uac00 \uc9c0\uce68\uc744 \ud604\uc7ac \uc0dd\uc131 \ubb38\ub9e5\uc5d0 \ubaa8\ub450 \ub2f4\uc744 \uc218 \uc5c6\uc5b4 \uc2dc\ud5d8\uc744 \uc2dc\uc791\ud558\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4.",
       generationOutputLimitReached: "\uc0dd\uc131\uc774 \uc124\uc815\ub41c \ucd9c\ub825 \ud55c\ub3c4\uc5d0 \ub3c4\ub2ec\ud574 \uc644\ub8cc\ub418\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4.",
       title: "\uc791\uac00 \ubcf8\ubb38 \uc2dc\ud5d8", privacy: "\ube44\uacf5\uac1c \u00b7 \ubcf8\ubb38 \uc804\uc6a9", refresh: "\uc2dc\ud5d8 \uc0c1\ud0dc \uc0c8\ub85c\uace0\uce68", retry: "\uc774\uc804 \uc120\ud0dd \uc811\uc218 \ud655\uc778",
       recover: "\ucd5c\uadfc \uc694\uccad \ucc3e\uae30", recoveryEmpty: "\ucd5c\uadfc \uc694\uccad \uae30\ub85d\uc744 \ucc3e\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4.", receiptResult: "\uc811\uc218 \uacb0\uacfc",
@@ -32,6 +33,7 @@
       unauthenticated: "\ub85c\uadf8\uc778 \ud544\uc694", forbidden: "\uc694\uccad\uc744 \uc9c4\ud589\ud560 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4. \uc6d0\uace0\u00b7\uc2b9\uc778\u00b7\uad8c\ud55c\uc744 \ud655\uc778\ud574 \uc8fc\uc138\uc694.", notFound: "\uc791\ud488 \ub610\ub294 \uc9c4\ud589 \ucc3e\uc744 \uc218 \uc5c6\uc74c", conflict: "\uc9c4\ud589\u00b7\uc2b9\uc778\u00b7\ube44\uc6a9 \uc0c1\ud0dc \uc7ac\ud655\uc778 \ud544\uc694", invalid: "\uc751\ub2f5 \ud655\uc778 \uc2e4\ud328", transport: "\uc5f0\uacb0 \uc2e4\ud328", server: "\uc11c\ubc84 \uc751\ub2f5 \uc2e4\ud328", unavailable: "\ud604\uc7ac \uc2dc\ud5d8 \uc774\uc6a9 \ubd88\uac00", hidden: ""
     },
     en: {
+      approvedProfileContextTooLarge: "The trial was not started because the approved author guidelines cannot all fit in the current generation context.",
       generationOutputLimitReached: "Generation reached the configured output limit and could not complete.",
       title: "Author text trial", privacy: "Private \u00b7 Text only", refresh: "Refresh trial state", retry: "Check previous choice receipt",
       recover: "Find recent request", recoveryEmpty: "No recent request record found.", receiptResult: "Receipt result",
@@ -44,6 +46,7 @@
       unauthenticated: "Sign-in required", forbidden: "This request cannot proceed. Check the manuscript, approval and permissions.", notFound: "Story or progress not found", conflict: "Progress, approval or cost needs checking", invalid: "Response verification failed", transport: "Connection failed", server: "Server response failed", unavailable: "Trial unavailable", hidden: ""
     },
     ja: {
+      approvedProfileContextTooLarge: "\u627f\u8a8d\u6e08\u307f\u306e\u4f5c\u5bb6\u6307\u91dd\u3092\u73fe\u5728\u306e\u751f\u6210\u6587\u8108\u306b\u3059\u3079\u3066\u53ce\u3081\u3089\u308c\u306a\u3044\u305f\u3081\u3001\u30c6\u30b9\u30c8\u3092\u958b\u59cb\u3057\u307e\u305b\u3093\u3067\u3057\u305f\u3002",
       generationOutputLimitReached: "\u751f\u6210\u304c\u8a2d\u5b9a\u3055\u308c\u305f\u51fa\u529b\u4e0a\u9650\u306b\u9054\u3057\u3001\u5b8c\u4e86\u3067\u304d\u307e\u305b\u3093\u3067\u3057\u305f\u3002",
       title: "\u4f5c\u8005\u306e\u672c\u6587\u30c6\u30b9\u30c8", privacy: "\u975e\u516c\u958b \u00b7 \u672c\u6587\u306e\u307f", refresh: "\u30c6\u30b9\u30c8\u72b6\u614b\u3092\u66f4\u65b0", retry: "\u524d\u306e\u9078\u629e\u306e\u53d7\u4ed8\u3092\u78ba\u8a8d",
       recover: "\u6700\u8fd1\u306e\u30ea\u30af\u30a8\u30b9\u30c8\u3092\u63a2\u3059", recoveryEmpty: "\u6700\u8fd1\u306e\u30ea\u30af\u30a8\u30b9\u30c8\u8a18\u9332\u306f\u898b\u3064\u304b\u308a\u307e\u305b\u3093\u3067\u3057\u305f\u3002", receiptResult: "\u53d7\u4ed8\u7d50\u679c",
@@ -56,6 +59,7 @@
       unauthenticated: "\u30ed\u30b0\u30a4\u30f3\u304c\u5fc5\u8981", forbidden: "\u30ea\u30af\u30a8\u30b9\u30c8\u3092\u9032\u3081\u3089\u308c\u307e\u305b\u3093\u3002\u539f\u7a3f\u30fb\u627f\u8a8d\u30fb\u6a29\u9650\u3092\u78ba\u8a8d\u3057\u3066\u304f\u3060\u3055\u3044\u3002", notFound: "\u4f5c\u54c1\u30fb\u9032\u884c\u304c\u898b\u3064\u304b\u308a\u307e\u305b\u3093", conflict: "\u9032\u884c\u30fb\u627f\u8a8d\u30fb\u8cbb\u7528\u306e\u518d\u78ba\u8a8d\u304c\u5fc5\u8981", invalid: "\u5fdc\u7b54\u78ba\u8a8d\u5931\u6557", transport: "\u63a5\u7d9a\u5931\u6557", server: "\u30b5\u30fc\u30d0\u30fc\u5fdc\u7b54\u5931\u6557", unavailable: "\u30c6\u30b9\u30c8\u5229\u7528\u4e0d\u53ef", hidden: ""
     },
     "zh-Hans": {
+      approvedProfileContextTooLarge: "\u5df2\u6279\u51c6\u7684\u4f5c\u8005\u6307\u5f15\u65e0\u6cd5\u5b8c\u6574\u653e\u5165\u5f53\u524d\u751f\u6210\u4e0a\u4e0b\u6587\uff0c\u56e0\u6b64\u672a\u5f00\u59cb\u6d4b\u8bd5\u3002",
       generationOutputLimitReached: "\u751f\u6210\u5df2\u8fbe\u5230\u8bbe\u5b9a\u7684\u8f93\u51fa\u4e0a\u9650\uff0c\u672a\u80fd\u5b8c\u6210\u3002",
       title: "\u4f5c\u8005\u6b63\u6587\u6d4b\u8bd5", privacy: "\u79c1\u5bc6 \u00b7 \u4ec5\u6b63\u6587", refresh: "\u5237\u65b0\u6d4b\u8bd5\u72b6\u6001", retry: "\u786e\u8ba4\u4e0a\u6b21\u9009\u62e9\u56de\u6267",
       recover: "\u67e5\u627e\u6700\u8fd1\u8bf7\u6c42", recoveryEmpty: "\u672a\u627e\u5230\u6700\u8fd1\u7684\u8bf7\u6c42\u8bb0\u5f55\u3002", receiptResult: "\u53d7\u7406\u7ed3\u679c",
@@ -68,6 +72,7 @@
       unauthenticated: "\u9700\u8981\u767b\u5f55", forbidden: "\u65e0\u6cd5\u7ee7\u7eed\u6b64\u8bf7\u6c42\u3002\u8bf7\u68c0\u67e5\u7a3f\u4ef6\u3001\u6279\u51c6\u72b6\u6001\u548c\u6743\u9650\u3002", notFound: "\u672a\u627e\u5230\u4f5c\u54c1\u6216\u8fdb\u5ea6", conflict: "\u9700\u91cd\u65b0\u786e\u8ba4\u8fdb\u5ea6\u3001\u6279\u51c6\u6216\u8d39\u7528", invalid: "\u54cd\u5e94\u9a8c\u8bc1\u5931\u8d25", transport: "\u8fde\u63a5\u5931\u8d25", server: "\u670d\u52a1\u5668\u54cd\u5e94\u5931\u8d25", unavailable: "\u6682\u65f6\u65e0\u6cd5\u6d4b\u8bd5", hidden: ""
     },
     "zh-Hant": {
+      approvedProfileContextTooLarge: "\u5df2\u6838\u51c6\u7684\u4f5c\u8005\u6307\u5f15\u7121\u6cd5\u5b8c\u6574\u653e\u5165\u76ee\u524d\u7684\u751f\u6210\u4e0a\u4e0b\u6587\uff0c\u56e0\u6b64\u672a\u958b\u59cb\u6e2c\u8a66\u3002",
       generationOutputLimitReached: "\u751f\u6210\u5df2\u9054\u5230\u8a2d\u5b9a\u7684\u8f38\u51fa\u4e0a\u9650\uff0c\u672a\u80fd\u5b8c\u6210\u3002",
       title: "\u4f5c\u8005\u6b63\u6587\u6e2c\u8a66", privacy: "\u79c1\u5bc6 \u00b7 \u50c5\u6b63\u6587", refresh: "\u91cd\u65b0\u6574\u7406\u6e2c\u8a66\u72c0\u614b", retry: "\u78ba\u8a8d\u4e0a\u6b21\u9078\u64c7\u56de\u57f7",
       recover: "\u5c0b\u627e\u6700\u8fd1\u8acb\u6c42", recoveryEmpty: "\u627e\u4e0d\u5230\u6700\u8fd1\u7684\u8acb\u6c42\u7d00\u9304\u3002", receiptResult: "\u53d7\u7406\u7d50\u679c",
@@ -121,7 +126,7 @@
     Object.assign(copy[language], { provisionalHold, provisionalRemaining, approval_recorded_with_provisional_hold });
   }
   const quoteReasons = ["approval_required", "approval_expired", "release_changed", "cost_unknown", "budget_over_limit",
-    "pending_cost", "approval_pins_changed", "invalid_next_maximum", "next_cost_exceeds_remaining"];
+    "pending_cost", "approval_pins_changed", "approved_profile_context_too_large", "invalid_next_maximum", "next_cost_exceeds_remaining"];
   function nextCostQuote(value, state) {
     if (!["nextMaximumCostKrw", "nextCostQuoteState", "nextCostQuoteReason"].some(key => Object.prototype.hasOwnProperty.call(value, key))) return {};
     const withheld = reason => ({ nextMaximumCostKrw: null, nextCostQuoteState: "withheld", nextCostQuoteReason: reason });
@@ -798,7 +803,8 @@
         const quote = nextCostQuote(trial, trial), prepared = state.phase === "ready" && !state.busy && !state.unresolved &&
           quote.nextCostQuoteState === "prepared";
         const reasonKey = { approval_required: "approval_required", approval_expired: "approval_expired", release_changed: "release_changed",
-          cost_unknown: "cost_unknown", budget_over_limit: "budget_over_limit", pending_cost: "generating", approval_pins_changed: "conflict" }[quote.nextCostQuoteReason];
+          cost_unknown: "cost_unknown", budget_over_limit: "budget_over_limit", pending_cost: "generating", approval_pins_changed: "conflict",
+          approved_profile_context_too_large: "approvedProfileContextTooLarge" }[quote.nextCostQuoteReason];
         const label = prepared ? words.nextCostMaximum + " " + formatMoney(quote.nextMaximumCostKrw, true, state.locale === "ko" ? "\uc6d0" : " KRW")
           : words.nextCostUnavailable + (reasonKey ? ": " + words[reasonKey] : "");
         const notice = element("p", "body-trial-state", label);

@@ -1859,10 +1859,10 @@ test('receipt result: an unverified receipt GET never gains the result prefix', 
   assert.equal(view.calls.length, 2); assert.equal(posts(view).length, 0); assert.equal(view.events.length, 0);
 });
 
-test('entry pins the output-limit trial script and retained failure-advice stylesheet revisions', () => {
+test('entry pins the profile-fit trial script and retained failure-advice stylesheet revisions', () => {
   const stylesheet = entry.match(/href="\/pages\/creator-body-trial\.css\?v=([^"&]+)"/)?.[1];
   const script = entry.match(/src="\/pages\/creator-body-trial\.js\?v=([^"&]+)"/)?.[1];
-  assert.equal(script, 'body-output-limit-advice-20261009');
+  assert.equal(script, 'body-profile-fit-20261010');
   assert.equal(stylesheet, 'body-failure-advice-20261009');
   assert.doesNotMatch(entry, /creator-body-trial\.(?:css|js)\?v=body-trial-20261002/);
 });
@@ -2251,6 +2251,48 @@ function assertNextCostReadOnly(view, expectedReads = 2) {
   assert.equal(view.refreshAttempts(), 0);
   assert.equal(view.calls.length, expectedReads);
   assert.ok(view.calls.every(call => call.options.method === 'GET' && call.options.body === undefined));
+}
+const profileFitUiCopy = {
+  ko: '\uc2b9\uc778\ub41c \uc791\uac00 \uc9c0\uce68\uc744 \ud604\uc7ac \uc0dd\uc131 \ubb38\ub9e5\uc5d0 \ubaa8\ub450 \ub2f4\uc744 \uc218 \uc5c6\uc5b4 \uc2dc\ud5d8\uc744 \uc2dc\uc791\ud558\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4.',
+  en: 'The trial was not started because the approved author guidelines cannot all fit in the current generation context.',
+  ja: '\u627f\u8a8d\u6e08\u307f\u306e\u4f5c\u5bb6\u6307\u91dd\u3092\u73fe\u5728\u306e\u751f\u6210\u6587\u8108\u306b\u3059\u3079\u3066\u53ce\u3081\u3089\u308c\u306a\u3044\u305f\u3081\u3001\u30c6\u30b9\u30c8\u3092\u958b\u59cb\u3057\u307e\u305b\u3093\u3067\u3057\u305f\u3002',
+  'zh-Hans': '\u5df2\u6279\u51c6\u7684\u4f5c\u8005\u6307\u5f15\u65e0\u6cd5\u5b8c\u6574\u653e\u5165\u5f53\u524d\u751f\u6210\u4e0a\u4e0b\u6587\uff0c\u56e0\u6b64\u672a\u5f00\u59cb\u6d4b\u8bd5\u3002',
+  'zh-Hant': '\u5df2\u6838\u51c6\u7684\u4f5c\u8005\u6307\u5f15\u7121\u6cd5\u5b8c\u6574\u653e\u5165\u76ee\u524d\u7684\u751f\u6210\u4e0a\u4e0b\u6587\uff0c\u56e0\u6b64\u672a\u958b\u59cb\u6e2c\u8a66\u3002'
+};
+for (const language of locales) {
+  test(`profile-fit UI: ${language} uses finite safe advice and preserves saved reading without a grant`, async () => {
+    const reason = 'approved_profile_context_too_large';
+    for (const rawReason of [reason, undefined, null, 42, {}, [reason], reason + ' ', reason.toUpperCase(), 'unknown-profile-fit',
+      'STORY_AUTHOR_BODY_TRIAL_PROFILE_CONTEXT_TOO_LARGE', '__proto__', 'constructor', '<script>private provider detail</script>']) {
+      for (const position of [0, 1]) {
+        const value = nextCostUiState(null), body = preview(id(1), language);
+        Object.assign(value, { nextCostQuoteState: 'withheld', nextCostQuoteReason: rawReason });
+        if (rawReason === undefined) delete value.nextCostQuoteReason;
+        body.progress.scene.isGenerated = true; body.progress.currentBeatPosition = position;
+        const before = clone(value), saved = clone(body);
+        const view = mounted(({ kind, reply }) => kind === 'state' ? response(value) : kind === 'preview' ? response(body) : reply(),
+          { language, sourceLocale: language });
+        assert.equal(await view.load(), true);
+        const parsed = view.api.parseState(value, { workId: id(1) }), notices = nextCostNotices(view);
+        assert.equal(parsed.nextCostQuoteReason, rawReason === reason ? reason : 'invalid_next_maximum');
+        assert.equal(parsed.nextCostQuoteState, 'withheld'); assert.equal(parsed.nextMaximumCostKrw, null);
+        assert.equal(parsed.generationAuthorized, false); assert.equal(parsed.currentAuthorizationVerified, false);
+        assert.equal(parsed.imageGenerationStarted, false); assert.equal(parsed.state, 'approval_recorded');
+        assert.deepEqual(clone(parsed.approval), before.approval); assert.deepEqual(clone(parsed.budget), before.budget);
+        assert.equal(view.api.copy[language].approvedProfileContextTooLarge, profileFitUiCopy[language]);
+        assert.equal(notices.length, 1); assert.equal(notices[0].getAttribute('role'), 'note');
+        assert.equal(notices[0].textContent, nextCostUiCopy[language][1] + (rawReason === reason ? ': ' + profileFitUiCopy[language] : ''));
+        assert.doesNotMatch(notices[0].textContent, /provider|private|script|STORY_|approved_profile_|token|300|409/i);
+        assert.equal(walk(view.host).find(node => node.className === 'body-trial-beat').textContent, saved.progress.scene.beats[0].content);
+        assert.equal(walk(view.host).some(node => node.id === 'writerBodyTrialRead' && !node.disabled), position === 0);
+        assert.equal(view.choices().length, 2); assert.ok(view.choices().every(button => button.disabled));
+        for (const button of view.choices()) await button.fire('click');
+        assert.equal(view.recoverButton().disabled, false); assert.equal(view.retryButton().hidden, true);
+        assert.equal(view.storage.operations.some(([operation]) => operation === 'write'), false);
+        assert.deepEqual(value, before); assert.deepEqual(body, saved); assertNextCostReadOnly(view);
+      }
+    }
+  });
 }
 for (const language of locales) {
   test(`next-cost UI: ${language} displays exactly one prepared maximum without authorizing or dispatching`, async () => {
