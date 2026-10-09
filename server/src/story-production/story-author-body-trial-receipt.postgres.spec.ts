@@ -83,6 +83,7 @@ postgres('read-only trial receipt recovery (isolated PostgreSQL and real HTTP, n
     ['provider_outcome_unknown', 'provider_outcome_unknown'],
     ['continuation_output_underlength', 'narrative_length_rejected'],
     ['provider_malformed_output', 'output_validation_rejected'],
+    ['provider_output_token_limit', 'output_limit_reached'],
     ['continuation_invalid_calendar_date', 'quality_rule_rejected'],
     ['participant_missing_from_scene', 'participant_missing'],
     ['provider_content_filtered', 'content_rejected'],

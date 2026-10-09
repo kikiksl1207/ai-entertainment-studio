@@ -54,22 +54,25 @@ describe('private receipt does not dispatch or grant a new trial', () => {
   it.each<[string, unknown, string | null]>([
     ['failed', 'dispatch_lease_insufficient', 'lease_time_insufficient'],
     ['failed', 'provider_outcome_unknown', 'provider_outcome_unknown'],
+    ['failed', 'provider_output_token_limit', 'output_limit_reached'],
     ...['continuation_output_underlength', 'continuation_output_overlength'].map(code =>
       ['failed', code, 'narrative_length_rejected'] as [string, unknown, string | null]),
     ...['provider_malformed_output', 'provider_output_route_invalid', 'provider_output_size_invalid',
-      'provider_incomplete_output', 'provider_output_token_limit'].map(code => ['failed', code, 'output_validation_rejected'] as [string, unknown, string | null]),
+      'provider_incomplete_output'].map(code => ['failed', code, 'output_validation_rejected'] as [string, unknown, string | null]),
     ...['continuation_invalid_calendar_date', 'continuation_source_prose_repeated',
       'continuation_generated_prose_repeated'].map(code => ['failed', code, 'quality_rule_rejected'] as [string, unknown, string | null]),
     ['failed', 'participant_missing_from_scene', 'participant_missing'],
     ...['server_moderation_rejected', 'provider_refusal', 'provider_content_filtered'].map(code => ['failed', code, 'content_rejected'] as [string, unknown, string | null]),
     ['failed', 'PROVIDER_MALFORMED_OUTPUT', null], ['failed', 'provider_malformed_output:private-detail', null],
     ['failed', 'continuation_output_underlength ', null], ['failed', '__proto__', null],
+    ['failed', 'PROVIDER_OUTPUT_TOKEN_LIMIT', null], ['failed', 'provider_output_token_limit:private-detail', null],
     ['failed', { code: 'provider_refusal' }, null], ['failed', ['provider_refusal'], null],
     ...['timeout', 'queued', 'processing', 'completed'].map(status => [status, 'provider_malformed_output', null] as [string, unknown, string | null]),
     ['failed', 'synthetic-private-diagnostic', null], ['failed', null, null],
     ['failed', 'DISPATCH_LEASE_INSUFFICIENT', null], ['timeout', 'dispatch_lease_insufficient', null],
     ['timeout', 'provider_outcome_unknown', null], ['queued', 'dispatch_lease_insufficient', null],
     ['processing', 'provider_outcome_unknown', null], ['completed', 'dispatch_lease_insufficient', null],
+    ...['timeout', 'queued', 'processing', 'completed'].map(status => [status, 'provider_output_token_limit', null] as [string, unknown, string | null]),
   ])('allowlists advisory failure description for %s/%s without usage or retry claims', async (status, failureCode, reason) => {
     const f = prepared(), continuationId = randomUUID();
     const resultGeneratedSceneId = status === 'completed' ? randomUUID() : null;
