@@ -26,7 +26,7 @@
     "styles/business.css", "styles/character-catalog.css", "styles/character-chat.css", "styles/character-detail.css", "styles/charge.css",
     "styles/creator-studio.css", "styles/home.css", "styles/lumina-feed.css", "styles/feed-notifications.css", "styles/mypage.css", "styles/ott-private-preview.css",
     "styles/ott.css", "styles/popular-vote.css", "styles/premium-chat-support.css", "styles/story-stage.css", "styles/story-upload.css",
-    "styles/user-profile.css", "assets/brand/lumina-stage-logo.png", "assets/brand/lumina-stage-banner.png",
+    "styles/user-profile.css", "assets/js/mypage-account-close.js", "assets/brand/lumina-stage-logo.png", "assets/brand/lumina-stage-banner.png",
     "assets/icons/lucide/bell.svg", "assets/icons/lucide/x.svg", "assets/icons/lucide/check.svg",
     "assets/icons/lucide/check-check.svg", "assets/icons/lucide/refresh-cw.svg", "assets/icons/lucide/chevron-down.svg", "assets/icons/lucide/LICENSE.txt",
     "assets/brand/lumina-stage-banner-mobile.png", "assets/fonts/SeoulNamsanM.ttf", "assets/fonts/SeoulNamsanB.ttf",

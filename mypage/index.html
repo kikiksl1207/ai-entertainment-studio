@@ -1800,11 +1800,36 @@
           });
           // ※ 아바타 업로드 핸들러는 app.js의 bindMypageAvatarUpload()가 단일 담당.
           //   (#058 — 2026-05-03: 이중 바인드 충돌 해소를 위해 inline 핸들러 제거)
-          $("mypageDeleteAccountButton")?.addEventListener("click", () => {
-            const balance = $("mypageLuminaBalance")?.textContent || "0";
-            const confirmed = confirm(`회원 탈퇴를 진행할까요?\n보유 중인 ${balance}L은 탈퇴와 함께 소멸돼요.`);
-            if (confirmed) alert("회원 탈퇴 API 연결 전입니다. 비밀번호 확인 화면이 붙으면 활성화할 수 있어요.");
-          });
+          const accountCloseButton = $("mypageDeleteAccountButton");
+          if (accountCloseButton && !accountCloseButton.dataset.accountCloseBound) {
+            accountCloseButton.dataset.accountCloseBound = "true";
+            accountCloseButton.disabled = true;
+            import("/assets/js/mypage-account-close.js").then(({ bindMypageAccountClose }) => {
+              bindMypageAccountClose({
+                button: accountCloseButton,
+                getAuth: () => getAuth(),
+                sessionKey: auth => authRequestSession(auth),
+                sessionCurrent: session => authRequestSessionCurrent(session),
+                request: (path, options) => apiFetch(path, options),
+                logout: () => authLogout(),
+                getBalance: () => $("mypageLuminaBalance")?.textContent || "0"
+              });
+              accountCloseButton.disabled = false;
+            }).catch(() => {
+              accountCloseButton.disabled = false;
+              accountCloseButton.addEventListener("click", () => {
+                const locale = window.luminaI18n?.getLocale?.() || "ko";
+                const messages = {
+                  ko: "회원 탈퇴 화면을 불러오지 못했습니다. 새로고침 후 다시 시도해 주세요.",
+                  en: "Could not load account closure. Reload the page and try again.",
+                  ja: "退会画面を読み込めませんでした。ページを再読み込みしてください。",
+                  "zh-Hans": "无法加载注销页面。请刷新后重试。",
+                  "zh-Hant": "無法載入註銷頁面。請重新整理後再試。"
+                };
+                alert(messages[locale] || messages.ko);
+              });
+            });
+          }
         }
 
         let mypageInlineRefreshPromise = null;

@@ -37,6 +37,33 @@ const app = process.env.MYPAGE_FAN_BASELINE_APP
   : lf(readFileSync(new URL('../app.js', import.meta.url)));
 const beforeHtml = baseline('MYPAGE_FAN_BASELINE_HTML', snapshots.html);
 const beforeCss = baseline('MYPAGE_FAN_BASELINE_CSS', snapshots.css);
+const inlineScriptStart = '    <script>\n      (function () {\n        let mypageSummary = null;';
+const accountCloseStart = '          const accountCloseButton = $("mypageDeleteAccountButton");';
+const accountCloseEnd = '\n        }\n\n        let mypageInlineRefreshPromise = null;';
+const legacyAccountCloseStub = [
+  '          $("mypageDeleteAccountButton")?.addEventListener("click", () => {',
+  '            const balance = $("mypageLuminaBalance")?.textContent || "0";',
+  '            const confirmed = confirm(`회원 탈퇴를 진행할까요?\\n보유 중인 ${balance}L은 탈퇴와 함께 소멸돼요.`);',
+  '            if (confirmed) alert("회원 탈퇴 API 연결 전입니다. 비밀번호 확인 화면이 붙으면 활성화할 수 있어요.");',
+  '          });',
+].join('\n');
+// Only the separately authorized account-close binding is restored to its original stub.
+// Pin that exact block first: fan ownership does not exempt adjacent HTML or arbitrary delete handlers.
+const authorizedAccountCloseStubPin = 'a3b45442e22b6fa6d6a4856ad5b5317efa1a39dcb648a4ba7703b70a15029615';
+function normalizeAccountCloseStub(value) {
+  const legacyStart = legacyAccountCloseStub.split('\n')[0];
+  const legacyCount = value.split(legacyStart).length - 1;
+  const approvedCount = value.split(accountCloseStart).length - 1;
+  assert.equal(legacyCount + approvedCount, 1, 'Exactly one original or approved account-close stub');
+  if (legacyCount) {
+    assert.equal(value.split(legacyAccountCloseStub).length - 1, 1, 'Exact original account-close stub');
+    return value;
+  }
+  const start = value.indexOf(accountCloseStart), end = value.indexOf(accountCloseEnd, start);
+  assert(end > start, 'Approved account-close stub end boundary');
+  assert.equal(sha(value.slice(start, end)), authorizedAccountCloseStubPin, 'Exact approved account-close binding LF pin');
+  return value.slice(0, start) + legacyAccountCloseStub + value.slice(end);
+}
 function fragment(start, end) {
   const first = app.indexOf(start), last = app.indexOf(end, first);
   assert(first >= 0 && last > first, 'Original source fragment boundaries');
@@ -175,10 +202,10 @@ test('SOURCE: three products preserve CLEAN outside owned HTML/CSS boundaries; n
   const newStart = after.indexOf('              <section class="mypage-fan-summary"');
   const wallet = '            <section class="mypage-panel" data-mypage-panel="wallet" id="wallet">';
   const appTag = '    <script src="/app.js"></script>\n';
-  const rest = '    <script>\n      (function () {\n        let mypageSummary = null;';
+  const rest = inlineScriptStart;
   const walletStart = after.indexOf(wallet), appEnd = after.indexOf(appTag) + appTag.length, restStart = after.indexOf(rest);
   assert(newStart > 0 && walletStart > newStart && appEnd > walletStart && restStart > appEnd);
-  const prefix = after.slice(0, newStart), middle = after.slice(walletStart, appEnd), suffix = after.slice(restStart);
+  const prefix = after.slice(0, newStart), middle = after.slice(walletStart, appEnd), suffix = normalizeAccountCloseStub(after.slice(restStart));
   assert.equal(sha(prefix), snapshots.htmlPrefix);
   assert.equal(sha(middle), snapshots.htmlMiddle);
   assert.equal(sha(suffix), snapshots.htmlSuffix);
@@ -203,6 +230,57 @@ test('SOURCE: three products preserve CLEAN outside owned HTML/CSS boundaries; n
   assert.equal(sha(recovered), snapshots.css);
   if (beforeCss !== null) assert.equal(recovered, beforeCss);
   assert.doesNotMatch(source, /\.innerHTML|LuminaAchievementTitles|initI18n\(|setLocale\(|localStorage|fetch\(/);
+});
+
+test('SOURCE: exact approved account-close binding restores the original suffix pin; legacy stub is unchanged', () => {
+  const after = html.replace(/\r\n/g, '\n'), suffix = after.slice(after.indexOf(inlineScriptStart));
+  assert(suffix.includes(accountCloseStart));
+  const original = normalizeAccountCloseStub(suffix);
+  assert.notEqual(suffix, original);
+  assert.equal(sha(original), snapshots.htmlSuffix);
+  assert.equal(normalizeAccountCloseStub(original), original);
+});
+
+for (const [label, from, to] of [
+  ['module path', '/assets/js/mypage-account-close.js', '/assets/js/unapproved-account-close.js'],
+  ['session guard', 'sessionCurrent: session => authRequestSessionCurrent(session)', 'sessionCurrent: () => true'],
+  ['selected API options', 'apiFetch(path, options)', 'apiFetch(path, options, 0)'],
+]) test('SOURCE: account-close normalization rejects unapproved ' + label, () => {
+  const after = html.replace(/\r\n/g, '\n'), suffix = after.slice(after.indexOf(inlineScriptStart));
+  assert(suffix.includes(from));
+  assert.throws(() => normalizeAccountCloseStub(suffix.replace(from, to)), /Exact approved account-close binding LF pin/);
+});
+
+test('SOURCE: account-close normalization rejects missing, duplicated, mixed or widened stubs', () => {
+  const after = html.replace(/\r\n/g, '\n'), suffix = after.slice(after.indexOf(inlineScriptStart));
+  const start = suffix.indexOf(accountCloseStart), end = suffix.indexOf(accountCloseEnd, start);
+  const block = suffix.slice(start, end);
+  assert.throws(() => normalizeAccountCloseStub(suffix.replace(block, '')), /Exactly one/);
+  assert.throws(() => normalizeAccountCloseStub(suffix.replace(block, block + '\n' + block)), /Exactly one/);
+  assert.throws(() => normalizeAccountCloseStub(suffix + '\n' + legacyAccountCloseStub), /Exactly one/);
+  assert.throws(() => normalizeAccountCloseStub(suffix.replace(accountCloseEnd, '\n          // Unexpected extra binding\n' + accountCloseEnd)), /LF pin/);
+  assert.throws(() => normalizeAccountCloseStub(suffix.replace(accountCloseEnd, '\n        }\n')), /end boundary/);
+  const original = normalizeAccountCloseStub(suffix);
+  assert.throws(() => normalizeAccountCloseStub(original.replace('if (confirmed) alert(', 'if (confirmed) confirm(')), /Exact original/);
+});
+
+test('SOURCE: inline changes before and after the approved account-close block still break the original suffix pin', () => {
+  const after = html.replace(/\r\n/g, '\n'), suffix = after.slice(after.indexOf(inlineScriptStart));
+  for (const [from, to] of [
+    ['let mypageSummary = null;', 'let mypageSummary = undefined;'],
+    ['window.refreshMypageInlineData = refreshMypageInlineData;', 'window.refreshMypageInlineData = undefined;'],
+  ]) {
+    assert(suffix.includes(from));
+    const changed = normalizeAccountCloseStub(suffix.replace(from, to));
+    assert.notEqual(sha(changed), snapshots.htmlSuffix, from);
+  }
+});
+
+test('SOURCE: account-close normalization preserves the existing CRLF-to-LF comparison policy', () => {
+  const after = html.replace(/\r\n/g, '\n'), suffix = after.slice(after.indexOf(inlineScriptStart));
+  const fromCRLF = lf(Buffer.from(suffix.replace(/\n/g, '\r\n'), 'utf8'));
+  assert.equal(fromCRLF, suffix);
+  assert.equal(sha(normalizeAccountCloseStub(fromCRLF)), snapshots.htmlSuffix);
 });
 
 test('CLEAN marker readiness delays and coalesces summary until the resolved locale; observer/timer cleanup', async () => {
