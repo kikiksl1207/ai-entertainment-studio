@@ -1404,7 +1404,20 @@
 
         // #061: 팔로우 아티스트 전체 목록 별도 호출 (cursor 페이지네이션)
         async function loadFullFollowingArtists() {
-          if (typeof apiFetch !== "function" || typeof isLoggedIn !== "function" || !isLoggedIn()) return;
+          const read = {};
+          loadFullFollowingArtists.currentRead = read;
+          if (typeof apiFetch !== "function" || typeof isLoggedIn !== "function" || !isLoggedIn()
+            || typeof getAuth !== "function" || typeof authRequestSession !== "function" || typeof authRequestSessionCurrent !== "function") return;
+          const auth = getAuth();
+          const owner = String(auth?.user?.id || auth?.user?.userId || "");
+          const session = authRequestSession(auth);
+          const summaryRead = loadMypageSummary.currentRead;
+          const summary = mypageSummary;
+          const isCurrent = () => loadFullFollowingArtists.currentRead === read && owner !== ""
+            && isLoggedIn() && authRequestSessionCurrent(session)
+            && String(getAuth()?.user?.id || getAuth()?.user?.userId || "") === owner
+            && loadMypageSummary.currentRead === summaryRead && mypageSummary === summary;
+          if (!isCurrent()) return;
           try {
             const res = await apiFetch("/api/v1/me/following-artists?take=20", { auth: true });
             // canonical은 items, artists는 호환 alias
@@ -1412,6 +1425,7 @@
               : Array.isArray(res?.artists) ? res.artists
               : [];
             if (items.length === 0) return;
+            if (!isCurrent()) return;
             renderList(
               "mypageFollowingSummary",
               items.slice(0, 20),
@@ -1419,9 +1433,10 @@
               "마음에 드는 아티스트를 팔로우하면 새 소식을 이곳에 모아볼 수 있어요.",
               renderFollowingArtist
             );
-          } catch (err) {
+          } catch {
+            if (!isCurrent()) return;
             // 네트워크 실패면 summary fallback 유지 — 추가 알림은 띄우지 않음
-            console.warn("[Mypage] /me/following-artists 실패, summary fallback 유지:", err);
+            console.warn("[Mypage] /me/following-artists 실패, summary fallback 유지");
           }
         }
 

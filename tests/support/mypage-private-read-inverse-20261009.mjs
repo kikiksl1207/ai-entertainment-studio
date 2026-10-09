@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import { htmlWithoutFollowingReadDelta } from './mypage-following-read-inverse-20261009.mjs';
 
 const fixture = JSON.parse(readFileSync(new URL('../fixtures/mypage-private-read-exact-delta-20261009.json', import.meta.url), 'utf8'));
 const sha = value => createHash('sha256').update(value).digest('hex');
@@ -12,6 +13,7 @@ export function htmlWithoutPrivateReadDelta(value, delta = fixture) {
   assert.equal(delta.afterSHA256, 'd037b4075ae12ab4195f9a328146b67ec41038ebd2099090c7eb5b7082bce34b');
   assert.deepEqual(delta.changes.map(change => change.name), ['summary', 'settings']);
   if (sha(value) === delta.beforeSHA256) return value;
+  value = htmlWithoutFollowingReadDelta(value);
   assert.equal(sha(value), delta.afterSHA256, 'Exact two-block private read source');
   for (const change of delta.changes) {
     const start = value.indexOf(change.start), end = value.indexOf(change.end, start + change.start.length);
