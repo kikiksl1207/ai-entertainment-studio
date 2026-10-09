@@ -206,7 +206,7 @@ describe('approved branch summary: queued pin -> dispatch reconstruction -> unpa
       routeContinuityHash: f.continuation.contextReferences.routeContinuityHash,
       routeContinuityVersion: STORY_CONTINUATION_ROUTE_VIEW_VERSION, generationProfilePin: snapshot.pin,
     });
-    expect(STORY_CONTINUATION_PROFILE_VIEW_VERSION).toBe('story-profile-prompt-v5');
+    expect(STORY_CONTINUATION_PROFILE_VIEW_VERSION).toBe('story-profile-prompt-v6');
     expect(f.claim.request).not.toHaveProperty('approvedContext');
     expect(JSON.stringify(f.continuation.contextReferences)).not.toContain(endingTail);
 

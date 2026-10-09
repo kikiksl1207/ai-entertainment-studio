@@ -60,7 +60,7 @@ function fixture() {
   return { ids, db, service, provider, providerFactory, consent, choices, original, manuscript };
 }
 
-function approvedProfileFixture() {
+function approvedProfileFixture(styleDetailLength = 80) {
   const f = fixture();
   const analysis = { id: randomUUID(), workId: f.ids.work, manuscriptVersionId: f.ids.manuscript,
     status: 'completed', pipeline: SEMANTIC_PIPELINE, sourceContentHash: f.manuscript.contentHash,
@@ -76,7 +76,8 @@ function approvedProfileFixture() {
     sections: STORY_PROFILE_SECTION_KEYS.map(key => ({ key, decision: 'accepted',
       value: { summary: `Approved ${key} ` + 's'.repeat(500),
         observations: Array.from({ length: 12 }, (_, index) => ({ title: `${key} ${index}`,
-          detail: key === 'timeline' ? 'Future author-plan injury, not a current route fact.' : 'd'.repeat(800),
+          detail: key === 'timeline' ? 'Future author-plan injury, not a current route fact.'
+            : 'd'.repeat(key === 'writing_style' ? styleDetailLength : 800),
           sourceRef: `analysis:${evidenceId}` })) },
       evidence: [{ sourceType: 'manuscript', sourceRef: `analysis:${evidenceId}:part-2:3`,
         summary: 'Authored reference only.' }],
@@ -128,6 +129,17 @@ async function storedPartFixture() {
 }
 
 describe('Studio authored choice preparation', () => {
+  it('rejects the original oversized full style fixture before generation or choice writes', async () => {
+    const f = approvedProfileFixture(800);
+    const before = JSON.stringify(f.profile);
+    await expect(f.service.prepare(f.ids.owner, f.ids.work, f.ids.release, f.ids.scene))
+      .rejects.toMatchObject({ response: { code: 'STUDIO_CHOICES_GENERATION_PROFILE_INVALID' } });
+    expect(f.provider.generate).not.toHaveBeenCalled();
+    expect(f.db.auditEvent.create).not.toHaveBeenCalled();
+    expect(f.db.storyChoice.createMany).not.toHaveBeenCalled();
+    expect(JSON.stringify(f.profile)).toBe(before);
+  });
+
   it.each(['approvedGenerationProfile', 'approvedGenerationProfileIdentity'] as const)(
     'keeps an invalid approval date a safe conflict in %s', async method => {
       const f = approvedProfileFixture();
@@ -244,7 +256,7 @@ describe('Studio authored choice preparation', () => {
     }, expect.any(Function));
     expect(Buffer.byteLength(JSON.stringify(approved), 'utf8')).toBeLessThanOrEqual(16_384);
     expect(JSON.stringify(f.provider.generate.mock.calls[0][0])).not.toContain('UNAPPROVED_DRAFT');
-    expect(approved.sections.find(section => section.key === 'writing_style')?.value.observations).toHaveLength(4);
+    expect(approved.sections.find(section => section.key === 'writing_style')?.value.observations).toHaveLength(12);
     expect(approved.sections.find(section => section.key === 'timeline')?.value).toMatchObject({
       referenceScope: 'author_plan_not_route_history', observations: [
         expect.objectContaining({ referenceScope: 'author_plan_not_route_history',

@@ -596,10 +596,38 @@ describe('StoryContinuationExecutor', () => {
     );
     await expect(f.executor.executeOne('worker')).resolves.toMatchObject({ status: 'failed' });
     expect(f.provider.generate).not.toHaveBeenCalled();
+    expect(f.queue.markDispatched).not.toHaveBeenCalled();
     expect(f.queue.releaseForRetry).not.toHaveBeenCalled();
     expect(f.economics.failClaimedContinuation).toHaveBeenCalledWith(
-      claim, 'pinned_context_changed', 'failed',
+      claim, 'pinned_context_changed', 'failed', undefined, true,
     );
+  });
+
+  it('does not trust an untyped context code as proof of no dispatch', async () => {
+    const f = fixture();
+    f.contextAssembler.assemble.mockRejectedValue({ code: 'pinned_context_changed' });
+    await expect(f.executor.executeOne('worker')).resolves.toMatchObject({ status: 'failed' });
+    expect(f.provider.generate).not.toHaveBeenCalled();
+    expect(f.economics.failClaimedContinuation).toHaveBeenCalledWith(claim, 'continuation_execution_failed', 'failed');
+  });
+
+  it('does not classify a provider preflight context error as an assembler rejection', async () => {
+    const f = fixture();
+    f.provider.preflight = jest.fn().mockRejectedValue(new StoryContinuationContextError('pinned_context_changed'));
+    await expect(f.executor.executeOne('worker')).resolves.toMatchObject({ status: 'failed' });
+    expect(f.queue.markDispatched).not.toHaveBeenCalled();
+    expect(f.provider.generate).not.toHaveBeenCalled();
+    expect(f.economics.failClaimedContinuation).toHaveBeenCalledWith(claim, 'pinned_context_changed', 'failed');
+  });
+
+  it('preserves unknown cost when a context error comes from an already-dispatched provider', async () => {
+    const f = fixture();
+    jest.mocked(f.provider.generate).mockRejectedValue(new StoryContinuationContextError('pinned_context_changed'));
+    await expect(f.executor.executeOne('worker')).resolves.toMatchObject({ status: 'failed' });
+    expect(f.queue.markDispatched).toHaveBeenCalledTimes(1);
+    expect(f.provider.generate).toHaveBeenCalledTimes(1);
+    expect(f.queue.releaseForRetry).not.toHaveBeenCalled();
+    expect(f.economics.failClaimedContinuation).toHaveBeenCalledWith(claim, 'pinned_context_changed', 'failed');
   });
 
   it('aborts the provider signal when the executor timeout wins', async () => {

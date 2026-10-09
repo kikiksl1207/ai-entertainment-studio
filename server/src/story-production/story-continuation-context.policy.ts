@@ -49,7 +49,7 @@ export type StoryContinuationSemanticPathStep = {
 };
 
 const MAX_SEMANTIC_PATH_STEPS = 12;
-export const STORY_CONTINUATION_PROFILE_VIEW_VERSION = 'story-profile-prompt-v5';
+export const STORY_CONTINUATION_PROFILE_VIEW_VERSION = 'story-profile-prompt-v6';
 const MAX_PROFILE_VIEW_BYTES = 16_384;
 const PROFILE_VIEW_LIMITS = [
   { summary: 240, detail: 160, title: 80, categoryExample: 120 },
@@ -311,17 +311,18 @@ function continuationProfileValue(
   projected.referenceScope = key === 'writing_style' || key === 'scene_scale' || key === 'branch_behavior'
     ? 'production_constraint' : 'author_plan_not_route_history';
   if (Array.isArray(value.observations)) {
-    const limit = key === 'writing_style' ? 4
-      : ['canon', 'timeline', 'narrative_devices'].includes(key) ? 2 : 1;
-    const observations = spreadProfileItems(value.observations, limit)
+    const limit = ['canon', 'timeline', 'narrative_devices'].includes(key) ? 2 : 1;
+    // Every approved style rule is mandatory; only other evidence is sampled.
+    const items = key === 'writing_style' ? value.observations : spreadProfileItems(value.observations, limit);
+    const observations = items
       .flatMap((raw) => {
         if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return [];
         const row = raw as Record<string, unknown>;
-        const detail = profileText(row.detail, limits.detail);
+        const detail = key === 'writing_style' ? completeProfileText(row.detail) : profileText(row.detail, limits.detail);
         if (!detail) return [];
         const source = profileObservationSource(row.sourceRef, evidence);
         return [{
-          title: profileText(row.title, limits.title), detail,
+          title: key === 'writing_style' ? completeProfileText(row.title) : profileText(row.title, limits.title), detail,
           referenceScope: key === 'writing_style' ? 'writing_pattern' : 'author_plan_not_route_history',
           ...(source ? source : {}),
         }];
@@ -329,13 +330,13 @@ function continuationProfileValue(
     if (observations.length) projected.observations = observations;
   }
   if (key === 'writing_style' && Array.isArray(value.categories)) {
-    const categories = value.categories.slice(0, 6).flatMap((raw) => {
+    const categories = value.categories.flatMap((raw) => {
       if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return [];
       const row = raw as Record<string, unknown>;
-      const category = profileText(row.category, 40);
-      const example = Array.isArray(row.observations)
-        ? row.observations.map((item) => profileText(item, limits.categoryExample)).find(Boolean) : null;
-      return category && example ? [{ category, example }] : [];
+      const category = completeProfileText(row.category);
+      const observations = Array.isArray(row.observations)
+        ? row.observations.map(completeProfileText).filter(Boolean) : [];
+      return category && observations.length ? [{ category, observations }] : [];
     });
     if (categories.length) projected.categories = categories;
   }
@@ -362,6 +363,10 @@ function spreadProfileItems(items: unknown[], limit: number) {
 
 function profileText(value: unknown, maxCharacters: number) {
   return typeof value === 'string' ? Array.from(value.trim()).slice(0, maxCharacters).join('').trim() : '';
+}
+
+function completeProfileText(value: unknown) {
+  return typeof value === 'string' && value.trim() ? value : '';
 }
 
 export function parseContinuationGenerationProfilePin(

@@ -167,7 +167,7 @@ describe('Approved style provider wire contracts (synthetic mock transport only)
         `\n\n${tail}`;
       expect(summary.length).toBeGreaterThan(240);
       expect(summary.length).toBeLessThanOrEqual(8_000);
-      expect(STORY_CONTINUATION_PROFILE_VIEW_VERSION).toBe('story-profile-prompt-v5');
+      expect(STORY_CONTINUATION_PROFILE_VIEW_VERSION).toBe('story-profile-prompt-v6');
       const wire = await serializeApprovedProfile(approvedRow(settingsWithStyle(decision, summary)), providerFixture());
 
       for (const payload of [wire.choicePayload, wire.continuationPayload]) {

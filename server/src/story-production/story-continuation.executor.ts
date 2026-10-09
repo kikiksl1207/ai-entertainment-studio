@@ -74,6 +74,7 @@ export class StoryContinuationExecutor {
     let providerStarted = false;
     let fenceAttempted = false;
     let preflightRejected = false;
+    let contextRejectedBeforeDispatch = false;
     let measuredUsage: StoryContinuationProviderResult['usage'] | undefined;
     try {
       throwIfCancelled(signal);
@@ -86,7 +87,10 @@ export class StoryContinuationExecutor {
         );
         return { status: 'failed' as const, continuationId: claim.continuationId };
       }
-      const approvedContext = await this.contextAssembler.assemble(claim);
+      const approvedContext = await this.contextAssembler.assemble(claim).catch(error => {
+        contextRejectedBeforeDispatch = error instanceof StoryContinuationContextError && error.code === 'pinned_context_changed';
+        throw error;
+      });
       const lengthBounds = approvedContext.narrativeLength ?? sourceStoryContinuationLengthBounds(
         claim.request.locale, approvedContext.sourceScene.beats,
       );
@@ -198,7 +202,8 @@ export class StoryContinuationExecutor {
         }
         return { status: 'retry_wait' as const, continuationId: claim.continuationId };
       }
-      if ((!fenceAttempted && preflightRejected) || error instanceof StoryContinuationDispatchLeaseInsufficient) {
+      if ((!fenceAttempted && !providerStarted && (preflightRejected || contextRejectedBeforeDispatch)) ||
+          error instanceof StoryContinuationDispatchLeaseInsufficient) {
         await this.economics.failClaimedContinuation(claim, providerError.code, 'failed', undefined, true);
       } else {
         await this.economics.failClaimedContinuation(

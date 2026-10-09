@@ -189,7 +189,7 @@ describe('stored v4 Studio visual approvals survive the narrative prompt v5 chan
       const f = historicalVisualFixture(kind);
       const history = JSON.stringify({ batches: f.batches, selections: f.selections,
         manuscript: f.manuscript, profile: f.profile });
-      expect(STORY_CONTINUATION_PROFILE_VIEW_VERSION).toBe('story-profile-prompt-v5');
+      expect(STORY_CONTINUATION_PROFILE_VIEW_VERSION).toBe('story-profile-prompt-v6');
       expect(STUDIO_VISUAL_PROFILE_BINDING_VERSION).toBe(LEGACY_VISUAL_VIEW);
       expect(f.batch.profilePin.viewVersion).toBe('story-profile-prompt-v4');
       expect(f.batch.profilePinHash).toBe(releaseChecksum({ pin: f.profilePin.pin, viewVersion: 'story-profile-prompt-v4' }));
