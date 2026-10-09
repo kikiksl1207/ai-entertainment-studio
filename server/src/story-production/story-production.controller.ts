@@ -1,6 +1,8 @@
 import {
   Body,
+  CanActivate,
   Controller,
+  ExecutionContext,
   ForbiddenException,
   Get,
   Header,
@@ -54,6 +56,14 @@ import { StoryArtistParticipantService } from './story-artist-participant.servic
 import { CreatorStudioService } from '../creator-studio/creator-studio.service';
 
 type OptionalAuthRequest = { user?: AuthUser };
+
+class CurrentSceneNoStoreGuard implements CanActivate {
+  canActivate(context: ExecutionContext) {
+    context.switchToHttp().getResponse<{ setHeader(name: string, value: string): void }>()
+      .setHeader('Cache-Control', 'private, no-store');
+    return true;
+  }
+}
 
 @Controller()
 export class StoryProductionController {
@@ -166,7 +176,8 @@ export class StoryProductionController {
   }
 
   @Get('me/story-progress/:progressId')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(CurrentSceneNoStoreGuard, JwtAuthGuard)
+  @Header('Cache-Control', 'private, no-store')
   current(
     @CurrentUser() user: AuthUser,
     @Param('progressId') progressId: string,
@@ -176,7 +187,8 @@ export class StoryProductionController {
   }
 
   @Get('story-sessions/:sessionId/current-scene')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(CurrentSceneNoStoreGuard, JwtAuthGuard)
+  @Header('Cache-Control', 'private, no-store')
   currentScene(
     @CurrentUser() user: AuthUser,
     @Param('sessionId') sessionId: string,
