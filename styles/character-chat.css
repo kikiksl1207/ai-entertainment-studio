@@ -22,6 +22,10 @@
   max-width: 720px;
 }
 
+.chat-shell[hidden] {
+  display: none !important;
+}
+
 /* DM 상단바 */
 .dm-topbar {
   display: grid;
