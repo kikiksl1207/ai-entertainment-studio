@@ -19,6 +19,7 @@ const runtime = [
   excerpt('function statusBadge(', 'function renderSettlementChildren('),
   excerpt('function setLoadMore(', 'function renderFallbackNote('),
   excerpt('function backstageErrorStatus(', 'function backstageUserFacingError('),
+  excerpt('function canAccessBackstageSection(', 'function applyPermissionVisibility('),
   excerpt('async function loadAuditSection(', 'function loadSection('),
   'this.api = { load: loadAuditSection, more: loadAuditPage };',
 ].join('\n');
@@ -43,7 +44,8 @@ function harness() {
     document: { getElementById: id => id === 'logRows' ? root : null, createElement: () => new Element(), querySelector: () => more },
     sectionState: { logs: { rows: [], cursor: null, hasMore: false } },
     tableMeta: { logRows: { type: 'Audit fixture', labels: ['Time', 'Actor', 'Action', 'Target', 'Reason'] } },
-    statusClassMap: {}, auth: { accessToken: 'fixture-token-a', user: { id: 'fixture-actor-a' } }, section: 'logs',
+    statusClassMap: {}, auth: { accessToken: 'fixture-token-a', user: { id: 'fixture-actor-a',
+      adminUser: { status: 'active', permissions: ['audit:read'] } } }, section: 'logs',
     getBackstageAuth: () => context.auth, getCurrentSection: () => context.section,
     dashboardView: { classList: { contains: () => false } },
     adminApiPath: path => `/admin/api/v1${path}`,
@@ -220,7 +222,9 @@ test('healthy append keeps endpoint, masked actor, cached row identity and sourc
   const fixture = page('healthy', { hasMore: false, nextCursor: null }); const original = plain(fixture);
   const pending = h.api.more(); const call = h.calls.at(-1); const query = new URL(call.path, 'https://fixture.invalid');
   assert.equal(query.pathname, '/admin/api/v1/audit-events'); assert.equal(query.searchParams.get('take'), '20');
-  assert.equal(query.searchParams.get('cursor'), 'cursor-second'); assert.deepEqual({ ...call.options }, { auth: true });
+  assert.equal(query.searchParams.get('cursor'), 'cursor-second');
+  assert.deepEqual(Object.keys(call.options).sort(), ['auth', 'isCurrent']);
+  assert.equal(call.options.auth, true); assert.equal(call.options.isCurrent(), true);
   call.resolve(fixture); await pending;
   assert.equal(h.state, state); assert.equal(h.state.rows[0], row); assert.equal(h.state.rows.length, 3);
   assert.equal(h.state.rows[2][1], 'fixture-***'); assert.deepEqual(plain(fixture), original);

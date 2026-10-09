@@ -92,12 +92,15 @@ test('CONTEXT-GAP-03 auth B after final fetch check must not receive A context o
   'An obsolete A verification must preserve B storage and stop its request sequence');
 });
 
-test('CONTEXT-GAP-04 admin-list consumer rejects the identical return-gap switch; normal list still applies', async () => {
+test('CONTEXT-GAP-04 admin-list consumer rejects the identical return-gap switch; normal me context is preserved', async () => {
   const normal = harness({ holdPath: '/admin/api/v1/admin-users' });
+  normal.api.apply(adminContextA);
+  const verifiedContext = JSON.parse(JSON.stringify(normal.api.auth().user.adminUser));
   const normalOperation = normal.startAdmins(); const normalRelease = await normal.pendingJson();
   normalRelease(adminListA); await normal.drain(normalOperation); record('normal-admin-list', normal, normalOperation);
   assert.equal(normalOperation.error, null);
   assert.equal(normal.api.auth().user.adminUser.id, 'synthetic-admin-a');
+  assert.deepEqual(JSON.parse(JSON.stringify(normal.api.auth().user.adminUser)), verifiedContext);
   assert.equal(normal.api.state().rows.length, 1);
   const h = harness({ holdPath: '/admin/api/v1/admin-users' });
   const operation = h.startAdmins(); const release = await h.pendingJson();

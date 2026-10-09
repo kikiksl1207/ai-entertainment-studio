@@ -34,7 +34,7 @@ function harness(surface) {
     getBackstageAuth: () => ({ accessToken: 'synthetic-token', user: { id: 'synthetic-operator' } }),
     dashboardView: { classList: { contains: () => false } },
     getCurrentSection: () => surface,
-    canAccessBackstageSection: section => section === 'admins',
+    canAccessBackstageSection: section => ['admins', 'logs'].includes(section),
     localHistoryRows: () => [],
     tableMeta: {
       adminRows: { type: 'Admin', labels: Array.from({ length: 6 }, (_, i) => `admin-${i}`) },
@@ -100,7 +100,12 @@ for (const surface of ['admins', 'logs']) {
       assert.equal(h.calls.length, 1);
     }
     assert.match(h.markup, /<button class="row-action"/);
-    for (const call of h.calls) assert.deepEqual({ ...call.options }, { auth: true });
+    for (const call of h.calls) {
+      if (surface === 'logs') {
+        assert.deepEqual(Object.keys(call.options).sort(), ['auth', 'isCurrent']);
+        assert.equal(call.options.auth, true); assert.equal(call.options.isCurrent(), true);
+      } else assert.deepEqual({ ...call.options }, { auth: true });
+    }
   });
 
   test(`${surface}: complete selected masked value is HTML encoded by the actual renderer boundary`, async () => {

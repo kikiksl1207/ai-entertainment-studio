@@ -60,7 +60,8 @@ function node(tagName) {
   return element;
 }
 const operator = (id = 'synthetic-operator-a', extra = {}) => ({ accessToken: 'synthetic-access-a',
-  refreshToken: 'synthetic-refresh-a', user: { id, adminPermissions: [] }, ...extra });
+  refreshToken: 'synthetic-refresh-a', user: { id, adminPermissions: ['audit:read'],
+    adminUser: { status: 'active', permissions: ['audit:read'] } }, ...extra });
 const oldRows = () => [['synthetic-time', 'masked-old', 'old-action', 'user', 'old-reason']];
 const state = () => ({ cursor: 'synthetic:cursor/+==', hasMore: true, rows: oldRows(), loading: false, error: false });
 const event = extra => ({ id: 'synthetic-event', createdAt: '2026-10-05T01:00:00.000Z',
@@ -100,7 +101,7 @@ function harness({ auth = operator(), hidden = false, initialState = state(), au
     },
     backstageFetch: (path, options) => {
       const pending = deferred();
-      requests.push({ path, options: plain(options), ...pending });
+      requests.push({ path, options, ...pending });
       if (automatic) pending.resolve(automatic);
       return pending.promise;
     },
@@ -117,7 +118,10 @@ function assertRequest(request, cursor = null) {
   const expected = new URLSearchParams({ take: '20' });
   if (cursor) expected.set('cursor', cursor);
   assert.equal(request.path, `/admin/api/v1/audit-events?${expected}`);
-  assert.deepEqual(request.options, { auth: true });
+  assert.deepEqual(Object.keys(request.options).sort(), ['auth', 'isCurrent']);
+  assert.equal(request.options.auth, true);
+  assert.equal(typeof request.options.isCurrent, 'function');
+  assert.equal(request.options.isCurrent(), true);
 }
 function settle(request, status) {
   if (status === 200) request.resolve(response());
@@ -228,7 +232,8 @@ test('different operator, switched logs section, or replaced logs state cannot p
 
 test('same operator may rotate tokens or retain refresh-only auth and publish the normal page', async () => {
   for (const rotated of [operator('synthetic-operator-a', { accessToken: 'synthetic-access-b', refreshToken: 'synthetic-refresh-b' }),
-    { refreshToken: 'synthetic-refresh-only', user: { userId: 'synthetic-operator-a', adminPermissions: [] } }]) {
+    { refreshToken: 'synthetic-refresh-only', user: { userId: 'synthetic-operator-a', adminPermissions: ['audit:read'],
+      adminUser: { status: 'active', permissions: ['audit:read'] } } }]) {
     const h = harness();
     const pending = h.api.section();
     assert.equal(h.requests.length, 1);
@@ -251,12 +256,12 @@ test('same operator may rotate tokens or retain refresh-only auth and publish th
   }
 });
 
-test('permission-none keeps the real logs menu contract; current server 401/403 clears rows and paging', async () => {
+test('current audit-read viewer preserves server 401/403 clearing of rows and paging', async () => {
   for (const status of [401, 403]) {
-    const h = harness({ auth: operator('synthetic-operator-a', { user: { id: 'synthetic-operator-a', adminPermissions: [] } }) });
+    const h = harness({ auth: operator() });
     assert.equal(h.api.allowed('logs'), true);
     const pending = h.api.page(true);
-    assert.equal(h.requests.length, 1, 'No invented local audit-read permission gate');
+    assert.equal(h.requests.length, 1, 'Client audit permission does not override current server rejection');
     assertRequest(h.requests[0], 'synthetic:cursor/+==');
     h.requests[0].reject(Object.assign(new Error('synthetic-denied'), { body: { statusCode: status } }));
     await pending;

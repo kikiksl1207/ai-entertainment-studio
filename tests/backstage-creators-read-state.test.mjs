@@ -380,7 +380,7 @@ test('AI readiness accepts native empty omissions and preserves actual missing s
 
 test('creator read entry loads the current script version exactly once', options, () => {
   const entry = readFileSync(new URL('../backstage/index.html', import.meta.url), 'utf8');
-  assert.match(entry, /<script src="\/backstage\.js\?v=creators-native-readonly-20261009"><\/script>/);
+  assert.match(entry, /<script src="\/backstage\.js\?v=audit-permission-current-20261009"><\/script>/);
   assert.match(entry, /<link rel="stylesheet" href="\/backstage\.css\?v=login-width-20261009"\s*\/>/);
   assert.equal((entry.match(/<script\b[^>]*\bsrc="\/backstage\.js(?:\?|"|\/)/g) || []).length, 1);
   assert.doesNotMatch(entry, /admin-audit-rows-20261005/);

@@ -3598,25 +3598,27 @@ function syncCreatorsNativeReadonlyView() {
 // END creators-native-readonly-20261009
 
 function syncCurrentAdminContext(adminUsers = []) {
-  const auth = getBackstageAuth();
-  const email = auth?.user?.email;
-  if (!auth || !email) return;
-  const current = adminUsers.find((adminUser) => (adminUser.user?.email || adminUser.email) === email);
-  if (!current) return;
-  setBackstageAuth({
-    ...auth,
-    user: {
-      ...auth.user,
-      adminUser: current,
-      roleName: current.role?.name || current.roleName || current.adminRole
-    }
-  });
+  const auth = getBackstageAuth(), user = auth?.user, admin = user?.adminUser;
+  const operatorId = user?.id || user?.userId;
+  // A matching roster can deny access, never replace the viewer's verified /me grants.
+  const denied = operatorId && admin?.id != null && Array.isArray(adminUsers)
+    ? adminUsers.find(row => row?.userId === operatorId && row?.id === admin.id
+      && ["suspended", "revoked"].includes(row.status)) : null;
+  if (denied && admin.status !== denied.status) {
+    setBackstageAuth({ ...auth, user: { ...user, adminUser: { ...admin, status: denied.status } } });
+  }
   applyPermissionVisibility();
 }
 
 function canAccessBackstageSection(sectionId, allowNativeReadonly = true) {
   if (allowNativeReadonly && sectionId === "creators" && creatorsNativeReadonlyCurrent()) return true;
-  if (sectionId === "overview" || sectionId === "logs") return true;
+  if (sectionId === "overview") return true;
+  if (sectionId === "logs") {
+    const admin = getBackstageAuth()?.user?.adminUser;
+    return admin?.status === "active" && Array.isArray(admin.permissions)
+      && admin.permissions.every(permission => typeof permission === "string")
+      && admin.permissions.some(permission => ["audit:read", "audit:write", "audit:*", "*"].includes(permission));
+  }
   const role = currentAdminRoleName();
   const permissions = currentAdminPermissions();
   if (!role && permissions.length === 0) return false;
@@ -5467,7 +5469,7 @@ async function loadSettlementPage(append = true) {
 async function loadAuditSection() {
   const auth = getBackstageAuth();
   if (!(auth?.accessToken || auth?.refreshToken) || !(auth.user?.id || auth.user?.userId)
-    || dashboardView.classList.contains("is-hidden") || getCurrentSection() !== "logs") return;
+    || dashboardView.classList.contains("is-hidden") || getCurrentSection() !== "logs" || !canAccessBackstageSection("logs")) return;
   sectionState.logs = { cursor: null, hasMore: false, rows: [] };
   renderLoadingRow("logRows");
   await loadAuditPage(false);
@@ -5476,12 +5478,15 @@ async function loadAuditSection() {
 async function loadAuditPage(append = true) {
   const state = sectionState.logs;
   if (state.loading || (append && (!state.hasMore || !state.cursor))) return;
-  const user = getBackstageAuth()?.user;
+  const auth = getBackstageAuth(), user = auth?.user, epoch = backstageAuthEpoch;
   const operatorId = user?.id || user?.userId || "";
+  const auditContext = JSON.stringify([user?.adminUser?.id ?? null, user?.adminUser?.permissions]);
   const isCurrent = () => {
     const current = getBackstageAuth();
     const currentUser = current?.user;
-    return state === sectionState.logs && getCurrentSection() === "logs"
+    return epoch === backstageAuthEpoch && state === sectionState.logs && getCurrentSection() === "logs"
+      && canAccessBackstageSection("logs")
+      && auditContext === JSON.stringify([currentUser?.adminUser?.id ?? null, currentUser?.adminUser?.permissions])
       && Boolean(operatorId) && Boolean(current?.accessToken || current?.refreshToken)
       && !dashboardView.classList.contains("is-hidden")
       && (currentUser?.id || currentUser?.userId || "") === operatorId;
@@ -5494,7 +5499,7 @@ async function loadAuditPage(append = true) {
   const query = new URLSearchParams({ take: "20" });
   if (append && state.cursor) query.set("cursor", state.cursor);
   try {
-    const page = normalizePage(await backstageFetch(adminApiPath(`/audit-events?${query}`), { auth: true }));
+    const page = normalizePage(await backstageFetch(adminApiPath(`/audit-events?${query}`), { auth: true, isCurrent }));
     if (!isCurrent()) return;
     const rows = page.items.map((item) => [
       new Date(item.createdAt).toLocaleString("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }),
@@ -5514,10 +5519,19 @@ async function loadAuditPage(append = true) {
     if (mergedRows.length) renderRows("logRows", mergedRows, -1);
     else renderLoadingRow("logRows", "표시할 운영 로그가 없습니다.");
   } catch (error) {
-    if (!isCurrent()) return;
+    const current = getBackstageAuth();
+    // Native refresh can drop /me context. Close this read without restoring grants or replaying it.
+    const refreshContextMissing = error?.code === "BACKSTAGE_SESSION_CHANGED"
+      && epoch === backstageAuthEpoch && state === sectionState.logs && getCurrentSection() === "logs"
+      && !dashboardView.classList.contains("is-hidden") && Boolean(operatorId)
+      && operatorId === (current?.user?.id || current?.user?.userId)
+      && Boolean(current?.accessToken || current?.refreshToken) && !current.user?.adminUser
+      && (current.accessToken !== auth.accessToken || current.refreshToken !== auth.refreshToken);
+    if (!isCurrent() && !refreshContextMissing) return;
     state.error = true;
-    const status = backstageErrorStatus(error);
-    const message = status === 401 ? "운영자 세션이 만료됐습니다. 다시 로그인해 주세요."
+    const status = refreshContextMissing ? 401 : backstageErrorStatus(error);
+    const message = refreshContextMissing ? "운영자 권한을 다시 확인해야 합니다. 다시 로그인해 주세요."
+      : status === 401 ? "운영자 세션이 만료됐습니다. 다시 로그인해 주세요."
       : status === 403 ? "감사 이력 조회 권한이 없습니다. 관리자 권한을 확인해 주세요."
         : state.rows.length ? "추가 감사 이력을 불러오지 못했습니다. 기존 목록을 유지합니다. 다시 더보기를 눌러 주세요."
           : "감사 이력을 불러오지 못했습니다. 감사 이력 메뉴를 다시 열어 주세요.";
