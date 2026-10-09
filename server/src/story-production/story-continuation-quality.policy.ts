@@ -35,6 +35,11 @@ export function assertStoryContinuationQuality(
     ...context.memories.filter((memory) => memory.memoryType === 'style')
       .flatMap((memory) => paragraphs(memory.content)),
   ].map((text) => ({ text, long: Array.from(text).length >= MIN_REPEATED_PARAGRAPH_UNITS }));
+  // Paragraph and beat boundaries must not hide a complete copied source paragraph.
+  const generatedNarrative = result.beats.flatMap((beat) => paragraphs(beat.content[locale])).join(' ');
+  if (sourceParagraphs.some((source) => source.long && generatedNarrative.includes(source.text))) {
+    throw new StoryContinuationProviderError('continuation_source_prose_repeated', false);
+  }
   const generatedParagraphs = new Set<string>();
   for (const beat of result.beats) {
     for (const paragraph of paragraphs(beat.content[locale])) {

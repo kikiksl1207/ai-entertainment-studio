@@ -422,6 +422,30 @@ describe('StoryContinuationExecutor', () => {
     );
   });
 
+  it('preserves measured usage for a source paragraph copied across beats without a paid retry', async () => {
+    const f = fixture();
+    const first = '첫 기록은 북쪽 문의 잠금이 풀리던 소리를 조용히 따라갔다. '.repeat(9).trim();
+    const second = '다음 기록은 창가에 놓인 봉투와 돌아오지 않은 발걸음을 남겼다. '.repeat(9).trim();
+    f.approvedContext.sourceScene.beats = [{ beatType: 'paragraph', content: `${first} ${second}` }];
+    jest.mocked(f.provider.generate).mockResolvedValue({ ...result, beats: [
+      { beatType: 'paragraph', content: { ko: `새로운 선택을 한 뒤였다. ${first}` } },
+      { beatType: 'paragraph', content: { ko: `${second} 그는 다른 문으로 향했다.` } },
+    ] });
+    await expect(f.executor.executeOne('worker')).resolves.toMatchObject({ status: 'failed' });
+    expect(f.provider.generate).toHaveBeenCalledTimes(1);
+    expect(f.queue.markDispatched).toHaveBeenCalledTimes(1);
+    expect(f.queue.releaseForRetry).not.toHaveBeenCalled();
+    expect(f.queue.releaseNotAcceptedForRetry).not.toHaveBeenCalled();
+    expect(f.moderation.preview).not.toHaveBeenCalled();
+    expect(f.economics.settleClaimedContinuation).not.toHaveBeenCalled();
+    expect(f.visuals.registerGeneratedContinuationPrompt).not.toHaveBeenCalled();
+    expect(f.bodyReviews.autoApproveCompanyContinuation).not.toHaveBeenCalled();
+    expect(f.economics.failClaimedContinuation).toHaveBeenCalledTimes(1);
+    expect(f.economics.failClaimedContinuation).toHaveBeenCalledWith(
+      claim, 'continuation_source_prose_repeated', 'failed', result.usage,
+    );
+  });
+
   it('rejects malformed locale output before moderation or settlement', async () => {
     const f = fixture();
     jest.mocked(f.provider.generate).mockResolvedValue({
