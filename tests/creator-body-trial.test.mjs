@@ -1859,11 +1859,11 @@ test('receipt result: an unverified receipt GET never gains the result prefix', 
   assert.equal(view.calls.length, 2); assert.equal(posts(view).length, 0); assert.equal(view.events.length, 0);
 });
 
-test('entry pairs the recovered trial script and stylesheet with a fresh matching cache revision', () => {
+test('entry pins the output-limit trial script and retained failure-advice stylesheet revisions', () => {
   const stylesheet = entry.match(/href="\/pages\/creator-body-trial\.css\?v=([^"&]+)"/)?.[1];
   const script = entry.match(/src="\/pages\/creator-body-trial\.js\?v=([^"&]+)"/)?.[1];
-  assert.equal(script, 'body-failure-advice-20261009');
-  assert.equal(stylesheet, script);
+  assert.equal(script, 'body-output-limit-advice-20261009');
+  assert.equal(stylesheet, 'body-failure-advice-20261009');
   assert.doesNotMatch(entry, /creator-body-trial\.(?:css|js)\?v=body-trial-20261002/);
 });
 
@@ -2763,7 +2763,16 @@ test('completed body trial: local expiry timer preserves ending while withholdin
   assert.equal(timers.size, 0);
 });
 
+const outputLimitExpectedCopy = {
+  "ko": "\uc0dd\uc131\uc774 \uc124\uc815\ub41c \ucd9c\ub825 \ud55c\ub3c4\uc5d0 \ub3c4\ub2ec\ud574 \uc644\ub8cc\ub418\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4.",
+  "en": "Generation reached the configured output limit and could not complete.",
+  "ja": "\u751f\u6210\u304c\u8a2d\u5b9a\u3055\u308c\u305f\u51fa\u529b\u4e0a\u9650\u306b\u9054\u3057\u3001\u5b8c\u4e86\u3067\u304d\u307e\u305b\u3093\u3067\u3057\u305f\u3002",
+  "zh-Hans": "\u751f\u6210\u5df2\u8fbe\u5230\u8bbe\u5b9a\u7684\u8f93\u51fa\u4e0a\u9650\uff0c\u672a\u80fd\u5b8c\u6210\u3002",
+  "zh-Hant": "\u751f\u6210\u5df2\u9054\u5230\u8a2d\u5b9a\u7684\u8f38\u51fa\u4e0a\u9650\uff0c\u672a\u80fd\u5b8c\u6210\u3002",
+};
+
 const validationFailureCases = [
+  ['output_limit_reached', 'generationOutputLimitReached'],
   ['narrative_length_rejected', 'generationLengthRejected'], ['output_validation_rejected', 'generationFormatRejected'],
   ['quality_rule_rejected', 'generationQualityRuleRejected'], ['participant_missing', 'generationParticipantMissing'],
   ['content_rejected', 'generationContentRejected']
@@ -2781,6 +2790,12 @@ for (const language of locales) for (const [reason, label] of validationFailureC
     assert.equal(walk(view.host).find(node => node.id === 'writerBodyTrialState').textContent,
       view.api.copy[language].receiptResult + ': ' + view.api.copy[language][label]);
     assert.ok(view.api.copy[language][label]);
+    if (reason === 'output_limit_reached') {
+      assert.equal(view.api.copy[language][label], outputLimitExpectedCopy[language]);
+      for (const other of ['generationFailed', 'generationFormatRejected', 'generationLengthRejected']) {
+        assert.notEqual(view.api.copy[language][label], view.api.copy[language][other]);
+      }
+    }
     assert.doesNotMatch(view.host.textContent, /synthetic-private-diagnostic|providerPayload|actualCostKrw/);
     assert.doesNotMatch(JSON.stringify(receipt), /generationAuthorized|retryable|allowanceRemaining|actualCostKrw|providerPayload/);
     assert.equal(view.retryButton().hidden, true); assert.equal(view.choices().length, 0);
@@ -2799,5 +2814,128 @@ for (const reason of ['NARRATIVE_LENGTH_REJECTED', 'narrative_length_rejected ',
   test(`failure advice: strict safe category rejects ${JSON.stringify(reason)}`, () => {
     const { api } = library();
     assert.throws(() => api.parseReceipt(aiReceipt('failed', { failureReason: reason }), expectedBody), { kind: 'invalid' });
+  });
+}
+
+for (const language of locales) for (const legacy of ['absent', 'null']) {
+  test(`output limit advice: ${language}/${legacy} legacy failed receipt keeps the generic failure label`, async () => {
+    const extra = legacy === 'null' ? { failureReason: null } : {};
+    const value = aiReceipt('failed', extra);
+    const view = mounted(({ kind, url, reply }) => kind === 'recovery' ? response(recoveryEnvelope(recoveryCommand()))
+      : kind === 'receipt' ? response(receiptEnvelope(url, value)) : reply(), { language });
+    assert.equal(await view.recover(), true); assert.equal(await view.retry(), true);
+    assert.equal(walk(view.host).find(node => node.id === 'writerBodyTrialState').textContent,
+      view.api.copy[language].receiptResult + ': ' + view.api.copy[language].generationFailed);
+    const receipt = view.api.parseReceipt(value, expectedBody);
+    assert.equal(Object.hasOwn(receipt, 'failureReason'), legacy === 'null');
+    if (legacy === 'null') assert.equal(receipt.failureReason, null);
+    assert.equal(view.calls.length, 2); assert.equal(checks(view).length, 1); assert.equal(posts(view).length, 0);
+    assert.equal(view.retryButton().hidden, true); assert.equal(view.choices().length, 0);
+    await view.retry(); assert.equal(view.calls.length, 2);
+  });
+}
+
+for (const reason of ['OUTPUT_LIMIT_REACHED', 'output_limit_reached ', 'output_limit_reached:private-detail',
+  'provider_output_token_limit', '', false, 42, {}, ['output_limit_reached'], 'constructor', 'toString']) {
+  test(`output limit advice: strict enum rejects ${JSON.stringify(reason)}`, () => {
+    const { api } = library();
+    assert.throws(() => api.parseReceipt(aiReceipt('failed', { failureReason: reason }), expectedBody), { kind: 'invalid' });
+  });
+}
+
+test('output limit advice: absent and null legacy reasons still parse canonical and non-failed receipts', () => {
+  const { api } = library();
+  for (const extra of [{}, { failureReason: null }]) {
+    for (const status of ['active', 'completed']) {
+      const receipt = api.parseReceipt(originalReceipt({ status, ...extra }), expectedBody);
+      assert.equal(receipt.status, status); assert.equal(receipt.generationStarted, false);
+      assert.equal(Object.hasOwn(receipt, 'failureReason'), Object.hasOwn(extra, 'failureReason'));
+    }
+    for (const status of ['queued', 'processing', 'completed', 'timeout']) {
+      const receipt = api.parseReceipt(aiReceipt(status, extra), expectedBody);
+      assert.equal(receipt.status, status); assert.equal(receipt.continuationId, id(10));
+      assert.equal(Object.hasOwn(receipt, 'failureReason'), Object.hasOwn(extra, 'failureReason'));
+    }
+  }
+});
+
+const invalidOutputLimitReceipts = [
+  ...['queued', 'processing', 'completed', 'timeout'].map(status =>
+    ['continuation/' + status, () => aiReceipt(status, { failureReason: 'output_limit_reached' })]),
+  ...['active', 'completed', 'failed'].map(status =>
+    ['canonical/' + status, () => originalReceipt({ status, failureReason: 'output_limit_reached' })]),
+  ['unknown-enum', () => aiReceipt('failed', { failureReason: 'provider_output_token_limit' })]
+];
+for (const [name, value] of invalidOutputLimitReceipts) {
+  test(`output limit advice: ${name} fails closed at receipt GET and retains the exact command`, async () => {
+    const journal = structuredJournal(); journal.entries.set(id(8), pendingRecord());
+    const view = screen(({ kind, url }) => {
+      assert.equal(kind, 'receipt'); return response(receiptEnvelope(url, value()));
+    }, { journal });
+    assert.equal(view.calls.length, 0); assert.equal(await view.retry(), false);
+    assertUncertain(view); assert.equal(view.snapshot().messageKey, 'uncertain');
+    assert.deepEqual(journal.entries.get(id(8)), pendingRecord());
+    assert.equal(journal.operations.filter(operation => operation === 'remove').length, 0);
+    assert.equal(view.calls.length, 1); assert.equal(checks(view).length, 1); assert.equal(posts(view).length, 0);
+    assert.equal(view.keys(), 0);
+  });
+}
+
+test('output limit advice: pending duplicate receipt checks cannot generate or authorize another request', async () => {
+  const journal = structuredJournal(), pending = deferred(); let dispatches = 0;
+  journal.entries.set(id(8), pendingRecord());
+  const view = screen(({ kind }) => { assert.equal(kind, 'receipt'); return pending.promise; },
+    { journal, onDispatch: () => { dispatches++; } });
+  assert.equal(view.calls.length, 0); assert.equal(view.snapshot().canRetry, true);
+  const task = view.retry(), check = checks(view)[0];
+  assertReplay({ url: '/api/v1/me/creator-studio/stories/' + id(1) + '/body-trial/choices/' + id(6),
+    options: { body: expectedBody, headers: { 'Idempotency-Key': pendingRecord().key } } }, check);
+  assert.equal(await view.retry(), false); assert.equal(await view.choose(id(6)), false);
+  assert.equal(await view.load(), false); assert.equal(view.snapshot().busy, true);
+  assert.equal(checks(view).length, 1);
+  pending.resolve(response(receiptEnvelope(check.url, aiReceipt('failed', { failureReason: 'output_limit_reached',
+    retryable: true, allowanceRemaining: 1, actualCostKrw: '0', providerPayload: 'synthetic-private-diagnostic' }))));
+  assert.equal(await task, true);
+  assert.equal(view.snapshot().messageKey, 'generationOutputLimitReached');
+  assert.equal(view.snapshot().receipt.failureReason, 'output_limit_reached');
+  assert.equal(view.snapshot().busy, false); assert.equal(view.snapshot().canRetry, false);
+  assert.equal(view.snapshot().canChoose, false); assert.equal(unresolved(view), false);
+  assert.equal(await view.retry(), false); assert.equal(await view.choose(id(6)), false);
+  assert.equal(view.calls.length, 1); assert.equal(posts(view).length, 0);
+  assert.equal(view.keys(), 0); assert.equal(dispatches, 0);
+  assert.equal(journal.entries.size, 0); assert.equal(journal.operations.filter(operation => operation === 'remove').length, 1);
+  assert.doesNotMatch(JSON.stringify(view.snapshot().receipt), /retryable|allowanceRemaining|actualCostKrw|providerPayload/);
+});
+
+for (const [name, change] of Object.entries(scopeChanges)) {
+  test(`output limit advice: late receipt after ${name} cannot display the advice or retire a command`, async () => {
+    const journal = structuredJournal(), pending = deferred();
+    journal.entries.set(id(8), pendingRecord());
+    const view = screen(({ kind }) => { assert.equal(kind, 'receipt'); return pending.promise; }, { journal });
+    const task = view.retry(), check = checks(view)[0];
+    change(view); view.syncContext(); assertCleared(view);
+    assert.equal(check.options.signal.aborted, true);
+    pending.resolve(response(receiptEnvelope(check.url, aiReceipt('failed', { failureReason: 'output_limit_reached' }))));
+    assert.equal(await task, false); assertCleared(view);
+    assert.notEqual(view.snapshot().messageKey, 'generationOutputLimitReached');
+    assert.deepEqual(journal.entries.get(id(8)), pendingRecord());
+    assert.equal(journal.operations.filter(operation => operation === 'remove').length, 0);
+    assert.equal(view.calls.length, 1); assert.equal(posts(view).length, 0); assert.equal(view.keys(), 0);
+  });
+}
+
+for (const status of [401, 403]) {
+  test(`output limit advice: HTTP ${status} cannot certify the cause or silently repeat a receipt GET`, async () => {
+    const journal = structuredJournal(); journal.entries.set(id(8), pendingRecord());
+    const view = screen(({ kind, url }) => {
+      assert.equal(kind, 'receipt');
+      return response(receiptEnvelope(url, aiReceipt('failed', { failureReason: 'output_limit_reached' })), status);
+    }, { journal });
+    assert.equal(await view.retry(), false); assertUncertain(view);
+    view.syncContext(); view.snapshot();
+    assert.equal(view.snapshot().messageKey, 'uncertain');
+    assert.deepEqual(journal.entries.get(id(8)), pendingRecord());
+    assert.equal(journal.operations.filter(operation => operation === 'remove').length, 0);
+    assert.equal(view.calls.length, 1); assert.equal(posts(view).length, 0); assert.equal(view.keys(), 0);
   });
 }
