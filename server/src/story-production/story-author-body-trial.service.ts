@@ -72,7 +72,12 @@ export class StoryAuthorBodyTrialService {
       this.changed();
     }
     if (profile) {
-      try { continuationGenerationProfileSnapshot(profile); } catch { this.changed(); }
+      try { continuationGenerationProfileSnapshot(profile); }
+      catch (error) {
+        if (!Number.isFinite(approval.expiresAt.getTime()) || approval.expiresAt <= new Date()) this.changed();
+        this.changed(error instanceof Error && error.message === 'generation_profile_context_too_large'
+          ? 'STORY_AUTHOR_BODY_TRIAL_PROFILE_CONTEXT_TOO_LARGE' : undefined);
+      }
     }
     if (!Number.isFinite(approval.expiresAt.getTime()) || approval.expiresAt <= new Date()) this.changed();
     this.currentAuthorizations.set(tx, { approval, checkedAt: Date.now() });

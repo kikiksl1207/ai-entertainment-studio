@@ -6,6 +6,7 @@ import { StoryAuthorBodyTrialBudgetError } from './story-author-body-trial-budge
 import { authorBodyTrialHistoricalSeparationReference } from './story-author-body-trial-budget.policy';
 import { creatorGenerationProfileFingerprint, normalizeCreatorGenerationProfile,
   STORY_PROFILE_SECTION_KEYS } from '../generation-profile/creator-generation-profile.policy';
+import * as contextPolicy from './story-continuation-context.policy';
 
 const userId = randomUUID(), workId = randomUUID(), releaseId = randomUUID();
 function fixture() {
@@ -284,5 +285,55 @@ describe('private author body trial recorded state (no providers)', () => {
   it('propagates quote read failure without a fallback maximum', async () => {
     f.tx.storyReleaseCapability.findUnique.mockRejectedValueOnce(new Error('Synthetic capability read failure'));
     await expect(f.service.current(userId, workId)).rejects.toThrow('Synthetic capability read failure');
+  });
+
+  function oversizedApprovedProfile() {
+    const settings = normalizeCreatorGenerationProfile('story', {
+      schemaVersion: 'creator-generation-profile-v1', kind: 'story',
+      sections: STORY_PROFILE_SECTION_KEYS.map(key => ({ key, decision: 'accepted', evidence: [],
+        value: { summary: key, ...(key === 'writing_style' ? {
+          syntheticPadding: ['S'.repeat(6000), 'T'.repeat(6000), 'U'.repeat(6000)],
+        } : {}) } })),
+    });
+    f.profile.approvedSettings = settings;
+    f.profile.approvedFingerprint = creatorGenerationProfileFingerprint(f.profile.sourceFingerprint, settings);
+    f.approval.generationProfileFingerprint = f.profile.approvedFingerprint;
+  }
+
+  it('distinguishes a valid oversized profile without shortening it or granting generation', async () => {
+    oversizedApprovedProfile();
+    const before = JSON.stringify({ profile: f.profile, approval: f.approval, capability: f.capability });
+    expect(await f.service.current(userId, workId)).toMatchObject({ state: 'approval_recorded',
+      nextMaximumCostKrw: null, nextCostQuoteState: 'withheld', nextCostQuoteReason: 'approved_profile_context_too_large',
+      generationAuthorized: false, currentAuthorizationVerified: false, readOnly: true });
+    expect(JSON.stringify({ profile: f.profile, approval: f.approval, capability: f.capability })).toBe(before);
+  });
+
+  it.each(['fingerprint', 'revision', 'withdrawn'])(
+    'keeps %s approval failure distinct from oversized context', async mode => {
+      oversizedApprovedProfile();
+      if (mode === 'fingerprint') f.profile.sourceFingerprint = 'c'.repeat(64);
+      if (mode === 'revision') f.profile.reviewRevision++;
+      if (mode === 'withdrawn') f.profile.status = 'needs_review';
+      expect(await f.service.current(userId, workId)).toMatchObject({ nextMaximumCostKrw: null,
+        nextCostQuoteReason: 'approval_pins_changed', generationAuthorized: false });
+    },
+  );
+
+  it('keeps approval expiry ahead of a valid oversized profile', async () => {
+    oversizedApprovedProfile(); f.approval.expiresAt = new Date(0);
+    expect(await f.service.current(userId, workId)).toMatchObject({ state: 'approval_expired',
+      nextMaximumCostKrw: null, nextCostQuoteReason: 'approval_expired' });
+    expect(f.tx.storyWorkGenerationProfile.findFirst).not.toHaveBeenCalled();
+  });
+
+  it('does not expose an unknown context failure as an approved profile size diagnosis', async () => {
+    const check = jest.spyOn(contextPolicy, 'continuationGenerationProfileSnapshot')
+      .mockImplementationOnce(() => { throw new Error('Synthetic private diagnostic'); });
+    try {
+      const result = await f.service.current(userId, workId);
+      expect(result).toMatchObject({ nextMaximumCostKrw: null, nextCostQuoteReason: 'approval_pins_changed' });
+      expect(JSON.stringify(result)).not.toContain('Synthetic private diagnostic');
+    } finally { check.mockRestore(); }
   });
 });

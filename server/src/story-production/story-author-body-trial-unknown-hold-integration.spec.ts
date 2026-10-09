@@ -44,7 +44,9 @@ function fixture() {
     return [reserved, { ...reserved, id: randomUUID(), eventKind: 'new_route_failed', status: 'failed', actualCostKrw: row.actualCostKrw }];
   });
   const forbid = jest.fn(() => { throw new Error('Synthetic mutation forbidden'); });
-  const tx: any = { $executeRaw: jest.fn(async () => 0), $queryRaw: jest.fn(async () => []),
+  const tx: any = { $executeRaw: jest.fn(async () => 0),
+    $queryRaw: jest.fn(async (sql: { strings: string[] }) => sql.strings.join('').includes('to_char(dispatch_started_at')
+      ? [{ dispatchStartedAtUtc: target.dispatchStartedAt.toISOString().replace(/(\.\d{3})Z$/, '$1000Z') }] : []),
     storyWork: { findFirst: jest.fn(async ({ where }: any) => where.ownerUserId === owner ? work : null) },
     storyRelease: { findFirst: jest.fn(async () => release) },
     storyReleaseCapability: { findUnique: jest.fn(async () => capability) },

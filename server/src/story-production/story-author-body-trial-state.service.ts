@@ -146,7 +146,11 @@ export class StoryAuthorBodyTrialStateService {
       return withheldNextCost('approval_pins_changed');
     }
     if (profile) {
-      try { continuationGenerationProfileSnapshot(profile); } catch { return withheldNextCost('approval_pins_changed'); }
+      try { continuationGenerationProfileSnapshot(profile); }
+      catch (error) {
+        return withheldNextCost(error instanceof Error && error.message === 'generation_profile_context_too_large'
+          ? 'approved_profile_context_too_large' : 'approval_pins_changed');
+      }
     }
     const maximum = capability.hardBudgetKrw;
     if (!maximum || !maximum.isFinite() || maximum.lte(0) || maximum.decimalPlaces() > 6) {

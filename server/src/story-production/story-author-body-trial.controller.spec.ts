@@ -68,6 +68,7 @@ describe.each([false, true])('author body trial HTTP (real JWT, synthetic accoun
   let invalidTokens: Record<string, string>;
   const selection = { workId, choiceId, progressId, status: 'queued' };
   const stories = {
+    recordAuthorBodyTrialRead: jest.fn(async () => ({})),
     selectAuthorBodyTrialChoice: jest.fn(async (
       _userId: string, _workId: string, _choiceId: string, _body: SelectAuthorBodyTrialChoiceDto, _idempotencyKey: string,
     ) => selection),
@@ -218,12 +219,15 @@ describe.each([false, true])('author body trial HTTP (real JWT, synthetic accoun
   it.each([
     new NotFoundException({ code: 'STORY_AUTHOR_BODY_TRIAL_NOT_FOUND' }),
     new ConflictException({ code: 'STORY_AUTHOR_BODY_TRIAL_REVISION_CONFLICT' }),
+    new ConflictException({ code: 'STORY_AUTHOR_BODY_TRIAL_PROFILE_CONTEXT_TOO_LARGE', generationStarted: false }),
   ])('preserves private service errors without retrying or changing inputs: %p', async error => {
     stories.selectAuthorBodyTrialChoice.mockRejectedValueOnce(error);
     const response = await call();
     expect(response.status).toBe(error.getStatus());
     expect(response.cache).toBe('private, no-store');
-    expect(response.body).toMatchObject({ error: error.getResponse() });
+    // HTTP exposes the safe error code, not the service's internal admission flags.
+    expect(response.body).toMatchObject({ error: { code: (error.getResponse() as { code: string }).code } });
+    expect(JSON.stringify(response.body)).not.toContain('generationStarted');
     expect(stories.selectAuthorBodyTrialChoice).toHaveBeenCalledTimes(1);
     expect(stories.selectAuthorBodyTrialChoice).toHaveBeenCalledWith(accountId, workId, choiceId, validBody, validKey);
   });
