@@ -29,6 +29,7 @@
     selectedId: null,
     loading: false,
     listError: "",
+    editorEpoch: 0,
   };
 
   function dom(id) {
@@ -191,6 +192,7 @@
     var metaEl = dom("siteContentEditorMeta");
     var audit = dom("siteContentAuditSection");
     if (!card || !form || !titleEl) return;
+    state.editorEpoch += 1;
     card.classList.remove("is-hidden");
     setStatus("", "neutral");
 
@@ -260,9 +262,14 @@
   }
 
   function closeEditor() {
+    state.editorEpoch += 1;
     var card = dom("siteContentEditorCard");
     if (card) card.classList.add("is-hidden");
     state.selectedId = null;
+  }
+
+  function isCurrentEditor(target) {
+    return state.selectedId === target.id && state.editorEpoch === target.epoch;
   }
 
   async function loadAudit(id) {
@@ -439,19 +446,24 @@
       setStatus("발행할 문구를 먼저 선택하거나 draft 저장하세요.", "error");
       return;
     }
-    var item = state.items.find(function (i) { return i.id === state.selectedId; });
+    var target = { id: state.selectedId, epoch: state.editorEpoch };
+    var item = state.items.find(function (i) { return i.id === target.id; });
     var scopeLabel = item ? (item.pageKey || item.scope || "global") : state.selectedId;
     confirmAction(
       "이 문구가 사용자 화면에 즉시 노출됩니다. (" + scopeLabel + ")\n발행하시겠어요?",
       async function () {
+        if (!isCurrentEditor(target)) return;
         setStatus("발행 처리 중…", "neutral");
         try {
-          await adminFetch("/" + encodeURIComponent(state.selectedId) + "/publish", { method: "POST" });
+          await adminFetch("/" + encodeURIComponent(target.id) + "/publish", { method: "POST" });
+          if (!isCurrentEditor(target)) return;
           setStatus("발행되었습니다.", "success");
           await loadList();
-          var refreshed = state.items.find(function (i) { return i.id === state.selectedId; });
+          if (!isCurrentEditor(target)) return;
+          var refreshed = state.items.find(function (i) { return i.id === target.id; });
           if (refreshed) openEditor(refreshed);
         } catch (error) {
+          if (!isCurrentEditor(target)) return;
           setStatus(error?.message || "발행에 실패했습니다.", "error");
         }
       }
@@ -463,16 +475,21 @@
       setStatus("보관할 문구를 먼저 선택하세요.", "error");
       return;
     }
+    var target = { id: state.selectedId, epoch: state.editorEpoch };
     confirmAction(
       "이 문구는 보관 처리되고 사용자 화면에서 사라집니다. 진행하시겠어요?",
       async function () {
+        if (!isCurrentEditor(target)) return;
         setStatus("보관 처리 중…", "neutral");
         try {
-          await adminFetch("/" + encodeURIComponent(state.selectedId) + "/archive", { method: "POST" });
+          await adminFetch("/" + encodeURIComponent(target.id) + "/archive", { method: "POST" });
+          if (!isCurrentEditor(target)) return;
           setStatus("보관되었습니다.", "success");
           await loadList();
+          if (!isCurrentEditor(target)) return;
           closeEditor();
         } catch (error) {
+          if (!isCurrentEditor(target)) return;
           setStatus(error?.message || "보관에 실패했습니다.", "error");
         }
       }
@@ -484,20 +501,25 @@
       setStatus("복구할 문구를 먼저 선택하세요.", "error");
       return;
     }
+    var target = { id: state.selectedId, epoch: state.editorEpoch };
     confirmAction(
       "보관된 문구를 draft 상태로 복구합니다. 복구 후 수정하거나 다시 발행할 수 있어요.\n진행할까요?",
       async function () {
+        if (!isCurrentEditor(target)) return;
         setStatus("복구 처리 중...", "neutral");
         try {
-          await adminFetch("/" + encodeURIComponent(state.selectedId) + "/restore", {
+          await adminFetch("/" + encodeURIComponent(target.id) + "/restore", {
             method: "POST",
             body: { status: "draft" },
           });
+          if (!isCurrentEditor(target)) return;
           setStatus("문구를 draft 상태로 복구했습니다.", "success");
           await loadList();
-          var refreshed = state.items.find(function (i) { return i.id === state.selectedId; });
+          if (!isCurrentEditor(target)) return;
+          var refreshed = state.items.find(function (i) { return i.id === target.id; });
           if (refreshed) openEditor(refreshed);
         } catch (error) {
+          if (!isCurrentEditor(target)) return;
           setStatus(error?.message || "복구에 실패했습니다.", "error");
         }
       }
