@@ -18,6 +18,9 @@ const ENTRY_ID = '00000000-0000-4000-8000-000000000601';
 const CREATED_ID = '00000000-0000-4000-8000-000000000602';
 const CODE = 'SITE_CONTENT_REVISION_CONFLICT';
 const ENGLISH = 'Site content changed; reload its current revision before trying again';
+const LIST_FAILURE_TEXT = '\ubaa9\ub85d\uc744 \ubd88\ub7ec\uc624\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4';
+const LIST_EMPTY_TEXT = '\ud45c\uc2dc\ud560 \uc0ac\uc774\ud2b8 \ubb38\uad6c\uac00 \uc5c6\uc2b5\ub2c8\ub2e4.';
+const LIST_FAILURE_DETAIL = 'Synthetic list failure <img src=x onerror="synthetic()"> & detail';
 const actions = [
   { name: 'edit', method: 'PATCH', suffix: '', status: 'draft', success: /\uc800\uc7a5\ub418\uc5c8/ },
   { name: 'publish', method: 'POST', suffix: '/publish', status: 'draft', success: /\ubc1c\ud589\ub418\uc5c8/ },
@@ -219,7 +222,7 @@ function screen(action = actions[0]) {
     }
     await flush();
   }
-  return { start, act, typeDraft, snapshot, element, form, requests, capturedErrors, constructedErrors,
+  return { start, act, typeDraft, snapshot, element, form, filters, requests, capturedErrors, constructedErrors,
     listBody, setOutcome: value => { outcome = value; }, refreshCount: () => refreshCalls,
     filter: () => filters.emit('submit'), delayList: () => { nextList = deferred(); return nextList; } };
 }
@@ -371,7 +374,24 @@ test('a second edit after safe409 requires a second explicit submit with the unc
   assert.deepEqual(f.snapshot(), before);
 });
 
-for (const fails of [false, true]) test(`late ${fails ? 'failed' : 'successful'} explicit list read preserves inputs without replaying the conflicted edit`, async () => {
+function assertListUnavailable(f) {
+  const rows = f.element('siteContentRows').innerHTML;
+  assert.ok(rows.includes(LIST_FAILURE_TEXT), 'List failure must be visible in the list, not only the editor status');
+  assert.ok(!rows.includes(LIST_EMPTY_TEXT), 'An unavailable list is not a confirmed empty result');
+  assert.doesNotMatch(rows, /class="row-empty"|data-site-content-id=/);
+  assert.doesNotMatch(rows, /<(?:img|script)\b/i, 'Untrusted failure details must not become markup');
+  if (rows.includes('synthetic()')) {
+    assert.ok(rows.includes('&lt;img'));
+    assert.ok(rows.includes('&quot;synthetic()&quot;'));
+    assert.ok(rows.includes('&amp; detail'));
+  }
+  assert.match(f.element('siteContentTotalNote').textContent,
+    /\ubbf8\ud655\uc778|\ud655\uc778.*(?:\ubd88\uac00|\ubabb|\uc5c6|\uc54a)/, 'Failed read must leave the total explicitly unverified');
+  assert.doesNotMatch(f.element('siteContentCountBadge').textContent.trim(), /^\d+$/,
+    'A failed read must not assert a numeric zero or stale count');
+}
+
+for (const fails of [false, true]) test(`${fails ? 'CMS-LIST-STATUS-RED: late failed' : 'late successful'} explicit list read preserves inputs without replaying the conflicted edit`, async () => {
   const f = screen();
   await f.start();
   await f.typeDraft();
@@ -385,15 +405,143 @@ for (const fails of [false, true]) test(`late ${fails ? 'failed' : 'successful'}
   assert.deepEqual(f.snapshot(), before);
   assertRecovery(f);
   const recoveryText = f.element('siteContentFormStatus').textContent;
-  if (fails) pending.reject(new TypeError('Synthetic late list failure'));
+  if (fails) pending.reject(new TypeError(LIST_FAILURE_DETAIL));
   else pending.resolve(f.listBody());
   await listing;
   await flush();
   assert.equal(f.requests.length, count + 2);
   assert.deepEqual(f.snapshot(), before);
   if (fails) {
-    // Existing list-failure status overwrites the notice; message-only work does not fix sequencing.
-    assert.ok(f.element('siteContentFormStatus').textContent.includes('Synthetic late list failure'));
-    assert.notEqual(f.element('siteContentFormStatus').textContent, recoveryText);
+    assert.equal(f.element('siteContentFormStatus').textContent, recoveryText);
+    assert.equal(f.element('siteContentFormStatus').dataset.tone, 'error');
+    assertListUnavailable(f);
+    assert.equal(f.refreshCount(), 0);
   } else assert.equal(f.element('siteContentFormStatus').textContent, recoveryText);
+});
+
+test('CMS-LIST-STATUS: normal list keeps its confirmed count and editor status', async () => {
+  const f = screen();
+  await f.start();
+  await f.typeDraft();
+  const before = f.snapshot(), count = f.requests.length;
+  const status = f.element('siteContentFormStatus');
+  const notice = status.textContent, tone = status.dataset.tone;
+  await f.filter();
+  await flush();
+  assert.equal(f.requests.length, count + 1);
+  assert.equal(f.requests[count].method, 'GET');
+  assert.equal(f.requests[count].path, BASE);
+  assert.ok(f.element('siteContentRows').innerHTML.includes('cms.synthetic.entry'));
+  assert.ok(!f.element('siteContentRows').innerHTML.includes(LIST_FAILURE_TEXT));
+  assert.equal(f.element('siteContentTotalNote').textContent, '\ucd1d 1\uac74');
+  assert.equal(f.element('siteContentCountBadge').textContent, '1');
+  assert.deepEqual(f.snapshot(), before);
+  assert.equal(status.textContent, notice);
+  assert.equal(status.dataset.tone, tone);
+  assert.equal(f.capturedErrors.length, 0);
+  assert.equal(f.refreshCount(), 0);
+});
+
+test('CMS-LIST-STATUS: confirmed empty list is distinct from an unavailable list', async () => {
+  const f = screen();
+  await f.start();
+  await f.typeDraft();
+  const before = f.snapshot(), count = f.requests.length, pending = f.delayList();
+  const status = f.element('siteContentFormStatus');
+  const notice = status.textContent, tone = status.dataset.tone;
+  await f.filter();
+  await flush();
+  pending.resolve({ items: [], pagination: { total: 0 } });
+  await flush();
+  assert.equal(f.requests.length, count + 1);
+  assert.equal(f.requests[count].method, 'GET');
+  assert.equal(f.requests[count].path, BASE);
+  assert.ok(f.element('siteContentRows').innerHTML.includes(LIST_EMPTY_TEXT));
+  assert.ok(!f.element('siteContentRows').innerHTML.includes(LIST_FAILURE_TEXT));
+  assert.equal(f.element('siteContentTotalNote').textContent, '\ucd1d 0\uac74');
+  assert.equal(f.element('siteContentCountBadge').textContent, '0');
+  assert.deepEqual(f.snapshot(), before);
+  assert.equal(status.textContent, notice);
+  assert.equal(status.dataset.tone, tone);
+  assert.equal(f.capturedErrors.length, 0);
+  assert.equal(f.refreshCount(), 0);
+});
+
+test('CMS-LIST-STATUS: explicit filtered read recovers the list without replaying a conflicted edit', async () => {
+  const f = screen();
+  await f.start();
+  await f.typeDraft();
+  const before = f.snapshot(), count = f.requests.length;
+  f.setOutcome(failure());
+  await f.act();
+  assertOneUnreplayedMutation(f, actions[0], count);
+  assertRecovery(f);
+  const status = f.element('siteContentFormStatus'), recoveryText = status.textContent;
+  const pending = f.delayList();
+  await f.filter();
+  await flush();
+  pending.reject(new TypeError(LIST_FAILURE_DETAIL));
+  await flush();
+  assertListUnavailable(f);
+  assert.equal(status.textContent, recoveryText);
+  assert.equal(status.dataset.tone, 'error');
+  assert.deepEqual(f.snapshot(), before);
+  assert.equal(f.requests.length, count + 2);
+  await flush();
+  assert.equal(f.requests.length, count + 2, 'List failure must not trigger an automatic retry');
+  f.filters.elements.search.value = ' cms.synthetic.entry ';
+  f.filters.elements.scope.value = 'global';
+  f.filters.elements.locale.value = ' ko-KR ';
+  await f.filter();
+  await flush();
+  const calls = f.requests.slice(count);
+  assert.deepEqual(calls.map(call => call.method), ['PATCH', 'GET', 'GET']);
+  assert.ok(calls.slice(1).every(call => call.path === BASE));
+  const query = new URLSearchParams(calls[2].query);
+  assert.equal(query.get('search'), 'cms.synthetic.entry');
+  assert.equal(query.get('scope'), 'global');
+  assert.equal(query.get('locale'), 'ko-KR');
+  assert.equal(query.get('take'), '100');
+  assert.ok(f.element('siteContentRows').innerHTML.includes('cms.synthetic.entry'));
+  assert.ok(!f.element('siteContentRows').innerHTML.includes(LIST_FAILURE_TEXT));
+  assert.equal(f.element('siteContentTotalNote').textContent, '\ucd1d 1\uac74');
+  assert.equal(f.element('siteContentCountBadge').textContent, '1');
+  assert.equal(status.textContent, recoveryText);
+  assert.equal(status.dataset.tone, 'error');
+  assert.deepEqual(f.snapshot(), before);
+  assert.equal(f.refreshCount(), 0);
+  await flush();
+  assert.equal(f.requests.length, count + 3);
+});
+
+test('CMS-LIST-STATUS: successful edit notice survives its failed list refresh', async () => {
+  const f = screen();
+  await f.start();
+  await f.typeDraft();
+  const before = f.snapshot(), count = f.requests.length, pending = f.delayList();
+  const saving = f.act();
+  await flush();
+  const status = f.element('siteContentFormStatus'), successText = status.textContent;
+  assert.match(successText, actions[0].success, 'Mutation succeeded before the delayed list read failed');
+  assert.equal(status.dataset.tone, 'success');
+  assert.deepEqual(f.snapshot(), before);
+  const listError = new TypeError(LIST_FAILURE_DETAIL);
+  pending.reject(listError);
+  await saving;
+  await flush();
+  const calls = f.requests.slice(count);
+  assert.deepEqual(calls.map(call => call.method), ['PATCH', 'GET']);
+  assert.equal(calls[0].path, BASE + '/' + ENTRY_ID);
+  assert.equal(calls[0].body.title, dirty.title);
+  assert.equal(calls[0].body.body, dirty.body);
+  assert.equal(calls[1].path, BASE);
+  assertListUnavailable(f);
+  assert.equal(status.textContent, successText);
+  assert.equal(status.dataset.tone, 'success');
+  assert.deepEqual(f.snapshot(), before);
+  assert.equal(f.capturedErrors.length, 1);
+  assert.strictEqual(f.capturedErrors[0].error, listError);
+  assert.equal(f.refreshCount(), 0);
+  await flush();
+  assert.equal(f.requests.length, count + 2, 'A failed refresh must not retry the successful mutation or list read');
 });

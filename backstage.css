@@ -404,6 +404,9 @@ tr.is-selected td { background: #faf5ff; }
 #siteContentRows code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: #4338ca; word-break: break-all; }
 #siteContentRows td .text-action { padding: 4px 10px; font-size: 12px; }
 #siteContentRows .row-loading, #siteContentRows .row-empty { padding: 18px; text-align: center; color: #9ca3af; font-size: 13px; }
+#siteContentRows .row-error { padding: 18px; text-align: center; color: var(--danger); font-size: 13px; overflow-wrap: anywhere; word-break: break-word; }
+#site-content table:has(#siteContentRows .row-error) { min-width: 0; table-layout: fixed; }
+#site-content table:has(#siteContentRows .row-error) thead { display: none; }
 .status-badge.is-pending { background: #fef3c7; color: #92400e; }
 
 @media (max-width: 768px) {

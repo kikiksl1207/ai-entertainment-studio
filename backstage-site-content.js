@@ -28,6 +28,7 @@
     total: 0,
     selectedId: null,
     loading: false,
+    listError: "",
   };
 
   function dom(id) {
@@ -116,6 +117,14 @@
       tbody.innerHTML = '<tr><td colspan="8" class="row-loading">불러오는 중…</td></tr>';
       return;
     }
+    if (state.listError) {
+      tbody.innerHTML = '<tr><td colspan="8" class="row-error" role="alert">' + escapeHtml(state.listError) + '</td></tr>';
+      var note = dom("siteContentTotalNote");
+      if (note) note.textContent = "전체 건수 미확인";
+      var badge = dom("siteContentCountBadge");
+      if (badge) badge.textContent = "-";
+      return;
+    }
     if (!state.items.length) {
       tbody.innerHTML = '<tr><td colspan="8" class="row-empty">표시할 사이트 문구가 없습니다.</td></tr>';
       setTotalNote(0);
@@ -158,6 +167,7 @@
   async function loadList() {
     if (state.loading) return;
     state.loading = true;
+    state.listError = "";
     renderList();
     try {
       var filters = readFilters();
@@ -167,7 +177,7 @@
     } catch (error) {
       state.items = [];
       state.total = 0;
-      setStatus("목록을 불러오지 못했습니다: " + (error?.message || ""), "error");
+      state.listError = "목록을 불러오지 못했습니다: " + (error?.message || "");
     } finally {
       state.loading = false;
       renderList();
