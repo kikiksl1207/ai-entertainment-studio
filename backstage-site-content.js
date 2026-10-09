@@ -275,9 +275,12 @@
   async function loadAudit(id) {
     var list = dom("siteContentAuditList");
     if (!list) return;
+    var target = { id: id, epoch: state.editorEpoch };
+    if (!isCurrentEditor(target)) return;
     list.innerHTML = "<li>감사 로그 불러오는 중…</li>";
     try {
       var res = await adminFetch("/" + encodeURIComponent(id));
+      if (!isCurrentEditor(target)) return;
       var logs = Array.isArray(res?.auditLogs) ? res.auditLogs : [];
       if (!logs.length) {
         list.innerHTML = "<li>아직 기록된 감사 로그가 없습니다.</li>";
@@ -296,6 +299,7 @@
         })
         .join("");
     } catch (error) {
+      if (!isCurrentEditor(target)) return;
       list.innerHTML = "<li>감사 로그를 불러오지 못했습니다: " + escapeHtml(error?.message || "") + "</li>";
     }
   }
@@ -403,28 +407,34 @@
 
   async function saveDraft(event) {
     if (event) event.preventDefault();
+    var target = { id: state.selectedId, epoch: state.editorEpoch };
     setStatus("저장 중…", "neutral");
     try {
       var payload = readForm();
-      validate(payload, { requireKey: !state.selectedId });
-      if (state.selectedId) {
+      validate(payload, { requireKey: !target.id });
+      if (target.id) {
         var patchPayload = Object.assign({}, payload);
         delete patchPayload.contentKey;
-        await adminFetch("/" + encodeURIComponent(state.selectedId), {
+        await adminFetch("/" + encodeURIComponent(target.id), {
           method: "PATCH",
           body: patchPayload,
         });
+        if (!isCurrentEditor(target)) return;
         setStatus("수정 사항이 저장되었습니다 (draft 유지). 발행 버튼으로 published 처리하세요.", "success");
       } else {
         var created = await adminFetch("", { method: "POST", body: payload });
+        if (!isCurrentEditor(target)) return;
         if (created?.item?.id) {
           state.selectedId = created.item.id;
           openEditor(created.item);
+          target = { id: state.selectedId, epoch: state.editorEpoch };
         }
         setStatus("새 문구를 draft로 저장했습니다. 발행 전 미리보기를 확인하세요.", "success");
       }
+      if (!isCurrentEditor(target)) return;
       await loadList();
     } catch (error) {
+      if (!isCurrentEditor(target)) return;
       setStatus(error?.message || "저장에 실패했습니다.", "error");
     }
   }
