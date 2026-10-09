@@ -31,7 +31,7 @@ describe('fan localized labels: stored metadata fallback only', () => {
   it.each(translatedLocales)('uses stored Korean labels for missing requested %s metadata without mutation', locale => {
     const value = Object.freeze({ labels: Object.freeze({ ko: korean }) });
     const before = structuredClone(value);
-    expect(labels(value, locale)).toEqual({ [locale]: korean });
+    expect(labels(value, locale)).toEqual({ ko: korean });
     expect(value).toEqual(before);
   });
 
@@ -39,7 +39,7 @@ describe('fan localized labels: stored metadata fallback only', () => {
     for (const locale of translatedLocales) {
       const value = { labels: { ko: korean, [locale]: requested } };
       const before = structuredClone(value);
-      expect(labels(value, locale)).toEqual({ [locale]: korean });
+      expect(labels(value, locale)).toEqual({ ko: korean });
       expect(value).toEqual(before);
     }
   });

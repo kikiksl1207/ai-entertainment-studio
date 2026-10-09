@@ -58,7 +58,7 @@ postgres('fan stored label fallback (owned PostgreSQL, no provider)', () => {
       const result = await service.getMySummary(f.owner.id, { locale });
       expect(result.locale).toBe(locale);
       expect(result.achievements).toHaveLength(1);
-      expect(result.achievements[0].copy.labels).toEqual({ ko: korean, [locale]: korean });
+      expect(result.achievements[0].copy.labels).toEqual({ ko: korean });
       expect(result.points.balance).toBe(7);
       expect(result.policy.cashLike).toBe(false);
     }
@@ -73,7 +73,8 @@ postgres('fan stored label fallback (owned PostgreSQL, no provider)', () => {
     for (const locale of locales) {
       const result = await service.getMySummary(f.owner.id, { locale });
       expect(result.achievements[0].copy.labels).toEqual({ ko: labels.ko, [locale]: labels[locale] });
-      expect(result.achievements[0].copy.labels?.[locale]).not.toHaveProperty('description');
+      const requested = (result.achievements[0].copy.labels as Record<string, unknown> | undefined)?.[locale];
+      expect(requested).not.toHaveProperty('description');
     }
     expect(await protectedState(f)).toEqual(before);
   });
@@ -83,7 +84,7 @@ postgres('fan stored label fallback (owned PostgreSQL, no provider)', () => {
       const f = await fixture({ labels: { ko: korean, en: invalid } });
       const before = await protectedState(f);
       const result = await service.getMySummary(f.owner.id, { locale: 'en' });
-      expect(result.achievements[0].copy.labels).toEqual({ ko: korean, en: korean });
+      expect(result.achievements[0].copy.labels).toEqual({ ko: korean });
       expect(await protectedState(f)).toEqual(before);
     }
   });

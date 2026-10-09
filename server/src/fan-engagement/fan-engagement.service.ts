@@ -1005,9 +1005,10 @@ export class FanEngagementService {
     const copy = this.metadataObject(value);
     const labels = this.metadataObject(copy.labels);
     const requested = this.metadataObject(labels[locale]);
-    const localized = Object.keys(requested).length ? requested : this.metadataObject(labels.ko);
+    if (Object.keys(requested).length) return { [locale]: requested };
+    const korean = this.metadataObject(labels.ko);
 
-    return Object.keys(localized).length ? { [locale]: localized } : undefined;
+    return Object.keys(korean).length ? { ko: korean } : undefined;
   }
 
   private copyKey(copy: JsonRecord, key: string, fallback: string) {
