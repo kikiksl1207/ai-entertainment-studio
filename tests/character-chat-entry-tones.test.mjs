@@ -6,8 +6,9 @@ import vm from 'node:vm';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const context = {
-  window: {},
+  window: { location: { hostname: 'localhost', search: '' } },
   document: { readyState: 'loading', addEventListener() {} },
+  URLSearchParams,
 };
 
 vm.runInNewContext(readFileSync(`${root}/data/characters.js`, 'utf8'), context);
