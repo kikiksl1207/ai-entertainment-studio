@@ -457,6 +457,9 @@
 
   function showPublicError() {
     if (!publicPlayback) return;
+    // Invalidate this load and any awaiting session until an explicit new load.
+    ++publicGeneration;
+    publicPlayback.loadedGeneration = null;
     clearPublicSessionTimer();
     demoVideo.pause();
     choiceOverlay.hidden = true;
@@ -469,7 +472,8 @@
   }
 
   function showPublicChoices() {
-    if (!publicPlayback || !choiceOverlay.hidden) return;
+    if (!publicPlayback || demoSection.hidden || publicSeeking ||
+      publicPlayback.loadedGeneration !== publicGeneration || !choiceOverlay.hidden) return;
     clearPublicSessionTimer();
     demoVideo.pause();
     const node = publicPlayback.nodes.get(publicPlayback.currentKey);
@@ -520,6 +524,7 @@
       demoVideo.playsInline = true;
       demoVideo.src = url;
       publicPlayback.loadedKey = key;
+      publicPlayback.loadedGeneration = generation;
       demoVideo.load();
       publicPlayback.resumeAt = Math.max(node.clip.startMs / 1000,
         Math.min(resumeAt ?? node.clip.startMs / 1000, node.clip.endMs / 1000));
@@ -600,6 +605,7 @@
   }
 
   function showChoices() {
+    if (demoSection.hidden) return;
     if (publicPlayback) return showPublicChoices();
     if (!choiceOverlay.hidden) return;
     const demo = workCopy();
@@ -707,7 +713,7 @@
   });
   demoVideo.addEventListener("ended", showChoices);
   demoVideo.addEventListener("loadedmetadata", () => {
-    if (!publicPlayback || !publicSeeking) return;
+    if (!publicPlayback || !publicSeeking || publicPlayback.loadedGeneration !== publicGeneration) return;
     const node = publicPlayback.nodes.get(publicPlayback.currentKey);
     if (!node) return;
     demoVideo.currentTime = publicPlayback.resumeAt ?? node.clip.startMs / 1000;
