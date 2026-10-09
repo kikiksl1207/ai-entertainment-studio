@@ -2018,6 +2018,7 @@
       writerAutoParts = false;
       writerBodyEdited();
     } catch (_) {
+      if (request !== writerFileRead) return;
       writerState("invalidUtf8", "danger");
     }
   }
