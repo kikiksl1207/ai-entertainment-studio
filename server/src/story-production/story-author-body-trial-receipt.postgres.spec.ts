@@ -81,6 +81,12 @@ postgres('read-only trial receipt recovery (isolated PostgreSQL and real HTTP, n
   it.each([
     ['dispatch_lease_insufficient', 'lease_time_insufficient'],
     ['provider_outcome_unknown', 'provider_outcome_unknown'],
+    ['continuation_output_underlength', 'narrative_length_rejected'],
+    ['provider_malformed_output', 'output_validation_rejected'],
+    ['continuation_invalid_calendar_date', 'quality_rule_rejected'],
+    ['participant_missing_from_scene', 'participant_missing'],
+    ['provider_content_filtered', 'content_rejected'],
+    ['PROVIDER_MALFORMED_OUTPUT', null],
     ['synthetic-private-diagnostic', null],
   ])('safe failure description %s stays read-only and never certifies an unknown cost', async (code, reason) => {
     const f = await prepared(), accepted = await f.choose() as { continuationId: string }, leaseToken = randomUUID();

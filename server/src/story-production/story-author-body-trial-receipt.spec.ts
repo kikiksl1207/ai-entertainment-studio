@@ -51,9 +51,21 @@ function prepared() {
 }
 
 describe('private receipt does not dispatch or grant a new trial', () => {
-  it.each([
+  it.each<[string, unknown, string | null]>([
     ['failed', 'dispatch_lease_insufficient', 'lease_time_insufficient'],
     ['failed', 'provider_outcome_unknown', 'provider_outcome_unknown'],
+    ...['continuation_output_underlength', 'continuation_output_overlength'].map(code =>
+      ['failed', code, 'narrative_length_rejected'] as [string, unknown, string | null]),
+    ...['provider_malformed_output', 'provider_output_route_invalid', 'provider_output_size_invalid',
+      'provider_incomplete_output', 'provider_output_token_limit'].map(code => ['failed', code, 'output_validation_rejected'] as [string, unknown, string | null]),
+    ...['continuation_invalid_calendar_date', 'continuation_source_prose_repeated',
+      'continuation_generated_prose_repeated'].map(code => ['failed', code, 'quality_rule_rejected'] as [string, unknown, string | null]),
+    ['failed', 'participant_missing_from_scene', 'participant_missing'],
+    ...['server_moderation_rejected', 'provider_refusal', 'provider_content_filtered'].map(code => ['failed', code, 'content_rejected'] as [string, unknown, string | null]),
+    ['failed', 'PROVIDER_MALFORMED_OUTPUT', null], ['failed', 'provider_malformed_output:private-detail', null],
+    ['failed', 'continuation_output_underlength ', null], ['failed', '__proto__', null],
+    ['failed', { code: 'provider_refusal' }, null], ['failed', ['provider_refusal'], null],
+    ...['timeout', 'queued', 'processing', 'completed'].map(status => [status, 'provider_malformed_output', null] as [string, unknown, string | null]),
     ['failed', 'synthetic-private-diagnostic', null], ['failed', null, null],
     ['failed', 'DISPATCH_LEASE_INSUFFICIENT', null], ['timeout', 'dispatch_lease_insufficient', null],
     ['timeout', 'provider_outcome_unknown', null], ['queued', 'dispatch_lease_insufficient', null],
@@ -72,6 +84,8 @@ describe('private receipt does not dispatch or grant a new trial', () => {
     const before = JSON.stringify(f.receipt), result = await f.get();
     expect(result.receipt).toMatchObject({ failureReason: reason, internalCostReturned: false });
     expect(result.generationAuthorized).toBe(false);
+    expect(result).toMatchObject({ readOnly: true, generationStarted: false, imageGenerationStarted: false });
+    expect(Object.keys(result.receipt)).not.toEqual(expect.arrayContaining(['retryable', 'allowanceRemaining']));
     expect(Object.keys(result.receipt)).not.toEqual(expect.arrayContaining(['failureCode']));
     expect(Object.keys(result.receipt)).not.toEqual(expect.arrayContaining(['actualCostKrw']));
     expect(JSON.stringify(result)).not.toContain('synthetic-private-diagnostic');

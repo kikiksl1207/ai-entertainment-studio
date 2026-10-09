@@ -34,6 +34,20 @@ function validateScope(value: AuthorBodyTrialReceiptScope) {
 const record = (value: unknown): Record<string, unknown> => value && typeof value === 'object' && !Array.isArray(value)
   ? value as Record<string, unknown> : {};
 
+function advisoryFailureReason(code: unknown) {
+  if (code === 'dispatch_lease_insufficient') return 'lease_time_insufficient';
+  if (code === 'provider_outcome_unknown') return 'provider_outcome_unknown';
+  if (typeof code !== 'string') return null;
+  if (['continuation_output_underlength', 'continuation_output_overlength'].includes(code)) return 'narrative_length_rejected';
+  if (['provider_malformed_output', 'provider_output_route_invalid', 'provider_output_size_invalid',
+    'provider_incomplete_output', 'provider_output_token_limit'].includes(code)) return 'output_validation_rejected';
+  if (['continuation_invalid_calendar_date', 'continuation_source_prose_repeated',
+    'continuation_generated_prose_repeated'].includes(code)) return 'quality_rule_rejected';
+  if (code === 'participant_missing_from_scene') return 'participant_missing';
+  if (['server_moderation_rejected', 'provider_refusal', 'provider_content_filtered'].includes(code)) return 'content_rejected';
+  return null;
+}
+
 @Injectable()
 export class StoryAuthorBodyTrialReceiptService {
   constructor(private readonly prisma: PrismaService) {}
@@ -145,10 +159,7 @@ export class StoryAuthorBodyTrialReceiptService {
           revisionAfterRequest: scope.expectedRevision + 1, progressApplied: current.status === 'completed',
           privateInputReturned: false, providerPayloadReturned: false, internalCostReturned: false,
           // Advisory only: failure text cannot certify usage, cost, or permission to retry.
-          failureReason: current.status === 'failed'
-            ? current.failureCode === 'dispatch_lease_insufficient' ? 'lease_time_insufficient'
-              : current.failureCode === 'provider_outcome_unknown' ? 'provider_outcome_unknown' : null
-            : null,
+          failureReason: current.status === 'failed' ? advisoryFailureReason(current.failureCode) : null,
           resultGeneratedSceneId: current.resultGeneratedSceneId, provenance: reused ? 'ai_reused' : 'ai_generated',
           imageGenerationStarted: false, idempotentReplay: true };
       }
