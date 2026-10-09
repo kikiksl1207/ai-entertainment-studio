@@ -1155,39 +1155,31 @@ export class StoryEconomicsService {
     releaseId: string,
     body: UpsertStoryReleaseCapabilityDto,
   ) {
-    const release = await this.prisma.storyRelease.findUnique({ where: { id: releaseId } });
-    if (!release) throw new NotFoundException('Story release not found');
-    const [work, rateCard, existing] = await Promise.all([
-      this.prisma.storyWork.findUnique({ where: { id: release.workId } }),
-      this.prisma.storyAiRateCard.findUnique({ where: { id: body.rateCardId } }),
-      this.prisma.storyReleaseCapability.findUnique({ where: { releaseId } }),
-    ]);
-    if (!work || !rateCard) throw new NotFoundException('Capability dependency not found');
-    if (rateCard.status !== 'active') {
-      throw new ConflictException('An active rate card is required');
-    }
-    if (existing && existing.revision !== body.expectedRevision) {
-      throw new ConflictException('Story release capability changed concurrently');
-    }
-    const errors = validateStoryReleaseCapability({
-      freeStory: work.priceLumina.isZero(),
-      fixedChoiceCount: body.fixedChoiceCount,
-      customChoiceEnabled: body.customChoiceEnabled,
-      customChoiceMaxLength: body.customChoiceMaxLength,
-      fullResetLimit: body.fullResetLimit,
-      actResetLimit: body.actResetLimit,
-      includedAiRouteCount: body.includedAiRouteCount,
-      aiInputTokenLimit: body.aiInputTokenLimit,
-      aiOutputTokenLimit: body.aiOutputTokenLimit,
-      warningBudgetKrw: body.warningBudgetKrw,
-      hardBudgetKrw: body.hardBudgetKrw,
-    });
-    const capability = await this.prisma.storyReleaseCapability.upsert({
-      where: { releaseId },
-      create: {
-        workId: work.id,
-        releaseId,
-        rateCardId: rateCard.id,
+    return this.prisma.$transaction(async (tx) => {
+      // Preserve creation intent before waiting, then compare again under the parent lock.
+      const beforeLock = await tx.storyReleaseCapability.findUnique({ where: { releaseId } });
+      await tx.$queryRaw(Prisma.sql`
+        SELECT id FROM story_releases WHERE id = ${releaseId}::uuid FOR UPDATE
+      `);
+      const release = await tx.storyRelease.findUnique({ where: { id: releaseId } });
+      if (!release) throw new NotFoundException('Story release not found');
+      const [work, rateCard, existing] = await Promise.all([
+        tx.storyWork.findUnique({ where: { id: release.workId } }),
+        tx.storyAiRateCard.findUnique({ where: { id: body.rateCardId } }),
+        tx.storyReleaseCapability.findUnique({ where: { releaseId } }),
+      ]);
+      if (!work || !rateCard) throw new NotFoundException('Capability dependency not found');
+      if (rateCard.status !== 'active') {
+        throw new ConflictException('An active rate card is required');
+      }
+      if ((beforeLock && beforeLock.revision !== body.expectedRevision) ||
+          (existing && existing.revision !== body.expectedRevision) ||
+          Boolean(beforeLock) !== Boolean(existing) ||
+          (beforeLock && existing && beforeLock.id !== existing.id)) {
+        throw new ConflictException('Story release capability changed concurrently');
+      }
+      const errors = validateStoryReleaseCapability({
+        freeStory: work.priceLumina.isZero(),
         fixedChoiceCount: body.fixedChoiceCount,
         customChoiceEnabled: body.customChoiceEnabled,
         customChoiceMaxLength: body.customChoiceMaxLength,
@@ -1198,30 +1190,63 @@ export class StoryEconomicsService {
         aiOutputTokenLimit: body.aiOutputTokenLimit,
         warningBudgetKrw: body.warningBudgetKrw,
         hardBudgetKrw: body.hardBudgetKrw,
-        status: errors.length ? 'invalid' : 'active',
-        validationErrors: errors,
-        updatedByUserId: adminUserId,
-      },
-      update: {
-        rateCardId: rateCard.id,
-        fixedChoiceCount: body.fixedChoiceCount,
-        customChoiceEnabled: body.customChoiceEnabled,
-        customChoiceMaxLength: body.customChoiceMaxLength,
-        fullResetLimit: body.fullResetLimit,
-        actResetLimit: body.actResetLimit,
-        includedAiRouteCount: body.includedAiRouteCount,
-        aiInputTokenLimit: body.aiInputTokenLimit,
-        aiOutputTokenLimit: body.aiOutputTokenLimit,
-        warningBudgetKrw: body.warningBudgetKrw,
-        hardBudgetKrw: body.hardBudgetKrw,
-        status: errors.length ? 'invalid' : 'active',
-        validationErrors: errors,
-        revision: { increment: 1 },
-        updatedByUserId: adminUserId,
-        updatedAt: new Date(),
-      },
-    });
-    return this.capabilityProjection(capability);
+      });
+      if (existing) {
+        const changed = await tx.storyReleaseCapability.updateMany({
+          where: { id: existing.id, releaseId, revision: existing.revision },
+          data: {
+            rateCardId: rateCard.id,
+            fixedChoiceCount: body.fixedChoiceCount,
+            customChoiceEnabled: body.customChoiceEnabled,
+            customChoiceMaxLength: body.customChoiceMaxLength,
+            fullResetLimit: body.fullResetLimit,
+            actResetLimit: body.actResetLimit,
+            includedAiRouteCount: body.includedAiRouteCount,
+            aiInputTokenLimit: body.aiInputTokenLimit,
+            aiOutputTokenLimit: body.aiOutputTokenLimit,
+            warningBudgetKrw: body.warningBudgetKrw,
+            hardBudgetKrw: body.hardBudgetKrw,
+            status: errors.length ? 'invalid' : 'active',
+            validationErrors: errors,
+            revision: { increment: 1 },
+            updatedByUserId: adminUserId,
+            updatedAt: new Date(),
+          },
+        });
+        if (changed.count !== 1) {
+          throw new ConflictException('Story release capability changed concurrently');
+        }
+        const capability = await tx.storyReleaseCapability.findUnique({ where: { id: existing.id } });
+        if (!capability) throw new ConflictException('Story release capability changed concurrently');
+        return this.capabilityProjection(capability);
+      }
+      const capability = await tx.storyReleaseCapability.create({
+        data: {
+          workId: work.id,
+          releaseId,
+          rateCardId: rateCard.id,
+          fixedChoiceCount: body.fixedChoiceCount,
+          customChoiceEnabled: body.customChoiceEnabled,
+          customChoiceMaxLength: body.customChoiceMaxLength,
+          fullResetLimit: body.fullResetLimit,
+          actResetLimit: body.actResetLimit,
+          includedAiRouteCount: body.includedAiRouteCount,
+          aiInputTokenLimit: body.aiInputTokenLimit,
+          aiOutputTokenLimit: body.aiOutputTokenLimit,
+          warningBudgetKrw: body.warningBudgetKrw,
+          hardBudgetKrw: body.hardBudgetKrw,
+          status: errors.length ? 'invalid' : 'active',
+          validationErrors: errors,
+          updatedByUserId: adminUserId,
+        },
+      }).catch((error: unknown) => {
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+          throw new ConflictException('Story release capability changed concurrently');
+        }
+        throw error;
+      });
+      return this.capabilityProjection(capability);
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted });
   }
 
   async estimateAndSavePrice(
