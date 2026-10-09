@@ -4,6 +4,8 @@ import { buildPublicAssetUrl } from '../../common/asset-url';
 import { PrismaService } from '../../prisma/prisma.service';
 import { approvedPublicArtistProfile } from './approved-artist-profile.policy';
 
+const contentType: { parse(value: string): { type: string } } = require('content-type');
+
 const publicArtistInclude = {
   publicProfile: true,
   visualProfile: true,
@@ -175,7 +177,7 @@ export class ArtistsService {
     options: { includeContentProfile?: boolean } = {},
   ) {
     const assets = (artist.artistAssets ?? [])
-      .filter((artistAsset) => this.isPublicReadyAsset(artistAsset.asset.metadata))
+      .filter((artistAsset) => this.isPublicArtistAsset(artistAsset))
       .map((artistAsset) => ({
         id: artistAsset.asset.id,
         usageType: artistAsset.usageType,
@@ -231,6 +233,8 @@ export class ArtistsService {
         sortOrder: number;
         asset: {
           id: string;
+          assetType: string;
+          mimeType: string;
           storageProvider: string;
           storageKey: string;
           metadata: unknown;
@@ -239,7 +243,7 @@ export class ArtistsService {
     },
   ) {
     const assets = (artist.artistAssets ?? []).filter((artistAsset) =>
-      this.isPublicReadyAsset(artistAsset.asset.metadata),
+      this.isPublicArtistAsset(artistAsset),
     );
     const cover = assets.find((asset) => asset.usageType === 'cover') ?? null;
     const thumb = assets.find((asset) => asset.usageType === 'thumb') ?? cover;
@@ -298,6 +302,27 @@ export class ArtistsService {
 
   private isPublicReadyArtist(artist: { coverImage: unknown; thumbnailImage: unknown }) {
     return Boolean(artist.coverImage && artist.thumbnailImage);
+  }
+
+  private isPublicArtistAsset(link: { usageType: string; asset: { assetType: string; mimeType: string; metadata: unknown } }) {
+    if (!this.isPublicReadyAsset(link.asset.metadata)) {
+      return false;
+    }
+    if (!['cover', 'thumb', 'gallery'].includes(link.usageType)) {
+      return true;
+    }
+    const mimeType = link.asset.mimeType;
+    if (link.asset.assetType !== 'image' || typeof mimeType !== 'string' ||
+        mimeType !== mimeType.trim() || /[\u0000-\u001f\u007f]/.test(mimeType)) {
+      return false;
+    }
+    try {
+      // Parse parameters without rewriting the stored MIME or accepting a media range.
+      const type = contentType.parse(mimeType).type;
+      return type.startsWith('image/') && type !== 'image/*';
+    } catch {
+      return false;
+    }
   }
 
   private isPublicReadyAsset(metadata: unknown) {
