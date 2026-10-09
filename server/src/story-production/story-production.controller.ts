@@ -65,6 +65,20 @@ class CurrentSceneNoStoreGuard implements CanActivate {
   }
 }
 
+class CreatorCatalogNoStoreGuard implements CanActivate {
+  canActivate(context: ExecutionContext) {
+    const response = context.switchToHttp().getResponse<{
+      setHeader(name: string, value: string): void;
+      vary(field: string): void;
+    }>();
+    response.setHeader('Cache-Control', 'private, no-store');
+    response.setHeader('Pragma', 'no-cache');
+    response.setHeader('Expires', '0');
+    response.vary('Authorization');
+    return true;
+  }
+}
+
 @Controller()
 export class StoryProductionController {
   constructor(
@@ -82,7 +96,7 @@ export class StoryProductionController {
   }
 
   @Get('me/creator-studio/stories')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(CreatorCatalogNoStoreGuard, JwtAuthGuard)
   @Header('Cache-Control', 'private, no-store')
   creatorCatalog(
     @CurrentUser() user: AuthUser,
