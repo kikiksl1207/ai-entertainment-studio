@@ -82,13 +82,22 @@ function harness({ width = 292, hidden = false, sdk = true, observer = true, ree
 }
 const widths = h => h.state.renders.map(call => call.width);
 
-test('CSS only adds login mobile min-size/wrapping rules and restores its exact canonical prefix', () => {
-  assert.equal(sha(css), 'f5cbdd128de106ba9bd39b187d6be11d076f38690277ad79a77669fd04ec6144');
-  const start = css.indexOf('/* BEGIN backstage-login-width-20261009 */');
+test('CSS preserves login width rules while accepting only the exact CMS error-row delta', () => {
+  let loginCss = css;
+  for (const rule of [
+    '#siteContentRows .row-error { padding: 18px; text-align: center; color: var(--danger); font-size: 13px; overflow-wrap: anywhere; word-break: break-word; }\n',
+    '#site-content table:has(#siteContentRows .row-error) { min-width: 0; table-layout: fixed; }\n',
+    '#site-content table:has(#siteContentRows .row-error) thead { display: none; }\n',
+  ]) {
+    assert.equal(loginCss.split(rule).length, 2, 'Expected exactly one approved CMS rule');
+    loginCss = loginCss.replace(rule, '');
+  }
+  assert.equal(sha(loginCss), 'f5cbdd128de106ba9bd39b187d6be11d076f38690277ad79a77669fd04ec6144');
+  const start = loginCss.indexOf('/* BEGIN backstage-login-width-20261009 */');
   assert(start > 0);
-  const delta = css.slice(start - 1);
+  const delta = loginCss.slice(start - 1);
   assert.equal(sha(delta), '4b9ad4491fc700b57badc81a316cb525e35d50144f5a44acf3dedbb07a4717dc');
-  assert.equal(sha(css.slice(0, start - 1)), '831df5f25e6b93583ab3bfe54b20f14b5df37116ce01696306ba805103762d52');
+  assert.equal(sha(loginCss.slice(0, start - 1)), '831df5f25e6b93583ab3bfe54b20f14b5df37116ce01696306ba805103762d52');
   assert.match(delta, /@media \(max-width: 760px\)/);
   assert.match(delta, /grid-template-columns: minmax\(0, 1fr\)/);
   assert.match(delta, /\.backstage-login \.form-status \{ overflow-wrap: anywhere; \}/);
