@@ -320,7 +320,7 @@ describe('SiteContentService', () => {
     });
 
     expect(tx.siteContentEntry.update).toHaveBeenCalledWith({
-      where: { id: draft.id },
+      where: { id: draft.id, status: draft.status, version: draft.version },
       data: expect.objectContaining({
         body: '새 draft 문구',
         updatedByUserId: superAdmin.id,
@@ -423,7 +423,7 @@ describe('SiteContentService', () => {
     const result = await service.restoreAdmin(superAdmin, archived.id, {});
 
     expect(tx.siteContentEntry.update).toHaveBeenCalledWith({
-      where: { id: archived.id },
+      where: { id: archived.id, status: archived.status, version: archived.version },
       data: expect.objectContaining({
         status: 'draft',
         archivedAt: null,
@@ -507,7 +507,7 @@ describe('SiteContentService', () => {
     });
 
     expect(tx.siteContentEntry.update).toHaveBeenCalledWith({
-      where: { id: archived.id },
+      where: { id: archived.id, status: archived.status, version: archived.version },
       data: expect.objectContaining({
         status: 'published',
         archivedAt: null,

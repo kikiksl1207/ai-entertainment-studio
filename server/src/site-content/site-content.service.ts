@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -244,10 +245,7 @@ export class SiteContentService {
     }
 
     const entry = await this.prisma.$transaction(async (tx) => {
-      const updated = await tx.siteContentEntry.update({
-        where: { id },
-        data: update.data,
-      });
+      const updated = await this.updateCurrentEntry(tx, existing, update.data);
       await this.recordAudit(tx, {
         entryId: id,
         actorUserId: user.id,
@@ -280,17 +278,14 @@ export class SiteContentService {
 
     const now = new Date();
     const entry = await this.prisma.$transaction(async (tx) => {
-      const updated = await tx.siteContentEntry.update({
-        where: { id },
-        data: {
-          status: 'published',
-          publishedAt: now,
-          archivedAt: null,
-          archivedByUserId: null,
-          publishedByUserId: user.id,
-          updatedByUserId: user.id,
-          version: { increment: 1 },
-        },
+      const updated = await this.updateCurrentEntry(tx, existing, {
+        status: 'published',
+        publishedAt: now,
+        archivedAt: null,
+        archivedByUserId: null,
+        publishedByUserId: user.id,
+        updatedByUserId: user.id,
+        version: { increment: 1 },
       });
       await this.recordAudit(tx, {
         entryId: id,
@@ -323,15 +318,12 @@ export class SiteContentService {
 
     const now = new Date();
     const entry = await this.prisma.$transaction(async (tx) => {
-      const updated = await tx.siteContentEntry.update({
-        where: { id },
-        data: {
-          status: 'archived',
-          archivedAt: now,
-          archivedByUserId: user.id,
-          updatedByUserId: user.id,
-          version: { increment: 1 },
-        },
+      const updated = await this.updateCurrentEntry(tx, existing, {
+        status: 'archived',
+        archivedAt: now,
+        archivedByUserId: user.id,
+        updatedByUserId: user.id,
+        version: { increment: 1 },
       });
       await this.recordAudit(tx, {
         entryId: id,
@@ -372,17 +364,14 @@ export class SiteContentService {
 
     const now = new Date();
     const entry = await this.prisma.$transaction(async (tx) => {
-      const updated = await tx.siteContentEntry.update({
-        where: { id },
-        data: {
-          status: targetStatus,
-          archivedAt: null,
-          archivedByUserId: null,
-          publishedAt: targetStatus === 'published' ? now : null,
-          publishedByUserId: targetStatus === 'published' ? user.id : null,
-          updatedByUserId: user.id,
-          version: { increment: 1 },
-        },
+      const updated = await this.updateCurrentEntry(tx, existing, {
+        status: targetStatus,
+        archivedAt: null,
+        archivedByUserId: null,
+        publishedAt: targetStatus === 'published' ? now : null,
+        publishedByUserId: targetStatus === 'published' ? user.id : null,
+        updatedByUserId: user.id,
+        version: { increment: 1 },
       });
       await this.recordAudit(tx, {
         entryId: id,
@@ -404,6 +393,34 @@ export class SiteContentService {
       targetStatus,
       policy: this.adminPolicy(),
     };
+  }
+
+  private async updateCurrentEntry(
+    tx: Prisma.TransactionClient,
+    existing: SiteContentEntryRecord,
+    data: Prisma.SiteContentEntryUpdateInput,
+  ) {
+    try {
+      return await tx.siteContentEntry.update({
+        where: { id: existing.id, status: existing.status, version: existing.version },
+        data,
+      });
+    } catch (error) {
+      if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2025') {
+        throw error;
+      }
+      throw new ConflictException({
+        code: 'SITE_CONTENT_REVISION_CONFLICT',
+        message: 'Site content changed; reload its current revision before trying again',
+        messageKey: 'siteContent.error.revisionConflict',
+        details: {
+          id: existing.id,
+          expectedVersion: existing.version,
+          expectedStatus: existing.status,
+          reloadRequired: true,
+        },
+      });
+    }
   }
 
   private createData(user: AuthUser, input: SiteContentBody) {
