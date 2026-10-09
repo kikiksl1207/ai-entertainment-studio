@@ -1426,12 +1426,22 @@
         }
 
         async function loadMypageSummary() {
+          const read = {};
+          loadMypageSummary.currentRead = read;
           const safeFixture = getSafeAccountStateFixture();
           if (safeFixture) {
             applySummary(safeFixture);
             return;
           }
-          if (typeof apiFetch !== "function" || typeof isLoggedIn !== "function" || !isLoggedIn()) return;
+          if (typeof apiFetch !== "function" || typeof isLoggedIn !== "function" || !isLoggedIn()
+            || typeof getAuth !== "function" || typeof authRequestSession !== "function" || typeof authRequestSessionCurrent !== "function") return;
+          const auth = getAuth();
+          const owner = String(auth?.user?.id || auth?.user?.userId || "");
+          const session = authRequestSession(auth);
+          const isCurrent = () => loadMypageSummary.currentRead === read && owner !== ""
+            && isLoggedIn() && authRequestSessionCurrent(session)
+            && String(getAuth()?.user?.id || getAuth()?.user?.userId || "") === owner;
+          if (!isCurrent()) return;
           // #266 — fetch 시작 직후 loading 상태로 전환. 두 fetch 가 동시에 실패하면 error 표시.
           applyDebutLoading();
           // #501 — debut API 오류 상태 캡처. 501 = endpoint 미준비, 404 = 신청 없음(정상).
@@ -1441,6 +1451,7 @@
             apiFetch("/api/v1/me/debut-applications/latest", { auth: true, throwOnError: true })
               .catch(err => { debutApiErrorStatus = err?.status || 0; return null; })
           ]);
+          if (!isCurrent()) return;
           const latestApplication = latestResponse?.latestApplication || latestResponse?.application || latestResponse;
           if (summary && latestApplication && typeof latestApplication === "object" && Object.keys(latestApplication).length) {
             summary.debut = summary.debut || {};
@@ -1476,8 +1487,19 @@
         }
 
         async function loadMypageSettings() {
-          if (typeof apiFetch !== "function" || typeof isLoggedIn !== "function" || !isLoggedIn()) return;
+          const read = {};
+          loadMypageSettings.currentRead = read;
+          if (typeof apiFetch !== "function" || typeof isLoggedIn !== "function" || !isLoggedIn()
+            || typeof getAuth !== "function" || typeof authRequestSession !== "function" || typeof authRequestSessionCurrent !== "function") return;
+          const auth = getAuth();
+          const owner = String(auth?.user?.id || auth?.user?.userId || "");
+          const session = authRequestSession(auth);
+          const isCurrent = () => loadMypageSettings.currentRead === read && owner !== ""
+            && isLoggedIn() && authRequestSessionCurrent(session)
+            && String(getAuth()?.user?.id || getAuth()?.user?.userId || "") === owner;
+          if (!isCurrent()) return;
           const data = await apiFetch("/api/v1/me/settings", { auth: true }).catch(() => null);
+          if (!isCurrent()) return;
           const settings = data?.settings || data || {};
           const values = {
             mypageLocale: settings.locale,
