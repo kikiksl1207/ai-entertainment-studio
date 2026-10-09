@@ -28,6 +28,7 @@ function harness(surface) {
   }]));
   const calls = []; const merged = []; const more = []; const synced = [];
   const context = {
+    backstageAuthEpoch: 0,
     URLSearchParams,
     document: { getElementById: id => nodes[id] },
     sectionState: { admins: {}, logs: { rows: [], cursor: null, hasMore: false } },

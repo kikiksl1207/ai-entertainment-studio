@@ -9,6 +9,7 @@ const plain = value => JSON.parse(JSON.stringify(value));
 const tick = () => new Promise(resolve => setImmediate(resolve));
 const actorA = '10000000-0000-4000-8000-000000000001';
 const actorB = '10000000-0000-4000-8000-000000000002';
+const verifiedAdminId = actor => `synthetic-me-admin-${actor}`;
 const emailA = 'synthetic-operator-a@example.invalid';
 const emailB = 'synthetic-operator-b@example.invalid';
 const paths = ['/admin/api/v1/admin-users', '/admin/api/v1/admin-roles', '/admin/api/v1/audit-events'];
@@ -24,6 +25,7 @@ export function sourceExcerpts(text = source) {
     ['loginStatus', 'function setStatus(', 'function setLoading('],
     ['fetch', 'async function backstageFetch(', 'window.LuminaBackstageApi ='],
     ['normalizeRefresh', 'function normalizeAuthPayload(', 'function applyAdminContext('],
+    ['applyAdminContext', 'function applyAdminContext(', 'function loadGoogleSDK('],
     ['paths', 'function publicApiPath(', 'async function verifyAdminAccess('],
     ['rows', 'function statusBadge(', 'function renderSettlementChildren('],
     ['page', 'function normalizePage(', 'function readSectionSearch('],
@@ -51,7 +53,7 @@ export function sourceExcerpts(text = source) {
 const excerpts = sourceExcerpts();
 const runtime = excerpts.map(item => item.body).join('\n') + `
 let userClassificationDetail = null;
-this.api = { load: loadAdminsSection, auth: getBackstageAuth, setAuth: setBackstageAuth,
+this.api = { load: loadAdminsSection, auth: getBackstageAuth, setAuth: setBackstageAuth, apply: applyAdminContext,
   canAccess: canAccessBackstageSection, permissions: currentAdminPermissions, norm: normalizePage };
 `;
 
@@ -165,8 +167,13 @@ function harness() {
   runInNewContext(runtime, context, { filename: 'backstage.js:actual-admins-session-recovery' });
   const api = context.api;
   const setAuth = (actor = actorA, token = 'synthetic-a', permissions = ['*']) => {
-    const auth = { accessToken: token, user: { id: actor, email: actor === actorA ? emailA : emailB, adminPermissions: permissions } };
-    if (token) tokens.set(`Bearer ${token}`, actor); api.setAuth(auth); return auth;
+    const auth = { accessToken: token, user: { id: actor, email: actor === actorA ? emailA : emailB } };
+    if (token) tokens.set(`Bearer ${token}`, actor);
+    api.setAuth(auth);
+    // Verified /me grants are independent of the admin-users roster.
+    api.apply({ user: auth.user, admin: { id: verifiedAdminId(actor), status: 'active',
+      role: permissions.includes('*') ? 'super_admin' : 'cs_admin', permissions } });
+    return api.auth();
   };
   setAuth();
   const h = { context, api, storage, calls, tables, nodes, dashboardMain, sections, warnings, setAuth,
@@ -184,10 +191,13 @@ function harness() {
       await operation.pending; await tick();
     },
     async seed() {
+      const verified = plain(api.auth());
       const operation = h.begin(); await h.finish(operation);
       assert.equal(h.state.rows.length, 2); assert.equal(h.state.auditRows.length, 3);
       assert.match(tables.adminRows.innerHTML, /synthetic-operator-a/);
-      assert.equal(api.auth().user.adminUser.id, 'healthy-admin-0', 'Actual context sync must be active, not stubbed');
+      assert.equal(h.state.rows[0].meta.adminUserId, 'healthy-admin-0');
+      assert.equal(api.auth().user.adminUser.id, verifiedAdminId(actorA), 'Actual /me context remains authoritative');
+      assert.deepEqual(plain(api.auth()), verified, 'Actual roster sync must not grant or replace verified permissions');
     },
     logout(shared = false) {
       if (shared) storage.set('lumina_auth', JSON.stringify(api.auth()));
@@ -263,7 +273,8 @@ test('ADMIN-AUDIT-SEPARATION-01 empty real audit success never turns role defini
       noRoleFallback: noRole(JSON.stringify(rowsPlain(h)) + historyHtml(h)),
       explicitEmpty: /권한 이력이 없습니다/.test(historyHtml(h)),
       noFalseError: noteText(h) === '',
-      primaryValid: h.state.rows.length === 2 && h.api.auth().user.adminUser.id === 'empty-real-audit-admin-0',
+      primaryValid: h.state.rows.length === 2 && h.state.rows[0].meta.adminUserId === 'empty-real-audit-admin-0'
+        && h.api.auth().user.adminUser.id === verifiedAdminId(actorA),
       triple: same(operation.calls.map(call => call.path), paths),
       retained: retained(),
     });
@@ -287,7 +298,8 @@ test('ADMIN-AUDIT-SEPARATION-02 audit500/network are errors, preserve real cache
       explicitAuditError: /권한 이력|감사/.test(note) && errorWords.test(note),
       notEmptySuccess: !/권한 이력이 없습니다/.test(html + note),
       visibleCacheOrReloadError: seeded ? /s\*\*\*@example\.invalid/.test(html) : errorWords.test(html),
-      primaryValid: h.state.rows.length === 2 && h.api.auth().user.adminUser.id === 'audit-error-admin-0',
+      primaryValid: h.state.rows.length === 2 && h.state.rows[0].meta.adminUserId === 'audit-error-admin-0'
+        && h.api.auth().user.adminUser.id === verifiedAdminId(actorA),
       triple: same(operation.calls.map(call => call.path), paths),
       noAutomaticRetry: h.calls.length === (seeded ? 6 : 3),
       retained: retained(),
@@ -330,7 +342,8 @@ test('ADMIN-AUDIT-SEPARATION-04 roles500403 show role status without losing vali
       noFakeRoleEvent: noRole(JSON.stringify(rowsPlain(h)) + html),
       explicitRoleStatus: /권한 기준|역할/.test(note) && (status === 403 ? /조회 권한|인증|거절|접근/.test(note) : errorWords.test(note)),
       noFalseAuditError: !/권한 이력을 (?:갱신|확인)하지 못/.test(note),
-      primaryValid: h.state.rows.length === 2 && h.api.auth().user.adminUser.id === 'roles-unavailable-admin-0',
+      primaryValid: h.state.rows.length === 2 && h.state.rows[0].meta.adminUserId === 'roles-unavailable-admin-0'
+        && h.api.auth().user.adminUser.id === verifiedAdminId(actorA),
       triple: same(operation.calls.map(call => call.path), paths),
       retained: retained(),
     }));
@@ -349,7 +362,7 @@ test('ADMIN-AUDIT-SEPARATION-05 normal masked events, current actor/triple and s
         noRawActorOrRoleHistory: !/synthetic-operator-a@example\.invalid|ROLE-\d+/.test(historyHtml(h)),
         actualMetadata: h.state.rows[0].meta.userId === actorA && same(h.state.rows[0].meta.permissions, ['*']),
         currentActorAndToken: h.api.auth().user.id === actorA && h.api.auth().accessToken === 'synthetic-a-rotated',
-        actualContextSync: h.api.auth().user.adminUser.id === 'healthy-admin-0',
+        actualContextSync: h.api.auth().user.adminUser.id === verifiedAdminId(actorA),
         noFalseStatus: noteText(h) === '',
         triple: same(operation.calls.map(call => call.path), paths),
         retained: retained(),

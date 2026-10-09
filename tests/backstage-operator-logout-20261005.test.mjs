@@ -9,6 +9,7 @@ const plain = value => JSON.parse(JSON.stringify(value));
 const tick = () => new Promise(resolve => setImmediate(resolve));
 const actorA = '10000000-0000-4000-8000-000000000001';
 const actorB = '10000000-0000-4000-8000-000000000002';
+const verifiedAdminId = actor => `synthetic-me-admin-${actor}`;
 const emailA = 'synthetic-operator-a@example.invalid';
 const emailB = 'synthetic-operator-b@example.invalid';
 const paths = ['/admin/api/v1/admin-users', '/admin/api/v1/admin-roles', '/admin/api/v1/audit-events'];
@@ -24,6 +25,7 @@ export function sourceExcerpts(text = source) {
     ['loginStatus', 'function setStatus(', 'function setLoading('],
     ['fetch', 'async function backstageFetch(', 'window.LuminaBackstageApi ='],
     ['normalizeRefresh', 'function normalizeAuthPayload(', 'function applyAdminContext('],
+    ['applyAdminContext', 'function applyAdminContext(', 'function loadGoogleSDK('],
     ['paths', 'function publicApiPath(', 'async function verifyAdminAccess('],
     ['rows', 'function statusBadge(', 'function renderSettlementChildren('],
     ['page', 'function normalizePage(', 'function readSectionSearch('],
@@ -51,7 +53,7 @@ export function sourceExcerpts(text = source) {
 const excerpts = sourceExcerpts();
 const runtime = excerpts.map(item => item.body).join('\n') + `
 let userClassificationDetail = null;
-this.api = { load: loadAdminsSection, auth: getBackstageAuth, setAuth: setBackstageAuth,
+this.api = { load: loadAdminsSection, auth: getBackstageAuth, setAuth: setBackstageAuth, apply: applyAdminContext,
   canAccess: canAccessBackstageSection, permissions: currentAdminPermissions, norm: normalizePage };
 `;
 
@@ -165,8 +167,13 @@ function harness() {
   runInNewContext(runtime, context, { filename: 'backstage.js:actual-admins-session-recovery' });
   const api = context.api;
   const setAuth = (actor = actorA, token = 'synthetic-a', permissions = ['*']) => {
-    const auth = { accessToken: token, user: { id: actor, email: actor === actorA ? emailA : emailB, adminPermissions: permissions } };
-    if (token) tokens.set(`Bearer ${token}`, actor); api.setAuth(auth); return auth;
+    const auth = { accessToken: token, user: { id: actor, email: actor === actorA ? emailA : emailB } };
+    if (token) tokens.set(`Bearer ${token}`, actor);
+    api.setAuth(auth);
+    // Verified /me grants are independent of the admin-users roster.
+    api.apply({ user: auth.user, admin: { id: verifiedAdminId(actor), status: 'active',
+      role: permissions.includes('*') ? 'super_admin' : 'cs_admin', permissions } });
+    return api.auth();
   };
   setAuth();
   const h = { context, api, storage, calls, tables, nodes, dashboardMain, sections, warnings, setAuth,
@@ -184,10 +191,13 @@ function harness() {
       await operation.pending; await tick();
     },
     async seed() {
+      const verified = plain(api.auth());
       const operation = h.begin(); await h.finish(operation);
       assert.equal(h.state.rows.length, 2); assert.equal(h.state.auditRows.length, 3);
       assert.match(tables.adminRows.innerHTML, /synthetic-operator-a/);
-      assert.equal(api.auth().user.adminUser.id, 'healthy-admin-0', 'Actual context sync must be active, not stubbed');
+      assert.equal(h.state.rows[0].meta.adminUserId, 'healthy-admin-0');
+      assert.equal(api.auth().user.adminUser.id, verifiedAdminId(actorA), 'Actual /me context remains authoritative');
+      assert.deepEqual(plain(api.auth()), verified, 'Actual roster sync must not grant or replace verified permissions');
     },
     logout(shared = false) {
       if (shared) storage.set('lumina_auth', JSON.stringify(api.auth()));

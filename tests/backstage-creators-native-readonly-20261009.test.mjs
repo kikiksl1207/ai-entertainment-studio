@@ -6,6 +6,7 @@ import vm from 'node:vm';
 import { sourceWithoutCreatorsNativeReadonlyDelta } from './support/backstage-creators-native-readonly-inverse-20261009.mjs';
 import { sourceWithoutLoginWidthDelta } from './support/backstage-login-width-inverse-20261009.mjs';
 import { sourceWithoutCreatorsReadDelta } from './support/backstage-creators-read-inverse-compat-20261009.mjs';
+import { sourceWithoutAuditPermissionDelta } from './support/backstage-audit-permission-inverse-20261009.mjs';
 
 const source = readFileSync(new URL('../backstage.js', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 const fixture = JSON.parse(readFileSync(new URL('./fixtures/backstage-creators-native-readonly-delta-20261009.json', import.meta.url), 'utf8'));
@@ -157,20 +158,22 @@ const urlDetail = () => ({ tableId: 'artistKnowledgeUrlRows', type: 'Synthetic c
   meta: { knowledgeUrlId: 'synthetic-knowledge', status: 'submitted' } });
 
 test('exact current inverse restores df5f, cbb and1843 without changing old pins', options, () => {
-  assert.equal(sha(source), '4780764cf1325e73798af337b3b7bb074dadf96a2a892e94dbd0b36dfc2c342f');
-  assert.equal(sha(sourceWithoutCreatorsNativeReadonlyDelta(source)), 'df5f352bae0df49a066035feba1feb9806ff24c2cf35d5e263a8233ed2bf3863');
-  assert.equal(sha(sourceWithoutLoginWidthDelta(source)), 'cbb64fbe98ccfc2b84bb73d1ebcbf85ff8513d062032b8d8c1d12b60de0c0341');
-  assert.equal(sha(sourceWithoutCreatorsReadDelta(source)), '1843ebacfa7779c72756263196e930c2b8a45d5211bca617fa3d7f629bbfb409');
+  const original = sourceWithoutAuditPermissionDelta(source);
+  assert.equal(sha(original), '4780764cf1325e73798af337b3b7bb074dadf96a2a892e94dbd0b36dfc2c342f');
+  assert.equal(sha(sourceWithoutCreatorsNativeReadonlyDelta(original)), 'df5f352bae0df49a066035feba1feb9806ff24c2cf35d5e263a8233ed2bf3863');
+  assert.equal(sha(sourceWithoutLoginWidthDelta(original)), 'cbb64fbe98ccfc2b84bb73d1ebcbf85ff8513d062032b8d8c1d12b60de0c0341');
+  assert.equal(sha(sourceWithoutCreatorsReadDelta(original)), '1843ebacfa7779c72756263196e930c2b8a45d5211bca617fa3d7f629bbfb409');
 });
 
 test('inverse rejects edit/outside/fixture drift and allows only CRLF normalization', options, () => {
-  assert.equal(sourceWithoutCreatorsNativeReadonlyDelta(source.replace(/\n/g, '\r\n')), sourceWithoutCreatorsNativeReadonlyDelta(source));
-  for (const bad of [`x${source}`, `${source}x`, source.replace('let creatorsNativeReadProof = null;', 'let creatorsNativeReadProof = {};')]) {
+  const original = sourceWithoutAuditPermissionDelta(source);
+  assert.equal(sourceWithoutCreatorsNativeReadonlyDelta(original.replace(/\n/g, '\r\n')), sourceWithoutCreatorsNativeReadonlyDelta(original));
+  for (const bad of [`x${original}`, `${original}x`, original.replace('let creatorsNativeReadProof = null;', 'let creatorsNativeReadProof = {};')]) {
     assert.throws(() => sourceWithoutCreatorsNativeReadonlyDelta(bad), { code: 'ERR_ASSERTION' });
   }
   const bad = plain(fixture); bad.edits[0].after += 'x';
-  assert.throws(() => sourceWithoutCreatorsNativeReadonlyDelta(source, bad), { code: 'ERR_ASSERTION' });
-  assert.throws(() => sourceWithoutCreatorsNativeReadonlyDelta(source, { ...fixture, extra: true }), { code: 'ERR_ASSERTION' });
+  assert.throws(() => sourceWithoutCreatorsNativeReadonlyDelta(original, bad), { code: 'ERR_ASSERTION' });
+  assert.throws(() => sourceWithoutCreatorsNativeReadonlyDelta(original, { ...fixture, extra: true }), { code: 'ERR_ASSERTION' });
 });
 
 test('stored active admin/grants or a cached union alone cannot create new admission', options, () => {

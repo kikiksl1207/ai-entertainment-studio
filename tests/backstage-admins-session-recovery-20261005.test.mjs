@@ -9,6 +9,7 @@ const plain = value => JSON.parse(JSON.stringify(value));
 const tick = () => new Promise(resolve => setImmediate(resolve));
 const actorA = '10000000-0000-4000-8000-000000000001';
 const actorB = '10000000-0000-4000-8000-000000000002';
+const verifiedAdminId = actor => `synthetic-me-admin-${actor}`;
 const emailA = 'synthetic-operator-a@example.invalid';
 const emailB = 'synthetic-operator-b@example.invalid';
 const paths = ['/admin/api/v1/admin-users', '/admin/api/v1/admin-roles', '/admin/api/v1/audit-events'];
@@ -24,6 +25,7 @@ export function sourceExcerpts(text = source) {
     ['loginStatus', 'function setStatus(', 'function setLoading('],
     ['fetch', 'async function backstageFetch(', 'window.LuminaBackstageApi ='],
     ['normalizeRefresh', 'function normalizeAuthPayload(', 'function applyAdminContext('],
+    ['applyAdminContext', 'function applyAdminContext(', 'function loadGoogleSDK('],
     ['paths', 'function publicApiPath(', 'async function verifyAdminAccess('],
     ['rows', 'function statusBadge(', 'function renderSettlementChildren('],
     ['page', 'function normalizePage(', 'function readSectionSearch('],
@@ -51,7 +53,7 @@ export function sourceExcerpts(text = source) {
 const excerpts = sourceExcerpts();
 const runtime = excerpts.map(item => item.body).join('\n') + `
 let userClassificationDetail = null;
-this.api = { load: loadAdminsSection, auth: getBackstageAuth, setAuth: setBackstageAuth,
+this.api = { load: loadAdminsSection, auth: getBackstageAuth, setAuth: setBackstageAuth, apply: applyAdminContext,
   canAccess: canAccessBackstageSection, permissions: currentAdminPermissions, norm: normalizePage };
 `;
 
@@ -165,8 +167,13 @@ function harness() {
   runInNewContext(runtime, context, { filename: 'backstage.js:actual-admins-session-recovery' });
   const api = context.api;
   const setAuth = (actor = actorA, token = 'synthetic-a', permissions = ['*']) => {
-    const auth = { accessToken: token, user: { id: actor, email: actor === actorA ? emailA : emailB, adminPermissions: permissions } };
-    if (token) tokens.set(`Bearer ${token}`, actor); api.setAuth(auth); return auth;
+    const auth = { accessToken: token, user: { id: actor, email: actor === actorA ? emailA : emailB } };
+    if (token) tokens.set(`Bearer ${token}`, actor);
+    api.setAuth(auth);
+    // Verified /me grants are independent of the admin-users roster.
+    api.apply({ user: auth.user, admin: { id: verifiedAdminId(actor), status: 'active',
+      role: permissions.includes('*') ? 'super_admin' : 'cs_admin', permissions } });
+    return api.auth();
   };
   setAuth();
   const h = { context, api, storage, calls, tables, nodes, dashboardMain, sections, warnings, setAuth,
@@ -184,10 +191,13 @@ function harness() {
       await operation.pending; await tick();
     },
     async seed() {
+      const verified = plain(api.auth());
       const operation = h.begin(); await h.finish(operation);
       assert.equal(h.state.rows.length, 2); assert.equal(h.state.auditRows.length, 3);
       assert.match(tables.adminRows.innerHTML, /synthetic-operator-a/);
-      assert.equal(api.auth().user.adminUser.id, 'healthy-admin-0', 'Actual context sync must be active, not stubbed');
+      assert.equal(h.state.rows[0].meta.adminUserId, 'healthy-admin-0');
+      assert.equal(api.auth().user.adminUser.id, verifiedAdminId(actorA), 'Actual /me context remains authoritative');
+      assert.deepEqual(plain(api.auth()), verified, 'Actual roster sync must not grant or replace verified permissions');
     },
     logout(shared = false) {
       if (shared) storage.set('lumina_auth', JSON.stringify(api.auth()));
@@ -212,10 +222,12 @@ function cachedData(h) { return plain({ rows: h.state.rows, auditRows: h.state.a
 function assertNoSamples(h) { assert.doesNotMatch(Object.values(h.tables).map(node => node.innerHTML).join('\n'), /SYNTHETIC-SAMPLE-/); }
 
 test('ADMINS-READ-01 actual triple routes/normalization/context and masked audit fallbacks preserve healthy contract', async () => {
-  const h = harness(); const before = unrelated(h); const operation = h.begin();
+  const h = harness(); const before = unrelated(h); const verified = plain(h.api.auth()); const operation = h.begin();
   assert.deepEqual(operation.calls.map(call => call.path), paths); await h.finish(operation);
   assert.equal(h.state.rows.length, 2); assert.equal(h.state.auditRows.length, 3);
-  assert.equal(h.api.auth().user.adminUser.id, 'healthy-admin-0');
+  assert.equal(h.api.auth().user.adminUser.id, verifiedAdminId(actorA));
+  assert.equal(h.state.rows[0].meta.adminUserId, 'healthy-admin-0');
+  assert.deepEqual(plain(h.api.auth()), verified, 'A roster response cannot replace verified /me grants');
   assert.deepEqual(plain(h.state.auditRows.map(row => row[4])), ['s***@example.invalid', 'syntheti', 'system']);
   assert.equal(h.state.rows[0].meta.userId, actorA); assert.deepEqual(plain(h.state.rows[0].meta.permissions), ['*']);
   assert.match(h.tables.adminRows.innerHTML, /data-detail=/); assertNoSamples(h);
@@ -284,7 +296,8 @@ for (const status of [200, 500]) {
   test(`ADMINS-READ-${status === 200 ? '13' : '14'} older ${status} cannot overwrite a completed newer query`, async () => {
     const h = harness(); const older = h.begin(); const newer = h.begin();
     await h.finish(newer, data('newer')); const before = snapshot(h);
-    assert.equal(h.api.auth().user.adminUser.id, 'newer-admin-0', 'Newer actual context is established first');
+    assert.equal(h.state.rows[0].meta.adminUserId, 'newer-admin-0', 'Newer actual list is established first');
+    assert.equal(h.api.auth().user.adminUser.id, verifiedAdminId(actorA), 'Verified /me context is retained');
     await h.finish(older, data('older'), status === 500 ? { 0: 500 } : {});
     assert.deepEqual(snapshot(h), before); assertNoSamples(h);
   });
@@ -331,7 +344,7 @@ test('ADMINS-READ-20 current primary 500 preserves actual cached lists and only 
   assert.match(h.sections.admins.querySelector('[data-admins-status]')?.textContent || '', /갱신하지 못/);
   const manual = h.begin(); assert.equal(h.calls.length, 9, 'Only this explicit call dispatches the next triple');
   await h.finish(manual, data('manual-requery'));
-  assert.equal(h.api.auth().user.adminUser.id, 'manual-requery-admin-0'); assert.equal(h.state.rows[0].meta.adminUserId, 'manual-requery-admin-0');
+  assert.equal(h.api.auth().user.adminUser.id, verifiedAdminId(actorA)); assert.equal(h.state.rows[0].meta.adminUserId, 'manual-requery-admin-0');
   assert.equal(h.sections.admins.querySelector('[data-admins-status]')?.textContent || '', '');
   assert.deepEqual(unrelated(h), beforeOther); assertNoSamples(h);
 });

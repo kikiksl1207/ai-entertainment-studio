@@ -38,7 +38,7 @@ class Element {
 }
 function harness() {
   const root = new Element(); const more = new Element(); const calls = []; const fallbacks = [];
-  const context = { URLSearchParams,
+  const context = { URLSearchParams, backstageAuthEpoch: 0,
     BACKSTAGE_HISTORY_KEY: 'fixture-audit-history', history: [], localReads: 0,
     localStorage: { getItem: () => { context.localReads++; return JSON.stringify(context.history); } },
     document: { getElementById: id => id === 'logRows' ? root : null, createElement: () => new Element(), querySelector: () => more },

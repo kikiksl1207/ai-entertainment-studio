@@ -87,6 +87,7 @@ function harness({ auth = operator(), hidden = false, initialState = state(), au
   const publications = [];
   let section = 'logs';
   const context = {
+    backstageAuthEpoch: 0,
     dashboardView: dashboard, sectionState: { logs: initialState }, publications, URLSearchParams,
     localStorage: { getItem: key => storage.get(key) ?? null },
     getCurrentSection: () => section,

@@ -6,10 +6,11 @@ import vm from 'node:vm';
 import { sourceWithoutCreatorsNativeReadonlyDelta } from './support/backstage-creators-native-readonly-inverse-20261009.mjs';
 import { sourceWithoutLoginWidthDelta } from './support/backstage-login-width-inverse-20261009.mjs';
 import { sourceWithoutCreatorsReadDelta } from './support/backstage-creators-read-inverse-compat-20261009.mjs';
+import { sourceWithoutAuditPermissionDelta } from './support/backstage-audit-permission-inverse-20261009.mjs';
 
 const canonical = text => text.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n');
 const sha = text => createHash('sha256').update(text, 'utf8').digest('hex');
-const source = sourceWithoutCreatorsNativeReadonlyDelta(readFileSync(new URL('../backstage.js', import.meta.url), 'utf8').replace(/\r\n/g, '\n'));
+const source = sourceWithoutCreatorsNativeReadonlyDelta(sourceWithoutAuditPermissionDelta(readFileSync(new URL('../backstage.js', import.meta.url), 'utf8').replace(/\r\n/g, '\n')));
 const css = canonical(readFileSync(new URL('../backstage.css', import.meta.url), 'utf8'));
 const fixture = JSON.parse(readFileSync(new URL('./fixtures/backstage-login-width-exact-delta-20261009.json', import.meta.url), 'utf8'));
 
