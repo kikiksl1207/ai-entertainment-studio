@@ -4940,6 +4940,7 @@ export class CommunityService {
         status: 'published',
         visibility: 'public',
         deletedAt: null,
+        ...this.publicFeedCleanupGuardWhere(),
         publishedAt: { gte: since },
         body: { contains: '#' },
       },
