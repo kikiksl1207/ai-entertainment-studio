@@ -147,7 +147,12 @@
       throw new Error("Backstage 인증 헬퍼가 아직 준비되지 않았습니다.");
     }
     var opts = Object.assign({ auth: true }, options || {});
-    return window.backstageFetch(window.adminApiPath(ADMIN_PATH + (path || "")), opts);
+    return window.backstageFetch(window.adminApiPath(ADMIN_PATH + (path || "")), opts).catch(function (error) {
+      if (error?.status === 409 && error?.body?.error?.code === "SITE_CONTENT_REVISION_CONFLICT") {
+        error.message = "다른 변경과 충돌하여 이번 요청은 반영되지 않았습니다. 입력 내용은 그대로 남아 있습니다. 입력을 따로 보관한 뒤 '필터 적용'으로 목록을 다시 불러와 최신 문구를 확인해 주세요.";
+      }
+      throw error;
+    });
   }
 
   async function loadList() {
