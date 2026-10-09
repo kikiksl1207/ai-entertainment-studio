@@ -4867,6 +4867,15 @@ export class CommunityService {
       normalizedKeyword: normalizedKeyword
         ? { contains: normalizedKeyword, mode: 'insensitive' }
         : undefined,
+      NOT: blockedTerms.length
+        ? {
+            OR: blockedTerms.map((term) => this.clean({
+              normalizedKeyword: term.normalizedKeyword,
+              searchType: term.searchType === 'all' ? undefined : term.searchType,
+              language: term.language === 'all' ? undefined : term.language,
+            })),
+          }
+        : undefined,
     });
     const grouped = await this.prisma.feedSearchEvent.groupBy({
       by: ['normalizedKeyword', 'searchType', 'language'],
