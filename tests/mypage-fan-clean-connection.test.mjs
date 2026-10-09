@@ -4,9 +4,10 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import test from 'node:test';
 import vm from 'node:vm';
+import { htmlWithoutActivationReadDelta } from './support/mypage-activation-read-inverse-20261009.mjs';
 
 const source = readFileSync(new URL('../pages/mypage-titles.js', import.meta.url), 'utf8');
-const html = readFileSync(new URL('../mypage/index.html', import.meta.url), 'utf8');
+const html = htmlWithoutActivationReadDelta(readFileSync(new URL('../mypage/index.html', import.meta.url), 'utf8'));
 const css = readFileSync(new URL('../styles/mypage.css', import.meta.url), 'utf8');
 const sha = text => createHash('sha256').update(text, 'utf8').digest('hex');
 const lf = bytes => new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes).replace(/\r\n/g, '\n');

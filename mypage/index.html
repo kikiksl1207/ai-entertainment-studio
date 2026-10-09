@@ -835,10 +835,51 @@
               "</div>";
           }).join("");
         }
+        let activationProgressRead = null;
         async function loadActivationProgress() {
-          if (typeof apiFetch !== "function" || typeof isLoggedIn !== "function" || !isLoggedIn()) return;
-          const data = await apiFetch("/api/v1/rewards/activation-progress", { auth: true }).catch(() => null);
-          renderActivationRewards(normalizeRewardItems(data));
+          if (typeof apiFetch !== "function" || typeof isLoggedIn !== "function" || !isLoggedIn()
+              || typeof authRequestSession !== "function" || typeof authRequestSessionCurrent !== "function") return;
+          if (activationProgressRead?.promise && activationProgressRead.isCurrent()) return activationProgressRead.promise;
+          const ownerId = getAuth()?.user?.id || getAuth()?.user?.userId;
+          const session = authRequestSession();
+          const read = { promise: null, isCurrent: () => activationProgressRead === read && !!ownerId
+            && isLoggedIn() && authRequestSessionCurrent(session)
+            && ownerId === (getAuth()?.user?.id || getAuth()?.user?.userId) };
+          activationProgressRead = read;
+          const locale = window.luminaI18n?.getLocale?.() || "ko";
+          const text = ({
+            ko: ["참여 기록 확인 중", "잠시만 기다려 주세요.", "참여 기록을 확인하지 못했어요.", "확인된 보상 상태가 아닙니다.", "다시 조회"],
+            en: ["Checking participation", "Please wait.", "Could not verify participation.", "Reward status is unverified.", "Refresh"],
+            ja: ["参加記録を確認中", "お待ちください。", "参加記録を確認できませんでした。", "報酬の状態は未確認です。", "再取得"],
+            "zh-Hans": ["正在确认参与记录", "请稍候。", "无法确认参与记录。", "奖励状态尚未确认。", "重新查询"],
+            "zh-Hant": ["正在確認參與記錄", "請稍候。", "無法確認參與記錄。", "獎勵狀態尚未確認。", "重新查詢"]
+          })[locale] || ["참여 기록 확인 중", "잠시만 기다려 주세요.", "참여 기록을 확인하지 못했어요.", "확인된 보상 상태가 아닙니다.", "다시 조회"];
+          renderBox("mypageActivationRewards", text[0], text[1]);
+          read.promise = Promise.resolve().then(async () => {
+            try {
+              if (!read.isCurrent()) return;
+              const data = await apiFetch("/api/v1/rewards/activation-progress", { auth: true, throwOnError: true });
+              if (!read.isCurrent()) return;
+              if (data?.userId !== ownerId || typeof data.generatedAt !== "string" || !Number.isFinite(Date.parse(data.generatedAt))
+                  || !Array.isArray(data.milestoneStatus) || !data.milestoneStatus.every(item => item
+                    && typeof item.code === "string" && item.code.length > 0 && typeof item.completed === "boolean"
+                    && typeof item.claimStatus === "string")) throw new Error("Invalid participation response");
+              renderActivationRewards(normalizeRewardItems(data));
+            } catch (_) {
+              if (read.isCurrent()) {
+                renderBox("mypageActivationRewards", text[2], text[3]);
+                const button = document.createElement("button");
+                button.type = "button";
+                button.className = "button-secondary";
+                button.textContent = text[4];
+                button.addEventListener("click", () => { if (read.isCurrent()) void loadActivationProgress(); });
+                $("mypageActivationRewards")?.append(button);
+              }
+            } finally {
+              if (activationProgressRead === read) read.promise = null;
+            }
+          });
+          return read.promise;
         }
         async function claimActivationReward(code, button) {
           if (!code || typeof apiFetch !== "function") return;
@@ -1833,14 +1874,21 @@
         }
 
         let mypageInlineRefreshPromise = null;
+        let mypageInlineRefreshSession = null;
         async function refreshMypageInlineData() {
-          if (mypageInlineRefreshPromise) return mypageInlineRefreshPromise;
-          mypageInlineRefreshPromise = Promise.all([loadMypageSummary(), loadMypageSettings(), loadActivationProgress()])
-            .then(() => initMypageTabs())
+          if (mypageInlineRefreshPromise && authRequestSessionCurrent(mypageInlineRefreshSession)) return mypageInlineRefreshPromise;
+          const session = authRequestSession();
+          const pending = Promise.all([loadMypageSummary(), loadMypageSettings(), loadActivationProgress()])
+            .then(() => { if (authRequestSessionCurrent(session)) initMypageTabs(); })
             .finally(() => {
-              mypageInlineRefreshPromise = null;
+              if (mypageInlineRefreshPromise === pending) {
+                mypageInlineRefreshPromise = null;
+                mypageInlineRefreshSession = null;
+              }
             });
-          return mypageInlineRefreshPromise;
+          mypageInlineRefreshSession = session;
+          mypageInlineRefreshPromise = pending;
+          return pending;
         }
 
         window.refreshMypageInlineData = refreshMypageInlineData;
