@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto';
+import { Decimal } from '@prisma/client/runtime/library';
 import { StoryGeneratedEndingReadService } from './story-generated-ending-read.service';
 import { StoryProductionService } from './story-production.service';
 
@@ -25,10 +26,12 @@ function recoveryFixture(artwork: Artwork, variant: string | null = 'default') {
   };
   const part = {
     id: partId, workId, status: 'published', fixtureSource: false,
+    priceLumina: new Decimal(0),
     seasonKey: 'season-1', actNumber: 1, position: 1, title: { en: 'Final act' },
   };
   const work = {
     id: workId, status: 'published', fixtureSource: false, defaultLocale: 'en',
+    priceLumina: new Decimal(0),
     activeReleaseId: releaseId, publishedVersion: 1,
   };
   const release = { id: releaseId, workId, status: 'active', version: 1 };

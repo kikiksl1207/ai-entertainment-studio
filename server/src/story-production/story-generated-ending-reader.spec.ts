@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import type { StoryAiGeneratedScene, StoryReaderProgress, StoryWork } from '@prisma/client';
+import { Decimal } from '@prisma/client/runtime/library';
 import { StoryProductionService } from './story-production.service';
 
 describe('generated ending reader projection', () => {
@@ -26,10 +27,12 @@ describe('generated ending reader projection', () => {
       }) },
       storyPart: { findFirst: jest.fn().mockResolvedValue({
         id: 'part-id', workId: 'work-id', status: 'published', fixtureSource: false,
+        priceLumina: new Decimal(0),
         seasonKey: 'season-1', actNumber: 1, position: 1, title: { ko: '첫 장' },
       }) },
       storyWork: { findFirst: jest.fn().mockResolvedValue({
         id: 'work-id', status: 'published', fixtureSource: false, defaultLocale: 'ko',
+        priceLumina: new Decimal(0),
         activeReleaseId: 'release-id', publishedVersion: 1,
       }) },
       storyRelease: { findFirst: jest.fn().mockResolvedValue({ id: 'release-id' }) },

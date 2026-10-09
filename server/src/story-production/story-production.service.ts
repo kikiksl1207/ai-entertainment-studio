@@ -867,14 +867,14 @@ export class StoryProductionService {
       if (!ending) throw new ConflictException({ code: 'STORY_COMPLETED_ENDING_UNAVAILABLE',
         retryable: false, progressMutated: false });
       return { ...(await this.sceneProjection({ ...progress, currentSceneId: ending.sceneId,
-        currentBeatPosition: progress.currentSceneId ? progress.currentBeatPosition : 0 }, locale, recoverVisualPrompts)),
+        currentBeatPosition: progress.currentSceneId ? progress.currentBeatPosition : 0 }, locale, recoverVisualPrompts, true)),
         workId: progress.workId, participantArtist };
     }
     if (!progress.currentSceneId) {
       const ending = await canonicalEndingPosition(this.prisma, progress, true);
       if (ending) {
         return { ...(await this.sceneProjection({ ...progress, currentSceneId: ending.sceneId,
-          currentBeatPosition: 0 }, locale, recoverVisualPrompts)), workId: progress.workId, participantArtist };
+          currentBeatPosition: 0 }, locale, recoverVisualPrompts, true)), workId: progress.workId, participantArtist };
       }
       return {
         progressId,
@@ -1973,6 +1973,7 @@ export class StoryProductionService {
         })
       : null;
     if (!scene || !part || !work) throw new NotFoundException('Generated story scene not found');
+    await this.assertCurrentSceneAccess(progress.userId, work, part);
     if (progress.status === 'completed' && !await this.prisma.storyRelease.findFirst({
       where: { id: progress.activeReleaseId!, workId: progress.workId,
         status: 'active', version: progress.storyVersion }, select: { id: true },
@@ -2102,6 +2103,7 @@ export class StoryProductionService {
   private async sceneProjection(
     progress: {
       id: string;
+      userId: string;
       currentSceneId: string | null;
       currentBeatPosition: number;
       currentAct: number;
@@ -2114,6 +2116,7 @@ export class StoryProductionService {
     },
     locale: string,
     recoverVisualPrompts = true,
+    allowOwnerEnding = false,
   ) {
     const scene = await this.prisma.storyScene.findFirst({ where: { id: progress.currentSceneId!, status: 'published', fixtureSource: false } });
     if (!scene || !isPublicStorySourceSafe({ fixtureSource: scene?.fixtureSource, manifest: scene?.visualManifest })) {
@@ -2122,6 +2125,7 @@ export class StoryProductionService {
     const part = await this.prisma.storyPart.findUnique({ where: { id: scene.partId } });
     const work = part ? await this.prisma.storyWork.findUnique({ where: { id: part.workId } }) : null;
     if (!part || !work || work.status !== 'published' || part.status !== 'published') throw new NotFoundException('Published story scene not found');
+    await this.assertCurrentSceneAccess(progress.userId, work, part, allowOwnerEnding);
     let visualManifest = projectStoredStorySceneVisualManifest(
       scene.visualManifest,
       scene.sceneKey,
@@ -2233,6 +2237,25 @@ export class StoryProductionService {
             }
           : firstReleaseChoiceCapability(),
     };
+  }
+
+  private async assertCurrentSceneAccess(
+    userId: string,
+    work: { id: string; ownerUserId: string; priceLumina: Decimal; activeReleaseId: string | null },
+    part: { id: string; priceLumina: Decimal },
+    allowOwnerEnding = false,
+  ) {
+    if ((allowOwnerEnding && work.ownerUserId === userId) ||
+        work.priceLumina.isZero() || part.priceLumina.isZero() ||
+        await this.hasEntitlement(userId, [work.id, part.id])) return;
+    if (this.publicBeta && work.activeReleaseId) {
+      const release = await this.prisma.storyRelease.findFirst({
+        where: { id: work.activeReleaseId, workId: work.id, status: 'active' },
+        select: { id: true, checksum: true },
+      });
+      if (release && this.publicBeta.freeAccess(work.id, release.id, release.checksum)) return;
+    }
+    throw new ForbiddenException('Story entitlement required');
   }
 
   private applyReadyVisual<T extends { background: { altKey: string } }>(manifest: T, publicAssetPath: string) {

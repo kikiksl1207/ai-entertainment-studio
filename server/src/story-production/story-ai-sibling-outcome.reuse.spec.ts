@@ -1,4 +1,5 @@
 import { StoryEconomicsService } from './story-economics.service';
+import type { StoryContinuationApprovedContext } from './story-continuation-context.assembler';
 
 describe('approved-result reuse sibling guard', () => {
   it('rejects an exact narrative collision before creating a reused reader scene', async () => {
@@ -24,6 +25,13 @@ describe('approved-result reuse sibling guard', () => {
         title: { ko: '같은 장면' }, visualManifest: { sceneKey: 'source' }, endingKey: null,
       },
       siblingContextKey: 'a'.repeat(64), siblingChoiceKey: 'b'.repeat(64),
+      approvedContext: {
+        sourceScene: { title: 'Synthetic approved source', beats: [
+          { beatType: 'paragraph', content: 'A different source event.' },
+        ] },
+        selectedChoice: { label: 'Continue the synthetic route' }, path: [], memories: [],
+      } satisfies StoryContinuationApprovedContext,
+      locale: 'ko',
     };
     const service = new StoryEconomicsService({} as never);
     const applyReuse = Reflect.get(service, 'applyReusableResultTx') as

@@ -736,11 +736,13 @@ describe('First public release suggested choices', () => {
     expectNoWrites(f);
   });
 
-  it('retains ending completion with zero offered choices', async () => {
+  it('rejects completed empty-pointer progress without stored canonical ending evidence', async () => {
     const f = fixture();
     f.progress.currentSceneId = null as never;
     f.progress.status = 'completed';
-    await expect(f.production.currentProgress('reader', 'progress')).resolves.toMatchObject({ status: 'completed', choices: [], releaseCapability: firstReleaseChoiceCapability() });
+    await expect(f.production.currentProgress('reader', 'progress')).rejects.toMatchObject({ response: {
+      code: 'STORY_COMPLETED_ENDING_UNAVAILABLE', retryable: false, progressMutated: false,
+    } });
     expectNoWrites(f);
   });
 });

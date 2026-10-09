@@ -52,6 +52,7 @@ import {
 } from './story-continuation.provider';
 import type { StoryContinuationClaim } from './story-continuation.repository';
 import type { StoryContinuationApprovedContext } from './story-continuation-context.assembler';
+import { assertStoryContinuationQuality } from './story-continuation-quality.policy';
 import { sourceStoryContinuationLengthBounds, storyContinuationOutputTokenLimit } from './story-continuation-length.policy';
 import { authoredPartContinuationLengthBounds } from './story-continuation-author-length.store';
 import { StoryContinuationLegalActivationGate } from './story-continuation-legal-activation.gate';
@@ -831,6 +832,8 @@ export class StoryEconomicsService {
           participantPin: participantSnapshot?.pin,
           sharedResult,
           route,
+          approvedContext,
+          locale,
         });
       }
       if (sharedResult.status === 'revoked') {
@@ -3134,6 +3137,8 @@ export class StoryEconomicsService {
       route: { nodeId: string | null; hash: string | null };
       siblingContextKey: string;
       siblingChoiceKey: string;
+      approvedContext: StoryContinuationApprovedContext;
+      locale: string;
     },
   ) {
     const { input, sharedResult } = prepared;
@@ -3163,6 +3168,27 @@ export class StoryEconomicsService {
       ((choices.length > 0) === Boolean(sharedResult.endingKey))
     ) {
       throw new ConflictException('Approved shared story result is incomplete');
+    }
+    // Historical review does not bypass the current approved-context quality guard.
+    try {
+      assertStoryContinuationQuality({
+        title: sharedResult.title as Record<string, string>,
+        beats: beats.map(beat => ({
+          beatType: beat.beatType as StoryContinuationProviderResult['beats'][number]['beatType'],
+          content: beat.content as Record<string, string>,
+        })),
+        visualManifest: sharedResult.visualManifest as Record<string, unknown>,
+        nextChoices: choices.map(choice => ({
+          choiceKey: choice.choiceKey, label: choice.label as Record<string, string>,
+        })),
+        usage: { inputTokens: 0, outputTokens: 0, cachedInputTokens: 0, imageUnits: 0 },
+      }, prepared.approvedContext, prepared.locale);
+    } catch {
+      throw new ConflictException({
+        code: 'STORY_AI_SHARED_RESULT_UNAVAILABLE',
+        messageKey: 'story.progress.aiGeneration.notAuthorized', retryable: false,
+        progressMutated: false, generationStarted: false,
+      });
     }
     await this.claimSiblingNarrative(tx, prepared.siblingContextKey, prepared.siblingChoiceKey,
       sharedResult.title, beats);

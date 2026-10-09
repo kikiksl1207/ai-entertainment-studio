@@ -967,6 +967,7 @@ describe('StoryProductionService', () => {
     prisma.storyPart.findUnique.mockResolvedValue({
       id: 'part-1',
       workId: 'work-1',
+      priceLumina: new Decimal(0),
       seasonKey: 'season-1',
       actNumber: 1,
       position: 1,
@@ -977,6 +978,7 @@ describe('StoryProductionService', () => {
       id: 'work-1',
       status: 'published',
       defaultLocale: 'en',
+      priceLumina: new Decimal(0),
     });
     prisma.storyBeat.findMany.mockResolvedValue([
       { id: 'beat-1', position: 1, beatType: 'narration', content: { en: 'Begin' } },
