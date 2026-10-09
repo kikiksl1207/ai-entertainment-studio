@@ -12,6 +12,7 @@
     ko: {
       title: "\uc800\uc7a5\ub41c \ub3c5\uc790 \ubcf8\ubb38", privacy: "\ube44\uacf5\uac1c \u00b7 \uc77d\uae30 \uc804\uc6a9", refresh: "\uc800\uc7a5\ub41c \ubcf8\ubb38 \uc0c8\ub85c\uace0\uce68",
       manuscriptWork: "\uc6d0\uace0 \uc900\ube44 \uc791\ud488", notSelected: "\ubbf8\uc120\ud0dd",
+      origin: "\ubcf8\ubb38 \uad6c\ubd84", originOriginal: "\uc6d0\uc791 \ubcf8\ubb38", originGenerated: "AI \ubd84\uae30 \ubcf8\ubb38",
       ready: "\uc800\uc7a5\ub41c \ubcf8\ubb38\uc744 \ud655\uc778\ud560 \uc218 \uc788\uc2b5\ub2c8\ub2e4.", noWork: "\uc120\ud0dd\ub41c \uc791\ud488\uc774 \uc5c6\uc2b5\ub2c8\ub2e4.", loading: "\uc800\uc7a5\ub41c \ubcf8\ubb38\uc744 \ud655\uc778\ud558\uace0 \uc788\uc2b5\ub2c8\ub2e4.",
       noProgress: "\uc774 \uc791\ud488\uc758 \ub0b4 \ub3c5\uc790 \uc9c4\ud589\uc774 \uc5c6\uc2b5\ub2c8\ub2e4.", noScene: "\ud604\uc7ac \uc9c4\ud589\uc5d0 \uc800\uc7a5\ub41c \uc7a5\uba74\uc774 \uc5c6\uc2b5\ub2c8\ub2e4.",
       generating: "\ud604\uc7ac \uc9c4\ud589\uc740 \uc0dd\uc131 \ub300\uae30 \ub610\ub294 \uc0dd\uc131 \uc911\uc785\ub2c8\ub2e4.", ending: "\uc5d4\ub529", body: "\ubcf8\ubb38", choices: "\uc800\uc7a5\ub41c \uc120\ud0dd\uc9c0",
@@ -27,6 +28,7 @@
     en: {
       title: "Saved reader text", privacy: "Private \u00b7 Read only", refresh: "Refresh saved text",
       manuscriptWork: "Manuscript story", notSelected: "Not selected",
+      origin: "Text source", originOriginal: "Original text", originGenerated: "AI branch text",
       ready: "Saved text is available to check.", noWork: "No story is selected.", loading: "Checking saved text.",
       noProgress: "You have no reader progress for this story.", noScene: "There is no saved scene in your current progress.",
       generating: "Your current progress is pending or generating.", ending: "Ending", body: "Text", choices: "Saved choices",
@@ -42,6 +44,7 @@
     ja: {
       title: "\u4fdd\u5b58\u3055\u308c\u305f\u8aad\u8005\u672c\u6587", privacy: "\u975e\u516c\u958b \u00b7 \u8aad\u307f\u53d6\u308a\u5c02\u7528", refresh: "\u4fdd\u5b58\u3055\u308c\u305f\u672c\u6587\u3092\u66f4\u65b0",
       manuscriptWork: "\u539f\u7a3f\u306e\u4f5c\u54c1", notSelected: "\u672a\u9078\u629e",
+      origin: "\u672c\u6587\u306e\u7a2e\u985e", originOriginal: "\u539f\u4f5c\u672c\u6587", originGenerated: "AI\u5206\u5c90\u672c\u6587",
       ready: "\u4fdd\u5b58\u3055\u308c\u305f\u672c\u6587\u3092\u78ba\u8a8d\u3067\u304d\u307e\u3059\u3002", noWork: "\u4f5c\u54c1\u304c\u9078\u629e\u3055\u308c\u3066\u3044\u307e\u305b\u3093\u3002", loading: "\u4fdd\u5b58\u3055\u308c\u305f\u672c\u6587\u3092\u78ba\u8a8d\u3057\u3066\u3044\u307e\u3059\u3002",
       noProgress: "\u3053\u306e\u4f5c\u54c1\u306e\u81ea\u5206\u306e\u8aad\u8005\u9032\u884c\u306f\u3042\u308a\u307e\u305b\u3093\u3002", noScene: "\u73fe\u5728\u306e\u9032\u884c\u306b\u4fdd\u5b58\u3055\u308c\u305f\u30b7\u30fc\u30f3\u306f\u3042\u308a\u307e\u305b\u3093\u3002",
       generating: "\u73fe\u5728\u306e\u9032\u884c\u306f\u751f\u6210\u5f85\u3061\u3001\u307e\u305f\u306f\u751f\u6210\u4e2d\u3067\u3059\u3002", ending: "\u30a8\u30f3\u30c7\u30a3\u30f3\u30b0", body: "\u672c\u6587", choices: "\u4fdd\u5b58\u3055\u308c\u305f\u9078\u629e\u80a2",
@@ -57,6 +60,7 @@
     "zh-Hans": {
       title: "\u5df2\u4fdd\u5b58\u7684\u8bfb\u8005\u6b63\u6587", privacy: "\u79c1\u5bc6 \u00b7 \u53ea\u8bfb", refresh: "\u5237\u65b0\u5df2\u4fdd\u5b58\u7684\u6b63\u6587",
       manuscriptWork: "\u7a3f\u4ef6\u4f5c\u54c1", notSelected: "\u672a\u9009\u62e9",
+      origin: "\u6b63\u6587\u7c7b\u578b", originOriginal: "\u539f\u4f5c\u6b63\u6587", originGenerated: "AI\u5206\u652f\u6b63\u6587",
       ready: "\u53ef\u4ee5\u67e5\u770b\u5df2\u4fdd\u5b58\u7684\u6b63\u6587\u3002", noWork: "\u672a\u9009\u62e9\u4f5c\u54c1\u3002", loading: "\u6b63\u5728\u68c0\u67e5\u5df2\u4fdd\u5b58\u7684\u6b63\u6587\u3002",
       noProgress: "\u60a8\u5728\u6b64\u4f5c\u54c1\u4e2d\u6ca1\u6709\u8bfb\u8005\u8fdb\u5ea6\u3002", noScene: "\u5f53\u524d\u8fdb\u5ea6\u4e2d\u6ca1\u6709\u5df2\u4fdd\u5b58\u7684\u573a\u666f\u3002",
       generating: "\u5f53\u524d\u8fdb\u5ea6\u6b63\u5728\u7b49\u5f85\u751f\u6210\u6216\u751f\u6210\u4e2d\u3002", ending: "\u7ed3\u5c40", body: "\u6b63\u6587", choices: "\u5df2\u4fdd\u5b58\u7684\u9009\u9879",
@@ -72,6 +76,7 @@
     "zh-Hant": {
       title: "\u5df2\u5132\u5b58\u7684\u8b80\u8005\u6b63\u6587", privacy: "\u79c1\u5bc6 \u00b7 \u552f\u8b80", refresh: "\u91cd\u65b0\u6574\u7406\u5df2\u5132\u5b58\u7684\u6b63\u6587",
       manuscriptWork: "\u7a3f\u4ef6\u4f5c\u54c1", notSelected: "\u672a\u9078\u64c7",
+      origin: "\u6b63\u6587\u985e\u578b", originOriginal: "\u539f\u4f5c\u6b63\u6587", originGenerated: "AI\u5206\u652f\u6b63\u6587",
       ready: "\u53ef\u4ee5\u67e5\u770b\u5df2\u5132\u5b58\u7684\u6b63\u6587\u3002", noWork: "\u672a\u9078\u64c7\u4f5c\u54c1\u3002", loading: "\u6b63\u5728\u6aa2\u67e5\u5df2\u5132\u5b58\u7684\u6b63\u6587\u3002",
       noProgress: "\u60a8\u5728\u6b64\u4f5c\u54c1\u4e2d\u6c92\u6709\u8b80\u8005\u9032\u5ea6\u3002", noScene: "\u76ee\u524d\u9032\u5ea6\u4e2d\u6c92\u6709\u5df2\u5132\u5b58\u7684\u5834\u666f\u3002",
       generating: "\u76ee\u524d\u9032\u5ea6\u6b63\u5728\u7b49\u5f85\u751f\u6210\u6216\u751f\u6210\u4e2d\u3002", ending: "\u7d50\u5c40", body: "\u6b63\u6587", choices: "\u5df2\u5132\u5b58\u7684\u9078\u9805",
@@ -315,6 +320,12 @@
       for (const [label, text] of [[words.status, progressLabel], [words.revision, progress.revision],
         [words.version, progress.storyVersion], [words.source, localeNames[state.data.locale]]]) {
         const row = element("div"); row.append(element("dt", "", label), element("dd", "", String(text))); metadata.append(row);
+      }
+      if (progress.scene) {
+        const row = element("div");
+        row.append(element("dt", "", words.origin), element("dd", "body-preview-origin",
+          words[progress.scene.isGenerated ? "originGenerated" : "originOriginal"]));
+        metadata.append(row);
       }
       content.append(metadata);
       const source = element("div", "body-preview-source"); source.lang = state.data.locale;

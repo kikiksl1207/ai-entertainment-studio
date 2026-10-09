@@ -17,7 +17,7 @@ test('actual creator entry references trial assets that are both present and pub
     assert.ok(entry.includes('/' + asset + '?v='));
   }
   assert.equal((entry.match(/id="writerBodyTrial"/g) || []).length, 1);
-  assert.match(entry, /src="\/pages\/creator-body-preview\.js\?v=body-selected-scope-20261008"/);
+  assert.match(entry, /src="\/pages\/creator-body-preview\.js\?v=body-origin-20261009"/);
   assert.ok(entry.indexOf('src="/pages/creator-body-preview.js') < entry.indexOf('src="/pages/creator-body-trial.js'));
 });
 

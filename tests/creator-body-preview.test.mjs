@@ -487,6 +487,49 @@ test('responsive type and layout use unframed, wrapping content and a fixed 44px
   assert.doesNotMatch(source, /element\(["'](?:article|dialog)["']|className\s*=\s*["'][^"']*card/);
 });
 
+const provenanceLabels = {
+  ko: ['\ubcf8\ubb38 \uad6c\ubd84', '\uc6d0\uc791 \ubcf8\ubb38', 'AI \ubd84\uae30 \ubcf8\ubb38'],
+  en: ['Text source', 'Original text', 'AI branch text'],
+  ja: ['\u672c\u6587\u306e\u7a2e\u985e', '\u539f\u4f5c\u672c\u6587', 'AI\u5206\u5c90\u672c\u6587'],
+  'zh-Hans': ['\u6b63\u6587\u7c7b\u578b', '\u539f\u4f5c\u6b63\u6587', 'AI\u5206\u652f\u6b63\u6587'],
+  'zh-Hant': ['\u6b63\u6587\u985e\u578b', '\u539f\u4f5c\u6b63\u6587', 'AI\u5206\u652f\u6b63\u6587'],
+};
+const provenanceNode = view => walk(view.host).filter(node => node.className === 'body-preview-origin');
+for (const locale of locales) for (const isGenerated of [false, true]) {
+  test(`body provenance ${locale} ${isGenerated ? 'generated' : 'original'} follows the validated scene`, async () => {
+    const value = body(id(1), 'ja'); value.progress.scene.isGenerated = isGenerated;
+    const view = mounted(() => response(value)); view.locale(locale); view.sourceLocale.value = 'ja';
+    view.sourceLocale.fire('change'); await view.click();
+    const nodes = provenanceNode(view);
+    assert.equal(nodes.length, 1);
+    assert.equal(nodes[0].textContent, provenanceLabels[locale][isGenerated ? 2 : 1]);
+    const metadata = walk(view.host).find(node => node.className === 'body-preview-metadata');
+    assert(metadata.textContent.includes(provenanceLabels[locale][0]));
+    assert.equal(walk(view.host).find(node => node.className === 'body-preview-source').lang, 'ja');
+    assert.equal(view.calls.length, 1); assert.equal(view.calls[0].options.method, 'GET');
+    assert.equal(walk(view.host).filter(node => node.tagName === 'BUTTON').length, 1);
+  });
+}
+for (const invalid of [undefined, null, 'false', 1]) {
+  test(`body provenance rejects unverified source flag ${String(invalid)}`, async () => {
+    const value = body(); value.progress.scene.isGenerated = invalid;
+    const view = mounted(() => response(value)); await view.click();
+    assert.equal(provenanceNode(view).length, 0);
+    assert.doesNotMatch(view.host.textContent, /Private text|Saved scene/);
+  });
+}
+test('body provenance absent scene never implies original text', async () => {
+  const value = body(); value.progress.scene = null; value.progress.choices = [];
+  const view = mounted(() => response(value)); await view.click();
+  assert.equal(provenanceNode(view).length, 0);
+});
+test('body provenance invalidation clears the label together with private text', async () => {
+  const view = mounted(); await view.click(); assert.equal(provenanceNode(view).length, 1);
+  view.window.fire('lumina:authchange');
+  assert.equal(provenanceNode(view).length, 0); assert.doesNotMatch(view.host.textContent, /Private text|Saved scene/);
+  assert.equal(view.calls.length, 1);
+});
+
 
 
 const selectedContextLabels = {
