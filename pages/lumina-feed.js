@@ -896,6 +896,7 @@ function bindLuminaFeedSearch() {
   if (!input || input._bound) return;
   input._bound = true;
   input.addEventListener("input", () => {
+    _luminaFeedSearchSeq += 1;
     _luminaFeedQuery = input.value || "";
     renderLuminaFeed();
     clearTimeout(_luminaFeedSearchTimer);
