@@ -126,8 +126,8 @@ async function handleMypageAvatarSelect(file) {
       setMypageAvatarStatus("선택한 이미지는 저장 전에도 이곳에서 먼저 확인할 수 있습니다.", "info");
     }, 1600);
   } catch (err) {
-    // 디버깅 — 콘솔에 상세 (사용자가 콘솔에서 어느 단계 실패했는지 확인 가능)
-    console.error("[#058 avatar upload] 실패:", err, "status=", err?.status, "body=", err?.body, "stage=", err?._stage);
+    // Keep raw responses and private profile data out of diagnostic logs.
+    console.warn("[Lumina] avatar upload failed");
 
     // 실패 시 이전 이미지로 원복
     const auth = getAuth();
@@ -185,7 +185,7 @@ async function uploadMypageAvatar(file) {
   }
   const assetId = intent.asset.id;
   const upload = intent.upload;
-  console.info("[#058 avatar upload] intent OK", { assetId, mode: upload.mode });
+  console.info("[Lumina] avatar upload intent ready");
 
   // 2. 직접 업로드 (S3/R2 direct upload mode)
   if (upload.mode === "direct_upload_ready" && upload.url) {
@@ -226,7 +226,7 @@ async function uploadMypageAvatar(file) {
   }
   const finalAsset = confirmed?.asset || confirmed;
   const finalAssetId = finalAsset?.id || assetId;
-  console.info("[#058 avatar upload] confirm OK", { finalAssetId, url: finalAsset?.url });
+  console.info("[Lumina] avatar upload confirmed");
 
   // 4. PATCH /me/profile { avatarAssetId } — 프로필에 연결
   let patched;
@@ -243,7 +243,7 @@ async function uploadMypageAvatar(file) {
   }
   // 응답에서 user 객체 받기 (백엔드에 따라 patched.user 또는 patched 자체)
   const updatedUser = patched?.user || patched;
-  console.info("[#058 avatar upload] PATCH profile OK", updatedUser);
+  console.info("[Lumina] avatar profile linked");
 
   // 5. setAuth 갱신 — 다른 페이지/리로드 시에도 반영되도록
   const auth = getAuth();
