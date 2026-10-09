@@ -238,6 +238,25 @@
     if (hasHold) Object.assign(base.budget, Object.fromEntries(holdFields.map(key => [key, budget[key]])));
     return Object.assign(base, nextCostQuote(value, base));
   }
+  const failureMessageKeys = {
+    lease_time_insufficient: "generationTimeInsufficient", provider_outcome_unknown: "generationOutcomeUnknown",
+    narrative_length_rejected: "generationLengthRejected", output_validation_rejected: "generationFormatRejected",
+    quality_rule_rejected: "generationQualityRuleRejected", participant_missing: "generationParticipantMissing",
+    content_rejected: "generationContentRejected"
+  };
+  const validationFailureLabels = {
+    "ko": ["\uc0dd\uc131 \ubcf8\ubb38\uc774 \uae38\uc774 \uae30\uc900\uc744 \ucda9\uc871\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4.","\uc0dd\uc131 \uc751\ub2f5\uc774 \uc800\uc7a5 \ud615\uc2dd \uae30\uc900\uc744 \ucda9\uc871\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4.","\uc0dd\uc131 \ubcf8\ubb38\uc774 \ub0a0\uc9dc\u00b7\uc911\ubcf5 \ud45c\ud604 \uac80\uc0ac \uae30\uc900\uc744 \ucda9\uc871\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4.","\uc0dd\uc131 \uc7a5\uba74\uc5d0\uc11c \ud544\uc694\ud55c \ucc38\uc5ec \uc778\ubb3c\uc744 \ud655\uc778\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4.","\uc0dd\uc131 \uc694\uccad \ub610\ub294 \uacb0\uacfc\uac00 \ucf58\ud150\uce20 \uc548\uc804 \uae30\uc900\uc73c\ub85c \uac70\uc808\ub410\uc2b5\ub2c8\ub2e4."],
+    "en": ["Generated text did not meet the length requirements.","The generation response did not meet the required save format.","Generated text did not pass date or repeated-prose checks.","A required participant could not be confirmed in the generated scene.","The generation request or result was rejected by content safety checks."],
+    "ja": ["\u751f\u6210\u3055\u308c\u305f\u672c\u6587\u304c\u9577\u3055\u306e\u57fa\u6e96\u3092\u6e80\u305f\u3057\u307e\u305b\u3093\u3067\u3057\u305f\u3002","\u751f\u6210\u5fdc\u7b54\u304c\u4fdd\u5b58\u5f62\u5f0f\u306e\u57fa\u6e96\u3092\u6e80\u305f\u3057\u307e\u305b\u3093\u3067\u3057\u305f\u3002","\u751f\u6210\u3055\u308c\u305f\u672c\u6587\u304c\u65e5\u4ed8\u30fb\u6587\u7ae0\u306e\u91cd\u8907\u30c1\u30a7\u30c3\u30af\u3092\u901a\u904e\u3057\u307e\u305b\u3093\u3067\u3057\u305f\u3002","\u751f\u6210\u3055\u308c\u305f\u5834\u9762\u3067\u5fc5\u8981\u306a\u767b\u5834\u4eba\u7269\u3092\u78ba\u8a8d\u3067\u304d\u307e\u305b\u3093\u3067\u3057\u305f\u3002","\u751f\u6210\u30ea\u30af\u30a8\u30b9\u30c8\u307e\u305f\u306f\u7d50\u679c\u304c\u30b3\u30f3\u30c6\u30f3\u30c4\u5b89\u5168\u57fa\u6e96\u3067\u62d2\u5426\u3055\u308c\u307e\u3057\u305f\u3002"],
+    "zh-Hans": ["\u751f\u6210\u6b63\u6587\u672a\u6ee1\u8db3\u957f\u5ea6\u8981\u6c42\u3002","\u751f\u6210\u54cd\u5e94\u672a\u6ee1\u8db3\u4fdd\u5b58\u683c\u5f0f\u8981\u6c42\u3002","\u751f\u6210\u6b63\u6587\u672a\u901a\u8fc7\u65e5\u671f\u6216\u91cd\u590d\u6587\u5b57\u68c0\u67e5\u3002","\u65e0\u6cd5\u5728\u751f\u6210\u573a\u666f\u4e2d\u786e\u8ba4\u5fc5\u8981\u7684\u53c2\u4e0e\u4eba\u7269\u3002","\u751f\u6210\u8bf7\u6c42\u6216\u7ed3\u679c\u88ab\u5185\u5bb9\u5b89\u5168\u68c0\u67e5\u62d2\u7edd\u3002"],
+    "zh-Hant": ["\u751f\u6210\u6b63\u6587\u672a\u6eff\u8db3\u9577\u5ea6\u8981\u6c42\u3002","\u751f\u6210\u56de\u61c9\u672a\u6eff\u8db3\u5132\u5b58\u683c\u5f0f\u8981\u6c42\u3002","\u751f\u6210\u6b63\u6587\u672a\u901a\u904e\u65e5\u671f\u6216\u91cd\u8907\u6587\u5b57\u6aa2\u67e5\u3002","\u7121\u6cd5\u5728\u751f\u6210\u5834\u666f\u4e2d\u78ba\u8a8d\u5fc5\u8981\u7684\u53c3\u8207\u4eba\u7269\u3002","\u751f\u6210\u8acb\u6c42\u6216\u7d50\u679c\u88ab\u5167\u5bb9\u5b89\u5168\u6aa2\u67e5\u62d2\u7d55\u3002"],
+  };
+  for (const [language, labels] of Object.entries(validationFailureLabels)) {
+    const [generationLengthRejected, generationFormatRejected, generationQualityRuleRejected,
+      generationParticipantMissing, generationContentRejected] = labels;
+    Object.assign(copy[language], { generationLengthRejected, generationFormatRejected, generationQualityRuleRejected,
+      generationParticipantMissing, generationContentRejected });
+  }
   function parseReceipt(value, command) {
     const bad = () => { throw failure("invalid"); };
     const body = command?.body || command;
@@ -248,7 +267,7 @@
       revisionAfterRequest: value.revisionAfterRequest, status: value.status };
     if (Object.prototype.hasOwnProperty.call(value, "failureReason")) {
       if (value.failureReason !== null && (value.status !== "failed" ||
-          !["lease_time_insufficient", "provider_outcome_unknown"].includes(value.failureReason))) bad();
+          typeof value.failureReason !== "string" || !Object.hasOwn(failureMessageKeys, value.failureReason))) bad();
       result.failureReason = value.failureReason;
     }
     if (value.continuationId === undefined) {
@@ -584,8 +603,7 @@
         const verified = replaying ? parseReceiptEnvelope(value, sending) : parseReceipt(value, sending);
         retireCommand(sending);
         receipt = verified; phase = "accepted"; request = null;
-        messageKey = receipt.status === "failed" ? ({ lease_time_insufficient: "generationTimeInsufficient",
-          provider_outcome_unknown: "generationOutcomeUnknown" }[receipt.failureReason] || "generationFailed") : receipt.status === "timeout" ? "generationTimeout" :
+        messageKey = receipt.status === "failed" ? (failureMessageKeys[receipt.failureReason] || "generationFailed") : receipt.status === "timeout" ? "generationTimeout" :
           ["queued", "processing"].includes(receipt.status) ? "generating" :
           receipt.generationStarted === false && receipt.status === "completed" ? "ending" : "accepted";
         // A sibling may have reloaded the old route while the request was still pending.

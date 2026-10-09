@@ -1862,7 +1862,7 @@ test('receipt result: an unverified receipt GET never gains the result prefix', 
 test('entry pairs the recovered trial script and stylesheet with a fresh matching cache revision', () => {
   const stylesheet = entry.match(/href="\/pages\/creator-body-trial\.css\?v=([^"&]+)"/)?.[1];
   const script = entry.match(/src="\/pages\/creator-body-trial\.js\?v=([^"&]+)"/)?.[1];
-  assert.equal(script, 'body-selected-scope-20261008');
+  assert.equal(script, 'body-failure-advice-20261009');
   assert.equal(stylesheet, script);
   assert.doesNotMatch(entry, /creator-body-trial\.(?:css|js)\?v=body-trial-20261002/);
 });
@@ -2762,3 +2762,42 @@ test('completed body trial: local expiry timer preserves ending while withholdin
   assert.equal(posts(view).length, 0); assert.equal(view.calls.length, 2); assert.equal(view.events.length, 0);
   assert.equal(timers.size, 0);
 });
+
+const validationFailureCases = [
+  ['narrative_length_rejected', 'generationLengthRejected'], ['output_validation_rejected', 'generationFormatRejected'],
+  ['quality_rule_rejected', 'generationQualityRuleRejected'], ['participant_missing', 'generationParticipantMissing'],
+  ['content_rejected', 'generationContentRejected']
+];
+for (const language of locales) for (const [reason, label] of validationFailureCases) {
+  test(`failure advice: ${language}/${reason} is a manual receipt GET without paid retry or cost certification`, async () => {
+    const view = mounted(({ kind, url, reply }) => kind === 'recovery' ? response(recoveryEnvelope(recoveryCommand()))
+      : kind === 'receipt' ? response(receiptEnvelope(url, aiReceipt('failed', { failureReason: reason,
+        actualCostKrw: '0', providerPayload: 'synthetic-private-diagnostic', generationAuthorized: true }))) : reply(), { language });
+    assert.equal(await view.recover(), true); assert.equal(posts(view).length, 0);
+    assert.equal(await view.retry(), true);
+    const receipt = view.api.parseReceipt(aiReceipt('failed', { failureReason: reason,
+      actualCostKrw: '0', providerPayload: 'synthetic-private-diagnostic', generationAuthorized: true }), expectedBody);
+    assert.equal(receipt.failureReason, reason);
+    assert.equal(walk(view.host).find(node => node.id === 'writerBodyTrialState').textContent,
+      view.api.copy[language].receiptResult + ': ' + view.api.copy[language][label]);
+    assert.ok(view.api.copy[language][label]);
+    assert.doesNotMatch(view.host.textContent, /synthetic-private-diagnostic|providerPayload|actualCostKrw/);
+    assert.doesNotMatch(JSON.stringify(receipt), /generationAuthorized|retryable|allowanceRemaining|actualCostKrw|providerPayload/);
+    assert.equal(view.retryButton().hidden, true); assert.equal(view.choices().length, 0);
+    assert.equal(view.calls.length, 2); assert.equal(checks(view).length, 1); assert.equal(posts(view).length, 0);
+    await view.retry(); assert.equal(view.calls.length, 2);
+  });
+}
+for (const [reason] of validationFailureCases) for (const status of ['queued', 'processing', 'completed', 'timeout']) {
+  test(`failure advice: ${reason} cannot decorate non-failed ${status}`, () => {
+    const { api } = library();
+    assert.throws(() => api.parseReceipt(aiReceipt(status, { failureReason: reason }), expectedBody), { kind: 'invalid' });
+  });
+}
+for (const reason of ['NARRATIVE_LENGTH_REJECTED', 'narrative_length_rejected ', 'provider_malformed_output',
+  'output_validation_rejected:private-detail', '__proto__', 0, {}, ['content_rejected']]) {
+  test(`failure advice: strict safe category rejects ${JSON.stringify(reason)}`, () => {
+    const { api } = library();
+    assert.throws(() => api.parseReceipt(aiReceipt('failed', { failureReason: reason }), expectedBody), { kind: 'invalid' });
+  });
+}
