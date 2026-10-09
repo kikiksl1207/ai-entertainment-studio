@@ -49,7 +49,7 @@ export type StoryContinuationSemanticPathStep = {
 };
 
 const MAX_SEMANTIC_PATH_STEPS = 12;
-export const STORY_CONTINUATION_PROFILE_VIEW_VERSION = 'story-profile-prompt-v4';
+export const STORY_CONTINUATION_PROFILE_VIEW_VERSION = 'story-profile-prompt-v5';
 const MAX_PROFILE_VIEW_BYTES = 16_384;
 const PROFILE_VIEW_LIMITS = [
   { summary: 240, detail: 160, title: 80, categoryExample: 120 },
@@ -235,6 +235,21 @@ export function continuationExecutionFingerprint(input: {
 }
 
 export function continuationGenerationProfileSnapshot(profile: ApprovedStoryGenerationProfileRow) {
+  const { pin, normalized } = validatedContinuationGenerationProfile(profile);
+  return projectContinuationGenerationProfile(pin, normalized.sections);
+}
+
+export function continuationGenerationProfileApprovalPin(profile: ApprovedStoryGenerationProfileRow) {
+  return validatedContinuationGenerationProfile(profile).pin;
+}
+
+export function continuationGenerationProfileVisualSnapshot(profile: ApprovedStoryGenerationProfileRow) {
+  const { pin, normalized } = validatedContinuationGenerationProfile(profile);
+  return projectContinuationGenerationProfile(pin, normalized.sections.filter(section =>
+    section.key === 'visual_direction' || section.key === 'visual_cast'));
+}
+
+function validatedContinuationGenerationProfile(profile: ApprovedStoryGenerationProfileRow) {
   if (profile.status !== 'approved' || !profile.approvedFingerprint || !profile.approvedSettings) {
     throw new Error('generation_profile_not_approved');
   }
@@ -253,7 +268,14 @@ export function continuationGenerationProfileSnapshot(profile: ApprovedStoryGene
     sourceFingerprint: profile.sourceFingerprint,
     approvedFingerprint,
   };
-  const sections = normalized.sections.filter((section) =>
+  return { pin, normalized };
+}
+
+function projectContinuationGenerationProfile(
+  pin: StoryContinuationGenerationProfilePin,
+  sourceSections: ReturnType<typeof normalizeCreatorGenerationProfile>['sections'],
+) {
+  const sections = sourceSections.filter((section) =>
     section.decision === 'accepted' || section.decision === 'edited');
   for (const limits of PROFILE_VIEW_LIMITS) {
     const approved: StoryContinuationApprovedGenerationProfile = {
@@ -279,9 +301,9 @@ function continuationProfileValue(
   const projected: Record<string, unknown> = {};
   for (const [field, item] of Object.entries(value)) {
     if (['observations', 'categories', 'referenceScope'].includes(field)) continue;
-    // Branching instructions can end with an approved condition or exception.
+    // Style and branching rules can end with an approved condition or exception.
     // Preserve them whole; the total view cap rejects oversized rules before dispatch.
-    projected[field] = field === 'summary' && key !== 'branch_behavior'
+    projected[field] = field === 'summary' && !['writing_style', 'branch_behavior'].includes(key)
       ? profileText(item, limits.summary) : item;
   }
   // The author's complete manuscript is a reference, never this reader's history.

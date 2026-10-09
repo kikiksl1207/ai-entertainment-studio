@@ -729,6 +729,27 @@ describe('company final submission after completed analysis (synthetic delegates
 });
 
 describe('company final submission binding reads (real policy, synthetic delegates)', () => {
+  it('checks the full approval identity without requiring new generation context to fit', async () => {
+    const f = fixture();
+    const settings = normalizeCreatorGenerationProfile('story', {
+      ...f.profile.approvedSettings,
+      sections: f.profile.approvedSettings!.sections.map(section => section.key === 'writing_style'
+        ? { ...section, value: { summary: '\uac00'.repeat(6_000) } } : section),
+    });
+    f.profile.approvedSettings = settings;
+    f.profile.approvedFingerprint = creatorGenerationProfileFingerprint(f.profile.sourceFingerprint, settings);
+    const binding = await readCompanyFinalSubmissionBinding(f.tx as never, ids.owner, ids.work, f.review as never);
+    expect(binding).not.toBeNull();
+    expect(binding!.profilePin.approvedFingerprint).toBe(f.profile.approvedFingerprint);
+    expectNoSubmissionWrites(f);
+    expectNoUnrelatedWrites(f);
+    const writing = f.profile.approvedSettings.sections.find(section => section.key === 'writing_style')!;
+    writing.value = { ...writing.value, summary: '\uac00'.repeat(6_000) + 'changed' };
+    expect(await readCompanyFinalSubmissionBinding(f.tx as never, ids.owner, ids.work, f.review as never)).toBeNull();
+    expectNoSubmissionWrites(f);
+    expectNoUnrelatedWrites(f);
+  });
+
   it('uses the latest semantic job regardless of status, not the latest completed job', async () => {
     const f = fixture();
     f.analysis.status = 'running';

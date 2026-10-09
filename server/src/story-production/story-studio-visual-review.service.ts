@@ -16,6 +16,8 @@ import { studioManuscriptVisualReviewSource } from './story-studio-visual-source
 
 type Db = PrismaService | Prisma.TransactionClient;
 const hashPattern = /^[a-f0-9]{64}$/;
+// Existing visual approvals bind this full approval identity, not narrative prompt formatting.
+export const STUDIO_VISUAL_PROFILE_BINDING_VERSION = 'story-profile-prompt-v4';
 
 @Injectable()
 export class StoryStudioVisualReviewService {
@@ -54,9 +56,9 @@ export class StoryStudioVisualReviewService {
     const analysis = await db.storyAnalysisJob.findFirst({ where: { workId, manuscriptVersionId,
       status: 'completed', pipeline: SEMANTIC_PIPELINE }, orderBy: { analysisVersion: 'desc' } });
     if (!analysis) visualReviewConflict('STUDIO_VISUAL_REVIEW_PROFILE_REQUIRED');
-    const profile = await this.choices.approvedGenerationProfile(db, ownerUserId, workId, manuscript, analysis.id);
+    const profile = await this.choices.approvedGenerationProfileIdentity(db, ownerUserId, workId, manuscript, analysis.id);
     if (!profile) visualReviewConflict('STUDIO_VISUAL_REVIEW_PROFILE_REQUIRED');
-    const profilePin = { pin: profile.pin, viewVersion: profile.viewVersion };
+    const profilePin = { pin: profile.pin, viewVersion: STUDIO_VISUAL_PROFILE_BINDING_VERSION };
     const profilePinHash = releaseChecksum(profilePin);
     if (expected.expectedProfilePinHash !== undefined && expected.expectedProfilePinHash !== profilePinHash) {
       visualReviewConflict('STUDIO_VISUAL_REVIEW_PROFILE_CHANGED');

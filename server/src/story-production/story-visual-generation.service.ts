@@ -29,7 +29,7 @@ import type { StoryContinuationProviderResult } from './story-continuation.provi
 import { buildStoryVisualBible, composeStoryVisualPrompt, type StoryVisualBible } from './story-visual-bible';
 import { FIXED_ROUTE_STORIES } from './story-fixed-route-markdown.policy';
 import {
-  continuationGenerationProfileSnapshot,
+  continuationGenerationProfileVisualSnapshot,
   parseContinuationGenerationProfilePin,
   stableContinuationJson,
 } from './story-continuation-context.policy';
@@ -855,16 +855,13 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
           },
         });
         if (!profile) throw new Error('profile_missing');
-        const snapshot = continuationGenerationProfileSnapshot(profile);
+        const snapshot = continuationGenerationProfileVisualSnapshot(profile);
         if (stableContinuationJson(snapshot.pin) !== stableContinuationJson(pin)) {
           throw new Error('profile_changed');
         }
-        const sections = snapshot.approved.sections.filter((section) =>
-          section.key === 'visual_direction' || section.key === 'visual_cast',
-        );
         visualProfile = JSON.stringify({
           schemaVersion: snapshot.approved.schemaVersion,
-          sections,
+          sections: snapshot.approved.sections,
         });
         if (visualProfile.length > 12_000) throw new Error('profile_changed');
       }

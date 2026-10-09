@@ -128,6 +128,18 @@ async function storedPartFixture() {
 }
 
 describe('Studio authored choice preparation', () => {
+  it.each(['approvedGenerationProfile', 'approvedGenerationProfileIdentity'] as const)(
+    'keeps an invalid approval date a safe conflict in %s', async method => {
+      const f = approvedProfileFixture();
+      f.profile.approvedAt = new Date(NaN);
+      await expect(f.service[method](f.db, f.ids.owner, f.ids.work, f.manuscript, f.analysis.id))
+        .rejects.toMatchObject({ response: { code: 'STUDIO_CHOICES_GENERATION_PROFILE_INVALID' } });
+      expect(f.provider.generate).not.toHaveBeenCalled();
+      expect(f.db.auditEvent.create).not.toHaveBeenCalled();
+      expect(f.db.storyChoice.createMany).not.toHaveBeenCalled();
+    },
+  );
+
   async function receiptFixture() {
     const f = approvedProfileFixture();
     await f.service.prepare(f.ids.owner, f.ids.work, f.ids.release, f.ids.scene);

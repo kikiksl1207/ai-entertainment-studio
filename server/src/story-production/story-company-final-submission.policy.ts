@@ -2,7 +2,7 @@ import { ConflictException } from '@nestjs/common';
 import { Prisma, StoryFinalSubmission, StoryManuscriptVersion, StoryWriterReview } from '@prisma/client';
 import { createHash } from 'crypto';
 import { stableJson } from '../generation-profile/creator-generation-profile.policy';
-import { continuationGenerationProfileSnapshot } from './story-continuation-context.policy';
+import { continuationGenerationProfileApprovalPin } from './story-continuation-context.policy';
 import { resolveCompanyPrivateSubmissionSource } from './story-company-source.policy';
 import { SEMANTIC_PIPELINE } from './story-semantic-analysis.types';
 
@@ -55,7 +55,7 @@ export async function readCompanyFinalSubmissionBinding(
       !Number.isSafeInteger(profile.profileVersion) || profile.profileVersion < 1 ||
       !Number.isSafeInteger(profile.reviewRevision) || profile.reviewRevision < 1) return null;
   let profilePin;
-  try { profilePin = continuationGenerationProfileSnapshot(profile).pin; } catch { return null; }
+  try { profilePin = continuationGenerationProfileApprovalPin(profile); } catch { return null; }
   const issues = await db.storyContinuityIssue.findMany({ where: { workId, analysisJobId: analysis.id,
     status: 'open', pathScope: 'author_original', pathKey: 'author_original' }, select: { severity: true }, take: 1001 });
   // Delegation is not a person's acknowledgement of an unresolved warning.

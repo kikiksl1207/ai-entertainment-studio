@@ -45,6 +45,7 @@ postgres('approved manuscript source boundaries (dedicated loopback PostgreSQL, 
       const analysis = await db.storyAnalysisJob.findFirstOrThrow({ where: { workId: f.work.id } });
       const sourceRef = `analysis:${randomUUID()}`;
       const branchSummary = `${'Keep the consequences of the selected branch. '.repeat(12)}Resolve only conflicts actually established on this route; do not assume the original ending happened.`;
+      const writingSummary = `${'Preserve close viewpoint and natural sentence rhythm. '.repeat(8)}STYLE_TAIL: Keep dialogue restrained; do not replace the author voice with an explanatory synopsis.`;
       const settings = normalizeCreatorGenerationProfile('story', {
         schemaVersion: 'creator-generation-profile-v1', kind: 'story',
         sections: STORY_PROFILE_SECTION_KEYS.map((key) => ({
@@ -52,7 +53,8 @@ postgres('approved manuscript source boundaries (dedicated loopback PostgreSQL, 
             ? { summary: 'The mother dies on the original route in part 32.', observations: [
                 { title: 'Original ending', detail: 'ORIGINAL_FUTURE_DEATH', sourceRef },
               ] }
-            : { summary: key === 'branch_behavior' ? branchSummary : `${key} approved constraint` },
+            : { summary: key === 'branch_behavior' ? branchSummary
+                : key === 'writing_style' ? writingSummary : `${key} approved constraint` },
           evidence: key === 'timeline' ? [{ sourceType: 'manuscript',
             sourceRef: `${sourceRef}:PART-32:17`, summary: 'Synthetic future source' }] : [],
         })),
@@ -77,6 +79,8 @@ postgres('approved manuscript source boundaries (dedicated loopback PostgreSQL, 
         f.choice.id, start.revision, 'ko', randomUUID()) as { continuationId: string; status: string };
       expect(queued.status).toBe('queued');
       expect(contexts).toHaveLength(1);
+      expect(contexts[0].generationProfile?.sections.find(section => section.key === 'writing_style')?.value)
+        .toMatchObject({ summary: writingSummary, referenceScope: 'production_constraint' });
       expect(contexts[0].generationProfile?.sections.find(section => section.key === 'branch_behavior')?.value)
         .toMatchObject({ summary: branchSummary, referenceScope: 'production_constraint' });
       const timeline = contexts[0].generationProfile?.sections.find(section => section.key === 'timeline')?.value;
@@ -98,7 +102,7 @@ postgres('approved manuscript source boundaries (dedicated loopback PostgreSQL, 
       await expect(assembler.assemble(claim)).resolves.toMatchObject({ generationProfile: contexts[0].generationProfile });
       const currentReferences = persisted.contextReferences as Record<string, any>;
       await db.storyAiContinuation.update({ where: { id: queued.continuationId }, data: {
-        contextReferences: { ...currentReferences, generationProfileViewVersion: 'story-profile-prompt-v3' },
+        contextReferences: { ...currentReferences, generationProfileViewVersion: 'story-profile-prompt-v4' },
       } });
       await expect(assembler.assemble(claim)).rejects.toThrow('pinned_context_changed');
       await db.storyAiContinuation.update({ where: { id: queued.continuationId }, data: {

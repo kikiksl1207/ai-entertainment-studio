@@ -1,21 +1,24 @@
 import { createHash, randomUUID } from 'crypto';
 import { Prisma } from '@prisma/client';
 import { creatorGenerationProfileFingerprint, normalizeCreatorGenerationProfile, stableJson } from '../generation-profile/creator-generation-profile.policy';
-import { continuationGenerationProfileSnapshot, STORY_CONTINUATION_PROFILE_VIEW_VERSION } from './story-continuation-context.policy';
+import { continuationGenerationProfileApprovalPin, continuationGenerationProfileSnapshot, STORY_CONTINUATION_PROFILE_VIEW_VERSION } from './story-continuation-context.policy';
 import { releaseChecksum } from './story-lifecycle.policy';
 import { preparePastedManuscript, storedManuscriptBody } from './story-manuscript-file.policy';
 import { publicationReaderProjection } from './story-publication-reader-projection.policy';
 import { publicationVisualSceneBindings } from './story-publication-visual-binding.policy';
 import { SEMANTIC_PIPELINE } from './story-semantic-analysis.types';
 import { StoryStudioChoicePreparationService } from './story-studio-choice-preparation.service';
-import { StoryStudioVisualReviewService } from './story-studio-visual-review.service';
+import { StoryStudioVisualReviewService, STUDIO_VISUAL_PROFILE_BINDING_VERSION } from './story-studio-visual-review.service';
+import { studioVisualReviewBatchChecksum, studioVisualReviewEntries } from './story-studio-visual-review.policy';
 import { linearPartPlan, sourceOf } from './story-studio-linear.service';
 import { studioSceneVisualPrompt } from './story-approved-visual.policy';
 import { studioManuscriptVisualReviewSource } from './story-studio-visual-source.policy';
 
 const sha256 = (text: string) => createHash('sha256').update(text, 'utf8').digest('hex');
+const LEGACY_VISUAL_VIEW = 'story-profile-prompt-v4';
+const LONG_WRITING_SUMMARY = '\uac00'.repeat(6_000);
 
-function fixture(count = 3, headingOnly = false, sharedPart = false) {
+function fixture(count = 3, headingOnly = false, sharedPart = false, writingSummary?: string) {
   const ids = { owner: randomUUID(), work: randomUUID(), manuscript: randomUUID(), analysis: randomUUID(), profile: randomUUID(), release: randomUUID() };
   let raw = '';
   const bounds = Array.from({ length: count }, (_, index) => {
@@ -46,15 +49,17 @@ function fixture(count = 3, headingOnly = false, sharedPart = false) {
     analysisJobId: ids.analysis, analysisVersion: analysis.analysisVersion, analysisConfigHash: analysis.configHash }));
   const settings = normalizeCreatorGenerationProfile('story', { schemaVersion: 'creator-generation-profile-v1', kind: 'story',
     sections: ['writing_style', 'scene_scale', 'canon', 'timeline', 'visual_direction', 'visual_cast', 'narrative_devices', 'branch_behavior']
-      .map(key => ({ key, decision: 'accepted', value: { summary: `작가 기준 ${key}` }, evidence: [] })) });
+      .map(key => ({ key, decision: 'accepted', value: {
+        summary: key === 'writing_style' && writingSummary !== undefined ? writingSummary : `작가 기준 ${key}`,
+      }, evidence: [] })) });
   const profile: any = { id: ids.profile, workId: ids.work, ownerUserId: ids.owner, manuscriptVersionId: ids.manuscript,
     analysisJobId: ids.analysis, sourceFingerprint, profileVersion: 1, reviewRevision: 1, status: 'approved',
     approvedSettings: settings, approvedFingerprint: creatorGenerationProfileFingerprint(sourceFingerprint, settings),
     approvedByUserId: ids.owner, approvedAt: new Date('2026-09-30T12:00:00Z') };
-  const snapshot = continuationGenerationProfileSnapshot(profile);
-  const pin = { ...snapshot.pin, manuscriptVersionId: ids.manuscript, analysisJobId: ids.analysis, analysisVersion: 1,
+  const pin = { ...continuationGenerationProfileApprovalPin(profile), manuscriptVersionId: ids.manuscript, analysisJobId: ids.analysis, analysisVersion: 1,
     approvedByUserId: ids.owner, approvedAt: profile.approvedAt.toISOString() };
-  const profilePinHash = releaseChecksum({ pin, viewVersion: STORY_CONTINUATION_PROFILE_VIEW_VERSION });
+  const profilePin = { pin, viewVersion: LEGACY_VISUAL_VIEW };
+  const profilePinHash = releaseChecksum(profilePin);
   const batches: any[] = [], audit: any[] = [], selections: any[] = [];
   const publishedWork = { id: ids.work, ownerUserId: ids.owner, status: 'published', fixtureSource: false, activeReleaseId: ids.release };
   const release = { id: ids.release, workId: ids.work, status: 'active', checksum: 'e'.repeat(64), manuscriptVersionId: ids.manuscript,
@@ -96,7 +101,7 @@ function fixture(count = 3, headingOnly = false, sharedPart = false) {
   const input = { ...identity, idempotencyKey: randomUUID(), entries: [{ referenceIndex: 0, sourceSceneKey: prompts[0].sourceSceneKey,
     originalPromptSha256: prompts[0].promptSha256, promptText: '작가가 직접 다듬은 장면 지침. 사람과 배경, 시간을 유지한다.' }] };
   const approval = (batch: any) => ({ ...identity, expectedBatchChecksum: batch.batchChecksum, expectedRevision: batch.revision, scenesReviewed: true });
-  return { ids, db, service, identity, input, approval, batches, audit, selections, manuscript, analysis, profile, prompts, reference, publishedWork, release };
+  return { ids, db, service, gate, profilePin, identity, input, approval, batches, audit, selections, manuscript, analysis, profile, prompts, reference, publishedWork, release };
 }
 
 async function approvedReference(f: ReturnType<typeof fixture>, index = 0) {
@@ -124,8 +129,8 @@ function publishedPartPrompt(f: ReturnType<typeof fixture>, partKey = 'part-0') 
   return prompt;
 }
 
-function ordinaryFixture() {
-  const f = fixture();
+function ordinaryFixture(writingSummary?: string) {
+  const f = fixture(3, false, false, writingSummary);
   delete f.manuscript.structuredBody.publicationVisualSource;
   delete f.manuscript.structuredBody.publicationReaderProjection;
   const view = studioManuscriptVisualReviewSource(f.manuscript.structuredBody, f.manuscript.contentHash, sourceOf(f.manuscript));
@@ -136,6 +141,100 @@ function ordinaryFixture() {
   f.input.entries = [{ ...f.input.entries[0], sourceSceneKey: f.prompts[0].sourceSceneKey, originalPromptSha256: f.prompts[0].promptSha256 }];
   return f;
 }
+
+function historicalVisualFixture(kind: 'representative' | 'imported') {
+  const f = kind === 'representative' ? ordinaryFixture(LONG_WRITING_SUMMARY)
+    : fixture(3, false, false, LONG_WRITING_SUMMARY);
+  const view = studioManuscriptVisualReviewSource(f.manuscript.structuredBody, f.manuscript.contentHash, sourceOf(f.manuscript));
+  const identity = { ownerUserId: f.ids.owner, workId: f.ids.work, manuscriptVersionId: f.ids.manuscript,
+    manuscriptHash: f.manuscript.contentHash, sourceChecksum: f.identity.expectedSourceChecksum,
+    analysisJobId: f.ids.analysis, profilePinHash: f.identity.expectedProfilePinHash };
+  const entries = studioVisualReviewEntries(view.body, identity.manuscriptHash, identity.sourceChecksum, f.input.entries);
+  const at = new Date('2026-10-08T00:00:00Z');
+  // Seed stored v4 approval history directly, independently of the current save/approve path.
+  const batch = { id: randomUUID(), ...identity, profilePin: structuredClone(f.profilePin), referenceIndexes: [0],
+    entries, batchChecksum: studioVisualReviewBatchChecksum(identity, entries), idempotencyKey: randomUUID(),
+    batchVersion: 1, status: 'approved', revision: 2, approvedByUserId: f.ids.owner, approvedAt: at,
+    createdAt: at, updatedAt: at };
+  f.batches.push(batch);
+  if (kind === 'representative') {
+    const entry = entries[0];
+    const selection = { ...identity, partKey: entry.partKey, targetSceneKey: `${entry.partKey}-main`,
+      selectionVersion: 1, status: 'selected', referenceIndex: 0, sourceSceneKey: entry.sourceSceneKey,
+      batchId: batch.id, batchChecksum: batch.batchChecksum, idempotencyKey: randomUUID() };
+    f.selections.push({ id: randomUUID(), ...selection, createdAt: at,
+      selectionChecksum: releaseChecksum({ contract: 'story-part-visual-selection-v1', ...selection }) });
+  }
+  const prompt = kind === 'representative' ? publishedPartPrompt(f) : f.prompts[0];
+  const publicGuide = () => f.service.approvedForPublishedSource(f.db, f.ids.work, f.ids.release,
+    f.release.checksum, prompt.sourceSceneKey, prompt.promptSha256);
+  const noWrites = () => {
+    expect(f.db.storySceneVisualReviewBatch.create).not.toHaveBeenCalled();
+    expect(f.db.storySceneVisualReviewBatch.updateMany).not.toHaveBeenCalled();
+    expect(f.db.storyPartVisualSelection.create).not.toHaveBeenCalled();
+    expect(f.db.auditEvent.create).not.toHaveBeenCalled();
+    expect(f.db.storyVisualPrompt.create).not.toHaveBeenCalled();
+    expect(f.db.storyVisualPrompt.update).not.toHaveBeenCalled();
+    expect(f.db.storyVisualGeneration.create).not.toHaveBeenCalled();
+    expect(f.db.storyStyleProfileConsent.upsert).not.toHaveBeenCalled();
+    expect(f.db.storyRelease.update).not.toHaveBeenCalled();
+    expect(f.db.$transaction).not.toHaveBeenCalled();
+  };
+  return { ...f, batch, prompt, publicGuide, noWrites };
+}
+
+describe('stored v4 Studio visual approvals survive the narrative prompt v5 change', () => {
+  it.each(['representative', 'imported'] as const)(
+    'keeps the old %s public guide available when only full narrative context exceeds 16KB', async kind => {
+      const f = historicalVisualFixture(kind);
+      const history = JSON.stringify({ batches: f.batches, selections: f.selections,
+        manuscript: f.manuscript, profile: f.profile });
+      expect(STORY_CONTINUATION_PROFILE_VIEW_VERSION).toBe('story-profile-prompt-v5');
+      expect(STUDIO_VISUAL_PROFILE_BINDING_VERSION).toBe(LEGACY_VISUAL_VIEW);
+      expect(f.batch.profilePin.viewVersion).toBe('story-profile-prompt-v4');
+      expect(f.batch.profilePinHash).toBe(releaseChecksum({ pin: f.profilePin.pin, viewVersion: 'story-profile-prompt-v4' }));
+      expect(f.batch.profilePinHash).not.toBe(releaseChecksum({ pin: f.profilePin.pin,
+        viewVersion: STORY_CONTINUATION_PROFILE_VIEW_VERSION }));
+      await expect(f.gate.approvedGenerationProfileIdentity(f.db, f.ids.owner, f.ids.work, f.manuscript, f.ids.analysis))
+        .resolves.toEqual({ pin: f.profilePin.pin, manuscriptVersionId: f.ids.manuscript,
+          analysisJobId: f.ids.analysis, analysisVersion: 1, approvedByUserId: f.ids.owner,
+          approvedAt: f.profile.approvedAt.toISOString() });
+
+      await expect(f.publicGuide()).resolves.toMatchObject({ batchId: f.batch.id,
+        profilePinHash: f.batch.profilePinHash, promptText: f.input.entries[0].promptText,
+        generationStarted: false, partSelection: kind === 'representative'
+          ? { partKey: 'part-0', targetSceneKey: 'part-0-main' } : null });
+      expect(() => continuationGenerationProfileSnapshot(f.profile)).toThrow('generation_profile_context_too_large');
+      await expect(f.gate.approvedGenerationProfile(f.db, f.ids.owner, f.ids.work, f.manuscript, f.ids.analysis))
+        .rejects.toMatchObject({ response: { code: 'STUDIO_CHOICES_GENERATION_PROFILE_INVALID' } });
+      expect(JSON.stringify({ batches: f.batches, selections: f.selections,
+        manuscript: f.manuscript, profile: f.profile })).toBe(history);
+      f.noWrites();
+    },
+  );
+
+  it.each(['withdrawn', 'review-revision', 'fingerprint', 'writing-tail', 'latest-analysis', 'wrong-source', 'profile-owner'])(
+    'still refuses the stored representative after %s changes despite removing narrative-fit validation', async change => {
+      const f = historicalVisualFixture('representative');
+      const history = JSON.stringify({ batches: f.batches, selections: f.selections });
+      if (change === 'withdrawn') f.profile.status = 'needs_review';
+      else if (change === 'review-revision') f.profile.reviewRevision++;
+      else if (change === 'fingerprint') f.profile.approvedFingerprint = 'b'.repeat(64);
+      else if (change === 'latest-analysis') f.analysis.id = randomUUID();
+      else if (change === 'wrong-source') f.analysis.sourceContentHash = 'b'.repeat(64);
+      else if (change === 'profile-owner') f.profile.ownerUserId = randomUUID();
+      else f.profile.approvedSettings = normalizeCreatorGenerationProfile('story', {
+        ...f.profile.approvedSettings,
+        sections: f.profile.approvedSettings.sections.map((section: { key: string; value: Record<string, unknown> }) =>
+          section.key !== 'writing_style' ? section : { ...section,
+            value: { ...section.value, summary: `${LONG_WRITING_SUMMARY} Unapproved tail.` } }),
+      });
+      await expect(f.publicGuide()).rejects.toMatchObject({ status: 409 });
+      expect(JSON.stringify({ batches: f.batches, selections: f.selections })).toBe(history);
+      f.noWrites();
+    },
+  );
+});
 
 describe('explicit scene approval for ordinary manuscripts without imported image guidance', () => {
   it('keeps proposed directions unapproved until saved, explicitly approved and chosen as the part representative', async () => {

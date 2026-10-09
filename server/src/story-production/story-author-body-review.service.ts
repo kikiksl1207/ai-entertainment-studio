@@ -5,7 +5,7 @@ import { isUUID } from 'class-validator';
 import { PrismaService } from '../prisma/prisma.service';
 import { StoryArtistParticipantService } from './story-artist-participant.service';
 import { storyAiResultChecksum } from './story-ai-result-checksum';
-import { continuationGenerationProfileSnapshot, continuationMemoryPins, parseContinuationGenerationProfilePin } from './story-continuation-context.policy';
+import { continuationGenerationProfileApprovalPin, continuationMemoryPins, parseContinuationGenerationProfilePin } from './story-continuation-context.policy';
 import {
   AUTHOR_BODY_REVIEW_CONTRACT, COMPANY_BODY_DELEGATION_CONTRACT, AuthorBodyReviewInput, bodyReviewHash, bodyReviewKey,
   bodyReviewScope, normalizeBodyReviewInput, privateBodyReviewFlags,
@@ -247,7 +247,7 @@ export class StoryAuthorBodyReviewService implements OnApplicationBootstrap, OnA
       profilePin = parseContinuationGenerationProfilePin(references.generationProfilePin as Prisma.JsonValue | undefined);
       if (profilePin) {
         if (!profile || profile.ownerUserId !== userId || profile.manuscriptVersionId !== manuscript.id ||
-            profile.analysisJobId !== analysis.id || bodyReviewHash(continuationGenerationProfileSnapshot(profile).pin) !== bodyReviewHash(profilePin)) this.changed();
+            profile.analysisJobId !== analysis.id || bodyReviewHash(continuationGenerationProfileApprovalPin(profile)) !== bodyReviewHash(profilePin)) this.changed();
       } else if (profile || analysis.pipeline === 'semantic_extraction_v1') this.changed();
     } catch { this.changed(); }
     if (lock) {

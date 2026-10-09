@@ -8,7 +8,7 @@ import { StoryChoicePreparationError, StoryChoicePreparationProvider,
 import { readerPartText } from './story-studio-reader-text.policy';
 import { publicationReaderText } from './story-publication-reader-projection.policy';
 import { stableJson } from '../generation-profile/creator-generation-profile.policy';
-import { continuationGenerationProfileSnapshot, STORY_CONTINUATION_PROFILE_VIEW_VERSION } from './story-continuation-context.policy';
+import { continuationGenerationProfileApprovalPin, continuationGenerationProfileSnapshot, STORY_CONTINUATION_PROFILE_VIEW_VERSION } from './story-continuation-context.policy';
 import { SEMANTIC_PIPELINE } from './story-semantic-analysis.types';
 import { ManuscriptPart } from './story-production.policy';
 import { CHOICE_CONSENT_REAPPROVED, choiceConsentReceiptValid } from './story-studio-choice-consent.policy';
@@ -417,6 +417,30 @@ export class StoryStudioChoicePreparationService {
 
   async approvedGenerationProfile(db: PrismaService | Prisma.TransactionClient, ownerUserId: string,
     workId: string, manuscript: { id: string; contentHash: string }, reviewAnalysisJobId: string) {
+    const approved = await this.currentApprovedGenerationProfile(db, ownerUserId, workId, manuscript, reviewAnalysisJobId);
+    if (!approved) return null;
+    try {
+      const snapshot = continuationGenerationProfileSnapshot(approved.profile);
+      return { ...snapshot, ...approved.binding, pin: { ...snapshot.pin, ...approved.binding },
+        viewVersion: STORY_CONTINUATION_PROFILE_VIEW_VERSION };
+    } catch {
+      fail('STUDIO_CHOICES_GENERATION_PROFILE_INVALID');
+    }
+  }
+
+  async approvedGenerationProfileIdentity(db: PrismaService | Prisma.TransactionClient, ownerUserId: string,
+    workId: string, manuscript: { id: string; contentHash: string }, reviewAnalysisJobId: string) {
+    const approved = await this.currentApprovedGenerationProfile(db, ownerUserId, workId, manuscript, reviewAnalysisJobId);
+    if (!approved) return null;
+    try {
+      return { ...approved.binding, pin: { ...continuationGenerationProfileApprovalPin(approved.profile), ...approved.binding } };
+    } catch {
+      fail('STUDIO_CHOICES_GENERATION_PROFILE_INVALID');
+    }
+  }
+
+  private async currentApprovedGenerationProfile(db: PrismaService | Prisma.TransactionClient, ownerUserId: string,
+    workId: string, manuscript: { id: string; contentHash: string }, reviewAnalysisJobId: string) {
     // Legacy clients/works without profiles retain their existing choice preparation contract.
     if (!db.storyWorkGenerationProfile) return null;
     const profile = await db.storyWorkGenerationProfile.findFirst({ where: { workId },
@@ -449,12 +473,9 @@ export class StoryStudioChoicePreparationService {
       analysisConfigHash: analysis.configHash })).digest('hex');
     if (profile.sourceFingerprint !== sourceFingerprint) fail('STUDIO_CHOICES_GENERATION_PROFILE_SOURCE_MISMATCH');
     try {
-      const snapshot = continuationGenerationProfileSnapshot(profile);
-      const binding = { manuscriptVersionId: manuscript.id,
+      return { profile, binding: { manuscriptVersionId: manuscript.id,
         analysisJobId: analysis.id, analysisVersion: analysis.analysisVersion,
-        approvedByUserId: profile.approvedByUserId, approvedAt: profile.approvedAt.toISOString() };
-      return { ...snapshot, ...binding, pin: { ...snapshot.pin, ...binding },
-        viewVersion: STORY_CONTINUATION_PROFILE_VIEW_VERSION };
+        approvedByUserId: profile.approvedByUserId, approvedAt: profile.approvedAt.toISOString() } };
     } catch {
       fail('STUDIO_CHOICES_GENERATION_PROFILE_INVALID');
     }

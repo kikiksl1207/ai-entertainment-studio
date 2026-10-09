@@ -206,7 +206,7 @@ describe('approved branch summary: queued pin -> dispatch reconstruction -> unpa
       routeContinuityHash: f.continuation.contextReferences.routeContinuityHash,
       routeContinuityVersion: STORY_CONTINUATION_ROUTE_VIEW_VERSION, generationProfilePin: snapshot.pin,
     });
-    expect(STORY_CONTINUATION_PROFILE_VIEW_VERSION).toBe('story-profile-prompt-v4');
+    expect(STORY_CONTINUATION_PROFILE_VIEW_VERSION).toBe('story-profile-prompt-v5');
     expect(f.claim.request).not.toHaveProperty('approvedContext');
     expect(JSON.stringify(f.continuation.contextReferences)).not.toContain(endingTail);
 
@@ -255,9 +255,9 @@ describe('approved branch summary: queued pin -> dispatch reconstruction -> unpa
     expect(f.transport).not.toHaveBeenCalled();
   });
 
-  it('rejects a v3 queued profile before profile/body lookup, preflight or generation', async () => {
+  it.each(['story-profile-prompt-v3', 'story-profile-prompt-v4'])('rejects a %s queued profile before profile/body lookup, preflight or generation', async (viewVersion) => {
     const f = fixture();
-    f.continuation.contextReferences.generationProfileViewVersion = 'story-profile-prompt-v3';
+    f.continuation.contextReferences.generationProfileViewVersion = viewVersion;
     const referencesBefore = JSON.stringify(f.continuation.contextReferences);
     await expect(f.executor.executeOne('unpaid-guidance-worker')).resolves.toMatchObject({ status: 'failed' });
     expectRejectedBeforeBodyAndPreflight(f);

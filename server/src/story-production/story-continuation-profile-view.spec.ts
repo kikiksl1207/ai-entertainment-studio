@@ -60,7 +60,7 @@ describe('Long-book generation profile prompt view', () => {
     expect(branch.summary).toBe(summary);
     expect(branch.referenceScope).toBe('production_constraint');
     expect(pin.approvedFingerprint).toBe(withBranchSummary(summary).approvedFingerprint);
-    expect(STORY_CONTINUATION_PROFILE_VIEW_VERSION).toBe('story-profile-prompt-v4');
+    expect(STORY_CONTINUATION_PROFILE_VIEW_VERSION).toBe('story-profile-prompt-v5');
     expect(Buffer.byteLength(JSON.stringify(approved), 'utf8')).toBeLessThanOrEqual(16_384);
   });
 
@@ -132,7 +132,7 @@ describe('Long-book generation profile prompt view', () => {
         ...section,
         value: {
           ...section.value,
-          summary: '가'.repeat(900),
+          summary: '가'.repeat(section.key === 'writing_style' ? 400 : 900),
           observations: Array.from({ length: 20 }, (_, index) => ({
             title: `다${'다'.repeat(28)}${index}`,
             detail: '나'.repeat(150), sourceRef: `analysis:${index}`,
@@ -154,6 +154,7 @@ describe('Long-book generation profile prompt view', () => {
     expect(pin.approvedFingerprint).toBe(profile.approvedFingerprint);
     expect(Buffer.byteLength(JSON.stringify(approved), 'utf8')).toBeLessThanOrEqual(16_384);
     expect(approved.sections).toHaveLength(8);
+    expect(approved.sections.find(section => section.key === 'writing_style')?.value.summary).toBe('가'.repeat(400));
     expect(JSON.stringify(approved)).toContain('style-5');
   });
 
