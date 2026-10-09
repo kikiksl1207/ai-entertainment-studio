@@ -11,7 +11,8 @@
   const conversationListState = {
     box: "recent",
     busyId: null,
-    bound: false
+    bound: false,
+    requestVersion: 0
   };
   let publicDmArtists = null;
   const basicChatState = {
@@ -894,7 +895,13 @@
   }
 
   async function basicChatRequest(path, options = {}, retryDepth = 0, context = basicChatContext()) {
-    assertBasicChatContext(context);
+    const assertCurrent = () => {
+      assertBasicChatContext(context);
+      if (typeof options.isCurrent === "function" && !options.isCurrent()) {
+        throw new Error("chat request superseded");
+      }
+    };
+    assertCurrent();
     const token = options.auth === false ? null : chatAuthToken();
     if (options.auth !== false && !token) {
       const error = new Error("auth required");
@@ -905,7 +912,7 @@
     basicChatState.controllers.add(controller);
     const timer = setTimeout(() => controller.abort(), options.timeoutMs || 20000);
     try {
-      assertBasicChatContext(context);
+      assertCurrent();
       // A retired response cannot prove already-dispatched work was undone.
       basicChatState.routeRequestDispatched = true;
       const response = await fetch(CHAT_API_BASE + path, {
@@ -918,28 +925,28 @@
         signal: controller.signal,
         cache: "no-store"
       });
-      assertBasicChatContext(context);
+      assertCurrent();
       if (response.status === 401 && options.auth !== false && retryDepth === 0 &&
           typeof window.refreshAuthOnce === "function") {
-        assertBasicChatContext(context);
+        assertCurrent();
         const refreshed = await window.refreshAuthOnce();
-        assertBasicChatContext(context);
+        assertCurrent();
         if (refreshed) return basicChatRequest(path, options, 1, context);
       }
       if (response.status === 401 && options.auth !== false) {
         basicChatState.expiredToken = token;
         syncBasicChatAccount();
-        assertBasicChatContext(context);
+        assertCurrent();
       }
       if (!response.ok) {
         const error = new Error("chat request failed");
         error.status = response.status;
         error.body = await response.json().catch(() => ({}));
-        assertBasicChatContext(context);
+        assertCurrent();
         throw error;
       }
       const data = await response.json();
-      assertBasicChatContext(context);
+      assertCurrent();
       return data;
     } finally {
       clearTimeout(timer);
@@ -2007,14 +2014,17 @@
   async function loadConversationList(box = conversationListState.box, context = basicChatContext()) {
     if (!syncBasicChatRouteScope()) return;
     const wrap = $("chatListItems");
-    if (!wrap) return;
+    if (!wrap || !isConversationListContextCurrent(context)) return;
+    const safeBox = CONVERSATION_BOXES.includes(box) ? box : "recent";
+    const version = ++conversationListState.requestVersion;
+    const current = () => isConversationListContextCurrent(context) &&
+      conversationListState.requestVersion === version && conversationListState.box === safeBox;
+    conversationListState.box = safeBox;
     await loadDmArtistList(context);
-    if (!isConversationListContextCurrent(context)) {
-      syncBasicChatAccount();
+    if (!current()) {
+      if (!isConversationListContextCurrent(context)) syncBasicChatAccount();
       return;
     }
-    const safeBox = CONVERSATION_BOXES.includes(box) ? box : "recent";
-    conversationListState.box = safeBox;
     setConversationTabs(safeBox);
 
     if (!context.key) {
@@ -2029,16 +2039,16 @@
     try {
       const data = await basicChatRequest(
         "/api/v1/chat/conversations?box=" + encodeURIComponent(safeBox) + "&take=20",
-        {}, 0, context
+        { isCurrent: current }, 0, context
       );
-      if (!isConversationListContextCurrent(context)) return;
+      if (!current()) return;
       const items = Array.isArray(data?.items) ? data.items : [];
       renderConversationRows(items, safeBox);
       setConversationStatus(items.length
         ? CONVERSATION_BOX_LABELS[safeBox] + " 대화 " + items.length + "개를 불러왔어요."
         : CONVERSATION_BOX_LABELS[safeBox] + " 대화함이 비어 있어요.");
     } catch (error) {
-      if (!isConversationListContextCurrent(context)) return;
+      if (!current()) return;
       if (error?.status === 401 || error?.status === 403) {
         setConversationStatus("로그인하면 최근 대화와 보관함을 볼 수 있어요.");
       } else {
