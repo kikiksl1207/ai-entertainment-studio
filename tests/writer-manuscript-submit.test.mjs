@@ -65,10 +65,13 @@ function page(fetch, uuidFactory = () => '55555555-5555-4555-8555-555555555555')
   };
   const storage = new Map([['lumina_auth', JSON.stringify({ accessToken: 'test-token', user: { id: 'test-user' } })]]);
   const localStorage = { getItem: key => storage.get(key) || null, setItem: (key, value) => storage.set(key, value), removeItem: key => storage.delete(key) };
+  const windowEvents = new EventTarget();
   const context = { document, window: { LUMINA_API_BASE: 'https://example.invalid',
-    luminaI18n: { t: key => key }, addEventListener() {} }, localStorage,
+    luminaI18n: { t: key => key },
+    addEventListener: windowEvents.addEventListener.bind(windowEvents),
+    dispatchEvent: windowEvents.dispatchEvent.bind(windowEvents) }, localStorage,
     sessionStorage: { getItem: () => null }, location: { hash: '' }, fetch,
-    TextEncoder, Blob, FormData, URLSearchParams, AbortController, DOMException, Option: Element,
+    TextEncoder, Blob, FormData, URLSearchParams, AbortController, DOMException, Event, Option: Element,
     setTimeout, clearTimeout, console, crypto: { randomUUID: uuidFactory } };
   const verifyCall = script.lastIndexOf('  verify();');
   assert.ok(verifyCall > 0, 'test loads the real writer handlers');
