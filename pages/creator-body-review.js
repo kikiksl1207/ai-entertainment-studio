@@ -452,6 +452,7 @@
     listen(withdraw, "click", () => { if (!withdraw.disabled) return controller.withdraw(renderedTicket); });
     for (const field of fields) listen(inputs[field], "change", () => controller.setReviewed(field, inputs[field].checked, renderedTicket));
     const sync = () => controller.syncContext(), erase = () => controller.invalidate();
+    listen(window, "creator:manuscript-accepted", erase);
     for (const name of ["storage", "lumina:authchange", "lumina:auth-expired", "pagehide", "lumina:author-body-trial-progress-changed"]) listen(window, name, erase);
     for (const name of ["focus", "lumina:localechange", "pageshow"]) listen(window, name, sync);
     listen(document, "lumina:auth-expired", erase); listen(document, "visibilitychange", erase);

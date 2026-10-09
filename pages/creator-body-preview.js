@@ -370,6 +370,7 @@
     const erasePrivate = () => { erase(); selection.textContent = ""; };
     for (const name of ["storage", "lumina:authchange", "lumina:auth-expired", "pagehide"]) window.addEventListener(name, erasePrivate);
     window.addEventListener("lumina:author-body-trial-progress-changed", erase);
+    window.addEventListener("creator:manuscript-accepted", erase);
     for (const name of ["focus", "lumina:localechange", "pageshow"]) window.addEventListener(name, sync);
     document.addEventListener("lumina:auth-expired", erasePrivate);
     document.addEventListener("visibilitychange", erase);

@@ -1724,6 +1724,7 @@
     formData.append("manuscript", new Blob([review.bytes], { type: "text/plain" }), "manuscript.txt");
     formData.append("manifest", JSON.stringify(review.manifest));
     const uiLocaleEpoch = writerUiLocaleEpoch;
+    let manuscriptAccepted = false;
     setWriterSubmitting(true);
     writerFeedback = { key: "submitting", tone: "" };
     writerSourceChanged();
@@ -1756,6 +1757,7 @@
           writerReceipt = Object.freeze({ id: receipt.manuscript.id, workId: review.workId,
             sourceLocale: review.locale, version: receipt.manuscript.version,
             contentHash: receipt.manuscript.contentHash, identity: review.identity });
+          manuscriptAccepted = true;
           writerSubmitted = true;
           confirm.checked = false;
           writerFeedback = {
@@ -1775,6 +1777,7 @@
     } finally {
       if (!currentStudioIdentity(review.identity)) return;
       setWriterSubmitting(false);
+      if (manuscriptAccepted) window.dispatchEvent(new Event("creator:manuscript-accepted"));
       if (writerMatchesReview(review)) writerSourceChanged();
     }
   }

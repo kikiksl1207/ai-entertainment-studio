@@ -884,6 +884,7 @@
     recover.addEventListener("click", () => { if (!recover.disabled) return controller.recover(controller.snapshot().ticket); });
     inspect.addEventListener("click", () => { if (!inspect.disabled) return controller.inspectSource(controller.snapshot().ticket); });
     const sync = () => { controller.syncContext(); render(controller.snapshot()); }, erase = () => controller.invalidate();
+    window.addEventListener("creator:manuscript-accepted", erase);
     const erasePrivate = () => { erase(); selectedContext.textContent = ""; selectedContext.hidden = true; };
     for (const name of ["storage", "lumina:authchange", "lumina:auth-expired", "pagehide"]) window.addEventListener(name, erasePrivate);
     for (const name of ["focus", "lumina:localechange", "pageshow"]) window.addEventListener(name, sync);
