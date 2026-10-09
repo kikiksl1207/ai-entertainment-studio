@@ -28,6 +28,9 @@ function find(input, predicate, label) {
 const declaration = name => find(page, node => ts.isVariableStatement(node) && node.declarationList.declarations.some(item => item.name.getText(page.ast) === name), name).getText(page.ast);
 const fn = (input, name) => find(input, node => ts.isFunctionDeclaration(node) && node.name?.text === name, name).getText(input.ast);
 const pageFunctions = ['basicChatTokenPayload', 'chatAuthToken', 'basicChatAccountKey', 'basicChatContext',
+  'basicChatStoryRouteScope', 'isBasicChatRouteScopeCurrent', 'syncBasicChatRouteScope', 'assertBasicChatRouteScope',
+  'assertBasicChatContext', 'syncBasicChatAccount', 'scheduleBasicChatExpiry', 'basicChatTokenExpiry', 'setConversationStatus',
+  'basicChatRequest', 'basicChatRouteStatusKey',
   'isBasicChatContextCurrent', 'isConversationListContextCurrent', 'basicChatCopy', 'fetchCharacterCatalog',
   'fetchStarterPrompts', 'applyStarterResponse', 'setText', 'setFallback', 'showStarterCard', 'renderWelcomeBubble',
   'getCharacterTone', 'buildStarterOptions', 'renderStarterOptions', 'shouldPreferLocalStarters', 'applyChatEmptyForSlug',
@@ -48,13 +51,14 @@ const callback = find(page, node => ts.isCallExpression(node) && ts.isPropertyAc
   && node.expression.expression.expression.getText(page.ast) === 'fetchCharacterCatalog', 'Actual catalog callback').arguments[0].getText(page.ast);
 const last = init.body.statements.at(-1);
 assert.ok(ts.isIfStatement(last) && last.getText(page.ast).includes('applyStarterResponse'));
-const actual = [declaration('basicChatState'), declaration('STARTER_MAX'), declaration('BASIC_CHAT_COPY'), declaration('STARTER_FALLBACK_OPTIONS'),
+const actual = [declaration('CHAT_API_BASE'), declaration('basicChatState'), declaration('conversationListState'), declaration('STARTER_MAX'), declaration('BASIC_CHAT_COPY'), declaration('STARTER_FALLBACK_OPTIONS'),
   ...pageFunctions.map(name => fn(page, name)), entryGuard,
   fn(app, 'apiFetch'), fn(app, 'authRequestSession'), fn(app, 'authRequestSessionCurrent'),
   `async function runRoomEntry(slug){${suffix}}`,
   `function catalogCallbackFor(slug,entryContext){return (${callback});}`,
   `function applyFinalStarter(slug,entryContext,data){${last.getText(page.ast)}}`,
   `globalThis.actualApi={basicChatState,basicChatContext,isBasicChatContextCurrent,isConversationListContextCurrent,
+    basicChatStoryRouteScope,assertBasicChatRouteScope,
     fetchCharacterCatalog,fetchStarterPrompts,runRoomEntry,catalogCallbackFor,applyFinalStarter,
     invalidateBasicStoryRoute,renderWelcomeBubble};`,
 ].join('\n');
@@ -97,17 +101,20 @@ function element(tag, writes) {
   return node;
 }
 
-export function harness({ signedIn = true, catalogReply = () => response(catalog()), starterReply = () => response(starters()) } = {}) {
-  const elements = new Map(), calls = [], writes = [];
+export function harness({ signedIn = true, search = '', catalogReply = () => response(catalog()), starterReply = () => response(starters()), refreshReply = async () => null } = {}) {
+  const elements = new Map(), calls = [], writes = [], refreshCalls = [];
   const $ = id => { if (!elements.has(id)) elements.set(id, element(id, writes)); return elements.get(id); };
   $('chatInput').value = DRAFT; $('chatStarterCard').hidden = true;
   let session = signedIn ? { user: { id: 'synthetic-owner' }, accessToken: 'synthetic-ram-token', refreshToken: 'synthetic-ram-refresh' } : null;
+  function refreshAuthOnce() { refreshCalls.push({ search: ctx.window.location.search }); return refreshReply(); }
   const tone = { welcomeMessage: 'Synthetic local preview', statusLine: 'Synthetic local status', starters: [] };
   const ctx = vm.createContext({ $, API_BASE: 'https://memory.invalid', getAuth: () => session,
     getRefreshToken: auth => auth?.refreshToken || '', _refreshCompleted: null,
-    refreshAuthOnce: async () => null, AbortController, encodeURIComponent,
+    refreshAuthOnce, AbortController, encodeURIComponent, URLSearchParams,
     atob: value => Buffer.from(value, 'base64').toString('utf8'), setTimeout: () => 1, clearTimeout() {},
-    window: { getAuth: () => session, getAccessToken: () => session?.accessToken || null,
+    window: { LUMINA_API_BASE: 'https://memory.invalid', refreshAuthOnce,
+      getAuth: () => session, getAccessToken: () => session?.accessToken || null,
+      location: { search, pathname: '/character-chat', hostname: 'memory.invalid' },
       luminaI18n: { getRegionalLocale: () => 'ko-KR' }, LuminaStaticData: { characters: [], getChatTone: () => tone },
       localStorage: { getItem: () => null } },
     document: { createElement: tag => element(tag, writes), querySelector: selector => $(selector) },
@@ -129,7 +136,9 @@ export function harness({ signedIn = true, catalogReply = () => response(catalog
   const api = ctx.actualApi;
   api.basicChatState.accountKey = signedIn ? 'user:synthetic-owner' : null;
   api.basicChatState.epoch = 1; api.basicChatState.routeEpoch = 3; api.basicChatState.roomSlug = SLUG;
-  return { api, $, calls, writes, tone, start: () => api.runRoomEntry(SLUG),
+  return { api, $, calls, writes, tone, refreshCalls, start: () => api.runRoomEntry(SLUG),
+    changeSearch(value) { ctx.window.location.search = value; },
+    rotateToken() { session = { ...session, accessToken: 'synthetic-rotated-ram-token' }; return session; },
     switchAccount() { session = { ...session, user: { id: 'different-owner' }, accessToken: 'different-ram-token' };
       api.basicChatState.accountKey = 'user:different-owner'; api.basicChatState.epoch++; },
     snapshot() { return { status: $('chatSendStatus').textContent, hero: $('chatHeroSummary').textContent,

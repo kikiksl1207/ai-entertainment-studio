@@ -32,6 +32,7 @@ export const history = [{ id: 'old-message', senderType: 'artist', body: 'Synthe
 export const sessionId = 'owned-session';
 export const progressId = '12345678-1234-4123-8123-123456789abc';
 export const success = {
+  generationStatus: 'completed',
   userMessage: { id: 'new-user', senderType: 'user', body: draft },
   message: { id: 'new-artist', senderType: 'artist', body: 'Synthetic reply' },
 };

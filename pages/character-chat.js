@@ -21,6 +21,9 @@
     busy: false,
     uncertain: false,
     routeInvalidated: false,
+    routeScope: basicChatStoryRouteScope(),
+    routeScopeError: null,
+    routeRequestDispatched: false,
     knownMessageIds: new Set(),
     accountKey: null,
     epoch: 0,
@@ -35,9 +38,14 @@
     "ko-KR": {
       note: "기본 대화 · 답변 생성에는 시간이 걸릴 수 있어요.", placeholder: "메시지 보내기...", send: "보내기",
       loading: "대화를 불러오는 중이에요.", sending: "답변을 기다리고 있어요...", sent: "메시지를 보냈어요.",
+      fallbackReply: "메시지는 접수됐지만 답변 생성이 원활하지 않아 대체 안내를 표시했어요. 같은 메시지를 다시 보내지 마세요.",
+      replyUnverified: "답변을 받았지만 생성 상태는 확인할 수 없어요. 같은 메시지를 다시 보내지 마세요.",
+      receiptConfirmed: "메시지 내역에서 전송을 확인했어요. 답변 생성 상태는 확인할 수 없어요.",
       login: "대화를 보내려면 로그인해 주세요.", artist: "공개된 아티스트를 확인할 수 없어 전송하지 않았어요.",
       session: "이 대화는 현재 계정의 기본 대화가 아니에요. 아티스트 프로필에서 다시 열어 주세요.",
       routeChanged: "스토리 진행 경로가 바뀌었어요. 현재 스토리 화면에서 다시 대화를 열어 주세요.",
+      routeInvalid: "스토리 대화 경로가 올바르지 않아요. 현재 스토리 화면에서 다시 대화를 열어 주세요. 메시지는 전송하지 않았어요.",
+      routeRequestUnknown: "스토리 대화 경로가 올바르지 않아 추가 요청을 차단했어요. 이전 요청은 이미 시작되어 여기서는 결과를 확인할 수 없어요. 결과를 확인하기 전에는 같은 메시지를 다시 보내지 마세요.",
       memoryChanged: "스토리 추억의 확인 기준이 바뀌었어요. 현재 기준으로 다시 보내 주세요.",
       loadError: "대화를 확인하지 못했어요. 잠시 후 다시 시도해 주세요.",
       uncertain: "전송 결과를 확인할 수 없어요. 중복 전송을 피하려면 메시지 내역을 확인해 주세요.",
@@ -47,9 +55,14 @@
     "en-US": {
       note: "Basic chat · Replies may take a while.", placeholder: "Write a message...", send: "Send",
       loading: "Loading conversation.", sending: "Waiting for a reply...", sent: "Message sent.",
+      fallbackReply: "Your message was received, but reply generation had a problem. A fallback reply is shown. Do not resend the same message.",
+      replyUnverified: "A reply was received, but its generation status is unverified. Do not resend the same message.",
+      receiptConfirmed: "Your message was found in history. Reply generation status is unverified.",
       login: "Sign in to send a message.", artist: "This public artist could not be verified. Nothing was sent.",
       session: "This is not your basic chat session. Open the artist profile again.",
       routeChanged: "Your story route changed. Reopen this chat from the current story scene.",
+      routeInvalid: "This story chat link is invalid. Reopen this chat from the current story scene. Nothing was sent.",
+      routeRequestUnknown: "This story chat link is invalid. Further requests are blocked. An earlier request already started and its outcome cannot be checked here. Do not resend the same message before checking its outcome.",
       memoryChanged: "Your story memory evidence changed. Please send again using the current evidence.",
       loadError: "Could not load the conversation. Please try again.",
       uncertain: "The send result is unknown. Check messages before sending again to avoid a duplicate.",
@@ -59,9 +72,14 @@
     "ja-JP": {
       note: "基本チャット · 返信には時間がかかる場合があります。", placeholder: "メッセージを入力...", send: "送信",
       loading: "会話を読み込んでいます。", sending: "返信を待っています...", sent: "送信しました。",
+      fallbackReply: "メッセージは受け付けましたが、返信の生成に問題があり、代替の案内を表示しています。同じメッセージを再送しないでください。",
+      replyUnverified: "返信は受け取りましたが、生成状態を確認できません。同じメッセージを再送しないでください。",
+      receiptConfirmed: "履歴でメッセージを確認しました。返信の生成状態は確認できません。",
       login: "送信するにはログインしてください。", artist: "公開アーティストを確認できず、送信しませんでした。",
       session: "この会話は現在のアカウントの基本チャットではありません。プロフィールから開き直してください。",
       routeChanged: "ストーリーの進行ルートが変わりました。現在のシーンからチャットを開き直してください。",
+      routeInvalid: "ストーリーチャットのリンクが無効です。現在のシーンから開き直してください。送信していません。",
+      routeRequestUnknown: "ストーリーチャットのリンクが無効なため、追加のリクエストを停止しました。以前のリクエストはすでに開始され、この画面では結果を確認できません。結果を確認するまで同じメッセージを再送しないでください。",
       memoryChanged: "物語の思い出の確認基準が変わりました。現在の基準でもう一度送信してください。",
       loadError: "会話を確認できません。しばらくしてからお試しください。",
       uncertain: "送信結果を確認できません。重複を避けるため履歴を確認してください。",
@@ -71,9 +89,14 @@
     "zh-CN": {
       note: "基础聊天 · 回复可能需要一些时间。", placeholder: "输入消息...", send: "发送",
       loading: "正在加载对话。", sending: "正在等待回复...", sent: "消息已发送。",
+      fallbackReply: "消息已接收，但回复生成遇到问题，现显示备用提示。请勿重复发送同一条消息。",
+      replyUnverified: "已收到回复，但无法确认其生成状态。请勿重复发送同一条消息。",
+      receiptConfirmed: "已在消息记录中找到你的消息，但无法确认回复生成状态。",
       login: "请登录后发送消息。", artist: "无法确认公开艺人，未发送消息。",
       session: "这不是当前账号的基础聊天会话。请从艺人资料重新进入。",
       routeChanged: "故事路线已变更，请从当前故事场景重新打开聊天。",
+      routeInvalid: "故事聊天链接无效，请从当前故事场景重新打开聊天。未发送消息。",
+      routeRequestUnknown: "故事聊天链接无效，已阻止后续请求。之前的请求已开始，无法在此确认结果。确认结果前请勿重复发送同一条消息。",
       memoryChanged: "故事回忆的确认依据已变更，请按当前依据重新发送。",
       loadError: "无法加载对话，请稍后重试。",
       uncertain: "无法确认发送结果。为避免重复，请先查看消息记录。",
@@ -83,9 +106,14 @@
     "zh-Hant": {
       note: "基本聊天 · 回覆可能需要一些時間。", placeholder: "輸入訊息...", send: "傳送",
       loading: "正在載入對話。", sending: "正在等待回覆...", sent: "訊息已傳送。",
+      fallbackReply: "訊息已接收，但回覆生成遇到問題，目前顯示替代提示。請勿重複傳送同一則訊息。",
+      replyUnverified: "已收到回覆，但無法確認其生成狀態。請勿重複傳送同一則訊息。",
+      receiptConfirmed: "已在訊息紀錄中找到你的訊息，但無法確認回覆生成狀態。",
       login: "請登入後傳送訊息。", artist: "無法確認公開藝人，未傳送訊息。",
       session: "這不是目前帳號的基本聊天對話。請從藝人資料重新進入。",
       routeChanged: "故事路線已變更，請從目前故事場景重新開啟聊天。",
+      routeInvalid: "故事聊天連結無效，請從目前故事場景重新開啟聊天。未傳送訊息。",
+      routeRequestUnknown: "故事聊天連結無效，已阻止後續請求。先前的請求已開始，無法在此確認結果。確認結果前請勿重複傳送同一則訊息。",
       memoryChanged: "故事回憶的確認依據已變更，請依目前依據重新傳送。",
       loadError: "無法載入對話，請稍後再試。",
       uncertain: "無法確認傳送結果。為避免重複，請先查看訊息紀錄。",
@@ -148,16 +176,17 @@
   }
 
   function basicChatContext() {
-    return { key: basicChatState.accountKey, epoch: basicChatState.epoch, routeEpoch: basicChatState.routeEpoch };
+    return { key: basicChatState.accountKey, epoch: basicChatState.epoch, routeEpoch: basicChatState.routeEpoch,
+      storyProgressId: basicChatState.routeScope.storyProgressId };
   }
 
   function isBasicChatContextCurrent(context) {
-    return Boolean(context?.key && context.key === basicChatState.accountKey &&
+    return Boolean(isBasicChatRouteScopeCurrent(context) && context?.key && context.key === basicChatState.accountKey &&
       context.epoch === basicChatState.epoch && context.routeEpoch === basicChatState.routeEpoch && basicChatAccountKey() === context.key);
   }
 
   function isConversationListContextCurrent(context) {
-    return context && context.key === basicChatState.accountKey &&
+    return isBasicChatRouteScopeCurrent(context) && context && context.key === basicChatState.accountKey &&
       context.epoch === basicChatState.epoch && basicChatAccountKey() === context.key;
   }
 
@@ -167,6 +196,7 @@
   }
 
   function assertBasicChatContext(context) {
+    assertBasicChatRouteScope(context);
     if (isBasicChatContextCurrent(context)) return;
     syncBasicChatAccount();
     const error = new Error("chat account changed");
@@ -175,9 +205,11 @@
   }
 
   function syncBasicChatAccount() {
+    const routeUsable = syncBasicChatRouteScope();
     scheduleBasicChatExpiry();
     const key = basicChatAccountKey();
     if (key === basicChatState.accountKey) return false;
+    const previousKey = basicChatState.accountKey;
     basicChatState.accountKey = key;
     basicChatState.epoch++;
     basicChatState.routeEpoch++;
@@ -190,7 +222,7 @@
     basicChatState.uncertain = false;
     basicChatState.uncertainBody = null;
     basicChatState.uncertainKind = null;
-    basicChatState.routeInvalidated = false;
+    basicChatState.routeInvalidated = Boolean(basicChatState.routeScopeError);
     conversationListState.busyId = null;
     if (!basicChatState.roomSlug) {
       const list = $("chatListItems");
@@ -199,15 +231,16 @@
     const thread = $("chatThread");
     if (thread) thread.replaceChildren();
     const welcome = $("chatWelcomeBubble");
-    if (welcome && basicChatState.roomSlug) welcome.hidden = false;
+    if (welcome && basicChatState.roomSlug) welcome.hidden = !routeUsable;
     const input = $("chatInput");
-    if (input) {
+    if (input && (routeUsable || previousKey !== null)) {
       input.value = "";
       input.style.height = "auto";
     }
     showBasicChatCheck(false);
     setBasicChatBusy(false);
-    setBasicChatStatus(key ? "loading" : "login", key ? "" : "error");
+    setBasicChatStatus(basicChatState.routeScopeError || (key ? "loading" : "login"), basicChatState.routeScopeError || !key ? "error" : "");
+    if (!routeUsable) return true;
     if (key && basicChatState.roomSlug) {
       const context = basicChatContext();
       loadBasicChatRoom(basicChatState.roomSlug, context).then(() => {
@@ -612,6 +645,7 @@
   }
 
   function hydrateChatCms(slug) {
+    if (!syncBasicChatRouteScope()) return;
     if (!slug || !window.LuminaCms || typeof window.LuminaCms.hydrate !== "function") return;
     window.LuminaCms.hydrate({ pageKey: "character-chat", characterSlug: slug }).catch(function () {});
   }
@@ -650,6 +684,7 @@
   }
 
   async function fetchStarterPrompts(slug, context = basicChatContext()) {
+    if (!syncBasicChatRouteScope()) return null;
     if (!isCharacterRoomEntryContextCurrent(context)) return null;
     if (!slug) {
       setFallback("아티스트 정보가 없어 추천 인사말을 불러오지 못했어요. 아티스트 목록에서 다시 들어와 주세요.");
@@ -680,10 +715,12 @@
     }
 
     try {
-      const data = await apiFetch(
+      assertBasicChatContext(context);
+      const data = await basicChatRequest(
         `/api/v1/chat/starter-prompts?artistSlug=${encodeURIComponent(slug)}`,
-        { auth: true, throwOnError: true }
+        { auth: true, timeoutMs: 8000 }, 0, context
       );
+      assertBasicChatRouteScope(context);
       return isCharacterRoomEntryContextCurrent(context) ? data : null;
     } catch (error) {
       if (!isCharacterRoomEntryContextCurrent(context)) return null;
@@ -751,6 +788,7 @@
   }
 
   function updateBasicSendButton() {
+    syncBasicChatRouteScope();
     const input = $("chatInput");
     const button = $("chatSendBtn");
     if (!input || !button) return;
@@ -759,7 +797,12 @@
     button.title = basicChatCopy("send");
   }
 
+  function basicChatRouteStatusKey(key) {
+    return key === "routeInvalid" && basicChatState.routeRequestDispatched ? "routeRequestUnknown" : key;
+  }
+
   function setBasicChatStatus(key, state = "") {
+    key = basicChatRouteStatusKey(key);
     const status = $("chatSendStatus");
     if (!status) return;
     status.textContent = key ? basicChatCopy(key) : "";
@@ -784,8 +827,11 @@
       (error?.body?.code || error?.body?.error?.code) === "STORY_CHAT_ROUTE_CHANGED";
   }
 
-  function invalidateBasicStoryRoute() {
-    if (basicChatState.routeInvalidated) return;
+  function invalidateBasicStoryRoute(reason = "routeChanged") {
+    if (basicChatState.routeInvalidated) {
+      setBasicChatStatus(reason, "error");
+      return;
+    }
     basicChatState.routeInvalidated = true;
     // Retire pending responses as well as the visible transcript; keep the draft.
     basicChatState.routeEpoch++;
@@ -802,13 +848,49 @@
     if (welcome) welcome.hidden = true;
     showBasicChatCheck(false);
     setBasicChatBusy(false);
-    setBasicChatStatus("routeChanged", "error");
+    setBasicChatStatus(reason, "error");
   }
 
-  function basicChatStoryProgressId() {
-    const value = new URLSearchParams(window.location.search).get("storyProgressId");
-    return value && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
-      ? value : null;
+  function basicChatStoryRouteScope(search = window.location.search) {
+    const values = new URLSearchParams(search).getAll("storyProgressId");
+    if (values.length === 0) return { kind: "general", storyProgressId: null };
+    if (values.length === 1 && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(values[0])) {
+      return { kind: "story", storyProgressId: values[0] };
+    }
+    return { kind: "invalid", storyProgressId: null };
+  }
+
+  function isBasicChatRouteScopeCurrent(context) {
+    const current = basicChatStoryRouteScope();
+    const original = basicChatState.routeScope;
+    return !basicChatState.routeScopeError && current.kind !== "invalid" && current.kind === original.kind &&
+      current.storyProgressId === original.storyProgressId && context?.storyProgressId === original.storyProgressId;
+  }
+
+  function syncBasicChatRouteScope() {
+    const current = basicChatStoryRouteScope();
+    const original = basicChatState.routeScope;
+    const reason = basicChatState.routeScopeError || (original.kind === "invalid" || current.kind === "invalid" ? "routeInvalid" :
+      current.kind !== original.kind || current.storyProgressId !== original.storyProgressId ? "routeChanged" : null);
+    if (!reason) return true;
+    // URL intent is latched independently of login and locale; never downgrade it to general chat.
+    basicChatState.routeScopeError = reason;
+    invalidateBasicStoryRoute(reason);
+    if (!basicChatState.roomSlug) setConversationStatus(basicChatCopy(basicChatRouteStatusKey(reason)));
+    return false;
+  }
+
+  function assertBasicChatRouteScope(context) {
+    if (syncBasicChatRouteScope() && isBasicChatRouteScopeCurrent(context)) return;
+    const error = new Error("chat route scope invalid or changed");
+    error.chatRouteInvalid = true;
+    error.chatReason = basicChatState.routeScopeError || "routeChanged";
+    throw error;
+  }
+
+  function basicChatStoryProgressId(context = basicChatContext()) {
+    assertBasicChatRouteScope(context);
+    return context.storyProgressId;
   }
 
   async function basicChatRequest(path, options = {}, retryDepth = 0, context = basicChatContext()) {
@@ -823,6 +905,9 @@
     basicChatState.controllers.add(controller);
     const timer = setTimeout(() => controller.abort(), options.timeoutMs || 20000);
     try {
+      assertBasicChatContext(context);
+      // A retired response cannot prove already-dispatched work was undone.
+      basicChatState.routeRequestDispatched = true;
       const response = await fetch(CHAT_API_BASE + path, {
         method: options.method || "GET",
         headers: {
@@ -835,9 +920,11 @@
       });
       assertBasicChatContext(context);
       if (response.status === 401 && options.auth !== false && retryDepth === 0 &&
-          typeof window.refreshAuthOnce === "function" && await window.refreshAuthOnce()) {
+          typeof window.refreshAuthOnce === "function") {
         assertBasicChatContext(context);
-        return basicChatRequest(path, options, 1, context);
+        const refreshed = await window.refreshAuthOnce();
+        assertBasicChatContext(context);
+        if (refreshed) return basicChatRequest(path, options, 1, context);
       }
       if (response.status === 401 && options.auth !== false) {
         basicChatState.expiredToken = token;
@@ -908,7 +995,7 @@
     assertBasicChatContext(context);
     if (!basicChatState.sessionId) return [];
     const sessionId = basicChatState.sessionId;
-    const storyProgressId = basicChatStoryProgressId();
+    const storyProgressId = basicChatStoryProgressId(context);
     const path = "/api/v1/chat/sessions/" + encodeURIComponent(sessionId) + "/messages" +
       (storyProgressId ? "?storyProgressId=" + encodeURIComponent(storyProgressId) : "");
     const messages = await basicChatRequest(path, {}, 0, context);
@@ -958,6 +1045,7 @@
     syncBasicChatAccount();
     if (!basicChatState.uncertain || basicChatState.busy || basicChatState.routeInvalidated) return;
     const context = basicChatContext();
+    const submittedBody = basicChatState.uncertainBody;
     setBasicChatBusy(true);
     setBasicChatStatus("checking");
     try {
@@ -972,12 +1060,13 @@
       }
       const messages = await readBasicMessages(context);
       assertBasicChatContext(context);
-      const delivered = messages.some(message => message?.senderType === "user" && message.body === basicChatState.uncertainBody && !before.has(message.id));
+      const delivered = messages.some(message => message?.senderType === "user" && message.body === submittedBody && !before.has(message.id));
       if (delivered) {
         basicChatState.uncertain = false;
-        $("chatInput").value = "";
+        const input = $("chatInput");
+        if (input.value.trim() === submittedBody) input.value = "";
         showBasicChatCheck(false);
-        setBasicChatStatus("sent");
+        setBasicChatStatus("receiptConfirmed");
       } else {
         setBasicChatStatus("stillUncertain", "error");
       }
@@ -1003,6 +1092,9 @@
       syncBasicChatAccount();
     });
     window.addEventListener("focus", syncBasicChatAccount);
+    window.addEventListener("popstate", syncBasicChatAccount);
+    window.addEventListener("hashchange", syncBasicChatAccount);
+    window.addEventListener("lumina:localechange", syncBasicChatRouteScope);
     document.addEventListener("visibilitychange", () => {
       if (!document.hidden) syncBasicChatAccount();
     });
@@ -1025,6 +1117,7 @@
     const check = $("chatCheckMessages");
     const note = $("chatBasicNote");
     function syncCopy() {
+      syncBasicChatRouteScope();
       if (note) note.textContent = basicChatCopy("note");
       if (input) input.placeholder = basicChatCopy("placeholder");
       if (check) check.textContent = basicChatCopy("check");
@@ -1070,7 +1163,7 @@
         assertBasicChatContext(context);
         setBasicChatStatus("sending");
         generationStarted = true;
-        const storyProgressId = basicChatStoryProgressId();
+        const storyProgressId = basicChatStoryProgressId(context);
         const result = await basicChatRequest("/api/v1/chat/sessions/" + encodeURIComponent(basicChatState.sessionId) + "/generate", {
           method: "POST", body: { body, ...(storyProgressId ? { storyProgressId } : {}) }, timeoutMs: 120000
         }, 0, context);
@@ -1087,9 +1180,13 @@
         if (welcome) welcome.hidden = true;
         const stage = $("chatStage");
         if (stage) stage.scrollTop = stage.scrollHeight;
-        input.value = "";
-        input.style.height = "auto";
-        setBasicChatStatus("sent", "success");
+        if (input.value.trim() === body) {
+          input.value = "";
+          input.style.height = "auto";
+        }
+        const generationStatus = result.generationStatus;
+        setBasicChatStatus(generationStatus === "completed" ? "sent" :
+          generationStatus === "fallback" ? "fallbackReply" : "replyUnverified", generationStatus === "completed" ? "success" : "");
       } catch (error) {
         if (!isBasicChatContextCurrent(context)) return;
         const ambiguous = (generationStarted || createStarted) &&
@@ -1326,13 +1423,16 @@
    * 실패 시 null 을 반환하면 호출자는 로컬 fallback (chatTones) 으로 떨어진다.
    * mutation 없음. read-only GET. */
   async function fetchCharacterCatalog(slug, context = basicChatContext()) {
+    if (!syncBasicChatRouteScope()) return null;
     if (!slug || !chatAuthToken() || !isCharacterRoomEntryContextCurrent(context)) return null;
     if (typeof apiFetch !== "function") return null;
     try {
-      const data = await apiFetch(
+      assertBasicChatContext(context);
+      const data = await basicChatRequest(
         "/api/v1/chat/character-catalog?artistSlug=" + encodeURIComponent(slug),
-        { auth: true, throwOnError: true }
+        { auth: true, timeoutMs: 8000 }, 0, context
       );
+      assertBasicChatRouteScope(context);
       if (!isCharacterRoomEntryContextCurrent(context)) return null;
       const record = value => value !== null && typeof value === "object" && !Array.isArray(value);
       const text = value => typeof value === "string" && value.trim() ? value.trim() : null;
@@ -1364,14 +1464,19 @@
       .filter(c => c && c.slug && c.status === "public");
   }
 
-  async function loadDmArtistList() {
+  async function loadDmArtistList(context = basicChatContext()) {
+    if (!syncBasicChatRouteScope()) return;
     if (publicDmArtists) return;
     try {
       if (typeof apiFetch !== "function" || typeof publicArtistsFromApi !== "function") throw new Error("Artist catalog unavailable");
+      assertBasicChatRouteScope(context);
+      basicChatState.routeRequestDispatched = true;
       const rows = await apiFetch("/api/v1/artists", { auth: false, throwOnError: true });
+      assertBasicChatRouteScope(context);
       if (!Array.isArray(rows)) throw new Error("Invalid artist catalog");
       publicDmArtists = publicArtistsFromApi(rows);
     } catch (_) {
+      if (!isBasicChatRouteScopeCurrent(context)) return;
       publicDmArtists = /(?:^|\.)lumina-stage\.com$/i.test(window.location?.hostname || "")
         ? null : getDmListCharacters();
     }
@@ -1407,25 +1512,31 @@
     return null;
   }
 
-  async function fetchPremiumJson(path) {
+  async function fetchPremiumJson(path, context = basicChatContext()) {
+    assertBasicChatRouteScope(context);
     const token = chatAuthToken();
     if (!token) {
       const error = new Error("auth required");
       error.status = 401;
       throw error;
     }
+    assertBasicChatRouteScope(context);
+    basicChatState.routeRequestDispatched = true;
     const response = await fetch(CHAT_API_BASE + path, {
       method: "GET",
       credentials: "omit",
       cache: "no-store",
       headers: { Authorization: "Bearer " + token }
     });
+    assertBasicChatRouteScope(context);
     if (!response.ok) {
       const error = new Error("http " + response.status);
       error.status = response.status;
       throw error;
     }
-    return response.json();
+    const data = await response.json();
+    assertBasicChatRouteScope(context);
+    return data;
   }
 
   const PREMIUM_REVIEW_PAUSED_STATUSES = new Set([
@@ -1618,6 +1729,7 @@
   }
 
   async function loadPremiumRoomDetailState(slug, context = basicChatContext()) {
+    if (!syncBasicChatRouteScope()) return;
     if (!isConversationListContextCurrent(context)) return;
     renderPremiumRoomStatus({
       state: "pending",
@@ -1629,7 +1741,7 @@
 
     let mutationOpen = false;
     try {
-      const contractData = await fetchPremiumJson("/api/v1/chat/premium-support-contract");
+      const contractData = await fetchPremiumJson("/api/v1/chat/premium-support-contract", context);
       if (!isConversationListContextCurrent(context)) return;
       const contract = contractData?.contract || contractData?.data?.contract || contractData;
       mutationOpen = !!contract?.policy?.walletMutationEnabled;
@@ -1639,7 +1751,7 @@
     }
 
     try {
-      const data = await fetchPremiumJson("/api/v1/chat/conversations?box=all&take=20");
+      const data = await fetchPremiumJson("/api/v1/chat/conversations?box=all&take=20", context);
       if (!isConversationListContextCurrent(context)) return;
       const items = Array.isArray(data?.items) ? data.items : [];
       const item = matchPremiumRoomItem(items, slug, getSessionIdFromUrl());
@@ -1893,9 +2005,10 @@
   }
 
   async function loadConversationList(box = conversationListState.box, context = basicChatContext()) {
+    if (!syncBasicChatRouteScope()) return;
     const wrap = $("chatListItems");
     if (!wrap) return;
-    await loadDmArtistList();
+    await loadDmArtistList(context);
     if (!isConversationListContextCurrent(context)) {
       syncBasicChatAccount();
       return;
@@ -1937,6 +2050,7 @@
 
   async function mutateConversationStatus(sessionId, action) {
     if (syncBasicChatAccount()) return;
+    if (!syncBasicChatRouteScope()) return;
     if (!sessionId || !["archive", "restore"].includes(action) || !basicChatState.accountKey) return;
     const context = basicChatContext();
     conversationListState.busyId = sessionId;
@@ -2242,6 +2356,20 @@
 
   async function init() {
     const slug = getArtistSlug();
+
+    if (!syncBasicChatRouteScope()) {
+      if (slug) {
+        showRoomMode();
+        renderHero(slug, null);
+        bindInputAutoGrow();
+        bindBasicChatComposer(slug);
+      } else {
+        showListMode();
+        bindConversationListEvents();
+        bindChatAccountBoundary(null);
+      }
+      return;
+    }
 
     if (!slug) {
       /* DM 리스트 모드: 캐릭터 목록 그리고 종료. starter/sheet/cleanmode 초기화는 X. */

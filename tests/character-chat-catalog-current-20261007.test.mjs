@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { harness, catalog, starters, response, deferred, settle, plain, SLUG, DRAFT } from './helpers/character-chat-catalog-current-20261007.mjs';
+import { harness, catalog, starters, response, deferred, settle, plain, actualSourceGraph, SLUG, DRAFT } from './helpers/character-chat-catalog-current-20261007.mjs';
 
 test('catalog: existing authenticated GET maps current structured server fields without changing signed-out preview', { timeout: 5000 }, async () => {
   const h = harness(), context = h.api.basicChatContext();
@@ -80,4 +80,124 @@ test('entry: late catalog/starter success or error cannot revive retired route; 
   const before = changed.snapshot(); catalogLate.resolve(response(catalog())); starterLate.resolve(response(starters()));
   await pending; await settle(); assert.deepEqual(changed.snapshot(), before);
   assert.equal(changed.api.isConversationListContextCurrent(entry), false, 'Independent account change still invalidates sidebar context');
+});
+
+test('catalog graph extracts the actual URL parser and route/context guards; a single scope remains exact', async () => {
+  for (const name of ['basicChatStoryRouteScope', 'isBasicChatRouteScopeCurrent', 'syncBasicChatRouteScope', 'assertBasicChatRouteScope', 'assertBasicChatContext', 'basicChatRequest', 'basicChatRouteStatusKey']) {
+    assert(actualSourceGraph.pageFunctions.includes(name), name + ' must be extracted from the selected product AST');
+  }
+  const id = '12345678-1234-4123-8123-123456789ABC';
+  const h = harness({ search: '?storyProgressId=' + id });
+  assert.deepEqual(plain(h.api.basicChatStoryRouteScope()), { kind: 'story', storyProgressId: id });
+  assert.equal(h.api.basicChatContext().storyProgressId, id);
+  await h.start(); await settle();
+  assert.equal(h.calls.length, 2);
+  assert.equal(h.api.basicChatState.routeScopeError, null);
+  assert.equal(h.$('chatInput').value, DRAFT);
+});
+
+for (const [method, replyKey, payload] of [
+  ['fetchCharacterCatalog', 'catalogReply', catalog],
+  ['fetchStarterPrompts', 'starterReply', starters],
+]) {
+  test(method + ': valid general/story 401 retries once with the rotated token and original captured context', async () => {
+    for (const search of ['', '?storyProgressId=' + routeId.toUpperCase()]) {
+      let attempts = 0;
+      const h = harness({ search, [replyKey]: () => ++attempts === 1 ? response({}, 401) : response(payload()),
+        refreshReply: async () => h.rotateToken() });
+      const context = h.api.basicChatContext();
+      assert.notEqual(await h.api[method](SLUG, context), null);
+      assert.equal(h.refreshCalls.length, 1);
+      assert.deepEqual(h.refreshCalls, [{ search }]);
+      assert.equal(h.calls.length, 2);
+      assert.deepEqual(h.calls[0], h.calls[1], 'Retry keeps endpoint, GET, current bearer and no body');
+      assert(h.calls.every(call => call.hasAuthorization));
+      assert.equal(h.api.isBasicChatContextCurrent(context), true);
+      assert.equal(h.api.basicChatContext().storyProgressId, search ? routeId.toUpperCase() : null);
+      assert.equal(h.$('chatInput').value, DRAFT);
+    }
+  });
+
+  test(method + ': delayed 401 after invalid URL cannot start refresh/replay or apply a fallback', async () => {
+    const gate = deferred();
+    const h = harness({ search: '?storyProgressId=' + routeId, [replyKey]: () => gate.promise,
+      refreshReply: async () => h.rotateToken() });
+    const context = h.api.basicChatContext(), pending = h.api[method](SLUG, context);
+    await settle(); assert.equal(h.calls.length, 1);
+    h.changeSearch('?storyProgressId=bad');
+    gate.resolve(response({}, 401));
+    assert.equal(await pending, null);
+    assert.equal(h.refreshCalls.length, 0, 'The real guarded product request must stop before starting auth refresh');
+    assert.equal(h.calls.length, 1, 'No shared-helper replay escapes the page guard');
+    assert.equal(h.api.basicChatState.routeScopeError, 'routeInvalid');
+    assert.equal(h.$('chatSendStatus').dataset.copyKey, 'routeRequestUnknown');
+    assert.equal(h.$('chatSendBtn').disabled, true);
+    assert.equal(h.$('chatInput').value, DRAFT);
+    assert.equal(h.$('chatStarterFallback').textContent, '');
+    const retired = h.snapshot();
+    h.changeSearch('');
+    assert.equal(await h.api[method](SLUG, context), null);
+    assert.equal(h.refreshCalls.length, 0); assert.equal(h.calls.length, 1);
+    // Reasserting the latch may rewrite its identical notice, never the retired content.
+    assert.deepEqual({ ...h.snapshot(), writes: retired.writes }, retired);
+    assert.deepEqual(h.writes.slice(retired.writes), [{ operation: 'text', tag: 'chatSendStatus' }]);
+  });
+
+  test(method + ': URL changes during an already-started refresh block replay for success and failure', async () => {
+    for (const refreshed of [true, false]) {
+      const gate = deferred();
+      const h = harness({ search: '?storyProgressId=' + routeId, [replyKey]: () => response({}, 401),
+        refreshReply: () => gate.promise });
+      const pending = h.api[method](SLUG);
+      await settle(); assert.equal(h.calls.length, 1); assert.equal(h.refreshCalls.length, 1);
+      h.changeSearch('?storyProgressId=');
+      gate.resolve(refreshed ? h.rotateToken() : null);
+      assert.equal(await pending, null);
+      assert.equal(h.calls.length, 1); assert.equal(h.refreshCalls.length, 1);
+      assert.equal(h.$('chatInput').value, DRAFT);
+      assert.equal(h.$('chatSendStatus').dataset.copyKey, 'routeRequestUnknown');
+      assert.equal(h.$('chatStarterFallback').textContent, '');
+    }
+  });
+
+  test(method + ': a real account change while refresh is pending cannot replay the old account request', async () => {
+    const gate = deferred();
+    const h = harness({ search: '?storyProgressId=' + routeId, [replyKey]: () => response({}, 401),
+      refreshReply: () => gate.promise });
+    const context = h.api.basicChatContext(), pending = h.api[method](SLUG, context);
+    await settle(); assert.equal(h.refreshCalls.length, 1); assert.equal(h.calls.length, 1);
+    h.switchAccount();
+    const retired = h.snapshot();
+    gate.resolve({ accessToken: 'synthetic-late-old-token' });
+    assert.equal(await pending, null);
+    assert.equal(h.refreshCalls.length, 1); assert.equal(h.calls.length, 1);
+    assert.equal(h.api.isBasicChatContextCurrent(context), false);
+    assert.deepEqual(h.snapshot(), retired);
+  });
+}
+
+const routeId = '12345678-1234-4123-8123-123456789abc';
+for (const [label, search] of [
+  ['empty', '?storyProgressId='],
+  ['malformed', '?storyProgressId=bad'],
+  ['identical duplicate', `?storyProgressId=${routeId}&storyProgressId=${routeId}`],
+  ['conflicting duplicate', `?storyProgressId=${routeId}&storyProgressId=abcdef12-1234-4123-8123-123456789abc`],
+]) test('catalog explicit ' + label + ' scope blocks before transport and cannot downgrade to general', async () => {
+  for (const signedIn of [true, false]) {
+    const h = harness({ signedIn, search });
+    await h.start(); await settle();
+    assert.equal(await h.api.fetchCharacterCatalog(SLUG), null);
+    assert.equal(await h.api.fetchStarterPrompts(SLUG), null);
+    assert.equal(h.calls.length, 0, 'No catalog/starter GET, token refresh, creation or generation');
+    assert.equal(h.api.basicChatState.routeScopeError, 'routeInvalid');
+    assert.equal(h.$('chatSendStatus').dataset.copyKey, 'routeInvalid');
+    assert.equal(h.$('chatSendBtn').disabled, true);
+    assert.equal(h.$('chatInput').value, DRAFT);
+    assert.equal(h.$('chatWelcomeBubble').hidden, true);
+    h.changeSearch('');
+    await h.start(); await settle();
+    assert.equal(h.calls.length, 0);
+    assert.equal(h.$('chatInput').value, DRAFT);
+    assert.equal(h.api.basicChatState.routeScopeError, 'routeInvalid');
+  }
 });

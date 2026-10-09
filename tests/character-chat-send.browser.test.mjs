@@ -67,6 +67,8 @@ async function openChat(options = {}) {
       const entry = { path: url.pathname, query: url.search, method: request.method(), headers: request.headers(), body: request.postDataJSON?.() };
       (entry.method === 'POST' ? posts : reads).push(entry);
       if (url.pathname === '/api/v1/artists') return route.fulfill({ json: options.artists ?? [{ id: artistId, slug: 'public-artist', status: 'active' }] });
+      if (url.pathname === '/api/v1/chat/character-catalog') return route.fulfill({ json: null });
+      if (url.pathname === '/api/v1/chat/starter-prompts') return route.fulfill({ json: options.starter || null });
       if (url.pathname === '/api/v1/chat/sessions' && entry.method === 'GET') {
         if (options.onSessions) return options.onSessions(route, entry);
         return route.fulfill({ json: options.sessions ?? [] });
@@ -86,6 +88,7 @@ async function openChat(options = {}) {
       if (url.pathname.endsWith('/generate')) {
         if (options.onGenerate) return options.onGenerate(route, { messages, entry });
         return route.fulfill({ json: {
+          generationStatus: 'completed',
           userMessage: message('user-new-1', 'user', entry.body.body),
           message: message('artist-new-1', 'artist', '<img src=x onerror=alert(1)>')
         } });
@@ -182,6 +185,7 @@ test('owned basic session loads safe text and sends once with explicit valid sto
     onGenerate: async (route, { entry }) => {
       await gate;
       return route.fulfill({ json: {
+        generationStatus: 'completed',
         userMessage: message('new-1', 'user', entry.body.body),
         message: message('new-2', 'artist', '<img src=x onerror=alert(1)>')
       } });
@@ -212,8 +216,8 @@ test('owned basic session loads safe text and sends once with explicit valid sto
   } finally { releaseGeneration(); await view.close(); }
 });
 
-test('new session is created on send only and invalid story scope is omitted', async () => {
-  const view = await openChat({ query: '&storyProgressId=not-a-uuid', messages: [message('opening-1', 'artist', 'Welcome')] });
+test('new general-chat session is created on send only when story scope is absent', async () => {
+  const view = await openChat({ messages: [message('opening-1', 'artist', 'Welcome')] });
   try {
     const { page, posts } = view;
     await page.locator('#chatInput').fill('Hi');
@@ -223,6 +227,27 @@ test('new session is created on send only and invalid story scope is omitted', a
     assert.deepEqual(posts.map(post => post.path), ['/api/v1/chat/sessions', '/api/v1/chat/sessions/session-new-1/generate']);
     assert.deepEqual(posts[0].body, { artistId });
     assert.deepEqual(posts[1].body, { body: 'Hi' });
+    assert.deepEqual(view.errors, []);
+  } finally { await view.close(); }
+});
+
+// Explicit route intent now fails closed; malformed or duplicate scope is not permission for general chat.
+for (const [label, query] of [
+  ['empty', '&storyProgressId='],
+  ['malformed', '&storyProgressId=not-a-uuid'],
+  ['identical duplicate', `&storyProgressId=${progressId}&storyProgressId=${progressId}`],
+  ['conflicting duplicate', `&storyProgressId=${progressId}&storyProgressId=abcdef12-1234-4123-8123-123456789abc`],
+]) test(`explicit ${label} story scope blocks all room requests and preserves the draft`, async () => {
+  const view = await openChat({ query });
+  try {
+    await view.page.waitForFunction(() => document.querySelector('#chatSendStatus')?.dataset.copyKey === 'routeInvalid');
+    await view.page.locator('#chatInput').fill('Keep this route draft');
+    assert.equal(await view.page.locator('#chatSendBtn').isDisabled(), true);
+    await view.page.evaluate(() => document.querySelector('#chatInputForm').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })));
+    assert.equal(await view.page.locator('#chatInput').inputValue(), 'Keep this route draft');
+    assert.match(await view.page.locator('#chatSendStatus').innerText(), /link is invalid/);
+    assert.equal(view.reads.length, 0);
+    assert.equal(view.posts.length, 0);
     assert.deepEqual(view.errors, []);
   } finally { await view.close(); }
 });
@@ -257,6 +282,7 @@ test('definite generation rejection shows an error and permits a deliberate retr
       attempts++;
       if (attempts === 1) return route.fulfill({ status: 429, json: { message: 'cooldown' } });
       return route.fulfill({ json: {
+        generationStatus: 'completed',
         userMessage: message('retry-1', 'user', entry.body.body),
         message: message('retry-2', 'artist', 'Hello back')
       } });
@@ -282,6 +308,7 @@ test('expired access token refreshes once after a rejected request without dupli
       attempts++;
       if (attempts === 1) return route.fulfill({ status: 401, json: { message: 'expired' } });
       return route.fulfill({ json: {
+        generationStatus: 'completed',
         userMessage: message('refresh-user', 'user', entry.body.body),
         message: message('refresh-artist', 'artist', 'Welcome back')
       } });
@@ -381,7 +408,7 @@ test('ambiguous generation failure locks resends and checks history with GET onl
     assert.equal(posts.length, 1);
     messages.push(message('reconciled-1', 'user', 'Could this arrive?'), message('reconciled-2', 'artist', 'Yes'));
     await page.locator('#chatCheckMessages').click();
-    await page.waitForFunction(() => document.querySelector('#chatSendStatus')?.textContent === 'Message sent.');
+    await page.waitForFunction(() => document.querySelector('#chatSendStatus')?.dataset.copyKey === 'receiptConfirmed');
     assert.equal(posts.length, 1);
     assert.equal(await page.locator('#chatInput').inputValue(), '');
     assert.deepEqual(view.errors, []);
@@ -492,11 +519,13 @@ test('late old-account generation response cannot render or choose the new accou
         oldStarted();
         await oldGate;
         return route.fulfill({ json: {
+          generationStatus: 'completed',
           userMessage: message('late-user-a', 'user', entry.body.body),
           message: message('late-artist-a', 'artist', 'Late A secret')
         } }).catch(() => {});
       }
       return route.fulfill({ json: {
+        generationStatus: 'completed',
         userMessage: message('user-b', 'user', entry.body.body),
         message: message('artist-b', 'artist', 'B reply')
       } });
