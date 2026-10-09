@@ -1004,7 +1004,8 @@ export class FanEngagementService {
   private labels(value: Prisma.JsonValue | JsonRecord, locale: string) {
     const copy = this.metadataObject(value);
     const labels = this.metadataObject(copy.labels);
-    const localized = this.metadataObject(labels[locale]) || this.metadataObject(labels.ko);
+    const requested = this.metadataObject(labels[locale]);
+    const localized = Object.keys(requested).length ? requested : this.metadataObject(labels.ko);
 
     return Object.keys(localized).length ? { [locale]: localized } : undefined;
   }
