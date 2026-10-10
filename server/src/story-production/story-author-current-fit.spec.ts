@@ -23,6 +23,7 @@ import { prepareStoryContinuationOpenAiRequestForDiagnostics } from './story-con
 import { storyContinuationInputTokenBudget } from './story-continuation-tokenizer';
 import { SEMANTIC_PIPELINE } from './story-semantic-analysis.types';
 import { readCurrentApprovedStoryStyleSnapshot } from './story-author-approved-style.snapshot';
+import * as profilePolicy from './story-continuation-context.policy';
 
 const uuid = (n: number) => `00000000-0000-4000-8000-${n.toString(16).padStart(12, '0')}`;
 const owner = uuid(1), workId = uuid(2), releaseId = uuid(3), progressId = uuid(4), partId = uuid(5);
@@ -219,6 +220,54 @@ describe('current owner fixed-cap snapshot service (synthetic context projection
     expect(result.outcome).toBe('request_checked');
     expect(f.context.mock.calls[0][1].sourceKind).toBe('canonical');
     expect(f.db.storyAiContinuation.findFirst).not.toHaveBeenCalled();
+  });
+
+  it.each(locales)('keeps numeric oversized-view evidence private and distinct from model input in %s', async locale => {
+    const f = fixture(), profile = f.state.profiles[0];
+    const style = profile.approvedSettings.sections.find((section: Row) => section.key === 'writing_style').value;
+    style.summary = '\uac00'.repeat(7900);
+    profile.approvedFingerprint = creatorGenerationProfileFingerprint(profile.sourceFingerprint, profile.approvedSettings);
+    const before = stableJson(f.state), result = await f.run(locale);
+    if (!('profileViewDiagnostic' in result) || !result.profileViewDiagnostic) throw new Error('Missing typed view-size result');
+    const sizes = result.profileViewDiagnostic;
+    expect(sizes).toMatchObject({ contract: 'story-profile-view-byte-diagnostic-v1', byteCap: 16384,
+      projectionTiers: 3, scopeObservationCount: 3, modelInputFit: 'unmeasured',
+      compactViewFit: 'unmeasured', semanticQualityVerified: false });
+    expect(sizes.minimumProjectedViewBytes).toBeGreaterThan(16384);
+    expect(sizes.writingStyleSectionBytes).toBeLessThanOrEqual(sizes.minimumProjectedViewBytes);
+    expect(sizes.trustedRepeatedScopeBytes).toBe(3 * Buffer.byteLength(',"referenceScope":"writing_pattern"'));
+    expect(result).toMatchObject({ outcome: 'current_source_unavailable', reason: 'approved_profile_context_too_large',
+      approvalReferenceVerified: false, diagnostic: null, providerCalls: 0, operatingWrites: 0,
+      dispatchAuthorized: false, semanticQualityVerified: false, paidApproval: 'not_evaluated', legalAuthorization: 'not_evaluated' });
+    for (const secret of [PRIVATE, style.summary, owner, workId, profile.id, profile.sourceFingerprint, profile.approvedFingerprint]) {
+      expect(JSON.stringify(result)).not.toContain(secret);
+    }
+    expect(f.context).not.toHaveBeenCalled(); expect(f.inspect).not.toHaveBeenCalled(); f.unchanged(before);
+  });
+
+  it('does not turn a same-message generic error with forged fields into measured evidence', async () => {
+    const f = fixture(), before = stableJson(f.state);
+    const forged = Object.assign(new Error('generation_profile_context_too_large'), {
+      profileViewDiagnostic: { privateText: PRIVATE, minimumProjectedViewBytes: 99999 },
+    });
+    jest.spyOn(profilePolicy, 'continuationGenerationProfileSnapshot').mockImplementation(() => { throw forged; });
+    const result = await f.run();
+    expect(result).toMatchObject({ reason: 'approved_profile_context_too_large', diagnostic: null });
+    expect(result).not.toHaveProperty('profileViewDiagnostic');
+    expect(JSON.stringify(result)).not.toContain(PRIVATE); f.unchanged(before);
+  });
+
+  it.each(['stale', 'unapproved'])('exposes no size report for %s approval', async change => {
+    const f = fixture(), profile = f.state.profiles[0];
+    const style = profile.approvedSettings.sections.find((section: Row) => section.key === 'writing_style').value;
+    style.summary = '\uac00'.repeat(7900);
+    profile.approvedFingerprint = creatorGenerationProfileFingerprint(profile.sourceFingerprint, profile.approvedSettings);
+    if (change === 'stale') style.summary += 'changed';
+    else profile.status = 'needs_review';
+    const before = stableJson(f.state), result = await f.run();
+    expect(result).toMatchObject({ reason: 'approval_unavailable', diagnostic: null });
+    expect(result).not.toHaveProperty('profileViewDiagnostic');
+    expect(f.context).not.toHaveBeenCalled(); f.unchanged(before);
   });
 
   const invalidStates: Array<[string, (state: ReturnType<typeof fixture>['state']) => void, string]> = [

@@ -4,7 +4,8 @@ import { isUUID } from 'class-validator';
 import { PrismaService } from '../prisma/prisma.service';
 import { StoryAuthorCurrentFitQueryDto } from './dto/story-author-current-fit.dto';
 import { readCurrentApprovedStoryStyleSnapshot } from './story-author-approved-style.snapshot';
-import { continuationGenerationProfileSnapshot, continuationHash } from './story-continuation-context.policy';
+import { continuationGenerationProfileSnapshot, continuationHash, StoryContinuationProfileViewContextTooLargeError,
+  type StoryContinuationProfileViewSizeDiagnostic } from './story-continuation-context.policy';
 import { readStoryContinuationDiagnosticContext, StoryContinuationDiagnosticContextUnavailable } from './story-continuation-diagnostic-context';
 import { inspectStoryContinuationFixedCapFit, STORY_FIXED_CAP_INPUT_TOKENS, STORY_FIXED_CAP_OUTPUT_TOKENS } from './story-continuation-fixed-cap-fit';
 import { storyContinuationOutputTokenLimit } from './story-continuation-length.policy';
@@ -17,9 +18,12 @@ const reasons = ['progress_unavailable', 'progress_changed', 'release_unavailabl
   'capability_unavailable', 'fixed_cap_settings_mismatch', 'context_unavailable'] as const;
 type Reason = typeof reasons[number];
 class SnapshotUnavailable extends Error {
-  constructor(readonly reason: Reason) { super(reason); }
+  constructor(readonly reason: Reason,
+    readonly profileViewDiagnostic?: StoryContinuationProfileViewSizeDiagnostic) { super(reason); }
 }
-function unavailable(reason: Reason): never { throw new SnapshotUnavailable(reason); }
+function unavailable(reason: Reason, profileViewDiagnostic?: StoryContinuationProfileViewSizeDiagnostic): never {
+  throw new SnapshotUnavailable(reason, profileViewDiagnostic);
+}
 const positive = (value: unknown): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
 const hash = (value: unknown) => typeof value === 'string' && /^[a-f0-9]{64}$/i.test(value);
 
@@ -87,6 +91,9 @@ export class StoryAuthorCurrentFitService {
         let generationProfile;
         try { generationProfile = continuationGenerationProfileSnapshot(profile); }
         catch (error) {
+          if (error instanceof StoryContinuationProfileViewContextTooLargeError) {
+            unavailable('approved_profile_context_too_large', error.profileViewDiagnostic);
+          }
           if (error instanceof Error && error.message === 'generation_profile_context_too_large') {
             unavailable('approved_profile_context_too_large');
           }
@@ -176,7 +183,8 @@ export class StoryAuthorCurrentFitService {
       if (error instanceof SnapshotUnavailable) return { ...envelope, outcome: 'current_source_unavailable' as const,
         currentSourceState: 'unavailable' as const, reason: error.reason, approvalReferenceVerified: false as const,
         progressRevision: null, manuscriptVersion: null, analysisVersion: null, profileVersion: null, reviewRevision: null,
-        diagnostic: null };
+        diagnostic: null,
+        ...(error.profileViewDiagnostic ? { profileViewDiagnostic: error.profileViewDiagnostic } : {}) };
       if (error instanceof NotFoundException) throw error;
       throw new ServiceUnavailableException({ code: 'STORY_AUTHOR_CURRENT_FIT_UNAVAILABLE' });
     }

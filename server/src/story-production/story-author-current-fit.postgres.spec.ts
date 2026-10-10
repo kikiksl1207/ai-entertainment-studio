@@ -721,4 +721,205 @@ postgres('current-fit on owned PostgreSQL, SDK174 (synthetic only)', () => {
     expect(await generatedSnapshot()).toEqual(before); assertModes(f, 2);
   });
 
+
+  // PROFILE-VIEW-SIZE: owned native fixtures only; synthetic approval is not human/provider evidence.
+  // BEGIN PROFILE-VIEW-SIZE APPEND
+  async function profileViewSizeFixture() {
+    const f = await fixture();
+    const endRule = '  "SYNTHETIC_END_RULE":\nKeep the entire final exception.\t ';
+    const summary = ' \n' + '\uD55C'.repeat(7900) + '\n' + PRIVATE + endRule;
+    const sourceRef = 'analysis:' + f.analysis.id;
+    const observations = ['head', 'repeat', 'repeat', 'tail'].map(title => ({
+      title: '  ' + title + '\t ', detail: ' \n\uD55C\uAE00 ' + title + endRule, sourceRef,
+    }));
+    const categories = [{ category: '  synthetic rhythm\t ',
+      observations: ['  repeated category\n', '  repeated category\n', endRule] }];
+    const settings = normalizeCreatorGenerationProfile('story', {
+      schemaVersion: CREATOR_GENERATION_PROFILE_SCHEMA, kind: 'story',
+      sections: STORY_PROFILE_SECTION_KEYS.map(key => ({
+        key, decision: 'accepted',
+        evidence: key === 'writing_style' ? [{ sourceType: 'manuscript',
+          sourceRef: sourceRef + ':SYNTHETIC-PART:7', summary: 'Synthetic locator, not human review' }] : [],
+        value: key === 'writing_style' ? { summary, customConstraint: endRule, observations, categories }
+          : { summary: key === 'canon' ? ' \n' + 'c'.repeat(600) + '\t ' : 'approved ' + key },
+      })),
+    });
+    const sizeProfile = await db.storyWorkGenerationProfile.create({ data: {
+      workId: f.work.id, ownerUserId: f.owner.id, manuscriptVersionId: f.manuscript.id,
+      analysisJobId: f.analysis.id, sourceFingerprint: f.profile.sourceFingerprint,
+      profileVersion: 2, reviewRevision: 1, status: 'approved',
+      draftSettings: settings as unknown as Prisma.InputJsonValue,
+      approvedSettings: settings as unknown as Prisma.InputJsonValue,
+      approvedFingerprint: creatorGenerationProfileFingerprint(f.profile.sourceFingerprint, settings),
+      approvedByUserId: f.owner.id, approvedAt: new Date(),
+    } });
+    const persisted = normalizeCreatorGenerationProfile('story', sizeProfile.approvedSettings);
+    const styleValue = persisted.sections.find(section => section.key === 'writing_style')!.value;
+    expect(styleValue).toEqual({ summary, customConstraint: endRule, observations, categories });
+    expect(sizeProfile.approvedFingerprint).toBe(
+      creatorGenerationProfileFingerprint(sizeProfile.sourceFingerprint, persisted));
+    expect(await db.storyWorkGenerationProfile.findFirst({
+      where: { workId: f.work.id }, orderBy: { profileVersion: 'desc' }, select: { id: true },
+    })).toEqual({ id: sizeProfile.id });
+    expect(sizeProfile).toMatchObject({ status: 'approved', ownerUserId: f.owner.id,
+      manuscriptVersionId: f.release.manuscriptVersionId, analysisJobId: f.analysis.id,
+      approvedByUserId: f.owner.id, profileVersion: 2, reviewRevision: 1 });
+
+    // Independent oracle for this restricted fixture shape, including PG JSON object order.
+    // It does not call the projector or derive expectations from the thrown diagnostic.
+    const expectedStyle = { key: 'writing_style', value: {
+      ...Object.fromEntries(Object.entries(styleValue).filter(([field]) =>
+        !['observations', 'categories', 'referenceScope'].includes(field))),
+      referenceScope: 'production_constraint',
+      observations: observations.map(row => ({ title: row.title, detail: row.detail,
+        referenceScope: 'writing_pattern', sourceRef, sourcePartKey: 'SYNTHETIC-PART', sourceParagraphIndex: 7 })),
+      categories,
+    } };
+    const tierBytes = [240, 200, 160].map(summaryLimit => {
+      const approved = { schemaVersion: CREATOR_GENERATION_PROFILE_SCHEMA,
+        sections: persisted.sections.map(section => {
+          expect(section.decision).toBe('accepted');
+          if (section.key === 'writing_style') return expectedStyle;
+          expect(Object.keys(section.value)).toEqual(['summary']);
+          const literal = section.value.summary;
+          if (typeof literal !== 'string') throw new Error('SYNTHETIC_PROFILE_VIEW_FIXTURE_INVALID');
+          return { key: section.key, value: {
+            summary: section.key === 'branch_behavior' ? literal
+              : Array.from(literal.trim()).slice(0, summaryLimit).join('').trim(),
+            referenceScope: ['scene_scale', 'branch_behavior'].includes(section.key)
+              ? 'production_constraint' : 'author_plan_not_route_history',
+          } };
+        }) };
+      return Buffer.byteLength(JSON.stringify(approved), 'utf8');
+    });
+    expect(tierBytes.every(value => Number.isSafeInteger(value) && value > 16384)).toBe(true);
+    expect(tierBytes[0]).toBeGreaterThan(tierBytes[1]);
+    expect(tierBytes[1]).toBeGreaterThan(tierBytes[2]);
+    const expectedDiagnostic = {
+      contract: 'story-profile-view-byte-diagnostic-v1', byteCap: 16384,
+      minimumProjectedViewBytes: Math.min(...tierBytes),
+      writingStyleSectionBytes: Buffer.byteLength(JSON.stringify(expectedStyle), 'utf8'),
+      scopeObservationCount: observations.length,
+      trustedRepeatedScopeBytes: observations.length * Buffer.byteLength(',"referenceScope":"writing_pattern"', 'utf8'),
+      projectionTiers: 3, modelInputFit: 'unmeasured', compactViewFit: 'unmeasured',
+      semanticQualityVerified: false,
+    } as const;
+    return { ...f, sizeProfile, summary, endRule, sourceRef, expectedDiagnostic };
+  }
+
+  function assertProfileViewSizeSummary(value: unknown, f: Awaited<ReturnType<typeof profileViewSizeFixture>>) {
+    const publicJson = JSON.stringify(value);
+    expect(publicJson).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+    for (const privateValue of [PRIVATE, f.summary, f.endRule, f.sourceRef, 'SYNTHETIC-PART',
+      'Synthetic locator, not human review', 'repeated category', f.sizeProfile.sourceFingerprint,
+      f.sizeProfile.approvedFingerprint!, f.profile.approvedFingerprint!, f.release.checksum, f.manuscript.contentHash]) {
+      expect(publicJson).not.toContain(privateValue);
+    }
+  }
+
+  it('PROFILE-VIEW-SIZE: latest valid full-style overflow returns exact numeric v6 aggregates in RO/RR without source changes', async () => {
+    const f = await profileViewSizeFixture();
+    const policy = await import('./story-continuation-context.policy');
+    const projection = jest.spyOn(policy, 'continuationGenerationProfileSnapshot');
+    const helper = await import('./story-continuation-diagnostic-context');
+    const contextRead = jest.spyOn(helper, 'readStoryContinuationDiagnosticContext');
+    const before = await generatedSnapshot();
+    expect(Object.keys(before)).toHaveLength(33);
+    const result = await f.read();
+    expect(result).toEqual({
+      contract: 'story-author-current-fit-v1', locale: 'ko',
+      sourceScope: 'latest_private_approval_and_current_reader_source',
+      readOnly: true, providerCalls: 0, operatingWrites: 0, dispatchAuthorized: false,
+      semanticQualityVerified: false, legalAuthorization: 'not_evaluated', paidApproval: 'not_evaluated',
+      outcome: 'current_source_unavailable', currentSourceState: 'unavailable',
+      reason: 'approved_profile_context_too_large', approvalReferenceVerified: false,
+      progressRevision: null, manuscriptVersion: null, analysisVersion: null,
+      profileVersion: null, reviewRevision: null, diagnostic: null,
+      profileViewDiagnostic: f.expectedDiagnostic,
+    });
+    expect(projection).toHaveBeenCalledTimes(1);
+    expect(projection.mock.calls[0][0]).toMatchObject({ id: f.sizeProfile.id,
+      approvedSettings: f.sizeProfile.approvedSettings, approvedFingerprint: f.sizeProfile.approvedFingerprint });
+    // The spy retains the real projector; inspect its actual thrown typed error, not a synthetic replacement.
+    expect(projection.mock.results[0].type).toBe('throw');
+    const error = projection.mock.results[0].value as unknown;
+    expect(error).toBeInstanceOf(Error);
+    expect(error).toBeInstanceOf(policy.StoryContinuationProfileViewContextTooLargeError);
+    expect(error).toMatchObject({ message: 'generation_profile_context_too_large',
+      profileViewDiagnostic: f.expectedDiagnostic });
+    const diag = f.expectedDiagnostic;
+    expect(diag.minimumProjectedViewBytes).toBeGreaterThan(diag.byteCap);
+    expect(diag.minimumProjectedViewBytes).toBeLessThanOrEqual(2000000);
+    expect(diag.writingStyleSectionBytes).toBeGreaterThan(0);
+    expect(diag.writingStyleSectionBytes).toBeLessThanOrEqual(diag.minimumProjectedViewBytes);
+    expect(diag.scopeObservationCount).toBeGreaterThanOrEqual(0);
+    expect(diag.scopeObservationCount).toBeLessThanOrEqual(200);
+    for (const amount of [diag.minimumProjectedViewBytes, diag.writingStyleSectionBytes,
+      diag.scopeObservationCount, diag.trustedRepeatedScopeBytes]) expect(Number.isSafeInteger(amount)).toBe(true);
+    expect(contextRead).not.toHaveBeenCalled();
+    expect(f.inspectSpy).not.toHaveBeenCalled();
+    expect(await db.storyReleaseCapability.findUniqueOrThrow({ where: { releaseId: f.release.id } }))
+      .toMatchObject({ aiInputTokenLimit: 32768, aiOutputTokenLimit: 8192 });
+    const beats = await db.storyBeat.findMany({ where: { sceneId: f.scene.id }, orderBy: { position: 'asc' } });
+    expect(beats).toHaveLength(1);
+    expect(beats[0].content).toEqual(localized('a'.repeat(5200)));
+    const { authorPartStoryContinuationLengthBounds, storyContinuationOutputTokenLimit } =
+      await import('./story-continuation-length.policy');
+    const bounds = authorPartStoryContinuationLengthBounds('ko', ['a'.repeat(5200)]);
+    expect(bounds).toEqual({ profileVersion: 'author-length-80-120-v1',
+      measurement: 'narrative-nonwhite-codepoints-v1', locale: 'ko',
+      referenceUnits: 5200, minUnits: 4160, targetUnits: 5200, maxUnits: 6240 });
+    expect(storyContinuationOutputTokenLimit(bounds, 8192)).toBe(8192);
+    assertProfileViewSizeSummary(result, f);
+    expect(await generatedSnapshot()).toEqual(before);
+    assertModes(f);
+  });
+
+  it('PROFILE-VIEW-SIZE: stale latest fingerprint cannot expose a byte aggregate or fall back to the old approval', async () => {
+    const f = await profileViewSizeFixture();
+    expect(f.sizeProfile.approvedFingerprint).not.toBe('0'.repeat(64));
+    await db.storyWorkGenerationProfile.update({ where: { id: f.sizeProfile.id },
+      data: { approvedFingerprint: '0'.repeat(64) } });
+    const policy = await import('./story-continuation-context.policy');
+    const projection = jest.spyOn(policy, 'continuationGenerationProfileSnapshot');
+    const before = await generatedSnapshot();
+    expect(Object.keys(before)).toHaveLength(33);
+    const result = await f.read();
+    expect(result).toMatchObject({ contract: 'story-author-current-fit-v1',
+      outcome: 'current_source_unavailable', currentSourceState: 'unavailable',
+      reason: 'approval_unavailable', approvalReferenceVerified: false, diagnostic: null,
+      readOnly: true, providerCalls: 0, operatingWrites: 0, dispatchAuthorized: false,
+      semanticQualityVerified: false, legalAuthorization: 'not_evaluated', paidApproval: 'not_evaluated' });
+    expect(result).not.toHaveProperty('profileViewDiagnostic');
+    expect(projection).not.toHaveBeenCalled();
+    expect(f.inspectSpy).not.toHaveBeenCalled();
+    assertProfileViewSizeSummary(result, f);
+    expect(await generatedSnapshot()).toEqual(before);
+    assertModes(f);
+  });
+
+  it('PROFILE-VIEW-SIZE: a real foreign user cannot receive owner-only profile-size aggregates', async () => {
+    const f = await profileViewSizeFixture();
+    const outsider = await db.user.create({ data: {} });
+    expect(outsider.id).not.toBe(f.owner.id);
+    const policy = await import('./story-continuation-context.policy');
+    const projection = jest.spyOn(policy, 'continuationGenerationProfileSnapshot');
+    const before = await generatedSnapshot();
+    expect(Object.keys(before)).toHaveLength(33);
+    const denial = await f.service.inspect(outsider.id, f.work.id, {
+      locale: 'ko', choiceId: f.choice.id, expectedProgressRevision: f.progress.progressRevision,
+    }).then(() => null, (error: unknown) => error);
+    expect(denial).toMatchObject({ status: 404, response: { code: 'STORY_AUTHOR_CURRENT_FIT_NOT_FOUND' } });
+    expect(denial).not.toHaveProperty('profileViewDiagnostic');
+    const publicResponse = (denial as { getResponse(): unknown }).getResponse();
+    expect(publicResponse).toEqual({ code: 'STORY_AUTHOR_CURRENT_FIT_NOT_FOUND' });
+    expect(publicResponse).not.toHaveProperty('profileViewDiagnostic');
+    expect(projection).not.toHaveBeenCalled();
+    expect(f.inspectSpy).not.toHaveBeenCalled();
+    assertProfileViewSizeSummary(publicResponse, f);
+    expect(await generatedSnapshot()).toEqual(before);
+    assertModes(f);
+  });
+  // END PROFILE-VIEW-SIZE APPEND
+
 });

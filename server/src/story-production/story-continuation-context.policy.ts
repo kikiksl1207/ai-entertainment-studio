@@ -57,6 +57,44 @@ const PROFILE_VIEW_LIMITS = [
   { summary: 160, detail: 100, title: 40, categoryExample: 60 },
 ] as const;
 
+export type StoryContinuationProfileViewSizeDiagnostic = Readonly<{
+  contract: 'story-profile-view-byte-diagnostic-v1';
+  byteCap: 16384;
+  minimumProjectedViewBytes: number;
+  writingStyleSectionBytes: number | null;
+  scopeObservationCount: number;
+  trustedRepeatedScopeBytes: number;
+  projectionTiers: 3;
+  modelInputFit: 'unmeasured';
+  compactViewFit: 'unmeasured';
+  semanticQualityVerified: false;
+}>;
+
+export class StoryContinuationProfileViewContextTooLargeError extends Error {
+  readonly profileViewDiagnostic: StoryContinuationProfileViewSizeDiagnostic;
+
+  constructor(sizes: Pick<StoryContinuationProfileViewSizeDiagnostic, 'minimumProjectedViewBytes' |
+    'writingStyleSectionBytes' | 'scopeObservationCount' | 'trustedRepeatedScopeBytes'>) {
+    super('generation_profile_context_too_large');
+    const { minimumProjectedViewBytes, writingStyleSectionBytes, scopeObservationCount, trustedRepeatedScopeBytes } = sizes;
+    if (!Number.isSafeInteger(minimumProjectedViewBytes) || minimumProjectedViewBytes <= MAX_PROFILE_VIEW_BYTES ||
+      minimumProjectedViewBytes > 2_000_000 || !Number.isSafeInteger(scopeObservationCount) ||
+      scopeObservationCount < 0 || scopeObservationCount > 200 ||
+      trustedRepeatedScopeBytes !== scopeObservationCount * Buffer.byteLength(',"referenceScope":"writing_pattern"', 'utf8') ||
+      (writingStyleSectionBytes === null ? scopeObservationCount !== 0 :
+        !Number.isSafeInteger(writingStyleSectionBytes) || writingStyleSectionBytes <= 0 ||
+          writingStyleSectionBytes > minimumProjectedViewBytes || trustedRepeatedScopeBytes > writingStyleSectionBytes)) {
+      throw new Error('generation_profile_context_too_large');
+    }
+    this.profileViewDiagnostic = Object.freeze({
+      minimumProjectedViewBytes, writingStyleSectionBytes, scopeObservationCount, trustedRepeatedScopeBytes,
+      contract: 'story-profile-view-byte-diagnostic-v1', byteCap: MAX_PROFILE_VIEW_BYTES,
+      projectionTiers: 3, modelInputFit: 'unmeasured', compactViewFit: 'unmeasured',
+      semanticQualityVerified: false,
+    });
+  }
+}
+
 type SemanticSceneRow = { id: string; title: Prisma.JsonValue; endingType: string | null };
 type CanonicalChoiceRow = {
   id: string;
@@ -277,6 +315,9 @@ function projectContinuationGenerationProfile(
 ) {
   const sections = sourceSections.filter((section) =>
     section.decision === 'accepted' || section.decision === 'edited');
+  let minimumProjectedViewBytes = Number.POSITIVE_INFINITY;
+  let writingStyleSectionBytes: number | null = null;
+  let scopeObservationCount = 0;
   for (const limits of PROFILE_VIEW_LIMITS) {
     const approved: StoryContinuationApprovedGenerationProfile = {
       schemaVersion: CREATOR_GENERATION_PROFILE_SCHEMA,
@@ -285,11 +326,24 @@ function projectContinuationGenerationProfile(
         value: continuationProfileValue(section.key, section.value, section.evidence, limits),
       })),
     };
-    if (Buffer.byteLength(JSON.stringify(approved), 'utf8') <= MAX_PROFILE_VIEW_BYTES) {
+    const projectedBytes = Buffer.byteLength(JSON.stringify(approved), 'utf8');
+    if (projectedBytes <= MAX_PROFILE_VIEW_BYTES) {
       return { pin, approved };
     }
+    if (projectedBytes < minimumProjectedViewBytes) {
+      minimumProjectedViewBytes = projectedBytes;
+      const style = approved.sections.find(section => section.key === 'writing_style');
+      writingStyleSectionBytes = style ? Buffer.byteLength(JSON.stringify(style), 'utf8') : null;
+      scopeObservationCount = style && Array.isArray(style.value.observations)
+        ? style.value.observations.filter(row => row.referenceScope === 'writing_pattern').length : 0;
+    }
   }
-  throw new Error('generation_profile_context_too_large');
+  // Numeric view sizes are not model-token measurements or proof that compaction will fit.
+  throw new StoryContinuationProfileViewContextTooLargeError({
+    minimumProjectedViewBytes, writingStyleSectionBytes, scopeObservationCount,
+    trustedRepeatedScopeBytes: scopeObservationCount *
+      Buffer.byteLength(',"referenceScope":"writing_pattern"', 'utf8'),
+  });
 }
 
 function continuationProfileValue(
