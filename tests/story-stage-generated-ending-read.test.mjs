@@ -30,6 +30,7 @@ const runtime = [
   section(source, 'function readerScope(', 'function rememberReadingScroll('),
   section(source, 'function cancelBeatNavigation(', 'function aiRequestOpen('),
   section(source, 'function aiRequestOpen(', 'function aiNoticeCopy('),
+  section(source, 'function cancelPairedVisual(', 'function renderPairedDelivery('),
   section(source, 'function setBusy(', 'function cancelAiPolling('),
   section(source, 'async function loadScene(', 'function graphTitle('),
   section(source, 'async function submitChoice(', 'async function submitCustomChoice('),

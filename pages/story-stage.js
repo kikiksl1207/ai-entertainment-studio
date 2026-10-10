@@ -688,6 +688,7 @@
     pairedVisualStatus: "idle",
     pairedVisualStartedAt: 0,
     pairedVisualTransportFailures: 0,
+    pairedVisualOperation: null,
     participantCandidates: [],
     participantSearchResults: [],
     participantQuery: "",
@@ -2119,9 +2120,40 @@
     return scene?.deliveryState === "artwork_pending" || scene?.deliveryState === "artwork_unavailable";
   }
 
+  function cancelPairedVisual(reset = false) {
+    const operation = state.pairedVisualOperation;
+    state.pairedVisualOperation = null;
+    if (operation?.timer != null) clearTimeout(operation.timer);
+    if (operation && state.visualRequestKey === operation.scopedKey) state.visualRequestKey = "";
+    if (reset) {
+      state.pairedVisualSceneKey = "";
+      state.pairedVisualStatus = "idle";
+      state.pairedVisualStartedAt = 0;
+      state.pairedVisualTransportFailures = 0;
+    }
+  }
+
+  function currentPairedVisual(operation) {
+    return state.pairedVisualOperation === operation && operation.epoch === state.epoch &&
+      operation.sessionId === state.sessionId && operation.sceneKey === state.pairedVisualSceneKey &&
+      operation.scene === state.scene && operation.identity === readerIdentity() && signedIn() &&
+      operation.locale === state.locale && operation.workId === state.workId &&
+      operation.workIdClaim === state.workIdClaim && operation.revision === state.progress?.revision;
+  }
+
+  function schedulePairedVisualRefresh(operation) {
+    operation.timer = setTimeout(() => {
+      if (!currentPairedVisual(operation)) return;
+      operation.timer = null;
+      cancelPairedVisual();
+      loadScene({ restorePending: false });
+    }, 1800);
+  }
+
   function renderPairedDelivery(scene) {
     const sceneKey = typeof scene?.sceneKey === "string" ? scene.sceneKey : "";
     if (state.pairedVisualSceneKey !== sceneKey) {
+      cancelPairedVisual();
       state.pairedVisualSceneKey = sceneKey;
       state.pairedVisualStatus = "idle";
       state.pairedVisualStartedAt = Date.now();
@@ -2146,8 +2178,14 @@
     const sceneKey = typeof scene?.sceneKey === "string" ? scene.sceneKey : "";
     const sessionId = safeGraphId(state.sessionId);
     if (!sceneKey || !sessionId || !signedIn()) return;
+    if (state.pairedVisualOperation && currentPairedVisual(state.pairedVisualOperation)) return;
+    cancelPairedVisual();
     const scopedKey = `paired:${sessionId}:${sceneKey}`;
     if (state.visualRequestKey === scopedKey) return;
+    const operation = { epoch: state.epoch, sessionId, sceneKey, scene, scopedKey,
+      identity: readerIdentity(), locale: state.locale, workId: state.workId,
+      workIdClaim: state.workIdClaim, revision: state.progress?.revision, timer: null };
+    state.pairedVisualOperation = operation;
     state.visualRequestKey = scopedKey;
     state.pairedVisualStatus = "loading";
     try {
@@ -2156,37 +2194,30 @@
         auth: true,
         body: { sourceSceneKey: sceneKey },
       });
-      if (state.pairedVisualSceneKey !== sceneKey || state.sessionId !== sessionId) return;
+      if (!currentPairedVisual(operation)) return;
       if (result?.status === "ready") {
-        state.visualRequestKey = "";
+        cancelPairedVisual();
         state.pairedVisualStatus = "idle";
         state.pairedVisualTransportFailures = 0;
         return loadScene({ restorePending: false });
       }
       if (result?.status === "processing") {
-        setTimeout(() => {
-          if (state.pairedVisualSceneKey !== sceneKey || state.sessionId !== sessionId) return;
-          state.visualRequestKey = "";
-          loadScene({ restorePending: false });
-        }, 1800);
+        schedulePairedVisualRefresh(operation);
         return;
       }
-      state.visualRequestKey = "";
+      cancelPairedVisual();
       state.pairedVisualStatus = "failed";
       renderPairedDelivery(scene);
     } catch {
-      if (state.pairedVisualSceneKey !== sceneKey || state.sessionId !== sessionId) return;
-      state.visualRequestKey = "";
+      if (!currentPairedVisual(operation)) return;
+      if (state.visualRequestKey === scopedKey) state.visualRequestKey = "";
       state.pairedVisualTransportFailures += 1;
       if (state.pairedVisualTransportFailures >= 2) {
+        cancelPairedVisual();
         state.pairedVisualStatus = "failed";
         renderPairedDelivery(scene);
       } else {
-        setTimeout(() => {
-          if (state.pairedVisualSceneKey === sceneKey && state.sessionId === sessionId) {
-            loadScene({ restorePending: false });
-          }
-        }, 1800);
+        schedulePairedVisualRefresh(operation);
       }
     }
   }
@@ -2199,6 +2230,7 @@
       cancelEndingRead();
       return renderPairedDelivery(scene);
     }
+    cancelPairedVisual(true);
     if (state.choices.length > 3) return blockScene(controlTr("sceneUnavailable"));
     const reading = readableBeats();
     const isEnding = state.progress?.status === "completed";
@@ -2358,6 +2390,7 @@
   }
 
   function blockScene(message, retry = false) {
+    cancelPairedVisual(true);
     cancelEndingRead();
     cancelCanonicalRead();
     state.scenePending = false;
@@ -2886,6 +2919,7 @@
   }
 
   async function loadScene(options = {}) {
+    cancelPairedVisual();
     cancelEndingRead();
     const canonicalRead = options.preserveCanonicalRead === true ? state.canonicalRead : null;
     if (canonicalRead?.status === "saving") canonicalRead.status = "unknown";
@@ -3329,10 +3363,10 @@
     }
     if (event.target.closest("[data-story-ai-recover]")) return recoverAiOperation();
     if (event.target.closest("[data-story-paired-retry]")) {
+      cancelPairedVisual();
       state.pairedVisualStatus = "idle";
       state.pairedVisualStartedAt = Date.now();
       state.pairedVisualTransportFailures = 0;
-      state.visualRequestKey = "";
       return renderPairedDelivery(state.scene);
     }
     const choiceButton = event.target.closest("[data-choice-id]");
@@ -3439,6 +3473,7 @@
   window.addEventListener("lumina:localechange", () => {
     const nextLocale = resolveLocale();
     if (nextLocale === state.locale) return;
+    cancelPairedVisual();
     state.locale = nextLocale;
     updateHeading();
     if (state.endingReadOperation) {
@@ -3472,6 +3507,7 @@
   });
 
   window.addEventListener("lumina:auth-expired", () => {
+    cancelPairedVisual(true);
     state.authIdentity = readerIdentity();
     if (state.detailStartOperation) {
       state.detailStartOperation = null;
@@ -3505,6 +3541,7 @@
     const identity = readerIdentity();
     if (!state.sessionId && state.graphWorkId && identity === state.authIdentity) return;
     if (!force && identity === state.authIdentity) return;
+    cancelPairedVisual(true);
     state.authIdentity = identity;
     if (state.detailStartOperation) {
       state.detailStartOperation = null;
@@ -3543,6 +3580,7 @@
   });
 
   window.addEventListener("popstate", () => {
+    cancelPairedVisual(true);
     cancelEndingRead();
     cancelCanonicalRead();
     if (state.dialog) dismissPack();
@@ -3574,9 +3612,15 @@
   });
 
   window.addEventListener("pagehide", cancelAiPolling);
+  window.addEventListener("pagehide", () => cancelPairedVisual());
   window.addEventListener("pagehide", cancelBeatNavigation);
   window.addEventListener("pagehide", cancelCanonicalRead);
   window.addEventListener("pagehide", () => cancelEndingRead());
+  window.addEventListener("pageshow", event => {
+    if (event.persisted && state.pairedVisualStatus === "loading" && state.sessionId && signedIn()) {
+      loadScene({ restorePending: false });
+    }
+  });
 
   updateHeading();
   if (state.sessionId) loadScene();

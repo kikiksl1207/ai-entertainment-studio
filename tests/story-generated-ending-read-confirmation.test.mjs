@@ -816,7 +816,7 @@ test('missing WebCrypto disables confirmation and entry HTML invalidates ending 
   assert.equal(f.button().disabled, true);
   assert.equal(f.reviews().length, 0);
   assert.equal(f.posts().length, 0);
-  assert.match(html, /pages\/story-stage\.js\?v=story-generated-ending-read-20261006/);
+  assert.match(html, /pages\/story-stage\.js\?v=story-paired-visual-current-20261011/);
   assert.match(html, /pages\/story-canonical-read\.js\?v=story-canonical-read-20261002/);
   assert.match(html, /styles\/story-stage\.css\?v=story-generated-ending-read-20261006/);
 });
