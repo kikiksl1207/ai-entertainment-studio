@@ -182,16 +182,31 @@ async function readBoundedResponse(response: Response, limit: number, signal: Ab
 
 function parseUsage(value: unknown): StoryContinuationProviderResult['usage'] {
   const usage = record(value);
-  const inputTokens = count(usage.input_tokens);
-  const outputTokens = count(usage.output_tokens);
-  const cachedInputTokens = count(record(usage.input_tokens_details).cached_tokens);
-  const reasoningTokens = count(record(usage.output_tokens_details).reasoning_tokens);
-  if (cachedInputTokens > inputTokens || reasoningTokens > outputTokens ||
-      count(usage.total_tokens) !== inputTokens + outputTokens) fail('provider_usage_invalid');
-  // cached input is a subset of input; reasoning is ALREADY included in output_tokens.
-  const measured = storyContinuationMeasuredUsage({ inputTokens, outputTokens, cachedInputTokens, imageUnits: 0 });
-  if (!measured) fail('provider_usage_invalid');
-  return measured;
+  const inputDetails = usage.input_tokens_details;
+  // Measure independently without changing the legacy validation error order.
+  const base = storyContinuationMeasuredUsage({
+    inputTokens: usage.input_tokens, outputTokens: usage.output_tokens,
+    cachedInputTokens: inputDetails && typeof inputDetails === 'object' && !Array.isArray(inputDetails)
+      ? (inputDetails as Record<string, unknown>).cached_tokens : undefined,
+    imageUnits: 0,
+  });
+  const measured = base && usage.total_tokens === base.inputTokens + base.outputTokens ? base : undefined;
+  try {
+    const inputTokens = count(usage.input_tokens);
+    const outputTokens = count(usage.output_tokens);
+    const cachedInputTokens = count(record(usage.input_tokens_details).cached_tokens);
+    const reasoningTokens = count(record(usage.output_tokens_details).reasoning_tokens);
+    if (cachedInputTokens > inputTokens || reasoningTokens > outputTokens ||
+        count(usage.total_tokens) !== inputTokens + outputTokens) fail('provider_usage_invalid');
+    // cached input is a subset of input; reasoning is ALREADY included in output_tokens.
+    if (!measured) fail('provider_usage_invalid');
+    return measured;
+  } catch (error) {
+    if (measured && error instanceof StoryContinuationProviderError) {
+      throw new StoryContinuationProviderError(error.code, error.retryable, measured);
+    }
+    throw error;
+  }
 }
 
 function count(value: unknown): number {
