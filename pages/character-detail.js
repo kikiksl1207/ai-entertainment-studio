@@ -206,6 +206,7 @@ function bindDetailPortraitFallback(hero, artist) {
   const fallback = artist.images?.thumb && artist.images?.cover && artist.images.thumb !== artist.images.cover
     ? artist.images.thumb : "";
   img.addEventListener("error", () => {
+    if (hero.querySelector(".detail-hero-image") !== img) return;
     if (fallback && img.src !== new URL(fallback, window.location.href).href) img.src = fallback;
     else {
       hero.classList.add("is-image-unavailable");
