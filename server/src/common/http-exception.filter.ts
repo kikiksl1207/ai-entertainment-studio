@@ -6,6 +6,7 @@ import {
   HttpStatus,
   Logger,
 } from '@nestjs/common';
+import { normalizeStoryAuthorCurrentFitParserException } from '../story-production/story-author-body-review.privacy';
 
 type ErrorResponseBody = {
   message?: unknown;
@@ -34,6 +35,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const context = host.switchToHttp();
     const response = context.getResponse<ResponseLike>();
     const request = context.getRequest<RequestLike>();
+    exception = normalizeStoryAuthorCurrentFitParserException(exception, request);
     const requestId = this.getRequestId(request);
     const statusCode =
       exception instanceof HttpException
