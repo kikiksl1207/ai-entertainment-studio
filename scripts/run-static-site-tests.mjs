@@ -8,7 +8,7 @@ const browserTests = new Set([
   'story-stage-first-release.test.mjs',
 ]);
 const tests = readdirSync(new URL('../tests/', import.meta.url))
-  .filter((name) => name.endsWith('.test.mjs') && !name.includes('.browser.') && !browserTests.has(name))
+  .filter((name) => (name.endsWith('.test.mjs') || name.endsWith('.test.cjs')) && !name.includes('.browser.') && !browserTests.has(name))
   .sort()
   .map((name) => `tests/${name}`);
 
