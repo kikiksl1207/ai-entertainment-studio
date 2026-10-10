@@ -189,7 +189,7 @@
     });
     button.addEventListener("click", () => controller.load(controller.snapshot().ticket));
     const invalidate = () => controller.invalidate(), sync = () => controller.syncContext();
-    for (const name of ["storage", "lumina:authchange", "lumina:auth-expired", "pagehide", "creator:manuscript-accepted", "lumina:author-body-trial-progress-changed"]) window.addEventListener(name, invalidate);
+    for (const name of ["storage", "lumina:authchange", "lumina:auth-expired", "pagehide", "creator:manuscript-accepted", "creator:generation-profile-changed", "lumina:author-body-trial-progress-changed"]) window.addEventListener(name, invalidate);
     for (const name of ["focus", "pageshow", "lumina:localechange"]) window.addEventListener(name, sync);
     for (const name of ["visibilitychange", "lumina:auth-expired"]) document.addEventListener(name, invalidate);
     const selects = ["writerManuscriptWork", "writerManuscriptLocale"].map(id => document.getElementById(id)).filter(Boolean);

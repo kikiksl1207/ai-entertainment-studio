@@ -806,13 +806,18 @@
         method: "PATCH", body: { settings: collectGenerationSettings() }
       }, stamp);
       if (!validGenerationResponse(saved)) throw new Error("profile projection");
+      if (!current(stamp)) return;
       generationResponse = saved;
+      window.dispatchEvent?.(new window.CustomEvent("creator:generation-profile-changed"));
       if (approve) {
         const approved = await request(`/stories/${encodeURIComponent(scope.workId)}/generation-profile/approve`, {
           method: "POST", body: { expectedDraftFingerprint: saved.profile.draftFingerprint }
         }, stamp);
         if (!validGenerationResponse(approved) || approved.profile.status !== "approved") throw new Error("approval projection");
-        generationResponse = approved; generation.entryState.textContent = gt("approved"); renderGenerationSections();
+        if (!current(stamp)) return;
+        generationResponse = approved;
+        window.dispatchEvent?.(new window.CustomEvent("creator:generation-profile-changed"));
+        generation.entryState.textContent = gt("approved"); renderGenerationSections();
       } else {
         generation.status.textContent = gt("saved"); renderGenerationSections();
       }
