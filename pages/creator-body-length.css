@@ -1,0 +1,49 @@
+#writerBodyLength {
+  min-width: 0;
+  max-width: 100%;
+  padding: 24px 0;
+  border-top: 1px solid var(--line, #d9dde0);
+  color: var(--text, #252a2d);
+  font-family: Pretendard, "Noto Sans KR", "Malgun Gothic", "Yu Gothic", "Microsoft JhengHei", system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.65;
+  letter-spacing: 0;
+}
+#writerBodyLength *, #writerBodyLength *::before, #writerBodyLength *::after {
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
+  letter-spacing: 0;
+  overflow-wrap: anywhere;
+}
+#writerBodyLength [hidden] { display: none !important; }
+#writerBodyLength h3 { margin: 0; font-size: 20px; font-weight: 650; line-height: 1.5; }
+#writerBodyLength .body-length-header { display: grid; grid-template-columns: minmax(0, 1fr) 44px; align-items: start; gap: 12px; }
+#writerBodyLength .body-length-snapshot { margin: 4px 0 0; font-size: 14px; color: var(--muted, #5b646b); }
+#writerBodyLength .body-length-check {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid var(--line, #cbd2d7);
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+#writerBodyLength .body-length-check :is(span, svg) { display: block; width: 24px; height: 24px; font-size: 24px; line-height: 1; }
+#writerBodyLength .body-length-check:disabled { opacity: .5; cursor: not-allowed; }
+#writerBodyLength .body-length-check:not(:disabled):hover { border-color: var(--text, #252a2d); }
+#writerBodyLength .body-length-check:focus-visible { outline: 2px solid var(--text, #252a2d); outline-offset: 3px; }
+#writerBodyLength .body-length-state { min-height: 1.65em; margin: 16px 0; color: var(--muted, #5b646b); }
+#writerBodyLength .body-length-state.is-error { color: var(--danger, #b63e4c); }
+#writerBodyLength .body-length-metadata { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 28px; margin: 0; }
+#writerBodyLength .body-length-metadata dt { font-size: 13px; color: var(--muted, #5b646b); }
+#writerBodyLength .body-length-metadata dd { margin: 0; font-size: 15px; }
+@media (max-width: 720px) {
+  #writerBodyLength { padding: 20px 0; }
+  #writerBodyLength .body-length-metadata { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+}
+@media print { #writerBodyLength { display: none !important; } }
