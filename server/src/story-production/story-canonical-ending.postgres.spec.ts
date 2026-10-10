@@ -58,6 +58,32 @@ postgres('canonical ending reread on real isolated PostgreSQL, no paid providers
       routes: await db.storyProgressRouteNode.findMany({ where: { workId: f.work.id } }) };
   }
 
+  async function unavailableReadSnapshot(f: Fixture) {
+    const history = await immutableState(f);
+    // Stabilize row order only; retain every field, JSON value and Date unchanged.
+    const ordered = <T extends { id: string }>(rows: T[]) =>
+      [...rows].sort((left, right) => left.id < right.id ? -1 : left.id > right.id ? 1 : 0);
+    return { progress: await f.progress(), history: {
+      events: ordered(history.events), endings: ordered(history.endings),
+      continuations: ordered(history.continuations), costs: ordered(history.costs),
+      routes: ordered(history.routes),
+    } };
+  }
+
+  async function expectCompletedEndingUnavailable(f: Fixture, read: () => Promise<unknown>) {
+    const before = await unavailableReadSnapshot(f);
+    let error: unknown;
+    try { await read(); } catch (caught) { error = caught; }
+    expect(error).toBeInstanceOf(ConflictException);
+    expect((error as ConflictException).getStatus()).toBe(409);
+    expect((error as ConflictException).getResponse()).toEqual({
+      code: 'STORY_COMPLETED_ENDING_UNAVAILABLE', retryable: false, progressMutated: false,
+    });
+    expect(await unavailableReadSnapshot(f)).toStrictEqual(before);
+    expect(f.provider.generate).not.toHaveBeenCalled();
+    return before;
+  }
+
   it.each(['source', 'target', 'scene-only'] as const)('keeps the real canonical ending position (%s) for reread without reopening choices', async kind => {
     const targeted = kind !== 'source', f = await prepared(targeted, kind === 'scene-only');
     const result = await f.choose();
@@ -132,8 +158,10 @@ postgres('canonical ending reread on real isolated PostgreSQL, no paid providers
       .rejects.toBeInstanceOf(ConflictException);
     if (kind !== 'scene-only') {
       await db.storyEndingDiscovery.deleteMany({ where: { workId: f.work.id } });
-      expect(await f.stories.currentProgress(f.owner.id, before.id, 'ko')).toMatchObject({ status: 'completed', scene: null, choices: [] });
+      const unavailable = await expectCompletedEndingUnavailable(f,
+        () => f.stories.currentProgress(f.owner.id, before.id, 'ko'));
       expect(await preview.preview(f.owner.id, f.work.id, { locale: 'ko' })).toMatchObject({ progress: { status: 'completed', scene: null } });
+      expect(await unavailableReadSnapshot(f)).toStrictEqual(unavailable);
     }
   });
   it.each(['work', 'part'] as const)('does not recover paid %s prose after access is absent, expired or revoked', async scope => {
@@ -143,14 +171,14 @@ postgres('canonical ending reread on real isolated PostgreSQL, no paid providers
     if (scope === 'work') await db.storyWork.update({ where: { id: f.work.id }, data: { priceLumina: 10 } });
     else await db.storyPart.update({ where: { id: f.part.id }, data: { priceLumina: 10 } });
     const current = () => f.stories.currentProgress(f.reader.id, f.progresses[0].id, 'ko');
-    expect(await current()).toMatchObject({ scene: null, status: 'completed' });
+    await expectCompletedEndingUnavailable(f, current);
     const access = await db.userEntitlement.create({ data: { userId: f.reader.id, entitlementType: 'story_work',
       referenceType: 'story_work', referenceId: f.work.id, startsAt: new Date(0) } });
     expect(await current()).toMatchObject({ scene: { id: f.scene.id }, status: 'completed' });
     await db.userEntitlement.update({ where: { id: access.id }, data: { expiresAt: new Date(0) } });
-    expect(await current()).toMatchObject({ scene: null, status: 'completed' });
+    await expectCompletedEndingUnavailable(f, current);
     await db.userEntitlement.update({ where: { id: access.id }, data: { expiresAt: null, revokedAt: new Date() } });
-    expect(await current()).toMatchObject({ scene: null, status: 'completed' });
+    await expectCompletedEndingUnavailable(f, current);
   });
   it.each(['event invalidated', 'ending missing', 'release changed', 'completed flag only'] as const)
   ('does not grant completed reading from %s', async kind => {
