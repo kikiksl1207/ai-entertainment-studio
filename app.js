@@ -115,7 +115,6 @@ async function refreshAuthOnce(auth = getAuth()) {
         body: JSON.stringify({ refreshToken }),
         signal: controller.signal
       });
-      clearTimeout(timer);
       if (session !== authRequestSession()) return null;
 
       if (!res.ok) {
@@ -6132,6 +6131,8 @@ function initGallerySlider(items, artistName) {
       const retry = document.createElement("button");
       retry.type = "button";
       retry.setAttribute("data-gallery-image-retry", "");
+      retry.setAttribute("data-i18n-attr", "title:detail.gallery.retry");
+      retry.setAttribute("data-i18n-aria", "detail.gallery.retry");
       retry.textContent = "↻";
       retry.style.cssText = "width:44px;height:44px;flex:none;border:1px solid currentColor;border-radius:6px;background:transparent;color:inherit;font-size:24px;cursor:pointer;";
       const updateRetryLabel = () => {
@@ -6157,6 +6158,7 @@ function initGallerySlider(items, artistName) {
         img.style.visibility = "hidden";
         zoom.style.visibility = "hidden";
         failureText.textContent = galleryText("detail.gallery.error", "Image could not be loaded.");
+        failureText.setAttribute("data-i18n", "detail.gallery.error");
         updateRetryLabel();
         retry.disabled = false;
         recovery.style.display = "flex";
@@ -6166,6 +6168,7 @@ function initGallerySlider(items, artistName) {
         if (signal.aborted || !cell.isConnected || retry.disabled) return;
         retry.disabled = true;
         failureText.textContent = galleryText("detail.gallery.loading", "Loading…");
+        failureText.setAttribute("data-i18n", "detail.gallery.loading");
         img.src = retryImageUrl(item.src);
       }, { signal });
       img.addEventListener("mouseover",  () => { img.style.transform = "scale(1.05)"; });
