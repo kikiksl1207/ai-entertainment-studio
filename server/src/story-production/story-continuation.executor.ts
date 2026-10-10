@@ -5,7 +5,9 @@ import {
   StoryContinuationProvider,
   StoryContinuationProviderError,
   storyContinuationMeasuredUsage,
+  storyContinuationUsageDiagnostics,
   type StoryContinuationProviderResult,
+  type StoryContinuationUsageDiagnostics,
 } from './story-continuation.provider';
 import {
   StoryContinuationQueueRepository,
@@ -76,6 +78,7 @@ export class StoryContinuationExecutor {
     let preflightRejected = false;
     let contextRejectedBeforeDispatch = false;
     let measuredUsage: StoryContinuationProviderResult['usage'] | undefined;
+    let usageDiagnostics: StoryContinuationUsageDiagnostics | undefined;
     try {
       throwIfCancelled(signal);
       const authorization = await this.economics.continuationExecutionAuthorization(claim);
@@ -121,6 +124,7 @@ export class StoryContinuationExecutor {
         signal,
       );
       measuredUsage = storyContinuationMeasuredUsage(providerResult?.usage);
+      usageDiagnostics = storyContinuationUsageDiagnostics(providerResult?.usageDiagnostics, measuredUsage);
       if (signal?.aborted) throw new StoryContinuationProviderError('provider_outcome_unknown', false);
       const sanitized = validateStoryContinuationProviderResult(providerResult, {
         locale: claim.request.locale,
@@ -157,7 +161,8 @@ export class StoryContinuationExecutor {
       if (moderation.decision !== 'allow') {
         throw new StoryContinuationProviderError('server_moderation_rejected', false);
       }
-      const settlement = await this.economics.settleClaimedContinuation(claim, result);
+      const settlement = await this.economics.settleClaimedContinuation(claim, result,
+        ...(usageDiagnostics ? [usageDiagnostics] : []));
       if (settlement.status !== 'completed') {
         return { status: 'failed' as const, continuationId: claim.continuationId };
       }
@@ -182,6 +187,7 @@ export class StoryContinuationExecutor {
       let providerError = normalizeProviderError(error);
       if (providerStarted && error instanceof StoryContinuationProviderError && error.usage) {
         measuredUsage = error.usage;
+        usageDiagnostics = storyContinuationUsageDiagnostics(error.usageDiagnostics, measuredUsage);
       }
       if (measuredUsage && providerError.retryable) {
         providerError = new StoryContinuationProviderError(providerError.code, false, measuredUsage);
@@ -206,12 +212,14 @@ export class StoryContinuationExecutor {
           error instanceof StoryContinuationDispatchLeaseInsufficient) {
         await this.economics.failClaimedContinuation(claim, providerError.code, 'failed', undefined, true);
       } else {
-        await this.economics.failClaimedContinuation(
-          claim,
-          providerError.code,
-          providerError.code === 'provider_timeout' ? 'timeout' : 'failed',
-          ...(measuredUsage ? [measuredUsage] : []),
-        );
+        const status = providerError.code === 'provider_timeout' ? 'timeout' : 'failed';
+        if (measuredUsage && usageDiagnostics) {
+          await this.economics.failClaimedContinuation(claim, providerError.code, status,
+            measuredUsage, false, usageDiagnostics);
+        } else {
+          await this.economics.failClaimedContinuation(claim, providerError.code, status,
+            ...(measuredUsage ? [measuredUsage] : []));
+        }
       }
       return { status: 'failed' as const, continuationId: claim.continuationId };
     }

@@ -137,6 +137,66 @@ function completedResult() {
   };
 }
 
+describe('worker-only numeric usage audit (synthetic, no DB)', () => {
+  const failure = () => ({ status: 'failed' as const, moderationDecision: 'reject' as const,
+    actualCostKrw: 0, inputTokens: 10, outputTokens: 10, cachedInputTokens: 0, imageUnits: 0,
+    failureCode: 'provider_output_token_limit' });
+
+  it.each([0, 6, 10])('records reported reasoning %s without changing cost or result delivery', async reasoningTokens => {
+    const f = fixture(); Object.assign(f.continuation, { dispatchStartedAt: new Date() });
+    await f.service.settleContinuation(null, 'continuation-id', failure(), 'diagnostic-audit-' + reasoningTokens,
+      'lease-token', false, { reasoningTokens });
+    const metadata = f.tx.auditEvent.create.mock.calls[0][0].data.metadata;
+    expect(metadata.providerUsageDetails).toEqual({ contract: 'story-provider-usage-details-v1', reasoningTokens });
+    expect(f.tx.storyAiUsageLedger.create.mock.calls[0][0].data).toMatchObject({ actualCostKrw: 0,
+      inputTokens: 10, outputTokens: 10, cachedInputTokens: 0, imageUnits: 0, progressApplied: false });
+    expect(f.generatedSceneCreate).not.toHaveBeenCalled();
+  });
+
+  it.each([{ admin: 'admin-id', lease: 'lease-token' }, { admin: '', lease: 'lease-token' },
+    { admin: null, lease: undefined }])('omits diagnostics on an admin or unfenced path %#', async ({ admin, lease }) => {
+    const f = fixture(); Object.assign(f.continuation, { dispatchStartedAt: new Date() });
+    await f.service.settleContinuation(admin, 'continuation-id', failure(), 'diagnostic-excluded-' + String(admin),
+      lease, false, { reasoningTokens: 6 });
+    expect(f.tx.auditEvent.create.mock.calls[0][0].data.metadata).not.toHaveProperty('providerUsageDetails');
+  });
+
+  it('does not create reported zero from unknown cost or a missing dispatch', async () => {
+    for (const unknown of [true, false]) {
+      const f = fixture(); Object.assign(f.continuation, { dispatchStartedAt: unknown ? new Date() : null });
+      const { actualCostKrw, ...withoutCost } = failure();
+      await f.service.settleContinuation(null, 'continuation-id', unknown ? withoutCost : failure(),
+        'diagnostic-unknown-' + unknown, 'lease-token', false, { reasoningTokens: 0 });
+      expect(f.tx.auditEvent.create.mock.calls[0][0].data.metadata).not.toHaveProperty('providerUsageDetails');
+    }
+  });
+
+  it('rejects a stale lease before writing a diagnostic audit', async () => {
+    const f = fixture(); Object.assign(f.continuation, { dispatchStartedAt: new Date() });
+    await expect(f.service.settleContinuation(null, 'continuation-id', failure(), 'diagnostic-stale',
+      'wrong-lease', false, { reasoningTokens: 6 })).rejects.toThrow('lease is stale');
+    expect(f.tx.auditEvent.create).not.toHaveBeenCalled();
+    expect(f.tx.storyAiUsageLedger.create).not.toHaveBeenCalled();
+  });
+
+  it('does not backfill diagnostics when replay returns an existing terminal settlement', async () => {
+    const f = fixture(); Object.assign(f.continuation, { status: 'failed', dispatchStartedAt: new Date() });
+    f.tx.storyAiUsageLedger.findUnique.mockResolvedValue({ continuationId: 'continuation-id' } as never);
+    await f.service.settleContinuation(null, 'continuation-id', failure(), 'diagnostic-replay',
+      'lease-token', false, { reasoningTokens: 6 });
+    expect(f.tx.auditEvent.create).not.toHaveBeenCalled();
+    expect(f.tx.storyAiUsageLedger.create).not.toHaveBeenCalled();
+  });
+
+  it('propagates audit storage failure without a separate fallback write', async () => {
+    const f = fixture(); Object.assign(f.continuation, { dispatchStartedAt: new Date() });
+    f.tx.auditEvent.create.mockRejectedValue(new Error('synthetic audit storage failure'));
+    await expect(f.service.settleContinuation(null, 'continuation-id', failure(), 'diagnostic-audit-failure',
+      'lease-token', false, { reasoningTokens: 6 })).rejects.toThrow('synthetic audit storage failure');
+    expect(f.tx.auditEvent.create).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('recommended continuation overlay settlement', () => {
   it.each(['approved', 'needs_review'])
   ('rejects an unpinned legacy result once its new semantic profile has been approved: %s', async status => {

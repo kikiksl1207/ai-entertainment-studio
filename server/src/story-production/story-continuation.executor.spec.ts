@@ -677,6 +677,57 @@ describe('StoryContinuationExecutor', () => {
   });
 });
 
+describe('internal continuation usage diagnostics (synthetic, no AI)', () => {
+  it.each([0, 12, 20])('retains reported reasoning %s separately from sanitized successful output', async reasoningTokens => {
+    const f = fixture();
+    jest.mocked(f.provider.generate).mockResolvedValue({ ...result, usageDiagnostics: { reasoningTokens } });
+    await expect(f.executor.executeOne('worker')).resolves.toMatchObject({ status: 'completed' });
+    const args = f.economics.settleClaimedContinuation.mock.calls[0];
+    expect(args[2]).toEqual({ reasoningTokens });
+    expect(args[1].usage).toEqual(result.usage);
+    expect(args[1]).not.toHaveProperty('usageDiagnostics');
+    expect(f.provider.generate).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([0, 12, 20])('retains reported reasoning %s on a terminal provider failure without retry', async reasoningTokens => {
+    const f = fixture();
+    jest.mocked(f.provider.generate).mockRejectedValue(new StoryContinuationProviderError(
+      'provider_output_token_limit', false, result.usage, { reasoningTokens }));
+    await expect(f.executor.executeOne('worker')).resolves.toMatchObject({ status: 'failed' });
+    expect(f.economics.failClaimedContinuation).toHaveBeenCalledWith(claim, 'provider_output_token_limit', 'failed',
+      result.usage, false, { reasoningTokens });
+    expect(f.queue.releaseForRetry).not.toHaveBeenCalled();
+    expect(f.provider.generate).toHaveBeenCalledTimes(1);
+    expect(f.economics.settleClaimedContinuation).not.toHaveBeenCalled();
+  });
+
+  it('retains the observation when later moderation rejects otherwise valid output', async () => {
+    const f = fixture();
+    jest.mocked(f.provider.generate).mockResolvedValue({ ...result, usageDiagnostics: { reasoningTokens: 12 } });
+    f.moderation.preview.mockReturnValue({ decision: 'reject' });
+    await f.executor.executeOne('worker');
+    expect(f.economics.failClaimedContinuation).toHaveBeenCalledWith(claim, 'server_moderation_rejected', 'failed',
+      result.usage, false, { reasoningTokens: 12 });
+  });
+
+  it.each([undefined, { reasoningTokens: -1 }, { reasoningTokens: 21 }, { reasoningTokens: 0.5 }])
+  ('omits absent or invalid optional diagnostics without changing legacy settlement arity %#', async usageDiagnostics => {
+    const f = fixture();
+    jest.mocked(f.provider.generate).mockResolvedValue({ ...result, usageDiagnostics });
+    await f.executor.executeOne('worker');
+    expect(f.economics.settleClaimedContinuation.mock.calls[0]).toHaveLength(2);
+    expect(f.economics.settleClaimedContinuation.mock.calls[0][1].usage).toEqual(result.usage);
+  });
+
+  it('does not trust diagnostics attached to an arbitrary transport exception', async () => {
+    const f = fixture();
+    jest.mocked(f.provider.generate).mockRejectedValue(Object.assign(new Error('synthetic transport detail'),
+      { usage: result.usage, usageDiagnostics: { reasoningTokens: 12 } }));
+    await f.executor.executeOne('worker');
+    expect(f.economics.failClaimedContinuation).toHaveBeenCalledWith(claim, 'continuation_execution_failed', 'failed');
+  });
+});
+
 describe('recommended continuation output contract', () => {
   it('accepts a complete fallback visual and distinct next choices', () => {
     expect(() => assertRecommendedContinuationOutput({

@@ -86,12 +86,12 @@ export class OpenAiStoryContinuationProvider extends StoryContinuationProvider {
     if (envelope!.service_tier !== 'default') fail('provider_response_service_tier_mismatch');
     if (!['completed', 'incomplete', 'failed', 'cancelled'].includes(envelope!.status as string)) fail('provider_incomplete_output');
     // Billable usage is independent of whether the generated prose passes review.
-    const usage = parseUsage(envelope!.usage);
+    const { usage, usageDiagnostics } = parseUsage(envelope!.usage);
     try {
-      return this.parseOutput(envelope!, request, usage);
+      return { ...this.parseOutput(envelope!, request, usage), usageDiagnostics };
     } catch (error) {
       throw new StoryContinuationProviderError(error instanceof StoryContinuationProviderError
-        ? error.code : 'provider_output_invalid', false, usage);
+        ? error.code : 'provider_output_invalid', false, usage, usageDiagnostics);
     }
   }
 
@@ -180,7 +180,7 @@ async function readBoundedResponse(response: Response, limit: number, signal: Ab
   }
 }
 
-function parseUsage(value: unknown): StoryContinuationProviderResult['usage'] {
+function parseUsage(value: unknown): Pick<StoryContinuationProviderResult, 'usage' | 'usageDiagnostics'> {
   const usage = record(value);
   const inputDetails = usage.input_tokens_details;
   // Measure independently without changing the legacy validation error order.
@@ -200,7 +200,7 @@ function parseUsage(value: unknown): StoryContinuationProviderResult['usage'] {
         count(usage.total_tokens) !== inputTokens + outputTokens) fail('provider_usage_invalid');
     // cached input is a subset of input; reasoning is ALREADY included in output_tokens.
     if (!measured) fail('provider_usage_invalid');
-    return measured;
+    return { usage: measured, usageDiagnostics: Object.freeze({ reasoningTokens }) };
   } catch (error) {
     if (measured && error instanceof StoryContinuationProviderError) {
       throw new StoryContinuationProviderError(error.code, error.retryable, measured);

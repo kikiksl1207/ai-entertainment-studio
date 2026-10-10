@@ -34,7 +34,21 @@ export type StoryContinuationProviderResult = {
     cachedInputTokens: number;
     imageUnits: number;
   };
+  usageDiagnostics?: StoryContinuationUsageDiagnostics;
 };
+
+export type StoryContinuationUsageDiagnostics = { reasoningTokens: number };
+
+export function storyContinuationUsageDiagnostics(value: unknown,
+  usage: StoryContinuationProviderResult['usage'] | undefined): StoryContinuationUsageDiagnostics | undefined {
+  const measured = storyContinuationMeasuredUsage(usage);
+  if (!measured || !value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const descriptor = Object.getOwnPropertyDescriptor(value, 'reasoningTokens');
+  if (!descriptor || !('value' in descriptor)) return undefined;
+  const count: unknown = descriptor.value;
+  if (typeof count !== 'number' || !Number.isSafeInteger(count) || count < 0 || count > measured.outputTokens) return undefined;
+  return Object.freeze({ reasoningTokens: count });
+}
 
 export type StoryContinuationProviderPreflight = {
   supported: boolean;
@@ -57,14 +71,18 @@ export abstract class StoryContinuationProvider {
 
 export class StoryContinuationProviderError extends Error {
   readonly usage?: StoryContinuationProviderResult['usage'];
+  declare readonly usageDiagnostics?: StoryContinuationUsageDiagnostics;
 
   constructor(
     readonly code: string,
     readonly retryable: boolean,
     usage?: StoryContinuationProviderResult['usage'],
+    diagnostics?: StoryContinuationUsageDiagnostics,
   ) {
     super(code);
     this.usage = storyContinuationMeasuredUsage(usage);
+    const verified = storyContinuationUsageDiagnostics(diagnostics, this.usage);
+    if (verified) Object.defineProperty(this, 'usageDiagnostics', { value: verified, enumerable: false });
   }
 }
 

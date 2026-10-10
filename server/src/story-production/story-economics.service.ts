@@ -48,7 +48,9 @@ import {
 import { projectStoredStorySceneVisualManifest } from '../story-stage/story-scene-visual-manifest-contract';
 import {
   StoryContinuationProvider,
+  storyContinuationUsageDiagnostics,
   type StoryContinuationProviderResult,
+  type StoryContinuationUsageDiagnostics,
 } from './story-continuation.provider';
 import type { StoryContinuationClaim } from './story-continuation.repository';
 import type { StoryContinuationApprovedContext } from './story-continuation-context.assembler';
@@ -2058,6 +2060,7 @@ export class StoryEconomicsService {
   async settleClaimedContinuation(
     claim: StoryContinuationClaim,
     result: StoryContinuationProviderResult,
+    usageDiagnostics?: StoryContinuationUsageDiagnostics,
   ) {
     const continuation = await this.prisma.storyAiContinuation.findUnique({
       where: { id: claim.continuationId },
@@ -2068,7 +2071,7 @@ export class StoryEconomicsService {
     });
     if (!rateCard) throw new ConflictException('Story AI rate card is unavailable');
     const actualCostKrw = calculateStoryUsageCost(this.rateNumbers(rateCard), result.usage);
-    return this.settleContinuation(
+    const settlement = [
       null,
       claim.continuationId,
       {
@@ -2084,7 +2087,9 @@ export class StoryEconomicsService {
       },
       `worker:${claim.continuationId}:${claim.leaseToken}`,
       claim.leaseToken,
-    );
+    ] as const;
+    return usageDiagnostics ? this.settleContinuation(...settlement, false, usageDiagnostics)
+      : this.settleContinuation(...settlement);
   }
 
   async failClaimedContinuation(
@@ -2093,6 +2098,7 @@ export class StoryEconomicsService {
     status: 'failed' | 'timeout',
     usage?: StoryContinuationProviderResult['usage'],
     preflightRejectedBeforeDispatch = false,
+    usageDiagnostics?: StoryContinuationUsageDiagnostics,
   ) {
     let actualCostKrw: number | undefined;
     if (usage) {
@@ -2106,7 +2112,7 @@ export class StoryEconomicsService {
       if (!rateCard) throw new ConflictException('Story AI rate card is unavailable');
       actualCostKrw = calculateStoryUsageCost(this.rateNumbers(rateCard), usage);
     }
-    return this.settleContinuation(
+    const settlement = [
       null,
       claim.continuationId,
       {
@@ -2121,8 +2127,10 @@ export class StoryEconomicsService {
       },
       `worker:${claim.continuationId}:${claim.leaseToken}`,
       claim.leaseToken,
-      ...(preflightRejectedBeforeDispatch && !usage ? [true] : []),
-    );
+    ] as const;
+    if (usageDiagnostics && usage) return this.settleContinuation(...settlement, false, usageDiagnostics);
+    return preflightRejectedBeforeDispatch && !usage ? this.settleContinuation(...settlement, true)
+      : this.settleContinuation(...settlement);
   }
 
   async settleContinuation(
@@ -2132,6 +2140,7 @@ export class StoryEconomicsService {
     idempotencyKey?: string,
     expectedLeaseToken?: string,
     preflightRejectedBeforeDispatch = false,
+    usageDiagnostics?: StoryContinuationUsageDiagnostics,
   ) {
     const key = this.idempotencyKey('story-ai-settlement', idempotencyKey);
     const replay = await this.prisma.storyAiUsageLedger.findUnique({
@@ -2649,6 +2658,9 @@ export class StoryEconomicsService {
           idempotencyKey: key,
         },
       });
+      const diagnostics = adminUserId === null && expectedLeaseToken && body.actualCostKrw !== undefined &&
+        continuation.dispatchStartedAt && !confirmedNoDispatch
+        ? storyContinuationUsageDiagnostics(usageDiagnostics, body) : undefined;
       await tx.auditEvent.create({
         data: {
           actorUserId: adminUserId,
@@ -2662,6 +2674,9 @@ export class StoryEconomicsService {
             progressApplied: finalStatus === 'completed',
             allowanceConsumed: finalStatus === 'completed',
             rateCardVersion: rateCard.version,
+            ...(diagnostics
+              ? { providerUsageDetails: { contract: 'story-provider-usage-details-v1',
+                ...diagnostics } } : {}),
           },
         },
       });
