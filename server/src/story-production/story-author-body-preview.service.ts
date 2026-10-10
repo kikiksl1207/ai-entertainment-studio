@@ -5,6 +5,20 @@ import { PrismaService } from '../prisma/prisma.service';
 import { StoryLocaleQueryDto } from './dto/story-production.dto';
 import { STORY_LOCALES } from './story-production.policy';
 import { canonicalEndingPosition } from './story-canonical-ending.store';
+import { authoredPartContinuationLengthBounds } from './story-continuation-author-length.store';
+import { inspectStoryContinuationFixedCapNarrative } from './story-continuation-fixed-cap-narrative-check';
+
+type AuthorBodyPreview = {
+  contract: 'story-author-body-preview-v1'; workId: string; locale: string;
+  readOnly: true; imageGenerationStarted: false;
+  progress: {
+    progressId: string; revision: number; status: string; storyVersion: number;
+    currentBeatPosition: number;
+    scene: { id: string; isGenerated: boolean; title: string; endingType: string | null;
+      beats: Array<{ id: string; position: number; type: string; content: string }> } | null;
+    choices: Array<{ id: string; label: string; routeKind: string }>;
+  } | null;
+};
 
 const MAX_RESPONSE_BYTES = 256 * 1024;
 const beatSelect = { id: true, position: true, beatType: true, content: true } as const;
@@ -38,6 +52,45 @@ export class StoryAuthorBodyPreviewService {
   }
 
   async preview(userId: string, workId: string, query: StoryLocaleQueryDto) {
+    return this.readCurrentSnapshot(userId, workId, query, async (_db, body) => body);
+  }
+
+  async lengthDiagnostic(userId: string, workId: string, query: StoryLocaleQueryDto) {
+    return this.readCurrentSnapshot(userId, workId, query, async (db, body, partId) => {
+      if (body.progress && (!Number.isSafeInteger(body.progress.revision) || body.progress.revision < 0)) {
+        this.changed();
+      }
+      const envelope = {
+        contract: 'story-author-body-length-v1' as const, locale: body.locale,
+        readOnly: true as const, referenceScope: 'current_published_original_part' as const,
+        progressRevision: body.progress?.revision ?? null,
+        currentApprovalVerified: false as const, semanticQualityVerified: false as const,
+        dispatchAuthorized: false as const, providerCalls: 0 as const, operatingWrites: 0 as const,
+      };
+      if (!body.progress?.scene) {
+        return { ...envelope, outcome: 'no_saved_body' as const, diagnostic: null };
+      }
+      if (!body.progress.scene.isGenerated || !partId) {
+        return { ...envelope, outcome: 'canonical_body_only' as const, diagnostic: null };
+      }
+      let bounds;
+      try {
+        bounds = await authoredPartContinuationLengthBounds(db, partId, body.locale);
+      } catch {
+        return { ...envelope, outcome: 'original_reference_unavailable' as const, diagnostic: null };
+      }
+      const diagnostic = inspectStoryContinuationFixedCapNarrative({
+        locale: body.locale,
+        beats: body.progress.scene.beats.map(beat => ({
+          beatType: beat.type, content: { [body.locale]: beat.content },
+        })),
+      }, bounds);
+      return { ...envelope, outcome: 'generated_body_checked' as const, diagnostic };
+    });
+  }
+
+  private async readCurrentSnapshot<T>(userId: string, workId: string, query: StoryLocaleQueryDto,
+    project: (db: Prisma.TransactionClient, body: AuthorBodyPreview, partId: string | null) => Promise<T>) {
     const locale = query?.locale;
     if (!isUUID(userId) || !isUUID(workId) || !STORY_LOCALES.includes(locale as typeof STORY_LOCALES[number])) {
       throw new BadRequestException({ code: 'STORY_AUTHOR_BODY_PREVIEW_INPUT_INVALID' });
@@ -57,7 +110,7 @@ export class StoryAuthorBodyPreviewService {
           routeNodeId: true, pathSummary: true, currentBeatPosition: true } });
       const envelope = { contract: 'story-author-body-preview-v1' as const, workId, locale,
         readOnly: true as const, imageGenerationStarted: false as const };
-      if (!progress) return { ...envelope, progress: null };
+      if (!progress) return project(db, { ...envelope, progress: null }, null);
       if (work.ownerUserId !== userId || progress.userId !== userId || progress.workId !== workId ||
         !work.activeReleaseId || progress.activeReleaseId !== work.activeReleaseId ||
         progress.storyVersion !== work.publishedVersion || !['active', 'ai_pending', 'completed'].includes(progress.status) ||
@@ -72,7 +125,7 @@ export class StoryAuthorBodyPreviewService {
         currentSceneId = (await canonicalEndingPosition(db, progress, true))?.sceneId ?? null;
       }
       if (!currentSceneId && !progress.currentGeneratedSceneId) {
-        return { ...envelope, progress: { ...state, scene: null, choices: [] } };
+        return project(db, { ...envelope, progress: { ...state, scene: null, choices: [] } }, null);
       }
       const generated = Boolean(progress.currentGeneratedSceneId);
       const scene = generated
@@ -117,7 +170,7 @@ export class StoryAuthorBodyPreviewService {
           return { id: choice.id, label: this.text(choice.label, locale, 1000), routeKind: choice.routeKind };
         }) } };
       if (Buffer.byteLength(JSON.stringify(response), 'utf8') > MAX_RESPONSE_BYTES) this.changed();
-      return response;
+      return project(db, response, partId);
     }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
   }
 }

@@ -24,4 +24,11 @@ export class StoryAuthorBodyPreviewController {
     @Query() query: StoryLocaleQueryDto) {
     return this.previewService.preview(user.id, workId, query);
   }
+
+  @Get('length-diagnostic')
+  @Header('Cache-Control', 'private, no-store')
+  lengthDiagnostic(@CurrentUser() user: AuthUser, @Param('workId', ParseUUIDPipe) workId: string,
+    @Query() query: StoryLocaleQueryDto) {
+    return this.previewService.lengthDiagnostic(user.id, workId, query);
+  }
 }
