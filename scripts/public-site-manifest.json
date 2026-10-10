@@ -15,6 +15,7 @@
     "pages/creator-body-preview.css", "pages/creator-body-preview.js",
     "pages/creator-body-length.css", "pages/creator-body-length.js",
     "pages/creator-approved-style.css", "pages/creator-approved-style.js",
+    "pages/creator-body-style-reference.css", "pages/creator-body-style-reference.js",
     "pages/creator-body-trial.css", "pages/creator-body-trial.js",
     "pages/creator-body-review.css", "pages/creator-body-review.js",
     "pages/creator-branch-visual-review.css", "pages/creator-branch-visual-review.js", "pages/creator-content-rights.js",

@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { isUUID } from 'class-validator';
 import { PrismaService } from '../prisma/prisma.service';
@@ -7,6 +7,8 @@ import { STORY_LOCALES } from './story-production.policy';
 import { canonicalEndingPosition } from './story-canonical-ending.store';
 import { authoredPartContinuationLengthBounds } from './story-continuation-author-length.store';
 import { inspectStoryContinuationFixedCapNarrative } from './story-continuation-fixed-cap-narrative-check';
+import { inspectStoryAuthorBodyStyleReference } from './story-author-body-style-reference.policy';
+import { readCurrentApprovedStoryStyleSnapshot } from './story-author-approved-style.snapshot';
 
 type AuthorBodyPreview = {
   contract: 'story-author-body-preview-v1'; workId: string; locale: string;
@@ -23,6 +25,7 @@ type AuthorBodyPreview = {
 const MAX_RESPONSE_BYTES = 256 * 1024;
 const beatSelect = { id: true, position: true, beatType: true, content: true } as const;
 const choiceSelect = { id: true, position: true, label: true, routeKind: true } as const;
+type BodyOriginReference = { status: string; contextReferences: Prisma.JsonValue };
 
 @Injectable()
 export class StoryAuthorBodyPreviewService {
@@ -89,8 +92,48 @@ export class StoryAuthorBodyPreviewService {
     });
   }
 
+  async styleReference(userId: string, workId: string, query: StoryLocaleQueryDto) {
+    return this.readCurrentSnapshot(userId, workId, query, async (db, body, _partId, origin) => {
+      if (body.progress && (!Number.isSafeInteger(body.progress.revision) || body.progress.revision < 0)) this.changed();
+      const bodyKind = !body.progress?.scene ? 'none' as const
+        : body.progress.scene.isGenerated ? 'generated' as const : 'canonical' as const;
+      const input = { bodyKind, origin };
+      const unchecked = inspectStoryAuthorBodyStyleReference(input);
+      const envelope = {
+        contract: 'story-author-body-style-reference-read-v1' as const, locale: body.locale,
+        sourceScope: 'current_saved_body_and_latest_private_approval' as const,
+        progressRevision: body.progress?.revision ?? null,
+        readOnly: true as const, providerCalls: 0 as const, operatingWrites: 0 as const,
+        bodySourceAligned: false as const, semanticQualityVerified: false as const,
+        dispatchAuthorized: false as const,
+      };
+      const unresolved = (currentSourceState: 'not_checked' | 'unavailable') => ({
+        ...envelope, currentSourceState, currentProfileVersion: null, currentReviewRevision: null,
+        diagnostic: unchecked,
+      });
+      if (bodyKind !== 'generated' || unchecked.reason !== 'body_style_reference_pin_unavailable') {
+        return unresolved('not_checked');
+      }
+      let current;
+      try {
+        current = await readCurrentApprovedStoryStyleSnapshot(db, userId, body.workId);
+      } catch (error) {
+        if (error instanceof ConflictException || error instanceof NotFoundException) return unresolved('unavailable');
+        if (error instanceof ServiceUnavailableException) return unresolved('unavailable');
+        throw error;
+      }
+      return {
+        ...envelope, currentSourceState: 'validated' as const,
+        currentProfileVersion: current.projection.profileVersion,
+        currentReviewRevision: current.projection.reviewRevision,
+        diagnostic: inspectStoryAuthorBodyStyleReference({ ...input, currentApprovedPin: current.approvalPin }),
+      };
+    }, true);
+  }
+
   private async readCurrentSnapshot<T>(userId: string, workId: string, query: StoryLocaleQueryDto,
-    project: (db: Prisma.TransactionClient, body: AuthorBodyPreview, partId: string | null) => Promise<T>) {
+    project: (db: Prisma.TransactionClient, body: AuthorBodyPreview, partId: string | null,
+      origin: BodyOriginReference | null) => Promise<T>, includeOriginReference = false) {
     const locale = query?.locale;
     if (!isUUID(userId) || !isUUID(workId) || !STORY_LOCALES.includes(locale as typeof STORY_LOCALES[number])) {
       throw new BadRequestException({ code: 'STORY_AUTHOR_BODY_PREVIEW_INPUT_INVALID' });
@@ -110,7 +153,7 @@ export class StoryAuthorBodyPreviewService {
           routeNodeId: true, pathSummary: true, currentBeatPosition: true } });
       const envelope = { contract: 'story-author-body-preview-v1' as const, workId, locale,
         readOnly: true as const, imageGenerationStarted: false as const };
-      if (!progress) return project(db, { ...envelope, progress: null }, null);
+      if (!progress) return project(db, { ...envelope, progress: null }, null, null);
       if (work.ownerUserId !== userId || progress.userId !== userId || progress.workId !== workId ||
         !work.activeReleaseId || progress.activeReleaseId !== work.activeReleaseId ||
         progress.storyVersion !== work.publishedVersion || !['active', 'ai_pending', 'completed'].includes(progress.status) ||
@@ -125,7 +168,7 @@ export class StoryAuthorBodyPreviewService {
         currentSceneId = (await canonicalEndingPosition(db, progress, true))?.sceneId ?? null;
       }
       if (!currentSceneId && !progress.currentGeneratedSceneId) {
-        return project(db, { ...envelope, progress: { ...state, scene: null, choices: [] } }, null);
+        return project(db, { ...envelope, progress: { ...state, scene: null, choices: [] } }, null, null);
       }
       const generated = Boolean(progress.currentGeneratedSceneId);
       const scene = generated
@@ -139,11 +182,19 @@ export class StoryAuthorBodyPreviewService {
       const part = await db.storyPart.findFirst({ where: { id: partId, workId, status: 'published', fixtureSource: false },
         select: { id: true } });
       if (!part) this.changed();
+      let originReference: BodyOriginReference | null = null;
       if ('continuationId' in scene) {
-        const origin = await db.storyAiContinuation.findFirst({ where: { id: scene.continuationId,
-          userId, workId, progressId: progress.id, releaseId: release.id, status: 'completed', resultGeneratedSceneId: scene.id },
-        select: { id: true } });
-        if (!origin) this.changed();
+        const where = { id: scene.continuationId, userId, workId, progressId: progress.id,
+          releaseId: release.id, status: 'completed' as const, resultGeneratedSceneId: scene.id };
+        if (includeOriginReference) {
+          const origin = await db.storyAiContinuation.findFirst({ where,
+            select: { id: true, status: true, contextReferences: true } });
+          if (!origin) this.changed();
+          originReference = { status: origin.status, contextReferences: origin.contextReferences };
+        } else {
+          const origin = await db.storyAiContinuation.findFirst({ where, select: { id: true } });
+          if (!origin) this.changed();
+        }
       }
       const beats = generated
         ? await db.storyAiGeneratedBeat.findMany({ where: { sceneId: scene.id }, orderBy: [{ position: 'asc' }, { id: 'asc' }],
@@ -170,7 +221,7 @@ export class StoryAuthorBodyPreviewService {
           return { id: choice.id, label: this.text(choice.label, locale, 1000), routeKind: choice.routeKind };
         }) } };
       if (Buffer.byteLength(JSON.stringify(response), 'utf8') > MAX_RESPONSE_BYTES) this.changed();
-      return project(db, response, partId);
+      return project(db, response, partId, originReference);
     }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
   }
 }

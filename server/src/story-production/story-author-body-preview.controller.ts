@@ -31,4 +31,11 @@ export class StoryAuthorBodyPreviewController {
     @Query() query: StoryLocaleQueryDto) {
     return this.previewService.lengthDiagnostic(user.id, workId, query);
   }
+
+  @Get('style-reference')
+  @Header('Cache-Control', 'private, no-store')
+  styleReference(@CurrentUser() user: AuthUser, @Param('workId', ParseUUIDPipe) workId: string,
+    @Query() query: StoryLocaleQueryDto) {
+    return this.previewService.styleReference(user.id, workId, query);
+  }
 }
