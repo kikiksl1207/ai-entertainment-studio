@@ -1,0 +1,36 @@
+#writerApprovedStyle {
+  min-width: 0;
+  padding: 24px 0;
+  border-top: 1px solid var(--line, #d9dde0);
+  color: var(--text, #252a2d);
+  font-size: 15px;
+  line-height: 1.65;
+  letter-spacing: 0;
+}
+#writerApprovedStyle *, #writerApprovedStyle *::before, #writerApprovedStyle *::after {
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  letter-spacing: 0;
+}
+#writerApprovedStyle [hidden] { display: none !important; }
+#writerApprovedStyle h3 { margin: 0; font-size: 20px; line-height: 1.5; }
+#writerApprovedStyle h4 { margin: 0 0 8px; font-size: 15px; line-height: 1.65; }
+#writerApprovedStyle .approved-style-header { display: grid; grid-template-columns: minmax(0, 1fr) 44px; gap: 12px; align-items: start; }
+#writerApprovedStyle .approved-style-basis, #writerApprovedStyle .approved-style-state { color: var(--muted, #5b646b); margin: 8px 0 16px; }
+#writerApprovedStyle .approved-style-state { min-height: 1.65em; }
+#writerApprovedStyle .approved-style-check { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 1px solid var(--line, #cbd2d7); border-radius: 4px; color: inherit; background: transparent; font: inherit; cursor: pointer; }
+#writerApprovedStyle .approved-style-check :is(span, svg) { width: 24px; height: 24px; font-size: 24px; }
+#writerApprovedStyle .approved-style-check:disabled { opacity: .5; cursor: not-allowed; }
+#writerApprovedStyle .approved-style-check:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+#writerApprovedStyle .approved-style-versions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 24px; margin: 0 0 24px; }
+#writerApprovedStyle dt { color: var(--muted, #5b646b); font-size: 13px; }
+#writerApprovedStyle dd { margin: 0; }
+#writerApprovedStyle .approved-style-rule { margin: 16px 0; white-space: pre-wrap; }
+#writerApprovedStyle pre.approved-style-rule { font-size: 13px; line-height: 1.65; }
+#writerApprovedStyle .approved-style-observations, #writerApprovedStyle .approved-style-categories { margin: 16px 0; padding-left: 24px; }
+#writerApprovedStyle li { margin: 12px 0; }
+#writerApprovedStyle li p { margin: 4px 0; white-space: pre-wrap; }
+@media (max-width: 720px) { #writerApprovedStyle .approved-style-versions { grid-template-columns: minmax(0, 1fr); } }
+@media print { #writerApprovedStyle { display: none !important; } }

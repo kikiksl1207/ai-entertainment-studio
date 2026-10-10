@@ -334,6 +334,16 @@ export class StoryProductionController {
     return this.generationProfiles!.getOrCreate(user.id, workId);
   }
 
+  @Get('me/creator-studio/stories/:workId/generation-profile/approved-style')
+  @UseGuards(CreatorCatalogNoStoreGuard, JwtAuthGuard)
+  @Header('Cache-Control', 'private, no-store')
+  approvedWritingStyle(
+    @CurrentUser() user: AuthUser,
+    @Param('workId', ParseUUIDPipe) workId: string,
+  ) {
+    return this.generationProfiles!.readCurrentApprovedStyle(user.id, workId);
+  }
+
   @Patch('me/creator-studio/stories/:workId/generation-profile')
   @UseGuards(JwtAuthGuard)
   updateGenerationProfile(
