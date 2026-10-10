@@ -908,3 +908,192 @@ test('CURRENT-FIT-PROFILE-SIZE: malformed wire clears state; JS cache query alon
   assert.match(css, /grid-template-columns: minmax\(0, 1fr\); gap: 10px/);
   assert.match(css, /overflow-wrap: anywhere/);
 });
+
+// UI-first style explanation only: synthetic transport/DOM, no actual current-fit or provider calls.
+const styleProjectionReason = 'approved_profile_style_projection_incomplete';
+const styleProjectionMessages = {
+  ko: '\uc77c\ubd80 \ubb38\uccb4 \uaddc\uce59\uc744 \ud604\uc7ac \uadf8\ub300\ub85c \uc804\ub2ec\ud560 \uc218 \uc5c6\uc74c',
+  en: 'Some writing-style rules cannot currently be delivered unchanged',
+  ja: '\u4e00\u90e8\u306e\u6587\u4f53\u30eb\u30fc\u30eb\u3092\u73fe\u5728\u305d\u306e\u307e\u307e\u6e21\u305b\u307e\u305b\u3093',
+  'zh-Hans': '\u90e8\u5206\u6587\u4f53\u89c4\u5219\u76ee\u524d\u65e0\u6cd5\u539f\u6837\u4f20\u9012',
+  'zh-Hant': '\u90e8\u5206\u6587\u9ad4\u898f\u5247\u76ee\u524d\u7121\u6cd5\u539f\u6a23\u50b3\u905e'
+};
+
+for (const language of locales) {
+  test('CURRENT-FIT-STYLE-PROJECTION: ' + language + ' explains unchanged-delivery unavailability separately from source language and authority', async () => {
+    const sourceLanguage = language === 'ja' ? 'en' : 'ja', value = unavailable(styleProjectionReason, sourceLanguage);
+    const view = mounted(({ url }) => response(url.includes('/current-fit?') ? value : preview(sourceLanguage)));
+    view.locale(language); view.sourceLocale.value = sourceLanguage; view.sourceLocale.fire('change');
+    const c = view.api.copy[language], message = styleProjectionMessages[language];
+    const parsed = view.api.parseDiagnostic(freeze(value), sourceLanguage, 7);
+    assert.deepEqual(clone(parsed), value); assert.notEqual(parsed, value);
+    parsed.profileVersion = 99; assert.equal(value.profileVersion, null);
+    assert.throws(() => view.api.parseDiagnostic(value, language, 7));
+    assert.equal(view.calls.length, 0);
+    assert.equal(await view.refresh(), true); assert.equal(view.select(), true); assert.equal(await view.check(), true);
+    assert.equal(view.host.lang, language); assert.equal(c.approvedProfileStyleProjectionIncomplete, message);
+    for (const other of [c.approvalUnavailable, c.approvedProfileContextTooLarge, c.within, c.exceeds]) assert.notEqual(message, other);
+    assert.equal(view.node('writerBodyCurrentFitState').textContent, message);
+    assert.equal(row(view, 'source'), sourceLanguage === 'ja' ? '\u65e5\u672c\u8a9e' : 'English');
+    for (const key of ['revision', 'story', 'manuscript', 'analysis', 'profile', 'review', 'reference', 'range', 'input', 'budget', 'output']) {
+      assert.equal(row(view, key), c.unmeasured, key);
+    }
+    for (const [key, status] of [['style', c.notVerified], ['legal', c.notEvaluated], ['paid', c.notEvaluated], ['dispatch', c.notAuthorized]]) {
+      assert.equal(row(view, key), status, key);
+    }
+    for (const key of sizeRows) assert.equal(row(view, key), undefined);
+    assert.equal(metadata(view).children.length, 16);
+    assert.equal(view.node('writerBodyCurrentFitChoice').value, '');
+    assert.equal(view.node('writerBodyCurrentFitChoice').children.length, 1);
+    assert.equal(view.node('writerBodyCurrentFitChoice').disabled, true);
+    assert.equal(view.node('writerBodyCurrentFitCheck').disabled, true);
+    for (const event of ['focus', 'pageshow', 'lumina:localechange']) view.window.fire(event);
+    for (let attempt = 0; attempt < 3; attempt++) assert.equal(await view.check(), undefined);
+    assert.equal(view.calls.length, 2); assert.equal(view.refreshes(), 0);
+    const path = '/api/v1/me/creator-studio/stories/' + id(1) + '/body-preview';
+    assert.equal(view.calls[0].url, path + '?locale=' + sourceLanguage);
+    assert.equal(view.calls[1].url, path + '/current-fit?locale=' + sourceLanguage + '&choiceId=' + id(7) + '&expectedProgressRevision=7');
+    for (const { options } of view.calls) {
+      assert.equal(options.method, 'GET'); assert.equal(options.body, undefined); assert.equal(options._retried, true);
+      assert.equal(options.cache, 'no-store'); assert.equal(options.token, 'SYNTHETIC_EXISTING_TOKEN');
+      assert.deepEqual(clone(options.headers), { 'Cache-Control': 'no-store', Accept: 'application/json' });
+    }
+    assert.doesNotMatch(view.host.textContent, /approved_profile_style_projection_incomplete|generation_profile_style_projection_incomplete|PRIVATE_BODY_NOT_RETAINED|CURRENT_PRIVATE_SCENE|writing_pattern/);
+    for (const secret of [id(1), id(2), id(3), id(7), 'a'.repeat(64)]) assert.equal(view.host.textContent.includes(secret), false);
+
+    const compatible = mounted(({ url }) => response(url.includes('/current-fit?') ? unavailable('approval_unavailable', sourceLanguage) : preview(sourceLanguage)));
+    compatible.locale(language); compatible.sourceLocale.value = sourceLanguage; compatible.sourceLocale.fire('change');
+    compatible.bodyPreview.textContent = 'SYNTHETIC_SEPARATE_APPROVED_PROFILE';
+    await mountedCheck(compatible);
+    assert.equal(compatible.node('writerBodyCurrentFitState').textContent, c.approvalUnavailable);
+    assert.equal(row(compatible, 'dispatch'), c.notAuthorized);
+    assert.equal(compatible.bodyPreview.textContent, 'SYNTHETIC_SEPARATE_APPROVED_PROFILE');
+    assert.equal(compatible.calls.length, 2); assert.equal(compatible.refreshes(), 0);
+  });
+}
+
+test('CURRENT-FIT-STYLE-PROJECTION: unavailable result clears a prior fit, selection and versions without repeated GETs', async () => {
+  const value = unavailable(styleProjectionReason);
+  const view = screen(({ url, calls }) => response(url.includes('/current-fit?') ? calls.length === 2 ? diagnostic() : value : preview()));
+  await choose(view); assert.equal(await view.check(), true); assert.equal(view.snapshot().messageKey, 'within');
+  assert.equal(await view.check(), true);
+  const state = view.snapshot();
+  assert.deepEqual(clone(state.data), value); assert.equal(state.messageKey, 'approvedProfileStyleProjectionIncomplete');
+  assert.equal(state.progressRevision, null); assert.equal(state.storyVersion, null); assert.equal(state.selectedChoiceId, '');
+  assert.deepEqual(clone(state.choices), []); assert.equal(state.canCheck, false); assert.equal(state.canSelect, false);
+  assert.equal(state.canRefresh, true); assert.equal(state.data.diagnostic, null); assert.equal(state.data.approvalReferenceVerified, false);
+  for (let attempt = 0; attempt < 3; attempt++) {
+    view.syncContext(); view.snapshot(); assert.equal(await view.check(), false); assert.equal(view.selectChoice(id(7)), false);
+  }
+  assert.equal(view.calls.length, 3);
+  for (const { options } of view.calls) { assert.equal(options.method, 'GET'); assert.equal(options.body, undefined); }
+});
+
+test('CURRENT-FIT-STYLE-PROJECTION: a new explanation never retains earlier oversize byte rows', async () => {
+  const view = mounted(({ url, calls }) => response(url.includes('/current-fit?')
+    ? calls.length === 2 ? sizedUnavailable() : unavailable(styleProjectionReason) : preview()));
+  await mountedCheck(view); assert.notEqual(row(view, 'profileAllBytes'), undefined);
+  assert.equal(await view.refresh(), true); assert.equal(view.select(), true); assert.equal(await view.check(), true);
+  assert.equal(view.node('writerBodyCurrentFitState').textContent, view.api.copy.ko.approvedProfileStyleProjectionIncomplete);
+  for (const key of sizeRows) assert.equal(row(view, key), undefined);
+  for (const key of ['revision', 'profile', 'input', 'budget']) assert.equal(row(view, key), view.api.copy.ko.unmeasured);
+  assert.equal(metadata(view).children.length, 16); assert.equal(view.node('writerBodyCurrentFitCheck').disabled, true);
+  assert.equal(await view.check(), undefined); assert.equal(view.calls.length, 4); assert.equal(view.refreshes(), 0);
+});
+
+test('CURRENT-FIT-STYLE-PROJECTION: profile and owner events reject late success or failure without another GET', async () => {
+  for (const change of ['profile', 'owner', 'epoch', 'expiry']) for (const success of [true, false]) {
+    const held = deferred(), view = mounted(({ url }) => url.includes('/current-fit?') ? held.promise : response(preview()));
+    await view.refresh(); view.select(); const pending = view.check();
+    if (change === 'profile') view.window.fire('creator:generation-profile-changed');
+    if (change === 'owner') { view.setOwner({ ownerId: id(9), epoch: 2 }); view.window.fire('lumina:authchange'); }
+    if (change === 'epoch') { view.setOwner({ ownerId: id(8), epoch: 2 }); view.window.fire('lumina:authchange'); }
+    if (change === 'expiry') { view.setOwner(null); view.window.fire('lumina:auth-expired'); }
+    emptyDOM(view); assert.equal(view.calls[1].options.signal.aborted, true);
+    const before = view.host.textContent;
+    if (success) held.resolve(response(unavailable(styleProjectionReason))); else held.reject(new Error('SYNTHETIC_OLD_STYLE_ERROR'));
+    assert.equal(await pending, false); emptyDOM(view); assert.equal(view.host.textContent, before);
+    assert.equal(view.calls.length, 2); assert.equal(view.refreshes(), 0);
+    assert.notEqual(view.node('writerBodyCurrentFitState').textContent, view.api.copy.ko.approvedProfileStyleProjectionIncomplete);
+  }
+});
+
+test('CURRENT-FIT-STYLE-PROJECTION: completed explanation is erased by profile, owner and progress resets', async () => {
+  for (const change of ['profile', 'owner', 'progress']) {
+    const view = mounted(({ url }) => response(url.includes('/current-fit?') ? unavailable(styleProjectionReason) : preview()));
+    await mountedCheck(view); assert.equal(metadata(view).children.length, 16);
+    if (change === 'profile') view.window.fire('creator:generation-profile-changed');
+    if (change === 'owner') { view.setOwner({ ownerId: id(9), epoch: 2 }); view.window.fire('lumina:authchange'); }
+    if (change === 'progress') view.window.fire('lumina:author-body-trial-progress-changed');
+    emptyDOM(view); assert.equal(view.calls.length, 2); assert.equal(view.refreshes(), 0);
+    assert.notEqual(view.node('writerBodyCurrentFitState').textContent, view.api.copy.ko.approvedProfileStyleProjectionIncomplete);
+  }
+});
+
+test('CURRENT-FIT-STYLE-PROJECTION: raw internal, padded, suffixed and non-string reasons do not manufacture the explanation', () => {
+  for (const reason of ['generation_profile_style_projection_incomplete', styleProjectionReason + '_unknown',
+    ' ' + styleProjectionReason, styleProjectionReason + ' ', styleProjectionReason + '\n',
+    styleProjectionReason.toUpperCase(), 'PRIVATE_STYLE_ERROR', '__proto__', null, 42, new String(styleProjectionReason)]) {
+    assert.throws(() => parse(unavailable(reason)));
+  }
+  assert.deepEqual(clone(parse(freeze(unavailable('approval_unavailable')))), unavailable('approval_unavailable'));
+  assert.deepEqual(clone(parse(freeze(unavailable('approved_profile_context_too_large')))), unavailable('approved_profile_context_too_large'));
+});
+
+test('CURRENT-FIT-STYLE-PROJECTION: null versions and unverified authority remain mandatory', () => {
+  for (const changes of [{ progressRevision: 7 }, { manuscriptVersion: 1 }, { analysisVersion: 1 }, { profileVersion: 1 },
+    { reviewRevision: 1 }, { profileVersion: 0 }, { approvalReferenceVerified: true }, { currentSourceState: 'validated' },
+    { diagnostic: diagnostic().diagnostic }, { outcome: 'request_checked' }, { readOnly: false }, { providerCalls: 1 },
+    { operatingWrites: 1 }, { dispatchAuthorized: true }, { semanticQualityVerified: true },
+    { legalAuthorization: 'approved' }, { paidApproval: 'approved' }]) {
+    assert.throws(() => parse(Object.assign(unavailable(styleProjectionReason), changes)));
+  }
+});
+
+test('CURRENT-FIT-STYLE-PROJECTION: extra private author or identity fields reject and never reach the DOM', async () => {
+  const secret = '<img src=x onerror=steal()>SYNTHETIC_STYLE_PRIVATE';
+  for (const key of ['raw', 'authorException', 'sourceRef', 'approvedFingerprint', 'fieldNames', 'repair']) {
+    const value = unavailable(styleProjectionReason); value[key] = secret;
+    assert.throws(() => parse(value));
+    const view = mounted(({ url }) => response(url.includes('/current-fit?') ? value : preview()));
+    await mountedCheck(view); emptyDOM(view);
+    assert.equal(view.node('writerBodyCurrentFitState').textContent, view.api.copy.ko.invalid);
+    assert.equal(view.host.textContent.includes(secret), false);
+    assert.equal(walk(view.host).filter(node => ['IMG', 'SCRIPT', 'IFRAME', 'INPUT', 'TEXTAREA', 'A'].includes(node.tagName)).length, 0);
+    assert.equal(view.calls.length, 2); assert.equal(view.refreshes(), 0);
+  }
+});
+
+test('CURRENT-FIT-STYLE-PROJECTION: profile-size sidecars stay exclusive to the exact oversize reason', () => {
+  for (const sidecar of [profileSize(), null, [], undefined]) {
+    const value = unavailable(styleProjectionReason); value.profileViewDiagnostic = sidecar;
+    assert.throws(() => parse(value));
+  }
+  const value = sizedUnavailable(), parsed = parse(freeze(value));
+  assert.deepEqual(clone(parsed), value); assert.equal(parsed.reason, 'approved_profile_context_too_large');
+  const noSize = parse(freeze(unavailable(styleProjectionReason)));
+  assert.equal(Object.hasOwn(noSize, 'profileViewDiagnostic'), false); assert.equal(noSize.diagnostic, null);
+});
+
+test('CURRENT-FIT-STYLE-PROJECTION: malformed or raw-reason wire responses clear state without retries', async () => {
+  const rawReason = styleProjectionReason + '<script>SYNTHETIC_PRIVATE_ERROR</script>';
+  for (const raw of ['{', JSON.stringify(unavailable('generation_profile_style_projection_incomplete')),
+    JSON.stringify(unavailable(styleProjectionReason + '_unknown')), JSON.stringify(unavailable(rawReason))]) {
+    const view = mounted(({ url }) => url.includes('/current-fit?') ? response(null, { raw }) : response(preview()));
+    await mountedCheck(view); emptyDOM(view);
+    assert.equal(view.node('writerBodyCurrentFitState').textContent, view.api.copy.ko.invalid);
+    assert.equal(view.host.textContent.includes('SYNTHETIC_PRIVATE_ERROR'), false);
+    for (let attempt = 0; attempt < 3; attempt++) assert.equal(await view.check(), undefined);
+    view.window.fire('focus'); assert.equal(view.calls.length, 2); assert.equal(view.refreshes(), 0);
+  }
+});
+
+test('CURRENT-FIT-STYLE-PROJECTION: only the actual helper cache query advances, keeping existing CSS and GET-only controls', () => {
+  const entry = readFileSync(new URL('../creator-studio/index.html', import.meta.url), 'utf8');
+  const helper = '/pages/creator-body-current-fit.js?v=current-fit-profile-size-20261011-style-completeness';
+  assert.equal(entry.split(helper).length, 2); assert.ok(entry.includes('src="' + helper + '"'));
+  assert.ok(entry.includes('href="/pages/creator-body-current-fit.css?v=current-fit-20261011"'));
+  assert.doesNotMatch(source, /\/generate|\/approve|\/payments|\/auth\/refresh|setInterval|setTimeout|console\./);
+  assert.match(source, /_retried: true, cache: "no-store"/);
+  assert.match(css, /overflow-wrap: anywhere/); assert.match(css, /@media \(max-width: 720px\)/);
+});
