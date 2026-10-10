@@ -58,6 +58,51 @@ export class StoryAuthorBodyPreviewService {
     return this.readCurrentSnapshot(userId, workId, query, async (_db, body) => body);
   }
 
+  async originalReference(userId: string, workId: string, query: StoryLocaleQueryDto) {
+    return this.readCurrentSnapshot(userId, workId, query, async (db, body, partId) => {
+      if (body.progress && (!Number.isSafeInteger(body.progress.revision) || body.progress.revision < 0)) this.changed();
+      const envelope = {
+        contract: 'story-author-body-original-reference-v1' as const, workId: body.workId, locale: body.locale,
+        readOnly: true as const, referenceScope: 'current_published_original_part' as const,
+        progressRevision: body.progress?.revision ?? null, semanticQualityVerified: false as const,
+        bodySourceAligned: false as const, dispatchAuthorized: false as const,
+        providerCalls: 0 as const, operatingWrites: 0 as const,
+      };
+      if (!body.progress?.scene || !partId) {
+        return { ...envelope, outcome: 'no_saved_body' as const, original: null, savedBody: null };
+      }
+      // The current published part is a reading reference, not proof of the historical generation source.
+      const scenes = await db.storyScene.findMany({ where: { partId, status: 'published', fixtureSource: false },
+        orderBy: [{ position: 'asc' }, { id: 'asc' }], take: 101,
+        select: { id: true, position: true, title: true } });
+      const ordered = (rows: Array<{ id: string; position: number }>, limit: number) => {
+        if (!rows.length || rows.length > limit || new Set(rows.map(row => row.id)).size !== rows.length ||
+          rows.some((row, index) => !isUUID(row.id) || !Number.isSafeInteger(row.position) || row.position < 1 ||
+            (index > 0 && row.position <= rows[index - 1].position))) this.changed();
+      };
+      ordered(scenes, 100);
+      const beats = await db.storyBeat.findMany({ where: { sceneId: { in: scenes.map(scene => scene.id) } },
+        orderBy: [{ sceneId: 'asc' }, { position: 'asc' }, { id: 'asc' }], take: 1001,
+        select: { ...beatSelect, sceneId: true } });
+      if (!beats.length || beats.length > 1000 || new Set(beats.map(beat => beat.id)).size !== beats.length) this.changed();
+      const original = { scenes: scenes.map(scene => {
+        const sceneBeats = beats.filter(beat => beat.sceneId === scene.id);
+        ordered(sceneBeats, 1000);
+        return { position: scene.position, title: this.text(scene.title, body.locale, 1000),
+          beats: sceneBeats.map(beat => {
+            if (typeof beat.beatType !== 'string' || !beat.beatType || beat.beatType.length > 64) this.changed();
+            return { position: beat.position, type: beat.beatType, content: this.text(beat.content, body.locale, 64000) };
+          }) };
+      }) };
+      const scene = body.progress.scene;
+      const savedBody = { isGenerated: scene.isGenerated, title: scene.title,
+        beats: scene.beats.map(beat => ({ position: beat.position, type: beat.type, content: beat.content })) };
+      const response = { ...envelope, outcome: 'reference_ready' as const, original, savedBody };
+      if (Buffer.byteLength(JSON.stringify(response), 'utf8') > MAX_RESPONSE_BYTES) this.changed();
+      return response;
+    });
+  }
+
   async lengthDiagnostic(userId: string, workId: string, query: StoryLocaleQueryDto) {
     return this.readCurrentSnapshot(userId, workId, query, async (db, body, partId) => {
       if (body.progress && (!Number.isSafeInteger(body.progress.revision) || body.progress.revision < 0)) {

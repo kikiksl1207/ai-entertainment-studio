@@ -25,6 +25,13 @@ export class StoryAuthorBodyPreviewController {
     return this.previewService.preview(user.id, workId, query);
   }
 
+  @Get('original-reference')
+  @Header('Cache-Control', 'private, no-store')
+  originalReference(@CurrentUser() user: AuthUser, @Param('workId', ParseUUIDPipe) workId: string,
+    @Query() query: StoryLocaleQueryDto) {
+    return this.previewService.originalReference(user.id, workId, query);
+  }
+
   @Get('length-diagnostic')
   @Header('Cache-Control', 'private, no-store')
   lengthDiagnostic(@CurrentUser() user: AuthUser, @Param('workId', ParseUUIDPipe) workId: string,
