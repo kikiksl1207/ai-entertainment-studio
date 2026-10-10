@@ -596,3 +596,72 @@ test('CURRENT-FIT: narrow readonly transport, text-only rendering and fixed resp
   assert.match(css, /overflow-wrap: anywhere/); assert.match(css, /letter-spacing: 0/); assert.match(css, /@media print/);
   assert.doesNotMatch(css, /box-shadow|linear-gradient|\d(?:vw|cqw)|min-width:\s*\d{3}px/);
 });
+
+const approvedContextMessages = {
+  ko: '\uc2b9\uc778\ub41c \uc124\uc815\uc774 \ud604\uc7ac \ucee8\ud14d\uc2a4\ud2b8 \ud55c\ub3c4\uc5d0 \ub9de\uc9c0 \uc54a\uc74c',
+  en: 'Approved settings do not fit the current context limit',
+  ja: '\u627f\u8a8d\u6e08\u307f\u8a2d\u5b9a\u304c\u73fe\u5728\u306e\u30b3\u30f3\u30c6\u30ad\u30b9\u30c8\u4e0a\u9650\u306b\u53ce\u307e\u3089\u306a\u3044',
+  'zh-Hans': '\u5df2\u6279\u51c6\u8bbe\u7f6e\u65e0\u6cd5\u9002\u914d\u5f53\u524d\u4e0a\u4e0b\u6587\u9650\u5236',
+  'zh-Hant': '\u5df2\u6838\u51c6\u8a2d\u5b9a\u7121\u6cd5\u7b26\u5408\u76ee\u524d\u4e0a\u4e0b\u6587\u9650\u5236'
+};
+
+for (const language of locales) {
+  test('CURRENT-FIT-APPROVED-CONTEXT: ' + language + ' distinguishes approved context overflow without measurement or authorization', async () => {
+    const reason = 'approved_profile_context_too_large', value = unavailable(reason, language);
+    const view = mounted(({ url }) => response(url.includes('/current-fit?') ? value : preview(language)));
+    view.locale(language); view.sourceLocale.value = language; view.sourceLocale.fire('change');
+    const c = view.api.copy[language], message = approvedContextMessages[language];
+    const parsed = view.api.parseDiagnostic(freeze(value), language, 7);
+    assert.deepEqual(clone(parsed), value); assert.notEqual(parsed, value);
+    assert.equal(view.calls.length, 0);
+    assert.equal(await view.refresh(), true); assert.equal(view.select(), true); assert.equal(await view.check(), true);
+    assert.equal(view.host.lang, language);
+    assert.equal(c.approvedProfileContextTooLarge, message);
+    assert.notEqual(message, c.approvalUnavailable);
+    assert.equal(view.node('writerBodyCurrentFitState').textContent, message);
+    for (const key of ['revision', 'story', 'manuscript', 'analysis', 'profile', 'review', 'reference', 'range', 'input', 'budget', 'output']) {
+      assert.equal(row(view, key), c.unmeasured, key);
+    }
+    for (const [key, status] of [['style', c.notVerified], ['legal', c.notEvaluated], ['paid', c.notEvaluated], ['dispatch', c.notAuthorized]]) {
+      assert.equal(row(view, key), status, key);
+    }
+    assert.equal(view.node('writerBodyCurrentFitCheck').disabled, true);
+    assert.equal(view.node('writerBodyCurrentFitChoice').value, '');
+    assert.equal(view.node('writerBodyCurrentFitChoice').children.length, 1);
+    assert.equal(await view.check(), undefined);
+    assert.equal(view.calls.length, 2); assert.equal(view.refreshes(), 0);
+    const path = '/api/v1/me/creator-studio/stories/' + id(1) + '/body-preview';
+    assert.equal(view.calls[0].url, path + '?locale=' + language);
+    assert.equal(view.calls[1].url, path + '/current-fit?locale=' + language + '&choiceId=' + id(7) + '&expectedProgressRevision=7');
+    for (const { options } of view.calls) {
+      assert.equal(options.method, 'GET'); assert.equal(options.body, undefined); assert.equal(options._retried, true);
+      assert.equal(options.cache, 'no-store'); assert.equal(options.token, 'SYNTHETIC_EXISTING_TOKEN');
+      assert.deepEqual(clone(options.headers), { 'Cache-Control': 'no-store', Accept: 'application/json' });
+    }
+    assert.doesNotMatch(view.host.textContent, /approved_profile_context_too_large|PRIVATE_BODY_NOT_RETAINED|CURRENT_PRIVATE_SCENE/);
+
+    const absent = mounted(({ url }) => response(url.includes('/current-fit?') ? unavailable('approval_unavailable', language) : preview(language)));
+    absent.locale(language); absent.sourceLocale.value = language; absent.sourceLocale.fire('change');
+    await mountedCheck(absent);
+    assert.equal(absent.node('writerBodyCurrentFitState').textContent, c.approvalUnavailable);
+    assert.equal(row(absent, 'dispatch'), c.notAuthorized);
+    assert.equal(absent.calls.length, 2); assert.equal(absent.refreshes(), 0);
+
+    const mutations = [
+      v => { v.reason = 'generation_profile_context_too_large'; },
+      v => { v.reason = reason + '_unknown'; },
+      v => { v.reason = ' ' + reason; },
+      v => { v.approvalReferenceVerified = true; },
+      v => { v.progressRevision = 7; },
+      v => { Object.assign(v, { manuscriptVersion: 1, analysisVersion: 2, profileVersion: 1, reviewRevision: 1 }); },
+      v => { v.diagnostic = { outputFit: 'within_policy_bound' }; },
+      v => { v.readOnly = false; }, v => { v.providerCalls = 1; }, v => { v.operatingWrites = 1; },
+      v => { v.dispatchAuthorized = true; }, v => { v.semanticQualityVerified = true; },
+      v => { v.legalAuthorization = 'approved'; }, v => { v.paidApproval = 'approved'; }
+    ];
+    for (const mutate of mutations) {
+      const invalid = unavailable(reason, language); mutate(invalid);
+      assert.throws(() => view.api.parseDiagnostic(invalid, language, 7));
+    }
+  });
+}
