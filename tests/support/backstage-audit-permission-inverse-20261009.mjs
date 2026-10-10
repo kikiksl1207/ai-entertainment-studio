@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import { sourceWithoutStorageDiagnosticsDelta } from './backstage-storage-diagnostics-inverse-20261011.mjs';
 
 const fixture = JSON.parse(readFileSync(new URL('../fixtures/backstage-audit-permission-exact-delta-v2-20261009.json', import.meta.url), 'utf8'));
 const sha = text => createHash('sha256').update(text).digest('hex');
@@ -12,7 +13,7 @@ export function sourceWithoutAuditPermissionDelta(source, delta = fixture) {
   assert.equal(delta.afterSHA256, '93a2051e3e400348a098fd4924f00cfa8e81e125165d80e7db13ba1e1f71bfb6');
   assert.deepEqual(delta.names, names);
   assert.deepEqual(delta.changes.map(change => change.name), names);
-  source = source.replaceAll('\r\n', '\n');
+  source = sourceWithoutStorageDiagnosticsDelta(source);
   assert.equal(sha(source), delta.afterSHA256, 'Exact current audit permission source');
   for (const change of delta.changes) {
     const start = source.indexOf(change.start);

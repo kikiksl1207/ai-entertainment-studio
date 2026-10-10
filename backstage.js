@@ -3875,21 +3875,16 @@ function renderObjectStorageDiagnostics(data = {}) {
 }
 
 function renderObjectStorageDiagnosticsFallback() {
-  renderObjectStorageDiagnostics({
-    reason: "diagnostics endpoint unavailable",
-    environment: {
-      storageProvider: "-",
-      directUploadMode: false,
-      bucketConfigured: false,
-      publicBaseUrlConfigured: false,
-      accessKeyConfigured: false,
-      secretKeyConfigured: false
-    },
-    recentUserImageUploads24h: { total: 0, pendingUpload: 0, uploaded: 0, failedOrUnconfirmed: 0 },
-    warnings: ["진단 API 응답을 불러오지 못했습니다."],
-    nextActions: ["관리자 세션과 백엔드 배포 상태를 확인하세요."],
-    policy: { secretsReturned: false }
-  });
+  if (!objectStorageReason || !objectStorageDiagnosticGrid || !objectStorageUploadStats || !objectStorageActions || !objectStoragePolicy) return;
+  objectStorageReason.classList.remove("is-ready");
+  objectStorageReason.classList.add("is-warning");
+  objectStorageReason.textContent = "진단 데이터를 불러오지 못했습니다.";
+  objectStorageDiagnosticGrid.innerHTML = ["Direct upload", "Bucket", "Public URL", "R2 credentials"]
+    .map(label => `<article><span>${escapeHtml(label)}</span><strong>확인 불가</strong></article>`).join("");
+  objectStorageUploadStats.innerHTML = ["Total", "Pending", "Uploaded", "Failed/Unconfirmed"]
+    .map(label => `<div><dt>${escapeHtml(label)}</dt><dd>확인 불가</dd></div>`).join("");
+  objectStorageActions.innerHTML = "<li>진단 API 응답을 불러오지 못했습니다.</li><li>관리자 세션과 백엔드 배포 상태를 확인하세요.</li>";
+  objectStoragePolicy.textContent = "민감 값 반환 정책: 확인 불가";
 }
 
 async function loadObjectStorageDiagnostics() {

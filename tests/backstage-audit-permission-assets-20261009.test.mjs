@@ -11,7 +11,7 @@ test('audit permission entry has exactly one current runtime and preserves exist
     .map(match => new URL(match[1], 'https://synthetic.invalid'))
     .filter(url => url.pathname === '/backstage.js');
   assert.equal(scripts.length, 1);
-  assert.equal(scripts[0].searchParams.get('v'), 'audit-permission-current-20261009');
+  assert.equal(scripts[0].searchParams.get('v'), 'admin-storage-diagnostics-unknown-20261011');
   assert.doesNotMatch(entry, /backstage\.js\?v=(?:creators-native-readonly|admin-audit-rows)/);
   assert.match(entry, /backstage\.css\?v=login-width-20261009/);
   assert.match(source, /BEGIN creators-native-readonly-20261009/);
