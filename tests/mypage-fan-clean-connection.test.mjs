@@ -15,6 +15,7 @@ const lf = bytes => new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).d
 const snapshots = Object.freeze({
   app: '4489be417124bd10b57da60da95daec1661528ebc75d0c03891714035dd390b0',
   appAuth: '96dbd8ce9100e2cad2183e936e6070ae55408a753a266ab43f15a2fdf1a926b7',
+  appAuthBodyTimeout: 'd265a79b97ee89188b6879b7c816c524119ed6e968eaf599669937b1894d0930',
   appReady: 'c545e18a4623306fa780ed14e70958c39da706a72de7ed4f999a20638988e1e5',
   appI18n: '24be790bfcac2c334bf594f063fba01edda9162b1c9981a510dd6cb4589529ab',
   html: '0ed829c2ddfc02daa836627f97afbbafb138a7aa559447903909a14c3caa56f9',
@@ -73,7 +74,14 @@ function fragment(start, end) {
 const authSource = fragment('const API_BASE =', 'const I18N_LOCALES =');
 const markReadySource = fragment('function markAppReady() {', 'async function init() {');
 const i18nExportSource = fragment('window.luminaI18n = {', '\n  };');
-assert.equal(sha(authSource), snapshots.appAuth, 'Consumed auth CRLF->LF source pin');
+if (process.env.MYPAGE_FAN_BASELINE_APP) {
+  assert.equal(sha(authSource), snapshots.appAuth, 'Historical auth CRLF->LF source pin');
+} else {
+  assert.equal(sha(authSource), snapshots.appAuthBodyTimeout, 'Consumed auth with bounded response body');
+  const previousAuth = authSource.replace('      if (session !== authRequestSession()) return null;',
+    '      clearTimeout(timer);\n      if (session !== authRequestSession()) return null;');
+  assert.equal(sha(previousAuth), snapshots.appAuth, 'Only the separately verified body-timeout delta');
+}
 assert.equal(sha(markReadySource), snapshots.appReady, 'Consumed ready marker CRLF->LF source pin');
 assert.equal(sha(i18nExportSource), snapshots.appI18n, 'Consumed i18n export CRLF->LF source pin');
 assert.match(authSource, /_retryDepth === 0/);
