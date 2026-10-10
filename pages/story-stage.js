@@ -3001,17 +3001,24 @@
   async function loadGraph() {
     if (!state.graphWorkId) return loadCatalog();
     const epoch = ++state.epoch;
+    const identity = readerIdentity();
+    const workId = state.graphWorkId;
+    const focusSceneId = state.graphFocusSceneId;
+    const locale = state.locale;
+    const current = () => epoch === state.epoch && identity === readerIdentity() &&
+      workId === state.graphWorkId && focusSceneId === state.graphFocusSceneId && locale === state.locale;
+    if (!identity) return renderState(tr("loginRequired"), tr("loadErrorBody"), false);
     renderLoading();
     try {
       const params = new URLSearchParams({ locale: state.locale });
       if (state.graphFocusSceneId) params.set("focusSceneId", state.graphFocusSceneId);
       const graph = await request(`/api/v1/stories/${encodeURIComponent(state.graphWorkId)}/graph?${params.toString()}`, { auth: true });
-      if (epoch !== state.epoch) return;
+      if (!current()) return;
       state.graph = graph;
       history.replaceState(null, "", graphFocusUrl());
       renderGraph();
     } catch (_) {
-      if (epoch !== state.epoch) return;
+      if (!current()) return;
       renderState(tr("graphFailed"), tr("loadErrorBody"), true);
     }
   }
@@ -3478,6 +3485,11 @@
       state.aiNotice = null;
       return blockScene(tr("loginRequired"));
     }
+    if (state.graphWorkId) {
+      ++state.epoch;
+      state.graph = null;
+      return renderState(tr("loginRequired"), tr("loadErrorBody"), signedIn());
+    }
     if (!state.detailSlug) return;
     ++state.epoch;
     state.readerAccess = null;
@@ -3491,6 +3503,7 @@
 
   function refreshStoryAccount(force = false) {
     const identity = readerIdentity();
+    if (!state.sessionId && state.graphWorkId && identity === state.authIdentity) return;
     if (!force && identity === state.authIdentity) return;
     state.authIdentity = identity;
     if (state.detailStartOperation) {
@@ -3514,6 +3527,11 @@
       blockScene(tr("loginRequired"));
       if (signedIn()) return loadScene();
       return;
+    }
+    if (state.graphWorkId) {
+      ++state.epoch;
+      state.graph = null;
+      return renderState(tr("loginRequired"), tr("loadErrorBody"), signedIn());
     }
     if (state.detailSlug) return loadPack(state.detailSlug);
   }
