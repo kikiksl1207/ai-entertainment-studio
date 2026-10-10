@@ -922,7 +922,7 @@ postgres('current-fit on owned PostgreSQL, SDK174 (synthetic only)', () => {
   });
   // END PROFILE-VIEW-SIZE APPEND
 
-  it('STYLE-PROJECTION-COMPLETE-PG: an approved unsupported rule stops the owner read without writes or paid preparation', async () => {
+  it('STYLE-PROJECTION-COMPLETE-PG: an approved unsupported rule stops the owner read with a distinct safe reason', async () => {
     const f = await fixture();
     const settings = normalizeCreatorGenerationProfile('story', f.profile.approvedSettings);
     const style = settings.sections.find(section => section.key === 'writing_style')!;
@@ -941,7 +941,7 @@ postgres('current-fit on owned PostgreSQL, SDK174 (synthetic only)', () => {
     const result = await f.read();
     expect(result).toMatchObject({ contract: 'story-author-current-fit-v1',
       outcome: 'current_source_unavailable', currentSourceState: 'unavailable',
-      reason: 'approval_unavailable', approvalReferenceVerified: false, diagnostic: null,
+      reason: 'approved_profile_style_projection_incomplete', approvalReferenceVerified: false, diagnostic: null,
       readOnly: true, providerCalls: 0, operatingWrites: 0, dispatchAuthorized: false,
       semanticQualityVerified: false, legalAuthorization: 'not_evaluated', paidApproval: 'not_evaluated' });
     expect(result).not.toHaveProperty('profileViewDiagnostic');

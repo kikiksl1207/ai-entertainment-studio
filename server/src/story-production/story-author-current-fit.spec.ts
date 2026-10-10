@@ -167,6 +167,85 @@ function fixture() {
 describe('current owner fixed-cap snapshot service (synthetic context projection)', () => {
   afterEach(() => jest.restoreAllMocks());
 
+  it.each(locales)('STYLE-EXPLANATION: distinguishes approved unsupported style in %s without exposing a rule', async locale => {
+    const f = fixture(), profile = f.state.profiles[0];
+    const style = profile.approvedSettings.sections.find((section: Row) => section.key === 'writing_style').value;
+    style.observations[0].authorException = PRIVATE;
+    profile.approvedFingerprint = creatorGenerationProfileFingerprint(profile.sourceFingerprint, profile.approvedSettings);
+    const before = stableJson(f.state), result = await f.run(locale);
+    expect(result).toMatchObject({ reason: 'approved_profile_style_projection_incomplete',
+      outcome: 'current_source_unavailable', currentSourceState: 'unavailable', locale,
+      approvalReferenceVerified: false, progressRevision: null, manuscriptVersion: null,
+      analysisVersion: null, profileVersion: null, reviewRevision: null, diagnostic: null,
+      readOnly: true, providerCalls: 0, operatingWrites: 0, dispatchAuthorized: false,
+      semanticQualityVerified: false, legalAuthorization: 'not_evaluated', paidApproval: 'not_evaluated' });
+    expect(result).not.toHaveProperty('profileViewDiagnostic');
+    for (const value of [PRIVATE, 'authorException', profile.id, profile.approvedFingerprint,
+      'generation_profile_style_projection_incomplete']) expect(JSON.stringify(result)).not.toContain(value);
+    expect(f.context).not.toHaveBeenCalled(); expect(f.inspect).not.toHaveBeenCalled(); f.unchanged(before);
+  });
+
+  it.each(['generation_profile_style_projection_incomplete_extra',
+    ' generation_profile_style_projection_incomplete', 'generation_profile_style_projection_incomplete ',
+    PRIVATE])('STYLE-EXPLANATION: retains generic fallback for nonexact trusted errors %s', async message => {
+    const f = fixture(), before = stableJson(f.state);
+    jest.spyOn(profilePolicy, 'continuationGenerationProfileSnapshot').mockImplementation(() => { throw new Error(message); });
+    const result = await f.run();
+    expect(result).toMatchObject({ reason: 'approval_unavailable', diagnostic: null, approvalReferenceVerified: false });
+    expect(result).not.toHaveProperty('profileViewDiagnostic');
+    expect(JSON.stringify(result)).not.toContain(message);
+    expect(f.context).not.toHaveBeenCalled(); expect(f.inspect).not.toHaveBeenCalled(); f.unchanged(before);
+  });
+
+  it('STYLE-EXPLANATION: a non-Error object cannot select the new reason', async () => {
+    const f = fixture(), before = stableJson(f.state);
+    jest.spyOn(profilePolicy, 'continuationGenerationProfileSnapshot').mockImplementation(() => {
+      throw { message: 'generation_profile_style_projection_incomplete', privateText: PRIVATE };
+    });
+    const result = await f.run();
+    expect(result).toMatchObject({ reason: 'approval_unavailable', diagnostic: null });
+    expect(result).not.toHaveProperty('profileViewDiagnostic'); expect(JSON.stringify(result)).not.toContain(PRIVATE);
+    expect(f.context).not.toHaveBeenCalled(); expect(f.inspect).not.toHaveBeenCalled(); f.unchanged(before);
+  });
+
+  it('STYLE-EXPLANATION: exact trusted errors never copy attached fields or measurements', async () => {
+    const f = fixture(), before = stableJson(f.state);
+    const error = Object.assign(new Error('generation_profile_style_projection_incomplete'), {
+      privateText: PRIVATE, profileId: profileId, profileViewDiagnostic: { minimumProjectedViewBytes: 99999 },
+    });
+    jest.spyOn(profilePolicy, 'continuationGenerationProfileSnapshot').mockImplementation(() => { throw error; });
+    const result = await f.run();
+    expect(result).toMatchObject({ reason: 'approved_profile_style_projection_incomplete', diagnostic: null });
+    expect(result).not.toHaveProperty('profileViewDiagnostic');
+    for (const value of [PRIVATE, profileId, '99999']) expect(JSON.stringify(result)).not.toContain(value);
+    expect(f.context).not.toHaveBeenCalled(); expect(f.inspect).not.toHaveBeenCalled(); f.unchanged(before);
+  });
+
+  it.each(['stale', 'unapproved'])('STYLE-EXPLANATION: %s approval precedes the unsupported-shape reason', async change => {
+    const f = fixture(), profile = f.state.profiles[0];
+    const style = profile.approvedSettings.sections.find((section: Row) => section.key === 'writing_style').value;
+    style.observations[0].authorException = PRIVATE;
+    profile.approvedFingerprint = creatorGenerationProfileFingerprint(profile.sourceFingerprint, profile.approvedSettings);
+    if (change === 'stale') style.summary += 'changed'; else profile.status = 'needs_review';
+    const projection = jest.spyOn(profilePolicy, 'continuationGenerationProfileSnapshot');
+    const before = stableJson(f.state), result = await f.run();
+    expect(result).toMatchObject({ reason: 'approval_unavailable', diagnostic: null });
+    expect(projection).not.toHaveBeenCalled(); expect(result).not.toHaveProperty('profileViewDiagnostic');
+    expect(f.context).not.toHaveBeenCalled(); f.unchanged(before);
+  });
+
+  it('STYLE-EXPLANATION: oversized unsupported style retains the existing typed size classification', async () => {
+    const f = fixture(), profile = f.state.profiles[0];
+    const style = profile.approvedSettings.sections.find((section: Row) => section.key === 'writing_style').value;
+    style.observations[0].authorException = PRIVATE; style.summary = '\uac00'.repeat(7900);
+    profile.approvedFingerprint = creatorGenerationProfileFingerprint(profile.sourceFingerprint, profile.approvedSettings);
+    const before = stableJson(f.state), result = await f.run();
+    expect(result).toMatchObject({ reason: 'approved_profile_context_too_large', diagnostic: null,
+      profileViewDiagnostic: { byteCap: 16384, modelInputFit: 'unmeasured', semanticQualityVerified: false } });
+    expect(JSON.stringify(result)).not.toContain(PRIVATE);
+    expect(f.context).not.toHaveBeenCalled(); expect(f.inspect).not.toHaveBeenCalled(); f.unchanged(before);
+  });
+
   it.each(locales)('binds full approved profile and actual request builder/tokenizer in %s', async locale => {
     const f = fixture(), before = stableJson(f.state);
     const result = await f.run(locale);
