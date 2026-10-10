@@ -6,10 +6,21 @@ import { STORY_CONTINUATION_ROUTE_VIEW_VERSION } from './story-continuation-rout
 import { STORY_CONTINUATION_TOKEN_BUDGET_METHOD, storyContinuationInputTokenBudget } from './story-continuation-tokenizer';
 import { assertStoryContinuationLengthBounds, sourceStoryContinuationLengthBounds } from './story-continuation-length.policy';
 
+export type StoryContinuationRequestPreparationConfig = Pick<StoryContinuationOpenAiConfig,
+  'provider' | 'model' | 'rateCardId' | 'rateCardVersion' | 'maxInputTokens' | 'maxOutputTokens'>;
+
 export function buildStoryContinuationOpenAiRequest(request: StoryContinuationProviderRequest, config: StoryContinuationOpenAiConfig) {
   const body = prepareRequest(request, config);
   if (storyContinuationInputTokenBudget(body) > request.inputTokenLimit) fail('provider_input_bound_exceeded');
   return body;
+}
+
+// Offline inspection uses the identical projection before admission, never dispatch.
+export function prepareStoryContinuationOpenAiRequestForDiagnostics(
+  request: StoryContinuationProviderRequest,
+  config: StoryContinuationRequestPreparationConfig,
+) {
+  return prepareRequest(request, config);
 }
 
 export function preflightStoryContinuationOpenAiRequest(request: StoryContinuationProviderRequest, config: StoryContinuationOpenAiConfig): StoryContinuationProviderPreflight {
@@ -25,7 +36,7 @@ export function preflightStoryContinuationOpenAiRequest(request: StoryContinuati
   }
 }
 
-function prepareRequest(request: StoryContinuationProviderRequest, config: StoryContinuationOpenAiConfig) {
+function prepareRequest(request: StoryContinuationProviderRequest, config: StoryContinuationRequestPreparationConfig) {
   if (request.provider !== config.provider || request.model !== config.model ||
       request.rateCardId !== config.rateCardId || request.rateCardVersion !== config.rateCardVersion) {
     fail('provider_pin_mismatch');

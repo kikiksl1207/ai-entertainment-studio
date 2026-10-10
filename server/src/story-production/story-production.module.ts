@@ -88,6 +88,8 @@ import { StoryGeneratedEndingReadController } from './story-generated-ending-rea
 import { StoryGeneratedEndingReadService } from './story-generated-ending-read.service';
 import { StoryAuthorBodyPreviewController } from './story-author-body-preview.controller';
 import { StoryAuthorBodyPreviewService } from './story-author-body-preview.service';
+import { StoryAuthorCurrentFitController } from './story-author-current-fit.controller';
+import { StoryAuthorCurrentFitService } from './story-author-current-fit.service';
 import { StoryAuthorBodyTrialCostController } from './story-author-body-trial-cost.controller';
 import { StoryAuthorBodyTrialCostService } from './story-author-body-trial-cost.service';
 import { StoryAuthorBodyTrialService } from './story-author-body-trial.service';
@@ -114,6 +116,7 @@ import { StoryAuthorBodyTrialReceiptService } from './story-author-body-trial-re
     StoryCanonicalReadController,
     StoryGeneratedEndingReadController,
     StoryAuthorBodyPreviewController,
+    StoryAuthorCurrentFitController,
     StoryAuthorBodyTrialCostController,
     StoryAuthorBodyTrialController,
     StoryAuthorBodyTrialStateController,
@@ -156,6 +159,7 @@ import { StoryAuthorBodyTrialReceiptService } from './story-author-body-trial-re
     StoryCanonicalReadService,
     StoryGeneratedEndingReadService,
     StoryAuthorBodyPreviewService,
+    StoryAuthorCurrentFitService,
     StoryAuthorBodyTrialCostService,
     StoryAuthorBodyTrialStateService,
     StoryAuthorBodyTrialService,
