@@ -149,6 +149,7 @@
   let renderedEpoch = -1;
   let generationResponse = null;
   let generationBusy = false;
+  let generationReadEpoch = null;
   let generationLoadedFor = null;
   let restoring = false;
   const controllers = new Set();
@@ -176,6 +177,10 @@
   }
   function stopRequests() {
     epoch++;
+    if (generationReadEpoch !== null) {
+      generationReadEpoch = null;
+      generationBusy = false;
+    }
     controllers.forEach(controller => controller.abort());
     controllers.clear();
     clearTimeout(poll);
@@ -559,6 +564,7 @@
   async function loadGenerationProfile(autoOpen) {
     if (!analysisId || phase !== "completed" || generationBusy || !current()) return;
     const stamp = epoch;
+    generationReadEpoch = stamp;
     generationBusy = true; setGenerationCopy();
     generation.entryState.textContent = gt("loading");
     try {
@@ -571,7 +577,10 @@
     } catch (_) {
       if (current(stamp)) generation.entryState.textContent = gt("saveFailed");
     } finally {
-      if (current(stamp)) generationBusy = false;
+      if (generationReadEpoch === stamp && current(stamp)) {
+        generationReadEpoch = null;
+        generationBusy = false;
+      }
     }
   }
 
