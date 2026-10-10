@@ -158,7 +158,7 @@ describe('Approved writing style fields (synthetic, no runtime)', () => {
     expect(styleValue(continuationGenerationProfileSnapshot(row).approved).categories).toEqual(categories);
   });
 
-  it('ignores blank and invalid rows without transmitting unknown properties or unvalidated sources', () => {
+  it('rejects otherwise approved lossy rows instead of silently discarding their author fields', () => {
     const { row } = approvedProfile({
       observations: [
         null, [], 'not-an-object', { title: 'Blank', detail: ' \t ' },
@@ -174,17 +174,10 @@ describe('Approved writing style fields (synthetic, no runtime)', () => {
           example: 'DROP_ME', secret: 'DROP_ME' },
       ],
     }, 'edited', [{ sourceType: 'manuscript', sourceRef: `${sourceRef}:PART-LATE:17`, summary: 'Synthetic provenance.' }]);
-    const style = styleValue(continuationGenerationProfileSnapshot(row).approved);
-    expect(style.referenceScope).toBe('production_constraint');
-    expect(style.observations).toEqual([
-      { title: 'Validated', detail: MIDDLE_RULE, referenceScope: 'writing_pattern',
-        sourceRef, sourcePartKey: 'PART-LATE', sourceParagraphIndex: 17 },
-      { title: 'Unvalidated', detail: DETAIL_TAIL, referenceScope: 'writing_pattern' },
-    ]);
-    expect(style.categories).toEqual([{ category: 'dialogue', observations: ['Keep quotations.', 'Retain exceptions.'] }]);
-    expect(JSON.stringify(style)).not.toContain('DROP_ME');
-    expect(JSON.stringify(style)).not.toContain('forged-part');
-    expect(JSON.stringify(style)).not.toContain('analysis:invalid');
+    const before = JSON.stringify(row);
+    expect(() => continuationGenerationProfileSnapshot(row))
+      .toThrow('generation_profile_style_projection_incomplete');
+    expect(JSON.stringify(row)).toBe(before);
   });
 
   it('serializes a small complete style view without changing input or output allowances', () => {

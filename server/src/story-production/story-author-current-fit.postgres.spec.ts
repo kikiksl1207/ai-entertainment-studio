@@ -922,4 +922,37 @@ postgres('current-fit on owned PostgreSQL, SDK174 (synthetic only)', () => {
   });
   // END PROFILE-VIEW-SIZE APPEND
 
+  it('STYLE-PROJECTION-COMPLETE-PG: an approved unsupported rule stops the owner read without writes or paid preparation', async () => {
+    const f = await fixture();
+    const settings = normalizeCreatorGenerationProfile('story', f.profile.approvedSettings);
+    const style = settings.sections.find(section => section.key === 'writing_style')!;
+    (style.value.observations as Array<Record<string, unknown>>)[0].authorException =
+      'SYNTHETIC_APPROVED_EXCEPTION_MUST_NOT_DISAPPEAR';
+    await db.storyWorkGenerationProfile.update({ where: { id: f.profile.id }, data: {
+      approvedSettings: settings as unknown as Prisma.InputJsonValue,
+      approvedFingerprint: creatorGenerationProfileFingerprint(f.profile.sourceFingerprint, settings),
+    } });
+    const policy = await import('./story-continuation-context.policy');
+    const diagnosticContext = await import('./story-continuation-diagnostic-context');
+    const projection = jest.spyOn(policy, 'continuationGenerationProfileSnapshot');
+    const contextRead = jest.spyOn(diagnosticContext, 'readStoryContinuationDiagnosticContext');
+    const before = await generatedSnapshot();
+    expect(Object.keys(before)).toHaveLength(33);
+    const result = await f.read();
+    expect(result).toMatchObject({ contract: 'story-author-current-fit-v1',
+      outcome: 'current_source_unavailable', currentSourceState: 'unavailable',
+      reason: 'approval_unavailable', approvalReferenceVerified: false, diagnostic: null,
+      readOnly: true, providerCalls: 0, operatingWrites: 0, dispatchAuthorized: false,
+      semanticQualityVerified: false, legalAuthorization: 'not_evaluated', paidApproval: 'not_evaluated' });
+    expect(result).not.toHaveProperty('profileViewDiagnostic');
+    expect(JSON.stringify(result)).not.toContain('SYNTHETIC_APPROVED_EXCEPTION_MUST_NOT_DISAPPEAR');
+    expect(projection).toHaveBeenCalledTimes(1);
+    expect(projection.mock.results[0]).toMatchObject({ type: 'throw',
+      value: { message: 'generation_profile_style_projection_incomplete' } });
+    expect(contextRead).not.toHaveBeenCalled();
+    expect(f.inspectSpy).not.toHaveBeenCalled();
+    expect(await generatedSnapshot()).toEqual(before);
+    assertModes(f);
+  });
+
 });

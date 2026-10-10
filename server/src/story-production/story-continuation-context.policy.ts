@@ -328,6 +328,7 @@ function projectContinuationGenerationProfile(
     };
     const projectedBytes = Buffer.byteLength(JSON.stringify(approved), 'utf8');
     if (projectedBytes <= MAX_PROFILE_VIEW_BYTES) {
+      assertCompleteStyleProjection(sections);
       return { pin, approved };
     }
     if (projectedBytes < minimumProjectedViewBytes) {
@@ -344,6 +345,38 @@ function projectContinuationGenerationProfile(
     trustedRepeatedScopeBytes: scopeObservationCount *
       Buffer.byteLength(',"referenceScope":"writing_pattern"', 'utf8'),
   });
+}
+
+function assertCompleteStyleProjection(
+  sections: ReturnType<typeof normalizeCreatorGenerationProfile>['sections'],
+) {
+  const style = sections.find(section => section.key === 'writing_style')?.value;
+  if (!style) return;
+  const incomplete = () => { throw new Error('generation_profile_style_projection_incomplete'); };
+  // Approval permits generic JSON; do not silently discard rules the view cannot represent.
+  if (Object.prototype.hasOwnProperty.call(style, 'observations')) {
+    if (!Array.isArray(style.observations)) incomplete();
+    for (const raw of style.observations as unknown[]) {
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) incomplete();
+      const row = raw as Record<string, unknown>;
+      if (Object.keys(row).some(key => !['title', 'detail', 'sourceRef', 'sourcePartKey',
+        'sourceParagraphIndex', 'referenceScope'].includes(key)) ||
+        typeof row.detail !== 'string' || !row.detail.trim() ||
+        (Object.prototype.hasOwnProperty.call(row, 'title') &&
+          (typeof row.title !== 'string' || completeProfileText(row.title) !== row.title))) incomplete();
+    }
+  }
+  if (Object.prototype.hasOwnProperty.call(style, 'categories')) {
+    if (!Array.isArray(style.categories)) incomplete();
+    for (const raw of style.categories as unknown[]) {
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) incomplete();
+      const row = raw as Record<string, unknown>;
+      if (Object.keys(row).some(key => !['category', 'observations'].includes(key)) ||
+        typeof row.category !== 'string' || !row.category.trim() ||
+        !Array.isArray(row.observations) || row.observations.length === 0 ||
+        row.observations.some(item => typeof item !== 'string' || !item.trim())) incomplete();
+    }
+  }
 }
 
 function continuationProfileValue(
