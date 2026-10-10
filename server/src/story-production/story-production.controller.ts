@@ -137,7 +137,8 @@ export class StoryProductionController {
   }
 
   @Get('stories/:workId/graph')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(CreatorCatalogNoStoreGuard, JwtAuthGuard)
+  @Header('Cache-Control', 'private, no-store')
   graph(
     @CurrentUser() user: AuthUser,
     @Param('workId') workId: string,
