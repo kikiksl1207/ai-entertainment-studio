@@ -665,3 +665,246 @@ for (const language of locales) {
     }
   });
 }
+
+
+// Synthetic size metadata only; no production source text or model/provider measurement.
+const profileSizeKeys = ['contract', 'byteCap', 'minimumProjectedViewBytes', 'writingStyleSectionBytes', 'scopeObservationCount',
+  'trustedRepeatedScopeBytes', 'projectionTiers', 'modelInputFit', 'compactViewFit', 'semanticQualityVerified'];
+const profileSize = changes => ({ contract: 'story-profile-view-byte-diagnostic-v1', byteCap: 16384,
+  minimumProjectedViewBytes: 24000, writingStyleSectionBytes: 17000, scopeObservationCount: 100,
+  trustedRepeatedScopeBytes: 3500, projectionTiers: 3, modelInputFit: 'unmeasured', compactViewFit: 'unmeasured',
+  semanticQualityVerified: false, ...changes });
+const sizedUnavailable = (locale = 'ko', changes = {}) => ({
+  ...unavailable('approved_profile_context_too_large', locale), profileViewDiagnostic: profileSize(changes)
+});
+const sizeRows = ['profileAllBytes', 'profileStyleBytes', 'profileByteCap', 'profileRepeatedBytes'];
+const sizeLabels = {
+  ko: ['\uc804\uccb4 \uc804\ub2ec \uc9c0\uce68', '\ubb38\uccb4 \uc9c0\uce68', '\ud604\uc7ac \uc804\ub2ec \uc81c\ud55c', '\ubc18\ubcf5 \uc804\ub2ec \uc815\ubcf4'],
+  en: ['Full delivery instructions', 'Writing style instructions', 'Current delivery limit', 'Repeated delivery metadata'],
+  ja: ['\u5168\u4f53\u306e\u9001\u4fe1\u6307\u793a', '\u6587\u4f53\u306e\u6307\u793a', '\u73fe\u5728\u306e\u9001\u4fe1\u4e0a\u9650', '\u7e70\u308a\u8fd4\u3057\u9001\u4fe1\u60c5\u5831'],
+  'zh-Hans': ['\u5b8c\u6574\u4f20\u9012\u6307\u4ee4', '\u6587\u4f53\u6307\u4ee4', '\u5f53\u524d\u4f20\u9012\u9650\u5236', '\u91cd\u590d\u4f20\u9012\u4fe1\u606f'],
+  'zh-Hant': ['\u5b8c\u6574\u50b3\u905e\u6307\u4ee4', '\u6587\u9ad4\u6307\u4ee4', '\u76ee\u524d\u50b3\u905e\u9650\u5236', '\u91cd\u8907\u50b3\u905e\u8cc7\u8a0a']
+};
+
+for (const language of locales) {
+  test('CURRENT-FIT-PROFILE-SIZE: ' + language + ' renders four byte rows without claims or new requests', async () => {
+    const value = sizedUnavailable(language);
+    const view = mounted(({ url }) => response(url.includes('/current-fit?') ? value : preview(language)));
+    view.locale(language); view.sourceLocale.value = language; view.sourceLocale.fire('change');
+    const parsed = view.api.parseDiagnostic(freeze(value), language, 7);
+    assert.deepEqual(clone(parsed), value); assert.notEqual(parsed.profileViewDiagnostic, value.profileViewDiagnostic);
+    parsed.profileViewDiagnostic.minimumProjectedViewBytes = 99999;
+    assert.equal(value.profileViewDiagnostic.minimumProjectedViewBytes, 24000);
+    await mountedCheck(view);
+    const c = view.api.copy[language], format = new Intl.NumberFormat(language);
+    assert.equal(view.host.lang, language);
+    assert.deepEqual(sizeRows.map(key => c[key]), sizeLabels[language]);
+    assert.equal(metadata(view).children.length, 20);
+    for (const [index, count] of [24000, 17000, 16384, 3500].entries()) {
+      assert.equal(row(view, sizeRows[index]), format.format(count) + ' B');
+    }
+    for (const key of ['revision', 'story', 'manuscript', 'analysis', 'profile', 'review', 'reference', 'range', 'input', 'budget', 'output']) {
+      assert.equal(row(view, key), c.unmeasured);
+    }
+    for (const [key, status] of [['style', c.notVerified], ['legal', c.notEvaluated], ['paid', c.notEvaluated], ['dispatch', c.notAuthorized]]) {
+      assert.equal(row(view, key), status);
+    }
+    assert.equal(view.node('writerBodyCurrentFitState').textContent, c.approvedProfileContextTooLarge);
+    assert.equal(view.node('writerBodyCurrentFitCheck').disabled, true);
+    assert.equal(view.node('writerBodyCurrentFitChoice').value, '');
+    assert.equal(view.calls.length, 2); assert.equal(view.refreshes(), 0);
+    for (const { options } of view.calls) {
+      assert.equal(options.method, 'GET'); assert.equal(options.body, undefined); assert.equal(options._retried, true);
+      assert.equal(options.cache, 'no-store'); assert.equal(options.token, 'SYNTHETIC_EXISTING_TOKEN');
+    }
+    const path = '/api/v1/me/creator-studio/stories/' + id(1) + '/body-preview';
+    assert.equal(view.calls[0].url, path + '?locale=' + language);
+    assert.equal(view.calls[1].url, path + '/current-fit?locale=' + language + '&choiceId=' + id(7) + '&expectedProgressRevision=7');
+    assert.doesNotMatch(view.host.textContent, /story-profile-view-byte-diagnostic|PRIVATE_BODY_NOT_RETAINED|CURRENT_PRIVATE_SCENE|referenceScope|writing_pattern/);
+    for (const secret of [id(1), id(2), id(3), id(7), 'a'.repeat(64)]) assert.equal(view.host.textContent.includes(secret), false);
+  });
+}
+
+test('CURRENT-FIT-PROFILE-SIZE: old absent responses keep exact keys and no size rows', async () => {
+  for (const value of [unavailable('approved_profile_context_too_large'), unavailable('approval_unavailable'), diagnostic(), unmeasured()]) {
+    const view = mounted(({ url }) => response(url.includes('/current-fit?') ? value : preview()));
+    assert.deepEqual(clone(view.api.parseDiagnostic(freeze(value), 'ko', 7)), value);
+    await mountedCheck(view);
+    for (const key of sizeRows) assert.equal(row(view, key), undefined);
+    assert.equal(metadata(view).children.length, 16); assert.equal(view.calls.length, 2);
+  }
+});
+
+test('CURRENT-FIT-PROFILE-SIZE: exact bounds and zero/null style are preserved without invented measurements', async () => {
+  const variants = [
+    { minimumProjectedViewBytes: 16385, writingStyleSectionBytes: 16385, scopeObservationCount: 200, trustedRepeatedScopeBytes: 7000 },
+    { minimumProjectedViewBytes: 2000000, writingStyleSectionBytes: 2000000, scopeObservationCount: 0, trustedRepeatedScopeBytes: 0 },
+    { writingStyleSectionBytes: null, scopeObservationCount: 0, trustedRepeatedScopeBytes: 0 },
+    { writingStyleSectionBytes: 1, scopeObservationCount: 0, trustedRepeatedScopeBytes: 0 },
+    { writingStyleSectionBytes: 35, scopeObservationCount: 1, trustedRepeatedScopeBytes: 35 }
+  ];
+  assert.equal(Buffer.byteLength(',"referenceScope":"writing_pattern"', 'utf8'), 35);
+  for (const changes of variants) {
+    const value = sizedUnavailable('ko', changes), parsed = parse(freeze(value));
+    assert.deepEqual(clone(parsed), value); assert.notEqual(parsed.profileViewDiagnostic, value.profileViewDiagnostic);
+    assert.deepEqual(Object.keys(parsed.profileViewDiagnostic), profileSizeKeys);
+  }
+  const view = mounted(({ url }) => response(url.includes('/current-fit?') ? sizedUnavailable('ko', variants[2]) : preview()));
+  await mountedCheck(view);
+  assert.equal(row(view, 'profileStyleBytes'), view.api.copy.ko.unmeasured);
+  assert.equal(row(view, 'profileRepeatedBytes'), '0 B');
+  assert.equal(row(view, 'budget'), view.api.copy.ko.unmeasured);
+});
+
+test('CURRENT-FIT-PROFILE-SIZE: only the exact approved overflow reason permits the optional field', () => {
+  for (const value of [diagnostic(), unmeasured(), unavailable('approval_unavailable'), unavailable('progress_changed'),
+    unavailable('generation_profile_context_too_large'), unavailable('approved_profile_context_too_large_unknown')]) {
+    value.profileViewDiagnostic = profileSize();
+    assert.throws(() => parse(value));
+  }
+});
+
+test('CURRENT-FIT-PROFILE-SIZE: missing, extra and unknown contract fields fail closed', () => {
+  for (const field of profileSizeKeys) {
+    const value = sizedUnavailable(); delete value.profileViewDiagnostic[field];
+    assert.throws(() => parse(value));
+  }
+  for (const changes of [{ contract: 'story-profile-view-byte-diagnostic-v2' }, { version: 'story-profile-view-byte-diagnostic-v1' },
+    { rawDetails: 'PRIVATE' }, { sourceHash: 'a'.repeat(64) }, { sourceRef: id(1) }]) {
+    assert.throws(() => parse(sizedUnavailable('ko', changes)));
+  }
+  const extra = sizedUnavailable(); extra.raw = 'PRIVATE'; assert.throws(() => parse(extra));
+});
+
+test('CURRENT-FIT-PROFILE-SIZE: null, primitives, arrays and exotic objects are not sidecars', () => {
+  for (const sidecar of [null, undefined, false, 16384, 'size', [], new Date(), new Number(1)]) {
+    const value = sizedUnavailable(); value.profileViewDiagnostic = sidecar;
+    assert.throws(() => parse(value));
+  }
+});
+
+test('CURRENT-FIT-PROFILE-SIZE: minimum full-view bytes must be a safe integer above cap within bound', () => {
+  for (const count of [null, undefined, 0, -1, 1.5, 16384, 2000001, '24000', NaN, Infinity, Number.MAX_SAFE_INTEGER + 1]) {
+    assert.throws(() => parse(sizedUnavailable('ko', { minimumProjectedViewBytes: count })));
+  }
+  for (const cap of [null, undefined, 16383, 16385, '16384', Infinity]) {
+    assert.throws(() => parse(sizedUnavailable('ko', { byteCap: cap })));
+  }
+});
+
+test('CURRENT-FIT-PROFILE-SIZE: style bytes are null or positive safe integers no larger than full view', () => {
+  for (const count of [undefined, 0, -1, 1.5, 24001, '17000', NaN, Infinity, Number.MAX_SAFE_INTEGER + 1]) {
+    assert.throws(() => parse(sizedUnavailable('ko', { writingStyleSectionBytes: count })));
+  }
+  assert.throws(() => parse(sizedUnavailable('ko', { writingStyleSectionBytes: null })));
+  assert.throws(() => parse(sizedUnavailable('ko', { writingStyleSectionBytes: 3499 })));
+});
+
+test('CURRENT-FIT-PROFILE-SIZE: observation counts never default, coerce or exceed 200', () => {
+  for (const count of [null, undefined, -1, 1.5, 201, '100', true, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1]) {
+    assert.throws(() => parse(sizedUnavailable('ko', { scopeObservationCount: count })));
+  }
+  assert.throws(() => parse(sizedUnavailable('ko', { scopeObservationCount: 0 })));
+});
+
+test('CURRENT-FIT-PROFILE-SIZE: repeated bytes are bounded exact count-times-35 metadata not a deduction', () => {
+  for (const count of [null, undefined, -1, 1.5, '3500', NaN, Infinity, Number.MAX_SAFE_INTEGER + 1, 0, 3499, 3501, 17001]) {
+    assert.throws(() => parse(sizedUnavailable('ko', { trustedRepeatedScopeBytes: count })));
+  }
+  assert.throws(() => parse(sizedUnavailable('ko', { scopeObservationCount: 0, trustedRepeatedScopeBytes: 1 })));
+  assert.throws(() => parse(sizedUnavailable('ko', { writingStyleSectionBytes: null, scopeObservationCount: 0, trustedRepeatedScopeBytes: 35 })));
+  const parsed = parse(sizedUnavailable());
+  assert.equal(parsed.profileViewDiagnostic.minimumProjectedViewBytes, 24000);
+  assert.equal(parsed.profileViewDiagnostic.trustedRepeatedScopeBytes, 3500);
+});
+
+test('CURRENT-FIT-PROFILE-SIZE: tiers, unmeasured fits, quality and existing false-authority flags remain strict', () => {
+  for (const changes of [{ projectionTiers: 2 }, { projectionTiers: '3' }, { projectionTiers: null },
+    { modelInputFit: 'within_policy_bound' }, { modelInputFit: null }, { compactViewFit: 'within_policy_bound' },
+    { compactViewFit: null }, { semanticQualityVerified: true }, { semanticQualityVerified: 'false' }, { semanticQualityVerified: null }]) {
+    assert.throws(() => parse(sizedUnavailable('ko', changes)));
+  }
+  for (const changes of [{ readOnly: false }, { providerCalls: 1 }, { operatingWrites: 1 }, { dispatchAuthorized: true },
+    { semanticQualityVerified: true }, { approvalReferenceVerified: true }, { legalAuthorization: 'approved' },
+    { paidApproval: 'approved' }, { progressRevision: 7 }, { diagnostic: diagnostic().diagnostic }]) {
+    assert.throws(() => parse(Object.assign(sizedUnavailable(), changes)));
+  }
+});
+
+test('CURRENT-FIT-PROFILE-SIZE: inherited/custom prototypes, symbols and nonenumerable extras are rejected', () => {
+  for (const level of ['root', 'sidecar']) {
+    const value = sizedUnavailable(), target = level === 'root' ? value : value.profileViewDiagnostic;
+    Object.setPrototypeOf(target, { inherited: 'PRIVATE' });
+    assert.throws(() => parse(value));
+    const symbolic = sizedUnavailable(), symbolTarget = level === 'root' ? symbolic : symbolic.profileViewDiagnostic;
+    symbolTarget[Symbol('raw')] = 'PRIVATE'; assert.throws(() => parse(symbolic));
+    const hidden = sizedUnavailable(), hiddenTarget = level === 'root' ? hidden : hidden.profileViewDiagnostic;
+    Object.defineProperty(hiddenTarget, 'raw', { value: 'PRIVATE', enumerable: false });
+    assert.throws(() => parse(hidden));
+  }
+  const safe = sizedUnavailable();
+  safe.profileViewDiagnostic = Object.assign(Object.create(null), safe.profileViewDiagnostic);
+  assert.deepEqual(clone(parse(freeze(safe))), clone(safe));
+});
+
+test('CURRENT-FIT-PROFILE-SIZE: required-field getters are never read before fail-closed parsing', () => {
+  for (const [level, field] of [['root', 'profileViewDiagnostic'], ['root', 'reason'], ['root', 'outcome'],
+    ['sidecar', 'contract'], ['sidecar', 'minimumProjectedViewBytes']]) {
+    const value = sizedUnavailable(), target = level === 'root' ? value : value.profileViewDiagnostic;
+    let reads = 0;
+    Object.defineProperty(target, field, { enumerable: true, get() { reads++; return 'PRIVATE'; } });
+    assert.throws(() => parse(value)); assert.equal(reads, 0);
+  }
+});
+
+test('CURRENT-FIT-PROFILE-SIZE: late sidecars cannot survive choice change or a newer refresh', async () => {
+  for (const change of ['choice', 'refresh']) {
+    const held = deferred(), view = mounted(({ url, calls }) => url.includes('/current-fit?') ? held.promise
+      : response(preview('ko', calls.length === 1 ? 7 : 8)));
+    await view.refresh(); view.select(); const pending = view.check();
+    if (change === 'choice') view.select(id(10));
+    else { view.window.fire('creator:generation-profile-changed'); await view.refresh(); }
+    assert.equal(view.calls[1].options.signal.aborted, true);
+    const before = view.host.textContent; held.resolve(response(sizedUnavailable()));
+    assert.equal(await pending, false); assert.equal(view.host.textContent, before);
+    for (const key of sizeRows) assert.equal(row(view, key), undefined);
+    assert.equal(row(view, 'revision'), change === 'choice' ? '7' : '8');
+    assert.equal(view.calls.length, change === 'choice' ? 2 : 3);
+  }
+});
+
+test('CURRENT-FIT-PROFILE-SIZE: refresh, logout and every scope/visibility reset erase the four rows', async () => {
+  for (const change of ['refresh', 'logout', 'profile', 'progress', 'work', 'source', 'language', 'hidden', 'document']) {
+    const view = mounted(({ url }) => response(url.includes('/current-fit?') ? sizedUnavailable() : preview()));
+    await mountedCheck(view); assert.notEqual(row(view, 'profileAllBytes'), undefined);
+    if (change === 'refresh') await view.refresh();
+    if (change === 'logout') { view.setOwner(null); view.window.fire('lumina:authchange'); }
+    if (change === 'profile') view.window.fire('creator:generation-profile-changed');
+    if (change === 'progress') view.window.fire('lumina:author-body-trial-progress-changed');
+    if (change === 'work') { view.work.value = id(9); view.work.fire('input'); }
+    if (change === 'source') { view.sourceLocale.value = 'ja'; view.sourceLocale.fire('change'); }
+    if (change === 'language') { view.locale('en'); view.window.fire('lumina:localechange'); }
+    if (change === 'hidden') { view.section.classList.remove('is-active'); view.mutate(view.section); }
+    if (change === 'document') { view.document.visibilityState = 'hidden'; view.document.fire('visibilitychange'); }
+    for (const key of sizeRows) assert.equal(row(view, key), undefined);
+    if (change !== 'refresh') emptyDOM(view);
+    assert.equal(view.calls.length, change === 'refresh' ? 3 : 2); assert.equal(view.refreshes(), 0);
+  }
+});
+
+test('CURRENT-FIT-PROFILE-SIZE: malformed wire clears state; JS cache query alone advances with existing responsive CSS', async () => {
+  for (const raw of ['{', JSON.stringify(sizedUnavailable()).replace('"minimumProjectedViewBytes":24000', '"minimumProjectedViewBytes":"24000"')]) {
+    const view = mounted(({ url }) => url.includes('/current-fit?') ? response(null, { raw }) : response(preview()));
+    await mountedCheck(view); emptyDOM(view);
+    assert.equal(view.node('writerBodyCurrentFitState').textContent, view.api.copy.ko.invalid);
+    assert.equal(view.calls.length, 2);
+  }
+  const entry = readFileSync(new URL('../creator-studio/index.html', import.meta.url), 'utf8');
+  assert.match(entry, /creator-body-current-fit\.js\?v=current-fit-profile-size-20261011/);
+  assert.match(entry, /creator-body-current-fit\.css\?v=current-fit-20261011/);
+  assert.match(source, /new Intl\.NumberFormat\(state\.locale\)/);
+  assert.match(css, /grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(css, /@media \(max-width: 720px\)/);
+  assert.match(css, /grid-template-columns: minmax\(0, 1fr\); gap: 10px/);
+  assert.match(css, /overflow-wrap: anywhere/);
+});

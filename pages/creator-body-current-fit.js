@@ -7,7 +7,19 @@
   const record = value => value !== null && typeof value === "object" && !Array.isArray(value);
   const integer = (value, min = 0, max = Number.MAX_SAFE_INTEGER) => Number.isSafeInteger(value) && value >= min && value <= max;
   const clone = value => JSON.parse(JSON.stringify(value));
-  const exact = (value, keys) => record(value) && Object.keys(value).length === keys.length && keys.every(key => Object.prototype.hasOwnProperty.call(value, key));
+  function dataRecord(value) {
+    if (!record(value) || Object.getOwnPropertySymbols(value).length) return false;
+    const prototype = Object.getPrototypeOf(value), constructor = prototype && Object.getOwnPropertyDescriptor(prototype, "constructor");
+    if (prototype !== null && (Object.getPrototypeOf(prototype) !== null || !constructor ||
+        !Object.prototype.hasOwnProperty.call(constructor, "value") || typeof constructor.value !== "function" ||
+        constructor.value.prototype !== prototype ||
+        Function.prototype.toString.call(constructor.value) !== Function.prototype.toString.call(Object))) return false;
+    return Object.getOwnPropertyNames(value).every(key => {
+      const descriptor = Object.getOwnPropertyDescriptor(value, key);
+      return descriptor.enumerable && Object.prototype.hasOwnProperty.call(descriptor, "value");
+    });
+  }
+  const exact = (value, keys) => dataRecord(value) && Object.keys(value).length === keys.length && keys.every(key => Object.prototype.hasOwnProperty.call(value, key));
   const ownErrors = new WeakSet();
   function failure(kind) { const error = new Error("Current request check unavailable"); error.kind = kind; ownErrors.add(error); return error; }
   const unavailableReasons = {
@@ -32,6 +44,8 @@
       noProgress: "\ud604\uc7ac \ub3c5\uc790 \uc9c4\ud589 \uc5c6\uc74c", noScene: "\ud604\uc7ac \uc7a5\uba74 \uc5c6\uc74c", noChoice: "\uac80\uc0ac \uac00\ub2a5\ud55c \uc120\ud0dd \uc5c6\uc74c", notRead: "\ud604\uc7ac \uc7a5\uba74 \uc77d\uae30 \ubbf8\uc644\ub8cc", ended: "\uc644\ub8cc\ub41c \uacbd\ub85c",
       changed: "\ud604\uc7ac \uacbd\ub85c \ubcc0\uacbd\ub428", sourceUnavailable: "\ud604\uc7ac \uc6d0\uace0\u00b7\uacbd\ub85c \ud655\uc778 \ubd88\uac00", sourceMismatch: "\uc2b9\uc778 \uc6d0\uace0\uc640 \ud604\uc7ac \uc6d0\uc791 \ubd88\uc77c\uce58", approvalUnavailable: "\ucd5c\uc2e0 \uc2b9\uc778 \uae30\uc900 \ud655\uc778 \ubd88\uac00",
       approvedProfileContextTooLarge: "\uc2b9\uc778\ub41c \uc124\uc815\uc774 \ud604\uc7ac \ucee8\ud14d\uc2a4\ud2b8 \ud55c\ub3c4\uc5d0 \ub9de\uc9c0 \uc54a\uc74c",
+      profileAllBytes: "\uc804\uccb4 \uc804\ub2ec \uc9c0\uce68", profileStyleBytes: "\ubb38\uccb4 \uc9c0\uce68",
+      profileByteCap: "\ud604\uc7ac \uc804\ub2ec \uc81c\ud55c", profileRepeatedBytes: "\ubc18\ubcf5 \uc804\ub2ec \uc815\ubcf4",
       capabilityUnavailable: "\ud604\uc7ac \uc785\ub825 \ud5c8\uc6a9\ub7c9 \ud655\uc778 \ubd88\uac00", hidden: "", unauthenticated: "\ub85c\uadf8\uc778 \ud544\uc694", noWork: "\uc120\ud0dd\ub41c \uc791\ud488 \uc5c6\uc74c",
       unavailable: "\ud604\uc7ac \uc785\ub825 \ud655\uc778 \ubd88\uac00", forbidden: "\uc774 \uc791\ud488\uc758 \uc785\ub825 \ud655\uc778 \uad8c\ud55c \uc5c6\uc74c", server: "\ud604\uc7ac \uc785\ub825\uc744 \ubd88\ub7ec\uc624\uc9c0 \ubabb\ud568", transport: "\uc5f0\uacb0 \uc2e4\ud328", invalid: "\uc751\ub2f5 \ud655\uc778 \ubd88\uac00",
       within: "\uc785\ub825 \ud5c8\uc6a9\ub7c9 \uc774\ub0b4", exceeds: "\uc785\ub825 \ud5c8\uc6a9\ub7c9 \ucd08\uacfc", unmeasured: "\ubbf8\uce21\uc815", notVerified: "\ud488\uc9c8 \ubbf8\uac80\uc99d", notEvaluated: "\ubbf8\ud3c9\uac00", notAuthorized: "\uc2e4\ud589 \ubbf8\uc2b9\uc778",
@@ -44,6 +58,8 @@
       noProgress: "No current reader progress", noScene: "No current scene", noChoice: "No eligible choice", notRead: "Current scene not fully read", ended: "Completed path",
       changed: "Current path changed", sourceUnavailable: "Current source unavailable", sourceMismatch: "Approved manuscript and current original differ", approvalUnavailable: "Latest approval unavailable",
       approvedProfileContextTooLarge: "Approved settings do not fit the current context limit",
+      profileAllBytes: "Full delivery instructions", profileStyleBytes: "Writing style instructions",
+      profileByteCap: "Current delivery limit", profileRepeatedBytes: "Repeated delivery metadata",
       capabilityUnavailable: "Current input allowance unavailable", hidden: "", unauthenticated: "Sign-in required", noWork: "No work selected",
       unavailable: "Current input check unavailable", forbidden: "This input check is not accessible", server: "Could not load current input", transport: "Connection failed", invalid: "Response unverified",
       within: "Within input allowance", exceeds: "Input allowance exceeded", unmeasured: "Unmeasured", notVerified: "Quality unverified", notEvaluated: "Not evaluated", notAuthorized: "Execution not authorized",
@@ -56,6 +72,8 @@
       noProgress: "\u73fe\u5728\u306e\u8aad\u8005\u9032\u884c\u306a\u3057", noScene: "\u73fe\u5728\u306e\u30b7\u30fc\u30f3\u306a\u3057", noChoice: "\u78ba\u8a8d\u3067\u304d\u308b\u9078\u629e\u306a\u3057", notRead: "\u73fe\u5728\u306e\u30b7\u30fc\u30f3\u306f\u672a\u8aad\u4e86", ended: "\u5b8c\u4e86\u3057\u305f\u7d4c\u8def",
       changed: "\u73fe\u5728\u306e\u7d4c\u8def\u304c\u5909\u66f4\u3055\u308c\u307e\u3057\u305f", sourceUnavailable: "\u73fe\u5728\u306e\u539f\u7a3f\u30fb\u7d4c\u8def\u3092\u78ba\u8a8d\u3067\u304d\u307e\u305b\u3093", sourceMismatch: "\u627f\u8a8d\u539f\u7a3f\u3068\u73fe\u5728\u306e\u539f\u4f5c\u304c\u4e0d\u4e00\u81f4", approvalUnavailable: "\u6700\u65b0\u306e\u627f\u8a8d\u57fa\u6e96\u3092\u78ba\u8a8d\u3067\u304d\u307e\u305b\u3093",
       approvedProfileContextTooLarge: "\u627f\u8a8d\u6e08\u307f\u8a2d\u5b9a\u304c\u73fe\u5728\u306e\u30b3\u30f3\u30c6\u30ad\u30b9\u30c8\u4e0a\u9650\u306b\u53ce\u307e\u3089\u306a\u3044",
+      profileAllBytes: "\u5168\u4f53\u306e\u9001\u4fe1\u6307\u793a", profileStyleBytes: "\u6587\u4f53\u306e\u6307\u793a",
+      profileByteCap: "\u73fe\u5728\u306e\u9001\u4fe1\u4e0a\u9650", profileRepeatedBytes: "\u7e70\u308a\u8fd4\u3057\u9001\u4fe1\u60c5\u5831",
       capabilityUnavailable: "\u73fe\u5728\u306e\u5165\u529b\u4e0a\u9650\u3092\u78ba\u8a8d\u3067\u304d\u307e\u305b\u3093", hidden: "", unauthenticated: "\u30ed\u30b0\u30a4\u30f3\u304c\u5fc5\u8981", noWork: "\u4f5c\u54c1\u304c\u672a\u9078\u629e",
       unavailable: "\u73fe\u5728\u306e\u5165\u529b\u3092\u78ba\u8a8d\u3067\u304d\u307e\u305b\u3093", forbidden: "\u3053\u306e\u4f5c\u54c1\u306e\u5165\u529b\u3092\u78ba\u8a8d\u3059\u308b\u6a29\u9650\u304c\u3042\u308a\u307e\u305b\u3093", server: "\u73fe\u5728\u306e\u5165\u529b\u3092\u8aad\u307f\u8fbc\u3081\u307e\u305b\u3093", transport: "\u63a5\u7d9a\u5931\u6557", invalid: "\u5fdc\u7b54\u3092\u78ba\u8a8d\u3067\u304d\u307e\u305b\u3093",
       within: "\u5165\u529b\u4e0a\u9650\u4ee5\u5185", exceeds: "\u5165\u529b\u4e0a\u9650\u3092\u8d85\u904e", unmeasured: "\u672a\u6e2c\u5b9a", notVerified: "\u54c1\u8cea\u672a\u691c\u8a3c", notEvaluated: "\u672a\u8a55\u4fa1", notAuthorized: "\u5b9f\u884c\u672a\u627f\u8a8d",
@@ -68,6 +86,8 @@
       noProgress: "\u6ca1\u6709\u5f53\u524d\u8bfb\u8005\u8fdb\u5ea6", noScene: "\u6ca1\u6709\u5f53\u524d\u573a\u666f", noChoice: "\u6ca1\u6709\u53ef\u68c0\u67e5\u7684\u9009\u62e9", notRead: "\u5f53\u524d\u573a\u666f\u5c1a\u672a\u8bfb\u5b8c", ended: "\u8def\u5f84\u5df2\u5b8c\u6210",
       changed: "\u5f53\u524d\u8def\u5f84\u5df2\u6539\u53d8", sourceUnavailable: "\u65e0\u6cd5\u786e\u8ba4\u5f53\u524d\u7a3f\u4ef6\u4e0e\u8def\u5f84", sourceMismatch: "\u5df2\u6279\u51c6\u7a3f\u4ef6\u4e0e\u5f53\u524d\u539f\u4f5c\u4e0d\u4e00\u81f4", approvalUnavailable: "\u65e0\u6cd5\u786e\u8ba4\u6700\u65b0\u6279\u51c6\u6807\u51c6",
       approvedProfileContextTooLarge: "\u5df2\u6279\u51c6\u8bbe\u7f6e\u65e0\u6cd5\u9002\u914d\u5f53\u524d\u4e0a\u4e0b\u6587\u9650\u5236",
+      profileAllBytes: "\u5b8c\u6574\u4f20\u9012\u6307\u4ee4", profileStyleBytes: "\u6587\u4f53\u6307\u4ee4",
+      profileByteCap: "\u5f53\u524d\u4f20\u9012\u9650\u5236", profileRepeatedBytes: "\u91cd\u590d\u4f20\u9012\u4fe1\u606f",
       capabilityUnavailable: "\u65e0\u6cd5\u786e\u8ba4\u5f53\u524d\u8f93\u5165\u9650\u989d", hidden: "", unauthenticated: "\u9700\u8981\u767b\u5f55", noWork: "\u672a\u9009\u62e9\u4f5c\u54c1",
       unavailable: "\u65e0\u6cd5\u68c0\u67e5\u5f53\u524d\u8f93\u5165", forbidden: "\u65e0\u6743\u68c0\u67e5\u6b64\u4f5c\u54c1\u7684\u8f93\u5165", server: "\u65e0\u6cd5\u52a0\u8f7d\u5f53\u524d\u8f93\u5165", transport: "\u8fde\u63a5\u5931\u8d25", invalid: "\u65e0\u6cd5\u786e\u8ba4\u54cd\u5e94",
       within: "\u8f93\u5165\u672a\u8d85\u9650", exceeds: "\u8f93\u5165\u8d85\u8fc7\u9650\u989d", unmeasured: "\u672a\u6d4b\u91cf", notVerified: "\u8d28\u91cf\u672a\u9a8c\u8bc1", notEvaluated: "\u672a\u8bc4\u4f30", notAuthorized: "\u6267\u884c\u672a\u83b7\u6279\u51c6",
@@ -80,6 +100,8 @@
       noProgress: "\u6c92\u6709\u76ee\u524d\u8b80\u8005\u9032\u5ea6", noScene: "\u6c92\u6709\u76ee\u524d\u5834\u666f", noChoice: "\u6c92\u6709\u53ef\u6aa2\u67e5\u7684\u9078\u64c7", notRead: "\u76ee\u524d\u5834\u666f\u5c1a\u672a\u8b80\u5b8c", ended: "\u8def\u5f91\u5df2\u5b8c\u6210",
       changed: "\u76ee\u524d\u8def\u5f91\u5df2\u6539\u8b8a", sourceUnavailable: "\u7121\u6cd5\u78ba\u8a8d\u76ee\u524d\u7a3f\u4ef6\u8207\u8def\u5f91", sourceMismatch: "\u5df2\u6838\u51c6\u7a3f\u4ef6\u8207\u76ee\u524d\u539f\u4f5c\u4e0d\u4e00\u81f4", approvalUnavailable: "\u7121\u6cd5\u78ba\u8a8d\u6700\u65b0\u6838\u51c6\u6a19\u6e96",
       approvedProfileContextTooLarge: "\u5df2\u6838\u51c6\u8a2d\u5b9a\u7121\u6cd5\u7b26\u5408\u76ee\u524d\u4e0a\u4e0b\u6587\u9650\u5236",
+      profileAllBytes: "\u5b8c\u6574\u50b3\u905e\u6307\u4ee4", profileStyleBytes: "\u6587\u9ad4\u6307\u4ee4",
+      profileByteCap: "\u76ee\u524d\u50b3\u905e\u9650\u5236", profileRepeatedBytes: "\u91cd\u8907\u50b3\u905e\u8cc7\u8a0a",
       capabilityUnavailable: "\u7121\u6cd5\u78ba\u8a8d\u76ee\u524d\u8f38\u5165\u9650\u984d", hidden: "", unauthenticated: "\u9700\u8981\u767b\u5165", noWork: "\u672a\u9078\u64c7\u4f5c\u54c1",
       unavailable: "\u7121\u6cd5\u6aa2\u67e5\u76ee\u524d\u8f38\u5165", forbidden: "\u7121\u6b0a\u6aa2\u67e5\u6b64\u4f5c\u54c1\u7684\u8f38\u5165", server: "\u7121\u6cd5\u8f09\u5165\u76ee\u524d\u8f38\u5165", transport: "\u9023\u7dda\u5931\u6557", invalid: "\u7121\u6cd5\u78ba\u8a8d\u56de\u61c9",
       within: "\u8f38\u5165\u672a\u8d85\u9650", exceeds: "\u8f38\u5165\u8d85\u904e\u9650\u984d", unmeasured: "\u672a\u6e2c\u91cf", notVerified: "\u54c1\u8cea\u672a\u9a57\u8b49", notEvaluated: "\u672a\u8a55\u4f30", notAuthorized: "\u57f7\u884c\u672a\u7372\u6838\u51c6",
@@ -89,12 +111,29 @@
   };
   const localeNames = { ko: "\ud55c\uad6d\uc5b4", en: "English", ja: "\u65e5\u672c\u8a9e", "zh-Hans": "\u7b80\u4f53\u4e2d\u6587", "zh-Hant": "\u7e41\u9ad4\u4e2d\u6587" };
 
+  function parseProfileViewDiagnostic(value) {
+    if (!exact(value, ["contract", "byteCap", "minimumProjectedViewBytes", "writingStyleSectionBytes", "scopeObservationCount",
+      "trustedRepeatedScopeBytes", "projectionTiers", "modelInputFit", "compactViewFit", "semanticQualityVerified"]) ||
+        value.contract !== "story-profile-view-byte-diagnostic-v1" || value.byteCap !== 16384 ||
+        !integer(value.minimumProjectedViewBytes, value.byteCap + 1, 2000000) ||
+        (value.writingStyleSectionBytes !== null && !integer(value.writingStyleSectionBytes, 1, value.minimumProjectedViewBytes)) ||
+        !integer(value.scopeObservationCount, 0, 200) ||
+        !integer(value.trustedRepeatedScopeBytes, 0, value.writingStyleSectionBytes ?? 0) ||
+        value.projectionTiers !== 3 || value.modelInputFit !== "unmeasured" || value.compactViewFit !== "unmeasured" ||
+        value.semanticQualityVerified !== false ||
+        (value.scopeObservationCount === 0 ? value.trustedRepeatedScopeBytes !== 0 :
+          value.writingStyleSectionBytes === null || value.trustedRepeatedScopeBytes !== value.scopeObservationCount * 35)) throw failure("invalid");
+    // 35 is the UTF-8 byte length of ',"referenceScope":"writing_pattern"'; it is not a fit estimate.
+  }
+
   function parseDiagnostic(value, sourceLocale, expectedRevision) {
     const keys = ["contract", "locale", "sourceScope", "readOnly", "providerCalls", "operatingWrites", "dispatchAuthorized", "semanticQualityVerified",
       "legalAuthorization", "paidApproval", "outcome", "currentSourceState", "approvalReferenceVerified", "progressRevision",
       "manuscriptVersion", "analysisVersion", "profileVersion", "reviewRevision", "diagnostic"];
-    if (!locales.includes(sourceLocale) || !integer(expectedRevision, 0, 2147483647) || !record(value) ||
-        !exact(value, value.outcome === "current_source_unavailable" ? [...keys, "reason"] : keys) ||
+    if (!locales.includes(sourceLocale) || !integer(expectedRevision, 0, 2147483647) || !dataRecord(value)) throw failure("invalid");
+    const profileViewPresent = value.outcome === "current_source_unavailable" && value.reason === "approved_profile_context_too_large" &&
+      Object.prototype.hasOwnProperty.call(value, "profileViewDiagnostic");
+    if (!exact(value, value.outcome === "current_source_unavailable" ? [...keys, "reason", ...(profileViewPresent ? ["profileViewDiagnostic"] : [])] : keys) ||
         value.contract !== "story-author-current-fit-v1" || value.locale !== sourceLocale ||
         value.sourceScope !== "latest_private_approval_and_current_reader_source" || value.readOnly !== true ||
         value.providerCalls !== 0 || value.operatingWrites !== 0 || value.dispatchAuthorized !== false || value.semanticQualityVerified !== false ||
@@ -104,6 +143,7 @@
       if (value.currentSourceState !== "unavailable" || value.approvalReferenceVerified !== false ||
           value.progressRevision !== null || value.diagnostic !== null || versions.some(key => value[key] !== null) ||
           typeof value.reason !== "string" || !Object.prototype.hasOwnProperty.call(unavailableReasons, value.reason)) throw failure("invalid");
+      if (profileViewPresent) parseProfileViewDiagnostic(value.profileViewDiagnostic);
       return clone(value);
     }
     if (value.outcome !== "request_checked" || value.currentSourceState !== "validated" || value.approvalReferenceVerified !== true ||
@@ -325,6 +365,14 @@
       if (!state.data) return;
       for (const [key, value] of [["manuscript", "manuscriptVersion"], ["analysis", "analysisVersion"], ["profile", "profileVersion"], ["review", "reviewRevision"]]) row(key, state.data[value]);
       const diagnostic = state.data.diagnostic, bounds = diagnostic?.narrativeLength;
+      const profileView = state.data.profileViewDiagnostic;
+      if (profileView) {
+        const format = new Intl.NumberFormat(state.locale);
+        for (const [key, field] of [["profileAllBytes", "minimumProjectedViewBytes"], ["profileStyleBytes", "writingStyleSectionBytes"],
+          ["profileByteCap", "byteCap"], ["profileRepeatedBytes", "trustedRepeatedScopeBytes"]]) {
+          row(key, profileView[field] === null ? null : format.format(profileView[field]) + " B");
+        }
+      }
       row("reference", bounds?.referenceUnits ?? null); row("range", bounds ? bounds.minUnits + " - " + bounds.maxUnits : null);
       row("input", diagnostic?.fixedInputTokenLimit ?? null); row("budget", diagnostic?.inputTokenBudget ?? null);
       row("output", c.unmeasured); row("style", c.notVerified); row("legal", c.notEvaluated); row("paid", c.notEvaluated); row("dispatch", c.notAuthorized);
