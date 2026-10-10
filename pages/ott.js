@@ -291,7 +291,7 @@
         available = response.ok && /^video\/mp4(?:;|$)/i.test(response.headers.get("content-type") || "")
           && (contentLength === null || Number(contentLength) > 0);
       } catch { /* Keep an unavailable branch disabled. */ }
-      if (requestId !== availabilityRequestId) return;
+    if (requestId !== availabilityRequestId || publicPlayback) return;
       if (available) availableBranches.add(key);
       else availableBranches.delete(key);
       const button = choiceOverlay.querySelector(`[data-ott-branch="${key}"]`);
