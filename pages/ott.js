@@ -312,6 +312,16 @@
     syncPlayerControls();
   }
 
+  function nativeCaptionText(cue) {
+    if (typeof cue?.getCueAsHTML !== "function") return typeof cue?.text === "string" ? cue.text : "";
+    try {
+      const text = cue.getCueAsHTML()?.textContent;
+      return typeof text === "string" ? text : "";
+    } catch {
+      return "";
+    }
+  }
+
   function syncCaptionDisplay() {
     if (publicPlayback) {
       const subtitles = publicPlayback.nodes.get(publicPlayback.currentKey)?.subtitles || [];
@@ -323,7 +333,7 @@
     }
     const track = demoVideo.querySelector('track[kind="subtitles"]');
     const cues = track?.track.activeCues;
-    const subtitle = cues ? [...cues].map((cue) => cue.text).join("\n") : "";
+    const subtitle = cues ? [...cues].map(nativeCaptionText).filter(Boolean).join("\n") : "";
     captionDisplay.textContent = subtitle;
     captionDisplay.hidden = !captionsEnabled || !choiceOverlay.hidden || !videoError.hidden || !subtitle;
   }
