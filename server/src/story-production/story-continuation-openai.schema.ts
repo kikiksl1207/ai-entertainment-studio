@@ -15,6 +15,9 @@ export function storyContinuationOutputSchema(locale: string, minimumNarrativeUn
   // JSON Schema length includes whitespace, so this also caps non-whitespace
   // narrative units before the server's author-length validation runs.
   const maximumBeatLength = bounded ? Math.min(2_500, Math.floor(maximumNarrativeUnits / requiredBeats)) : 2_500;
+  if (bounded && requiredBeats * maximumBeatLength < minimumNarrativeUnits) {
+    throw new Error('provider_narrative_schema_unavailable');
+  }
   const minimumBeatLength = bounded
     ? Math.min(maximumBeatLength, Math.ceil(minimumNarrativeUnits / requiredBeats / 0.8))
     : 1;
