@@ -232,4 +232,220 @@ postgres('current-fit on owned PostgreSQL, SDK174 (synthetic only)', () => {
     }, { isolationLevel: 'RepeatableRead' })).rejects.toMatchObject({ code: 'P2010', meta: { code: '25006' } });
     expect(await snapshot()).toEqual(before);
   });
+
+  // CURRENT-FIT-GENERATED-PG: persisted synthetic metadata, not AI output, human review or authorization.
+  const GENERATED_PRIVATE = 'CURRENT-FIT-GENERATED-PG_PRIVATE_SYNTHETIC';
+  async function generatedFixture() {
+    const f = await fixture();
+    const { appendStoryRoute, storyRouteStepForContinuation } = await import('./story-route-identity.store');
+    const { storyAiResultChecksum } = await import('./story-ai-result-checksum');
+    const { STORY_CONTINUATION_PROMPT_VERSION, STORY_CONTINUATION_SCHEMA_VERSION } = await import('./story-continuation-openai.schema');
+    const progress = await db.storyReaderProgress.findUniqueOrThrow({ where: { id: f.progress.id } });
+    const root = await db.storyProgressRouteNode.findUniqueOrThrow({ where: { id: progress.routeNodeId! } });
+    const tail = await db.storyScene.create({ data: { partId: f.scene.partId, position: 2,
+      sceneKey: 'synthetic-authored-tail', title: localized(PRIVATE), status: 'published' } });
+    await db.storyBeat.createMany({ data: [
+      { sceneId: tail.id, position: 1, beatType: 'dialogue', content: localized(' \n' + 'b'.repeat(834) + '\t ') },
+      { sceneId: tail.id, position: 2, beatType: 'scene_break', content: localized('excluded divider') },
+    ] });
+    const consent = await db.storyStyleProfileConsent.create({ data: { workId: f.work.id, ownerUserId: f.owner.id,
+      manuscriptVersionId: f.manuscript.id, rightsConfirmed: false, aiBranchAllowed: false,
+      startsAt: new Date(0), publicClaim: 'synthetic_fixture_not_authorization' } });
+    const contract = await db.contentRightsContract.create({ data: {
+      workType: 'story', workId: f.work.id, createdByUserId: f.owner.id } });
+    const rights = await db.contentRightsContractVersion.create({ data: {
+      contractId: contract.id, revision: 1, contentVersionId: f.manuscript.id, exclusivity: 'nonexclusive',
+      media: ['story_publication'], regions: ['KR'], startsAt: new Date(0), effectiveFrom: new Date(0),
+      saleAllowed: false, aiTransformationAllowed: false, generatedResultReuseAllowed: false, approvalState: 'draft',
+      authorRightsHolderShareBps: 4500, salesAgencyShareBps: 0, companyShareBps: 5500,
+      pointUsagePolicy: 'unresolved', refundReversalPolicy: 'unresolved', paidPointPolicy: 'unresolved',
+      bonusPointPolicy: 'unresolved', vatPolicy: 'unresolved',
+      internalGenerationCostTreatment: 'company_internal_cost_not_deducted_from_creator_share', createdByUserId: f.owner.id,
+    } });
+    const generationProfilePin = { id: f.profile.id, profileVersion: f.profile.profileVersion,
+      reviewRevision: f.profile.reviewRevision, sourceFingerprint: f.profile.sourceFingerprint,
+      approvedFingerprint: f.profile.approvedFingerprint! };
+    const beats = [
+      { beatType: 'paragraph', content: GENERATED_PRIVATE + ' head ' + 'g'.repeat(1700) },
+      { beatType: 'dialogue', content: GENERATED_PRIVATE + ' middle ' + 'm'.repeat(1700) },
+      { beatType: 'paragraph', content: GENERATED_PRIVATE + ' tail ' + 't'.repeat(1700) },
+    ];
+    async function createSource() {
+      const origin = await db.storyAiContinuation.create({ data: {
+        userId: f.owner.id, workId: f.work.id, releaseId: f.release.id, progressId: progress.id,
+        requestKind: 'recommended_choice', recommendedChoiceId: f.choice.id, sourceSceneId: f.scene.id,
+        sourcePartId: f.scene.partId, sourceProgressRevision: progress.progressRevision,
+        sourceRouteNodeId: root.id, sourceRouteHash: root.routeHash,
+        manuscriptVersionId: f.manuscript.id, analysisJobId: f.analysis.id, analysisVersion: f.analysis.analysisVersion,
+        rightsContractId: contract.id, rightsContractVersionId: rights.id, releaseChecksum: f.release.checksum,
+        rateCardId: progress.aiRateCardId!, styleConsentId: consent.id, styleConsentRevision: consent.revision,
+        capabilityRevision: progress.capabilityRevision!, idempotencyKey: randomUUID(), locale: 'ko',
+        contextFingerprint: hash({ synthetic: GENERATED_PRIVATE, generationProfilePin }),
+        promptVersion: STORY_CONTINUATION_PROMPT_VERSION, outputSchemaVersion: STORY_CONTINUATION_SCHEMA_VERSION,
+        contextReferences: { sourceKind: 'synthetic_generated_fixture', review: 'synthetic_not_human_approval',
+          generationProfilePin, fullManuscriptIncluded: false, providerPayloadIncluded: false },
+        status: 'completed', completedAt: new Date(), estimatedCostKrw: 0, hardBudgetKrw: 0,
+        inputTokenLimit: 32768, outputTokenLimit: 8192,
+      } });
+      const sceneKey = 'current-fit-generated-' + randomUUID();
+      const title = localized(GENERATED_PRIVATE + ' source');
+      const nextChoices = [{ choiceKey: 'synthetic-next', label: localized(GENERATED_PRIVATE + ' choice') }];
+      const visualManifest = { sceneKey, background: { state: 'fallback', altKey: 'story.visual.fallback' },
+        characters: [], fallback: { publicAssetPath: '/assets/story/fallback.webp', altKey: 'story.visual.fallback' } };
+      const persistedBeats = beats.map(beat => ({ beatType: beat.beatType, content: localized(beat.content) }));
+      // ai_generated is the required storage discriminator, not a claim of a provider receipt.
+      const generated = await db.storyAiGeneratedScene.create({ data: {
+        continuationId: origin.id, userId: f.owner.id, workId: f.work.id, releaseId: f.release.id, progressId: progress.id,
+        sourcePartId: f.scene.partId, sceneKey, title, visualManifest, provenance: 'ai_generated',
+        resultChecksum: storyAiResultChecksum({ title, beats: persistedBeats, visualManifest, nextChoices }), status: 'ready',
+      } });
+      await db.storyAiGeneratedBeat.createMany({ data: persistedBeats.map((beat, index) => ({
+        sceneId: generated.id, position: index + 1, ...beat })) });
+      const generatedChoice = await db.storyAiGeneratedChoice.create({ data: {
+        sceneId: generated.id, position: 1, ...nextChoices[0], routeKind: 'generation_required' } });
+      const completedOrigin = await db.storyAiContinuation.update({ where: { id: origin.id },
+        data: { resultGeneratedSceneId: generated.id } });
+      return { generated, generatedChoice, origin: completedOrigin };
+    }
+    const source = await createSource();
+    const pathSummary = [{ sourceSceneId: f.scene.id, sourceGeneratedSceneId: null, choiceId: f.choice.id,
+      generatedSceneId: source.generated.id, readBeatPosition: progress.currentBeatPosition, provenance: 'ai_generated' }];
+    const current = await db.$transaction(async tx => {
+      const step = await storyRouteStepForContinuation(tx, { ...source.origin, endingKey: null });
+      expect(step).toEqual({ kind: 'canonical', sceneId: f.scene.id, choiceId: f.choice.id, targetSceneId: null, endingKey: null });
+      const routeNodeId = await appendStoryRoute(tx, progress, step, progress.currentAct, pathSummary[0]);
+      await tx.storyChoiceEvent.create({ data: { progressId: progress.id, sceneId: f.scene.id, choiceId: f.choice.id } });
+      return tx.storyReaderProgress.update({ where: { id: progress.id }, data: {
+        currentSceneId: null, currentGeneratedSceneId: source.generated.id, currentBeatPosition: beats.length,
+        progressRevision: { increment: 1 }, pathSummary, routeNodeId } });
+    });
+    const generatedRead = (choiceId = source.generatedChoice.id, userId = f.owner.id) => f.service.inspect(userId, f.work.id,
+      { locale: 'ko', choiceId, expectedProgressRevision: current.progressRevision });
+    return { ...f, ...source, current, root, beats, generationProfilePin, createSource, generatedRead };
+  }
+
+  async function generatedSnapshot() {
+    const names = ['storyAiGeneratedScene', 'storyAiGeneratedBeat', 'storyAiGeneratedChoice', 'storyChoiceEvent',
+      'storyStyleProfileConsent', 'contentRightsContract', 'contentRightsContractVersion',
+      'storyAiLegalActivation', 'storyAiResultEvidence'];
+    return { ...await snapshot(), ...Object.fromEntries(await Promise.all(names.map(async name => [
+      name, await (db as any)[name].findMany({ orderBy: { id: 'asc' } })]))) };
+  }
+  function assertGeneratedSummary(result: Awaited<ReturnType<StoryAuthorCurrentFitService['inspect']>>,
+    f: Awaited<ReturnType<typeof generatedFixture>>) {
+    expect(result).toMatchObject({ readOnly: true, providerCalls: 0, operatingWrites: 0,
+      dispatchAuthorized: false, semanticQualityVerified: false, legalAuthorization: 'not_evaluated', paidApproval: 'not_evaluated' });
+    const publicJson = JSON.stringify(result);
+    for (const privateValue of [PRIVATE, GENERATED_PRIVATE, ...f.beats.map(beat => beat.content), f.owner.id,
+      f.work.id, f.release.id, f.manuscript.id, f.analysis.id, f.profile.id, f.progress.id, f.scene.id,
+      f.generated.id, f.generatedChoice.id, f.origin.id, f.current.routeNodeId!, f.root.id,
+      f.profile.sourceFingerprint, f.profile.approvedFingerprint!, f.generated.resultChecksum,
+      f.origin.contextFingerprint, f.root.routeHash!]) expect(publicJson).not.toContain(privateValue);
+  }
+  async function expectGeneratedUnavailable(f: Awaited<ReturnType<typeof generatedFixture>>, reason: string,
+    choiceId = f.generatedChoice.id) {
+    const before = await generatedSnapshot();
+    const result = await f.generatedRead(choiceId);
+    expect(result).toMatchObject({ outcome: 'current_source_unavailable', currentSourceState: 'unavailable',
+      reason, diagnostic: null, approvalReferenceVerified: false });
+    expect(f.inspectSpy).not.toHaveBeenCalled(); assertGeneratedSummary(result, f);
+    expect(await generatedSnapshot()).toEqual(before);
+  }
+
+  it('CURRENT-FIT-GENERATED-PG: full private generated beats use the entire original published part 80-120 target', async () => {
+    const f = await generatedFixture(), before = await generatedSnapshot();
+    expect(f.origin).toMatchObject({ status: 'completed', userId: f.owner.id, workId: f.work.id,
+      releaseId: f.release.id, manuscriptVersionId: f.manuscript.id, analysisJobId: f.analysis.id,
+      resultGeneratedSceneId: f.generated.id, sharedResultId: null,
+      contextReferences: { sourceKind: 'synthetic_generated_fixture', review: 'synthetic_not_human_approval',
+        generationProfilePin: f.generationProfilePin } });
+    expect(f.generated.sharedResultId).toBeNull();
+    const result = await f.generatedRead();
+    expect(result).toMatchObject({ outcome: 'request_checked', currentSourceState: 'validated',
+      progressRevision: 53, approvalReferenceVerified: true, manuscriptVersion: 1, analysisVersion: 1,
+      profileVersion: 1, reviewRevision: 1, diagnostic: { inputFit: 'within_policy_bound', writingStylePresent: true,
+        narrativeLength: { referenceUnits: 6034, minUnits: 4828, targetUnits: 6034, maxUnits: 7240 },
+        outputFit: 'unmeasured', multiStageFit: 'unimplemented', currentApprovalVerified: false, providerCalls: 0 } });
+    expect(f.inspectSpy).toHaveBeenCalledTimes(1);
+    const [input, config] = f.inspectSpy.mock.calls[0];
+    const prepared = prepareStoryContinuationOpenAiRequestForDiagnostics(input, config);
+    expect(prepared.max_output_tokens).toBe(8192);
+    expect(result.diagnostic!.inputTokenBudget).toBe(storyContinuationInputTokenBudget(prepared));
+    expect(result.diagnostic!.requestBytes).toBe(Buffer.byteLength(JSON.stringify(prepared), 'utf8'));
+    const projected = JSON.parse(prepared.input[0].content[0].text);
+    expect(projected.sourceScene.beats).toEqual(f.beats);
+    expect(projected.sourceScene.title).toBe(GENERATED_PRIVATE + ' source');
+    expect(projected.selectedChoice.label).toBe(GENERATED_PRIVATE + ' choice');
+    expect(projected.narrativeLength).toEqual({ measurement: 'narrative-nonwhite-codepoints-v1',
+      sourceUnits: 6034, minimumUnits: 4828, targetUnits: 6034, maximumUnits: 7240 });
+    expect(f.beats.reduce((units, beat) => units + beat.content.replace(/\s/g, '').length, 0)).not.toBe(6034);
+    expect(projected.generationProfile.sections).toHaveLength(8);
+    const style = projected.generationProfile.sections.find((row: any) => row.key === 'writing_style').value;
+    expect(style.observations.map((row: any) => row.detail)).toEqual(['head intact', 'middle intact', 'tail intact']);
+    expect(style.categories[0].observations).toEqual(['head category', 'tail category']);
+    expect(style.customConstraint).toBe('generic full style');
+    expect(projected.path).toEqual([{ sourceTitle: PRIVATE, choiceLabel: PRIVATE,
+      targetTitle: GENERATED_PRIVATE + ' source', explicitRejoin: false, endingType: null }]);
+    expect(projected.routeContinuity.actions).toEqual([{ step: 1, choiceLabel: PRIVATE }]);
+    assertGeneratedSummary(result, f); expect(await generatedSnapshot()).toEqual(before); assertModes(f);
+  });
+
+  it('CURRENT-FIT-GENERATED-PG: generated choice must match current route and fully read progress source', async () => {
+    const f = await generatedFixture();
+    const alternate = await f.createSource();
+    expect(alternate.generated.id).not.toBe(f.generated.id);
+    expect(alternate.generatedChoice.label).toEqual(f.generatedChoice.label);
+    await expectGeneratedUnavailable(f, 'choice_unavailable', alternate.generatedChoice.id);
+    await db.storyReaderProgress.update({ where: { id: f.progress.id }, data: { routeNodeId: f.root.id } });
+    await expectGeneratedUnavailable(f, 'context_unavailable');
+    await db.storyReaderProgress.update({ where: { id: f.progress.id },
+      data: { routeNodeId: f.current.routeNodeId, currentBeatPosition: 2 } });
+    await expectGeneratedUnavailable(f, 'source_not_fully_read');
+    await db.storyReaderProgress.update({ where: { id: f.progress.id }, data: { currentBeatPosition: 3 } });
+    const before = await generatedSnapshot();
+    const result = await f.generatedRead();
+    expect(result).toMatchObject({ outcome: 'request_checked', progressRevision: 53, approvalReferenceVerified: true });
+    expect(f.inspectSpy).toHaveBeenCalledTimes(1);
+    const [input, config] = f.inspectSpy.mock.calls[0];
+    const prepared = prepareStoryContinuationOpenAiRequestForDiagnostics(input, config);
+    const projected = JSON.parse(prepared.input[0].content[0].text);
+    expect(projected.sourceScene.beats).toEqual(f.beats);
+    expect(projected.selectedChoice.label).toBe(GENERATED_PRIVATE + ' choice');
+    expect(result.diagnostic!.inputTokenBudget).toBe(storyContinuationInputTokenBudget(prepared));
+    assertGeneratedSummary(result, f); expect(await generatedSnapshot()).toEqual(before); assertModes(f, 4);
+  });
+
+  it('CURRENT-FIT-GENERATED-PG: pending, nonowner, shared-scope and stale origin fail before inspection', async () => {
+    const f = await generatedFixture();
+    await db.storyAiContinuation.update({ where: { id: f.origin.id }, data: { status: 'queued', completedAt: null } });
+    await expectGeneratedUnavailable(f, 'source_unavailable');
+    await db.storyAiContinuation.update({ where: { id: f.origin.id },
+      data: { status: 'completed', completedAt: f.origin.completedAt } });
+    await db.storyReaderProgress.update({ where: { id: f.progress.id }, data: { status: 'ai_pending' } });
+    await expectGeneratedUnavailable(f, 'progress_unavailable');
+    await db.storyReaderProgress.update({ where: { id: f.progress.id }, data: { status: 'active' } });
+    const outsider = await db.user.create({ data: {} }), beforeNonowner = await generatedSnapshot();
+    await expect(f.generatedRead(f.generatedChoice.id, outsider.id)).rejects.toMatchObject({
+      status: 404, response: { code: 'STORY_AUTHOR_CURRENT_FIT_NOT_FOUND' } });
+    expect(f.inspectSpy).not.toHaveBeenCalled(); expect(await generatedSnapshot()).toEqual(beforeNonowner);
+    // A real pending shared tuple is enough to leave private scope; no activation or approval is fabricated.
+    const shared = await db.storyAiReusableResult.create({ data: {
+      reuseKey: 'current-fit-generated-' + randomUUID(), workId: f.work.id, releaseId: f.release.id,
+      releaseChecksum: f.release.checksum, manuscriptVersionId: f.manuscript.id, sourceKind: 'canonical',
+      sourceCanonicalPartId: f.scene.partId, sourceCanonicalSceneId: f.scene.id, sourceCanonicalChoiceId: f.choice.id,
+      sourceFingerprint: hash({ syntheticSource: f.scene.id }), semanticPathFingerprint: hash([]),
+      contextFingerprint: f.origin.contextFingerprint, promptVersion: f.origin.promptVersion,
+      outputSchemaVersion: f.origin.outputSchemaVersion, locale: 'ko', provider: 'synthetic-no-provider',
+      model: 'synthetic-no-model', rateCardVersion: 'synthetic-reference-only',
+      costPolicyVersion: 'synthetic-no-paid-cost', rightsActivationKey: 'synthetic-not-legal-activation',
+      moderationPolicyVersion: 'synthetic-no-moderation', moderationEvidenceVersion: 'synthetic-no-evidence',
+      qualityPolicyVersion: 'synthetic-not-human-review', status: 'pending',
+    } });
+    await db.storyAiGeneratedScene.update({ where: { id: f.generated.id }, data: { sharedResultId: shared.id } });
+    await expectGeneratedUnavailable(f, 'context_unavailable');
+    await db.storyAiGeneratedScene.update({ where: { id: f.generated.id }, data: { sharedResultId: null } });
+    await db.storyAiContinuation.update({ where: { id: f.origin.id }, data: { resultGeneratedSceneId: null } });
+    await expectGeneratedUnavailable(f, 'source_unavailable');
+    expect(f.inspectSpy).not.toHaveBeenCalled(); assertModes(f, 5);
+  });
 });

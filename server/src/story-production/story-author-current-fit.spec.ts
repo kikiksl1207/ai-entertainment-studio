@@ -7,6 +7,7 @@ import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { createHash } from 'crypto';
 import { request } from 'http';
+import { Prisma } from '@prisma/client';
 import type { AddressInfo } from 'net';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PrismaService } from '../prisma/prisma.service';
@@ -21,6 +22,7 @@ import { authorPartStoryContinuationLengthBounds } from './story-continuation-le
 import { prepareStoryContinuationOpenAiRequestForDiagnostics } from './story-continuation-openai.prompt';
 import { storyContinuationInputTokenBudget } from './story-continuation-tokenizer';
 import { SEMANTIC_PIPELINE } from './story-semantic-analysis.types';
+import { readCurrentApprovedStoryStyleSnapshot } from './story-author-approved-style.snapshot';
 
 const uuid = (n: number) => `00000000-0000-4000-8000-${n.toString(16).padStart(12, '0')}`;
 const owner = uuid(1), workId = uuid(2), releaseId = uuid(3), progressId = uuid(4), partId = uuid(5);
@@ -186,6 +188,28 @@ describe('current owner fixed-cap snapshot service (synthetic context projection
     [PRIVATE, owner, workId, releaseId, manuscriptId, profileId, f.state.profiles[0].sourceFingerprint].filter(Boolean)
       .forEach(secret => expect(publicJson).not.toContain(secret));
     expect(f.prisma.$transaction).toHaveBeenCalledTimes(1);
+    f.unchanged(before);
+  });
+
+  it.each(locales)('keeps an oversized valid approved style intact and distinguishes its context limit in %s', async locale => {
+    const f = fixture(), profile = f.state.profiles[0];
+    const style = profile.approvedSettings.sections.find((section: Row) => section.key === 'writing_style');
+    style.value.summary = '\uac00'.repeat(7999);
+    profile.approvedFingerprint = creatorGenerationProfileFingerprint(profile.sourceFingerprint, profile.approvedSettings);
+    const before = stableJson(f.state);
+    const approval = await f.prisma.$transaction(async tx => {
+      await tx.$executeRaw(Prisma.sql`SET TRANSACTION READ ONLY`);
+      return readCurrentApprovedStoryStyleSnapshot(tx as never, owner, workId);
+    },
+      { isolationLevel: 'RepeatableRead' }) as Awaited<ReturnType<typeof readCurrentApprovedStoryStyleSnapshot>>;
+    expect(approval.projection.section.value.summary).toBe(style.value.summary);
+    const result = await f.run(locale);
+    expect(result).toMatchObject({ outcome: 'current_source_unavailable', reason: 'approved_profile_context_too_large',
+      approvalReferenceVerified: false, diagnostic: null, providerCalls: 0, operatingWrites: 0,
+      dispatchAuthorized: false, semanticQualityVerified: false, legalAuthorization: 'not_evaluated', paidApproval: 'not_evaluated' });
+    expect(f.context).not.toHaveBeenCalled();
+    expect(f.inspect).not.toHaveBeenCalled();
+    expect(JSON.stringify(result)).not.toContain(style.value.summary);
     f.unchanged(before);
   });
 

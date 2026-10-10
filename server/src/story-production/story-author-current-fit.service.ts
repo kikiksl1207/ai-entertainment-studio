@@ -12,6 +12,7 @@ import { STORY_CONTINUATION_PROMPT_VERSION, STORY_CONTINUATION_SCHEMA_VERSION } 
 import { STORY_LOCALES } from './story-production.policy';
 
 const reasons = ['progress_unavailable', 'progress_changed', 'release_unavailable', 'approval_unavailable',
+  'approved_profile_context_too_large',
   'source_scope_mismatch', 'source_unavailable', 'choice_unavailable', 'source_not_fully_read',
   'capability_unavailable', 'fixed_cap_settings_mismatch', 'context_unavailable'] as const;
 type Reason = typeof reasons[number];
@@ -85,7 +86,12 @@ export class StoryAuthorCurrentFitService {
           profile.manuscriptVersionId !== release.manuscriptVersionId) unavailable('source_scope_mismatch');
         let generationProfile;
         try { generationProfile = continuationGenerationProfileSnapshot(profile); }
-        catch { unavailable('approval_unavailable'); }
+        catch (error) {
+          if (error instanceof Error && error.message === 'generation_profile_context_too_large') {
+            unavailable('approved_profile_context_too_large');
+          }
+          unavailable('approval_unavailable');
+        }
         if (continuationHash(generationProfile.pin) !== continuationHash(approval.approvalPin)) unavailable('approval_unavailable');
 
         if (!!progress.currentSceneId === !!progress.currentGeneratedSceneId) unavailable('source_unavailable');
