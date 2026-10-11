@@ -125,13 +125,18 @@ describe('actual Nest parser and current-fit error classification (synthetic dow
   it.each([
     [FIT.replace('/body-preview/current-fit', '/body-review'), true],
     [FIT + '-other', false], [FIT + '/child', false], [FIT + '%2F', false],
-  ] as const)('preserves legacy oversize classification outside exact route %s', async (path, isPrivate) => {
+  ] as const)('normalizes oversized bodies outside current-fit without widening privacy %s', async (path, isPrivate) => {
     const before = downstreamCalls;
     const logged = loggerCalls;
     const result = await send('GET', path, oversized);
-    expect(result.status).toBe(500);
+    expect(result.status).toBe(413);
     expect(result.headers['cache-control']).toBe(isPrivate ? 'private, no-store' : undefined);
     expect(downstreamCalls).toBe(before);
-    expect(loggerCalls).toBe(logged + 1);
+    expect(loggerCalls).toBe(logged);
+    const body = JSON.parse(result.text) as { success: boolean; error: Record<string, unknown> };
+    expect(body.success).toBe(false);
+    expect(body.error.code).toBe('PAYLOAD_TOO_LARGE');
+    expect(body.error.message).toBe('Request body is too large');
+    expect(body.error.statusCode).toBe(413);
   });
 });

@@ -253,6 +253,23 @@ export class FanEngagementService {
     input: FanEngagementBody,
   ) {
     this.assertUuid(missionId, 'missionId');
+    if (!input || typeof input !== 'object' || Array.isArray(input)) {
+      throw this.badRequestError({
+        code: 'INVALID_REQUEST',
+        message: 'Request body must be an object',
+        messageKey: 'fanEngagement.validation.invalidRequest',
+      });
+    }
+    for (const field of ['action', 'sourceType', 'sourceId', 'idempotencyKey']) {
+      if (input[field] !== undefined && input[field] !== null && typeof input[field] !== 'string') {
+        throw this.badRequestError({
+          code: 'INVALID_FIELD_TYPE',
+          message: `${field} must be a string or null`,
+          messageKey: 'fanEngagement.validation.invalidFieldType',
+          details: { field },
+        });
+      }
+    }
     const action = this.optionalString(input, 'action') ?? 'complete';
     if (action !== 'complete') {
       throw this.badRequestError({
@@ -320,15 +337,26 @@ export class FanEngagementService {
 
     const result = await this.prisma
       .$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT id FROM public.fan_missions WHERE id = ${missionId}::uuid FOR SHARE`;
+        const currentMission = await this.findOpenMission(missionId, tx);
+        if (!this.sourceFreeMissionSupported(currentMission)) {
+          throw this.badRequestError({
+            code: 'MISSION_REQUIRES_VERIFIED_ACTIVITY',
+            message: 'This mission requires its verified activity endpoint',
+            messageKey: 'fanEngagement.mission.unsupportedAction',
+            details: { missionId },
+          });
+        }
         const participation = await this.createParticipationRow(tx, {
-          mission,
+          mission: currentMission,
           userId,
           sourceType: request.sourceType,
           sourceId: request.sourceId,
           idempotencyKey,
           idempotencyRequest: request,
         });
-        const pointsGranted = await this.grantMissionPoints(tx, userId, mission, participation.id);
+        const pointsGranted = await this.grantMissionPoints(tx, userId, currentMission, participation.id);
+        this.assertMissionOpen(currentMission);
         return { participation, pointsGranted };
       })
       .catch((error) => {
@@ -723,8 +751,20 @@ export class FanEngagementService {
     return mission;
   }
 
-  private async findOpenMission(missionId: string) {
-    const mission = await this.prisma.fanMission.findUnique({ where: { id: missionId } });
+  private sourceFreeMissionSupported(mission: {
+    missionType: string;
+    actionType: string | null;
+    actionTargetId: string | null;
+    resetPolicy: string;
+  }) {
+    return mission.missionType === 'daily_signal' &&
+      mission.actionType === 'mission_participation' &&
+      mission.actionTargetId === null &&
+      (mission.resetPolicy === 'daily' || mission.resetPolicy === 'once');
+  }
+
+  private async findOpenMission(missionId: string, client: Prisma.TransactionClient = this.prisma) {
+    const mission = await client.fanMission.findUnique({ where: { id: missionId } });
     if (!mission) {
       throw this.notFoundError(
         'MISSION_NOT_FOUND',
