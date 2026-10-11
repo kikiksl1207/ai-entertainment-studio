@@ -97,6 +97,7 @@ let _feedDiscoverySeq = 0;
 let _feedDiscoveryLastAttemptAt = null;
 let _feedDiscoveryLastLocale = "";
 let _feedDiscoveryRefreshBound = false;
+let _feedDiscoveryRefreshTimer = null;
 
 function feedViewerKey() {
   const auth = typeof getAuth === "function" ? getAuth() : null;
@@ -1003,14 +1004,33 @@ function refreshLuminaFeedDiscoveryIfDue(minAge = FEED_DISCOVERY_REFRESH_MS) {
   return initLuminaFeedDiscovery();
 }
 
+function scheduleFeedDiscoveryRefresh() {
+  if (_feedDiscoveryRefreshTimer !== null) {
+    window.clearTimeout(_feedDiscoveryRefreshTimer);
+    _feedDiscoveryRefreshTimer = null;
+  }
+  if (document.hidden || _feedDiscoveryLastAttemptAt === null
+      || (!document.getElementById("feedTrendList") && !document.getElementById("feedHashtagList"))
+      || typeof window.setTimeout !== "function" || typeof window.clearTimeout !== "function") return;
+  const delay = Math.max(0, _feedDiscoveryLastAttemptAt + FEED_DISCOVERY_REFRESH_MS - Date.now());
+  const timer = window.setTimeout(() => {
+    if (_feedDiscoveryRefreshTimer !== timer) return;
+    _feedDiscoveryRefreshTimer = null;
+    if (document.hidden) return;
+    // A slow current request rearms the deadline when it settles, without a zero-delay loop.
+    if (_feedDiscoveryFlight?.locale === String(_currentLocale || "ko-KR")) return;
+    refreshLuminaFeedDiscoveryIfDue();
+    if (!_feedDiscoveryFlight) scheduleFeedDiscoveryRefresh();
+  }, delay);
+  _feedDiscoveryRefreshTimer = timer;
+}
+
 function bindFeedDiscoveryRefresh() {
   if (_feedDiscoveryRefreshBound) return;
   _feedDiscoveryRefreshBound = true;
-  if (typeof window.setInterval === "function") {
-    window.setInterval(() => refreshLuminaFeedDiscoveryIfDue(), FEED_DISCOVERY_REFRESH_MS);
-  }
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) refreshLuminaFeedDiscoveryIfDue();
+    scheduleFeedDiscoveryRefresh();
   });
 }
 
@@ -1056,8 +1076,12 @@ function initLuminaFeedDiscovery() {
     load(trendRoot, "trending-searches?type=all&window=1h&take=10", "keywords", "feed.discovery.trendsEmpty", "feed.discovery.trendsError"),
     load(hashtagRoot, "hashtags?window=24h&take=12", "hashtags", "feed.discovery.hashtagsEmpty", "feed.discovery.hashtagsError")
   ]).finally(() => {
-    if (_feedDiscoveryFlight === flight) _feedDiscoveryFlight = null;
+    if (_feedDiscoveryFlight === flight) {
+      _feedDiscoveryFlight = null;
+      scheduleFeedDiscoveryRefresh();
+    }
   });
+  scheduleFeedDiscoveryRefresh();
   return flight.promise;
 }
 

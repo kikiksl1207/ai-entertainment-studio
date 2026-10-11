@@ -47,6 +47,11 @@ function fixture({ locale = 'en-US', now = 0 } = {}) {
   const calls = [];
   const listeners = new Map();
   const timers = [];
+  function timer(callback, delay, repeat) {
+    const entry = { callback, delay, repeat, due: clock + delay, active: true, id: timers.length + 1 };
+    timers.push(entry);
+    return entry.id;
+  }
   const roots = Object.fromEntries([
     'feedTrendList', 'feedHashtagList', 'feedTrendStatus',
     'feedHashtagStatus', 'feedTrendLocaleLabel', 'feedSearchInput',
@@ -85,9 +90,10 @@ function fixture({ locale = 'en-US', now = 0 } = {}) {
     },
     window: {
       setInterval(callback, delay) {
-        timers.push({ callback, delay });
-        return timers.length;
+        return timer(callback, delay, true);
       },
+      setTimeout(callback, delay) { return timer(callback, delay, false); },
+      clearTimeout(id) { const entry = timers.find(value => value.id === id); if (entry) entry.active = false; },
       location: { hostname: 'qa.invalid' },
       luminaI18n: {
         t: key => dictionary[key]?.[context._currentLocale] ?? key,
@@ -112,6 +118,24 @@ function fixture({ locale = 'en-US', now = 0 } = {}) {
     setOwner(id) { auth = id ? { accessToken: `token-${id}`, user: { id } } : null; },
     setTime(value) { clock = value; },
     advance(ms) { clock += ms; },
+    async advanceTo(target) {
+      assert.ok(target >= clock);
+      let count = 0;
+      for (;;) {
+        const next = timers.filter(value => value.active && value.due <= target)
+          .sort((a, b) => a.due - b.due || a.id - b.id)[0];
+        if (!next) break;
+        assert.ok(++count <= 100, 'scheduler must not spin while a request is pending');
+        clock = next.due;
+        if (next.repeat) next.due += next.delay;
+        else next.active = false;
+        next.callback();
+        await flush();
+      }
+      clock = target;
+      await flush();
+    },
+    activeTimers() { return timers.filter(value => value.active); },
     dispatch(name) { for (const callback of listeners.get(name) || []) callback({ type: name }); },
     text(key) { return dictionary[key]?.[context._currentLocale] ?? key; },
     checkedAt() {
@@ -181,8 +205,8 @@ test('same full locale shares the exact in-flight promise and one GET pair', asy
   assert.equal(view.roots.feedTrendList.dataset.state, 'loading');
   assert.equal(view.roots.feedTrendList.attributes['aria-busy'], 'true');
   view.bindRefresh();
-  assert.equal(view.timers.length, 1);
-  assert.equal(view.timers[0].delay, 300_000);
+  assert.equal(view.activeTimers().length, 1);
+  assert.equal(view.activeTimers()[0].delay, 300_000);
   assert.equal(view.listeners.get('visibilitychange').length, 1);
   assert.equal(view.listeners.get('click').length, 1);
   resolvePair(view.calls);
@@ -341,10 +365,10 @@ test('actual five-minute timer and visibility listener honor freshness, hidden s
   const initial = view.init();
   resolvePair(view.calls);
   await initial;
-  assert.equal(view.timers.length, 1);
-  assert.equal(view.timers[0].delay, 300_000);
+  assert.equal(view.activeTimers().length, 1);
+  assert.equal(view.activeTimers()[0].delay, 300_000);
   assert.equal(view.listeners.get('visibilitychange').length, 1);
-  const tick = () => view.timers[0].callback();
+  const tick = () => view.activeTimers().at(-1)?.callback();
   view.setTime(299_999);
   tick();
   view.dispatch('visibilitychange');
@@ -511,6 +535,163 @@ test('a failed region cannot block the other region from succeeding independentl
       assert.equal(view.calls.length, failFallback ? 3 : 2);
     }
   }
+});
+
+test('FEED-DEADLINE-RED: successful middle search refresh rearms the actual five-minute deadline', async () => {
+  const view = fixture();
+  const initial = view.init();
+  resolvePair(view.calls);
+  await initial;
+  await view.advanceTo(60_000);
+  const search = view.search('current-search');
+  view.calls.at(-1).resolve({ items: [{ id: 'current', body: 'current' }] });
+  await search;
+  const middle = view.inFlight();
+  assertPair(discoveryCalls(view).slice(2), 'en');
+  resolvePair(discoveryCalls(view).slice(2), 'middle');
+  await middle;
+  await view.advanceTo(300_000);
+  assert.equal(discoveryCalls(view).length, 4);
+  await view.advanceTo(359_999);
+  assert.equal(discoveryCalls(view).length, 4);
+  await view.advanceTo(360_000);
+  assert.equal(discoveryCalls(view).length, 6, 'FEED_DEADLINE_AT_LAST_ATTEMPT_PLUS_FIVE_MINUTES');
+  assertPair(discoveryCalls(view).slice(4), 'en');
+  const due = view.inFlight();
+  resolvePair(discoveryCalls(view).slice(4), 'due');
+  await due;
+});
+
+test('FEED-DEADLINE-RED: locale refresh rearms the actual five-minute deadline', async () => {
+  const view = fixture({ locale: 'zh-CN' });
+  const initial = view.init();
+  resolvePair(view.calls);
+  await initial;
+  await view.advanceTo(120_000);
+  view.setLocale('zh-Hant');
+  const switched = view.init();
+  resolvePair(view.calls.slice(2), 'traditional');
+  await switched;
+  await view.advanceTo(300_000);
+  assert.equal(view.calls.length, 4);
+  await view.advanceTo(419_999);
+  assert.equal(view.calls.length, 4);
+  await view.advanceTo(420_000);
+  assert.equal(view.calls.length, 6, 'FEED_DEADLINE_AT_LAST_ATTEMPT_PLUS_FIVE_MINUTES');
+  assertPair(view.calls.slice(4), 'zh');
+  const due = view.inFlight();
+  resolvePair(view.calls.slice(4), 'current-traditional');
+  await due;
+});
+
+test('FEED-DEADLINE: a slow flight does not spin or duplicate and resumes after settlement', async () => {
+  const view = fixture();
+  const first = view.init();
+  await view.advanceTo(300_000);
+  assert.strictEqual(view.inFlight(), first);
+  assert.equal(view.calls.length, 2);
+  await view.advanceTo(600_000);
+  assert.equal(view.calls.length, 2);
+  resolvePair(view.calls);
+  await first;
+  await view.advanceTo(600_000);
+  assert.equal(view.calls.length, 4);
+  const next = view.inFlight();
+  resolvePair(view.calls.slice(2), 'resumed');
+  await next;
+  assert.equal(view.activeTimers().length, 1);
+  assert.equal(view.activeTimers()[0].due, 900_000);
+});
+
+test('FEED-DEADLINE: hidden time makes no automatic request and visible expiry starts one pair', async () => {
+  const view = fixture();
+  const initial = view.init();
+  resolvePair(view.calls);
+  await initial;
+  await view.advanceTo(30_000);
+  view.document.hidden = true;
+  view.dispatch('visibilitychange');
+  await view.advanceTo(900_000);
+  assert.equal(view.calls.length, 2);
+  assert.equal(view.state().lastAttemptAt, 0);
+  view.document.hidden = false;
+  view.dispatch('visibilitychange');
+  view.dispatch('visibilitychange');
+  assert.equal(view.calls.length, 4);
+  const visible = view.inFlight();
+  resolvePair(view.calls.slice(2), 'visible');
+  await visible;
+  await view.advanceTo(1_199_999);
+  assert.equal(view.calls.length, 4);
+  await view.advanceTo(1_200_000);
+  assert.equal(view.calls.length, 6);
+  const next = view.inFlight();
+  resolvePair(view.calls.slice(4), 'next');
+  await next;
+});
+
+test('FEED-DEADLINE: failed attempts retain the five-minute floor without automatic early retry', async () => {
+  const view = fixture();
+  const failed = view.init();
+  view.calls.forEach(call => call.reject(new Error('PRIVATE_BACKEND_DETAIL')));
+  await failed;
+  await view.advanceTo(299_999);
+  assert.equal(view.calls.length, 2);
+  assertError(view, 'trends');
+  assertError(view, 'hashtags');
+  await view.advanceTo(300_000);
+  assert.equal(view.calls.length, 4);
+  const next = view.inFlight();
+  resolvePair(view.calls.slice(2), 'recovered');
+  await next;
+  assert.equal(view.activeTimers().length, 1);
+});
+
+test('FEED-DEADLINE: removed discovery regions stop the timer without a zero-delay loop', async () => {
+  const view = fixture();
+  const trend = view.roots.feedTrendList, hashtag = view.roots.feedHashtagList;
+  const initial = view.init();
+  resolvePair(view.calls);
+  await initial;
+  delete view.roots.feedTrendList;
+  delete view.roots.feedHashtagList;
+  await view.advanceTo(900_000);
+  assert.equal(view.calls.length, 2);
+  assert.equal(view.activeTimers().length, 0);
+  view.roots.feedTrendList = trend;
+  view.roots.feedHashtagList = hashtag;
+  const returned = view.init();
+  resolvePair(view.calls.slice(2), 'returned');
+  await returned;
+  assert.equal(view.activeTimers().length, 1);
+  assert.equal(view.activeTimers()[0].due, 1_200_000);
+});
+
+test('FEED-DEADLINE: a cancelled callback cannot refresh or remove the newer timer', async () => {
+  const view = fixture();
+  const initial = view.init();
+  resolvePair(view.calls);
+  await initial;
+  const cancelled = view.activeTimers()[0];
+  await view.advanceTo(60_000);
+  const search = view.search('current-search');
+  view.calls.at(-1).resolve([]);
+  await search;
+  const middle = view.inFlight();
+  resolvePair(discoveryCalls(view).slice(2), 'middle');
+  await middle;
+  const current = view.activeTimers()[0];
+  assert.notStrictEqual(current, cancelled);
+  assert.equal(cancelled.active, false);
+  view.setTime(360_000);
+  cancelled.callback();
+  assert.equal(discoveryCalls(view).length, 4);
+  assert.strictEqual(view.activeTimers()[0], current);
+  current.callback();
+  assert.equal(discoveryCalls(view).length, 6);
+  const due = view.inFlight();
+  resolvePair(discoveryCalls(view).slice(4), 'due');
+  await due;
 });
 
 test('ranked discovery escapes keyword text and attributes and never interpolates raw rank/count markup', async () => {
