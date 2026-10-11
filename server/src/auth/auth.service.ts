@@ -44,6 +44,17 @@ const PASSWORD_MAX_LENGTH = 128;
 const LUMINA_CURRENCY_CODE = 'LUMINA';
 const SIGNUP_BONUS_LUMINA = 300;
 const REFERRAL_REWARD_LUMINA = 500;
+const FREE_PROMO_REWARD_CAP_LUMINA = 3000;
+const PROMO_REWARD_LEDGER_TYPES = [
+  'signup_bonus',
+  'referral_reward',
+  'daily_attendance',
+  'identity_verification_bonus',
+  'birthday_bonus',
+  'achievement_reward',
+  'quest_reward',
+  'profile_completion_reward',
+] as const;
 const NICKNAME_CHANGE_INTERVAL_MS = 30 * 24 * 60 * 60 * 1000;
 const EMAIL_VERIFICATION_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
 const PASSWORD_RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
@@ -253,7 +264,7 @@ export class AuthService {
       await this.applyReferralReward(tx, createdUser.id, input.referralCode);
 
       return createdUser;
-    });
+    }, { isolationLevel: 'ReadCommitted' });
 
     return this.authResponse(
       await this.getMe(user.id),
@@ -424,7 +435,7 @@ export class AuthService {
       await this.applyReferralReward(tx, createdUser.id, input.referralCode);
 
       return createdUser;
-    });
+    }, { isolationLevel: 'ReadCommitted' });
 
     return this.authResponse(
       await this.getMe(user.id),
@@ -3626,12 +3637,47 @@ export class AuthService {
       throw new BadRequestException('Self referral is not allowed');
     }
 
+    // Share promo writers' user -> wallet locks before receipt and lifetime-cap reads.
+    const userIds = [...new Set([code.userId, referredUserId])].sort();
+    for (const userId of userIds) {
+      await tx.$queryRaw`
+        SELECT id FROM public.users WHERE id = ${userId}::uuid FOR NO KEY UPDATE
+      `;
+    }
+    for (const userId of userIds) {
+      await tx.$queryRaw`
+        SELECT id FROM public.wallet_accounts
+        WHERE user_id = ${userId}::uuid AND currency_code = ${LUMINA_CURRENCY_CODE} FOR UPDATE
+      `;
+    }
+
+    const activeCode = await tx.userReferralCode.findFirst({
+      where: {
+        id: code.id,
+        userId: code.userId,
+        code: referralCode,
+        status: 'active',
+        user: { status: 'active', deletedAt: null },
+      },
+    });
+    if (!activeCode) {
+      throw new BadRequestException('Referral code is not valid');
+    }
+
     const existingReward = await tx.referralReward.findUnique({
       where: { referredUserId },
     });
 
     if (existingReward) {
       return existingReward;
+    }
+
+    const referredUser = await tx.user.findFirst({
+      where: { id: referredUserId, status: 'active', deletedAt: null },
+      select: { id: true },
+    });
+    if (!referredUser) {
+      throw new BadRequestException('Referred user is not active');
     }
 
     const [referrerWallet, referredWallet] = await Promise.all([
@@ -3659,6 +3705,31 @@ export class AuthService {
 
     if (!referredWallet || referredWallet.status !== 'active') {
       throw new BadRequestException('Referred wallet is not active');
+    }
+
+    const promoLedgers = await Promise.all([code.userId, referredUserId].map(userId =>
+      tx.walletLedger.aggregate({
+        where: {
+          direction: 'credit',
+          walletAccount: { userId, currencyCode: LUMINA_CURRENCY_CODE },
+          OR: [
+            { ledgerType: { in: [...PROMO_REWARD_LEDGER_TYPES] } },
+            {
+              ledgerType: 'event_grant',
+              OR: [
+                { idempotencyKey: { startsWith: 'signup_bonus:' } },
+                { idempotencyKey: { startsWith: 'referral:referrer:' } },
+                { idempotencyKey: { startsWith: 'referral:referred:' } },
+              ],
+            },
+          ],
+        },
+        _sum: { amount: true },
+      }),
+    ));
+    if (promoLedgers.some(ledger => new Prisma.Decimal(ledger._sum.amount ?? 0)
+      .plus(REFERRAL_REWARD_LUMINA).greaterThan(FREE_PROMO_REWARD_CAP_LUMINA))) {
+      return null;
     }
 
     const referrerLedger = await tx.walletLedger.create({
