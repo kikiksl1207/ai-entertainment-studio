@@ -35,7 +35,11 @@ export class JwtAuthGuard implements CanActivate {
         secret: this.configService.getOrThrow<string>('JWT_ACCESS_SECRET'),
       });
 
-      if (payload.tokenType !== 'access') {
+      if (
+        payload?.tokenType !== 'access' ||
+        typeof payload.sub !== 'string' ||
+        !payload.sub.trim()
+      ) {
         throw new UnauthorizedException('Access token is required');
       }
 
