@@ -23,7 +23,7 @@ import { prepareStoryContinuationOpenAiRequestForDiagnostics } from './story-con
 import { storyContinuationInputTokenBudget } from './story-continuation-tokenizer';
 import { SEMANTIC_PIPELINE } from './story-semantic-analysis.types';
 import { readCurrentApprovedStoryStyleSnapshot } from './story-author-approved-style.snapshot';
-import * as profilePolicy from './story-continuation-context.policy';
+import * as deliveryPolicy from './story-approved-profile-delivery.policy';
 
 const uuid = (n: number) => `00000000-0000-4000-8000-${n.toString(16).padStart(12, '0')}`;
 const owner = uuid(1), workId = uuid(2), releaseId = uuid(3), progressId = uuid(4), partId = uuid(5);
@@ -167,29 +167,31 @@ function fixture() {
 describe('current owner fixed-cap snapshot service (synthetic context projection)', () => {
   afterEach(() => jest.restoreAllMocks());
 
-  it.each(locales)('STYLE-EXPLANATION: distinguishes approved unsupported style in %s without exposing a rule', async locale => {
+  it.each(locales)('DELIVERY: preserves an approved author-specific observation field in %s', async locale => {
     const f = fixture(), profile = f.state.profiles[0];
     const style = profile.approvedSettings.sections.find((section: Row) => section.key === 'writing_style').value;
     style.observations[0].authorException = PRIVATE;
     profile.approvedFingerprint = creatorGenerationProfileFingerprint(profile.sourceFingerprint, profile.approvedSettings);
     const before = stableJson(f.state), result = await f.run(locale);
-    expect(result).toMatchObject({ reason: 'approved_profile_style_projection_incomplete',
-      outcome: 'current_source_unavailable', currentSourceState: 'unavailable', locale,
-      approvalReferenceVerified: false, progressRevision: null, manuscriptVersion: null,
-      analysisVersion: null, profileVersion: null, reviewRevision: null, diagnostic: null,
+    expect(result).toMatchObject({ outcome: 'request_checked', currentSourceState: 'validated', locale,
+      approvalReferenceVerified: true, progressRevision: 52, manuscriptVersion: 1,
+      analysisVersion: 2, profileVersion: 1, reviewRevision: 1,
       readOnly: true, providerCalls: 0, operatingWrites: 0, dispatchAuthorized: false,
       semanticQualityVerified: false, legalAuthorization: 'not_evaluated', paidApproval: 'not_evaluated' });
     expect(result).not.toHaveProperty('profileViewDiagnostic');
-    for (const value of [PRIVATE, 'authorException', profile.id, profile.approvedFingerprint,
-      'generation_profile_style_projection_incomplete']) expect(JSON.stringify(result)).not.toContain(value);
-    expect(f.context).not.toHaveBeenCalled(); expect(f.inspect).not.toHaveBeenCalled(); f.unchanged(before);
+    for (const value of [PRIVATE, 'authorException', profile.id, profile.approvedFingerprint]) expect(JSON.stringify(result)).not.toContain(value);
+    const [request, config, binding] = f.inspect.mock.calls[0];
+    const projected = JSON.parse(prepareStoryContinuationOpenAiRequestForDiagnostics(request, config, binding).input[0].content[0].text);
+    expect(projected.generationProfile.authorData.sections.find((s: Row) => s.key === 'writing_style')
+      .value.observations[0].authorException).toBe(PRIVATE);
+    expect(f.context).toHaveBeenCalledTimes(1); expect(f.inspect).toHaveBeenCalledTimes(1); f.unchanged(before);
   });
 
   it.each(['generation_profile_style_projection_incomplete_extra',
     ' generation_profile_style_projection_incomplete', 'generation_profile_style_projection_incomplete ',
     PRIVATE])('STYLE-EXPLANATION: retains generic fallback for nonexact trusted errors %s', async message => {
     const f = fixture(), before = stableJson(f.state);
-    jest.spyOn(profilePolicy, 'continuationGenerationProfileSnapshot').mockImplementation(() => { throw new Error(message); });
+    jest.spyOn(deliveryPolicy, 'buildStoryApprovedProfileDelivery').mockImplementation(() => { throw new Error(message); });
     const result = await f.run();
     expect(result).toMatchObject({ reason: 'approval_unavailable', diagnostic: null, approvalReferenceVerified: false });
     expect(result).not.toHaveProperty('profileViewDiagnostic');
@@ -199,7 +201,7 @@ describe('current owner fixed-cap snapshot service (synthetic context projection
 
   it('STYLE-EXPLANATION: a non-Error object cannot select the new reason', async () => {
     const f = fixture(), before = stableJson(f.state);
-    jest.spyOn(profilePolicy, 'continuationGenerationProfileSnapshot').mockImplementation(() => {
+    jest.spyOn(deliveryPolicy, 'buildStoryApprovedProfileDelivery').mockImplementation(() => {
       throw { message: 'generation_profile_style_projection_incomplete', privateText: PRIVATE };
     });
     const result = await f.run();
@@ -213,9 +215,9 @@ describe('current owner fixed-cap snapshot service (synthetic context projection
     const error = Object.assign(new Error('generation_profile_style_projection_incomplete'), {
       privateText: PRIVATE, profileId: profileId, profileViewDiagnostic: { minimumProjectedViewBytes: 99999 },
     });
-    jest.spyOn(profilePolicy, 'continuationGenerationProfileSnapshot').mockImplementation(() => { throw error; });
+    jest.spyOn(deliveryPolicy, 'buildStoryApprovedProfileDelivery').mockImplementation(() => { throw error; });
     const result = await f.run();
-    expect(result).toMatchObject({ reason: 'approved_profile_style_projection_incomplete', diagnostic: null });
+    expect(result).toMatchObject({ reason: 'approval_unavailable', diagnostic: null });
     expect(result).not.toHaveProperty('profileViewDiagnostic');
     for (const value of [PRIVATE, profileId, '99999']) expect(JSON.stringify(result)).not.toContain(value);
     expect(f.context).not.toHaveBeenCalled(); expect(f.inspect).not.toHaveBeenCalled(); f.unchanged(before);
@@ -227,7 +229,7 @@ describe('current owner fixed-cap snapshot service (synthetic context projection
     style.observations[0].authorException = PRIVATE;
     profile.approvedFingerprint = creatorGenerationProfileFingerprint(profile.sourceFingerprint, profile.approvedSettings);
     if (change === 'stale') style.summary += 'changed'; else profile.status = 'needs_review';
-    const projection = jest.spyOn(profilePolicy, 'continuationGenerationProfileSnapshot');
+    const projection = jest.spyOn(deliveryPolicy, 'buildStoryApprovedProfileDelivery');
     const before = stableJson(f.state), result = await f.run();
     expect(result).toMatchObject({ reason: 'approval_unavailable', diagnostic: null });
     expect(projection).not.toHaveBeenCalled(); expect(result).not.toHaveProperty('profileViewDiagnostic');
@@ -241,7 +243,7 @@ describe('current owner fixed-cap snapshot service (synthetic context projection
     profile.approvedFingerprint = creatorGenerationProfileFingerprint(profile.sourceFingerprint, profile.approvedSettings);
     const before = stableJson(f.state), result = await f.run();
     expect(result).toMatchObject({ reason: 'approved_profile_context_too_large', diagnostic: null,
-      profileViewDiagnostic: { byteCap: 16384, modelInputFit: 'unmeasured', semanticQualityVerified: false } });
+      profileDeliveryDiagnostic: { byteCap: 16384, candidateViewFits: false, modelInputFit: 'unmeasured', semanticQualityVerified: false } });
     expect(JSON.stringify(result)).not.toContain(PRIVATE);
     expect(f.context).not.toHaveBeenCalled(); expect(f.inspect).not.toHaveBeenCalled(); f.unchanged(before);
   });
@@ -254,16 +256,20 @@ describe('current owner fixed-cap snapshot service (synthetic context projection
       providerCalls: 0, operatingWrites: 0, dispatchAuthorized: false, semanticQualityVerified: false,
       legalAuthorization: 'not_evaluated', paidApproval: 'not_evaluated',
       diagnostic: { inputFit: 'within_policy_bound', currentApprovalVerified: false, outputFit: 'unmeasured', multiStageFit: 'unimplemented' } });
-    const [input, config] = f.inspect.mock.calls[0];
-    const body = prepareStoryContinuationOpenAiRequestForDiagnostics(input, config);
+    const [input, config, binding] = f.inspect.mock.calls[0];
+    const body = prepareStoryContinuationOpenAiRequestForDiagnostics(input, config, binding);
     expect(result.diagnostic!.inputTokenBudget).toBe(storyContinuationInputTokenBudget(body));
     expect(result.diagnostic!.requestBytes).toBe(Buffer.byteLength(JSON.stringify(body), 'utf8'));
     const projected = JSON.parse(body.input[0].content[0].text);
-    const style = projected.generationProfile.sections.find((section: Row) => section.key === 'writing_style').value;
+    const style = projected.generationProfile.authorData.sections.find((section: Row) => section.key === 'writing_style').value;
     expect(style.observations.map((item: Row) => item.detail)).toEqual(['first style rule', 'middle style rule', 'mandatory uncut style tail']);
     expect(style.categories[0].observations).toEqual(['first category', 'tail category']);
     expect(style.customRule).toBe('full generic value');
-    expect(projected.generationProfile.sections).toHaveLength(8);
+    expect(projected.generationProfile.authorData.sections).toHaveLength(8);
+    expect(projected.generationProfile).toEqual(binding!.packet);
+    expect(projected.generationProfile.approvalEvidence).toHaveLength(8);
+    expect(result).toMatchObject({ requestPreparationContract: 'story-continuation-lossless-profile-diagnostic-v1',
+      dispatchCompatibility: 'not_evaluated' });
     const publicJson = JSON.stringify(result);
     [PRIVATE, owner, workId, releaseId, manuscriptId, profileId, f.state.profiles[0].sourceFingerprint].filter(Boolean)
       .forEach(secret => expect(publicJson).not.toContain(secret));
@@ -307,14 +313,12 @@ describe('current owner fixed-cap snapshot service (synthetic context projection
     style.summary = '\uac00'.repeat(7900);
     profile.approvedFingerprint = creatorGenerationProfileFingerprint(profile.sourceFingerprint, profile.approvedSettings);
     const before = stableJson(f.state), result = await f.run(locale);
-    if (!('profileViewDiagnostic' in result) || !result.profileViewDiagnostic) throw new Error('Missing typed view-size result');
-    const sizes = result.profileViewDiagnostic;
-    expect(sizes).toMatchObject({ contract: 'story-profile-view-byte-diagnostic-v1', byteCap: 16384,
-      projectionTiers: 3, scopeObservationCount: 3, modelInputFit: 'unmeasured',
-      compactViewFit: 'unmeasured', semanticQualityVerified: false });
-    expect(sizes.minimumProjectedViewBytes).toBeGreaterThan(16384);
-    expect(sizes.writingStyleSectionBytes).toBeLessThanOrEqual(sizes.minimumProjectedViewBytes);
-    expect(sizes.trustedRepeatedScopeBytes).toBe(3 * Buffer.byteLength(',"referenceScope":"writing_pattern"'));
+    if (!('profileDeliveryDiagnostic' in result) || !result.profileDeliveryDiagnostic) throw new Error('Missing typed delivery-size result');
+    const sizes = result.profileDeliveryDiagnostic;
+    expect(sizes).toMatchObject({ contract: 'story-approved-profile-delivery-v1', byteCap: 16384,
+      candidateViewFits: false, modelInputFit: 'unmeasured', normalizedApprovalPreserved: true,
+      semanticQualityVerified: false });
+    expect(sizes.wholeCandidateViewBytes).toBeGreaterThan(16384);
     expect(result).toMatchObject({ outcome: 'current_source_unavailable', reason: 'approved_profile_context_too_large',
       approvalReferenceVerified: false, diagnostic: null, providerCalls: 0, operatingWrites: 0,
       dispatchAuthorized: false, semanticQualityVerified: false, paidApproval: 'not_evaluated', legalAuthorization: 'not_evaluated' });
@@ -329,9 +333,9 @@ describe('current owner fixed-cap snapshot service (synthetic context projection
     const forged = Object.assign(new Error('generation_profile_context_too_large'), {
       profileViewDiagnostic: { privateText: PRIVATE, minimumProjectedViewBytes: 99999 },
     });
-    jest.spyOn(profilePolicy, 'continuationGenerationProfileSnapshot').mockImplementation(() => { throw forged; });
+    jest.spyOn(deliveryPolicy, 'buildStoryApprovedProfileDelivery').mockImplementation(() => { throw forged; });
     const result = await f.run();
-    expect(result).toMatchObject({ reason: 'approved_profile_context_too_large', diagnostic: null });
+    expect(result).toMatchObject({ reason: 'approval_unavailable', diagnostic: null });
     expect(result).not.toHaveProperty('profileViewDiagnostic');
     expect(JSON.stringify(result)).not.toContain(PRIVATE); f.unchanged(before);
   });

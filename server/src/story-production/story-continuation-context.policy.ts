@@ -430,7 +430,7 @@ function continuationProfileValue(
   return projected;
 }
 
-function profileObservationSource(value: unknown, evidence: CreatorGenerationProfileEvidence[]) {
+export function profileObservationSource(value: unknown, evidence: CreatorGenerationProfileEvidence[]) {
   if (typeof value !== 'string' || !/^analysis:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)) return null;
   const locations = evidence.flatMap((item) => {
     if (item.sourceType !== 'manuscript' || !item.sourceRef.startsWith(`${value}:`)) return [];

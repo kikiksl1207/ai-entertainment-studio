@@ -4,8 +4,11 @@ import { isUUID } from 'class-validator';
 import { PrismaService } from '../prisma/prisma.service';
 import { StoryAuthorCurrentFitQueryDto } from './dto/story-author-current-fit.dto';
 import { readCurrentApprovedStoryStyleSnapshot } from './story-author-approved-style.snapshot';
-import { continuationGenerationProfileSnapshot, continuationHash, StoryContinuationProfileViewContextTooLargeError,
+import { continuationHash, profileObservationSource,
   type StoryContinuationProfileViewSizeDiagnostic } from './story-continuation-context.policy';
+import { buildStoryApprovedProfileDelivery, decodeStoryApprovedProfileDelivery, measureStoryApprovedProfileDelivery,
+  createStoryApprovedProfileDiagnosticView, STORY_APPROVED_PROFILE_DELIVERY_CONTRACT } from './story-approved-profile-delivery.policy';
+import type { StoryContinuationDiagnosticApprovedContext } from './story-continuation-openai.prompt';
 import { readStoryContinuationDiagnosticContext, StoryContinuationDiagnosticContextUnavailable } from './story-continuation-diagnostic-context';
 import { inspectStoryContinuationFixedCapFit, STORY_FIXED_CAP_INPUT_TOKENS, STORY_FIXED_CAP_OUTPUT_TOKENS } from './story-continuation-fixed-cap-fit';
 import { storyContinuationOutputTokenLimit } from './story-continuation-length.policy';
@@ -18,12 +21,23 @@ const reasons = ['progress_unavailable', 'progress_changed', 'release_unavailabl
   'source_scope_mismatch', 'source_unavailable', 'choice_unavailable', 'source_not_fully_read',
   'capability_unavailable', 'fixed_cap_settings_mismatch', 'context_unavailable'] as const;
 type Reason = typeof reasons[number];
+type ProfileDeliveryDiagnostic = Readonly<{
+  contract: typeof STORY_APPROVED_PROFILE_DELIVERY_CONTRACT;
+  byteCap: 16384;
+  wholeCandidateViewBytes: number;
+  candidateViewFits: boolean;
+  normalizedApprovalPreserved: true;
+  modelInputFit: 'unmeasured';
+  semanticQualityVerified: false;
+}>;
 class SnapshotUnavailable extends Error {
   constructor(readonly reason: Reason,
-    readonly profileViewDiagnostic?: StoryContinuationProfileViewSizeDiagnostic) { super(reason); }
+    readonly profileViewDiagnostic?: StoryContinuationProfileViewSizeDiagnostic,
+    readonly profileDeliveryDiagnostic?: ProfileDeliveryDiagnostic) { super(reason); }
 }
-function unavailable(reason: Reason, profileViewDiagnostic?: StoryContinuationProfileViewSizeDiagnostic): never {
-  throw new SnapshotUnavailable(reason, profileViewDiagnostic);
+function unavailable(reason: Reason, profileViewDiagnostic?: StoryContinuationProfileViewSizeDiagnostic,
+  profileDeliveryDiagnostic?: ProfileDeliveryDiagnostic): never {
+  throw new SnapshotUnavailable(reason, profileViewDiagnostic, profileDeliveryDiagnostic);
 }
 const positive = (value: unknown): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
 const hash = (value: unknown) => typeof value === 'string' && /^[a-f0-9]{64}$/i.test(value);
@@ -48,6 +62,8 @@ export class StoryAuthorCurrentFitService {
       readOnly: true as const, providerCalls: 0 as const, operatingWrites: 0 as const,
       dispatchAuthorized: false as const, semanticQualityVerified: false as const,
       legalAuthorization: 'not_evaluated' as const, paidApproval: 'not_evaluated' as const,
+      requestPreparationContract: 'story-continuation-lossless-profile-diagnostic-v1' as const,
+      dispatchCompatibility: 'not_evaluated' as const,
     };
     try {
       return await this.prisma.$transaction(async db => {
@@ -89,21 +105,20 @@ export class StoryAuthorCurrentFitService {
             approvedSettings: true, approvedFingerprint: true } });
         if (!profile || profile.workId !== workId || profile.ownerUserId !== userId ||
           profile.manuscriptVersionId !== release.manuscriptVersionId) unavailable('source_scope_mismatch');
-        let generationProfile;
-        try { generationProfile = continuationGenerationProfileSnapshot(profile); }
-        catch (error) {
-          if (error instanceof StoryContinuationProfileViewContextTooLargeError) {
-            unavailable('approved_profile_context_too_large', error.profileViewDiagnostic);
-          }
-          if (error instanceof Error && error.message === 'generation_profile_context_too_large') {
-            unavailable('approved_profile_context_too_large');
-          }
-          if (error instanceof Error && error.message === 'generation_profile_style_projection_incomplete') {
-            unavailable('approved_profile_style_projection_incomplete');
-          }
-          unavailable('approval_unavailable');
-        }
-        if (continuationHash(generationProfile.pin) !== continuationHash(approval.approvalPin)) unavailable('approval_unavailable');
+        let delivery;
+        try {
+          const packet = buildStoryApprovedProfileDelivery(profile, approval.approvalPin, profileObservationSource);
+          delivery = decodeStoryApprovedProfileDelivery(packet, profile,
+            STORY_APPROVED_PROFILE_DELIVERY_CONTRACT, profileObservationSource);
+        } catch { unavailable('approval_unavailable'); }
+        const size = measureStoryApprovedProfileDelivery(delivery.packet);
+        const profileDeliveryDiagnostic: ProfileDeliveryDiagnostic = Object.freeze({
+          contract: STORY_APPROVED_PROFILE_DELIVERY_CONTRACT, byteCap: 16384,
+          wholeCandidateViewBytes: size.wholeCandidateViewBytes, candidateViewFits: size.candidateViewFits,
+          normalizedApprovalPreserved: true, modelInputFit: 'unmeasured', semanticQualityVerified: false,
+        });
+        if (!size.candidateViewFits) unavailable('approved_profile_context_too_large', undefined, profileDeliveryDiagnostic);
+        const generationProfile = createStoryApprovedProfileDiagnosticView(delivery.settings);
 
         if (!!progress.currentSceneId === !!progress.currentGeneratedSceneId) unavailable('source_unavailable');
         const sourceKind = progress.currentGeneratedSceneId ? 'generated' as const : 'canonical' as const;
@@ -157,11 +172,12 @@ export class StoryAuthorCurrentFitService {
         if (!rateCard || rateCard.status !== 'active' || rateCard.provider !== 'openai' ||
           typeof rateCard.model !== 'string' || !rateCard.model || rateCard.model.length > 100 ||
           typeof rateCard.version !== 'string' || !rateCard.version || rateCard.version.length > 128) unavailable('capability_unavailable');
-        let context;
+        let context: StoryContinuationDiagnosticApprovedContext;
         try {
-          context = await readStoryContinuationDiagnosticContext(db, { userId, workId, releaseId: release.id,
+          const routeContext = await readStoryContinuationDiagnosticContext(db, { userId, workId, releaseId: release.id,
             manuscriptVersionId: release.manuscriptVersionId, analysisJobId: profile.analysisJobId,
-            progress, part, scene, choice, sourceKind, locale: query.locale, generationProfile: generationProfile.approved });
+            progress, part, scene, choice, sourceKind, locale: query.locale, generationProfile });
+          context = { ...routeContext, generationProfile };
         } catch (error) {
           if (error instanceof StoryContinuationDiagnosticContextUnavailable) unavailable('context_unavailable');
           throw error;
@@ -170,25 +186,28 @@ export class StoryAuthorCurrentFitService {
           // This marker is never a stored continuation, paid receipt, lease or provider operation.
           operationId: 'current_owner_read_only_diagnostic', locale: query.locale,
           contextFingerprint: continuationHash({ release: release.id, checksum: release.checksum,
-            progressRevision: progress.progressRevision, profile: generationProfile.pin, choice: choice.id, context }),
+            progressRevision: progress.progressRevision, profile: delivery.packet.pin, choice: choice.id, context }),
           promptVersion: STORY_CONTINUATION_PROMPT_VERSION, outputSchemaVersion: STORY_CONTINUATION_SCHEMA_VERSION,
           inputTokenLimit: capability.aiInputTokenLimit,
           outputTokenLimit: storyContinuationOutputTokenLimit(context.narrativeLength!, capability.aiOutputTokenLimit),
           provider: rateCard.provider, model: rateCard.model, rateCardId: rateCard.id, rateCardVersion: rateCard.version,
           approvedContext: context,
         }, { provider: rateCard.provider, model: rateCard.model, rateCardId: rateCard.id, rateCardVersion: rateCard.version,
-          maxInputTokens: capability.aiInputTokenLimit, maxOutputTokens: capability.aiOutputTokenLimit });
+          maxInputTokens: capability.aiInputTokenLimit, maxOutputTokens: capability.aiOutputTokenLimit },
+          { packet: delivery.packet, currentRow: profile });
         return { ...envelope, outcome: 'request_checked' as const, currentSourceState: 'validated' as const,
           approvalReferenceVerified: true as const, progressRevision: progress.progressRevision,
           manuscriptVersion: approval.projection.manuscriptVersion, analysisVersion: approval.projection.analysisVersion,
-          profileVersion: approval.projection.profileVersion, reviewRevision: approval.projection.reviewRevision, diagnostic };
+          profileVersion: approval.projection.profileVersion, reviewRevision: approval.projection.reviewRevision,
+          profileDeliveryDiagnostic, diagnostic };
       }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
     } catch (error) {
       if (error instanceof SnapshotUnavailable) return { ...envelope, outcome: 'current_source_unavailable' as const,
         currentSourceState: 'unavailable' as const, reason: error.reason, approvalReferenceVerified: false as const,
         progressRevision: null, manuscriptVersion: null, analysisVersion: null, profileVersion: null, reviewRevision: null,
         diagnostic: null,
-        ...(error.profileViewDiagnostic ? { profileViewDiagnostic: error.profileViewDiagnostic } : {}) };
+        ...(error.profileViewDiagnostic ? { profileViewDiagnostic: error.profileViewDiagnostic } : {}),
+        ...(error.profileDeliveryDiagnostic ? { profileDeliveryDiagnostic: error.profileDeliveryDiagnostic } : {}) };
       if (error instanceof NotFoundException) throw error;
       throw new ServiceUnavailableException({ code: 'STORY_AUTHOR_CURRENT_FIT_UNAVAILABLE' });
     }

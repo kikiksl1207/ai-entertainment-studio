@@ -1,5 +1,6 @@
 import { prepareStoryContinuationOpenAiRequestForDiagnostics,
-  type StoryContinuationRequestPreparationConfig } from './story-continuation-openai.prompt';
+  type StoryContinuationRequestPreparationConfig,
+  type StoryContinuationDiagnosticProfileBinding } from './story-continuation-openai.prompt';
 import { StoryContinuationProviderError, type StoryContinuationProviderRequest } from './story-continuation.provider';
 import { STORY_CONTINUATION_TOKEN_BUDGET_METHOD, storyContinuationInputTokenBudget } from './story-continuation-tokenizer';
 import { StoryContinuationLengthPolicyError } from './story-continuation-length.policy';
@@ -47,6 +48,7 @@ const SAFE_FAILURE_CODES = new Set([
 export function inspectStoryContinuationFixedCapFit(
   request: StoryContinuationProviderRequest,
   config: StoryContinuationRequestPreparationConfig,
+  profileBinding?: StoryContinuationDiagnosticProfileBinding,
 ): StoryContinuationFixedCapFit {
   const unknown: StoryContinuationFixedCapFit = {
     version: STORY_FIXED_CAP_FIT_VERSION,
@@ -64,7 +66,7 @@ export function inspectStoryContinuationFixedCapFit(
         request.outputTokenLimit !== STORY_FIXED_CAP_OUTPUT_TOKENS) {
       return Object.freeze({ ...unknown, reason: 'fixed_cap_request_limits_mismatch' });
     }
-    const body = prepareStoryContinuationOpenAiRequestForDiagnostics(request, config);
+    const body = prepareStoryContinuationOpenAiRequestForDiagnostics(request, config, profileBinding);
     const inputTokenBudget = storyContinuationInputTokenBudget(body);
     const projected = JSON.parse(body.input[0].content[0].text);
     const length = projected.narrativeLength;
@@ -82,9 +84,10 @@ export function inspectStoryContinuationFixedCapFit(
         targetUnits: length.targetUnits,
         maxUnits: length.maximumUnits,
       }),
-      writingStylePresent: !!projected.generationProfile?.sections.some(
-        (section: { key: string }) => section.key === 'writing_style',
-      ),
+      writingStylePresent: profileBinding
+        ? !!projected.generationProfile?.serverInterpretation.sections.some(
+          (section: { key: string; active: boolean }) => section.key === 'writing_style' && section.active === true)
+        : !!projected.generationProfile?.sections.some((section: { key: string }) => section.key === 'writing_style'),
     });
   } catch (error) {
     const reason = (error instanceof StoryContinuationProviderError || error instanceof StoryContinuationLengthPolicyError) &&
