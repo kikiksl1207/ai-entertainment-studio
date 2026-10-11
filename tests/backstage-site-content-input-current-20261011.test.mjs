@@ -13,7 +13,7 @@ const helperStart = sharedSource.indexOf('async function backstageFetch(');
 const helperEnd = sharedSource.indexOf('\nwindow.LuminaBackstageApi =', helperStart);
 assert.ok(helperStart >= 0 && helperEnd > helperStart, 'Missing actual shared fetch');
 const sharedFetchSource = sharedSource.slice(helperStart, helperEnd);
-const oldBytes = readFileSync(new URL('./backstage-site-content-confirm-target-20261010.test.mjs', import.meta.url));
+const oldBytes = Buffer.from(readFileSync(new URL('./backstage-site-content-confirm-target-20261010.test.mjs', import.meta.url), 'utf8').replace(/\r\n/g, '\n'));
 assert.equal(createHash('sha256').update(oldBytes).digest('hex'),
   '1953af2c228cf6fc7f48b9e57e7398ae28442550f3d3d52bf356a8c0205ba5ff');
 const oldSource = oldBytes.toString('utf8');
