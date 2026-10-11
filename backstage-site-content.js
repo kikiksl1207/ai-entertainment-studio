@@ -30,6 +30,7 @@
     loading: false,
     listError: "",
     editorEpoch: 0,
+    inputRevision: 0,
   };
 
   function dom(id) {
@@ -272,6 +273,10 @@
     return state.selectedId === target.id && state.editorEpoch === target.epoch;
   }
 
+  function isCurrentEditorInput(target) {
+    return isCurrentEditor(target) && state.inputRevision === target.inputRevision;
+  }
+
   async function loadAudit(id) {
     var list = dom("siteContentAuditList");
     if (!list) return;
@@ -456,13 +461,16 @@
       setStatus("발행할 문구를 먼저 선택하거나 draft 저장하세요.", "error");
       return;
     }
-    var target = { id: state.selectedId, epoch: state.editorEpoch };
+    var target = { id: state.selectedId, epoch: state.editorEpoch, inputRevision: state.inputRevision };
     var item = state.items.find(function (i) { return i.id === target.id; });
     var scopeLabel = item ? (item.pageKey || item.scope || "global") : state.selectedId;
     confirmAction(
       "이 문구가 사용자 화면에 즉시 노출됩니다. (" + scopeLabel + ")\n발행하시겠어요?",
       async function () {
-        if (!isCurrentEditor(target)) return;
+        if (!isCurrentEditorInput(target)) {
+          if (isCurrentEditor(target)) setStatus("입력이 바뀌어 이전 발행 확인은 적용하지 않았습니다.", "neutral");
+          return;
+        }
         setStatus("발행 처리 중…", "neutral");
         try {
           await adminFetch("/" + encodeURIComponent(target.id) + "/publish", { method: "POST" });
@@ -470,6 +478,10 @@
           setStatus("발행되었습니다.", "success");
           await loadList();
           if (!isCurrentEditor(target)) return;
+          if (!isCurrentEditorInput(target)) {
+            setStatus("발행되었습니다. 새로 입력한 내용은 아직 저장되지 않았습니다.", "neutral");
+            return;
+          }
           var refreshed = state.items.find(function (i) { return i.id === target.id; });
           if (refreshed) openEditor(refreshed);
         } catch (error) {
@@ -485,11 +497,14 @@
       setStatus("보관할 문구를 먼저 선택하세요.", "error");
       return;
     }
-    var target = { id: state.selectedId, epoch: state.editorEpoch };
+    var target = { id: state.selectedId, epoch: state.editorEpoch, inputRevision: state.inputRevision };
     confirmAction(
       "이 문구는 보관 처리되고 사용자 화면에서 사라집니다. 진행하시겠어요?",
       async function () {
-        if (!isCurrentEditor(target)) return;
+        if (!isCurrentEditorInput(target)) {
+          if (isCurrentEditor(target)) setStatus("입력이 바뀌어 이전 보관 확인은 적용하지 않았습니다.", "neutral");
+          return;
+        }
         setStatus("보관 처리 중…", "neutral");
         try {
           await adminFetch("/" + encodeURIComponent(target.id) + "/archive", { method: "POST" });
@@ -497,6 +512,10 @@
           setStatus("보관되었습니다.", "success");
           await loadList();
           if (!isCurrentEditor(target)) return;
+          if (!isCurrentEditorInput(target)) {
+            setStatus("보관되었습니다. 새로 입력한 내용은 아직 저장되지 않았습니다.", "neutral");
+            return;
+          }
           closeEditor();
         } catch (error) {
           if (!isCurrentEditor(target)) return;
@@ -511,11 +530,14 @@
       setStatus("복구할 문구를 먼저 선택하세요.", "error");
       return;
     }
-    var target = { id: state.selectedId, epoch: state.editorEpoch };
+    var target = { id: state.selectedId, epoch: state.editorEpoch, inputRevision: state.inputRevision };
     confirmAction(
       "보관된 문구를 draft 상태로 복구합니다. 복구 후 수정하거나 다시 발행할 수 있어요.\n진행할까요?",
       async function () {
-        if (!isCurrentEditor(target)) return;
+        if (!isCurrentEditorInput(target)) {
+          if (isCurrentEditor(target)) setStatus("입력이 바뀌어 이전 복구 확인은 적용하지 않았습니다.", "neutral");
+          return;
+        }
         setStatus("복구 처리 중...", "neutral");
         try {
           await adminFetch("/" + encodeURIComponent(target.id) + "/restore", {
@@ -526,6 +548,10 @@
           setStatus("문구를 draft 상태로 복구했습니다.", "success");
           await loadList();
           if (!isCurrentEditor(target)) return;
+          if (!isCurrentEditorInput(target)) {
+            setStatus("복구되었습니다. 새로 입력한 내용은 아직 저장되지 않았습니다.", "neutral");
+            return;
+          }
           var refreshed = state.items.find(function (i) { return i.id === target.id; });
           if (refreshed) openEditor(refreshed);
         } catch (error) {
@@ -587,6 +613,7 @@
       form.dataset.bound = "1";
       form.addEventListener("submit", saveDraft);
       form.addEventListener("input", function () {
+        state.inputRevision += 1;
         refreshCounters();
         refreshPreview();
       });
