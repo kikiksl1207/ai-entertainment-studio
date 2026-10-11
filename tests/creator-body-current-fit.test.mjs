@@ -900,7 +900,7 @@ test('CURRENT-FIT-PROFILE-SIZE: malformed wire clears state; JS cache query alon
     assert.equal(view.calls.length, 2);
   }
   const entry = readFileSync(new URL('../creator-studio/index.html', import.meta.url), 'utf8');
-  assert.match(entry, /creator-body-current-fit\.js\?v=current-fit-profile-size-20261011/);
+  assert.match(entry, /creator-body-current-fit\.js\?v=20261012-lossless-delivery"/);
   assert.match(entry, /creator-body-current-fit\.css\?v=current-fit-20261011/);
   assert.match(source, /new Intl\.NumberFormat\(state\.locale\)/);
   assert.match(css, /grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
@@ -1090,10 +1090,344 @@ test('CURRENT-FIT-STYLE-PROJECTION: malformed or raw-reason wire responses clear
 
 test('CURRENT-FIT-STYLE-PROJECTION: only the actual helper cache query advances, keeping existing CSS and GET-only controls', () => {
   const entry = readFileSync(new URL('../creator-studio/index.html', import.meta.url), 'utf8');
-  const helper = '/pages/creator-body-current-fit.js?v=current-fit-profile-size-20261011-style-completeness';
+  const helper = '/pages/creator-body-current-fit.js?v=20261012-lossless-delivery';
   assert.equal(entry.split(helper).length, 2); assert.ok(entry.includes('src="' + helper + '"'));
   assert.ok(entry.includes('href="/pages/creator-body-current-fit.css?v=current-fit-20261011"'));
   assert.doesNotMatch(source, /\/generate|\/approve|\/payments|\/auth\/refresh|setInterval|setTimeout|console\./);
   assert.match(source, /_retried: true, cache: "no-store"/);
   assert.match(css, /overflow-wrap: anywhere/); assert.match(css, /@media \(max-width: 720px\)/);
+});
+
+// Synthetic envelopes only; never retain or request an approved packet, author text or credentials.
+const losslessMarkers = {
+  requestPreparationContract: 'story-continuation-lossless-profile-diagnostic-v1', dispatchCompatibility: 'not_evaluated'
+};
+const profileDeliveryKeys = ['contract', 'byteCap', 'wholeCandidateViewBytes', 'candidateViewFits',
+  'normalizedApprovalPreserved', 'modelInputFit', 'semanticQualityVerified'];
+const deliverySize = (fits = true, changes = {}) => ({
+  contract: 'story-approved-profile-delivery-v1', byteCap: 16384, wholeCandidateViewBytes: fits ? 12000 : 24000,
+  candidateViewFits: fits, normalizedApprovalPreserved: true, modelInputFit: 'unmeasured', semanticQualityVerified: false, ...changes
+});
+const losslessChecked = (locale = 'ko', revision = 7, changes = {}) => ({
+  ...diagnostic(locale, revision), ...losslessMarkers, profileDeliveryDiagnostic: deliverySize(true, changes)
+});
+const losslessUnavailable = (reason = 'approved_profile_context_too_large', locale = 'ko', changes = {}) => ({
+  ...unavailable(reason, locale), ...losslessMarkers,
+  ...(reason === 'approved_profile_context_too_large' ? { profileDeliveryDiagnostic: deliverySize(false, changes) } : {})
+});
+const existingFitRows = ['source', 'revision', 'story', 'manuscript', 'analysis', 'profile', 'review', 'reference',
+  'range', 'input', 'budget', 'output', 'style', 'legal', 'paid', 'dispatch'];
+
+for (const language of locales) {
+  test('CURRENT-FIT-LOSSLESS: ' + language + ' keeps old rows unchanged and renders only two full-packet byte rows', async () => {
+    const sourceLanguage = language === 'ja' ? 'en' : 'ja';
+    for (const overflow of [false, true]) {
+      const legacy = overflow ? sizedUnavailable(sourceLanguage) : diagnostic(sourceLanguage);
+      const current = overflow ? losslessUnavailable('approved_profile_context_too_large', sourceLanguage) : losslessChecked(sourceLanguage);
+      const oldView = mounted(({ url }) => response(url.includes('/current-fit?') ? legacy : preview(sourceLanguage)));
+      const newView = mounted(({ url }) => response(url.includes('/current-fit?') ? current : preview(sourceLanguage)));
+      for (const view of [oldView, newView]) {
+        view.locale(language); view.sourceLocale.value = sourceLanguage; view.sourceLocale.fire('change');
+        view.bodyPreview.textContent = 'SYNTHETIC_SEPARATE_PREVIEW'; view.trial.textContent = 'SYNTHETIC_SEPARATE_JOURNAL';
+        await mountedCheck(view);
+        assert.equal(view.host.lang, language); assert.equal(view.calls.length, 2); assert.equal(view.refreshes(), 0);
+        assert.equal(view.bodyPreview.textContent, 'SYNTHETIC_SEPARATE_PREVIEW');
+        assert.equal(view.trial.textContent, 'SYNTHETIC_SEPARATE_JOURNAL');
+        for (const { options } of view.calls) {
+          assert.equal(options.method, 'GET'); assert.equal(options.body, undefined); assert.equal(options._retried, true);
+          assert.equal(options.cache, 'no-store'); assert.equal(options.token, 'SYNTHETIC_EXISTING_TOKEN');
+        }
+      }
+      for (const key of existingFitRows) assert.equal(row(newView, key), row(oldView, key), key);
+      assert.equal(newView.node('writerBodyCurrentFitState').textContent, oldView.node('writerBodyCurrentFitState').textContent);
+      assert.equal(metadata(oldView).children.length, overflow ? 20 : 16);
+      assert.equal(metadata(newView).children.length, 18);
+      const c = newView.api.copy[language], format = new Intl.NumberFormat(language);
+      assert.equal(c.profileAllBytes, sizeLabels[language][0]); assert.equal(c.profileByteCap, sizeLabels[language][2]);
+      assert.equal(row(newView, 'profileAllBytes'), format.format(overflow ? 24000 : 12000) + ' B');
+      assert.equal(row(newView, 'profileByteCap'), format.format(16384) + ' B');
+      for (const key of ['profileStyleBytes', 'profileRepeatedBytes']) assert.equal(row(newView, key), undefined);
+      if (overflow) {
+        assert.equal(row(oldView, 'profileStyleBytes'), format.format(17000) + ' B');
+        assert.equal(row(oldView, 'profileRepeatedBytes'), format.format(3500) + ' B');
+      } else for (const key of sizeRows) assert.equal(row(oldView, key), undefined);
+      for (const [key, status] of [['output', c.unmeasured], ['style', c.notVerified], ['legal', c.notEvaluated],
+        ['paid', c.notEvaluated], ['dispatch', c.notAuthorized]]) assert.equal(row(newView, key), status);
+      assert.equal(newView.node('writerBodyCurrentFitCheck').disabled, overflow);
+      assert.equal(newView.node('writerBodyCurrentFitChoice').disabled, overflow);
+      assert.doesNotMatch(newView.host.textContent, /story-approved-profile-delivery|story-continuation-lossless|not_evaluated|PRIVATE_BODY_NOT_RETAINED|CURRENT_PRIVATE_SCENE/);
+      for (const secret of [id(1), id(2), id(3), id(7), 'a'.repeat(64)]) assert.equal(newView.host.textContent.includes(secret), false);
+    }
+  });
+}
+
+test('CURRENT-FIT-LOSSLESS: old and new normal, overflow and other unavailable envelopes clone exactly', () => {
+  const values = [diagnostic(), unmeasured(), sizedUnavailable(), unavailable('progress_changed'), losslessChecked(),
+    { ...unmeasured(), ...losslessMarkers, profileDeliveryDiagnostic: deliverySize() }, losslessUnavailable(),
+    losslessUnavailable('progress_changed'), losslessUnavailable(styleProjectionReason)];
+  for (const value of values) {
+    const parsed = parse(freeze(value));
+    assert.deepEqual(clone(parsed), value); assert.notEqual(parsed, value);
+    if (value.profileDeliveryDiagnostic) {
+      assert.deepEqual(Object.keys(parsed.profileDeliveryDiagnostic), profileDeliveryKeys);
+      assert.notEqual(parsed.profileDeliveryDiagnostic, value.profileDeliveryDiagnostic);
+      parsed.profileDeliveryDiagnostic.wholeCandidateViewBytes = 99;
+      assert.notEqual(value.profileDeliveryDiagnostic.wholeCandidateViewBytes, 99);
+    }
+  }
+});
+
+test('CURRENT-FIT-LOSSLESS: new other-unavailable responses show no invented metrics and keep null authority', async () => {
+  for (const reason of ['progress_changed', 'approval_unavailable', styleProjectionReason]) {
+    const value = losslessUnavailable(reason);
+    const view = mounted(({ url }) => response(url.includes('/current-fit?') ? value : preview()));
+    await mountedCheck(view);
+    assert.equal(metadata(view).children.length, 16);
+    for (const key of sizeRows) assert.equal(row(view, key), undefined);
+    for (const key of ['revision', 'manuscript', 'analysis', 'profile', 'review', 'reference', 'input', 'budget']) {
+      assert.equal(row(view, key), view.api.copy.ko.unmeasured);
+    }
+    assert.equal(row(view, 'dispatch'), view.api.copy.ko.notAuthorized);
+    assert.equal(view.node('writerBodyCurrentFitCheck').disabled, true); assert.equal(view.calls.length, 2);
+    for (const field of ['profileDeliveryDiagnostic', 'profileViewDiagnostic']) {
+      for (const metric of [deliverySize(), profileSize(), null, undefined]) {
+        assert.throws(() => parse({ ...value, [field]: metric }));
+      }
+    }
+  }
+});
+
+test('CURRENT-FIT-LOSSLESS: envelope markers must be a matching exact pair and required delivery metadata cannot be omitted', () => {
+  for (const value of [losslessChecked(), losslessUnavailable(), losslessUnavailable('approval_unavailable')]) {
+    for (const field of Object.keys(losslessMarkers)) {
+      const missing = clone(value); delete missing[field]; assert.throws(() => parse(missing));
+      for (const invalid of [null, undefined, false, 0, '', 'approved', losslessMarkers[field] + ' ', losslessMarkers[field] + '-v2']) {
+        assert.throws(() => parse({ ...value, [field]: invalid }));
+      }
+    }
+  }
+  for (const value of [losslessChecked(), losslessUnavailable()]) {
+    const missing = clone(value); delete missing.profileDeliveryDiagnostic; assert.throws(() => parse(missing));
+    const unmarked = clone(value);
+    delete unmarked.requestPreparationContract; delete unmarked.dispatchCompatibility;
+    assert.throws(() => parse(unmarked));
+  }
+});
+
+test('CURRENT-FIT-LOSSLESS: historical and lossless namespaces cannot be combined or substituted', () => {
+  for (const value of [losslessChecked(), losslessUnavailable()]) {
+    assert.throws(() => parse({ ...value, profileViewDiagnostic: profileSize() }));
+    assert.throws(() => parse({ ...value, profileDeliveryDiagnostic: profileSize() }));
+  }
+  for (const value of [diagnostic(), sizedUnavailable(), unavailable('approval_unavailable')]) {
+    assert.throws(() => parse({ ...value, profileDeliveryDiagnostic: deliverySize() }));
+  }
+  assert.throws(() => parse({ ...sizedUnavailable(), ...losslessMarkers }));
+  assert.throws(() => parse(losslessChecked('ko', 7, { contract: 'story-profile-view-byte-diagnostic-v1' })));
+  assert.throws(() => parse(losslessUnavailable('approved_profile_context_too_large', 'ko', { contract: 'story-approved-profile-delivery-v2' })));
+});
+
+test('CURRENT-FIT-LOSSLESS: full-packet size boundaries and fits booleans must agree with the outcome', () => {
+  for (const count of [1, 16384]) assert.equal(parse(losslessChecked('ko', 7, { wholeCandidateViewBytes: count })).profileDeliveryDiagnostic.wholeCandidateViewBytes, count);
+  for (const count of [16385, 2000000]) assert.equal(parse(losslessUnavailable('approved_profile_context_too_large', 'ko', { wholeCandidateViewBytes: count })).profileDeliveryDiagnostic.wholeCandidateViewBytes, count);
+  for (const count of [null, undefined, false, 0, -1, 1.5, '12000', NaN, Infinity, -Infinity, 2000001, Number.MAX_SAFE_INTEGER + 1]) {
+    assert.throws(() => parse(losslessChecked('ko', 7, { wholeCandidateViewBytes: count })));
+    assert.throws(() => parse(losslessUnavailable('approved_profile_context_too_large', 'ko', { wholeCandidateViewBytes: count })));
+  }
+  assert.throws(() => parse(losslessChecked('ko', 7, { wholeCandidateViewBytes: 16385 })));
+  assert.throws(() => parse(losslessUnavailable('approved_profile_context_too_large', 'ko', { wholeCandidateViewBytes: 16384 })));
+  for (const fits of [null, undefined, 0, 1, 'true', 'false']) {
+    assert.throws(() => parse(losslessChecked('ko', 7, { candidateViewFits: fits })));
+    assert.throws(() => parse(losslessUnavailable('approved_profile_context_too_large', 'ko', { candidateViewFits: fits })));
+  }
+  assert.throws(() => parse(losslessChecked('ko', 7, { candidateViewFits: false, wholeCandidateViewBytes: 24000 })));
+  assert.throws(() => parse(losslessUnavailable('approved_profile_context_too_large', 'ko', { candidateViewFits: true, wholeCandidateViewBytes: 12000 })));
+  for (const cap of [null, undefined, 0, 16383, 16385, '16384', Infinity]) {
+    assert.throws(() => parse(losslessChecked('ko', 7, { byteCap: cap })));
+    assert.throws(() => parse(losslessUnavailable('approved_profile_context_too_large', 'ko', { byteCap: cap })));
+  }
+});
+
+test('CURRENT-FIT-LOSSLESS: exact metadata keys, normalized preservation and unmeasured quality stay mandatory', () => {
+  for (const value of [losslessChecked(), losslessUnavailable()]) {
+    for (const field of profileDeliveryKeys) {
+      const missing = clone(value); delete missing.profileDeliveryDiagnostic[field]; assert.throws(() => parse(missing));
+    }
+    for (const changes of [{ normalizedApprovalPreserved: false }, { normalizedApprovalPreserved: 'true' },
+      { normalizedApprovalPreserved: null }, { modelInputFit: 'within_policy_bound' }, { modelInputFit: null },
+      { semanticQualityVerified: true }, { semanticQualityVerified: 'false' }, { semanticQualityVerified: null },
+      { writingStyleSectionBytes: 1 }, { trustedRepeatedScopeBytes: 0 }, { providerCalls: 0 }, { raw: 'SYNTHETIC_PRIVATE' }]) {
+      assert.throws(() => parse({ ...value, profileDeliveryDiagnostic: { ...value.profileDeliveryDiagnostic, ...changes } }));
+    }
+    for (const metric of [null, undefined, false, 1, 'size', [], new Date(), new Number(1)]) {
+      assert.throws(() => parse({ ...value, profileDeliveryDiagnostic: metric }));
+    }
+  }
+});
+
+test('CURRENT-FIT-LOSSLESS: old and new parser paths reject stale versions, extra fields and elevated authority', () => {
+  for (const value of [diagnostic(), sizedUnavailable(), losslessChecked(), losslessUnavailable()]) {
+    assert.throws(() => parse(value, 'en', 7));
+    const staleRevision = value.outcome === 'request_checked' ? 6 : 7;
+    for (const changes of [{ progressRevision: staleRevision }, { readOnly: false }, { providerCalls: 1 }, { operatingWrites: 1 },
+      { dispatchAuthorized: true }, { semanticQualityVerified: true }, { legalAuthorization: 'approved' },
+      { paidApproval: 'approved' }, { ownerId: id(8) }, { approvedFingerprint: 'a'.repeat(64) },
+      { authorData: { sections: [] } }, { packet: { contract: 'story-approved-profile-delivery-v1' } }]) {
+      assert.throws(() => parse({ ...value, ...changes }));
+    }
+    if (value.outcome === 'request_checked') {
+      assert.throws(() => parse(value, 'ko', 8));
+      for (const changes of [{ fixedInputTokenLimit: 32769 }, { fixedOutputTokenLimit: 8193 }, { dispatchAuthorized: true },
+        { semanticQualityVerified: true }, { providerCalls: 1 }, { inputFit: 'within_policy_bound', inputTokenBudget: 32769 }]) {
+        assert.throws(() => parse({ ...value, diagnostic: { ...value.diagnostic, ...changes } }));
+      }
+    } else for (const field of ['manuscriptVersion', 'analysisVersion', 'profileVersion', 'reviewRevision']) {
+      assert.throws(() => parse({ ...value, [field]: 1 }));
+    }
+  }
+});
+
+test('CURRENT-FIT-LOSSLESS: private extra fields reject before reaching controller state or text-only DOM', async () => {
+  const secret = '<img src=x onerror=steal()>SYNTHETIC_PRIVATE_PACKET';
+  for (const initial of [diagnostic(), sizedUnavailable(), losslessChecked(), losslessUnavailable()]) {
+    for (const field of ['root', 'metric']) {
+      if (field === 'metric' && !initial.profileViewDiagnostic && !initial.profileDeliveryDiagnostic) continue;
+      const value = clone(initial);
+      const target = field === 'root' ? value : value.profileDeliveryDiagnostic || value.profileViewDiagnostic;
+      target.raw = secret; assert.throws(() => parse(value));
+      const view = mounted(({ url }) => response(url.includes('/current-fit?') ? value : preview()));
+      await mountedCheck(view); emptyDOM(view);
+      assert.equal(view.node('writerBodyCurrentFitState').textContent, view.api.copy.ko.invalid);
+      assert.equal(view.host.textContent.includes(secret), false);
+      assert.equal(walk(view.host).filter(node => ['IMG', 'SCRIPT', 'IFRAME', 'INPUT', 'TEXTAREA', 'A'].includes(node.tagName)).length, 0);
+      assert.equal(view.calls.length, 2); assert.equal(view.refreshes(), 0);
+    }
+  }
+});
+
+test('CURRENT-FIT-LOSSLESS: old/new normal/overflow tampering clears earlier widget state without retries', async () => {
+  for (const initial of [diagnostic(), sizedUnavailable(), losslessChecked(), losslessUnavailable()]) {
+    for (const change of ['quality', 'authority', 'binding']) {
+      const invalid = clone(initial);
+      if (change === 'authority') invalid.dispatchAuthorized = true;
+      if (change === 'binding') {
+        if (invalid.profileDeliveryDiagnostic) delete invalid.dispatchCompatibility;
+        else invalid.progressRevision = invalid.outcome === 'request_checked' ? 6 : 7;
+      }
+      if (change === 'quality') {
+        const metric = invalid.profileDeliveryDiagnostic || invalid.profileViewDiagnostic || invalid.diagnostic;
+        metric.semanticQualityVerified = true;
+      }
+      assert.throws(() => parse(invalid));
+      let checks = 0;
+      const view = mounted(({ url }) => response(url.includes('/current-fit?') ? checks++ === 0 ? initial : invalid : preview()));
+      await mountedCheck(view); assert.equal(metadata(view).children.length, initial.profileViewDiagnostic ? 20 : initial.profileDeliveryDiagnostic ? 18 : 16);
+      await mountedCheck(view); emptyDOM(view);
+      assert.equal(view.node('writerBodyCurrentFitState').textContent, view.api.copy.ko.invalid);
+      for (const key of sizeRows) assert.equal(row(view, key), undefined);
+      assert.equal(await view.check(), undefined); assert.equal(view.calls.length, 4); assert.equal(view.refreshes(), 0);
+    }
+  }
+});
+
+test('CURRENT-FIT-LOSSLESS: hidden keys, symbols, prototypes and getters fail closed without getter reads', () => {
+  for (const initial of [losslessChecked(), losslessUnavailable()]) {
+    for (const level of ['root', 'metric']) for (const change of ['hidden', 'symbol', 'prototype', 'getter']) {
+      const value = clone(initial), target = level === 'root' ? value : value.profileDeliveryDiagnostic;
+      let reads = 0;
+      if (change === 'hidden') Object.defineProperty(target, 'raw', { value: 'SYNTHETIC_PRIVATE', enumerable: false });
+      if (change === 'symbol') target[Symbol('raw')] = 'SYNTHETIC_PRIVATE';
+      if (change === 'prototype') Object.setPrototypeOf(target, { raw: 'SYNTHETIC_PRIVATE' });
+      if (change === 'getter') Object.defineProperty(target, level === 'root' ? 'requestPreparationContract' : 'wholeCandidateViewBytes', {
+        enumerable: true, get() { reads++; return 'SYNTHETIC_PRIVATE'; }
+      });
+      assert.throws(() => parse(value)); assert.equal(reads, 0);
+    }
+    const safe = clone(initial);
+    safe.profileDeliveryDiagnostic = Object.assign(Object.create(null), safe.profileDeliveryDiagnostic);
+    assert.deepEqual(clone(parse(freeze(safe))), clone(safe));
+  }
+});
+
+test('CURRENT-FIT-LOSSLESS: old and new late normal/overflow responses cannot survive a choice, profile or owner reset', async () => {
+  for (const value of [diagnostic(), sizedUnavailable(), losslessChecked(), losslessUnavailable()]) {
+    for (const change of ['choice', 'profile', 'owner', 'refresh']) {
+      const held = deferred(), view = mounted(({ url, calls }) => url.includes('/current-fit?') ? held.promise
+        : response(preview('ko', calls.length === 1 ? 7 : 8)));
+      await view.refresh(); view.select(); const pending = view.check();
+      if (change === 'choice') view.select(id(10));
+      if (change === 'profile') view.window.fire('creator:generation-profile-changed');
+      if (change === 'owner') { view.setOwner({ ownerId: id(9), epoch: 2 }); view.window.fire('lumina:authchange'); }
+      if (change === 'refresh') { view.window.fire('creator:generation-profile-changed'); await view.refresh(); }
+      assert.equal(view.calls[1].options.signal.aborted, true);
+      const before = view.host.textContent; held.resolve(response(value));
+      assert.equal(await pending, false); assert.equal(view.host.textContent, before);
+      for (const key of sizeRows) assert.equal(row(view, key), undefined);
+      if (change === 'owner' || change === 'profile') emptyDOM(view);
+      else assert.equal(row(view, 'revision'), change === 'choice' ? '7' : '8');
+      assert.equal(view.calls.length, change === 'refresh' ? 3 : 2); assert.equal(view.refreshes(), 0);
+    }
+  }
+});
+
+test('CURRENT-FIT-LOSSLESS: completed two-row diagnostics clear on every existing identity and visibility boundary', async () => {
+  for (const value of [losslessChecked(), losslessUnavailable()]) {
+    for (const change of ['refresh', 'choice', 'logout', 'owner', 'epoch', 'profile', 'progress', 'work', 'source', 'language', 'hidden', 'document']) {
+      if (change === 'choice' && value.outcome !== 'request_checked') continue;
+      const view = mounted(({ url }) => response(url.includes('/current-fit?') ? value : preview()));
+      await mountedCheck(view); assert.equal(metadata(view).children.length, 18);
+      if (change === 'refresh') await view.refresh();
+      if (change === 'choice') view.select(id(10));
+      if (change === 'logout') { view.setOwner(null); view.window.fire('lumina:authchange'); }
+      if (change === 'owner') { view.setOwner({ ownerId: id(9), epoch: 2 }); view.window.fire('lumina:authchange'); }
+      if (change === 'epoch') { view.setOwner({ ownerId: id(8), epoch: 2 }); view.window.fire('lumina:authchange'); }
+      if (change === 'profile') view.window.fire('creator:generation-profile-changed');
+      if (change === 'progress') view.window.fire('lumina:author-body-trial-progress-changed');
+      if (change === 'work') { view.work.value = id(9); view.work.fire('input'); }
+      if (change === 'source') { view.sourceLocale.value = 'ja'; view.sourceLocale.fire('change'); }
+      if (change === 'language') { view.locale('en'); view.window.fire('lumina:localechange'); }
+      if (change === 'hidden') { view.section.classList.remove('is-active'); view.mutate(view.section); }
+      if (change === 'document') { view.document.visibilityState = 'hidden'; view.document.fire('visibilitychange'); }
+      for (const key of sizeRows) assert.equal(row(view, key), undefined);
+      if (!['refresh', 'choice'].includes(change)) emptyDOM(view);
+      assert.equal(view.calls.length, change === 'refresh' ? 3 : 2); assert.equal(view.refreshes(), 0);
+    }
+  }
+});
+
+test('CURRENT-FIT-LOSSLESS: refresh between historical/new diagnostics replaces rows rather than retaining old detail counts', async () => {
+  for (const values of [[sizedUnavailable(), losslessUnavailable()], [losslessChecked(), diagnostic()],
+    [losslessUnavailable(), sizedUnavailable()], [losslessChecked(), losslessUnavailable('approval_unavailable')]]) {
+    let checks = 0;
+    const view = mounted(({ url }) => response(url.includes('/current-fit?') ? values[checks++] : preview()));
+    await mountedCheck(view);
+    await mountedCheck(view);
+    const final = values[1];
+    assert.equal(metadata(view).children.length, final.profileViewDiagnostic ? 20 : final.profileDeliveryDiagnostic ? 18 : 16);
+    for (const key of ['profileStyleBytes', 'profileRepeatedBytes']) {
+      assert.equal(row(view, key) !== undefined, !!final.profileViewDiagnostic);
+    }
+    for (const key of ['profileAllBytes', 'profileByteCap']) {
+      assert.equal(row(view, key) !== undefined, !!(final.profileViewDiagnostic || final.profileDeliveryDiagnostic));
+    }
+    assert.equal(view.calls.length, 4); assert.equal(view.refreshes(), 0);
+  }
+});
+
+test('CURRENT-FIT-LOSSLESS: new envelopes retain bounded streaming and clear malformed or oversized wire without retries', async () => {
+  for (const value of [losslessChecked(), losslessUnavailable()]) {
+    const validWire = JSON.stringify(value);
+    for (const raw of ['{', validWire + ' '.repeat(16385 - Buffer.byteLength(validWire, 'utf8'))]) {
+      const wire = response(null, { raw }), view = mounted(({ url }) => url.includes('/current-fit?') ? wire : response(preview()));
+      await mountedCheck(view); emptyDOM(view);
+      assert.equal(view.node('writerBodyCurrentFitState').textContent, view.api.copy.ko.invalid);
+      assert.equal(wire.stats.jsonReads, 0); assert.equal(wire.stats.textReads, 0); assert.equal(wire.stats.released, 1);
+      assert.equal(await view.check(), undefined); assert.equal(view.calls.length, 2); assert.equal(view.refreshes(), 0);
+    }
+    const wireAtCap = validWire + ' '.repeat(16384 - Buffer.byteLength(validWire, 'utf8'));
+    const view = mounted(({ url }) => url.includes('/current-fit?') ? response(null, { raw: wireAtCap }) : response(preview()));
+    await mountedCheck(view); assert.equal(metadata(view).children.length, 18);
+    assert.equal(view.api.maxBytes, 16384); assert.equal(view.api.previewMaxBytes, 256 * 1024);
+    assert.equal(view.calls.length, 2);
+  }
 });

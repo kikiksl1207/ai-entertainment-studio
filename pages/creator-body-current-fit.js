@@ -132,14 +132,32 @@
     // 35 is the UTF-8 byte length of ',"referenceScope":"writing_pattern"'; it is not a fit estimate.
   }
 
+  function parseProfileDeliveryDiagnostic(value, fits) {
+    if (!exact(value, ["contract", "byteCap", "wholeCandidateViewBytes", "candidateViewFits",
+      "normalizedApprovalPreserved", "modelInputFit", "semanticQualityVerified"]) ||
+        value.contract !== "story-approved-profile-delivery-v1" || value.byteCap !== 16384 ||
+        !integer(value.wholeCandidateViewBytes, 1, 2000000) || value.candidateViewFits !== fits ||
+        (value.wholeCandidateViewBytes <= value.byteCap) !== fits || value.normalizedApprovalPreserved !== true ||
+        value.modelInputFit !== "unmeasured" || value.semanticQualityVerified !== false) throw failure("invalid");
+  }
+
   function parseDiagnostic(value, sourceLocale, expectedRevision) {
     const keys = ["contract", "locale", "sourceScope", "readOnly", "providerCalls", "operatingWrites", "dispatchAuthorized", "semanticQualityVerified",
       "legalAuthorization", "paidApproval", "outcome", "currentSourceState", "approvalReferenceVerified", "progressRevision",
       "manuscriptVersion", "analysisVersion", "profileVersion", "reviewRevision", "diagnostic"];
     if (!locales.includes(sourceLocale) || !integer(expectedRevision, 0, 2147483647) || !dataRecord(value)) throw failure("invalid");
-    const profileViewPresent = value.outcome === "current_source_unavailable" && value.reason === "approved_profile_context_too_large" &&
+    const lossless = Object.prototype.hasOwnProperty.call(value, "requestPreparationContract") ||
+      Object.prototype.hasOwnProperty.call(value, "dispatchCompatibility");
+    const overflow = value.outcome === "current_source_unavailable" && value.reason === "approved_profile_context_too_large";
+    const profileViewPresent = !lossless && overflow &&
       Object.prototype.hasOwnProperty.call(value, "profileViewDiagnostic");
-    if (!exact(value, value.outcome === "current_source_unavailable" ? [...keys, "reason", ...(profileViewPresent ? ["profileViewDiagnostic"] : [])] : keys) ||
+    const profileDeliveryRequired = lossless && (value.outcome === "request_checked" || overflow);
+    const envelopeKeys = [...keys, ...(lossless ? ["requestPreparationContract", "dispatchCompatibility"] : []),
+      ...(profileDeliveryRequired ? ["profileDeliveryDiagnostic"] : []),
+      ...(value.outcome === "current_source_unavailable" ? ["reason"] : []), ...(profileViewPresent ? ["profileViewDiagnostic"] : [])];
+    if (!exact(value, envelopeKeys) ||
+        (lossless && (value.requestPreparationContract !== "story-continuation-lossless-profile-diagnostic-v1" ||
+          value.dispatchCompatibility !== "not_evaluated")) ||
         value.contract !== "story-author-current-fit-v1" || value.locale !== sourceLocale ||
         value.sourceScope !== "latest_private_approval_and_current_reader_source" || value.readOnly !== true ||
         value.providerCalls !== 0 || value.operatingWrites !== 0 || value.dispatchAuthorized !== false || value.semanticQualityVerified !== false ||
@@ -150,10 +168,12 @@
           value.progressRevision !== null || value.diagnostic !== null || versions.some(key => value[key] !== null) ||
           typeof value.reason !== "string" || !Object.prototype.hasOwnProperty.call(unavailableReasons, value.reason)) throw failure("invalid");
       if (profileViewPresent) parseProfileViewDiagnostic(value.profileViewDiagnostic);
+      if (profileDeliveryRequired) parseProfileDeliveryDiagnostic(value.profileDeliveryDiagnostic, false);
       return clone(value);
     }
     if (value.outcome !== "request_checked" || value.currentSourceState !== "validated" || value.approvalReferenceVerified !== true ||
         value.progressRevision !== expectedRevision || versions.some(key => !integer(value[key], 1, 2147483647))) throw failure("invalid");
+    if (profileDeliveryRequired) parseProfileDeliveryDiagnostic(value.profileDeliveryDiagnostic, true);
     const d = value.diagnostic;
     if (!exact(d, ["version", "budgetMethod", "contextSource", "fixedInputTokenLimit", "fixedOutputTokenLimit", "inputFit", "reason",
       "inputTokenBudget", "requestBytes", "narrativeLength", "writingStylePresent", "outputFit", "multiStageFit", "currentApprovalVerified",
@@ -371,12 +391,17 @@
       if (!state.data) return;
       for (const [key, value] of [["manuscript", "manuscriptVersion"], ["analysis", "analysisVersion"], ["profile", "profileVersion"], ["review", "reviewRevision"]]) row(key, state.data[value]);
       const diagnostic = state.data.diagnostic, bounds = diagnostic?.narrativeLength;
-      const profileView = state.data.profileViewDiagnostic;
+      const profileView = state.data.profileViewDiagnostic, profileDelivery = state.data.profileDeliveryDiagnostic;
       if (profileView) {
         const format = new Intl.NumberFormat(state.locale);
         for (const [key, field] of [["profileAllBytes", "minimumProjectedViewBytes"], ["profileStyleBytes", "writingStyleSectionBytes"],
           ["profileByteCap", "byteCap"], ["profileRepeatedBytes", "trustedRepeatedScopeBytes"]]) {
           row(key, profileView[field] === null ? null : format.format(profileView[field]) + " B");
+        }
+      } else if (profileDelivery) {
+        const format = new Intl.NumberFormat(state.locale);
+        for (const [key, field] of [["profileAllBytes", "wholeCandidateViewBytes"], ["profileByteCap", "byteCap"]]) {
+          row(key, format.format(profileDelivery[field]) + " B");
         }
       }
       row("reference", bounds?.referenceUnits ?? null); row("range", bounds ? bounds.minUnits + " - " + bounds.maxUnits : null);
