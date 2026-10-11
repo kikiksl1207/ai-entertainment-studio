@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import { modeAfterSHA256, sourceWithoutStorageModeDelta } from './backstage-storage-mode-inverse-20261011.mjs';
 
 const sha = value => createHash('sha256').update(value).digest('hex');
 export const beforeSHA256 = '93a2051e3e400348a098fd4924f00cfa8e81e125165d80e7db13ba1e1f71bfb6';
@@ -9,7 +10,10 @@ const after = "function renderObjectStorageDiagnosticsFallback() {\n  if (!objec
 
 // Only the frozen diagnostics fallback may precede the existing inverse chain.
 export function sourceWithoutStorageDiagnosticsDelta(value) {
-  const source = value.replaceAll('\r\n', '\n');
+  const normalized = value.replaceAll('\r\n', '\n');
+  const source = sha(normalized) === modeAfterSHA256
+    ? sourceWithoutStorageModeDelta(normalized)
+    : normalized;
   if (sha(source) === beforeSHA256) return source;
   assert.equal(sha(source), afterSHA256, 'Exact storage diagnostics source');
   assert.equal(source.split(after).length, 2, 'One frozen fallback');

@@ -3,8 +3,9 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { sourceWithoutStorageDiagnosticsDelta, beforeSHA256, afterSHA256 } from './support/backstage-storage-diagnostics-inverse-20261011.mjs';
+import { sourceWithoutStorageModeDelta } from './support/backstage-storage-mode-inverse-20261011.mjs';
 
-const current = readFileSync(new URL('../backstage.js', import.meta.url), 'utf8').replaceAll('\r\n', '\n');
+const current = sourceWithoutStorageModeDelta(readFileSync(new URL('../backstage.js', import.meta.url), 'utf8'));
 const sha = value => createHash('sha256').update(value).digest('hex');
 const previous = sourceWithoutStorageDiagnosticsDelta(current);
 

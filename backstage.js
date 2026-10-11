@@ -3817,24 +3817,30 @@ function storageConfiguredLabel(value) {
   return value ? "configured" : "missing";
 }
 
-function storageBooleanLabel(value) {
-  return value ? "enabled" : "disabled";
+function storageBooleanLabel(value, storageProvider) {
+  if (value === "metadata_only") return "metadata-only";
+  return value === "s3_compatible_presigned_put" && (storageProvider === "s3" || storageProvider === "r2")
+    ? "enabled"
+    : "unknown";
 }
 
 function objectStorageSignal(data = {}) {
   const env = data.environment || {};
   const storageProvider = String(env.storageProvider || "").toLowerCase();
   const reason = String(data.reason || "").toLowerCase();
+  const mode = storageBooleanLabel(env.directUploadMode, env.storageProvider);
   if ((storageProvider === "r2" && env.endpointConfigured === false) || reason.includes("endpoint")) {
     return { label: "R2 endpoint missing", tone: "warning" };
   }
   const endpointReady = storageProvider !== "r2" || env.endpointConfigured === true;
-  if (env.directUploadMode && env.bucketConfigured && env.publicBaseUrlConfigured && env.accessKeyConfigured && env.secretKeyConfigured && endpointReady) {
+  if (mode === "enabled" && env.bucketConfigured && env.publicBaseUrlConfigured && env.accessKeyConfigured && env.secretKeyConfigured && endpointReady) {
     return { label: "direct upload ready", tone: "ready" };
   }
   if (reason.includes("public") || env.publicBaseUrlConfigured === false) {
     return { label: "public URL missing", tone: "warning" };
   }
+  if (mode === "metadata-only") return { label: "metadata-only", tone: "warning" };
+  if (mode === "unknown") return { label: "direct upload mode unknown", tone: "warning" };
   return { label: "direct upload env incomplete", tone: "warning" };
 }
 
@@ -3849,7 +3855,7 @@ function renderObjectStorageDiagnostics(data = {}) {
   objectStorageReason.textContent = `${signal.label}: ${reason}`;
 
   objectStorageDiagnosticGrid.innerHTML = [
-    ["Direct upload", storageBooleanLabel(env.directUploadMode), `provider: ${env.storageProvider || "-"}`],
+    ["Direct upload", storageBooleanLabel(env.directUploadMode, env.storageProvider), `provider: ${env.storageProvider || "-"}`],
     ["Bucket", storageConfiguredLabel(env.bucketConfigured), "bucket name is never shown"],
     ["Public URL", storageConfiguredLabel(env.publicBaseUrlConfigured), "public base URL setting"],
     ["R2 credentials", `${storageConfiguredLabel(env.accessKeyConfigured)} / ${storageConfiguredLabel(env.secretKeyConfigured)}`, "configured flags only"]

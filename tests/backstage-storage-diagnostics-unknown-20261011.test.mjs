@@ -111,7 +111,7 @@ function diagnostic({ configured = true, counts = [0, 0, 0, 0] } = {}) {
   return {
     reason: 'Synthetic diagnostic response',
     environment: {
-      storageProvider: 'r2', directUploadMode: configured,
+      storageProvider: 'r2', directUploadMode: configured ? 's3_compatible_presigned_put' : 'metadata_only',
       endpointConfigured: true, bucketConfigured: configured,
       publicBaseUrlConfigured: configured, accessKeyConfigured: configured,
       secretKeyConfigured: configured,
@@ -163,7 +163,7 @@ test('actual normal renderer retains explicit zero counts and false configuratio
   const view = fixture();
   view.renderObjectStorageDiagnostics(diagnostic({ configured: false }));
   assert.equal((view.nodes.objectStorageUploadStats.innerHTML.match(/<dd>0<\/dd>/g) || []).length, 4);
-  assert.match(view.nodes.objectStorageDiagnosticGrid.innerHTML, /<strong>disabled<\/strong>/);
+  assert.match(view.nodes.objectStorageDiagnosticGrid.innerHTML, /<strong>metadata-only<\/strong>/);
   assert.match(view.nodes.objectStorageDiagnosticGrid.innerHTML, /<strong>missing<\/strong>/);
   assert.match(view.nodes.objectStoragePolicy.textContent, /\uC548\uC804/);
   assert.equal(view.counters.requests, 0);
