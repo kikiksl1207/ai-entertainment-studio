@@ -172,7 +172,10 @@ describe('generated ending explicit read confirmation', () => {
     if (kind === 'artwork') f.stories.currentProgress.mockImplementation(async () => ({ ...f.page(), scene: {
       ...f.page().scene, deliveryState: 'artwork_pending' } }));
     if (kind === 'cursor') f.progress.currentBeatPosition = 3;
-    if (kind === 'access') f.work.priceLumina = new Prisma.Decimal(1);
+    if (kind === 'access') {
+      f.work.priceLumina = new Prisma.Decimal(1);
+      f.part.priceLumina = new Prisma.Decimal(1);
+    }
     await expect(f.preview()).rejects.toBeDefined(); expect(f.rows).toHaveLength(0);
     expect(f.tx.storyReaderProgress.updateMany).not.toHaveBeenCalled();
   });
@@ -215,7 +218,7 @@ describe('generated ending explicit read confirmation', () => {
     expect(f.rows).toHaveLength(0); expect(f.tx.storyReaderProgress.updateMany).not.toHaveBeenCalled();
   });
   it('does not accept missing payment entitlement', async () => {
-    const f = fixture(); f.part.priceLumina = new Prisma.Decimal(1);
+    const f = fixture(); f.part.priceLumina = new Prisma.Decimal(1); f.work.priceLumina = new Prisma.Decimal(1);
     await expect(f.preview()).rejects.toBeInstanceOf(ForbiddenException);
   });
 });

@@ -119,7 +119,7 @@ export class StoryGeneratedEndingReadService {
     if (!route || route.parentId !== origin!.sourceRouteNodeId || arrival.generatedSceneId !== scene!.id ||
       arrival.provenance !== scene!.provenance || arrival.sourceSceneId !== origin!.sourceSceneId ||
       arrival.sourceGeneratedSceneId !== origin!.sourceGeneratedSceneId) this.changed();
-    if (!work!.priceLumina.isZero() || !part!.priceLumina.isZero()) {
+    if (!work!.priceLumina.isZero() && !part!.priceLumina.isZero()) {
       if (lock) await db.$queryRaw(Prisma.sql`SELECT id FROM user_entitlements
         WHERE user_id = ${userId}::uuid AND reference_id IN (${work!.id}::uuid, ${part!.id}::uuid)
           AND entitlement_type IN ('story_work', 'story_season', 'story_part') FOR SHARE`);
