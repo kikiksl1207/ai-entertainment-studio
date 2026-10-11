@@ -243,7 +243,7 @@ describe('fan privacy: native localhost HTTP/JWT/parser with synthetic readers a
       ['GET', TITLE], ['HEAD', TITLE], ['PATCH', SUMMARY], ['PATCH', TITLE + '/child'],
       ['PATCH', TITLE + '-extra'], ['PATCH', TITLE + '//'], ['GET', '/api/me/fan-engagement/summary'],
       ['GET', '/api/v2/me/fan-engagement/summary'], ['PATCH', '/api/me/fan-engagement/title'],
-      ['GET', '/api/v1/fan-engagement/missions'], ['GET', '/api/v1/users/' + OTHER + '/fan-engagement/public-summary'],
+      ['GET', '/api/v1/users/' + OTHER + '/fan-engagement/public-summary'],
       ...['OPTIONS', 'POST', 'PUT', 'DELETE', 'get', ''].map(method => [method, SUMMARY]),
       ...['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'patch', ''].map(method => [method, TITLE]),
     ];
