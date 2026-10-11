@@ -3740,15 +3740,44 @@ async function loadBoostState() {
    백엔드 명세: 가입 직후 300 L, 추천인 코드 유효 시 +500 L
    ─────────────────────────────────────────── */
 let _wallet = null; // { balance: number, currencyCode: "LUMINA", loaded: bool }
+let _walletSession = authRequestSession();
+let _walletRequestVersion = 0;
+
+function invalidateWalletSession() {
+  if (authRequestSessionCurrent(_walletSession)) {
+    _walletSession = authRequestSession();
+    return;
+  }
+  _walletSession = authRequestSession();
+  ++_walletRequestVersion;
+  _wallet = null;
+  updateWalletUI();
+}
+
+function walletRequestCurrent(version) {
+  return version === _walletRequestVersion && isLoggedIn() && authRequestSessionCurrent(_walletSession);
+}
+
+if (typeof window !== "undefined") {
+  window.addEventListener("lumina:authchange", invalidateWalletSession);
+  window.addEventListener("storage", event => {
+    if (event.key === AUTH_STORAGE_KEY || event.key === null) invalidateWalletSession();
+  });
+}
 
 async function loadWallet() {
+  invalidateWalletSession();
   if (!isLoggedIn()) {
     _wallet = null;
     updateWalletUI();
     return;
   }
+  const session = authRequestSession();
+  const version = ++_walletRequestVersion;
+  _walletSession = session;
   try {
     const data = await apiFetch("/api/v1/wallet", { auth: true, throwOnError: true });
+    if (!walletRequestCurrent(version)) return;
     // 응답 필드 fallback 체인 강화 — 백엔드 응답 키가 cachedBalance / balance / lumina.balance 중 어느 것이든 처리
     const rawBalance = data?.cachedBalance ?? data?.balance ?? data?.lumina?.balance ?? data?.wallet?.cachedBalance ?? "0";
     _wallet = {
@@ -3757,7 +3786,8 @@ async function loadWallet() {
       loaded: true
     };
   } catch (err) {
-    console.warn("[Lumina] 지갑 조회 실패 — 잔액 0으로 표시:", err);
+    if (!walletRequestCurrent(version)) return;
+    console.warn("[Lumina] 지갑 조회 실패 — 잔액 0으로 표시:", { status: err?.status });
     // 사용자 의도: "곧 공개" 보다 "0 L" 표시가 더 명확. loaded: true로 두고 0 표시.
     _wallet = { balance: 0, currencyCode: "LUMINA", loaded: true };
   }
@@ -3791,6 +3821,7 @@ function updateWalletUI() {
         <span>${formatLuminaAmount(_wallet.balance)} L</span>`;
       headerBadge.style.display = "";
     } else {
+      headerBadge.innerHTML = "";
       headerBadge.style.display = "none";
     }
   }

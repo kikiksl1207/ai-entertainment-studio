@@ -7,7 +7,18 @@ import vm from 'node:vm';
 import { htmlWithoutActivationReadDelta } from './support/mypage-activation-read-inverse-20261009.mjs';
 
 const source = readFileSync(new URL('../pages/mypage-titles.js', import.meta.url), 'utf8');
-const html = htmlWithoutActivationReadDelta(readFileSync(new URL('../mypage/index.html', import.meta.url), 'utf8'));
+const walletAppTag = '<script src="/app.js?v=wallet-session-20261011"></script>';
+const originalAppTag = '<script src="/app.js"></script>';
+function normalizeWalletAppTag(value) {
+  assert.equal(value.split(walletAppTag).length - 1, 1, 'Exactly one current wallet app tag');
+  assert.equal(value.split(originalAppTag).length - 1, 0, 'No previous unversioned app tag');
+  const scripts = [...value.matchAll(/<script\b[^>]*\ssrc=(?:"([^"]*)"|'([^']*)')[^>]*>/gi)].map(match => match[1] ?? match[2]);
+  assert.deepEqual(scripts.filter(src => src.split(/[?#]/)[0] === '/app.js'),
+    ['/app.js?v=wallet-session-20261011'], 'Only the exact approved wallet app source');
+  return value.replace(walletAppTag, originalAppTag);
+}
+const rawHtml = readFileSync(new URL('../mypage/index.html', import.meta.url), 'utf8');
+const html = htmlWithoutActivationReadDelta(normalizeWalletAppTag(rawHtml));
 const css = readFileSync(new URL('../styles/mypage.css', import.meta.url), 'utf8');
 const sha = text => createHash('sha256').update(text, 'utf8').digest('hex');
 const lf = bytes => new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes).replace(/\r\n/g, '\n');
@@ -205,6 +216,25 @@ async function loaded(h, data = summary()) {
   assert.equal(h.requests.length, index + 1); h.requests[index].resolve(data); await pending; await tick(); return h;
 }
 function blank(h) { for (const id of valueIds) assert.equal(h.text(id), ''); }
+
+test('SOURCE: exact wallet cache tag inverse retains every other HTML byte', () => {
+  const after = rawHtml.replace(/\r\n/g, '\n'), normalized = normalizeWalletAppTag(after);
+  assert.notEqual(normalized, after);
+  assert.equal(normalized.replace(originalAppTag, walletAppTag), after);
+});
+
+test('SOURCE: wallet cache inverse rejects missing duplicated legacy and unapproved app tags', () => {
+  const after = rawHtml.replace(/\r\n/g, '\n');
+  assert.equal(after.split(walletAppTag).length - 1, 1);
+  for (const changed of [
+    after.replace(walletAppTag, ''),
+    after.replace(walletAppTag, walletAppTag + walletAppTag),
+    after.replace(walletAppTag, originalAppTag),
+    after + originalAppTag,
+    after.replace(walletAppTag, '<script src="/app.js?v=unapproved"></script>'),
+    after + '<script src="/app.js?v=unapproved"></script>',
+  ]) assert.throws(() => normalizeWalletAppTag(changed));
+});
 
 test('SOURCE: three products preserve CLEAN outside owned HTML/CSS boundaries; no preview catalog renderer', () => {
   const after = html.replace(/\r\n/g, '\n'), style = css.replace(/\r\n/g, '\n');
