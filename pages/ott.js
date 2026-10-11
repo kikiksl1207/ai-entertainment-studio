@@ -438,20 +438,20 @@
     let response;
     try {
       response = await fetch(url, { method: "POST", credentials: "include", cache: "no-store", signal: controller.signal });
+      if (!response.ok) throw new Error("session unavailable");
+      const result = await response.json();
+      const path = nodePath(playback.slug, key, "delivery");
+      if (result?.playback?.mode !== "secure_http_only_cookie" || !apiPath(result.playback.path, path)) {
+        throw new Error("invalid playback path");
+      }
+      const expires = Date.parse(result.playback.expiresAt);
+      if (!Number.isFinite(expires) || expires <= Date.now()) throw new Error("invalid session expiry");
+      if (generation !== publicGeneration || publicPlayback?.currentKey !== key) return null;
+      playback.expiresAt = expires;
+      clearPublicSessionTimer();
+      publicSessionTimer = setTimeout(() => { void renewPublicSession(generation, key); }, Math.max(1000, expires - Date.now() - 5000));
+      return API_BASE + path;
     } finally { clearTimeout(timeout); }
-    if (!response.ok) throw new Error("session unavailable");
-    const result = await response.json();
-    const path = nodePath(playback.slug, key, "delivery");
-    if (result?.playback?.mode !== "secure_http_only_cookie" || !apiPath(result.playback.path, path)) {
-      throw new Error("invalid playback path");
-    }
-    const expires = Date.parse(result.playback.expiresAt);
-    if (!Number.isFinite(expires) || expires <= Date.now()) throw new Error("invalid session expiry");
-    if (generation !== publicGeneration || publicPlayback?.currentKey !== key) return null;
-    playback.expiresAt = expires;
-    clearPublicSessionTimer();
-    publicSessionTimer = setTimeout(() => { void renewPublicSession(generation, key); }, Math.max(1000, expires - Date.now() - 5000));
-    return API_BASE + path;
   }
 
   async function renewPublicSession(generation, key) {
