@@ -5,8 +5,9 @@ import test from 'node:test';
 import { htmlWithoutFollowingReadDelta } from './support/mypage-following-read-inverse-20261009.mjs';
 import { htmlWithoutPrivateReadDelta } from './support/mypage-private-read-inverse-20261009.mjs';
 import { htmlWithoutActivationReadDelta } from './support/mypage-activation-read-inverse-20261009.mjs';
+import { htmlWithoutWalletCacheDelta } from './support/mypage-wallet-cache-inverse-20261011.mjs';
 
-const html = readFileSync(new URL('../mypage/index.html', import.meta.url), 'utf8');
+const html = htmlWithoutWalletCacheDelta(readFileSync(new URL('../mypage/index.html', import.meta.url), 'utf8'));
 const fixture = JSON.parse(readFileSync(new URL('./fixtures/mypage-following-read-exact-delta-20261009.json', import.meta.url), 'utf8'));
 const sha = value => createHash('sha256').update(value).digest('hex');
 
