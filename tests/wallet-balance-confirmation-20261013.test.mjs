@@ -13,6 +13,8 @@ function slice(source, start, end) {
   return source.slice(first, last);
 }
 const authSource = slice(app, 'const API_BASE =', 'const I18N_LOCALES =');
+const pickSource = slice(app, 'let _currentCampaign = null;', 'function rankingMetricNumber(');
+const escapeSource = slice(app, 'function feedEscapeHtml(', 'function normalizeFeedAuthorType(');
 const walletSource = slice(app, 'let _wallet = null;', 'function formatLuminaAmount(');
 const headerSource = slice(app, 'function formatLuminaAmount(', 'function getLikesCount(');
 const paidBalanceSource = slice(app, 'const PAID_LIKE_BUNDLES = [', 'async function loadPaidLikeQuota(');
@@ -38,6 +40,7 @@ function deferred() {
 // Only the selected production functions run; transport and unrelated page startup are synthetic.
 function harness() {
   const values = new Map([['lumina_auth', JSON.stringify(authA)]]);
+  const sessionValues = new Map();
   const listeners = new Map(), requests = [], elements = new Map(), overlays = [], alerts = [];
   const counters = { quota: 0, create: 0, authModal: 0, offline: 0, key: 0 };
   const badge = { innerHTML: '', style: { display: 'none' } };
@@ -68,12 +71,18 @@ function harness() {
   };
   const context = {
     AbortController, Event, setTimeout: () => 1, clearTimeout() {},
+    _freeLikeQuota: null, _freeLikeQuotaState: 'unknown', updateHeroQuotaDisplay() {},
     console: { warn() {}, info() {} },
     fetch: () => assert.fail('Actual transport must never run in this fixture'),
     localStorage: {
       getItem: key => values.get(key) || null,
       setItem: (key, value) => values.set(key, value),
       removeItem: key => values.delete(key)
+    },
+    sessionStorage: {
+      getItem: key => sessionValues.get(key) ?? null,
+      setItem: (key, value) => sessionValues.set(key, String(value)),
+      removeItem: key => sessionValues.delete(key)
     },
     window: {
       location: { pathname: '/mypage' },
@@ -101,6 +110,8 @@ function harness() {
     updateWalletUI() {}
   };
   runInNewContext(authSource, context);
+  runInNewContext(pickSource, context);
+  runInNewContext('_currentCampaign = { id: "synthetic-campaign" };', context);
   context.apiFetch = (route, options = {}) => {
     const pending = deferred(); requests.push({ route, options, pending });
     assert.equal(route, '/api/v1/wallet');
@@ -108,7 +119,7 @@ function harness() {
     assert.equal(options.auth, true); assert.equal(options.throwOnError, true);
     return pending.promise;
   };
-  runInNewContext(walletSource + '\n' + headerSource + '\n' + paidBalanceSource + '\n' + paidModalSource, context);
+  runInNewContext(walletSource + '\n' + headerSource + '\n' + paidBalanceSource + '\n' + paidModalSource + '\n' + escapeSource, context);
   runInNewContext(mypageHelpers + '\n' + mypageInit, context);
   return {
     context, values, requests, elements, overlays, alerts, counters, badge,
@@ -121,7 +132,10 @@ function harness() {
     enableQuota: () => {
       const pending = deferred();
       context.loadPaidLikeQuota = () => { counters.quota++; return pending.promise; };
-      return pending;
+      return { ...pending, resolve: value => pending.resolve({
+        campaign: { id: 'synthetic-campaign' }, dailyLimit: 20, usedToday: 0, remaining: 20,
+        unitPriceLumina: '10', resetsAt: '2026-10-14T00:00:00.000Z', ...value
+      }) };
     }
   };
 }
@@ -354,13 +368,27 @@ for (const change of ['failed read', 'malformed read', 'owner replacement', 'log
     const quota = h.enableQuota(), modal = h.open();
     quota.resolve({ dailyLimit: 20, remaining: 20 }); await modal;
     assert.equal(h.overlays.length, 1);
+    const retired = change === 'owner replacement' || change === 'logout';
+    const oldUI = retired ? {
+      message: h.overlays[0].message.textContent,
+      hidden: h.overlays[0].message.hidden,
+      disabled: h.overlays[0].confirm.disabled
+    } : null;
     if (change === 'failed read') await fail(h);
     else if (change === 'malformed read') await receive(h, { balance: false });
     else if (change === 'owner replacement') h.context.setAuth(authB);
     else h.context.clearAuth();
     const before = h.requests.length; await h.overlays[0].clickConfirm();
-    unknownConsumerMessage(h.overlays[0].message.textContent);
-    assert.equal(h.overlays[0].message.hidden, false); assert.equal(h.overlays[0].confirm.disabled, false);
+    if (retired) {
+      assert.deepEqual({
+        message: h.overlays[0].message.textContent,
+        hidden: h.overlays[0].message.hidden,
+        disabled: h.overlays[0].confirm.disabled
+      }, oldUI);
+    } else {
+      unknownConsumerMessage(h.overlays[0].message.textContent);
+      assert.equal(h.overlays[0].message.hidden, false); assert.equal(h.overlays[0].confirm.disabled, false);
+    }
     assert.equal(h.requests.length, before); assert.equal(h.counters.quota, 1); noMutation(h);
   });
 }

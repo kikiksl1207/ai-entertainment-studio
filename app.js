@@ -3615,6 +3615,7 @@ async function handleGoogleTokenResponse(tokenResponse) {
    ─────────────────────────────────────────── */
 let _currentCampaign = null;
 let _rankings = []; // [{ slug, likes }]
+let _pickRankingVersion = 0;
 let _userLikedSlugs = new Set(); // 이번 세션에 좋아요 누른 슬러그
 let _pickSession = authRequestSession();
 let _pickEpoch = 0;
@@ -3725,8 +3726,9 @@ async function loadBoostState() {
   _currentCampaign = campaign;
   console.info(`[Lumina] 현재 캠페인: ${campaign.name || campaign.id}`);
 
+  const rankingVersion = ++_pickRankingVersion;
   const rankingsData = await apiFetch(`/api/v1/boost-campaigns/${campaign.id}/rankings?period=month`);
-  if (rankingsData) {
+  if (rankingsData && rankingVersion === _pickRankingVersion && _currentCampaign?.id === campaign.id) {
     const list = Array.isArray(rankingsData) ? rankingsData : (rankingsData.rankings || rankingsData.items || []);
     _rankings = list.map(r => ({
       slug: r.artistSlug || r.slug || r.artist?.slug || "",
@@ -3924,9 +3926,10 @@ async function handleLike(slug, btnEl) {
     if (document.getElementById("voteTabs")) window.refreshPopularVotePage?.();
     // Q1 답변 권장: 좋아요 성공 후 rankings 재호출로 정확한 순위/점수 갱신
     // (실패해도 낙관적 갱신은 유지 — 사용자 경험 영향 없음)
+    const rankingVersion = ++_pickRankingVersion;
     apiFetch(`/api/v1/boost-campaigns/${campaignId}/rankings?period=month`)
       .then(rankingsData => {
-        if (!pickRequestCurrent(epoch, campaignId)) return;
+        if (!pickRequestCurrent(epoch, campaignId) || rankingVersion !== _pickRankingVersion) return;
         if (rankingsData) {
           const list = Array.isArray(rankingsData) ? rankingsData : (rankingsData?.rankings || rankingsData?.items || []);
           if (Array.isArray(list) && list.length > 0) {
@@ -3986,6 +3989,75 @@ const PAID_LIKE_BUNDLES = [
 ];
 // MVP 정책 (#047): 유료 좋아요 하루 최대 20개. 30개 옵션은 MVP 미사용.
 
+// Only a matching server receipt retires the persisted intent.
+const _paidLikeAttempts = new Map();
+let _paidLikeModalVersion = 0;
+let _paidLikeCloseActive = null;
+
+function paidLikeAttemptScope(ownerId, campaignId, artistId) {
+  return JSON.stringify([ownerId, campaignId, artistId]);
+}
+
+function paidLikeStoredAttempt(scope) {
+  if (_paidLikeAttempts.has(scope)) return _paidLikeAttempts.get(scope);
+  let attempt;
+  try {
+    const raw = sessionStorage.getItem("lumina_paid_like:" + scope);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    const bundle = PAID_LIKE_BUNDLES.find(item => item.quantity === data.quantity);
+    if (!data || Object.keys(data).sort().join(",") !== "key,lumina,quantity,version"
+      || data.version !== 1 || typeof data.key !== "string" || !/^[A-Za-z0-9:_-]{8,128}$/.test(data.key)
+      || !bundle || data.lumina !== bundle.lumina) throw new Error("Unconfirmed stored intent");
+    attempt = { scope, key: data.key, quantity: data.quantity, lumina: data.lumina, pending: false, confirmed: false };
+  } catch {
+    attempt = { scope, blocked: true, pending: false, confirmed: false };
+  }
+  _paidLikeAttempts.set(scope, attempt);
+  return attempt;
+}
+
+function persistPaidLikeAttempt(attempt) {
+  try {
+    sessionStorage.setItem("lumina_paid_like:" + attempt.scope, JSON.stringify({
+      version: 1, key: attempt.key, quantity: attempt.quantity, lumina: attempt.lumina
+    }));
+    return true;
+  } catch { return false; }
+}
+
+function paidLikeMoneyCents(raw) {
+  const decimal = typeof raw === "string" ? raw.trim() : typeof raw === "number" && Number.isFinite(raw) ? String(raw) : "";
+  const match = /^(\d{1,6})(?:\.(\d{1,2}))?$/.exec(decimal);
+  if (!match) return null;
+  const cents = Number(match[1]) * 100 + Number((match[2] || "").padEnd(2, "0"));
+  return Number.isSafeInteger(cents) ? cents : null;
+}
+
+function paidLikeQuote(quota, campaignId) {
+  if (!quota || quota.campaign?.id !== campaignId || quota.dailyLimit !== 20
+    || !Number.isSafeInteger(quota.usedToday) || quota.usedToday < 0
+    || !Number.isSafeInteger(quota.remaining) || quota.remaining < 0 || quota.remaining > 20
+    || quota.remaining !== Math.max(20 - quota.usedToday, 0)) return null;
+  const unitCents = paidLikeMoneyCents(quota.unitPriceLumina);
+  if (unitCents === null) return null;
+  return { dailyLimit: 20, remaining: quota.remaining, unitCents };
+}
+
+function paidLikeReceiptMatches(result, attempt, ownerId, campaignId, artistId) {
+  const event = result?.event;
+  const ledger = event?.walletLedger;
+  return !!event && typeof event.id === "string" && event.id.trim() !== ""
+    && event.userId === ownerId && event.campaignId === campaignId && event.artistId === artistId
+    && event.idempotencyKey === attempt.key && event.boostType === "lumina_boost"
+    && event.metadata?.source === "paid_like" && event.metadata.quantity === attempt.quantity
+    && paidLikeMoneyCents(event.metadata.totalPriceLumina) === attempt.lumina * 100
+    && typeof event.walletLedgerId === "string" && ledger?.id === event.walletLedgerId
+    && ledger.direction === "debit" && ledger.idempotencyKey === "wallet:boost-paid-like:" + attempt.key
+    && paidLikeMoneyCents(ledger.amount) === attempt.lumina * 100
+    && typeof result.idempotentReplay === "boolean" && result.paidLike?.quantity === attempt.quantity;
+}
+
 function getPaidLikeBalance() {
   return _wallet?.loaded && walletRequestCurrent(_walletRequestVersion) && Number.isFinite(_wallet.balance)
     ? _wallet.balance : null;
@@ -4001,12 +4073,15 @@ async function loadPaidLikeQuota() {
     const data = await apiFetch("/api/v1/me/paid-like-quota", { auth: true });
     return data || null;
   } catch (err) {
-    console.warn("[Lumina] /me/paid-like-quota 실패:", err);
+    console.warn("[Lumina] /me/paid-like-quota 실패:", { status: err?.status });
     return null;
   }
 }
 
 async function openPaidLikeModal(slug) {
+  _paidLikeCloseActive?.();
+  syncPickSession();
+  const modalVersion = ++_paidLikeModalVersion;
   if (!_currentCampaign?.id) {
     alert("현재 진행 중인 좋아요 캠페인이 없습니다.");
     return;
@@ -4016,6 +4091,23 @@ async function openPaidLikeModal(slug) {
     return;
   }
   const artist = getCharacterBySlug(slug) || _artists.find(a => a.slug === slug);
+  const ownerId = pickOwnerId(), campaignId = _currentCampaign.id, artistId = artist?.id;
+  if (!ownerId || typeof artistId !== "string" || !artistId.trim()) {
+    alert(t("pick.action.unavailable"));
+    return;
+  }
+  const session = authRequestSession(), epoch = _pickEpoch;
+  let closed = false;
+  const identityCurrent = () => pickRequestCurrent(epoch, campaignId) && authRequestSessionCurrent(session) && pickOwnerId() === ownerId
+    && getCharacterBySlug(slug)?.id === artistId;
+  const current = () => !closed && modalVersion === _paidLikeModalVersion && identityCurrent();
+  const scope = paidLikeAttemptScope(ownerId, campaignId, artistId);
+  let attempt = paidLikeStoredAttempt(scope);
+  if (attempt?.confirmed) attempt = null;
+  if (attempt?.pending) {
+    alert("같은 응원 요청을 처리 중이에요. 새 요청을 보내지 않고 기존 요청을 보관합니다.");
+    return;
+  }
   const walletVersion = _walletRequestVersion;
   if (getPaidLikeBalance() === null) {
     alert("잔액을 확인하지 못했습니다. 잠시 후 다시 확인해 주세요.");
@@ -4024,14 +4116,15 @@ async function openPaidLikeModal(slug) {
 
   // #047: 일일 잔여 한도 조회 (실패해도 모달 열 수 있게 fallback)
   const quota = await loadPaidLikeQuota();
-  if (!walletRequestCurrent(walletVersion)) return;
+  if (!walletRequestCurrent(walletVersion) || !current()) return;
   const balance = getPaidLikeBalance();
   if (balance === null) return;
-  const dailyLimit = quota?.dailyLimit ?? 20;
-  const remaining = quota?.remaining ?? dailyLimit;
+  const quote = paidLikeQuote(quota, campaignId);
+  const dailyLimit = quote?.dailyLimit ?? 20;
+  const remaining = quote?.remaining ?? null;
 
   // 잔여 0이면 모달 안 띄우고 안내
-  if (remaining <= 0) {
+  if (remaining === 0 && !attempt?.key) {
     alert(`오늘 보낼 수 있는 추가 응원을 모두 사용했어요. (하루 최대 ${dailyLimit}개)\n내일 다시 응원할 수 있어요.`);
     return;
   }
@@ -4045,26 +4138,30 @@ async function openPaidLikeModal(slug) {
       <div class="paid-like-head">
         <span class="eyebrow">Paid Cheer</span>
         <h2 id="paidLikeModalTitle">좋아요 추가 응원</h2>
-        <p>${artist?.publicName || "아티스트"}에게 루미나로 좋아요를 더 전달해요.</p>
+        <p>${feedEscapeHtml(artist?.publicName || "아티스트")}에게 루미나로 좋아요를 더 전달해요.</p>
       </div>
       <div class="paid-like-balance">
         <span>현재 보유 루미나</span>
         <strong>${formatLuminaAmount(balance)}L</strong>
       </div>
       <div class="paid-like-quota-notice">
-        오늘 보낼 수 있는 추가 응원 <strong>${remaining}개</strong> · 하루 최대 ${dailyLimit}개
+        오늘 보낼 수 있는 추가 응원 <strong>${remaining === null ? "확인 필요" : remaining + "개"}</strong> · 하루 최대 ${dailyLimit}개
       </div>
       <div class="paid-like-options">
         ${PAID_LIKE_BUNDLES.map((bundle) => {
-          const overLimit = bundle.quantity > remaining;
+          // Existing menu prices are usable only when the current server quote agrees.
+          const priceConfirmed = !!quote && quote.unitCents * bundle.quantity === bundle.lumina * 100;
+          const overLimit = !priceConfirmed || attempt?.blocked || attempt?.pending
+            || (attempt?.key ? bundle.quantity !== attempt.quantity : remaining === null || bundle.quantity > remaining);
           // 기본 선택은 remaining 이내에서 가장 큰 번들 (또는 1개)
-          const isSelected = !overLimit && bundle.quantity === Math.min(remaining, bundle.recommended ? bundle.quantity : 1) && bundle.recommended;
+          const isSelected = attempt?.key ? bundle.quantity === attempt.quantity
+            : !overLimit && bundle.quantity === Math.min(remaining, bundle.recommended ? bundle.quantity : 1) && bundle.recommended;
           return `
           <label class="paid-like-option${overLimit ? " is-disabled" : ""}${isSelected ? " is-selected" : ""}">
             <input type="radio" name="paidLikeBundle" value="${bundle.quantity}" ${isSelected ? "checked" : ""} ${overLimit ? "disabled" : ""} />
             <span>
-              <strong>${bundle.label}</strong>
-              <small>${overLimit ? `오늘 잔여 한도 초과` : (bundle.recommended ? "추천 번들" : "추가 응원 번들")}</small>
+              <strong>${bundle.quantity}개${priceConfirmed ? " · " + formatLuminaAmount(bundle.lumina) + "L" : ""}</strong>
+              <small>${!priceConfirmed ? "요금 확인 필요" : overLimit ? "현재 선택할 수 없음" : (bundle.recommended ? "추천 번들" : "추가 응원 번들")}</small>
             </span>
           </label>
         `;}).join("")}
@@ -4092,9 +4189,12 @@ async function openPaidLikeModal(slug) {
   };
 
   const close = () => {
+    closed = true;
     overlay.remove();
     document.body.style.overflow = "";
+    if (_paidLikeCloseActive === close) _paidLikeCloseActive = null;
   };
+  _paidLikeCloseActive = close;
   const setMessage = text => {
     const el = overlay.querySelector("[data-paid-like-message]");
     if (!el) return;
@@ -4111,6 +4211,7 @@ async function openPaidLikeModal(slug) {
   });
 
   overlay.querySelector("[data-paid-like-confirm]")?.addEventListener("click", async () => {
+    if (!current() || attempt?.pending || attempt?.confirmed || attempt?.blocked) return;
     const selectedQuantity = Number(overlay.querySelector("[name='paidLikeBundle']:checked")?.value || 1);
     const selectedBundle = PAID_LIKE_BUNDLES.find(bundle => bundle.quantity === selectedQuantity) || PAID_LIKE_BUNDLES[0];
     const currentBalance = getPaidLikeBalance();
@@ -4118,11 +4219,19 @@ async function openPaidLikeModal(slug) {
       setMessage("잔액을 확인하지 못했습니다. 잠시 후 다시 확인해 주세요.");
       return;
     }
-    if (currentBalance < selectedBundle.lumina) {
+    if (!attempt?.key && currentBalance < selectedBundle.lumina) {
       setMessage(`루미나가 부족해요. 좋아요 ${selectedBundle.quantity}개를 전달하려면 ${selectedBundle.lumina}L이 필요해요.`);
       return;
     }
-    if (selectedBundle.quantity > remaining) {
+    if (!quote || quote.unitCents * selectedBundle.quantity !== selectedBundle.lumina * 100) {
+      setMessage("요금을 확인하지 못했어요. 확인되지 않은 금액으로 응원하지 않습니다.");
+      return;
+    }
+    if (attempt?.key && attempt.quantity !== selectedBundle.quantity) {
+      setMessage("이전 응원 결과가 미확인이에요. 같은 수량의 요청으로만 다시 확인할 수 있어요.");
+      return;
+    }
+    if (!attempt?.key && selectedBundle.quantity > remaining) {
       setMessage(`오늘 보낼 수 있는 추가 응원: ${remaining}개. 더 작은 번들을 선택해주세요.`);
       return;
     }
@@ -4136,11 +4245,30 @@ async function openPaidLikeModal(slug) {
     }
     button.disabled = true;
     button.textContent = "전달 중";
-    // #261 — 같은 클릭/응답 유실 재시도에서 중복 차감되지 않도록 클라이언트가 고유 키 생성.
-    // 한 번 발급한 키를 같은 클릭 라이프사이클 동안만 사용 (재클릭 = 새 키).
-    const idempotencyKey = generateIdempotencyKey();
+    const recovering = !!attempt?.key;
+    if (!attempt?.key) {
+      attempt = { scope, key: generateIdempotencyKey(), quantity: selectedBundle.quantity,
+        lumina: selectedBundle.lumina, pending: false, confirmed: false };
+      _paidLikeAttempts.set(scope, attempt);
+    }
+    if (!persistPaidLikeAttempt(attempt)) {
+      setMessage("응원 요청을 보관하지 못했어요. 저장 상태를 확인한 뒤 다시 시도해 주세요.");
+      button.disabled = false;
+      button.textContent = "응원하기";
+      return;
+    }
+    attempt.pending = true;
+    const idempotencyKey = attempt.key;
+    let dispatched = false;
     try {
-      await apiFetch(`/api/v1/boost-campaigns/${_currentCampaign.id}/paid-like`, {
+      const latestQuote = paidLikeQuote(await loadPaidLikeQuota(), campaignId);
+      if (!current()) return;
+      if (!latestQuote || latestQuote.unitCents * attempt.quantity !== attempt.lumina * 100
+        || (!recovering && attempt.quantity > latestQuote.remaining)) throw new Error("Unconfirmed current paid-like quote");
+      const dispatchBalance = getPaidLikeBalance();
+      if (dispatchBalance === null || (!recovering && dispatchBalance < attempt.lumina)) throw new Error("Unconfirmed current wallet");
+      dispatched = true;
+      const result = await apiFetch(`/api/v1/boost-campaigns/${campaignId}/paid-like`, {
         method: "POST",
         auth: true,
         throwOnError: true,
@@ -4148,31 +4276,30 @@ async function openPaidLikeModal(slug) {
         // Idempotency-Key 헤더는 #057 패턴과 동일 (apiFetch extraHeaders 가 머지).
         headers: { "Idempotency-Key": idempotencyKey },
         body: {
-          artistId: artist?.id || slug,
+          artistId,
           artistSlug: slug,
-          quantity: selectedBundle.quantity,
+          quantity: attempt.quantity,
           idempotencyKey
         }
       });
-      // #261 — 낙관적 갱신은 즉시 시각 피드백용이고, 서버 재조회로 곧 정확한 값으로 정렬됨.
-      const rank = _rankings.find(r => r.slug === slug);
-      if (rank) rank.likes += selectedBundle.quantity;
-      else _rankings.push({ slug, likes: selectedBundle.quantity });
-      if (_wallet?.loaded) _wallet.balance = Math.max(0, Number(_wallet.balance || 0) - selectedBundle.lumina);
+      if (!current()) return;
+      if (!paidLikeReceiptMatches(result, attempt, ownerId, campaignId, artistId)) throw new Error("Unconfirmed paid-like receipt");
+      attempt.confirmed = true;
+      try { sessionStorage.removeItem("lumina_paid_like:" + scope); } catch {}
       updateLikeButtons(slug);
       if (document.getElementById("voteTabs")) window.refreshPopularVotePage?.();
-      // #261 — 성공 후 서버 wallet / quota / rankings 모두 재조회. 낙관적 값이 서버 기준과
-      // 다르면 곧바로 정정. 음수 잔액/중복 차감을 사용자 화면에서 들킬 일이 없게.
       loadWallet?.();
       // #047 + #261: 좋아요 후 free quota + paid quota 재조회.
-      loadFreeLikeQuota().then(updateHeroQuotaDisplay);
+      loadFreeLikeQuota().then(() => { if (identityCurrent()) updateHeroQuotaDisplay(); });
       loadPaidLikeQuota();
-      // #261 — 랭킹도 서버에서 재조회. free-like 흐름과 동일 패턴(line 1505).
-      apiFetch(`/api/v1/boost-campaigns/${_currentCampaign.id}/rankings?period=month`)
+      const rankingVersion = ++_pickRankingVersion;
+      apiFetch(`/api/v1/boost-campaigns/${campaignId}/rankings?period=month`)
         .then(rankingsData => {
-          if (!rankingsData) return;
-          const list = Array.isArray(rankingsData) ? rankingsData : (rankingsData?.rankings || rankingsData?.items || []);
-          if (Array.isArray(list) && list.length > 0) {
+          if (!identityCurrent() || rankingVersion !== _pickRankingVersion) return;
+          const list = Array.isArray(rankingsData) ? rankingsData
+            : Array.isArray(rankingsData?.rankings) ? rankingsData.rankings
+            : Array.isArray(rankingsData?.items) ? rankingsData.items : null;
+          if (list && list.every(r => typeof (r.artistSlug || r.slug || r.artist?.slug) === "string")) {
             _rankings = list.map(r => ({
               slug: r.artistSlug || r.slug || r.artist?.slug || "",
               likes: getRankingLikes(r)
@@ -4180,32 +4307,45 @@ async function openPaidLikeModal(slug) {
             updateLikeButtons(slug);
           }
         })
-        .catch(err => console.warn("[#261 paid-like] 랭킹 재로드 실패 (낙관적 갱신 유지):", { status: err?.status }));
-      alert(`좋아요 ${selectedBundle.quantity}개가 전달되었어요.`);
+        .catch(() => {});
+      alert(result.idempotentReplay ? "같은 응원의 처리 결과를 확인했어요." : `좋아요 ${attempt.quantity}개가 전달되었어요.`);
       close();
     } catch (err) {
+      if (!current()) return;
       const msg = err.body?.message || err.message || "";
+      if (!dispatched) {
+        setMessage("현재 잔액 또는 요금을 확인하지 못해 이번 요청을 보내지 않았어요. 이전 요청의 처리 여부는 미확인 상태로 보관합니다.");
+      } else if (recovering && (/Daily paid like limit exceeded/i.test(msg) || /insufficient.*balance/i.test(msg) || err?.status === 402)) {
+        setMessage("이번 재시도는 잔액 또는 한도 때문에 거절됐어요. 이전 요청의 결과와 차감 여부는 계속 미확인입니다.");
+      } else
       // #047 + #261: 한도 초과 / 잔액 부족 / idempotency mismatch / 네트워크 끊김 분기.
       if (/Daily paid like limit exceeded/i.test(msg)) {
         setMessage(`오늘 보낼 수 있는 추가 응원을 모두 사용했어요. 하루 최대 ${dailyLimit}개까지 응원할 수 있어요.`);
       } else if (/insufficient.*balance/i.test(msg) || err?.status === 402) {
         setMessage("루미나 잔액이 부족해요. 충전 후 다시 시도해주세요.");
-      } else if (err?.status === 409 || /idempotency/i.test(msg)) {
-        // #261 — 서버가 같은 idempotencyKey 로 이미 처리했다는 응답. 사용자에게 \"중복 아님\" 안내.
-        setMessage("이 응원은 이미 전달됐어요. 잠시 후 잔액과 랭킹이 자동 새로고침돼요.");
-        loadWallet?.();
-        loadPaidLikeQuota();
-      } else if (err?.status === 400 && /idempotency/i.test(msg)) {
-        setMessage("응원을 다시 시도해 주세요. 같은 응원이 두 번 차감되지 않도록 키가 갱신돼요.");
-      } else if (err?.name === "AbortError" || /Failed to fetch/i.test(msg) || isLikelyOffline()) {
-        setMessage("네트워크가 끊긴 것 같아요. 잠시 후 다시 시도해 주세요. 지금은 루미나가 차감되지 않습니다.");
+      } else if (err?.status === 409 || err.body?.code === "BOOST_IDEMPOTENCY_CONFLICT") {
+        attempt.blocked = true;
+        setMessage("응원 요청 정보가 일치하지 않아요. 전달 성공으로 확인할 수 없습니다.");
       } else {
-        setMessage(msg || "응원을 전달하지 못했어요. 잠시 후 다시 시도해주세요.");
+        setMessage("응원 결과와 차감 여부가 미확인이에요. 같은 요청을 재시도하며, 아직 미처리였다면 요금이 차감될 수 있어요.");
       }
-      button.disabled = false;
-      button.textContent = "응원하기";
+    } finally {
+      attempt.pending = false;
+      if (current()) {
+        button.disabled = !!attempt.blocked || !!attempt.confirmed;
+        button.textContent = attempt.confirmed ? "확인 완료" : "같은 요청 재시도";
+      }
     }
   });
+
+  const confirmButton = overlay.querySelector("[data-paid-like-confirm]");
+  if (confirmButton) {
+    confirmButton.disabled = !!attempt?.blocked || !quote;
+    if (attempt?.key) confirmButton.textContent = "같은 요청 재시도";
+  }
+  if (attempt?.blocked) setMessage("보관된 응원 요청을 확인하지 못했어요. 새 요청으로 바꾸지 않고 확인이 필요합니다.");
+  else if (attempt?.key) setMessage("이전 응원의 결과가 미확인이에요. 같은 요청을 재시도하며, 미처리였다면 요금이 차감될 수 있어요.");
+  else if (!quote) setMessage("현재 요금과 한도를 확인하지 못했어요. 확인되지 않은 조건으로 응원하지 않습니다.");
 
   document.body.appendChild(overlay);
   document.body.style.overflow = "hidden";
