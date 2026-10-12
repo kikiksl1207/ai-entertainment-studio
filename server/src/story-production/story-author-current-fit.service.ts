@@ -7,6 +7,7 @@ import { readCurrentApprovedStoryStyleSnapshot } from './story-author-approved-s
 import { continuationHash, profileObservationSource,
   type StoryContinuationProfileViewSizeDiagnostic } from './story-continuation-context.policy';
 import { buildStoryApprovedProfileDelivery, decodeStoryApprovedProfileDelivery, measureStoryApprovedProfileDelivery,
+  measureStoryApprovedProfileDeliveryComponents,
   createStoryApprovedProfileDiagnosticView, STORY_APPROVED_PROFILE_DELIVERY_CONTRACT } from './story-approved-profile-delivery.policy';
 import type { StoryContinuationDiagnosticApprovedContext } from './story-continuation-openai.prompt';
 import { readStoryContinuationDiagnosticContext, StoryContinuationDiagnosticContextUnavailable } from './story-continuation-diagnostic-context';
@@ -29,6 +30,7 @@ type ProfileDeliveryDiagnostic = Readonly<{
   normalizedApprovalPreserved: true;
   modelInputFit: 'unmeasured';
   semanticQualityVerified: false;
+  sizeBreakdown?: ReturnType<typeof measureStoryApprovedProfileDeliveryComponents>;
 }>;
 class SnapshotUnavailable extends Error {
   constructor(readonly reason: Reason,
@@ -50,7 +52,8 @@ export class StoryAuthorCurrentFitService {
     if (!isUUID(userId) || !isUUID(workId) || !isUUID(query?.choiceId) ||
       !(STORY_LOCALES as readonly string[]).includes(query?.locale) ||
       !Number.isSafeInteger(query?.expectedProgressRevision) || query.expectedProgressRevision < 0 ||
-      query.expectedProgressRevision > 2147483647) {
+      query.expectedProgressRevision > 2147483647 ||
+      (query.profileByteBreakdown !== undefined && query.profileByteBreakdown !== 'v1')) {
       throw new BadRequestException({ code: 'STORY_AUTHOR_CURRENT_FIT_INPUT_INVALID' });
     }
     userId = userId.toLowerCase();
@@ -116,6 +119,8 @@ export class StoryAuthorCurrentFitService {
           contract: STORY_APPROVED_PROFILE_DELIVERY_CONTRACT, byteCap: 16384,
           wholeCandidateViewBytes: size.wholeCandidateViewBytes, candidateViewFits: size.candidateViewFits,
           normalizedApprovalPreserved: true, modelInputFit: 'unmeasured', semanticQualityVerified: false,
+          ...(query.profileByteBreakdown === 'v1'
+            ? { sizeBreakdown: measureStoryApprovedProfileDeliveryComponents(delivery.packet) } : {}),
         });
         if (!size.candidateViewFits) unavailable('approved_profile_context_too_large', undefined, profileDeliveryDiagnostic);
         const generationProfile = createStoryApprovedProfileDiagnosticView(delivery.settings);

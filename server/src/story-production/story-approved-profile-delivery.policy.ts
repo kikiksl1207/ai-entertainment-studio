@@ -333,3 +333,18 @@ export function measureStoryApprovedProfileDelivery(packet: StoryApprovedProfile
     authorSemanticApprovalVerified: false as const, actualModelQualityVerified: false as const,
   });
 }
+
+// Numeric accounting only; the caller validates the same complete packet before measurement.
+export function measureStoryApprovedProfileDeliveryComponents(packet: StoryApprovedProfileDeliveryPacket) {
+  const wholeCandidateViewBytes = measureStoryApprovedProfileDelivery(packet).wholeCandidateViewBytes;
+  const authorDataBytes = Buffer.byteLength(JSON.stringify(packet.authorData), 'utf8');
+  const approvalEvidenceBytes = Buffer.byteLength(JSON.stringify(packet.approvalEvidence), 'utf8');
+  const serverInterpretationBytes = Buffer.byteLength(JSON.stringify(packet.serverInterpretation), 'utf8');
+  const approvalPinBytes = Buffer.byteLength(JSON.stringify(packet.pin), 'utf8');
+  return Object.freeze({
+    contract: 'story-approved-profile-byte-breakdown-v1' as const,
+    wholeCandidateViewBytes, authorDataBytes, approvalEvidenceBytes, serverInterpretationBytes, approvalPinBytes,
+    framingBytes: wholeCandidateViewBytes - authorDataBytes - approvalEvidenceBytes
+      - serverInterpretationBytes - approvalPinBytes,
+  });
+}

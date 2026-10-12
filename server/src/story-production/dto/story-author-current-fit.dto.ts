@@ -1,8 +1,12 @@
 import { Transform } from 'class-transformer';
-import { IsInt, IsUUID, Max, Min } from 'class-validator';
+import { IsIn, IsInt, IsUUID, Max, Min, ValidateIf } from 'class-validator';
 import { StoryLocaleQueryDto } from './story-production.dto';
 
 export class StoryAuthorCurrentFitQueryDto extends StoryLocaleQueryDto {
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsIn(['v1'])
+  profileByteBreakdown?: 'v1';
+
   @IsUUID()
   choiceId: string;
 

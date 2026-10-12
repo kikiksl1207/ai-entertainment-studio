@@ -153,8 +153,9 @@ function fixture() {
   }));
   const inspect = jest.spyOn(inspector, 'inspectStoryContinuationFixedCapFit');
   const service = new StoryAuthorCurrentFitService(prisma as never);
-  const run = (locale = 'ko', revision = 52, choice = choiceId) => service.inspect(owner, workId,
-    { locale, expectedProgressRevision: revision, choiceId: choice });
+  const run = (locale = 'ko', revision = 52, choice = choiceId, profileByteBreakdown?: 'v1') => service.inspect(owner, workId,
+    { locale, expectedProgressRevision: revision, choiceId: choice,
+      ...(profileByteBreakdown === undefined ? {} : { profileByteBreakdown }) });
   const unchanged = (before: string) => {
     expect(stableJson(state)).toBe(before);
     writes.forEach(write => expect(write).not.toHaveBeenCalled());
@@ -166,6 +167,92 @@ function fixture() {
 
 describe('current owner fixed-cap snapshot service (synthetic context projection)', () => {
   afterEach(() => jest.restoreAllMocks());
+
+  it.each([false, true])('COMPONENTS: returns an exact numeric partition of the same validated packet (overflow=%s)', async overflow => {
+    const f = fixture(), profile = f.state.profiles[0];
+    if (overflow) {
+      profile.approvedSettings.sections.find((section: Row) => section.key === 'writing_style').value.summary = '\uac00'.repeat(7900);
+      profile.approvedFingerprint = creatorGenerationProfileFingerprint(profile.sourceFingerprint, profile.approvedSettings);
+    }
+    const build = jest.spyOn(deliveryPolicy, 'buildStoryApprovedProfileDelivery'), before = stableJson(f.state);
+    const result = await f.run('ko', 52, choiceId, 'v1');
+    if (!('profileDeliveryDiagnostic' in result) || !result.profileDeliveryDiagnostic) throw new Error('Missing component evidence');
+    expect(build).toHaveBeenCalledTimes(1);
+    const packet = build.mock.results[0].value, sizes = result.profileDeliveryDiagnostic, parts = sizes.sizeBreakdown;
+    if (!parts) throw new Error('Missing requested component measurements');
+    const bytes = (value: unknown) => Buffer.byteLength(JSON.stringify(value), 'utf8');
+    expect(Object.keys(parts).sort()).toEqual(['contract', 'wholeCandidateViewBytes', 'authorDataBytes', 'approvalEvidenceBytes',
+      'serverInterpretationBytes', 'approvalPinBytes', 'framingBytes'].sort());
+    expect(parts).toMatchObject({ contract: 'story-approved-profile-byte-breakdown-v1',
+      wholeCandidateViewBytes: bytes(packet), authorDataBytes: bytes(packet.authorData),
+      approvalEvidenceBytes: bytes(packet.approvalEvidence), serverInterpretationBytes: bytes(packet.serverInterpretation),
+      approvalPinBytes: bytes(packet.pin) });
+    expect(parts.authorDataBytes + parts.approvalEvidenceBytes + parts.serverInterpretationBytes + parts.approvalPinBytes + parts.framingBytes)
+      .toBe(sizes.wholeCandidateViewBytes);
+    expect(Object.isFrozen(parts)).toBe(true);
+    expect(sizes).toMatchObject({ byteCap: 16384, candidateViewFits: !overflow, normalizedApprovalPreserved: true,
+      modelInputFit: 'unmeasured', semanticQualityVerified: false });
+    expect(result).toMatchObject({ readOnly: true, providerCalls: 0, operatingWrites: 0, dispatchAuthorized: false,
+      semanticQualityVerified: false, paidApproval: 'not_evaluated', legalAuthorization: 'not_evaluated' });
+    for (const secret of [PRIVATE, profile.id, profile.sourceFingerprint, profile.approvedFingerprint]) expect(JSON.stringify(result)).not.toContain(secret);
+    expect(f.context).toHaveBeenCalledTimes(overflow ? 0 : 1);
+    expect(f.inspect).toHaveBeenCalledTimes(overflow ? 0 : 1);
+    f.unchanged(before);
+  });
+
+  it.each(['foreign-owner', 'stale-profile', 'unapproved-profile', 'changed-progress'])('COMPONENTS: %s cannot reach or expose component measurements', async change => {
+    const f = fixture();
+    if (change === 'stale-profile') f.state.profiles[0].approvedFingerprint = 'e'.repeat(64);
+    if (change === 'unapproved-profile') f.state.profiles[0].status = 'needs_review';
+    if (change === 'changed-progress') f.state.progress.progressRevision++;
+    const measure = jest.spyOn(deliveryPolicy, 'measureStoryApprovedProfileDeliveryComponents'), before = stableJson(f.state);
+    if (change === 'foreign-owner') {
+      await expect(f.service.inspect(uuid(41), workId, { locale: 'ko', expectedProgressRevision: 52, choiceId,
+        profileByteBreakdown: 'v1' })).rejects.toBeInstanceOf(NotFoundException);
+    } else {
+      const result = await f.run('ko', 52, choiceId, 'v1');
+      expect(result).not.toHaveProperty('profileDeliveryDiagnostic');
+      expect(result).toMatchObject({ diagnostic: null, approvalReferenceVerified: false, dispatchAuthorized: false });
+    }
+    expect(measure).not.toHaveBeenCalled(); expect(f.context).not.toHaveBeenCalled(); f.unchanged(before);
+  });
+
+  it.each([false, true])('COMPONENTS: an old request retains exactly seven metadata keys (overflow=%s)', async overflow => {
+    const f = fixture(), profile = f.state.profiles[0];
+    if (overflow) {
+      profile.approvedSettings.sections.find((section: Row) => section.key === 'writing_style').value.summary = '\uac00'.repeat(7900);
+      profile.approvedFingerprint = creatorGenerationProfileFingerprint(profile.sourceFingerprint, profile.approvedSettings);
+    }
+    const measure = jest.spyOn(deliveryPolicy, 'measureStoryApprovedProfileDeliveryComponents'), before = stableJson(f.state);
+    const result = await f.run();
+    if (!('profileDeliveryDiagnostic' in result) || !result.profileDeliveryDiagnostic) throw new Error('Missing old metadata');
+    expect(Object.keys(result.profileDeliveryDiagnostic).sort()).toEqual(['contract', 'byteCap', 'wholeCandidateViewBytes',
+      'candidateViewFits', 'normalizedApprovalPreserved', 'modelInputFit', 'semanticQualityVerified'].sort());
+    expect(result.profileDeliveryDiagnostic).not.toHaveProperty('sizeBreakdown');
+    expect(measure).not.toHaveBeenCalled(); f.unchanged(before);
+  });
+
+  it.each(['v2', '', ' v1', 'v1 ', 'V1', 1, true, null, ['v1'], { value: 'v1' }])(
+    'COMPONENTS: rejects an invalid requested version before any transaction (%s)', async version => {
+      const f = fixture();
+      await expect(f.run('ko', 52, choiceId, version as 'v1')).rejects.toBeInstanceOf(BadRequestException);
+      expect(f.prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+  it.each(['v2', '', ' v1', 'v1 ', 'V1', 1, true, null, ['v1'], { value: 'v1' }])(
+    'COMPONENTS: DTO rejects an invalid version without coercion (%s)', async version => {
+      const query = plainToInstance(StoryAuthorCurrentFitQueryDto,
+        { locale: 'ko', choiceId, expectedProgressRevision: '52', profileByteBreakdown: version });
+      const errors = await validate(query);
+      expect(errors.some(error => error.property === 'profileByteBreakdown')).toBe(true);
+    });
+
+  it.each([undefined, 'v1'])('COMPONENTS: DTO admits only an absent or exact v1 selector (%s)', async version => {
+    const query = plainToInstance(StoryAuthorCurrentFitQueryDto,
+      { locale: 'ko', choiceId, expectedProgressRevision: '52',
+        ...(version === undefined ? {} : { profileByteBreakdown: version }) });
+    expect(await validate(query)).toEqual([]);
+  });
 
   it.each(locales)('DELIVERY: preserves an approved author-specific observation field in %s', async locale => {
     const f = fixture(), profile = f.state.profiles[0];
