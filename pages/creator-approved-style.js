@@ -1,7 +1,7 @@
 (function () {
   "use strict";
   const locales = ["ko", "en", "ja", "zh-Hans", "zh-Hant"];
-  const maxBytes = 192 * 1024;
+  const maxBytes = 192 * 1024, readDeadlineMs = 30000;
   const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   const record = v => v !== null && typeof v === "object" && !Array.isArray(v);
   const exact = (v, keys) => record(v) && Object.keys(v).length === keys.length && keys.every(k => Object.prototype.hasOwnProperty.call(v, k));
@@ -54,15 +54,23 @@
     }
     return clone(v);
   }
-  async function cancel(response) { try { await response?.body?.cancel?.(); } catch (_) {} }
-  async function readBody(response, current) {
+  function cancel(response) { try { Promise.resolve(response?.body?.cancel?.()).catch(() => {}); } catch (_) {} }
+  async function readBody(response, current, signal) {
     const length = response.headers?.get?.("content-length");
-    if (length != null && (!/^\d+$/.test(length) || Number(length) > maxBytes)) { await cancel(response); throw fail("invalid"); }
-    if (typeof response.body?.getReader !== "function") { await cancel(response); throw fail("invalid"); }
+    if (length != null && (!/^\d+$/.test(length) || Number(length) > maxBytes)) { cancel(response); throw fail("invalid"); }
+    if (typeof response.body?.getReader !== "function") { cancel(response); throw fail("invalid"); }
     const reader = response.body.getReader(), decoder = new TextDecoder("utf-8", { fatal: true });
-    let count = 0, body = "";
+    let count = 0, body = "", canceled = false;
+    const abortReader = () => {
+      if (canceled) return;
+      canceled = true;
+      try { Promise.resolve(reader.cancel()).catch(() => {}); } catch (_) {}
+    };
+    signal.addEventListener("abort", abortReader, { once: true });
+    if (signal.aborted) abortReader();
     try {
       while (true) {
+        if (!current()) throw fail("stale");
         const chunk = await reader.read();
         if (!current()) throw fail("stale");
         if (chunk.done) break;
@@ -74,8 +82,8 @@
       try { body += decoder.decode(); } catch (_) { throw fail("invalid"); }
       if (!current()) throw fail("stale");
       try { return JSON.parse(body); } catch (_) { throw fail("invalid"); }
-    } catch (e) { try { await reader.cancel(); } catch (_) {} throw e; }
-    finally { reader.releaseLock(); }
+    } catch (e) { abortReader(); throw e; }
+    finally { signal.removeEventListener("abort", abortReader); try { reader.releaseLock(); } catch (_) {} }
   }
   function createController({ fetch, identity, isCurrent, context, locale = () => "ko", visible = () => true, onChange = () => {} }) {
     let scope = null, ticket = 0, data = null, phase = "idle", messageKey = "ready", request = null;
@@ -97,27 +105,37 @@
       syncContext();
       if (!state().canLoad || (expectedTicket !== null && expectedTicket !== ticket)) return false;
       const workId = scope.workId, owner = { ...scope.owner }, ownTicket = ++ticket, abort = new AbortController();
-      request = abort; data = null; phase = "loading"; messageKey = "loading";
-      const current = () => { syncContext(); return ticket === ownTicket; };
+      let timer = null, finished = false, settle;
+      const canceled = new Promise(resolve => { settle = resolve; });
+      function finish() { finished = true; if (timer !== null) { clearTimeout(timer); timer = null; } }
+      const gate = { abort() { if (finished) return; finish(); settle(false); abort.abort(); } };
+      request = gate; data = null; phase = "loading"; messageKey = "loading";
+      const current = () => { syncContext(); return ticket === ownTicket && !abort.signal.aborted; };
+      timer = setTimeout(() => {
+        if (finished || request !== gate || !current()) return;
+        finish(); request = null; data = null; phase = "error"; messageKey = "transport"; settle(false);
+        try { onChange(state()); } finally { abort.abort(); }
+      }, readDeadlineMs);
       onChange(state());
-      try {
+      const work = async () => { try {
         if (!current()) return false;
         const response = await fetch("/api/v1/me/creator-studio/stories/" + workId + "/generation-profile/approved-style",
           { method: "GET", identity: owner, _retried: true, cache: "no-store", headers: { "Cache-Control": "no-store" }, signal: abort.signal });
-        if (!current()) { await cancel(response); return false; }
-        if (!Number.isInteger(response?.status)) { await cancel(response); throw fail("invalid"); }
-        if (response.status !== 200) { await cancel(response); throw fail(response.status === 401 ? "unauthenticated" : response.status === 409 ? "conflict" : "unavailable"); }
-        const raw = await readBody(response, current);
+        if (!current()) { cancel(response); return false; }
+        if (!Number.isInteger(response?.status)) { cancel(response); throw fail("invalid"); }
+        if (response.status !== 200) { cancel(response); throw fail(response.status === 401 ? "unauthenticated" : response.status === 409 ? "conflict" : "unavailable"); }
+        const raw = await readBody(response, current, abort.signal);
         if (!current()) return false;
         const parsed = parseStyle(raw);
         if (!current()) return false;
-        data = parsed; phase = "ready"; messageKey = "loaded"; request = null; onChange(state()); return current();
+        finish(); data = parsed; phase = "ready"; messageKey = "loaded"; request = null; onChange(state()); return current();
       } catch (e) {
         if (!current()) return false;
-        data = null; request = null; phase = "error";
+        finish(); data = null; request = null; phase = "error";
         messageKey = errors.has(e) && ["invalid", "unauthenticated", "conflict", "unavailable"].includes(e.kind) ? e.kind : "transport";
         onChange(state()); return false;
-      }
+      } finally { finish(); if (request === gate) request = null; } };
+      return Promise.race([work(), canceled]);
     }
     return { snapshot: () => syncContext(), syncContext, invalidate, load };
   }

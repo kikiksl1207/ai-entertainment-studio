@@ -31,7 +31,7 @@ function response(value = style(), { status = 200, raw = JSON.stringify(value), 
     text: () => { throw new Error('Raw fallback is forbidden'); }, json: () => { throw new Error('JSON fallback is forbidden'); } };
 }
 function library(extra = {}) {
-  const vm = createContext({ window: {}, TextEncoder, TextDecoder, Uint8Array, AbortController, ...extra });
+  const vm = createContext({ window: {}, TextEncoder, TextDecoder, Uint8Array, AbortController, setTimeout, clearTimeout, ...extra });
   runInContext(source, vm); return { vm, api: vm.window.LuminaCreatorApprovedStyle };
 }
 function screen(handler = () => response(), onChange = () => {}) {
