@@ -92,6 +92,8 @@ import { StoryAuthorCurrentFitController } from './story-author-current-fit.cont
 import { StoryAuthorCurrentFitService } from './story-author-current-fit.service';
 import { StoryAuthorApprovedWireController } from './story-author-approved-wire.controller';
 import { StoryAuthorApprovedWireService } from './story-author-approved-wire.service';
+import { StoryAuthorApprovedSectionBytesController } from './story-author-approved-section-bytes.controller';
+import { StoryAuthorApprovedSectionBytesService } from './story-author-approved-section-bytes.service';
 import { StoryAuthorBodyTrialCostController } from './story-author-body-trial-cost.controller';
 import { StoryAuthorBodyTrialCostService } from './story-author-body-trial-cost.service';
 import { StoryAuthorBodyTrialService } from './story-author-body-trial.service';
@@ -120,6 +122,7 @@ import { StoryAuthorBodyTrialReceiptService } from './story-author-body-trial-re
     StoryAuthorBodyPreviewController,
     StoryAuthorCurrentFitController,
     StoryAuthorApprovedWireController,
+    StoryAuthorApprovedSectionBytesController,
     StoryAuthorBodyTrialCostController,
     StoryAuthorBodyTrialController,
     StoryAuthorBodyTrialStateController,
@@ -164,6 +167,7 @@ import { StoryAuthorBodyTrialReceiptService } from './story-author-body-trial-re
     StoryAuthorBodyPreviewService,
     StoryAuthorCurrentFitService,
     StoryAuthorApprovedWireService,
+    StoryAuthorApprovedSectionBytesService,
     StoryAuthorBodyTrialCostService,
     StoryAuthorBodyTrialStateService,
     StoryAuthorBodyTrialService,
