@@ -18,7 +18,7 @@ const consumers = [
       "/data/fan-engagement-copy.js",
       "/pages/shortform.js",
       "/pages/home.js",
-      "/pages/fan-engagement.js",
+      "/pages/fan-engagement.js?v=20261012-home-participation-v1",
       "/cms-bootstrap.js",
       "/app.js"
     ]
