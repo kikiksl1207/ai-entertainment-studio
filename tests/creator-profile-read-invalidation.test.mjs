@@ -178,7 +178,7 @@ async function boot({ restore = true, patch, approve } = {}) {
   for (const { name, source } of scripts) {
     vm.runInNewContext(source, {
       window: screen.window, document, TextEncoder, TextDecoder, Uint8Array, AbortController,
-      Event, CustomEvent: FixtureCustomEvent,
+      Event, CustomEvent: FixtureCustomEvent, setTimeout, clearTimeout,
     }, { filename: name });
   }
   assert.equal(styleHost.dataset.approvedStyleMounted, 'true');
