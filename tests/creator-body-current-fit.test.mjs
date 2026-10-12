@@ -57,7 +57,7 @@ function response(value, { status = 200, raw = JSON.stringify(value), chunks = n
     json: () => { stats.jsonReads++; throw new Error('Unbounded JSON fallback forbidden'); } };
 }
 function library(extra = {}) {
-  const vm = createContext({ window: extra.window || {}, TextEncoder, TextDecoder, Uint8Array, AbortController });
+  const vm = createContext({ window: extra.window || {}, TextEncoder, TextDecoder, Uint8Array, AbortController, setTimeout, clearTimeout });
   runInContext(previewSource, vm);
   Object.assign(vm, extra);
   runInContext(source, vm);
@@ -588,7 +588,9 @@ test('CURRENT-FIT: unmeasured/unavailable displays null measurements and rejects
 });
 
 test('CURRENT-FIT: narrow readonly transport, text-only rendering and fixed responsive icon/select layout', () => {
-  assert.doesNotMatch(source, /innerHTML|outerHTML|insertAdjacentHTML|localStorage|sessionStorage|setInterval|setTimeout|\.json\(|\.text\(|method:\s*["'](?:POST|PUT|PATCH|DELETE)/);
+  assert.doesNotMatch(source, /innerHTML|outerHTML|insertAdjacentHTML|localStorage|sessionStorage|setInterval|\.json\(|\.text\(|method:\s*["'](?:POST|PUT|PATCH|DELETE)/);
+  assert.equal((source.match(/\bsetTimeout\(/g) || []).length, 1);
+  assert.match(source, /readDeadlineMs\s*=\s*30000/);
   assert.doesNotMatch(source, /\/generate|\/approve|\/payments|\/auth\/refresh|console\.|createObjectURL/);
   assert.match(source, /new TextDecoder\("utf-8", \{ fatal: true \}\)/); assert.match(source, /_retried: true, cache: "no-store"/);
   assert.match(css, /grid-template-columns: minmax\(0, 1fr\) 44px/); assert.match(css, /width: 44px;\s*height: 44px/);
@@ -900,7 +902,7 @@ test('CURRENT-FIT-PROFILE-SIZE: malformed wire clears state; JS cache query alon
     assert.equal(view.calls.length, 2);
   }
   const entry = readFileSync(new URL('../creator-studio/index.html', import.meta.url), 'utf8');
-  assert.match(entry, /creator-body-current-fit\.js\?v=20261012-profile-components"/);
+  assert.match(entry, /creator-body-current-fit\.js\?v=20261012-read-deadline"/);
   assert.match(entry, /creator-body-current-fit\.css\?v=current-fit-20261011/);
   assert.match(source, /new Intl\.NumberFormat\(state\.locale\)/);
   assert.match(css, /grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
@@ -1090,10 +1092,11 @@ test('CURRENT-FIT-STYLE-PROJECTION: malformed or raw-reason wire responses clear
 
 test('CURRENT-FIT-STYLE-PROJECTION: only the actual helper cache query advances, keeping existing CSS and GET-only controls', () => {
   const entry = readFileSync(new URL('../creator-studio/index.html', import.meta.url), 'utf8');
-  const helper = '/pages/creator-body-current-fit.js?v=20261012-profile-components';
+  const helper = '/pages/creator-body-current-fit.js?v=20261012-read-deadline';
   assert.equal(entry.split(helper).length, 2); assert.ok(entry.includes('src="' + helper + '"'));
   assert.ok(entry.includes('href="/pages/creator-body-current-fit.css?v=current-fit-20261011"'));
-  assert.doesNotMatch(source, /\/generate|\/approve|\/payments|\/auth\/refresh|setInterval|setTimeout|console\./);
+  assert.doesNotMatch(source, /\/generate|\/approve|\/payments|\/auth\/refresh|setInterval|console\./);
+  assert.equal((source.match(/\bsetTimeout\(/g) || []).length, 1);
   assert.match(source, /_retried: true, cache: "no-store"/);
   assert.match(css, /overflow-wrap: anywhere/); assert.match(css, /@media \(max-width: 720px\)/);
 });

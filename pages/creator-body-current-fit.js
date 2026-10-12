@@ -3,6 +3,7 @@
   const locales = ["ko", "en", "ja", "zh-Hans", "zh-Hant"];
   const maxBytes = 16 * 1024;
   const previewMaxBytes = 256 * 1024;
+  const readDeadlineMs = 30000;
   const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   const record = value => value !== null && typeof value === "object" && !Array.isArray(value);
   const integer = (value, min = 0, max = Number.MAX_SAFE_INTEGER) => Number.isSafeInteger(value) && value >= min && value <= max;
@@ -213,14 +214,22 @@
     return clone(value);
   }
 
-  async function cancel(response) { try { await response?.body?.cancel?.(); } catch (_) {} }
-  async function readBody(response, current, ceiling) {
+  function cancel(response) { try { Promise.resolve(response?.body?.cancel?.()).catch(() => {}); } catch (_) {} }
+  async function readBody(response, current, ceiling, signal) {
     const length = response.headers?.get?.("content-length"), type = response.headers?.get?.("content-type");
     if (!current()) { await cancel(response); throw failure("stale"); }
     if ((length !== null && length !== undefined && (!/^\d+$/.test(length) || Number(length) > ceiling)) ||
         (type !== null && type !== undefined && !/^application\/json(?:\s*;\s*charset\s*=\s*utf-8)?$/i.test(type)) ||
         typeof response.body?.getReader !== "function") { await cancel(response); throw failure("invalid"); }
     const reader = response.body.getReader(), decoder = new TextDecoder("utf-8", { fatal: true });
+    let cancelRequested = false;
+    const abortReader = () => {
+      if (cancelRequested) return;
+      cancelRequested = true;
+      try { Promise.resolve(reader.cancel()).catch(() => {}); } catch (_) {}
+    };
+    signal.addEventListener("abort", abortReader, { once: true });
+    if (signal.aborted) abortReader();
     let bytes = 0, text = "";
     try {
       while (true) {
@@ -236,8 +245,8 @@
       try { text += decoder.decode(); } catch (_) { throw failure("invalid"); }
       if (!current()) throw failure("stale");
       try { return JSON.parse(text); } catch (_) { throw failure("invalid"); }
-    } catch (error) { try { await reader.cancel(); } catch (_) {} throw error; }
-    finally { reader.releaseLock(); }
+    } catch (error) { abortReader(); throw error; }
+    finally { signal.removeEventListener("abort", abortReader); reader.releaseLock(); }
   }
 
   function createController({ fetch, identity, isCurrent, context, locale = () => "ko", visible = () => true, onChange = () => {} }) {
@@ -290,67 +299,93 @@
       if (!(mode === "refresh" ? state().canRefresh : state().canCheck) || (expectedTicket !== null && expectedTicket !== ticket)) return false;
       const target = { workId: scope.workId, locale: scope.sourceLocale }, owner = { ...scope.owner };
       const choiceId = selectedChoiceId, revision = progressRevision, ownTicket = ++ticket, abort = new AbortController();
-      request = abort; data = null;
+      let timer = null, finished = false, settle;
+      const canceled = new Promise(resolve => { settle = resolve; });
+      function finish() {
+        finished = true;
+        if (timer !== null) { clearTimeout(timer); timer = null; }
+      }
+      const gate = { abort() {
+        if (finished) return;
+        finish(); settle(false); abort.abort();
+      } };
+      request = gate; data = null;
       if (mode === "refresh") clear();
       phase = mode === "refresh" ? "loadingPreview" : "loadingCheck"; messageKey = phase;
       const current = () => { syncContext(); return ticket === ownTicket && !abort.signal.aborted; };
-      emit();
-      try {
-        if (!current()) return false;
-        const path = "/api/v1/me/creator-studio/stories/" + target.workId + "/body-preview";
-        const url = mode === "refresh" ? path + "?locale=" + target.locale
-          : path + "/current-fit?locale=" + target.locale + "&choiceId=" + choiceId + "&profileByteBreakdown=v1&expectedProgressRevision=" + revision;
-        const response = await fetch(url, { method: "GET", identity: owner, _retried: true, cache: "no-store",
-          headers: { "Cache-Control": "no-store", "Accept": "application/json" }, signal: abort.signal });
-        if (!current()) { await cancel(response); return false; }
-        if (!integer(response?.status, 100, 599)) { await cancel(response); throw failure("invalid"); }
-        if (response.status !== 200) {
-          await cancel(response);
-          throw failure(response.status === 401 ? "unauthenticated" : response.status === 403 ? "forbidden" :
-            response.status === 409 ? "changed" : response.status >= 500 ? "server" : "unavailable");
-        }
-        const raw = await readBody(response, current, mode === "refresh" ? previewMaxBytes : maxBytes);
-        if (!current()) return false;
-        if (mode === "refresh") {
-          let preview;
-          try { preview = window.LuminaCreatorBodyPreview.parsePreview(raw, target); } catch (_) { throw failure("invalid"); }
+      const work = async () => {
+        try {
           if (!current()) return false;
-          const progress = preview.progress;
-          if (!progress) messageKey = "noProgress";
-          else {
-            progressRevision = progress.revision; storyVersion = progress.storyVersion;
-            if (progress.status === "completed") messageKey = "ended";
-            else if (progress.status !== "active") messageKey = "noProgress";
-            else if (!progress.scene) messageKey = "noScene";
-            else if (progress.scene.endingType !== null) messageKey = "ended";
-            else if (!integer(progress.revision, 0, 2147483647) || !integer(progress.currentBeatPosition, 1, 40) ||
-              progress.scene.beats.some((beat, index) => beat.position !== index + 1) ||
-              progress.currentBeatPosition !== progress.scene.beats.length) messageKey = "notRead";
+          const path = "/api/v1/me/creator-studio/stories/" + target.workId + "/body-preview";
+          const url = mode === "refresh" ? path + "?locale=" + target.locale
+            : path + "/current-fit?locale=" + target.locale + "&choiceId=" + choiceId + "&profileByteBreakdown=v1&expectedProgressRevision=" + revision;
+          const response = await fetch(url, { method: "GET", identity: owner, _retried: true, cache: "no-store",
+            headers: { "Cache-Control": "no-store", "Accept": "application/json" }, signal: abort.signal });
+          if (!current()) { await cancel(response); return false; }
+          if (!integer(response?.status, 100, 599)) { await cancel(response); throw failure("invalid"); }
+          if (response.status !== 200) {
+            await cancel(response);
+            throw failure(response.status === 401 ? "unauthenticated" : response.status === 403 ? "forbidden" :
+              response.status === 409 ? "changed" : response.status >= 500 ? "server" : "unavailable");
+          }
+          const raw = await readBody(response, current, mode === "refresh" ? previewMaxBytes : maxBytes, abort.signal);
+          if (!current()) return false;
+          if (mode === "refresh") {
+            let preview;
+            try { preview = window.LuminaCreatorBodyPreview.parsePreview(raw, target); } catch (_) { throw failure("invalid"); }
+            if (!current()) return false;
+            const progress = preview.progress;
+            if (!progress) messageKey = "noProgress";
             else {
-              choices = progress.choices.filter(item => item.routeKind === "generation_required").map(item => {
-                if (!uuid.test(item.id)) throw failure("invalid");
-                return { id: item.id, label: item.label };
-              });
-              messageKey = choices.length ? "selectChoice" : "noChoice";
+              progressRevision = progress.revision; storyVersion = progress.storyVersion;
+              if (progress.status === "completed") messageKey = "ended";
+              else if (progress.status !== "active") messageKey = "noProgress";
+              else if (!progress.scene) messageKey = "noScene";
+              else if (progress.scene.endingType !== null) messageKey = "ended";
+              else if (!integer(progress.revision, 0, 2147483647) || !integer(progress.currentBeatPosition, 1, 40) ||
+                progress.scene.beats.some((beat, index) => beat.position !== index + 1) ||
+                progress.currentBeatPosition !== progress.scene.beats.length) messageKey = "notRead";
+              else {
+                choices = progress.choices.filter(item => item.routeKind === "generation_required").map(item => {
+                  if (!uuid.test(item.id)) throw failure("invalid");
+                  return { id: item.id, label: item.label };
+                });
+                messageKey = choices.length ? "selectChoice" : "noChoice";
+              }
+            }
+          } else {
+            const parsed = parseDiagnostic(raw, target.locale, revision);
+            if (!current()) return false;
+            if (parsed.outcome === "current_source_unavailable") {
+              clear(); data = parsed; messageKey = unavailableReasons[parsed.reason];
+            } else {
+              data = parsed; messageKey = parsed.diagnostic.inputFit === "within_policy_bound" ? "within" :
+                parsed.diagnostic.inputFit === "exceeds_policy_bound" ? "exceeds" : "unmeasured";
             }
           }
-        } else {
-          const parsed = parseDiagnostic(raw, target.locale, revision);
           if (!current()) return false;
-          if (parsed.outcome === "current_source_unavailable") {
-            clear(); data = parsed; messageKey = unavailableReasons[parsed.reason];
-          } else {
-            data = parsed; messageKey = parsed.diagnostic.inputFit === "within_policy_bound" ? "within" :
-              parsed.diagnostic.inputFit === "exceeds_policy_bound" ? "exceeds" : "unmeasured";
-          }
+          phase = "ready"; request = null; finish(); emit(); return current();
+        } catch (error) {
+          if (!current()) return false;
+          clear(); request = null; phase = "error"; finish();
+          messageKey = ownErrors.has(error) && ["invalid", "unauthenticated", "forbidden", "changed", "server", "unavailable"].includes(error.kind) ? error.kind : "transport";
+          emit(); return false;
         }
-        if (!current()) return false;
-        phase = "ready"; request = null; emit(); return current();
-      } catch (error) {
-        if (!current()) return false;
-        clear(); request = null; phase = "error";
-        messageKey = ownErrors.has(error) && ["invalid", "unauthenticated", "forbidden", "changed", "server", "unavailable"].includes(error.kind) ? error.kind : "transport";
-        emit(); return false;
+      };
+      timer = setTimeout(() => {
+        timer = null;
+        if (finished) return;
+        if (request !== gate || !current()) { gate.abort(); return; }
+        clear(); request = null; phase = "error"; messageKey = "transport";
+        settle(false);
+        try { emit(); } finally { gate.abort(); }
+      }, readDeadlineMs);
+      try {
+        emit();
+        return await Promise.race([work(), canceled]);
+      } finally {
+        finish();
+        if (request === gate) request = null;
       }
     }
     return { snapshot: () => syncContext(), syncContext, invalidate, selectChoice,
