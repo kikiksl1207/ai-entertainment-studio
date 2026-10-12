@@ -1,10 +1,15 @@
 import { Prisma, PrismaClient } from '@prisma/client';
 import { createHash, randomUUID } from 'crypto';
+import { performance } from 'node:perf_hooks';
 import { CREATOR_GENERATION_PROFILE_SCHEMA, STORY_PROFILE_SECTION_KEYS, creatorGenerationProfileFingerprint,
   normalizeCreatorGenerationProfile, stableJson } from '../generation-profile/creator-generation-profile.policy';
 import { StoryAuthorCurrentFitService } from './story-author-current-fit.service';
 import * as inspector from './story-continuation-fixed-cap-fit';
-import { prepareStoryContinuationOpenAiRequestForDiagnostics } from './story-continuation-openai.prompt';
+import { prepareStoryContinuationOpenAiRequestForDiagnostics,
+  type StoryContinuationDiagnosticProfileBinding } from './story-continuation-openai.prompt';
+import { buildStoryApprovedProfileDelivery, STORY_APPROVED_PROFILE_DELIVERY_CONTRACT,
+  type StoryApprovedProfileDeliveryRow } from './story-approved-profile-delivery.policy';
+import { profileObservationSource } from './story-continuation-context.policy';
 import { storyContinuationInputTokenBudget } from './story-continuation-tokenizer';
 import { createStoryRouteRoot } from './story-route-identity.store';
 import { SEMANTIC_PIPELINE } from './story-semantic-analysis.types';
@@ -30,7 +35,7 @@ postgres('current-fit on owned PostgreSQL, SDK174 (synthetic only)', () => {
   afterEach(() => jest.restoreAllMocks());
   afterAll(async () => { await db?.$disconnect(); });
 
-  async function fixture(afterWorkRead?: () => Promise<void>) {
+  async function fixture(afterWorkRead?: () => Promise<void>, captureReadTiming = false) {
     const owner = await db.user.create({ data: {} });
     const work = await db.storyWork.create({ data: { ownerUserId: owner.id, slug: 'current-fit-' + randomUUID(),
       status: 'draft', defaultLocale: 'ko', supportedLocales: locales, title: localized(PRIVATE), summary: {} } });
@@ -83,19 +88,62 @@ postgres('current-fit on owned PostgreSQL, SDK174 (synthetic only)', () => {
     const writes: string[] = [], lockingQueries: string[] = [];
     const failures: Array<{ code: string; kind: string; lastRead: string; elapsedMs: number }> = [];
     let lastRead = 'transaction';
+    const timingLabels = [
+      'transaction', 'set_read_only', 'show_read_only', 'show_isolation', 'raw_read', 'story_read_other',
+      'storyWork.findFirst', 'storyReaderProgress.findUnique', 'storyRelease.findFirst',
+      'storyWorkGenerationProfile.findFirst', 'storyWorkGenerationProfile.findUnique',
+      'storyAnalysisJob.findFirst', 'storyAnalysisJob.findUnique',
+      'storyManuscriptVersion.findFirst', 'storyManuscriptVersion.findUnique',
+      'storyScene.findFirst', 'storyScene.findMany', 'storyPart.findFirst', 'storyPart.findMany',
+      'storyBeat.findMany', 'storyChoice.findFirst', 'storyChoice.findMany', 'storyMemoryRecord.findMany',
+      'storyReleaseCapability.findUnique', 'storyAiRateCard.findUnique',
+      'storyProgressRouteNode.findFirst', 'storyProgressRouteNode.findUnique', 'storyProgressRouteNode.findMany',
+      'storyAiGeneratedScene.findFirst', 'storyAiGeneratedScene.findMany', 'storyAiGeneratedBeat.findMany',
+      'storyAiGeneratedChoice.findFirst', 'storyAiGeneratedChoice.findMany',
+      'storyAiContinuation.findFirst', 'storyAiContinuation.findMany',
+    ] as const;
+    type TimingLabel = typeof timingLabels[number];
+    const timingEntries: Array<{ label: TimingLabel; ordinal: number; startElapsedMs: number;
+      durationMs: number; code?: string }> = [];
+    let timingOrigin = 0, timingOrdinal = 0, timingOmitted = 0, readElapsedMs = 0;
+    function timedRead<T>(label: TimingLabel, action: () => PromiseLike<T>): PromiseLike<T> {
+      if (!captureReadTiming) return action();
+      const ordinal = ++timingOrdinal;
+      if (ordinal > 128) { timingOmitted++; return action(); }
+      const started = performance.now();
+      const entry: typeof timingEntries[number] = { label, ordinal,
+        startElapsedMs: Math.max(0, Math.round(started - timingOrigin)), durationMs: 0 };
+      timingEntries.push(entry);
+      return (async () => {
+        try { return await action(); }
+        catch (error) {
+          const code = error && typeof error === 'object' ? (error as { code?: unknown }).code : undefined;
+          entry.code = typeof code === 'string' && /^P\d{4}$/.test(code) ? code : 'unknown';
+          throw error;
+        } finally { entry.durationMs = Math.max(0, Math.round(performance.now() - started)); }
+      })();
+    }
+    const readTiming = () => ({ contract: 'synthetic-current-fit-read-timing-v1', entryCap: 128,
+      readElapsedMs, omittedEntries: timingOmitted, entries: timingEntries.map(entry => ({ ...entry })) });
     const txCount = jest.fn();
     const rawReadCount = jest.fn();
+    let transactionSettled = false;
+    let transactionSucceeded = false;
     const facade = { $transaction: async (callback: (tx: Prisma.TransactionClient) => Promise<unknown>, options: any) => {
+      transactionSettled = false;
+      transactionSucceeded = false;
       txCount(); expect(options).toEqual({ isolationLevel: 'RepeatableRead' });
       const started = Date.now();
-      try { return await db.$transaction(async tx => {
+      try { const result = await timedRead('transaction', () => db.$transaction(async tx => {
         let invoked = false;
         const observed = new Proxy(tx, { get(target, key) {
           if (key === '$executeRaw') return async (sql: Prisma.Sql) => {
             expect(sql.strings.join('')).toBe('SET TRANSACTION READ ONLY'); expect(sql.values).toEqual([]);
-            const result = await target.$executeRaw(sql);
-            const ro = await target.$queryRaw<Array<{ transaction_read_only: string }>>`SHOW transaction_read_only`;
-            const rr = await target.$queryRaw<Array<{ transaction_isolation: string }>>`SHOW transaction_isolation`;
+            const result = await timedRead('set_read_only', () => target.$executeRaw(sql));
+            const ro = await timedRead('show_read_only', () =>
+              target.$queryRaw<Array<{ transaction_read_only: string }>>`SHOW transaction_read_only`);
+            const rr = await timedRead('show_isolation', () =>
+              target.$queryRaw<Array<{ transaction_isolation: string }>>`SHOW transaction_isolation`);
             modes.push({ readOnly: ro[0].transaction_read_only, isolation: rr[0].transaction_isolation }); return result;
           };
           if (key === '$queryRaw') return async (strings: TemplateStringsArray, ...values: unknown[]) => {
@@ -103,7 +151,7 @@ postgres('current-fit on owned PostgreSQL, SDK174 (synthetic only)', () => {
             lastRead = '$queryRaw';
             const sql = strings.join('');
             if (/FOR\s+(?:UPDATE|SHARE|KEY|NO)/i.test(sql)) { lockingQueries.push('row_lock'); throw new Error('Row lock prohibited'); }
-            return (target.$queryRaw as any)(strings, ...values);
+            return timedRead('raw_read', () => (target.$queryRaw as any)(strings, ...values));
           };
           const delegate = Reflect.get(target, key);
           if (typeof key === 'string' && key.startsWith('story') && delegate && typeof delegate === 'object') {
@@ -114,39 +162,58 @@ postgres('current-fit on owned PostgreSQL, SDK174 (synthetic only)', () => {
               }
               if (key === 'storyWork' && method === 'findFirst') return async (...args: unknown[]) => {
                 lastRead = key + '.' + method;
-                const result = await original.apply(model, args);
+                const result = await timedRead('storyWork.findFirst', () => original.apply(model, args));
                 if (!invoked && afterWorkRead) { invoked = true; await afterWorkRead(); }
                 return result;
               };
               return typeof original === 'function' ? (...args: unknown[]) => {
-                lastRead = key + '.' + String(method); return original.apply(model, args);
+                lastRead = key + '.' + String(method);
+                const label = captureReadTiming
+                  ? timingLabels.find(item => item === lastRead) ?? 'story_read_other' : 'story_read_other';
+                return timedRead(label, () => original.apply(model, args));
               } : original;
             } });
           }
           return typeof delegate === 'function' ? delegate.bind(target) : delegate;
         } });
         return callback(observed);
-      }, options); } catch (error) {
+      }, options)); transactionSucceeded = true; return result; } catch (error) {
         const detail = error as { code?: string; constructor?: { name?: string } };
         failures.push({ code: /^P\d{4}$/.test(detail.code || '') ? detail.code! : 'unknown',
           kind: ['Error', 'TypeError', 'RangeError', 'PrismaClientKnownRequestError', 'PrismaClientValidationError',
             'PrismaClientUnknownRequestError'].includes(detail.constructor?.name || '') ? detail.constructor!.name! : 'unknown',
           lastRead, elapsedMs: Date.now() - started });
         throw error;
+      } finally {
+        transactionSettled = true;
       }
     } };
     const service = new StoryAuthorCurrentFitService(facade as never);
+    const actualInspect = inspector.inspectStoryContinuationFixedCapFit;
     const inspectSpy = jest.spyOn(inspector, 'inspectStoryContinuationFixedCapFit');
+    if (captureReadTiming) inspectSpy.mockImplementation((...args: Parameters<typeof actualInspect>) => {
+      expect(transactionSettled).toBe(true);
+      expect(transactionSucceeded).toBe(true);
+      const readsBefore = timingEntries.length;
+      const result = actualInspect(...args);
+      expect(timingEntries).toHaveLength(readsBefore);
+      return result;
+    });
     const read = async (revision = 52, locale = 'ko') => {
+      if (captureReadTiming) {
+        timingEntries.length = 0; timingOrdinal = 0; timingOmitted = 0; timingOrigin = performance.now();
+      }
       try { return await service.inspect(owner.id, work.id,
         { locale, choiceId: choice.id, expectedProgressRevision: revision }); }
       catch (error) {
         if (failures.length) throw new Error('SYNTHETIC_NATIVE_BOUNDARY ' + JSON.stringify(failures));
         throw error;
+      } finally {
+        if (captureReadTiming) readElapsedMs = Math.max(0, Math.round(performance.now() - timingOrigin));
       }
     };
     return { owner, work, manuscript, analysis, profile, progress, choice, scene, release, service, read,
-      inspectSpy, modes, writes, lockingQueries, txCount, rawReadCount };
+      inspectSpy, modes, writes, lockingQueries, txCount, rawReadCount, readTiming };
   }
 
   async function snapshot() {
@@ -166,18 +233,53 @@ postgres('current-fit on owned PostgreSQL, SDK174 (synthetic only)', () => {
   }
 
   it('CURRENT-FIT-PG: complete source/profile/builder/tokenizer on one real RO/RR snapshot leaves affected rows unchanged', async () => {
-    const f = await fixture(), before = await snapshot();
-    const result = await f.read();
+    const f = await fixture(undefined, true), before = await snapshot();
+    let result: Awaited<ReturnType<typeof f.read>>;
+    try { result = await f.read(); }
+    finally { process.stdout.write('SYNTHETIC_READ_TIMING ' + JSON.stringify(f.readTiming()) + '\n'); }
     expect(result).toMatchObject({ outcome: 'request_checked', currentSourceState: 'validated', progressRevision: 52,
       approvalReferenceVerified: true, legalAuthorization: 'not_evaluated', paidApproval: 'not_evaluated',
       diagnostic: { inputFit: 'within_policy_bound', outputFit: 'unmeasured', writingStylePresent: true } });
-    const [input, config] = f.inspectSpy.mock.calls[0];
-    const prepared = prepareStoryContinuationOpenAiRequestForDiagnostics(input, config);
+    const [input, config, binding] = f.inspectSpy.mock.calls[0];
+    expect(binding).toBeDefined();
+    if (!binding) throw new Error('Synthetic canonical lossless binding required');
+    const currentRow = await db.storyWorkGenerationProfile.findUniqueOrThrow({ where: { id: f.profile.id } });
+    expect(currentRow).toEqual(f.profile);
+    const approved = normalizeCreatorGenerationProfile('story', currentRow.approvedSettings);
+    const pin = { id: currentRow.id, profileVersion: currentRow.profileVersion, reviewRevision: currentRow.reviewRevision,
+      sourceFingerprint: currentRow.sourceFingerprint, approvedFingerprint: currentRow.approvedFingerprint! };
+    expect(binding.currentRow).toEqual({ ...pin, status: 'approved', approvedSettings: currentRow.approvedSettings,
+      workId: currentRow.workId, ownerUserId: currentRow.ownerUserId,
+      manuscriptVersionId: currentRow.manuscriptVersionId, analysisJobId: currentRow.analysisJobId });
+    const expectedPacket = buildStoryApprovedProfileDelivery(currentRow, pin, profileObservationSource);
+    expect(binding.packet).toEqual(expectedPacket);
+    const prepared = prepareStoryContinuationOpenAiRequestForDiagnostics(input, config, binding);
     expect(result.diagnostic!.inputTokenBudget).toBe(storyContinuationInputTokenBudget(prepared));
+    expect(result.diagnostic!.requestBytes).toBe(Buffer.byteLength(JSON.stringify(prepared), 'utf8'));
+    expect(input.inputTokenLimit).toBe(32768); expect(input.outputTokenLimit).toBe(8192);
+    expect(prepared.max_output_tokens).toBe(8192); expect(prepared.truncation).toBe('disabled');
     const projected = JSON.parse(prepared.input[0].content[0].text);
+    expect(projected.generationProfile).toEqual(binding.packet);
+    expect(projected.generationProfile.authorData).toEqual({ schemaVersion: approved.schemaVersion, kind: 'story',
+      sections: approved.sections.map(({ key, decision, value }) => ({ key, decision, value })) });
+    expect(projected.generationProfile.approvalEvidence).toEqual(approved.sections.map(({ key, evidence }) => ({ key, items: evidence })));
+    expect(projected.generationProfile.serverInterpretation).toEqual(expectedPacket.serverInterpretation);
+    expect(projected.generationProfile.pin).toEqual(pin);
+    const wholeCandidateViewBytes = Buffer.byteLength(JSON.stringify(binding.packet), 'utf8');
+    expect(wholeCandidateViewBytes).toBeLessThanOrEqual(16384);
+    expect(result).toMatchObject({ readOnly: true, providerCalls: 0, operatingWrites: 0,
+      requestPreparationContract: 'story-continuation-lossless-profile-diagnostic-v1', dispatchCompatibility: 'not_evaluated',
+      dispatchAuthorized: false, semanticQualityVerified: false,
+      profileDeliveryDiagnostic: { contract: STORY_APPROVED_PROFILE_DELIVERY_CONTRACT, byteCap: 16384,
+        wholeCandidateViewBytes, candidateViewFits: true, normalizedApprovalPreserved: true,
+        modelInputFit: 'unmeasured', semanticQualityVerified: false },
+      diagnostic: { fixedInputTokenLimit: 32768, fixedOutputTokenLimit: 8192, currentApprovalVerified: false,
+        outputFit: 'unmeasured', multiStageFit: 'unimplemented', dispatchAuthorized: false, semanticQualityVerified: false, providerCalls: 0 } });
     expect(projected.sourceScene.beats[0].content).toBe('a'.repeat(5200));
-    expect(projected.generationProfile.sections).toHaveLength(8);
-    expect(projected.generationProfile.sections.find((row: any) => row.key === 'writing_style').value.observations
+    expect(projected.narrativeLength).toEqual({ measurement: 'narrative-nonwhite-codepoints-v1',
+      sourceUnits: 5200, minimumUnits: 4160, targetUnits: 5200, maximumUnits: 6240 });
+    expect(projected.generationProfile.authorData.sections).toHaveLength(8);
+    expect(projected.generationProfile.authorData.sections.find((row: any) => row.key === 'writing_style').value.observations
       .map((row: any) => row.detail)).toEqual(['head intact', 'middle intact', 'tail intact']);
     expect(projected.memories.some((row: any) => row.memoryType === 'author_plan_foreshadow')).toBe(true);
     expect(projected.memories.some((row: any) => row.memoryType === 'author_plan_event')).toBe(true);
@@ -235,8 +337,27 @@ postgres('current-fit on owned PostgreSQL, SDK174 (synthetic only)', () => {
 
   // CURRENT-FIT-GENERATED-PG: persisted synthetic metadata, not AI output, human review or authorization.
   const GENERATED_PRIVATE = 'CURRENT-FIT-GENERATED-PG_PRIVATE_SYNTHETIC';
-  async function generatedFixture() {
+  async function generatedFixture(withLosslessApproval = false) {
     const f = await fixture();
+    if (withLosslessApproval) {
+      const settings = normalizeCreatorGenerationProfile('story', f.profile.approvedSettings);
+      for (const section of settings.sections) {
+        section.value.authorExtras = { text: ' \n' + PRIVATE + '\uD55C\uAE00\t ',
+          nullable: null, disabled: false, count: 0, sequence: [' first ', ' duplicate ', ' duplicate ', ' last '] };
+        const sourceRef = 'analysis:' + f.analysis.id + ':SYNTHETIC-PART:7';
+        const repeated = { sourceType: 'manuscript' as const, sourceRef, summary: PRIVATE + ' repeated ' + section.key };
+        section.evidence = [
+          { sourceType: 'manuscript', sourceRef, summary: PRIVATE + ' first ' + section.key },
+          { ...repeated }, { ...repeated },
+          { sourceType: 'manuscript', sourceRef, summary: PRIVATE + ' last ' + section.key },
+        ];
+      }
+      // Set the synthetic approval before any generated origin captures its pin.
+      f.profile = await db.storyWorkGenerationProfile.update({ where: { id: f.profile.id }, data: {
+        approvedSettings: settings as unknown as Prisma.InputJsonValue,
+        approvedFingerprint: creatorGenerationProfileFingerprint(f.profile.sourceFingerprint, settings),
+      } });
+    }
     const { appendStoryRoute, storyRouteStepForContinuation } = await import('./story-route-identity.store');
     const { storyAiResultChecksum } = await import('./story-ai-result-checksum');
     const { STORY_CONTINUATION_PROMPT_VERSION, STORY_CONTINUATION_SCHEMA_VERSION } = await import('./story-continuation-openai.schema');
@@ -334,13 +455,76 @@ postgres('current-fit on owned PostgreSQL, SDK174 (synthetic only)', () => {
   function assertGeneratedSummary(result: Awaited<ReturnType<StoryAuthorCurrentFitService['inspect']>>,
     f: Awaited<ReturnType<typeof generatedFixture>>) {
     expect(result).toMatchObject({ readOnly: true, providerCalls: 0, operatingWrites: 0,
-      dispatchAuthorized: false, semanticQualityVerified: false, legalAuthorization: 'not_evaluated', paidApproval: 'not_evaluated' });
+      dispatchAuthorized: false, semanticQualityVerified: false, legalAuthorization: 'not_evaluated', paidApproval: 'not_evaluated',
+      requestPreparationContract: 'story-continuation-lossless-profile-diagnostic-v1', dispatchCompatibility: 'not_evaluated' });
+    if (result.outcome === 'request_checked') {
+      expect(result.profileDeliveryDiagnostic).toMatchObject({ contract: STORY_APPROVED_PROFILE_DELIVERY_CONTRACT,
+        byteCap: 16384, candidateViewFits: true, normalizedApprovalPreserved: true,
+        modelInputFit: 'unmeasured', semanticQualityVerified: false });
+      expect(Object.keys(result.profileDeliveryDiagnostic).sort()).toEqual(['contract', 'byteCap', 'wholeCandidateViewBytes',
+        'candidateViewFits', 'normalizedApprovalPreserved', 'modelInputFit', 'semanticQualityVerified'].sort());
+      expect(Number.isSafeInteger(result.profileDeliveryDiagnostic.wholeCandidateViewBytes)).toBe(true);
+      expect(result.profileDeliveryDiagnostic.wholeCandidateViewBytes).toBeGreaterThan(0);
+      expect(result.profileDeliveryDiagnostic.wholeCandidateViewBytes).toBeLessThanOrEqual(16384);
+    }
     const publicJson = JSON.stringify(result);
     for (const privateValue of [PRIVATE, GENERATED_PRIVATE, ...f.beats.map(beat => beat.content), f.owner.id,
       f.work.id, f.release.id, f.manuscript.id, f.analysis.id, f.profile.id, f.progress.id, f.scene.id,
       f.generated.id, f.generatedChoice.id, f.origin.id, f.current.routeNodeId!, f.root.id,
       f.profile.sourceFingerprint, f.profile.approvedFingerprint!, f.generated.resultChecksum,
       f.origin.contextFingerprint, f.root.routeHash!]) expect(publicJson).not.toContain(privateValue);
+  }
+
+  function assertLosslessGeneratedRequest(
+    input: Parameters<typeof prepareStoryContinuationOpenAiRequestForDiagnostics>[0],
+    config: Parameters<typeof prepareStoryContinuationOpenAiRequestForDiagnostics>[1],
+    binding: StoryContinuationDiagnosticProfileBinding | undefined,
+    currentRow: StoryApprovedProfileDeliveryRow,
+  ) {
+    expect(binding).toBeDefined();
+    if (!binding) throw new Error('Synthetic lossless binding required');
+    const before = JSON.stringify({ input, config, binding, currentRow });
+    const approved = normalizeCreatorGenerationProfile('story', currentRow.approvedSettings);
+    const pin = { id: currentRow.id, profileVersion: currentRow.profileVersion, reviewRevision: currentRow.reviewRevision,
+      sourceFingerprint: currentRow.sourceFingerprint, approvedFingerprint: currentRow.approvedFingerprint! };
+    expect(binding.currentRow).toMatchObject({ ...pin, status: 'approved', approvedSettings: currentRow.approvedSettings });
+    const expectedPacket = buildStoryApprovedProfileDelivery(currentRow, pin, profileObservationSource);
+    expect(binding.packet).toEqual(expectedPacket);
+    const prepared = prepareStoryContinuationOpenAiRequestForDiagnostics(input, config, binding);
+    const projected = JSON.parse(prepared.input[0].content[0].text);
+    expect(projected.generationProfile).toEqual(binding.packet);
+    expect(projected.generationProfile.authorData).toEqual({ schemaVersion: approved.schemaVersion, kind: 'story',
+      sections: approved.sections.map(({ key, decision, value }) => ({ key, decision, value })) });
+    expect(projected.generationProfile.authorData.sections).toHaveLength(8);
+    expect(projected.generationProfile.approvalEvidence).toEqual(approved.sections.map(({ key, evidence }) => ({ key, items: evidence })));
+    expect(projected.generationProfile.serverInterpretation).toEqual(expectedPacket.serverInterpretation);
+    expect(projected.generationProfile.pin).toEqual(pin);
+    for (const section of approved.sections) {
+      expect(section.value.authorExtras).toEqual({ text: ' \n' + PRIVATE + '\uD55C\uAE00\t ',
+        nullable: null, disabled: false, count: 0, sequence: [' first ', ' duplicate ', ' duplicate ', ' last '] });
+      expect(section.evidence.map(item => item.summary)).toEqual([
+        PRIVATE + ' first ' + section.key, PRIVATE + ' repeated ' + section.key,
+        PRIVATE + ' repeated ' + section.key, PRIVATE + ' last ' + section.key,
+      ]);
+    }
+    expect(Buffer.byteLength(JSON.stringify(binding.packet), 'utf8')).toBeLessThanOrEqual(16384);
+    expect(prepared.max_output_tokens).toBe(8192);
+    expect(prepared.truncation).toBe('disabled');
+    expect(() => prepareStoryContinuationOpenAiRequestForDiagnostics(input, config)).toThrow('provider_context_invalid');
+    const clonedInput = { ...input, approvedContext: { ...input.approvedContext!,
+      generationProfile: JSON.parse(JSON.stringify(input.approvedContext!.generationProfile)) } };
+    expect(() => prepareStoryContinuationOpenAiRequestForDiagnostics(clonedInput, config, binding))
+      .toThrow('provider_context_invalid');
+    expect(() => prepareStoryContinuationOpenAiRequestForDiagnostics(input, config, { ...binding,
+      currentRow: { ...binding.currentRow, reviewRevision: binding.currentRow.reviewRevision + 1 } }))
+      .toThrow('provider_context_invalid');
+    const changedSettings = normalizeCreatorGenerationProfile('story', binding.currentRow.approvedSettings);
+    changedSettings.sections[0].value.authorExtras = { text: PRIVATE, nullable: null, disabled: false, count: 1 };
+    expect(() => prepareStoryContinuationOpenAiRequestForDiagnostics(input, config, { ...binding,
+      currentRow: { ...binding.currentRow, approvedSettings: changedSettings } }))
+      .toThrow('provider_context_invalid');
+    expect(JSON.stringify({ input, config, binding, currentRow })).toBe(before);
+    return { prepared, projected, approved };
   }
   async function expectGeneratedUnavailable(f: Awaited<ReturnType<typeof generatedFixture>>, reason: string,
     choiceId = f.generatedChoice.id) {
@@ -353,7 +537,7 @@ postgres('current-fit on owned PostgreSQL, SDK174 (synthetic only)', () => {
   }
 
   it('CURRENT-FIT-GENERATED-PG: full private generated beats use the entire original published part 80-120 target', async () => {
-    const f = await generatedFixture(), before = await generatedSnapshot();
+    const f = await generatedFixture(true), before = await generatedSnapshot();
     expect(f.origin).toMatchObject({ status: 'completed', userId: f.owner.id, workId: f.work.id,
       releaseId: f.release.id, manuscriptVersionId: f.manuscript.id, analysisJobId: f.analysis.id,
       resultGeneratedSceneId: f.generated.id, sharedResultId: null,
@@ -367,20 +551,22 @@ postgres('current-fit on owned PostgreSQL, SDK174 (synthetic only)', () => {
         narrativeLength: { referenceUnits: 6034, minUnits: 4828, targetUnits: 6034, maxUnits: 7240 },
         outputFit: 'unmeasured', multiStageFit: 'unimplemented', currentApprovalVerified: false, providerCalls: 0 } });
     expect(f.inspectSpy).toHaveBeenCalledTimes(1);
-    const [input, config] = f.inspectSpy.mock.calls[0];
-    const prepared = prepareStoryContinuationOpenAiRequestForDiagnostics(input, config);
+    const [input, config, binding] = f.inspectSpy.mock.calls[0];
+    const currentRow = await db.storyWorkGenerationProfile.findUniqueOrThrow({ where: { id: f.profile.id } });
+    expect(currentRow).toEqual(f.profile);
+    const { prepared, projected, approved } = assertLosslessGeneratedRequest(input, config, binding, currentRow);
+    expect(result.profileDeliveryDiagnostic!.wholeCandidateViewBytes).toBe(Buffer.byteLength(JSON.stringify(binding!.packet), 'utf8'));
     expect(prepared.max_output_tokens).toBe(8192);
     expect(result.diagnostic!.inputTokenBudget).toBe(storyContinuationInputTokenBudget(prepared));
     expect(result.diagnostic!.requestBytes).toBe(Buffer.byteLength(JSON.stringify(prepared), 'utf8'));
-    const projected = JSON.parse(prepared.input[0].content[0].text);
     expect(projected.sourceScene.beats).toEqual(f.beats);
     expect(projected.sourceScene.title).toBe(GENERATED_PRIVATE + ' source');
     expect(projected.selectedChoice.label).toBe(GENERATED_PRIVATE + ' choice');
     expect(projected.narrativeLength).toEqual({ measurement: 'narrative-nonwhite-codepoints-v1',
       sourceUnits: 6034, minimumUnits: 4828, targetUnits: 6034, maximumUnits: 7240 });
     expect(f.beats.reduce((units, beat) => units + beat.content.replace(/\s/g, '').length, 0)).not.toBe(6034);
-    expect(projected.generationProfile.sections).toHaveLength(8);
-    const style = projected.generationProfile.sections.find((row: any) => row.key === 'writing_style').value;
+    const style = projected.generationProfile.authorData.sections.find((row: any) => row.key === 'writing_style').value;
+    expect(style).toEqual(approved.sections.find(section => section.key === 'writing_style')!.value);
     expect(style.observations.map((row: any) => row.detail)).toEqual(['head intact', 'middle intact', 'tail intact']);
     expect(style.categories[0].observations).toEqual(['head category', 'tail category']);
     expect(style.customConstraint).toBe('generic full style');
@@ -406,12 +592,45 @@ postgres('current-fit on owned PostgreSQL, SDK174 (synthetic only)', () => {
     const result = await f.generatedRead();
     expect(result).toMatchObject({ outcome: 'request_checked', progressRevision: 53, approvalReferenceVerified: true });
     expect(f.inspectSpy).toHaveBeenCalledTimes(1);
-    const [input, config] = f.inspectSpy.mock.calls[0];
-    const prepared = prepareStoryContinuationOpenAiRequestForDiagnostics(input, config);
+    const [input, config, binding] = f.inspectSpy.mock.calls[0];
+    expect(binding).toBeDefined();
+    if (!binding) throw new Error('Synthetic restored generated lossless binding required');
+    const currentRow = await db.storyWorkGenerationProfile.findUniqueOrThrow({ where: { id: f.profile.id } });
+    expect(currentRow).toEqual(f.profile);
+    const approved = normalizeCreatorGenerationProfile('story', currentRow.approvedSettings);
+    const pin = { id: currentRow.id, profileVersion: currentRow.profileVersion, reviewRevision: currentRow.reviewRevision,
+      sourceFingerprint: currentRow.sourceFingerprint, approvedFingerprint: currentRow.approvedFingerprint! };
+    expect(binding.currentRow).toEqual({ ...pin, status: 'approved', approvedSettings: currentRow.approvedSettings,
+      workId: currentRow.workId, ownerUserId: currentRow.ownerUserId,
+      manuscriptVersionId: currentRow.manuscriptVersionId, analysisJobId: currentRow.analysisJobId });
+    const expectedPacket = buildStoryApprovedProfileDelivery(currentRow, pin, profileObservationSource);
+    expect(binding.packet).toEqual(expectedPacket);
+    const prepared = prepareStoryContinuationOpenAiRequestForDiagnostics(input, config, binding);
     const projected = JSON.parse(prepared.input[0].content[0].text);
+    expect(projected.generationProfile).toEqual(binding.packet);
+    expect(projected.generationProfile.authorData).toEqual({ schemaVersion: approved.schemaVersion, kind: 'story',
+      sections: approved.sections.map(({ key, decision, value }) => ({ key, decision, value })) });
+    expect(projected.generationProfile.authorData.sections).toHaveLength(8);
+    expect(projected.generationProfile.approvalEvidence).toEqual(approved.sections.map(({ key, evidence }) => ({ key, items: evidence })));
+    expect(projected.generationProfile.serverInterpretation).toEqual(expectedPacket.serverInterpretation);
+    expect(projected.generationProfile.pin).toEqual(pin);
+    const wholeCandidateViewBytes = Buffer.byteLength(JSON.stringify(binding.packet), 'utf8');
+    expect(wholeCandidateViewBytes).toBeLessThanOrEqual(16384);
+    expect(result).toMatchObject({ readOnly: true, providerCalls: 0, operatingWrites: 0,
+      requestPreparationContract: 'story-continuation-lossless-profile-diagnostic-v1', dispatchCompatibility: 'not_evaluated',
+      dispatchAuthorized: false, semanticQualityVerified: false, legalAuthorization: 'not_evaluated', paidApproval: 'not_evaluated',
+      profileDeliveryDiagnostic: { contract: STORY_APPROVED_PROFILE_DELIVERY_CONTRACT, byteCap: 16384,
+        wholeCandidateViewBytes, candidateViewFits: true, normalizedApprovalPreserved: true,
+        modelInputFit: 'unmeasured', semanticQualityVerified: false },
+      diagnostic: { inputFit: 'within_policy_bound', fixedInputTokenLimit: 32768, fixedOutputTokenLimit: 8192,
+        currentApprovalVerified: false, outputFit: 'unmeasured', multiStageFit: 'unimplemented',
+        dispatchAuthorized: false, semanticQualityVerified: false, providerCalls: 0 } });
+    expect(input.inputTokenLimit).toBe(32768); expect(input.outputTokenLimit).toBe(8192);
+    expect(prepared.max_output_tokens).toBe(8192); expect(prepared.truncation).toBe('disabled');
     expect(projected.sourceScene.beats).toEqual(f.beats);
     expect(projected.selectedChoice.label).toBe(GENERATED_PRIVATE + ' choice');
     expect(result.diagnostic!.inputTokenBudget).toBe(storyContinuationInputTokenBudget(prepared));
+    expect(result.diagnostic!.requestBytes).toBe(Buffer.byteLength(JSON.stringify(prepared), 'utf8'));
     assertGeneratedSummary(result, f); expect(await generatedSnapshot()).toEqual(before); assertModes(f, 4);
   });
 
@@ -451,11 +670,11 @@ postgres('current-fit on owned PostgreSQL, SDK174 (synthetic only)', () => {
 
   // CURRENT-FIT-PRIVATE-HOP-PG: synthetic persistence only; no provider, human review or legal/paid approval.
   const PRIVATE_HOP = 'CURRENT-FIT-PRIVATE-HOP-PG_PRIVATE_SYNTHETIC';
-  async function privateHopFixture(generatedCount = 2, wrongFirstPrivateOriginChoice = false) {
+  async function privateHopFixture(generatedCount = 2, wrongFirstPrivateOriginChoice = false, withLosslessApproval = false) {
     if (!Number.isInteger(generatedCount) || generatedCount < 2 || generatedCount > 27) {
       throw new Error('Bounded synthetic private-hop fixture required');
     }
-    const f = await generatedFixture();
+    const f = await generatedFixture(withLosslessApproval);
     const firstRoute = await db.storyProgressRouteNode.findUniqueOrThrow({ where: { id: f.current.routeNodeId! } });
     const history = [{ generated: f.generated, generatedChoice: f.generatedChoice, origin: f.origin,
       beats: f.beats, current: f.current, node: firstRoute }];
@@ -599,7 +818,7 @@ postgres('current-fit on owned PostgreSQL, SDK174 (synthetic only)', () => {
   }
 
   it('CURRENT-FIT-PRIVATE-HOP-PG: real R2/null and R3/null inspect full G2/G3 with unchanged original/style/request pins', async () => {
-    const f = await privateHopFixture(2);
+    const f = await privateHopFixture(2, false, true);
     const { continuationHash } = await import('./story-continuation-context.policy');
     const rate = await db.storyAiRateCard.findUniqueOrThrow({ where: { id: f.progress.aiRateCardId! } });
     for (const generation of [2, 3]) {
@@ -613,7 +832,7 @@ postgres('current-fit on owned PostgreSQL, SDK174 (synthetic only)', () => {
         diagnostic: { inputFit: 'within_policy_bound', writingStylePresent: true, outputFit: 'unmeasured',
           multiStageFit: 'unimplemented', currentApprovalVerified: false, dispatchAuthorized: false,
           narrativeLength: { referenceUnits: 6034, minUnits: 4828, targetUnits: 6034, maxUnits: 7240 } } });
-      const [input, config] = f.inspectSpy.mock.calls[call];
+      const [input, config, binding] = f.inspectSpy.mock.calls[call];
       expect(input).toMatchObject({ operationId: 'current_owner_read_only_diagnostic', locale: 'ko',
         provider: rate.provider, model: rate.model, rateCardId: rate.id, rateCardVersion: rate.version,
         promptVersion: f.origin.promptVersion, outputSchemaVersion: f.origin.outputSchemaVersion,
@@ -623,21 +842,20 @@ postgres('current-fit on owned PostgreSQL, SDK174 (synthetic only)', () => {
       expect(input.contextFingerprint).toBe(continuationHash({ release: f.release.id, checksum: f.release.checksum,
         progressRevision: head.current.progressRevision, profile: f.generationProfilePin,
         choice: head.generatedChoice.id, context: input.approvedContext }));
-      const prepared = prepareStoryContinuationOpenAiRequestForDiagnostics(input, config);
-      const projected = JSON.parse(prepared.input[0].content[0].text);
+      const currentRow = await db.storyWorkGenerationProfile.findUniqueOrThrow({ where: { id: f.profile.id } });
+      expect(currentRow).toEqual(f.profile);
+      const { prepared, projected, approved } = assertLosslessGeneratedRequest(input, config, binding, currentRow);
+      expect(result.profileDeliveryDiagnostic!.wholeCandidateViewBytes).toBe(Buffer.byteLength(JSON.stringify(binding!.packet), 'utf8'));
       expect(projected.sourceScene).toEqual({ title: PRIVATE_HOP + ' G' + generation, beats: head.beats });
       expect(projected.selectedChoice).toEqual({ label: PRIVATE_HOP + ' next choice' });
       expect(projected.narrativeLength).toEqual({ measurement: 'narrative-nonwhite-codepoints-v1',
         sourceUnits: 6034, minimumUnits: 4828, targetUnits: 6034, maximumUnits: 7240 });
       expect(head.beats.reduce((units, beat) => units + beat.content.replace(/\s/g, '').length, 0)).not.toBe(6034);
-      const approved = normalizeCreatorGenerationProfile('story', f.profile.approvedSettings);
       const approvedStyle = approved.sections.find(section => section.key === 'writing_style')!.value;
-      expect(projected.generationProfile.sections).toHaveLength(8);
-      expect(projected.generationProfile.sections.find((section: any) => section.key === 'writing_style').value)
-        .toEqual({ ...approvedStyle, referenceScope: 'production_constraint', observations: [
-          { title: 'head', detail: 'head intact', referenceScope: 'writing_pattern' },
-          { title: 'middle', detail: 'middle intact', referenceScope: 'writing_pattern' },
-          { title: 'tail', detail: 'tail intact', referenceScope: 'writing_pattern' }] });
+      expect(projected.generationProfile.authorData.sections.find((section: any) => section.key === 'writing_style').value)
+        .toEqual(approvedStyle);
+      expect(projected.generationProfile.serverInterpretation.sections.find((section: any) => section.key === 'writing_style'))
+        .toMatchObject({ active: true, scope: 'production_constraint', observationScope: 'writing_pattern' });
       expect(projected.path).toEqual(f.history.map((_, index) => ({
         sourceTitle: index === 0 ? PRIVATE : index === 1 ? GENERATED_PRIVATE + ' source' : PRIVATE_HOP + ' G' + index,
         choiceLabel: index === 0 ? PRIVATE : index === 1 ? GENERATED_PRIVATE + ' choice' : PRIVATE_HOP + ' next choice',
@@ -652,6 +870,7 @@ postgres('current-fit on owned PostgreSQL, SDK174 (synthetic only)', () => {
       expect(await f.privateRead()).toEqual(result);
       expect(f.inspectSpy).toHaveBeenCalledTimes(call + 2);
       expect(f.inspectSpy.mock.calls[call + 1][0]).toEqual(input);
+      expect(f.inspectSpy.mock.calls[call + 1][2]).toEqual(binding);
       assertPrivateHopSummary(result, f); expect(await generatedSnapshot()).toEqual(before);
     }
     assertModes(f, 4);
@@ -821,6 +1040,30 @@ postgres('current-fit on owned PostgreSQL, SDK174 (synthetic only)', () => {
     const f = await profileViewSizeFixture();
     const policy = await import('./story-continuation-context.policy');
     const projection = jest.spyOn(policy, 'continuationGenerationProfileSnapshot');
+    const currentRow = await db.storyWorkGenerationProfile.findUniqueOrThrow({ where: { id: f.sizeProfile.id } });
+    expect(currentRow).toEqual(f.sizeProfile);
+    const approved = normalizeCreatorGenerationProfile('story', currentRow.approvedSettings);
+    const pin = { id: currentRow.id, profileVersion: currentRow.profileVersion, reviewRevision: currentRow.reviewRevision,
+      sourceFingerprint: currentRow.sourceFingerprint, approvedFingerprint: currentRow.approvedFingerprint! };
+    const snapshotRow = { ...pin, status: 'approved', approvedSettings: currentRow.approvedSettings,
+      workId: currentRow.workId, ownerUserId: currentRow.ownerUserId,
+      manuscriptVersionId: currentRow.manuscriptVersionId, analysisJobId: currentRow.analysisJobId };
+    const expectedPacket = buildStoryApprovedProfileDelivery(currentRow, pin, profileObservationSource);
+    expect(expectedPacket.authorData).toEqual({ schemaVersion: approved.schemaVersion, kind: 'story',
+      sections: approved.sections.map(({ key, decision, value }) => ({ key, decision, value })) });
+    expect(expectedPacket.authorData.sections).toHaveLength(8);
+    expect(expectedPacket.approvalEvidence).toEqual(approved.sections.map(({ key, evidence }) => ({ key, items: evidence })));
+    expect(expectedPacket.pin).toEqual(pin);
+    const wholeCandidateViewBytes = Buffer.byteLength(JSON.stringify(expectedPacket), 'utf8');
+    expect(Number.isSafeInteger(wholeCandidateViewBytes)).toBe(true);
+    expect(wholeCandidateViewBytes).toBeGreaterThan(16384);
+    expect(wholeCandidateViewBytes).toBeLessThanOrEqual(2000000);
+    const expectedDiagnostic = { contract: STORY_APPROVED_PROFILE_DELIVERY_CONTRACT, byteCap: 16384,
+      wholeCandidateViewBytes, candidateViewFits: false, normalizedApprovalPreserved: true,
+      modelInputFit: 'unmeasured', semanticQualityVerified: false } as const;
+    const deliveryPolicy = await import('./story-approved-profile-delivery.policy');
+    const deliveryBuild = jest.spyOn(deliveryPolicy, 'buildStoryApprovedProfileDelivery');
+    const deliveryDecode = jest.spyOn(deliveryPolicy, 'decodeStoryApprovedProfileDelivery');
     const helper = await import('./story-continuation-diagnostic-context');
     const contextRead = jest.spyOn(helper, 'readStoryContinuationDiagnosticContext');
     const before = await generatedSnapshot();
@@ -831,31 +1074,25 @@ postgres('current-fit on owned PostgreSQL, SDK174 (synthetic only)', () => {
       sourceScope: 'latest_private_approval_and_current_reader_source',
       readOnly: true, providerCalls: 0, operatingWrites: 0, dispatchAuthorized: false,
       semanticQualityVerified: false, legalAuthorization: 'not_evaluated', paidApproval: 'not_evaluated',
+      requestPreparationContract: 'story-continuation-lossless-profile-diagnostic-v1', dispatchCompatibility: 'not_evaluated',
       outcome: 'current_source_unavailable', currentSourceState: 'unavailable',
       reason: 'approved_profile_context_too_large', approvalReferenceVerified: false,
       progressRevision: null, manuscriptVersion: null, analysisVersion: null,
       profileVersion: null, reviewRevision: null, diagnostic: null,
-      profileViewDiagnostic: f.expectedDiagnostic,
+      profileDeliveryDiagnostic: expectedDiagnostic,
     });
-    expect(projection).toHaveBeenCalledTimes(1);
-    expect(projection.mock.calls[0][0]).toMatchObject({ id: f.sizeProfile.id,
-      approvedSettings: f.sizeProfile.approvedSettings, approvedFingerprint: f.sizeProfile.approvedFingerprint });
-    // The spy retains the real projector; inspect its actual thrown typed error, not a synthetic replacement.
-    expect(projection.mock.results[0].type).toBe('throw');
-    const error = projection.mock.results[0].value as unknown;
-    expect(error).toBeInstanceOf(Error);
-    expect(error).toBeInstanceOf(policy.StoryContinuationProfileViewContextTooLargeError);
-    expect(error).toMatchObject({ message: 'generation_profile_context_too_large',
-      profileViewDiagnostic: f.expectedDiagnostic });
-    const diag = f.expectedDiagnostic;
-    expect(diag.minimumProjectedViewBytes).toBeGreaterThan(diag.byteCap);
-    expect(diag.minimumProjectedViewBytes).toBeLessThanOrEqual(2000000);
-    expect(diag.writingStyleSectionBytes).toBeGreaterThan(0);
-    expect(diag.writingStyleSectionBytes).toBeLessThanOrEqual(diag.minimumProjectedViewBytes);
-    expect(diag.scopeObservationCount).toBeGreaterThanOrEqual(0);
-    expect(diag.scopeObservationCount).toBeLessThanOrEqual(200);
-    for (const amount of [diag.minimumProjectedViewBytes, diag.writingStyleSectionBytes,
-      diag.scopeObservationCount, diag.trustedRepeatedScopeBytes]) expect(Number.isSafeInteger(amount)).toBe(true);
+    // Keep the historical title, but the free reader measures the entire lossless packet, not v6 tiers.
+    expect(result).not.toHaveProperty('profileViewDiagnostic');
+    expect(projection).not.toHaveBeenCalled();
+    expect(deliveryBuild).toHaveBeenCalledTimes(1);
+    expect(deliveryBuild.mock.calls[0]).toEqual([snapshotRow, pin, profileObservationSource]);
+    expect(deliveryBuild.mock.results[0]).toEqual({ type: 'return', value: expectedPacket });
+    expect(deliveryDecode).toHaveBeenCalledTimes(1);
+    expect(deliveryDecode.mock.calls[0][0]).toBe(deliveryBuild.mock.results[0].value);
+    expect(deliveryDecode.mock.calls[0]).toEqual([
+      expectedPacket, snapshotRow, STORY_APPROVED_PROFILE_DELIVERY_CONTRACT, profileObservationSource,
+    ]);
+    expect(deliveryDecode.mock.results[0]).toMatchObject({ type: 'return', value: { packet: expectedPacket, settings: approved } });
     expect(contextRead).not.toHaveBeenCalled();
     expect(f.inspectSpy).not.toHaveBeenCalled();
     expect(await db.storyReleaseCapability.findUniqueOrThrow({ where: { releaseId: f.release.id } }))
@@ -928,7 +1165,11 @@ postgres('current-fit on owned PostgreSQL, SDK174 (synthetic only)', () => {
     const style = settings.sections.find(section => section.key === 'writing_style')!;
     (style.value.observations as Array<Record<string, unknown>>)[0].authorException =
       'SYNTHETIC_APPROVED_EXCEPTION_MUST_NOT_DISAPPEAR';
-    await db.storyWorkGenerationProfile.update({ where: { id: f.profile.id }, data: {
+    const repeated = { sourceType: 'manuscript' as const, sourceRef: 'analysis:' + f.analysis.id + ':SYNTHETIC-PART:7',
+      summary: 'SYNTHETIC_UNKNOWN_RULE_REPEATED_EVIDENCE' };
+    style.evidence = [{ ...repeated, summary: 'SYNTHETIC_UNKNOWN_RULE_HEAD_EVIDENCE' },
+      { ...repeated }, { ...repeated }, { ...repeated, summary: 'SYNTHETIC_UNKNOWN_RULE_TAIL_EVIDENCE' }];
+    const updated = await db.storyWorkGenerationProfile.update({ where: { id: f.profile.id }, data: {
       approvedSettings: settings as unknown as Prisma.InputJsonValue,
       approvedFingerprint: creatorGenerationProfileFingerprint(f.profile.sourceFingerprint, settings),
     } });
@@ -940,17 +1181,57 @@ postgres('current-fit on owned PostgreSQL, SDK174 (synthetic only)', () => {
     expect(Object.keys(before)).toHaveLength(33);
     const result = await f.read();
     expect(result).toMatchObject({ contract: 'story-author-current-fit-v1',
-      outcome: 'current_source_unavailable', currentSourceState: 'unavailable',
-      reason: 'approved_profile_style_projection_incomplete', approvalReferenceVerified: false, diagnostic: null,
+      outcome: 'request_checked', currentSourceState: 'validated', approvalReferenceVerified: true,
       readOnly: true, providerCalls: 0, operatingWrites: 0, dispatchAuthorized: false,
-      semanticQualityVerified: false, legalAuthorization: 'not_evaluated', paidApproval: 'not_evaluated' });
+      semanticQualityVerified: false, legalAuthorization: 'not_evaluated', paidApproval: 'not_evaluated',
+      requestPreparationContract: 'story-continuation-lossless-profile-diagnostic-v1', dispatchCompatibility: 'not_evaluated',
+      diagnostic: { inputFit: 'within_policy_bound', outputFit: 'unmeasured', multiStageFit: 'unimplemented',
+        currentApprovalVerified: false, dispatchAuthorized: false, semanticQualityVerified: false, providerCalls: 0,
+        fixedInputTokenLimit: 32768, fixedOutputTokenLimit: 8192 } });
     expect(result).not.toHaveProperty('profileViewDiagnostic');
     expect(JSON.stringify(result)).not.toContain('SYNTHETIC_APPROVED_EXCEPTION_MUST_NOT_DISAPPEAR');
-    expect(projection).toHaveBeenCalledTimes(1);
-    expect(projection.mock.results[0]).toMatchObject({ type: 'throw',
-      value: { message: 'generation_profile_style_projection_incomplete' } });
-    expect(contextRead).not.toHaveBeenCalled();
-    expect(f.inspectSpy).not.toHaveBeenCalled();
+    expect(projection).not.toHaveBeenCalled();
+    expect(contextRead).toHaveBeenCalledTimes(1);
+    expect(f.inspectSpy).toHaveBeenCalledTimes(1);
+    const [input, config, binding] = f.inspectSpy.mock.calls[0];
+    expect(binding).toBeDefined();
+    if (!binding) throw new Error('Synthetic unknown-rule lossless binding required');
+    const currentRow = await db.storyWorkGenerationProfile.findUniqueOrThrow({ where: { id: f.profile.id } });
+    expect(currentRow).toEqual(updated);
+    const approved = normalizeCreatorGenerationProfile('story', currentRow.approvedSettings);
+    const pin = { id: currentRow.id, profileVersion: currentRow.profileVersion, reviewRevision: currentRow.reviewRevision,
+      sourceFingerprint: currentRow.sourceFingerprint, approvedFingerprint: currentRow.approvedFingerprint! };
+    expect(binding.currentRow).toEqual({ ...pin, status: 'approved', approvedSettings: currentRow.approvedSettings,
+      workId: currentRow.workId, ownerUserId: currentRow.ownerUserId,
+      manuscriptVersionId: currentRow.manuscriptVersionId, analysisJobId: currentRow.analysisJobId });
+    const expectedPacket = buildStoryApprovedProfileDelivery(currentRow, pin, profileObservationSource);
+    expect(binding.packet).toEqual(expectedPacket);
+    const prepared = prepareStoryContinuationOpenAiRequestForDiagnostics(input, config, binding);
+    const projected = JSON.parse(prepared.input[0].content[0].text);
+    expect(projected.generationProfile).toEqual(expectedPacket);
+    expect(projected.generationProfile.authorData).toEqual({ schemaVersion: approved.schemaVersion, kind: 'story',
+      sections: approved.sections.map(({ key, decision, value }) => ({ key, decision, value })) });
+    expect(projected.generationProfile.authorData.sections).toHaveLength(8);
+    expect(projected.generationProfile.authorData.sections.find((row: any) => row.key === 'writing_style').value.observations[0]
+      .authorException).toBe('SYNTHETIC_APPROVED_EXCEPTION_MUST_NOT_DISAPPEAR');
+    expect(projected.generationProfile.approvalEvidence).toEqual(approved.sections.map(({ key, evidence }) => ({ key, items: evidence })));
+    expect(projected.generationProfile.approvalEvidence.find((row: any) => row.key === 'writing_style').items).toEqual(style.evidence);
+    expect(projected.generationProfile.serverInterpretation).toEqual(expectedPacket.serverInterpretation);
+    expect(projected.generationProfile.pin).toEqual(pin);
+    const wholeCandidateViewBytes = Buffer.byteLength(JSON.stringify(expectedPacket), 'utf8');
+    expect(wholeCandidateViewBytes).toBeLessThanOrEqual(16384);
+    expect(result.profileDeliveryDiagnostic).toEqual({ contract: STORY_APPROVED_PROFILE_DELIVERY_CONTRACT, byteCap: 16384,
+      wholeCandidateViewBytes, candidateViewFits: true, normalizedApprovalPreserved: true,
+      modelInputFit: 'unmeasured', semanticQualityVerified: false });
+    expect(result.diagnostic!.inputTokenBudget).toBe(storyContinuationInputTokenBudget(prepared));
+    expect(result.diagnostic!.requestBytes).toBe(Buffer.byteLength(JSON.stringify(prepared), 'utf8'));
+    expect(input.inputTokenLimit).toBe(32768); expect(input.outputTokenLimit).toBe(8192);
+    expect(prepared.max_output_tokens).toBe(8192); expect(prepared.truncation).toBe('disabled');
+    expect(projected.sourceScene.beats[0].content).toBe('a'.repeat(5200));
+    expect(projected.narrativeLength).toEqual({ measurement: 'narrative-nonwhite-codepoints-v1',
+      sourceUnits: 5200, minimumUnits: 4160, targetUnits: 5200, maximumUnits: 6240 });
+    expect(JSON.stringify(result)).not.toContain(PRIVATE);
+    expect(JSON.stringify(result)).not.toContain(f.work.id);
     expect(await generatedSnapshot()).toEqual(before);
     assertModes(f);
   });

@@ -9,7 +9,9 @@ import { continuationHash, profileObservationSource,
 import { buildStoryApprovedProfileDelivery, decodeStoryApprovedProfileDelivery, measureStoryApprovedProfileDelivery,
   measureStoryApprovedProfileDeliveryComponents,
   createStoryApprovedProfileDiagnosticView, STORY_APPROVED_PROFILE_DELIVERY_CONTRACT } from './story-approved-profile-delivery.policy';
-import type { StoryContinuationDiagnosticApprovedContext } from './story-continuation-openai.prompt';
+import type { StoryContinuationDiagnosticApprovedContext, StoryContinuationDiagnosticProfileBinding,
+  StoryContinuationRequestPreparationConfig } from './story-continuation-openai.prompt';
+import type { StoryContinuationProviderRequest } from './story-continuation.provider';
 import { readStoryContinuationDiagnosticContext, StoryContinuationDiagnosticContextUnavailable } from './story-continuation-diagnostic-context';
 import { inspectStoryContinuationFixedCapFit, STORY_FIXED_CAP_INPUT_TOKENS, STORY_FIXED_CAP_OUTPUT_TOKENS } from './story-continuation-fixed-cap-fit';
 import { storyContinuationOutputTokenLimit } from './story-continuation-length.policy';
@@ -69,7 +71,7 @@ export class StoryAuthorCurrentFitService {
       dispatchCompatibility: 'not_evaluated' as const,
     };
     try {
-      return await this.prisma.$transaction(async db => {
+      const snapshot = await this.prisma.$transaction(async db => {
         await db.$executeRaw(Prisma.sql`SET TRANSACTION READ ONLY`);
         const work = await db.storyWork.findFirst({
           where: { id: workId, ownerUserId: userId, status: 'published', fixtureSource: false },
@@ -187,7 +189,7 @@ export class StoryAuthorCurrentFitService {
           if (error instanceof StoryContinuationDiagnosticContextUnavailable) unavailable('context_unavailable');
           throw error;
         }
-        const diagnostic = inspectStoryContinuationFixedCapFit({
+        const request: StoryContinuationProviderRequest = {
           // This marker is never a stored continuation, paid receipt, lease or provider operation.
           operationId: 'current_owner_read_only_diagnostic', locale: query.locale,
           contextFingerprint: continuationHash({ release: release.id, checksum: release.checksum,
@@ -197,15 +199,23 @@ export class StoryAuthorCurrentFitService {
           outputTokenLimit: storyContinuationOutputTokenLimit(context.narrativeLength!, capability.aiOutputTokenLimit),
           provider: rateCard.provider, model: rateCard.model, rateCardId: rateCard.id, rateCardVersion: rateCard.version,
           approvedContext: context,
-        }, { provider: rateCard.provider, model: rateCard.model, rateCardId: rateCard.id, rateCardVersion: rateCard.version,
-          maxInputTokens: capability.aiInputTokenLimit, maxOutputTokens: capability.aiOutputTokenLimit },
-          { packet: delivery.packet, currentRow: profile });
-        return { ...envelope, outcome: 'request_checked' as const, currentSourceState: 'validated' as const,
+        };
+        const configuration: StoryContinuationRequestPreparationConfig = {
+          provider: rateCard.provider, model: rateCard.model, rateCardId: rateCard.id, rateCardVersion: rateCard.version,
+          maxInputTokens: capability.aiInputTokenLimit, maxOutputTokens: capability.aiOutputTokenLimit,
+        };
+        const profileBinding: StoryContinuationDiagnosticProfileBinding = { packet: delivery.packet, currentRow: profile };
+        return { request, configuration, profileBinding, response: {
+          ...envelope, outcome: 'request_checked' as const, currentSourceState: 'validated' as const,
           approvalReferenceVerified: true as const, progressRevision: progress.progressRevision,
           manuscriptVersion: approval.projection.manuscriptVersion, analysisVersion: approval.projection.analysisVersion,
           profileVersion: approval.projection.profileVersion, reviewRevision: approval.projection.reviewRevision,
-          profileDeliveryDiagnostic, diagnostic };
+          profileDeliveryDiagnostic,
+        } };
       }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
+      // Compute only from the completed read snapshot; tokenization must not hold its DB transaction open.
+      const diagnostic = inspectStoryContinuationFixedCapFit(snapshot.request, snapshot.configuration, snapshot.profileBinding);
+      return { ...snapshot.response, diagnostic };
     } catch (error) {
       if (error instanceof SnapshotUnavailable) return { ...envelope, outcome: 'current_source_unavailable' as const,
         currentSourceState: 'unavailable' as const, reason: error.reason, approvalReferenceVerified: false as const,
