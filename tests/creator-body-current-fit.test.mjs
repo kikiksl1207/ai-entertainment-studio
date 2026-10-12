@@ -91,7 +91,7 @@ test('CURRENT-FIT: two explicit GET commands retain actual generation choices an
   assert.equal(await view.check(), false); assert.equal(view.calls.length, 1);
   assert.equal(view.selectChoice(id(7)), true); assert.equal(await view.check(), true);
   assert.equal(view.calls[0].url, '/api/v1/me/creator-studio/stories/' + id(1) + '/body-preview?locale=ko');
-  assert.equal(view.calls[1].url, '/api/v1/me/creator-studio/stories/' + id(1) + '/body-preview/current-fit?locale=ko&choiceId=' + id(7) + '&expectedProgressRevision=7');
+  assert.equal(view.calls[1].url, '/api/v1/me/creator-studio/stories/' + id(1) + '/body-preview/current-fit?locale=ko&choiceId=' + id(7) + '&profileByteBreakdown=v1&expectedProgressRevision=7');
   for (const { options } of view.calls) {
     assert.equal(options.method, 'GET'); assert.equal(options.cache, 'no-store'); assert.equal(options._retried, true);
     assert.deepEqual(clone(options.headers), { 'Cache-Control': 'no-store', Accept: 'application/json' });
@@ -144,7 +144,7 @@ test('CURRENT-FIT: fully read generated scenes use the same explicit choice and 
   const value = preview(); value.progress.scene.isGenerated = true;
   const view = screen(({ url }) => response(url.includes('/current-fit?') ? diagnostic() : value));
   await choose(view); assert.equal(await view.check(), true); assert.equal(view.snapshot().data.progressRevision, 7);
-  assert.equal(view.calls[1].url.endsWith('&choiceId=' + id(7) + '&expectedProgressRevision=7'), true);
+  assert.equal(view.calls[1].url.endsWith('&choiceId=' + id(7) + '&profileByteBreakdown=v1&expectedProgressRevision=7'), true);
 });
 
 test('CURRENT-FIT: inclusive input cap, zero revision and exact odd 80-120 bounds parse without mutation', () => {
@@ -632,7 +632,7 @@ for (const language of locales) {
     assert.equal(view.calls.length, 2); assert.equal(view.refreshes(), 0);
     const path = '/api/v1/me/creator-studio/stories/' + id(1) + '/body-preview';
     assert.equal(view.calls[0].url, path + '?locale=' + language);
-    assert.equal(view.calls[1].url, path + '/current-fit?locale=' + language + '&choiceId=' + id(7) + '&expectedProgressRevision=7');
+    assert.equal(view.calls[1].url, path + '/current-fit?locale=' + language + '&choiceId=' + id(7) + '&profileByteBreakdown=v1&expectedProgressRevision=7');
     for (const { options } of view.calls) {
       assert.equal(options.method, 'GET'); assert.equal(options.body, undefined); assert.equal(options._retried, true);
       assert.equal(options.cache, 'no-store'); assert.equal(options.token, 'SYNTHETIC_EXISTING_TOKEN');
@@ -719,7 +719,7 @@ for (const language of locales) {
     }
     const path = '/api/v1/me/creator-studio/stories/' + id(1) + '/body-preview';
     assert.equal(view.calls[0].url, path + '?locale=' + language);
-    assert.equal(view.calls[1].url, path + '/current-fit?locale=' + language + '&choiceId=' + id(7) + '&expectedProgressRevision=7');
+    assert.equal(view.calls[1].url, path + '/current-fit?locale=' + language + '&choiceId=' + id(7) + '&profileByteBreakdown=v1&expectedProgressRevision=7');
     assert.doesNotMatch(view.host.textContent, /story-profile-view-byte-diagnostic|PRIVATE_BODY_NOT_RETAINED|CURRENT_PRIVATE_SCENE|referenceScope|writing_pattern/);
     for (const secret of [id(1), id(2), id(3), id(7), 'a'.repeat(64)]) assert.equal(view.host.textContent.includes(secret), false);
   });
@@ -900,7 +900,7 @@ test('CURRENT-FIT-PROFILE-SIZE: malformed wire clears state; JS cache query alon
     assert.equal(view.calls.length, 2);
   }
   const entry = readFileSync(new URL('../creator-studio/index.html', import.meta.url), 'utf8');
-  assert.match(entry, /creator-body-current-fit\.js\?v=20261012-lossless-delivery"/);
+  assert.match(entry, /creator-body-current-fit\.js\?v=20261012-profile-components"/);
   assert.match(entry, /creator-body-current-fit\.css\?v=current-fit-20261011/);
   assert.match(source, /new Intl\.NumberFormat\(state\.locale\)/);
   assert.match(css, /grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
@@ -952,7 +952,7 @@ for (const language of locales) {
     assert.equal(view.calls.length, 2); assert.equal(view.refreshes(), 0);
     const path = '/api/v1/me/creator-studio/stories/' + id(1) + '/body-preview';
     assert.equal(view.calls[0].url, path + '?locale=' + sourceLanguage);
-    assert.equal(view.calls[1].url, path + '/current-fit?locale=' + sourceLanguage + '&choiceId=' + id(7) + '&expectedProgressRevision=7');
+    assert.equal(view.calls[1].url, path + '/current-fit?locale=' + sourceLanguage + '&choiceId=' + id(7) + '&profileByteBreakdown=v1&expectedProgressRevision=7');
     for (const { options } of view.calls) {
       assert.equal(options.method, 'GET'); assert.equal(options.body, undefined); assert.equal(options._retried, true);
       assert.equal(options.cache, 'no-store'); assert.equal(options.token, 'SYNTHETIC_EXISTING_TOKEN');
@@ -1090,7 +1090,7 @@ test('CURRENT-FIT-STYLE-PROJECTION: malformed or raw-reason wire responses clear
 
 test('CURRENT-FIT-STYLE-PROJECTION: only the actual helper cache query advances, keeping existing CSS and GET-only controls', () => {
   const entry = readFileSync(new URL('../creator-studio/index.html', import.meta.url), 'utf8');
-  const helper = '/pages/creator-body-current-fit.js?v=20261012-lossless-delivery';
+  const helper = '/pages/creator-body-current-fit.js?v=20261012-profile-components';
   assert.equal(entry.split(helper).length, 2); assert.ok(entry.includes('src="' + helper + '"'));
   assert.ok(entry.includes('href="/pages/creator-body-current-fit.css?v=current-fit-20261011"'));
   assert.doesNotMatch(source, /\/generate|\/approve|\/payments|\/auth\/refresh|setInterval|setTimeout|console\./);
@@ -1429,5 +1429,136 @@ test('CURRENT-FIT-LOSSLESS: new envelopes retain bounded streaming and clear mal
     await mountedCheck(view); assert.equal(metadata(view).children.length, 18);
     assert.equal(view.api.maxBytes, 16384); assert.equal(view.api.previewMaxBytes, 256 * 1024);
     assert.equal(view.calls.length, 2);
+  }
+});
+
+const componentFields = ['authorDataBytes', 'approvalEvidenceBytes', 'serverInterpretationBytes', 'approvalPinBytes', 'framingBytes'];
+const componentRows = ['profileAuthorBytes', 'profileEvidenceBytes', 'profileInterpretationBytes', 'profilePinBytes', 'profileFramingBytes'];
+const withComponents = value => {
+  const result = clone(value), whole = result.profileDeliveryDiagnostic.wholeCandidateViewBytes;
+  result.profileDeliveryDiagnostic.sizeBreakdown = {
+    contract: 'story-approved-profile-byte-breakdown-v1', wholeCandidateViewBytes: whole,
+    authorDataBytes: whole - 5000, approvalEvidenceBytes: 2300, serverInterpretationBytes: 2100,
+    approvalPinBytes: 400, framingBytes: 200
+  };
+  return result;
+};
+
+test('CURRENT-FIT-COMPONENTS: optional breakdown clones exactly without altering old responses or authority', () => {
+  for (const old of [losslessChecked(), losslessUnavailable()]) {
+    assert.deepEqual(clone(parse(freeze(old))), old);
+    assert.equal(Object.hasOwn(parse(old).profileDeliveryDiagnostic, 'sizeBreakdown'), false);
+    const value = withComponents(old), parsed = parse(freeze(value));
+    assert.deepEqual(clone(parsed), value);
+    assert.notEqual(parsed.profileDeliveryDiagnostic.sizeBreakdown, value.profileDeliveryDiagnostic.sizeBreakdown);
+    parsed.profileDeliveryDiagnostic.sizeBreakdown.authorDataBytes = 0;
+    assert.notEqual(value.profileDeliveryDiagnostic.sizeBreakdown.authorDataBytes, 0);
+    for (const field of ['dispatchAuthorized', 'semanticQualityVerified']) assert.equal(parsed[field], false);
+    assert.equal(parsed.paidApproval, 'not_evaluated');
+    assert.equal(parsed.profileDeliveryDiagnostic.modelInputFit, 'unmeasured');
+  }
+});
+
+for (const language of locales) {
+  test('CURRENT-FIT-COMPONENTS: ' + language + ' renders exact numeric components and keeps existing limits and quality states', async () => {
+    for (const initial of [losslessChecked(), losslessUnavailable()]) {
+      const value = withComponents(initial), view = mounted(({ url }) => response(url.includes('/current-fit?') ? value : preview()));
+      view.locale(language); await mountedCheck(view);
+      assert.equal(metadata(view).children.length, 23);
+      const format = new Intl.NumberFormat(language), parts = value.profileDeliveryDiagnostic.sizeBreakdown;
+      for (const [index, field] of componentFields.entries()) {
+        assert.equal(row(view, componentRows[index]), format.format(parts[field]) + ' B');
+        assert.ok(view.api.copy[language][componentRows[index]]);
+      }
+      assert.equal(row(view, 'profileAllBytes'), format.format(parts.wholeCandidateViewBytes) + ' B');
+      assert.equal(row(view, 'profileByteCap'), format.format(16384) + ' B');
+      assert.equal(row(view, 'output'), view.api.copy[language].unmeasured);
+      assert.equal(row(view, 'style'), view.api.copy[language].notVerified);
+      assert.equal(row(view, 'dispatch'), view.api.copy[language].notAuthorized);
+      assert.doesNotMatch(view.host.textContent, /story-approved-profile-byte-breakdown|authorDataBytes|SYNTHETIC_PRIVATE/);
+      assert.equal(view.calls.length, 2); assert.equal(view.refreshes(), 0);
+      for (const { options } of view.calls) { assert.equal(options.method, 'GET'); assert.equal(options.body, undefined); }
+    }
+  });
+}
+
+test('CURRENT-FIT-COMPONENTS: missing, invalid or nonexact components reject instead of assuming zero or approving fit', () => {
+  for (const initial of [losslessChecked(), losslessUnavailable()]) {
+    const value = withComponents(initial), parts = value.profileDeliveryDiagnostic.sizeBreakdown;
+    for (const field of ['contract', 'wholeCandidateViewBytes', ...componentFields]) {
+      const invalid = clone(value); delete invalid.profileDeliveryDiagnostic.sizeBreakdown[field]; assert.throws(() => parse(invalid));
+    }
+    for (const changes of [{ contract: 'story-approved-profile-byte-breakdown-v2' },
+      { wholeCandidateViewBytes: parts.wholeCandidateViewBytes + 1 }, { framingBytes: parts.framingBytes + 1 },
+      { raw: 'SYNTHETIC_PRIVATE' }, { semanticQualityVerified: true }, { modelInputFit: 'within_policy_bound' }]) {
+      const invalid = clone(value); Object.assign(invalid.profileDeliveryDiagnostic.sizeBreakdown, changes); assert.throws(() => parse(invalid));
+    }
+    for (const field of componentFields) for (const bad of [null, undefined, false, -1, 1.5, '200', NaN, Infinity, Number.MAX_SAFE_INTEGER + 1]) {
+      const invalid = clone(value); invalid.profileDeliveryDiagnostic.sizeBreakdown[field] = bad; assert.throws(() => parse(invalid));
+    }
+    for (const bad of [null, undefined, false, 0, 'parts', [], new Date()]) {
+      assert.throws(() => parse({ ...value, profileDeliveryDiagnostic: { ...value.profileDeliveryDiagnostic, sizeBreakdown: bad } }));
+    }
+  }
+});
+
+test('CURRENT-FIT-COMPONENTS: hidden fields, symbols, prototypes and getters reject without reading private values', () => {
+  for (const initial of [losslessChecked(), losslessUnavailable()]) for (const change of ['hidden', 'symbol', 'prototype', 'getter', 'outerGetter']) {
+    const value = withComponents(initial), parts = value.profileDeliveryDiagnostic.sizeBreakdown;
+    let reads = 0;
+    if (change === 'hidden') Object.defineProperty(parts, 'raw', { value: 'SYNTHETIC_PRIVATE', enumerable: false });
+    if (change === 'symbol') parts[Symbol('raw')] = 'SYNTHETIC_PRIVATE';
+    if (change === 'prototype') Object.setPrototypeOf(parts, { raw: 'SYNTHETIC_PRIVATE' });
+    if (change === 'getter') Object.defineProperty(parts, 'authorDataBytes', { enumerable: true, get() { reads++; return 1; } });
+    if (change === 'outerGetter') Object.defineProperty(value.profileDeliveryDiagnostic, 'sizeBreakdown', {
+      enumerable: true, get() { reads++; return parts; }
+    });
+    assert.throws(() => parse(value)); assert.equal(reads, 0);
+  }
+  const safe = withComponents(losslessChecked());
+  safe.profileDeliveryDiagnostic.sizeBreakdown = Object.assign(Object.create(null), safe.profileDeliveryDiagnostic.sizeBreakdown);
+  assert.deepEqual(clone(parse(freeze(safe))), clone(safe));
+});
+
+test('CURRENT-FIT-COMPONENTS: refreshing to old or unavailable responses removes all component rows without inventing zeroes', async () => {
+  for (const initial of [losslessChecked(), losslessUnavailable()]) {
+    for (const final of [losslessChecked(), losslessUnavailable(), losslessUnavailable('approval_unavailable'), diagnostic()]) {
+      let checks = 0;
+      const view = mounted(({ url }) => response(url.includes('/current-fit?') ? checks++ ? final : withComponents(initial) : preview()));
+      await mountedCheck(view); assert.equal(metadata(view).children.length, 23);
+      await mountedCheck(view);
+      for (const key of componentRows) assert.equal(row(view, key), undefined);
+      assert.equal(metadata(view).children.length, final.profileDeliveryDiagnostic ? 18 : 16);
+      assert.equal(view.calls.length, 4); assert.equal(view.refreshes(), 0);
+    }
+  }
+});
+
+test('CURRENT-FIT-COMPONENTS: invalid next data clears earlier numeric evidence and never renders private content', async () => {
+  for (const initial of [losslessChecked(), losslessUnavailable()]) {
+    const current = withComponents(initial), invalid = clone(current);
+    invalid.profileDeliveryDiagnostic.sizeBreakdown.raw = '<img src=x>SYNTHETIC_PRIVATE';
+    let checks = 0;
+    const view = mounted(({ url }) => response(url.includes('/current-fit?') ? checks++ ? invalid : current : preview()));
+    await mountedCheck(view); assert.equal(metadata(view).children.length, 23);
+    await mountedCheck(view); emptyDOM(view);
+    assert.equal(view.node('writerBodyCurrentFitState').textContent, view.api.copy.ko.invalid);
+    assert.equal(view.host.textContent.includes('SYNTHETIC_PRIVATE'), false);
+    assert.equal(await view.check(), undefined); assert.equal(view.calls.length, 4);
+  }
+});
+
+test('CURRENT-FIT-COMPONENTS: late responses cannot restore component sizes after owner, profile or choice resets', async () => {
+  for (const initial of [losslessChecked(), losslessUnavailable()]) for (const change of ['owner', 'profile', 'choice']) {
+    const held = deferred(), view = mounted(({ url }) => url.includes('/current-fit?') ? held.promise : response(preview()));
+    await view.refresh(); view.select(); const pending = view.check();
+    if (change === 'owner') { view.setOwner({ ownerId: id(9), epoch: 2 }); view.window.fire('lumina:authchange'); }
+    if (change === 'profile') view.window.fire('creator:generation-profile-changed');
+    if (change === 'choice') view.select(id(10));
+    assert.equal(view.calls[1].options.signal.aborted, true);
+    const before = view.host.textContent; held.resolve(response(withComponents(initial)));
+    assert.equal(await pending, false); assert.equal(view.host.textContent, before);
+    for (const key of componentRows) assert.equal(row(view, key), undefined);
+    assert.equal(view.calls.length, 2); assert.equal(view.refreshes(), 0);
   }
 });

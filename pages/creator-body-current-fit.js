@@ -48,6 +48,7 @@
       approvedProfileStyleProjectionIncomplete: "\uc77c\ubd80 \ubb38\uccb4 \uaddc\uce59\uc744 \ud604\uc7ac \uadf8\ub300\ub85c \uc804\ub2ec\ud560 \uc218 \uc5c6\uc74c",
       profileAllBytes: "\uc804\uccb4 \uc804\ub2ec \uc9c0\uce68", profileStyleBytes: "\ubb38\uccb4 \uc9c0\uce68",
       profileByteCap: "\ud604\uc7ac \uc804\ub2ec \uc81c\ud55c", profileRepeatedBytes: "\ubc18\ubcf5 \uc804\ub2ec \uc815\ubcf4",
+      profileAuthorBytes: "\uc791\uac00 \uc2b9\uc778 \uac12", profileEvidenceBytes: "\uc2b9\uc778 \uadfc\uac70", profileInterpretationBytes: "\uc11c\ubc84 \ud574\uc11d", profilePinBytes: "\uc2b9\uc778 \uae30\uc900 \uc2dd\ubcc4", profileFramingBytes: "\uc804\ub2ec \ud615\uc2dd",
       capabilityUnavailable: "\ud604\uc7ac \uc785\ub825 \ud5c8\uc6a9\ub7c9 \ud655\uc778 \ubd88\uac00", hidden: "", unauthenticated: "\ub85c\uadf8\uc778 \ud544\uc694", noWork: "\uc120\ud0dd\ub41c \uc791\ud488 \uc5c6\uc74c",
       unavailable: "\ud604\uc7ac \uc785\ub825 \ud655\uc778 \ubd88\uac00", forbidden: "\uc774 \uc791\ud488\uc758 \uc785\ub825 \ud655\uc778 \uad8c\ud55c \uc5c6\uc74c", server: "\ud604\uc7ac \uc785\ub825\uc744 \ubd88\ub7ec\uc624\uc9c0 \ubabb\ud568", transport: "\uc5f0\uacb0 \uc2e4\ud328", invalid: "\uc751\ub2f5 \ud655\uc778 \ubd88\uac00",
       within: "\uc785\ub825 \ud5c8\uc6a9\ub7c9 \uc774\ub0b4", exceeds: "\uc785\ub825 \ud5c8\uc6a9\ub7c9 \ucd08\uacfc", unmeasured: "\ubbf8\uce21\uc815", notVerified: "\ud488\uc9c8 \ubbf8\uac80\uc99d", notEvaluated: "\ubbf8\ud3c9\uac00", notAuthorized: "\uc2e4\ud589 \ubbf8\uc2b9\uc778",
@@ -63,6 +64,7 @@
       approvedProfileStyleProjectionIncomplete: "Some writing-style rules cannot currently be delivered unchanged",
       profileAllBytes: "Full delivery instructions", profileStyleBytes: "Writing style instructions",
       profileByteCap: "Current delivery limit", profileRepeatedBytes: "Repeated delivery metadata",
+      profileAuthorBytes: "Approved author values", profileEvidenceBytes: "Approval evidence", profileInterpretationBytes: "Server interpretation", profilePinBytes: "Approval reference", profileFramingBytes: "Envelope structure",
       capabilityUnavailable: "Current input allowance unavailable", hidden: "", unauthenticated: "Sign-in required", noWork: "No work selected",
       unavailable: "Current input check unavailable", forbidden: "This input check is not accessible", server: "Could not load current input", transport: "Connection failed", invalid: "Response unverified",
       within: "Within input allowance", exceeds: "Input allowance exceeded", unmeasured: "Unmeasured", notVerified: "Quality unverified", notEvaluated: "Not evaluated", notAuthorized: "Execution not authorized",
@@ -78,6 +80,7 @@
       approvedProfileStyleProjectionIncomplete: "\u4e00\u90e8\u306e\u6587\u4f53\u30eb\u30fc\u30eb\u3092\u73fe\u5728\u305d\u306e\u307e\u307e\u6e21\u305b\u307e\u305b\u3093",
       profileAllBytes: "\u5168\u4f53\u306e\u9001\u4fe1\u6307\u793a", profileStyleBytes: "\u6587\u4f53\u306e\u6307\u793a",
       profileByteCap: "\u73fe\u5728\u306e\u9001\u4fe1\u4e0a\u9650", profileRepeatedBytes: "\u7e70\u308a\u8fd4\u3057\u9001\u4fe1\u60c5\u5831",
+      profileAuthorBytes: "\u4f5c\u8005\u306e\u627f\u8a8d\u5024", profileEvidenceBytes: "\u627f\u8a8d\u306e\u6839\u62e0", profileInterpretationBytes: "\u30b5\u30fc\u30d0\u30fc\u89e3\u91c8", profilePinBytes: "\u627f\u8a8d\u306e\u8b58\u5225\u60c5\u5831", profileFramingBytes: "\u9001\u4fe1\u306e\u5f62\u5f0f",
       capabilityUnavailable: "\u73fe\u5728\u306e\u5165\u529b\u4e0a\u9650\u3092\u78ba\u8a8d\u3067\u304d\u307e\u305b\u3093", hidden: "", unauthenticated: "\u30ed\u30b0\u30a4\u30f3\u304c\u5fc5\u8981", noWork: "\u4f5c\u54c1\u304c\u672a\u9078\u629e",
       unavailable: "\u73fe\u5728\u306e\u5165\u529b\u3092\u78ba\u8a8d\u3067\u304d\u307e\u305b\u3093", forbidden: "\u3053\u306e\u4f5c\u54c1\u306e\u5165\u529b\u3092\u78ba\u8a8d\u3059\u308b\u6a29\u9650\u304c\u3042\u308a\u307e\u305b\u3093", server: "\u73fe\u5728\u306e\u5165\u529b\u3092\u8aad\u307f\u8fbc\u3081\u307e\u305b\u3093", transport: "\u63a5\u7d9a\u5931\u6557", invalid: "\u5fdc\u7b54\u3092\u78ba\u8a8d\u3067\u304d\u307e\u305b\u3093",
       within: "\u5165\u529b\u4e0a\u9650\u4ee5\u5185", exceeds: "\u5165\u529b\u4e0a\u9650\u3092\u8d85\u904e", unmeasured: "\u672a\u6e2c\u5b9a", notVerified: "\u54c1\u8cea\u672a\u691c\u8a3c", notEvaluated: "\u672a\u8a55\u4fa1", notAuthorized: "\u5b9f\u884c\u672a\u627f\u8a8d",
@@ -93,6 +96,7 @@
       approvedProfileStyleProjectionIncomplete: "\u90e8\u5206\u6587\u4f53\u89c4\u5219\u76ee\u524d\u65e0\u6cd5\u539f\u6837\u4f20\u9012",
       profileAllBytes: "\u5b8c\u6574\u4f20\u9012\u6307\u4ee4", profileStyleBytes: "\u6587\u4f53\u6307\u4ee4",
       profileByteCap: "\u5f53\u524d\u4f20\u9012\u9650\u5236", profileRepeatedBytes: "\u91cd\u590d\u4f20\u9012\u4fe1\u606f",
+      profileAuthorBytes: "\u4f5c\u8005\u6279\u51c6\u503c", profileEvidenceBytes: "\u6279\u51c6\u4f9d\u636e", profileInterpretationBytes: "\u670d\u52a1\u5668\u89e3\u8bfb", profilePinBytes: "\u6279\u51c6\u6807\u8bc6", profileFramingBytes: "\u4f20\u8f93\u683c\u5f0f",
       capabilityUnavailable: "\u65e0\u6cd5\u786e\u8ba4\u5f53\u524d\u8f93\u5165\u9650\u989d", hidden: "", unauthenticated: "\u9700\u8981\u767b\u5f55", noWork: "\u672a\u9009\u62e9\u4f5c\u54c1",
       unavailable: "\u65e0\u6cd5\u68c0\u67e5\u5f53\u524d\u8f93\u5165", forbidden: "\u65e0\u6743\u68c0\u67e5\u6b64\u4f5c\u54c1\u7684\u8f93\u5165", server: "\u65e0\u6cd5\u52a0\u8f7d\u5f53\u524d\u8f93\u5165", transport: "\u8fde\u63a5\u5931\u8d25", invalid: "\u65e0\u6cd5\u786e\u8ba4\u54cd\u5e94",
       within: "\u8f93\u5165\u672a\u8d85\u9650", exceeds: "\u8f93\u5165\u8d85\u8fc7\u9650\u989d", unmeasured: "\u672a\u6d4b\u91cf", notVerified: "\u8d28\u91cf\u672a\u9a8c\u8bc1", notEvaluated: "\u672a\u8bc4\u4f30", notAuthorized: "\u6267\u884c\u672a\u83b7\u6279\u51c6",
@@ -108,6 +112,7 @@
       approvedProfileStyleProjectionIncomplete: "\u90e8\u5206\u6587\u9ad4\u898f\u5247\u76ee\u524d\u7121\u6cd5\u539f\u6a23\u50b3\u905e",
       profileAllBytes: "\u5b8c\u6574\u50b3\u905e\u6307\u4ee4", profileStyleBytes: "\u6587\u9ad4\u6307\u4ee4",
       profileByteCap: "\u76ee\u524d\u50b3\u905e\u9650\u5236", profileRepeatedBytes: "\u91cd\u8907\u50b3\u905e\u8cc7\u8a0a",
+      profileAuthorBytes: "\u4f5c\u8005\u6838\u51c6\u503c", profileEvidenceBytes: "\u6838\u51c6\u4f9d\u64da", profileInterpretationBytes: "\u4f3a\u670d\u5668\u89e3\u8b80", profilePinBytes: "\u6838\u51c6\u8b58\u5225", profileFramingBytes: "\u50b3\u8f38\u683c\u5f0f",
       capabilityUnavailable: "\u7121\u6cd5\u78ba\u8a8d\u76ee\u524d\u8f38\u5165\u9650\u984d", hidden: "", unauthenticated: "\u9700\u8981\u767b\u5165", noWork: "\u672a\u9078\u64c7\u4f5c\u54c1",
       unavailable: "\u7121\u6cd5\u6aa2\u67e5\u76ee\u524d\u8f38\u5165", forbidden: "\u7121\u6b0a\u6aa2\u67e5\u6b64\u4f5c\u54c1\u7684\u8f38\u5165", server: "\u7121\u6cd5\u8f09\u5165\u76ee\u524d\u8f38\u5165", transport: "\u9023\u7dda\u5931\u6557", invalid: "\u7121\u6cd5\u78ba\u8a8d\u56de\u61c9",
       within: "\u8f38\u5165\u672a\u8d85\u9650", exceeds: "\u8f38\u5165\u8d85\u904e\u9650\u984d", unmeasured: "\u672a\u6e2c\u91cf", notVerified: "\u54c1\u8cea\u672a\u9a57\u8b49", notEvaluated: "\u672a\u8a55\u4f30", notAuthorized: "\u57f7\u884c\u672a\u7372\u6838\u51c6",
@@ -133,12 +138,22 @@
   }
 
   function parseProfileDeliveryDiagnostic(value, fits) {
+    const partsPresent = dataRecord(value) && Object.prototype.hasOwnProperty.call(value, "sizeBreakdown");
     if (!exact(value, ["contract", "byteCap", "wholeCandidateViewBytes", "candidateViewFits",
-      "normalizedApprovalPreserved", "modelInputFit", "semanticQualityVerified"]) ||
+      "normalizedApprovalPreserved", "modelInputFit", "semanticQualityVerified", ...(partsPresent ? ["sizeBreakdown"] : [])]) ||
         value.contract !== "story-approved-profile-delivery-v1" || value.byteCap !== 16384 ||
         !integer(value.wholeCandidateViewBytes, 1, 2000000) || value.candidateViewFits !== fits ||
         (value.wholeCandidateViewBytes <= value.byteCap) !== fits || value.normalizedApprovalPreserved !== true ||
         value.modelInputFit !== "unmeasured" || value.semanticQualityVerified !== false) throw failure("invalid");
+    if (partsPresent) {
+      const parts = value.sizeBreakdown;
+      const fields = ["authorDataBytes", "approvalEvidenceBytes", "serverInterpretationBytes", "approvalPinBytes", "framingBytes"];
+      if (!exact(parts, ["contract", "wholeCandidateViewBytes", ...fields]) ||
+          parts.contract !== "story-approved-profile-byte-breakdown-v1" ||
+          parts.wholeCandidateViewBytes !== value.wholeCandidateViewBytes ||
+          fields.some(field => !integer(parts[field], 0, value.wholeCandidateViewBytes)) ||
+          fields.reduce((total, field) => total + parts[field], 0) !== value.wholeCandidateViewBytes) throw failure("invalid");
+    }
   }
 
   function parseDiagnostic(value, sourceLocale, expectedRevision) {
@@ -284,7 +299,7 @@
         if (!current()) return false;
         const path = "/api/v1/me/creator-studio/stories/" + target.workId + "/body-preview";
         const url = mode === "refresh" ? path + "?locale=" + target.locale
-          : path + "/current-fit?locale=" + target.locale + "&choiceId=" + choiceId + "&expectedProgressRevision=" + revision;
+          : path + "/current-fit?locale=" + target.locale + "&choiceId=" + choiceId + "&profileByteBreakdown=v1&expectedProgressRevision=" + revision;
         const response = await fetch(url, { method: "GET", identity: owner, _retried: true, cache: "no-store",
           headers: { "Cache-Control": "no-store", "Accept": "application/json" }, signal: abort.signal });
         if (!current()) { await cancel(response); return false; }
@@ -402,6 +417,11 @@
         const format = new Intl.NumberFormat(state.locale);
         for (const [key, field] of [["profileAllBytes", "wholeCandidateViewBytes"], ["profileByteCap", "byteCap"]]) {
           row(key, format.format(profileDelivery[field]) + " B");
+        }
+        if (profileDelivery.sizeBreakdown) {
+          for (const [key, field] of [["profileAuthorBytes", "authorDataBytes"], ["profileEvidenceBytes", "approvalEvidenceBytes"],
+            ["profileInterpretationBytes", "serverInterpretationBytes"], ["profilePinBytes", "approvalPinBytes"],
+            ["profileFramingBytes", "framingBytes"]]) row(key, format.format(profileDelivery.sizeBreakdown[field]) + " B");
         }
       }
       row("reference", bounds?.referenceUnits ?? null); row("range", bounds ? bounds.minUnits + " - " + bounds.maxUnits : null);
