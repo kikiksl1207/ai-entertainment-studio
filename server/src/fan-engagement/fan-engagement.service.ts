@@ -690,6 +690,7 @@ export class FanEngagementService {
   ) {
     const resetBucket = this.resetBucket(mission);
     const participation = participationMap.get(`${mission.id}:${resetBucket}`);
+    const sourceFree = this.sourceFreeMissionSupported(mission);
     const action =
       mission.missionType === 'vote_concept' &&
       mission.actionType === 'concept_vote' &&
@@ -705,13 +706,25 @@ export class FanEngagementService {
               idempotencyKey: 'client-generated-key',
             },
           }
-        : null;
+        : sourceFree
+          ? {
+              type: 'mission_participation',
+              method: 'POST',
+              endpoint: `/api/v1/fan-engagement/missions/${mission.id}/participations`,
+              requiresAuth: true,
+              bodyHint: {
+                action: 'complete',
+                idempotencyKey: 'client-generated-key',
+              },
+            }
+          : null;
 
     return {
       id: mission.id,
       slug: mission.slug,
       missionType: mission.missionType,
       missionTypeKey: `fanMission.type.${mission.missionType}`,
+      ...(sourceFree ? { resetPolicy: mission.resetPolicy } : {}),
       artist: mission.artist,
       copy: this.missionCopy(mission.copy, mission.slug, locale),
       status: mission.status,

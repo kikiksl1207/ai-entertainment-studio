@@ -337,6 +337,32 @@
   gap: 14px;
 }
 
+.fan-mission-refresh {
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--ink);
+  font: inherit;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.fan-mission-refresh:focus-visible {
+  outline: 2px solid var(--accent-pop);
+  outline-offset: 2px;
+}
+
+.fan-mission-refresh:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .fan-phase-gate-map {
   grid-column: 1 / -1;
   display: grid;
