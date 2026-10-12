@@ -9,6 +9,7 @@
   const copyPack = fallbackCopy.copyPackV1 || {};
   const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   const intents = new Map();
+  const ballotIntents = new Map();
   const conceptReads = new Map(), conceptStates = new Map();
   let conceptEpoch = 0;
   let missionRoot = null, missions = [], viewer = null, loading = false;
@@ -269,6 +270,67 @@
     return { voteId: match[1].toLowerCase(), missionId: mission.id.toLowerCase(), artistId: mission.artist.id.toLowerCase() };
   }
 
+  function ballotBinding(mission) {
+    const binding = conceptBinding(mission), hint = mission?.action?.bodyHint;
+    return binding && hint?.optionId === "uuid" && hint.idempotencyKey === "client-generated-key" &&
+      Object.keys(hint).sort().join(",") === "idempotencyKey,missionId,optionId" ? binding : null;
+  }
+
+  function ballotIntent(mission) {
+    const binding = ballotBinding(mission);
+    return viewer && binding ? ballotIntents.get(viewer.id + ":" + binding.voteId) : null;
+  }
+
+  function sameBallot(intent, binding) {
+    return intent.tuple.voteId === binding.voteId && intent.tuple.missionId === binding.missionId && intent.tuple.artistId === binding.artistId;
+  }
+
+  function currentBallot(mission, state) {
+    return !!state && pageReady && !loading && state.root === missionRoot && state.root?.isConnected &&
+      document.visibilityState !== "hidden" && state.ticket === revision && state.epoch === conceptEpoch &&
+      state.page === conceptPage() && missions.includes(mission) && !!viewer && sameAuth(viewer) &&
+      state.owner?.id === viewer.id && state.owner.token === viewer.token;
+  }
+
+  function openBallot(mission, state) {
+    return !!ballotBinding(mission) && currentBallot(mission, state) && state.ownerState === "ready" &&
+      state.hasVoted === false && mission.participation.status === "not_started" && mission.participation.remainingCount === 1;
+  }
+
+  function canSelectBallot(mission, state) {
+    return openBallot(mission, state) && !submitFlight && !ballotIntent(mission);
+  }
+
+  function canSubmitBallot(mission) {
+    const state = conceptStates.get(mission.id), binding = ballotBinding(mission), intent = ballotIntent(mission);
+    return openBallot(mission, state) && !submitFlight && state.choices.some(option => option.id === state.selectedId) &&
+      (!intent || (intent.status === "indeterminate" && sameBallot(intent, binding) && intent.body.optionId === state.selectedId));
+  }
+
+  function ballotUiState(mission) {
+    const state = conceptStates.get(mission.id), intent = ballotIntent(mission);
+    if (!viewer || !sameAuth(viewer)) return "login_required";
+    if (intent?.status === "pending") return "pending";
+    if (!state || state.state === "loading") return "confirming";
+    if (!currentBallot(mission, state) || state.ownerState === "error") return "error";
+    if (state.ownerState !== "ready") return "confirming";
+    if (state.hasVoted) {
+      if (intent?.status === "conflict") return "ballot_conflict";
+      return mission.participation.status === "accepted" && mission.participation.remainingCount === 0 ? "completed" : "ballot_recorded";
+    }
+    if (intent?.status === "confirmed") return "confirming";
+    if (intent) return "indeterminate";
+    return openBallot(mission, state) ? "default" : "error";
+  }
+
+  function ballotStateCopy(mission, state) {
+    if (state === "default") return { cta: "투표하기", status: participationLabel(mission.participation) };
+    if (state === "indeterminate") return { cta: "같은 요청 다시 확인", status: "투표 결과를 확인하지 못했어요." };
+    if (state === "ballot_recorded") return { cta: "투표 접수 확인", status: "투표는 확인됐어요. 미션 참여 상태는 확인 중이에요." };
+    if (state === "ballot_conflict") return { cta: "기존 투표 확인", status: "이미 저장된 투표는 확인됐어요. 이번 요청의 완료는 확인하지 못했어요." };
+    return missionStateCopy(mission, state, "투표하기");
+  }
+
   function conceptPage() {
     return String(window.location?.href || "") + "|" + String(document.documentElement?.lang || "");
   }
@@ -300,7 +362,7 @@
           !value.trim() || value.trim().length > 160 || /[\u0000-\u001f\u007f]/.test(value) ||
           Object.keys(option).some(key => !["id", "optionKey", "labels", "sortOrder"].includes(key)))
           throw new Error("fan-concept-invalid");
-        optionIds.add(option.id.toLowerCase()); labels.push(value.trim());
+        optionIds.add(option.id.toLowerCase()); labels.push({ id: option.id, label: value.trim() });
       }
       choices.set(item.id.toLowerCase(), labels);
     }
@@ -311,7 +373,25 @@
       vote.mission.id.toLowerCase() !== binding.missionId)
       throw new Error("fan-concept-invalid");
     const labels = choices.get(binding.voteId);
-    return { state: labels.length ? "ready" : "empty", labels };
+    return { state: labels.length ? "ready" : "empty", labels: labels.map(option => option.label), choices: labels };
+  }
+
+  function ownedConceptOptions(data, binding, choices) {
+    if (!data || data.locale !== "ko" || !Array.isArray(data.items) || data.items.length > 20 ||
+      data.items.some(item => !uuid.test(item?.id || "")) ||
+      new Set(data.items.map(item => item.id.toLowerCase())).size !== data.items.length) throw new Error("fan-concept-invalid");
+    const vote = data.items.find(item => item.id.toLowerCase() === binding.voteId), owner = vote?.viewer;
+    if (!owner || typeof owner.hasVoted !== "boolean" ||
+      Object.keys(owner).sort().join(",") !== "hasVoted,selectedOptionId" ||
+      (owner.hasVoted ? !uuid.test(owner.selectedOptionId || "") || !vote.resultsPreview ||
+        typeof vote.resultsPreview !== "object" || Array.isArray(vote.resultsPreview)
+        : owner.selectedOptionId !== null || vote.resultsPreview !== null)) throw new Error("fan-concept-invalid");
+    // Personal fields are checked only in this owner-bound reader, never in the anonymous parser.
+    const validated = publicConceptOptions({ locale: data.locale, items: [{ ...vote,
+      viewer: { hasVoted: false, selectedOptionId: null }, resultsPreview: null }] }, binding);
+    if (validated.state !== "ready" || JSON.stringify(validated.choices) !== JSON.stringify(choices) ||
+      (owner.hasVoted && !choices.some(option => option.id === owner.selectedOptionId))) throw new Error("fan-concept-invalid");
+    return { hasVoted: owner.hasVoted, selectedOptionId: owner.selectedOptionId };
   }
 
   async function readConceptOptions(mission, ticket, owner) {
@@ -334,7 +414,30 @@
       }
       const data = await readJson(response, 262144);
       if (!current()) return;
-      conceptStates.set(mission.id, publicConceptOptions(data, binding));
+      const state = { ...publicConceptOptions(data, binding), root, ticket, epoch, page, owner,
+        selectedId: null, ownerState: "loading" };
+      conceptStates.set(mission.id, state);
+      if (state.state === "ready" && owner && ballotBinding(mission)) {
+        const ownedResponse = await fetch(url, { method: "GET", headers: requestHeaders(owner), credentials: "omit",
+          redirect: "error", cache: "no-store", signal: controller.signal });
+        if (!current()) { void ownedResponse.body?.cancel().catch(() => {}); return; }
+        if (!ownedResponse.ok || ownedResponse.url !== url ||
+          ownedResponse.headers.get("content-type")?.split(";")[0].trim().toLowerCase() !== "application/json" ||
+          ownedResponse.headers.get("cache-control") !== "private, no-store" ||
+          !(ownedResponse.headers.get("vary") || "").split(",").some(value => value.trim().toLowerCase() === "authorization")) {
+          void ownedResponse.body?.cancel().catch(() => {}); throw new Error("fan-concept-unavailable");
+        }
+        const ownedData = await readJson(ownedResponse, 262144);
+        if (!current()) return;
+        Object.assign(state, ownedConceptOptions(ownedData, binding, state.choices), { ownerState: "ready" });
+        const intent = ballotIntent(mission);
+        if (state.hasVoted) {
+          state.selectedId = state.selectedOptionId;
+          if (intent) intent.status = sameBallot(intent, binding) && intent.body.optionId === state.selectedOptionId ? "confirmed" : "conflict";
+        } else if (intent && sameBallot(intent, binding) && state.choices.some(option => option.id === intent.body.optionId)) {
+          state.selectedId = intent.body.optionId;
+        }
+      }
     } catch (_) {
       if (ticket === revision && epoch === conceptEpoch && root?.isConnected && missions.includes(mission) &&
         sameAuth(owner) && conceptPage() === page) conceptStates.set(mission.id, { state: "error", labels: [] });
@@ -355,6 +458,14 @@
       const messages = { loading: "공개 선택지를 불러오고 있어요.", empty: "공개된 선택지가 없습니다.",
         unavailable: "이 미션의 공개 선택지를 확인할 수 없습니다.", error: "선택지를 불러오지 못했습니다." };
       if (state.state !== "ready") return `<p class="fan-mission-inline-status" role="status" data-concept-state="${escapeHtml(state.state)}">${escapeHtml(messages[state.state])}</p>`;
+      if (ballotBinding(mission) && currentBallot(mission, state) && state.ownerState === "ready") {
+        const enabled = canSelectBallot(mission, state);
+        return `<div class="fan-mission-options" role="radiogroup" aria-label="공개 미션 선택지" data-concept-state="ready">
+          ${state.choices.map(option => `<label style="display:flex;align-items:flex-start;gap:8px;min-height:44px;min-width:0;padding:8px;border:1px solid rgba(180,150,255,0.14);border-radius:8px;overflow-wrap:anywhere;letter-spacing:0">
+            <input type="radio" name="concept-${escapeHtml(mission.id)}" data-concept-option="${escapeHtml(mission.id)}"
+              value="${escapeHtml(option.id)}" ${state.selectedId === option.id ? "checked" : ""} ${enabled ? "" : "disabled"}>
+            <span style="min-width:0;overflow-wrap:anywhere">${escapeHtml(option.label)}</span></label>`).join("")}</div>`;
+      }
       return `
         <div class="fan-mission-options" aria-label="공개 미션 선택지" data-concept-state="ready">
           ${state.labels.map(option => `<button type="button" disabled>${escapeHtml(option)}</button>`).join("")}
@@ -446,10 +557,11 @@
     const status = missionStatusLabel(mission?.status);
     const type = missionTypeLabel(mission?.missionType);
     const reward = rewardLabel(mission?.rewardPreview);
-    const uiState = missionUiState(mission);
-    const stateCopy = missionStateCopy(mission, uiState, cta);
+    const ballot = ballotBinding(mission);
+    const uiState = ballot ? ballotUiState(mission) : missionUiState(mission);
+    const stateCopy = ballot ? ballotStateCopy(mission, uiState) : missionStateCopy(mission, uiState, cta);
     const missionBody = renderMissionBody(mission, uiState);
-    const enabled = canParticipate(mission);
+    const enabled = ballot ? canSubmitBallot(mission) : canParticipate(mission);
 
     return `
       <article class="fan-mission-card is-${escapeHtml(uiState)}" data-mission-id="${escapeHtml(mission?.id)}" data-ui-state="${escapeHtml(uiState)}">
@@ -465,7 +577,7 @@
           <span>${escapeHtml(stateCopy.status)}</span>
           <span>${escapeHtml(reward)}</span>
         </div>
-        <button class="fan-mission-cta" type="button" data-mission-participate="${escapeHtml(mission.id)}"
+        <button class="fan-mission-cta" type="button" ${ballot ? "data-concept-submit" : "data-mission-participate"}="${escapeHtml(mission.id)}"
           ${enabled ? "" : "disabled"} aria-disabled="${!enabled}" aria-busy="${uiState === "pending"}">${escapeHtml(stateCopy.cta)}</button>
       </article>
     `;
@@ -574,21 +686,88 @@
     }
   }
 
+  async function submitBallot(mission) {
+    if (!canSubmitBallot(mission)) return;
+    const state = conceptStates.get(mission.id), binding = ballotBinding(mission), owner = viewer;
+    const { root, ticket, epoch, page } = state;
+    const name = owner.id + ":" + binding.voteId;
+    let intent = ballotIntents.get(name);
+    try {
+      if (!intent) {
+        const key = window.crypto.randomUUID();
+        if (!uuid.test(key)) throw new Error("fan-key-invalid");
+        intent = { tuple: Object.freeze({ ...binding }), body: Object.freeze({ optionId: state.selectedId, missionId: mission.id, idempotencyKey: key }),
+          status: "indeterminate" };
+        ballotIntents.set(name, intent);
+      }
+    } catch (_) { state.ownerState = "error"; renderMissionList(root, missions, "loaded"); return; }
+    const controller = new AbortController(), flight = { kind: "ballot", owner, controller, intent };
+    submitFlight = flight; intent.status = "pending";
+    renderMissionList(root, missions, "loaded");
+    const timeoutId = setTimeout(() => controller.abort(), 7000);
+    const current = () => sameAuth(owner) && root === missionRoot && root.isConnected && missions.includes(mission) &&
+      document.visibilityState !== "hidden" && ticket === revision && epoch === conceptEpoch && page === conceptPage() && !controller.signal.aborted;
+    try {
+      if (!current()) throw new Error("fan-auth-changed");
+      const url = apiBase + "/api/v1/fan-engagement/concept-votes/" + intent.tuple.voteId + "/ballots";
+      const res = await fetch(url, { method: "POST", headers: { ...requestHeaders(owner), "Content-Type": "application/json" },
+        body: JSON.stringify(intent.body), credentials: "omit", redirect: "error", cache: "no-store", signal: controller.signal });
+      if (!current()) { void res.body?.cancel().catch(() => {}); throw new Error("fan-auth-changed"); }
+      if (!res.ok || res.url !== url || res.headers.get("content-type")?.split(";")[0].trim().toLowerCase() !== "application/json") {
+        void res.body?.cancel().catch(() => {}); throw new Error("fan-ballot-unconfirmed");
+      }
+      const receipt = await readJson(res, 65536);
+      if (!current() || !uuid.test(receipt?.ballot?.id || "") || receipt.ballot.voteId !== intent.tuple.voteId ||
+        receipt.ballot.optionId !== intent.body.optionId || receipt.viewer?.hasVoted !== true ||
+        receipt.viewer.selectedOptionId !== intent.body.optionId || typeof receipt.idempotentReplay !== "boolean" ||
+        (receipt.missionParticipation !== null && (!uuid.test(receipt.missionParticipation?.id || "") ||
+          receipt.missionParticipation.missionId !== intent.body.missionId || receipt.missionParticipation.status !== "accepted")))
+        throw new Error("fan-ballot-unconfirmed");
+    } catch (_) {
+      // The outcome stays uncertain until the current owner's fresh reads confirm the stored choice.
+    } finally {
+      if (intent.status === "pending") intent.status = "indeterminate";
+      clearTimeout(timeoutId);
+      if (submitFlight === flight) submitFlight = null;
+      if (sameAuth(owner) && root === missionRoot && root.isConnected && ticket === revision && epoch === conceptEpoch &&
+        page === conceptPage() && document.visibilityState !== "hidden") await renderHomeMissionTeaser();
+      else if (!loading && missionRoot?.isConnected && sameAuth(viewer)) renderMissionList(missionRoot, missions, "loaded");
+    }
+  }
+
   missionRoot = document.getElementById("homeMissionTeaser");
   if (!missionRoot) return;
   missionRoot.addEventListener("click", event => {
     if (event.isTrusted !== true || !missionRoot.isConnected) return;
-    const button = event.target.closest?.("[data-mission-participate], [data-home-missions-refresh]");
+    const button = event.target.closest?.("[data-mission-participate], [data-home-missions-refresh], [data-concept-submit]");
     if (!button || !missionRoot.contains(button) || button.disabled) return;
     event.preventDefault();
     if (button.hasAttribute("data-home-missions-refresh")) { if (!submitFlight) void renderHomeMissionTeaser(); return; }
     if (!sameAuth(viewer)) { authChanged(); return; }
+    if (button.hasAttribute("data-concept-submit")) {
+      const mission = missions.find(item => item.id === button.dataset.conceptSubmit);
+      if (mission) void submitBallot(mission);
+      return;
+    }
     const mission = missions.find(item => item.id === button.dataset.missionParticipate);
     if (mission) void participate(mission);
   });
+  missionRoot.addEventListener("change", event => {
+    if (event.isTrusted !== true || !missionRoot.isConnected) return;
+    const radio = event.target;
+    if (radio.type !== "radio" || radio.disabled || !radio.checked || !missionRoot.contains(radio)) return;
+    if (!sameAuth(viewer)) { authChanged(); return; }
+    const mission = missions.find(item => item.id === radio.dataset.conceptOption), state = mission && conceptStates.get(mission.id);
+    if (!mission || !canSelectBallot(mission, state) || !state.choices.some(option => option.id === radio.value)) return;
+    state.selectedId = radio.value;
+    // Leave native radio focus and arrow navigation intact; only update this command's enabled state.
+    const button = missionRoot.querySelector?.('[data-concept-submit="' + mission.id + '"]');
+    if (button) { button.disabled = !canSubmitBallot(mission); button.setAttribute("aria-disabled", String(button.disabled)); }
+  });
   function authChanged() {
     if (submitFlight && !sameAuth(submitFlight.owner)) {
-      submitFlight.intent.status = "indeterminate"; submitFlight.controller.abort();
+      if (submitFlight.kind !== "ballot" || submitFlight.intent.status === "pending") submitFlight.intent.status = "indeterminate";
+      submitFlight.controller.abort();
     }
     void renderHomeMissionTeaser();
   }
@@ -596,6 +775,10 @@
   window.addEventListener("storage", event => { if (event.key === "lumina_auth" || event.key === null) authChanged(); });
   window.addEventListener("focus", () => { if (!submitFlight) void renderHomeMissionTeaser(); });
   function invalidateConceptView() {
+    if (submitFlight?.kind === "ballot") {
+      if (submitFlight.intent.status === "pending") submitFlight.intent.status = "indeterminate";
+      submitFlight.controller.abort();
+    }
     clearConceptReads();
     if (missionRoot?.isConnected && missions.length && !loading) renderMissionList(missionRoot, missions, "loaded");
   }
