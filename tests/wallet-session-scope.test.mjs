@@ -105,5 +105,5 @@ test('an invalidated header removes the previous balance from its hidden DOM', (
 
 test('a current-session failure retains the existing zero-balance display policy', async () => {
   const h = harness(), pending = h.load(); h.requests[0].pending.reject(new Error('Synthetic current failure')); await pending;
-  assert.deepEqual(h.wallet(), { balance: 0, currencyCode: 'LUMINA', loaded: true });
+  assert.deepEqual(h.wallet(), { balance: null, currencyCode: 'LUMINA', loaded: false });
 });

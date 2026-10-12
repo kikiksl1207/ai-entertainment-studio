@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { htmlWithoutWalletCacheDelta, walletCacheDelta } from './support/mypage-wallet-cache-inverse-20261011.mjs';
+import { htmlWithoutWalletConfirmationDelta } from './support/mypage-wallet-confirmation-inverse-20261013.mjs';
 
 const expected = {
   scope: 'mypage-wallet-cache-exact1-only',
@@ -15,7 +16,7 @@ const expected = {
   lineEndings: 'CRLF-to-LF-only',
 };
 const sha = value => createHash('sha256').update(value, 'utf8').digest('hex');
-const rawHtml = readFileSync(new URL('../mypage/index.html', import.meta.url), 'utf8');
+const rawHtml = htmlWithoutWalletConfirmationDelta(readFileSync(new URL('../mypage/index.html', import.meta.url), 'utf8'));
 const lfHtml = rawHtml.replaceAll('\r\n', '\n');
 assert([expected.beforeSHA256, expected.afterSHA256].includes(sha(lfHtml)), 'Pinned current or BASE fixture only');
 const legacy = sha(lfHtml) === expected.beforeSHA256 ? lfHtml : lfHtml.replace(expected.afterTag, expected.beforeTag);

@@ -1364,9 +1364,17 @@
             setText("mypageNicknameStatus", "닉네임은 변경 후 30일 동안 다시 바꿀 수 없습니다.");
           }
 
-          setText("mypageLuminaBalance", fmt(wallet.lumina?.balance ?? wallet.cachedBalance));
-          setText("mypageStellaBalance", fmt(wallet.stella?.displayAmount ?? 0));
-          setText("mypageWalletStatus", wallet.lumina ? "현재 사용할 수 있는 잔액입니다." : "잔액 정보를 확인하지 못했습니다.");
+          const confirmedWalletAmount = raw => {
+            const decimal = typeof raw === "string" ? raw.trim() : null;
+            const value = typeof raw === "number" ? raw
+              : decimal !== null && /^-?\d+(?:\.\d+)?$/.test(decimal) ? Number(decimal) : NaN;
+            return Number.isFinite(value) ? value : null;
+          };
+          const luminaBalance = confirmedWalletAmount(wallet.lumina?.balance ?? wallet.cachedBalance);
+          const stellaBalance = confirmedWalletAmount(wallet.stella?.displayAmount);
+          setText("mypageLuminaBalance", luminaBalance === null ? "--" : fmt(luminaBalance));
+          setText("mypageStellaBalance", stellaBalance === null ? "--" : fmt(stellaBalance));
+          setText("mypageWalletStatus", luminaBalance !== null ? "현재 사용할 수 있는 잔액입니다." : "잔액 정보를 확인하지 못했습니다.");
           renderList(
             "mypageProductSummary",
             list(summary.recentLedger).slice(0, 4),

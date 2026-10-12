@@ -5,6 +5,7 @@ import { resolve } from 'node:path';
 import test from 'node:test';
 import vm from 'node:vm';
 import { htmlWithoutActivationReadDelta } from './support/mypage-activation-read-inverse-20261009.mjs';
+import { htmlWithoutWalletConfirmationDelta } from './support/mypage-wallet-confirmation-inverse-20261013.mjs';
 
 const source = readFileSync(new URL('../pages/mypage-titles.js', import.meta.url), 'utf8');
 const walletAppTag = '<script src="/app.js?v=wallet-session-20261011"></script>';
@@ -17,7 +18,7 @@ function normalizeWalletAppTag(value) {
     ['/app.js?v=wallet-session-20261011'], 'Only the exact approved wallet app source');
   return value.replace(walletAppTag, originalAppTag);
 }
-const rawHtml = readFileSync(new URL('../mypage/index.html', import.meta.url), 'utf8');
+const rawHtml = htmlWithoutWalletConfirmationDelta(readFileSync(new URL('../mypage/index.html', import.meta.url), 'utf8'));
 const html = htmlWithoutActivationReadDelta(normalizeWalletAppTag(rawHtml));
 const css = readFileSync(new URL('../styles/mypage.css', import.meta.url), 'utf8');
 const sha = text => createHash('sha256').update(text, 'utf8').digest('hex');

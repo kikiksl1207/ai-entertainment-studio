@@ -3739,7 +3739,7 @@ async function loadBoostState() {
    GET /api/v1/wallet — cachedBalance 사용
    백엔드 명세: 가입 직후 300 L, 추천인 코드 유효 시 +500 L
    ─────────────────────────────────────────── */
-let _wallet = null; // { balance: number, currencyCode: "LUMINA", loaded: bool }
+let _wallet = null; // A null balance is unconfirmed, not an available zero balance.
 let _walletSession = authRequestSession();
 let _walletRequestVersion = 0;
 
@@ -3778,18 +3778,20 @@ async function loadWallet() {
   try {
     const data = await apiFetch("/api/v1/wallet", { auth: true, throwOnError: true });
     if (!walletRequestCurrent(version)) return;
-    // 응답 필드 fallback 체인 강화 — 백엔드 응답 키가 cachedBalance / balance / lumina.balance 중 어느 것이든 처리
-    const rawBalance = data?.cachedBalance ?? data?.balance ?? data?.lumina?.balance ?? data?.wallet?.cachedBalance ?? "0";
+    const rawBalance = data?.cachedBalance ?? data?.balance ?? data?.lumina?.balance ?? data?.wallet?.cachedBalance;
+    const decimal = typeof rawBalance === "string" ? rawBalance.trim() : null;
+    const balance = typeof rawBalance === "number" ? rawBalance
+      : decimal !== null && /^-?\d+(?:\.\d+)?$/.test(decimal) ? Number(decimal) : NaN;
+    if (!Number.isFinite(balance)) throw new Error("Unconfirmed wallet balance");
     _wallet = {
-      balance: parseFloat(rawBalance) || 0,
+      balance,
       currencyCode: data?.currencyCode || "LUMINA",
       loaded: true
     };
   } catch (err) {
     if (!walletRequestCurrent(version)) return;
-    console.warn("[Lumina] 지갑 조회 실패 — 잔액 0으로 표시:", { status: err?.status });
-    // 사용자 의도: "곧 공개" 보다 "0 L" 표시가 더 명확. loaded: true로 두고 0 표시.
-    _wallet = { balance: 0, currencyCode: "LUMINA", loaded: true };
+    console.warn("[Lumina] 지갑 조회 실패:", { status: err?.status });
+    _wallet = { balance: null, currencyCode: "LUMINA", loaded: false };
   }
   updateWalletUI();
 }
@@ -3805,7 +3807,7 @@ function updateWalletUI() {
   // 1. 헤더 잔액 뱃지 (헤더 닉네임 좌측)
   const headerBadge = document.getElementById("walletBadge");
   if (headerBadge) {
-    if (_wallet?.loaded) {
+    if (_wallet?.loaded && Number.isFinite(_wallet.balance)) {
       headerBadge.innerHTML = `
         <svg class="wallet-coin" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
           <!-- 5각 별 (Lumina Stage 스텔라 시스템 로고) -->
@@ -3985,7 +3987,8 @@ const PAID_LIKE_BUNDLES = [
 // MVP 정책 (#047): 유료 좋아요 하루 최대 20개. 30개 옵션은 MVP 미사용.
 
 function getPaidLikeBalance() {
-  return _wallet?.balance ?? _wallet?.lumina?.balance ?? _wallet?.cachedBalance ?? 0;
+  return _wallet?.loaded && walletRequestCurrent(_walletRequestVersion) && Number.isFinite(_wallet.balance)
+    ? _wallet.balance : null;
 }
 
 /* 유료 좋아요 잔여 한도 조회 (#047 — 차모 백엔드 35e62ec).
@@ -4013,10 +4016,17 @@ async function openPaidLikeModal(slug) {
     return;
   }
   const artist = getCharacterBySlug(slug) || _artists.find(a => a.slug === slug);
-  const balance = getPaidLikeBalance();
+  const walletVersion = _walletRequestVersion;
+  if (getPaidLikeBalance() === null) {
+    alert("잔액을 확인하지 못했습니다. 잠시 후 다시 확인해 주세요.");
+    return;
+  }
 
   // #047: 일일 잔여 한도 조회 (실패해도 모달 열 수 있게 fallback)
   const quota = await loadPaidLikeQuota();
+  if (!walletRequestCurrent(walletVersion)) return;
+  const balance = getPaidLikeBalance();
+  if (balance === null) return;
   const dailyLimit = quota?.dailyLimit ?? 20;
   const remaining = quota?.remaining ?? dailyLimit;
 
@@ -4104,6 +4114,10 @@ async function openPaidLikeModal(slug) {
     const selectedQuantity = Number(overlay.querySelector("[name='paidLikeBundle']:checked")?.value || 1);
     const selectedBundle = PAID_LIKE_BUNDLES.find(bundle => bundle.quantity === selectedQuantity) || PAID_LIKE_BUNDLES[0];
     const currentBalance = getPaidLikeBalance();
+    if (currentBalance === null) {
+      setMessage("잔액을 확인하지 못했습니다. 잠시 후 다시 확인해 주세요.");
+      return;
+    }
     if (currentBalance < selectedBundle.lumina) {
       setMessage(`루미나가 부족해요. 좋아요 ${selectedBundle.quantity}개를 전달하려면 ${selectedBundle.lumina}L이 필요해요.`);
       return;

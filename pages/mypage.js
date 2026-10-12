@@ -529,10 +529,10 @@ async function initMypagePage() {
   if (!_wallet?.loaded) {
     await loadWallet();
   }
-  const balance = _wallet?.balance || 0;
-  setMypageText("mypageLuminaBalance", formatMypageNumber(balance));
-  setMypageText("mypageStellaBalance", balance >= 10000 ? formatMypageNumber(balance / 10000) : "0");
-  setMypageText("mypageWalletStatus", _wallet?.loaded ? "현재 사용할 수 있는 잔액입니다." : "잔액 API 확인이 필요합니다.");
+  const balance = _wallet?.loaded && Number.isFinite(_wallet.balance) ? _wallet.balance : null;
+  setMypageText("mypageLuminaBalance", balance === null ? "--" : formatMypageNumber(balance));
+  setMypageText("mypageStellaBalance", balance === null ? "--" : balance >= 10000 ? formatMypageNumber(balance / 10000) : "0");
+  setMypageText("mypageWalletStatus", balance !== null ? "현재 사용할 수 있는 잔액입니다." : "잔액을 확인하지 못했습니다. 잠시 후 다시 확인해 주세요.");
 
   // #140 정산 프로필 — 차모 spec: GET/PATCH /api/v1/me/settlement-profile
   initMypageSettlementProfile();

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import { htmlWithoutWalletConfirmationDelta } from './mypage-wallet-confirmation-inverse-20261013.mjs';
 
 export const walletCacheDelta = Object.freeze({
   scope: 'mypage-wallet-cache-exact1-only',
@@ -17,7 +18,7 @@ const sha = value => createHash('sha256').update(value, 'utf8').digest('hex');
 export function htmlWithoutWalletCacheDelta(value, delta = walletCacheDelta) {
   assert.equal(typeof value, 'string', 'HTML must be source text');
   assert.deepEqual(delta, walletCacheDelta, 'Exact wallet cache inverse metadata');
-  const html = value.replaceAll('\r\n', '\n');
+  const html = htmlWithoutWalletConfirmationDelta(value);
   const digest = sha(html), legacy = digest === walletCacheDelta.beforeSHA256;
   assert(legacy || digest === walletCacheDelta.afterSHA256, 'Exact whole mypage HTML source');
   assert.equal(html.split(walletCacheDelta.beforeTag).length - 1, legacy ? 1 : 0);
