@@ -2,6 +2,7 @@
   "use strict";
   const locales = ["ko", "en", "ja", "zh-Hans", "zh-Hant"];
   const maxBytes = 256 * 1024;
+  const readDeadlineMs = 30000;
   const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   const record = value => value !== null && typeof value === "object" && !Array.isArray(value);
   const integer = (value, min) => Number.isSafeInteger(value) && value >= min;
@@ -109,7 +110,7 @@
     return clone(value);
   }
 
-  async function cancel(response) { try { await response?.body?.cancel?.(); } catch (_) {} }
+  function cancel(response) { try { Promise.resolve(response?.body?.cancel?.()).catch(() => {}); } catch (_) {} }
   async function readBody(response, current, signal) {
     const length = response.headers?.get?.("content-length");
     if (length !== null && length !== undefined && (!/^\d+$/.test(length) ||
@@ -117,7 +118,7 @@
     if (typeof response.body?.getReader !== "function") { await cancel(response); throw failure("invalid"); }
     const reader = response.body.getReader(), decoder = new TextDecoder("utf-8", { fatal: true });
     let size = 0, result = "", cancelled = false;
-    async function stop() { if (!cancelled) { cancelled = true; try { await reader.cancel(); } catch (_) {} } }
+    function stop() { if (!cancelled) { cancelled = true; try { Promise.resolve(reader.cancel()).catch(() => {}); } catch (_) {} } }
     const onAbort = () => { void stop(); };
     signal.addEventListener("abort", onAbort, { once: true });
     try {
@@ -134,7 +135,7 @@
       try { result += decoder.decode(); } catch (_) { throw failure("invalid"); }
       if (!current()) throw failure("stale");
       try { return JSON.parse(result); } catch (_) { throw failure("invalid"); }
-    } catch (error) { await stop(); throw error; }
+    } catch (error) { stop(); throw error; }
     finally { signal.removeEventListener("abort", onAbort); reader.releaseLock(); }
   }
 
@@ -170,33 +171,60 @@
       syncContext();
       if (!state().canLoad || (expectedTicket !== null && expectedTicket !== ticket)) return false;
       const target = { workId: scope.workId, locale: scope.sourceLocale }, owner = { ...scope.owner }, ownTicket = ++ticket;
-      const abort = new AbortController(); request = abort; data = null; phase = "loading"; messageKey = "loading";
-      const current = () => { syncContext(); return ticket === ownTicket; };
-      emit();
-      try {
-        if (!current()) return false;
-        const response = await fetch("/api/v1/me/creator-studio/stories/" + encodeURIComponent(target.workId) +
-          "/body-preview/original-reference?locale=" + encodeURIComponent(target.locale), {
-          method: "GET", identity: owner, _retried: true, cache: "no-store", redirect: "error", headers: { "Cache-Control": "no-store" }, signal: abort.signal
-        });
-        if (!current()) { await cancel(response); return false; }
-        if (!integer(response?.status, 100) || response.status > 599) { await cancel(response); throw failure("invalid"); }
-        if (response.status !== 200) {
-          await cancel(response);
-          throw failure(response.status === 401 ? "unauthenticated" : response.status === 403 ? "forbidden" :
-            response.status === 409 ? "conflict" : response.status >= 500 ? "server" : "unavailable");
+      const abort = new AbortController();
+      let timer = null, finished = false, settle;
+      const canceled = new Promise(resolve => { settle = resolve; });
+      function finish() {
+        finished = true;
+        if (timer !== null) { clearTimeout(timer); timer = null; }
+      }
+      const gate = { abort() {
+        if (finished) return;
+        finish(); settle(false); abort.abort();
+      } };
+      request = gate; data = null; phase = "loading"; messageKey = "loading";
+      const current = () => { syncContext(); return ticket === ownTicket && !abort.signal.aborted; };
+      const work = async () => {
+        try {
+          if (!current()) return false;
+          const response = await fetch("/api/v1/me/creator-studio/stories/" + encodeURIComponent(target.workId) +
+            "/body-preview/original-reference?locale=" + encodeURIComponent(target.locale), {
+            method: "GET", identity: owner, _retried: true, cache: "no-store", redirect: "error", headers: { "Cache-Control": "no-store" }, signal: abort.signal
+          });
+          if (!current()) { await cancel(response); return false; }
+          if (!integer(response?.status, 100) || response.status > 599) { await cancel(response); throw failure("invalid"); }
+          if (response.status !== 200) {
+            await cancel(response);
+            throw failure(response.status === 401 ? "unauthenticated" : response.status === 403 ? "forbidden" :
+              response.status === 409 ? "conflict" : response.status >= 500 ? "server" : "unavailable");
+          }
+          const raw = await readBody(response, current, abort.signal);
+          if (!current()) return false;
+          const parsed = parseReference(raw, target);
+          if (!current()) return false;
+          data = parsed; request = null; phase = "ready"; messageKey = parsed.outcome; finish(); emit(); return current();
+        } catch (error) {
+          if (!current()) return false;
+          data = null; request = null; phase = "error"; finish();
+          messageKey = ownErrors.has(error) && ["invalid", "unauthenticated", "forbidden", "conflict", "server", "unavailable"].includes(error.kind)
+            ? error.kind : "transport";
+          emit(); return false;
         }
-        const raw = await readBody(response, current, abort.signal);
-        if (!current()) return false;
-        const parsed = parseReference(raw, target);
-        if (!current()) return false;
-        data = parsed; request = null; phase = "ready"; messageKey = parsed.outcome; emit(); return current();
-      } catch (error) {
-        if (!current()) return false;
-        data = null; request = null; phase = "error";
-        messageKey = ownErrors.has(error) && ["invalid", "unauthenticated", "forbidden", "conflict", "server", "unavailable"].includes(error.kind)
-          ? error.kind : "transport";
-        emit(); return false;
+      };
+      timer = setTimeout(() => {
+        timer = null;
+        if (finished) return;
+        if (request !== gate || !current()) { gate.abort(); return; }
+        data = null; request = null; phase = "error"; messageKey = "transport";
+        settle(false);
+        try { emit(); } finally { gate.abort(); }
+      }, readDeadlineMs);
+      try {
+        emit();
+        return await Promise.race([work(), canceled]);
+      } finally {
+        finish();
+        if (request === gate) request = null;
       }
     }
     return { snapshot: () => syncContext(), syncContext, invalidate, load };

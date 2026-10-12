@@ -40,7 +40,7 @@ function response(value = reference(), { status = 200, raw = JSON.stringify(valu
     text: () => { stats.textReads++; throw new Error('Text fallback forbidden'); } };
 }
 function library(extra = {}) {
-  const vm = createContext({ window: {}, TextEncoder, TextDecoder, Uint8Array, AbortController, ...extra });
+  const vm = createContext({ window: {}, TextEncoder, TextDecoder, Uint8Array, AbortController, setTimeout, clearTimeout, ...extra });
   runInContext(source, vm);
   return { api: vm.window.LuminaCreatorBodyOriginalReference, vm };
 }
