@@ -1,0 +1,48 @@
+#writerApprovedWire {
+  min-width: 0;
+  max-width: 100%;
+  padding: 24px 0;
+  border-top: 1px solid var(--line, #d9dde0);
+  color: var(--text, #252a2d);
+  font-family: Pretendard, "Noto Sans KR", "Malgun Gothic", "Yu Gothic", "Microsoft JhengHei", system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.65;
+  letter-spacing: 0;
+}
+#writerApprovedWire *, #writerApprovedWire *::before, #writerApprovedWire *::after {
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
+  letter-spacing: 0;
+  overflow-wrap: anywhere;
+}
+#writerApprovedWire [hidden] { display: none !important; }
+#writerApprovedWire h3 { margin: 0; font-size: 20px; font-weight: 650; line-height: 1.5; }
+#writerApprovedWire .body-current-fit-header { display: grid; grid-template-columns: minmax(0, 1fr) 44px; align-items: start; gap: 12px; }
+#writerApprovedWire .body-current-fit-button {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid var(--line, #cbd2d7);
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+#writerApprovedWire .body-current-fit-button :is(span, svg) { display: block; width: 24px; height: 24px; font-size: 24px; line-height: 1; }
+#writerApprovedWire button:disabled { opacity: .5; cursor: not-allowed; }
+#writerApprovedWire .body-current-fit-button:not(:disabled):hover { border-color: var(--text, #252a2d); }
+#writerApprovedWire button:focus-visible { outline: 2px solid var(--text, #252a2d); outline-offset: 3px; }
+#writerApprovedWire .body-current-fit-state { min-height: 1.65em; margin: 16px 0; color: var(--muted, #5b646b); }
+#writerApprovedWire .body-current-fit-state.is-error { color: var(--danger, #b63e4c); }
+#writerApprovedWire .body-current-fit-metadata { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 28px; margin: 0; }
+#writerApprovedWire .body-current-fit-metadata dt { font-size: 13px; color: var(--muted, #5b646b); }
+#writerApprovedWire .body-current-fit-metadata dd { margin: 0; font-size: 15px; }
+@media (max-width: 720px) {
+  #writerApprovedWire { padding: 20px 0; }
+  #writerApprovedWire .body-current-fit-metadata { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+}
+@media print { #writerApprovedWire { display: none !important; } }
