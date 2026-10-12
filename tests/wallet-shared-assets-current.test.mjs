@@ -127,6 +127,7 @@ const consumers = [
       "/pages/creator-body-length.js?v=body-length-20261010",
       "/pages/creator-body-current-fit.js?v=20261012-read-deadline",
       "/pages/creator-approved-wire.js?v=approved-wire-20261012-v1",
+      "/pages/creator-approved-section-bytes.js?v=approved-section-bytes-20261013-v1",
       "/pages/creator-body-original-reference.js?v=original-reference-20261012-deadline",
       "/pages/creator-approved-style.js?v=approved-style-20261012-read-deadline",
       "/pages/creator-body-style-reference.js?v=body-style-reference-20261010",

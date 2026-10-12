@@ -16,6 +16,7 @@
     "pages/creator-body-length.css", "pages/creator-body-length.js",
     "pages/creator-body-current-fit.css", "pages/creator-body-current-fit.js",
     "pages/creator-approved-wire.css", "pages/creator-approved-wire.js",
+    "pages/creator-approved-section-bytes.css", "pages/creator-approved-section-bytes.js",
     "pages/creator-body-original-reference.css", "pages/creator-body-original-reference.js",
     "pages/creator-approved-style.css", "pages/creator-approved-style.js",
     "pages/creator-body-style-reference.css", "pages/creator-body-style-reference.js",
