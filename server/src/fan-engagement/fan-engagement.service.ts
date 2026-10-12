@@ -130,6 +130,24 @@ export class FanEngagementService {
 
   async submitConceptVoteBallot(userId: string, voteId: string, input: FanEngagementBody) {
     this.assertUuid(voteId, 'voteId');
+    if (!input || typeof input !== 'object' || Array.isArray(input)) {
+      throw this.badRequestError({
+        code: 'INVALID_REQUEST',
+        message: 'Request body must be an object',
+        messageKey: 'fanEngagement.validation.invalidRequest',
+      });
+    }
+    for (const field of ['optionId', 'missionId', 'idempotencyKey']) {
+      if (input[field] !== undefined && input[field] !== null && typeof input[field] !== 'string') {
+        throw this.badRequestError({
+          code: 'INVALID_FIELD_TYPE',
+          message: `${field} must be a string or null`,
+          messageKey: 'fanEngagement.validation.invalidFieldType',
+          details: { field },
+        });
+      }
+    }
+    voteId = voteId.toLowerCase();
     const optionId = this.string(input, 'optionId');
     this.assertUuid(optionId, 'optionId');
     const missionId = this.optionalString(input, 'missionId');
@@ -150,6 +168,16 @@ export class FanEngagementService {
           code: 'IDEMPOTENCY_KEY_REUSED',
           message: 'fanEngagement.error.idempotencyKeyReused',
           messageKey: 'fanEngagement.error.idempotencyKeyReused',
+          details: { voteId },
+        });
+      }
+
+      if (existingByIdempotency.optionId !== optionId.toLowerCase() ||
+        (existingByIdempotency.missionId ?? null) !== (missionId?.toLowerCase() ?? null)) {
+        throw this.badRequestError({
+          code: 'IDEMPOTENCY_BODY_MISMATCH',
+          message: 'idempotencyKey was already used with a different request body',
+          messageKey: 'fanEngagement.error.idempotencyBodyMismatch',
           details: { voteId },
         });
       }
@@ -175,7 +203,7 @@ export class FanEngagementService {
     }
 
     this.assertVoteOpen(vote);
-    const option = vote.options.find((item) => item.id === optionId);
+    const option = vote.options.find((item) => item.id === optionId.toLowerCase());
     if (!option) {
       throw this.badRequestError({
         code: 'OPTION_NOT_IN_VOTE',
@@ -197,12 +225,54 @@ export class FanEngagementService {
       });
     }
 
-    const mission = missionId
-      ? await this.findLinkedConceptVoteMission(missionId, vote)
-      : null;
+    if (missionId) {
+      await this.findLinkedConceptVoteMission(missionId, vote);
+    }
 
     const result = await this.prisma
       .$transaction(async (tx) => {
+        // Lock the admitted rows and read their current state inside the write transaction.
+        const lockedVote = await tx.$queryRaw<Array<{ id: string }>>`SELECT id FROM public.concept_votes WHERE id = ${voteId}::uuid FOR SHARE`;
+        if (lockedVote.length !== 1 || lockedVote[0].id !== voteId) {
+          throw this.notFoundError('CONCEPT_VOTE_NOT_FOUND', 'Concept vote not found',
+            'fanEngagement.conceptVote.notFound', { voteId });
+        }
+        const lockedOption = await tx.$queryRaw<Array<{ id: string }>>`SELECT id FROM public.concept_vote_options WHERE id = ${optionId}::uuid AND vote_id = ${voteId}::uuid FOR SHARE`;
+        if (lockedOption.length !== 1 || lockedOption[0].id !== optionId.toLowerCase()) {
+          throw this.badRequestError({ code: 'OPTION_NOT_IN_VOTE',
+            message: 'optionId does not belong to this vote', messageKey: 'fanEngagement.conceptVote.optionNotInVote',
+            details: { voteId, optionId } });
+        }
+        if (missionId) {
+          const lockedMission = await tx.$queryRaw<Array<{ id: string }>>`SELECT id FROM public.fan_missions WHERE id = ${missionId}::uuid FOR SHARE`;
+          if (lockedMission.length !== 1 || lockedMission[0].id !== missionId.toLowerCase()) {
+            throw this.notFoundError('MISSION_NOT_FOUND', 'Mission not found',
+              'fanEngagement.mission.notFound', { missionId });
+          }
+        }
+        const currentVote = await tx.conceptVote.findUnique({
+          where: { id: voteId },
+          include: {
+            artist: { select: { id: true, slug: true, displayName: true } },
+            options: true,
+          },
+        });
+        if (!currentVote) {
+          throw this.notFoundError('CONCEPT_VOTE_NOT_FOUND', 'Concept vote not found',
+            'fanEngagement.conceptVote.notFound', { voteId });
+        }
+        this.assertVoteOpen(currentVote);
+        if (!currentVote.options.some((item) => item.id === optionId.toLowerCase())) {
+          throw this.badRequestError({
+            code: 'OPTION_NOT_IN_VOTE',
+            message: 'optionId does not belong to this vote',
+            messageKey: 'fanEngagement.conceptVote.optionNotInVote',
+            details: { voteId, optionId },
+          });
+        }
+        const currentMission = missionId
+          ? await this.findLinkedConceptVoteMission(missionId, currentVote, tx)
+          : null;
         const ballot = await tx.conceptVoteBallot.create({
           data: { voteId, optionId, userId, missionId, idempotencyKey },
           include: {
@@ -213,16 +283,19 @@ export class FanEngagementService {
         let participation = null;
         let pointsGranted = 0;
 
-        if (mission) {
+        if (currentMission) {
           participation = await this.createParticipationRow(tx, {
-            mission,
+            mission: currentMission,
             userId,
             sourceType: 'concept_vote',
-            sourceId: vote.id,
+            sourceId: currentVote.id,
             idempotencyKey: null,
           });
-          pointsGranted = await this.grantMissionPoints(tx, userId, mission, participation.id);
+          pointsGranted = await this.grantMissionPoints(tx, userId, currentMission, participation.id);
+          this.assertMissionOpen(currentMission);
         }
+
+        this.assertVoteOpen(currentVote);
 
         return { ballot, participation, pointsGranted };
       })
@@ -745,8 +818,9 @@ export class FanEngagementService {
   private async findLinkedConceptVoteMission(
     missionId: string,
     vote: { id: string; artistId: string },
+    client: Prisma.TransactionClient = this.prisma,
   ) {
-    const mission = await this.findOpenMission(missionId);
+    const mission = await this.findOpenMission(missionId, client);
     if (
       mission.missionType !== 'vote_concept' ||
       mission.actionType !== 'concept_vote' ||
@@ -980,11 +1054,13 @@ export class FanEngagementService {
 
   private assertVoteOpen(vote: {
     status: string;
+    visibility: string;
     startsAt: Date | null;
     endsAt: Date | null;
   }) {
     const now = new Date();
-    if (vote.status !== 'active' || (vote.startsAt && vote.startsAt > now) || (vote.endsAt && vote.endsAt <= now)) {
+    if (vote.status !== 'active' || vote.visibility !== 'public' ||
+      (vote.startsAt && vote.startsAt > now) || (vote.endsAt && vote.endsAt <= now)) {
       throw this.badRequestError({
         code: 'VOTE_NOT_ACTIVE',
         message: 'Concept vote is not active',

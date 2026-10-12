@@ -9,6 +9,7 @@ const otherSourceId = '00000000-0000-4000-8000-000000000202';
 const createdAt = new Date('2026-05-10T00:00:00.000Z');
 
 type PrismaMock = {
+  $queryRaw: jest.Mock;
   user: {
     findUnique: jest.Mock;
   };
@@ -83,6 +84,7 @@ function participation(overrides: Record<string, unknown> = {}) {
 
 function createPrismaMock(): PrismaMock {
   const prisma: PrismaMock = {
+    $queryRaw: jest.fn().mockResolvedValue([]),
     user: {
       findUnique: jest.fn(),
     },
@@ -187,7 +189,9 @@ describe('FanEngagementService.createMissionParticipation', () => {
     prisma.fanMissionParticipation.findUnique
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce(null);
-    prisma.fanMission.findUnique.mockResolvedValue(activeMission());
+    prisma.fanMission.findUnique.mockResolvedValue(activeMission({
+      missionType: 'daily_signal', actionType: 'mission_participation', actionTargetId: null, resetPolicy: 'once',
+    }));
     prisma.fanMissionParticipation.create.mockResolvedValue(participation());
     prisma.fanEngagementPointLedger.findUnique.mockResolvedValue(null);
     prisma.fanEngagementPointLedger.create.mockResolvedValue({
@@ -213,6 +217,9 @@ describe('FanEngagementService.createMissionParticipation', () => {
     });
     expect(prisma.fanMissionParticipation.create).toHaveBeenCalledTimes(1);
     expect(prisma.fanEngagementPointLedger.create).toHaveBeenCalledTimes(1);
+    expect(prisma.$queryRaw).toHaveBeenCalledWith(
+      expect.arrayContaining([expect.stringContaining('FROM public.fan_missions')]), missionId,
+    );
   });
 
   it('replays the same idempotency key and body without a new grant', async () => {
