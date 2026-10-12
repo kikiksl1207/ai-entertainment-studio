@@ -504,6 +504,9 @@
 
 .fan-mission-options button {
   padding: 8px 10px;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    letter-spacing: 0;
   text-align: center;
   cursor: pointer;
 }

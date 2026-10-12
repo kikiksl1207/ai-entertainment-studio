@@ -9,6 +9,8 @@
   const copyPack = fallbackCopy.copyPackV1 || {};
   const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   const intents = new Map();
+  const conceptReads = new Map(), conceptStates = new Map();
+  let conceptEpoch = 0;
   let missionRoot = null, missions = [], viewer = null, loading = false;
   let readFlight = null, submitFlight = null, revision = 0;
   let pageReady = document.readyState !== "loading";
@@ -256,27 +258,106 @@
     return map[uiState] || map.default;
   }
 
-  function missionOptions(mission) {
-    const source = Array.isArray(mission?.options)
-      ? mission.options
-      : Array.isArray(mission?.action?.options)
-        ? mission.action.options
-        : [];
-    const labels = source
-      .map(option => safeLocalizedLabel(option?.label || option?.title || option?.name || option))
-      .filter(Boolean)
-      .slice(0, 4);
-    if (labels.length) return labels;
-    if (mission?.missionType === "vote_concept") return ["무대 의상", "화보 무드", "숏폼 콘셉트"];
-    return [];
+  function conceptBinding(mission) {
+    const action = mission?.action;
+    const match = typeof action?.endpoint === "string"
+      ? /^\/api\/v1\/fan-engagement\/concept-votes\/([0-9a-fA-F-]+)\/ballots$/.exec(action.endpoint) : null;
+    if (mission?.missionType !== "vote_concept" || mission.status !== "active" ||
+      !uuid.test(mission.id || "") || !uuid.test(mission.artist?.id || "") ||
+      action?.type !== "concept_vote" || action.method !== "POST" || action.requiresAuth !== true ||
+      !match || !uuid.test(match[1]) || action.bodyHint?.missionId !== mission.id) return null;
+    return { voteId: match[1].toLowerCase(), missionId: mission.id.toLowerCase(), artistId: mission.artist.id.toLowerCase() };
+  }
+
+  function conceptPage() {
+    return String(window.location?.href || "") + "|" + String(document.documentElement?.lang || "");
+  }
+
+  function clearConceptReads() {
+    conceptEpoch++;
+    for (const controller of conceptReads.values()) controller.abort();
+    conceptReads.clear(); conceptStates.clear();
+  }
+
+  function publicConceptOptions(data, binding) {
+    if (!data || data.locale !== "ko" || !Array.isArray(data.items) || data.items.length > 20)
+      throw new Error("fan-concept-invalid");
+    const voteIds = new Set(), optionIds = new Set(), choices = new Map();
+    for (const item of data.items) {
+      if (!item || !uuid.test(item.id || "") || voteIds.has(item.id.toLowerCase()) ||
+        item.status !== "active" || item.visibility !== "public" || !uuid.test(item.artist?.id || "") ||
+        item.viewer?.hasVoted !== false || item.viewer.selectedOptionId !== null ||
+        Object.keys(item.viewer).some(key => !["hasVoted", "selectedOptionId"].includes(key)) ||
+        item.resultsPreview !== null || !Array.isArray(item.options) || item.options.length > 20 ||
+        Object.keys(item).some(key => !["id", "artist", "status", "statusKey", "visibility", "visibilityKey",
+          "copy", "options", "viewer", "resultsPreview", "mission"].includes(key))) throw new Error("fan-concept-invalid");
+      voteIds.add(item.id.toLowerCase());
+      const labels = [];
+      for (const option of item.options) {
+        const copy = option?.labels?.ko;
+        const value = copy?.label ?? copy?.title ?? copy?.name;
+        if (!uuid.test(option?.id || "") || optionIds.has(option.id.toLowerCase()) || typeof value !== "string" ||
+          !value.trim() || value.trim().length > 160 || /[\u0000-\u001f\u007f]/.test(value) ||
+          Object.keys(option).some(key => !["id", "optionKey", "labels", "sortOrder"].includes(key)))
+          throw new Error("fan-concept-invalid");
+        optionIds.add(option.id.toLowerCase()); labels.push(value.trim());
+      }
+      choices.set(item.id.toLowerCase(), labels);
+    }
+    if (!data.items.length) return { state: "empty", labels: [] };
+    const vote = data.items.find(item => item.id.toLowerCase() === binding.voteId);
+    if (!vote) return { state: "unavailable", labels: [] };
+    if (vote.artist.id.toLowerCase() !== binding.artistId || !uuid.test(vote.mission?.id || "") ||
+      vote.mission.id.toLowerCase() !== binding.missionId)
+      throw new Error("fan-concept-invalid");
+    const labels = choices.get(binding.voteId);
+    return { state: labels.length ? "ready" : "empty", labels };
+  }
+
+  async function readConceptOptions(mission, ticket, owner) {
+    const binding = conceptBinding(mission);
+    if (!binding) { conceptStates.set(mission.id, { state: "unavailable", labels: [] }); return; }
+    const root = missionRoot, epoch = conceptEpoch, page = conceptPage(), controller = new AbortController();
+    conceptReads.set(mission.id, controller);
+    conceptStates.set(mission.id, { state: "loading", labels: [] });
+    const current = () => ticket === revision && epoch === conceptEpoch && root?.isConnected &&
+      root === missionRoot && missions.includes(mission) && sameAuth(owner) && conceptPage() === page && !controller.signal.aborted;
+    const timeoutId = setTimeout(() => controller.abort(), 7000);
+    try {
+      const url = apiBase + "/api/v1/fan-engagement/concept-votes?status=active&locale=ko&take=20&artistId=" + binding.artistId;
+      const response = await fetch(url, { method: "GET", headers: { Accept: "application/json", "Cache-Control": "no-store" },
+        credentials: "omit", redirect: "error", cache: "no-store", signal: controller.signal });
+      if (!current()) { void response.body?.cancel().catch(() => {}); return; }
+      if (!response.ok || response.url !== url ||
+        response.headers.get("content-type")?.split(";")[0].trim().toLowerCase() !== "application/json") {
+        void response.body?.cancel().catch(() => {}); throw new Error("fan-concept-unavailable");
+      }
+      const data = await readJson(response, 262144);
+      if (!current()) return;
+      conceptStates.set(mission.id, publicConceptOptions(data, binding));
+    } catch (_) {
+      if (ticket === revision && epoch === conceptEpoch && root?.isConnected && missions.includes(mission) &&
+        sameAuth(owner) && conceptPage() === page) conceptStates.set(mission.id, { state: "error", labels: [] });
+    } finally {
+      clearTimeout(timeoutId);
+      if (conceptReads.get(mission.id) === controller) conceptReads.delete(mission.id);
+      if (ticket === revision && epoch === conceptEpoch && root?.isConnected && missions.includes(mission) &&
+        sameAuth(owner) && conceptPage() === page && !loading) {
+        if (controller.signal.aborted) conceptStates.set(mission.id, { state: "error", labels: [] });
+        renderMissionList(root, missions, "loaded");
+      }
+    }
   }
 
   function renderMissionBody(mission, uiState) {
     if (mission?.missionType === "vote_concept") {
-      const options = missionOptions(mission);
+      const state = conceptStates.get(mission.id) || { state: conceptBinding(mission) ? "loading" : "unavailable", labels: [] };
+      const messages = { loading: "공개 선택지를 불러오고 있어요.", empty: "공개된 선택지가 없습니다.",
+        unavailable: "이 미션의 공개 선택지를 확인할 수 없습니다.", error: "선택지를 불러오지 못했습니다." };
+      if (state.state !== "ready") return `<p class="fan-mission-inline-status" role="status" data-concept-state="${escapeHtml(state.state)}">${escapeHtml(messages[state.state])}</p>`;
       return `
-        <div class="fan-mission-options" aria-label="미션 선택지">
-          ${options.map(option => `<button type="button" disabled>${escapeHtml(option)}</button>`).join("")}
+        <div class="fan-mission-options" aria-label="공개 미션 선택지" data-concept-state="ready">
+          ${state.labels.map(option => `<button type="button" disabled>${escapeHtml(option)}</button>`).join("")}
         </div>
       `;
     }
@@ -400,6 +481,7 @@
     const root = missionRoot;
     if (!pageReady || !root?.isConnected) return;
     const owner = authSnapshot(), ticket = ++revision, controller = new AbortController();
+    clearConceptReads();
     readFlight?.abort(); readFlight = controller;
     loading = true; missions = []; viewer = null;
     renderStateMessage(root, neutral.loading || "오늘의 팬 미션을 불러오고 있어요.", "loading");
@@ -430,6 +512,7 @@
         return;
       }
       renderMissionList(root, missions, "loaded");
+      for (const mission of missions) if (mission.missionType === "vote_concept") void readConceptOptions(mission, ticket, owner);
     } catch (_) {
       if (ticket !== revision || !root.isConnected) return;
       if (!sameAuth(owner)) { stale(); return; }
@@ -512,6 +595,13 @@
   ["lumina:authchange", "lumina:auth-expired"].forEach(name => window.addEventListener(name, authChanged));
   window.addEventListener("storage", event => { if (event.key === "lumina_auth" || event.key === null) authChanged(); });
   window.addEventListener("focus", () => { if (!submitFlight) void renderHomeMissionTeaser(); });
+  function invalidateConceptView() {
+    clearConceptReads();
+    if (missionRoot?.isConnected && missions.length && !loading) renderMissionList(missionRoot, missions, "loaded");
+  }
+  window.addEventListener("lumina:localechange", () => { if (!submitFlight) void renderHomeMissionTeaser(); else invalidateConceptView(); });
+  window.addEventListener("pagehide", invalidateConceptView);
+  window.addEventListener("pageshow", event => { if (event.persisted && !submitFlight) void renderHomeMissionTeaser(); });
   if (pageReady) renderHomeMissionTeaser();
   else document.addEventListener("DOMContentLoaded", () => {
     pageReady = true;
