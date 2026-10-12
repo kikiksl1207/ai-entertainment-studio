@@ -589,6 +589,33 @@
     root.innerHTML = missions.map(renderMissionCard).join("") + refreshButton();
   }
 
+  function missionRequestGate(controller, operation) {
+    let timer, ended = false, rejectStop;
+    const stopped = new Promise((_, reject) => { rejectStop = reject; });
+    const stop = () => {
+      if (ended) return;
+      ended = true;
+      rejectStop(new Error("fan-request-stopped"));
+    };
+    if (controller.signal.aborted) stop();
+    else {
+      controller.signal.addEventListener("abort", stop, { once: true });
+      timer = setTimeout(() => {
+        stop();
+        try { controller.abort(); } catch (_) {}
+      }, 7000);
+    }
+    const pending = Promise.resolve().then(() => {
+      if (ended) throw new Error("fan-request-stopped");
+      return operation();
+    });
+    return Promise.race([pending, stopped]).finally(() => {
+      ended = true;
+      clearTimeout(timer);
+      controller.signal.removeEventListener("abort", stop);
+    });
+  }
+
   async function renderHomeMissionTeaser() {
     const root = missionRoot;
     if (!pageReady || !root?.isConnected) return;
@@ -597,7 +624,6 @@
     readFlight?.abort(); readFlight = controller;
     loading = true; missions = []; viewer = null;
     renderStateMessage(root, neutral.loading || "오늘의 팬 미션을 불러오고 있어요.", "loading");
-    const timeoutId = setTimeout(() => controller.abort(), 7000);
     const current = () => ticket === revision && sameAuth(owner) && root.isConnected && !controller.signal.aborted;
     const stale = () => {
       if (ticket !== revision || !root.isConnected) return;
@@ -605,12 +631,14 @@
       renderStateMessage(root, "로그인 상태가 바뀌었어요. 다시 확인해 주세요.", "error");
     };
     try {
-      const url = apiBase + homeMissionEndpoint;
-      const res = await fetch(url, { method: "GET", headers: requestHeaders(owner), credentials: "omit",
-        redirect: "error", cache: "no-store", signal: controller.signal });
-      if (!current()) { void res.body?.cancel().catch(() => {}); stale(); return; }
-      if (!res.ok || res.url !== url) { void res.body?.cancel().catch(() => {}); throw new Error("fan-engagement-missions-unavailable"); }
-      const data = await readJson(res, 262144);
+      const data = await missionRequestGate(controller, async () => {
+        const url = apiBase + homeMissionEndpoint;
+        const res = await fetch(url, { method: "GET", headers: requestHeaders(owner), credentials: "omit",
+          redirect: "error", cache: "no-store", signal: controller.signal });
+        if (!current()) { void res.body?.cancel().catch(() => {}); throw new Error("fan-auth-changed"); }
+        if (!res.ok || res.url !== url) { void res.body?.cancel().catch(() => {}); throw new Error("fan-engagement-missions-unavailable"); }
+        return readJson(res, 262144);
+      });
       if (!current()) { stale(); return; }
       missions = normalizeMissionResponse(data); viewer = owner; loading = false;
       for (const mission of missions) {
@@ -631,7 +659,6 @@
       loading = false; missions = []; viewer = null;
       renderStateMessage(root, "미션 정보를 확인하지 못했어요. 잠시 후 다시 시도해 주세요.", "error");
     } finally {
-      clearTimeout(timeoutId);
       if (readFlight === controller) readFlight = null;
     }
   }
@@ -654,17 +681,18 @@
     const controller = new AbortController(), flight = { owner, controller, intent };
     submitFlight = flight; intent.status = "pending";
     renderMissionList(missionRoot, missions, "loaded");
-    const timeoutId = setTimeout(() => controller.abort(), 7000);
     const current = () => sameAuth(owner) && missionRoot.isConnected && !controller.signal.aborted;
     try {
       if (!current()) throw new Error("fan-auth-changed");
-      const url = apiBase + endpoint;
-      const res = await fetch(url, { method: "POST", headers: { ...requestHeaders(owner), "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "complete", idempotencyKey: intent.key }),
-        credentials: "omit", redirect: "error", cache: "no-store", signal: controller.signal });
-      if (!current()) { void res.body?.cancel().catch(() => {}); throw new Error("fan-auth-changed"); }
-      if (!res.ok || res.url !== url) { void res.body?.cancel().catch(() => {}); throw new Error("fan-participation-unconfirmed"); }
-      const receipt = await readJson(res, 65536);
+      const receipt = await missionRequestGate(controller, async () => {
+        const url = apiBase + endpoint;
+        const res = await fetch(url, { method: "POST", headers: { ...requestHeaders(owner), "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "complete", idempotencyKey: intent.key }),
+          credentials: "omit", redirect: "error", cache: "no-store", signal: controller.signal });
+        if (!current()) { void res.body?.cancel().catch(() => {}); throw new Error("fan-auth-changed"); }
+        if (!res.ok || res.url !== url) { void res.body?.cancel().catch(() => {}); throw new Error("fan-participation-unconfirmed"); }
+        return readJson(res, 65536);
+      });
       if (!current() || !uuid.test(receipt?.participation?.id || "") || receipt.participation.missionId !== mission.id ||
         receipt.participation.status !== "accepted" || typeof receipt.idempotentReplay !== "boolean") throw new Error("fan-participation-unconfirmed");
       intent.status = "confirmed";
@@ -672,7 +700,6 @@
       // An uncertain result keeps this intent's key; only another user click may resend it.
       if (intent.status !== "confirmed") intent.status = "indeterminate";
     } finally {
-      clearTimeout(timeoutId);
       if (submitFlight === flight) submitFlight = null;
       if (sameAuth(owner) && missionRoot.isConnected) await renderHomeMissionTeaser();
       else if (!loading && sameAuth(viewer) && missionRoot.isConnected) {
