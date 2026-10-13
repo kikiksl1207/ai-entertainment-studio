@@ -4026,6 +4026,7 @@ export class ChatService {
         },
       },
       select: {
+        messageType: true,
         modelMetadata: true,
         safetyMetadata: true,
       },
@@ -4036,6 +4037,7 @@ export class ChatService {
 
   private aggregateProviderOpsStats(
     rows: Array<{
+      messageType: unknown;
       modelMetadata: unknown;
       safetyMetadata: unknown;
     }>,
@@ -4075,6 +4077,27 @@ export class ChatService {
       );
 
       if (!isProviderTracked) {
+        const fallbackReason = this.stringFromUnknown(modelMetadata.fallbackReason);
+        const attemptedOpeningFallback =
+          row.messageType === CHARACTER_CHAT_OPENING_GREETING_MESSAGE_TYPE &&
+          modelMetadata.purpose === CHARACTER_CHAT_OPENING_GREETING_MESSAGE_TYPE &&
+          safetyMetadata.purpose === CHARACTER_CHAT_OPENING_GREETING_MESSAGE_TYPE &&
+          modelMetadata.usageSchemaVersion === '2026-05-22.character-chat-opening-greeting-v1' &&
+          modelMetadata.contractVersion === CHARACTER_CHAT_DYNAMIC_GREETING_CONTRACT_VERSION &&
+          safetyMetadata.contractVersion === CHARACTER_CHAT_DYNAMIC_GREETING_CONTRACT_VERSION &&
+          modelMetadata.source === 'fallback' &&
+          safetyMetadata.openingGreetingSource === 'fallback' &&
+          safetyMetadata.providerAttempted === true &&
+          fallbackReason !== null &&
+          fallbackReason === this.stringFromUnknown(safetyMetadata.fallbackReason) &&
+          !['provider_guard_blocked', 'provider_disabled', 'provider_not_configured',
+            'provider_not_allowed'].includes(fallbackReason);
+        if (attemptedOpeningFallback) {
+          // Count the stored attempt without inventing its model, tokens or charge.
+          totalResponses += 1;
+          failureCount += 1;
+          fallbackCount += 1;
+        }
         continue;
       }
 
