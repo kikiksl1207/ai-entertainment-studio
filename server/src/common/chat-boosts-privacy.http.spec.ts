@@ -110,13 +110,13 @@ describe('chat/paid-like privacy before guards through actual Nest HTTP routes',
   it('malformed paid-like JSON400 is private before parser authentication or service dispatch', async () => {
     privateStatus(await call('POST', WRITES[6], {}, '{'), 400); expect(dispatches()).toBe(0);
   });
-  it('public catalogs and rankings and unrelated guarded free-like and usage routes gain no new cache or Authorization Vary', async () => {
+  it('public catalogs and rankings and unrelated guarded free-like routes gain no new cache or Authorization Vary', async () => {
     for (const path of ['/boost-products', '/boost-campaigns/current', '/boost-campaigns/' + ID + '/rankings']) {
       const result = await call('GET', path); expect(result.response.status).toBe(200);
       expect(result.response.headers.get('cache-control')).toBeNull();
       expect(result.response.headers.get('vary')?.toLowerCase()).not.toContain('authorization');
     }
-    for (const [method, path] of [['POST', '/boost-campaigns/' + ID + '/free-like'], ['GET', '/chat/usage-summary']]) {
+    for (const [method, path] of [['POST', '/boost-campaigns/' + ID + '/free-like']]) {
       const result = await call(method, path, {}, method === 'POST' ? '{}' : undefined);
       expect(result.response.status).toBe(401); expect(result.response.headers.get('cache-control')).toBeNull();
       expect(result.response.headers.get('vary')?.toLowerCase()).not.toContain('authorization');

@@ -18,7 +18,7 @@ function probe() {
 }
 
 describe('chat/paid-like early privacy matcher', () => {
-  it('matches only the fifteen implemented read/HEAD and POST method/route pairs', () => {
+  it('preserves the fifteen previously covered read/HEAD and POST method/route pairs', () => {
     const positives: Array<[string, string]> = [
       ...reads.flatMap(path => [['GET', path], ['HEAD', path]] as Array<[string, string]>),
       ...writes.map(path => ['POST', path] as [string, string]),
@@ -81,7 +81,7 @@ describe('chat/paid-like early privacy matcher', () => {
     const negatives: Array<[string, string]> = [
       ['GET', '/boost-products'], ['GET', '/boost-campaigns/current'], ['GET', '/boost-campaigns/' + SESSION + '/rankings'],
       ['POST', '/boost-campaigns/' + SESSION + '/free-like'], ['POST', '/boost-orders'], ['GET', '/me/free-like-quota'],
-      ['GET', '/me/boost-events'], ['GET', '/chat/usage-summary'], ['GET', '/chat/provider-ops-status'],
+      ['GET', '/me/boost-events'],
       ['GET', '/chat/character-catalog'], ['GET', '/chat/starter-prompts'], ['GET', '/chat/persona-seed-policy'],
       ['GET', '/chat/premium-support-contract'], ['GET', '/chat-feature-products'], ['POST', '/chat-feature-orders'],
       ['POST', '/chat-feature-orders/preview'],

@@ -4,7 +4,7 @@ type PrivacyResponse = {
   vary?: (field: string) => unknown;
 };
 
-const readRoute = /^\/api\/v1\/(?:chat\/(?:conversations|sessions(?:\/[^/?#]+\/messages)?)|me\/paid-like-quota)\/?$/i;
+const readRoute = /^\/api\/v1\/(?:chat\/(?:conversations|sessions(?:\/[^/?#]+\/messages)?|usage-summary|provider-ops-status)|me\/paid-like-quota)\/?$/i;
 const writeRoute = /^\/api\/v1\/(?:chat\/(?:sessions(?:\/[^/?#]+\/(?:messages|generate|preflight))?|conversations\/[^/?#]+\/(?:archive|restore))|boost-campaigns\/[^/?#]+\/paid-like)\/?$/i;
 
 export function isChatBoostsPrivateRequest(request: PrivacyRequest): boolean {
