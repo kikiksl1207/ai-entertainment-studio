@@ -15,6 +15,7 @@ import { settingsPrivacyMiddleware } from './auth/auth-settings.privacy';
 import { notificationPrivacyMiddleware } from './notifications/notifications.privacy';
 import { fanEngagementPrivacyMiddleware } from './fan-engagement/fan-engagement.privacy';
 import { rewardsPrivacyMiddleware } from './rewards/rewards.privacy';
+import { chatBoostsPrivacyMiddleware } from './common/chat-boosts-privacy';
 
 type RequestLike = {
   headers: Record<string, string | string[] | undefined>;
@@ -47,6 +48,7 @@ export async function createApplication() {
   app.use(notificationPrivacyMiddleware);
   app.use(fanEngagementPrivacyMiddleware);
   app.use(rewardsPrivacyMiddleware);
+  app.use(chatBoostsPrivacyMiddleware);
   app.use(
     helmet({
       crossOriginResourcePolicy: { policy: 'cross-origin' },
