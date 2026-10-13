@@ -125,7 +125,8 @@ export class ChatController {
   getMessages(
     @CurrentUser() user: AuthUser,
     @Param('sessionId', new ParseUUIDPipe()) sessionId: string,
-    @Query('storyProgressId') storyProgressId?: string,
+    // Keep the raw selector for the service's ownership-first shape validation.
+    @Query('storyProgressId') storyProgressId?: unknown,
   ) {
     return this.chatService.getMessages(user.id, sessionId, storyProgressId);
   }

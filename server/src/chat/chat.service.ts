@@ -1594,7 +1594,7 @@ export class ChatService {
     return sessionId.replace(/[^0-9a-f]/gi, '').slice(-8) || 'default';
   }
 
-  async getMessages(userId: string, sessionId: string, storyProgressId?: string) {
+  async getMessages(userId: string, sessionId: string, storyProgressId?: unknown) {
     const session = await this.getOwnedSessionForOpeningGreeting(userId, sessionId);
     if (storyProgressId !== undefined) {
       if (typeof storyProgressId !== 'string' || !UUID_V4_PATTERN.test(storyProgressId)) {
