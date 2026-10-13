@@ -69,7 +69,7 @@ function rejectsCode(promise, code) {
 
 test("Factory exports only a reusable facade without installation, migration, writes, or automatic GET", () => {
   const f = fixture({ create: false });
-  assert.deepEqual(Object.keys(f.exported), ["create", "createCatalog"]);
+  assert.deepEqual(Object.keys(f.exported), ["create", "createCatalog", "createBody"]);
   assert.equal(f.window.getAuth, undefined);
   assert.equal(f.window.LuminaCreatorStudioApi, undefined);
   assert.equal(f.calls.length, 0);

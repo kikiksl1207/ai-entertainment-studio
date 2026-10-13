@@ -5,6 +5,22 @@
   const standalone = window.opener === null;
   const catalogTransport = standalone ? window.LuminaCreatorApprovedReadonlyTransport.createCatalog?.() : null;
   let receiver, catalogController;
+  const readingScope = () => standalone ? catalogController?.selection() : receiver?.snapshot();
+  function scopeCurrent(scope) {
+    try {
+      if (!scope || readingScope() !== scope || transport.identity()?.ownerId !== scope.ownerId) return false;
+      return standalone ? catalogController.isSelectionCurrent(scope) : receiver.snapshot() === scope;
+    } catch (_) { return false; }
+  }
+  window.LuminaCreatorApprovedReadingScope = Object.freeze({
+    snapshot: readingScope,
+    isCurrent: scopeCurrent,
+    async validate(scope, signal) {
+      if (!scopeCurrent(scope) || signal?.aborted) return false;
+      if (!standalone && !await receiver.validate(signal)) return false;
+      return !signal?.aborted && scopeCurrent(scope);
+    }
+  });
   window.getAuth = transport.getAuth;
   window.LuminaCreatorStudioApi = Object.freeze({ identity: transport.identity, isCurrent: transport.isCurrent,
     async fetch(path, options) {
@@ -49,6 +65,7 @@
       label.textContent = scope?.workLabel || c.empty;
       state.textContent = "";
       window.dispatchEvent(new Event("creator:generation-profile-changed"));
+      window.dispatchEvent(new Event("creator:approved-reading-scope-changed"));
     }
     function renderCatalog() {
       if (!standalone || !catalogReady) return;

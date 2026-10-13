@@ -382,11 +382,13 @@ test('approved reading is outside wallet consumers with only the explicit readon
   const file = 'creator-studio/approved-reading/index.html';
   assert(!consumers.some(row => row.file === file));
   assert.deepEqual(scriptSources(html(file)), [
-    '/pages/creator-approved-readonly-transport.js?v=20261013-catalog-v1',
+    '/pages/creator-approved-readonly-transport.js?v=20261013-body-v1',
     '/pages/creator-approved-reading-handoff.js?v=20261013-v1',
     '/pages/creator-approved-reading-catalog.js?v=20261013-catalog-v1',
-    '/pages/creator-approved-reading-entry.js?v=20261013-catalog-v1',
+    '/pages/creator-approved-reading-entry.js?v=20261013-body-v1',
     '/pages/creator-approved-section-bytes.js?v=approved-section-bytes-20261013-v1',
+    '/pages/creator-body-preview.js?v=author-body-preview-20261002-v1',
+    '/pages/creator-approved-reading-body.js?v=20261013-body-v1',
   ]);
   assert(!scriptSources(html(file)).some(isAppSource));
 });

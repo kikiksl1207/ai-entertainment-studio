@@ -21,6 +21,7 @@
     "pages/creator-approved-style.css", "pages/creator-approved-style.js",
     "pages/creator-approved-readonly-transport.js", "pages/creator-approved-reading-handoff.js",
     "pages/creator-approved-reading-catalog.js",
+    "pages/creator-approved-reading-body.js",
     "pages/creator-approved-reading-entry.js", "pages/creator-approved-reading-entry.css", "creator-studio/approved-reading/index.html",
     "pages/creator-body-style-reference.css", "pages/creator-body-style-reference.js",
     "pages/creator-body-trial.css", "pages/creator-body-trial.js",
