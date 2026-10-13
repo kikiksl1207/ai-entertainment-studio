@@ -1621,7 +1621,17 @@ export class ChatService {
       return messages;
     }
 
-    await this.ensureSessionOpeningGreeting(userId, session);
+    const storedGreeting = await this.prisma.chatMessage.findFirst({
+      where: {
+        chatSessionId: session.id,
+        senderType: 'artist',
+        messageType: CHARACTER_CHAT_OPENING_GREETING_MESSAGE_TYPE,
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+    if (storedGreeting) {
+      await this.assertCachedArtistPersonaCurrent(storedGreeting.safetyMetadata, session.artist);
+    }
     const messages = await this.prisma.chatMessage.findMany({
       where: { chatSessionId: sessionId },
       orderBy: { createdAt: 'asc' },

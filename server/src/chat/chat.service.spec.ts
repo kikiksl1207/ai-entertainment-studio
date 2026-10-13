@@ -1332,7 +1332,7 @@ describe('ChatService dynamic opening greeting cache', () => {
     );
   });
 
-  it('serializes concurrent opening greeting requests before provider generation', async () => {
+  it('serializes explicit opening greeting bootstrap requests before provider generation', async () => {
     const session = {
       ...sessionBase,
       id: '00000000-0000-4000-8000-000000000386',
@@ -1406,9 +1406,12 @@ describe('ChatService dynamic opening greeting cache', () => {
     };
     const service = new ChatService(prisma as never, llmProvider as never);
 
+    const bootstrap = service as unknown as {
+      ensureSessionOpeningGreeting(ownerId: string, value: typeof session): Promise<unknown>;
+    };
     await Promise.all([
-      service.getMessages(userId, session.id),
-      service.getMessages(userId, session.id),
+      bootstrap.ensureSessionOpeningGreeting(userId, session),
+      bootstrap.ensureSessionOpeningGreeting(userId, session),
     ]);
 
     expect(prisma.$transaction).toHaveBeenCalledTimes(2);
@@ -1420,14 +1423,18 @@ describe('ChatService dynamic opening greeting cache', () => {
     expect(llmProvider.generate).toHaveBeenCalledTimes(1);
   });
 
-  it('stores an opening greeting fallback when provider generation fails', async () => {
+  it('stores an opening greeting fallback on explicit session creation when provider generation fails', async () => {
     const session = {
       ...sessionBase,
       id: '00000000-0000-4000-8000-000000000387',
     };
     const tx = txMock();
     const prisma = {
+      artist: {
+        findFirst: jest.fn().mockResolvedValue({ id: artist.id }),
+      },
       chatSession: {
+        create: jest.fn().mockResolvedValue(session),
         findFirst: jest.fn().mockResolvedValue(session),
       },
       chatMessage: {
@@ -1478,7 +1485,7 @@ describe('ChatService dynamic opening greeting cache', () => {
     };
     const service = new ChatService(prisma as never, llmProvider as never);
 
-    await service.getMessages(userId, session.id);
+    await service.createSession(userId, { artistId: artist.id });
 
     expect(llmProvider.generate).toHaveBeenCalledTimes(1);
     expect(tx.chatMessage.create).toHaveBeenCalledWith(
