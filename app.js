@@ -4058,6 +4058,20 @@ function paidLikeReceiptMatches(result, attempt, ownerId, campaignId, artistId) 
     && typeof result.idempotentReplay === "boolean" && result.paidLike?.quantity === attempt.quantity;
 }
 
+function awaitPaidLikeSettlement(request) {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = (handler, value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      handler(value);
+    };
+    const timer = setTimeout(() => finish(reject, new Error("Paid-like response outcome unavailable")), 8000);
+    Promise.resolve(request).then(value => finish(resolve, value), error => finish(reject, error));
+  });
+}
+
 function getPaidLikeBalance() {
   return _wallet?.loaded && walletRequestCurrent(_walletRequestVersion) && Number.isFinite(_wallet.balance)
     ? _wallet.balance : null;
@@ -4070,7 +4084,7 @@ async function loadPaidLikeQuota() {
   try {
     // #261 — /me/paid-like-quota 는 owner-only 엔드포인트. 인증 헤더 누락 시 401 로
     // 떨어져 조용히 null 이 됐는데, 이제는 Bearer 를 보내 정확히 조회한다.
-    const data = await apiFetch("/api/v1/me/paid-like-quota", { auth: true });
+    const data = await awaitPaidLikeSettlement(apiFetch("/api/v1/me/paid-like-quota", { auth: true }));
     return data || null;
   } catch (err) {
     console.warn("[Lumina] /me/paid-like-quota 실패:", { status: err?.status });
@@ -4240,7 +4254,9 @@ async function openPaidLikeModal(slug) {
     // #261 — 차감성 액션은 offline queue 로 쌓지 않고, 즉시 차단해야 한다.
     // navigator.onLine === false 이면 서버 도달도 못하는 것을 알기에 사용자에게 명확히 안내.
     if (isLikelyOffline()) {
-      setMessage("인터넷 연결이 끊겼어요. 연결 상태가 안정된 뒤 다시 응원해 주세요. 지금은 루미나가 차감되지 않습니다.");
+      setMessage(attempt?.key
+        ? "인터넷 연결이 끊겼어요. 이번 요청은 보내지 않았으며, 이전 요청의 결과와 차감 여부는 계속 미확인입니다. 연결 후 같은 요청으로 다시 확인해 주세요."
+        : "인터넷 연결이 끊겼어요. 이번 요청은 보내지 않았습니다. 연결 상태가 안정된 뒤 다시 응원해 주세요.");
       return;
     }
     button.disabled = true;
@@ -4268,7 +4284,7 @@ async function openPaidLikeModal(slug) {
       const dispatchBalance = getPaidLikeBalance();
       if (dispatchBalance === null || (!recovering && dispatchBalance < attempt.lumina)) throw new Error("Unconfirmed current wallet");
       dispatched = true;
-      const result = await apiFetch(`/api/v1/boost-campaigns/${campaignId}/paid-like`, {
+      const result = await awaitPaidLikeSettlement(apiFetch(`/api/v1/boost-campaigns/${campaignId}/paid-like`, {
         method: "POST",
         auth: true,
         throwOnError: true,
@@ -4281,7 +4297,7 @@ async function openPaidLikeModal(slug) {
           quantity: attempt.quantity,
           idempotencyKey
         }
-      });
+      }));
       if (!current()) return;
       if (!paidLikeReceiptMatches(result, attempt, ownerId, campaignId, artistId)) throw new Error("Unconfirmed paid-like receipt");
       attempt.confirmed = true;
