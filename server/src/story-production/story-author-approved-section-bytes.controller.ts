@@ -21,6 +21,7 @@ export class StoryAuthorApprovedSectionBytesController {
 
   @Get()
   @Header('Cache-Control', 'private, no-store')
+  @Header('Access-Control-Expose-Headers', 'Vary')
   inspect(@CurrentUser() user: AuthUser, @Param('workId', ParseUUIDPipe) workId: string,
     @Query() query: StoryAuthorApprovedSectionBytesQueryDto) {
     return this.sectionBytes.inspect(user.id, workId, query);

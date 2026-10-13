@@ -109,6 +109,7 @@ export class StoryProductionController {
   @Get('me/creator-studio/approved-reading-catalog')
   @UseGuards(CreatorCatalogNoStoreGuard, JwtAuthGuard)
   @Header('Cache-Control', 'private, no-store')
+  @Header('Access-Control-Expose-Headers', 'Vary')
   approvedReadingCatalog(
     @CurrentUser() user: AuthUser,
     @Query() query: StoryApprovedReadingCatalogQueryDto,
