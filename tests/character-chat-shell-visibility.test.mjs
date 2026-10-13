@@ -16,7 +16,7 @@ test('both shells start hidden and use the current page-only stylesheet', () => 
   }
   const refs = [...html.matchAll(/<link\b[^>]*\bhref="([^"]+)"[^>]*>/g)].map(match => match[1]);
   assert.deepEqual(refs.filter(src => src.split('?')[0] === '/styles/character-chat.css'), [
-    '/styles/character-chat.css?v=20261009-shell-visibility',
+    '/styles/character-chat.css?v=20261013-greeting-origin',
   ]);
 });
 

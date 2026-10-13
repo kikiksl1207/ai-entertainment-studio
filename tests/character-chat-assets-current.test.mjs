@@ -5,11 +5,11 @@ import test from 'node:test';
 function assertChatScripts(html) {
   const scripts = [...html.matchAll(/<script\b[^>]*\bsrc="([^"]+)"[^>]*>/g)].map(match => match[1]);
   assert.deepEqual(scripts.filter(src => src.split('?')[0] === '/pages/character-chat.js'), [
-    '/pages/character-chat.js?v=20261009-conversation-list-owner',
+    '/pages/character-chat.js?v=20261013-greeting-origin',
   ]);
   assert.deepEqual(scripts.filter(src => src.split(/[?#]/)[0] === '/app.js'), ['/app.js?v=wallet-session-20261011']);
   assert.equal(scripts.filter(src => src === '/app.js?v=wallet-session-20261011').length, 1);
-  assert(scripts.indexOf('/app.js?v=wallet-session-20261011') < scripts.indexOf('/pages/character-chat.js?v=20261009-conversation-list-owner'));
+  assert(scripts.indexOf('/app.js?v=wallet-session-20261011') < scripts.indexOf('/pages/character-chat.js?v=20261013-greeting-origin'));
 }
 
 test('character chat loads the current route, receipt and draft script once after its app', () => {

@@ -123,6 +123,42 @@
     }
   };
 
+  const GREETING_ORIGIN_COPY = {
+    "ko-KR": { intro: "프로필 소개", saved: "저장된 인사말", unverified: "저장된 인사말 · 성격 기준 미확인" },
+    "en-US": { intro: "Profile introduction", saved: "Saved greeting", unverified: "Saved greeting · Character basis unverified" },
+    "ja-JP": { intro: "プロフィール紹介", saved: "保存された挨拶", unverified: "保存された挨拶 · 人物設定は未確認" },
+    "zh-CN": { intro: "个人资料介绍", saved: "已保存的问候", unverified: "已保存的问候 · 角色依据未核实" },
+    "zh-TW": { intro: "個人資料介紹", saved: "已儲存的問候", unverified: "已儲存的問候 · 角色依據未核實" }
+  };
+  function greetingOwnData(value, key) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    return descriptor && Object.prototype.hasOwnProperty.call(descriptor, "value") ? descriptor.value : undefined;
+  }
+  function basicGreetingOriginKind(message) {
+    try {
+      if (greetingOwnData(message, "senderType") !== "artist") return null;
+      const metadata = greetingOwnData(message, "safetyMetadata");
+      if (greetingOwnData(message, "messageType") !== "opening_greeting" && greetingOwnData(metadata, "purpose") !== "opening_greeting") return null;
+      const marker = greetingOwnData(metadata, "artistPersonaLock"), field = key => greetingOwnData(marker, key);
+      // This recognizes a stored marker only; it never asserts current source or output quality.
+      const recorded = field("status") === "approved_public_fields_locked" &&
+        field("version") === "approved-public-persona-lock-20261013.v3" && field("release") === "approved-public-artists-2026-09-27" &&
+        field("personalityAuthority") === "exact_approved_public_release" && field("mutableProfileValuesApproved") === false &&
+        typeof field("binding") === "string" && /^[a-f0-9]{64}$/.test(field("binding")) &&
+        typeof field("sourceSha256") === "string" && /^[a-f0-9]{64}$/.test(field("sourceSha256")) &&
+        ["public_traits_and_tone_only", "public_traits_tone_and_conversation_facts"].includes(field("coverage"));
+      return recorded ? "saved" : "unverified";
+    } catch (_) { return "unverified"; }
+  }
+  function basicGreetingOriginCopy(kind, locale = window.luminaI18n?.getRegionalLocale?.() || "ko-KR") {
+    if (!["intro", "saved", "unverified"].includes(kind)) return "";
+    return (Object.prototype.hasOwnProperty.call(GREETING_ORIGIN_COPY, locale) ? GREETING_ORIGIN_COPY[locale] : GREETING_ORIGIN_COPY["ko-KR"])[kind];
+  }
+  function syncGreetingOriginLabels() {
+    document.querySelectorAll("#chatThread [data-chat-greeting-origin], #chatWelcomeTime[data-chat-greeting-origin]")
+      .forEach(node => { node.textContent = basicGreetingOriginCopy(node.dataset.chatGreetingOrigin); });
+  }
   function basicChatCopy(key) {
     const locale = window.luminaI18n?.getRegionalLocale?.() || "ko-KR";
     return (BASIC_CHAT_COPY[locale] || BASIC_CHAT_COPY["ko-KR"])[key];
@@ -502,10 +538,9 @@
       || artist?.summary
       || "메시지 보내줘서 고마워요. 오늘은 어떤 이야기로 시작해볼까요?";
     setText("chatWelcomeText", greeting);
-    const now = new Date();
-    const hh = String(now.getHours()).padStart(2, "0");
-    const mm = String(now.getMinutes()).padStart(2, "0");
-    setText("chatWelcomeTime", `${hh}:${mm}`);
+    setText("chatWelcomeTime", basicGreetingOriginCopy("intro"));
+    const origin = $("chatWelcomeTime");
+    if (origin) { origin.dataset.chatGreetingOrigin = "intro"; origin.classList.add("dm-bubble-origin"); }
     bubble.hidden = false;
     if (basicChatState.sessionId && basicChatState.knownMessageIds.size) bubble.hidden = true;
     injectSampleImageThread(slug, artist);
@@ -970,6 +1005,14 @@
     text.className = "dm-bubble-text";
     text.textContent = message.body;
     body.append(text);
+    const originKind = basicGreetingOriginKind(message);
+    if (originKind) {
+      const origin = document.createElement("span");
+      origin.className = "dm-bubble-origin";
+      origin.dataset.chatGreetingOrigin = originKind;
+      origin.textContent = basicGreetingOriginCopy(originKind);
+      body.append(origin);
+    }
     if (message.createdAt && !Number.isNaN(Date.parse(message.createdAt))) {
       const time = document.createElement("span");
       time.className = "dm-bubble-time";
@@ -1125,6 +1168,7 @@
     const note = $("chatBasicNote");
     function syncCopy() {
       syncBasicChatRouteScope();
+      syncGreetingOriginLabels();
       if (note) note.textContent = basicChatCopy("note");
       if (input) input.placeholder = basicChatCopy("placeholder");
       if (check) check.textContent = basicChatCopy("check");
