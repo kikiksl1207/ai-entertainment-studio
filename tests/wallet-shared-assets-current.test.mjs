@@ -132,7 +132,9 @@ const consumers = [
       "/pages/creator-approved-style.js?v=approved-style-20261012-read-deadline",
       "/pages/creator-body-style-reference.js?v=body-style-reference-20261010",
       "/pages/creator-body-trial.js?v=body-profile-fit-20261010",
-      "/pages/creator-body-review.js?v=body-review-company-20261005"
+      "/pages/creator-body-review.js?v=body-review-company-20261005",
+      "/pages/creator-approved-readonly-transport.js?v=20261013-v1",
+      "/pages/creator-approved-reading-handoff.js?v=20261013-v1"
     ]
   },
   {
@@ -310,6 +312,7 @@ const publicHtml = [
   "charge/index.html",
   "chat-rankings/index.html",
   "creator-studio.html",
+  "creator-studio/approved-reading/index.html",
   "creator-studio/index.html",
   "debut-terms.html",
   "debut-terms/index.html",
@@ -358,10 +361,10 @@ function assertWalletScripts(html, consumer) {
 }
 function html(file) { return readFileSync(new URL('../' + file, import.meta.url), 'utf8'); }
 
-test('wallet cache consumer scope is exactly the explicit25 within manifest HTML48', () => {
+test('wallet cache consumer scope is exactly the explicit25 within manifest HTML49', () => {
   const manifest = JSON.parse(readFileSync(new URL('../scripts/public-site-manifest.json', import.meta.url), 'utf8'));
   const files = publicationFiles(manifest).filter(file => file.endsWith('.html'));
-  assert.equal(files.length, 48);
+  assert.equal(files.length, 49);
   assert.deepEqual(files, publicHtml);
   assert.equal(consumers.length, 25);
   assert.equal(new Set(consumers.map(row => row.file)).size, 25);
@@ -372,4 +375,17 @@ test('wallet cache consumer scope is exactly the explicit25 within manifest HTML
 
 for (const consumer of consumers) test('wallet shared cache URL and outside scripts: ' + consumer.file, () => {
   assertWalletScripts(html(consumer.file), consumer);
+});
+
+
+test('approved reading is outside wallet consumers with only the explicit readonly scripts', () => {
+  const file = 'creator-studio/approved-reading/index.html';
+  assert(!consumers.some(row => row.file === file));
+  assert.deepEqual(scriptSources(html(file)), [
+    '/pages/creator-approved-readonly-transport.js?v=20261013-v1',
+    '/pages/creator-approved-reading-handoff.js?v=20261013-v1',
+    '/pages/creator-approved-reading-entry.js?v=20261013-v1',
+    '/pages/creator-approved-section-bytes.js?v=approved-section-bytes-20261013-v1',
+  ]);
+  assert(!scriptSources(html(file)).some(isAppSource));
 });
