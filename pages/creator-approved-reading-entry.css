@@ -1,0 +1,19 @@
+@font-face { font-family: "SeoulNamsan"; src: url("/assets/fonts/SeoulNamsanM.ttf") format("truetype"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "SeoulNamsan"; src: url("/assets/fonts/SeoulNamsanB.ttf") format("truetype"); font-weight: 700; font-display: swap; }
+:root { color-scheme: light; font-family: "SeoulNamsan", sans-serif; color: #22292f; background: #f5f7f8; }
+* { box-sizing: border-box; }
+body { margin: 0; letter-spacing: 0; }
+a { color: #176a59; text-decoration: none; }
+.reading-top { background: #fff; border-bottom: 1px solid #d4dcdf; padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.reading-brand { display: flex; align-items: center; gap: 10px; color: #22292f; font-weight: 700; }
+.reading-brand img { width: 30px; height: 30px; object-fit: contain; }
+main { max-width: 1000px; margin: 0 auto; padding: 28px 24px; }
+.reading-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; margin-bottom: 20px; }
+h1 { font-size: 24px; margin: 0 0 10px; }
+#readingWorkTitle { font-size: 17px; margin: 0; overflow-wrap: anywhere; }
+.reading-language { display: grid; gap: 8px; flex: 0 0 140px; }
+select { font: inherit; padding: 8px; border: 1px solid #89979b; border-radius: 4px; background: #fff; }
+#readingConnectionState { min-height: 24px; color: #626b70; }
+.approved-section-bytes-table { width: 100%; table-layout: fixed; }
+.approved-section-bytes-table th, .approved-section-bytes-table td { overflow-wrap: anywhere; }
+@media (max-width: 600px) { .reading-top { padding: 14px 16px; } main { padding: 22px 16px; } .reading-heading { flex-direction: column; } .reading-language { flex-basis: auto; width: 160px; } h1 { font-size: 22px; } }

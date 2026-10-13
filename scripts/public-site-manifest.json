@@ -19,6 +19,8 @@
     "pages/creator-approved-section-bytes.css", "pages/creator-approved-section-bytes.js",
     "pages/creator-body-original-reference.css", "pages/creator-body-original-reference.js",
     "pages/creator-approved-style.css", "pages/creator-approved-style.js",
+    "pages/creator-approved-readonly-transport.js", "pages/creator-approved-reading-handoff.js",
+    "pages/creator-approved-reading-entry.js", "pages/creator-approved-reading-entry.css", "creator-studio/approved-reading/index.html",
     "pages/creator-body-style-reference.css", "pages/creator-body-style-reference.js",
     "pages/creator-body-trial.css", "pages/creator-body-trial.js",
     "pages/creator-body-review.css", "pages/creator-body-review.js",
