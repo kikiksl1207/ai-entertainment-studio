@@ -105,6 +105,8 @@
     } else if (!standalone) {
       receiver = window.LuminaCreatorApprovedReadingHandoff.createReceiver({ opener: window.opener, nonce,
         identity: transport.identity, isCurrent: transport.isCurrent, onChange: changed });
+      const originalReceiver = receiver; let validationTail = Promise.resolve();
+      receiver = Object.freeze({ ...originalReceiver, validate: signal => (validationTail = validationTail.catch(() => false).then(() => originalReceiver.validate(signal))) });
       receiver.start();
     }
     changed(null); translated();
