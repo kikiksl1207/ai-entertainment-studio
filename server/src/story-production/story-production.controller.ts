@@ -47,6 +47,7 @@ import { StoryProgressControlService } from './story-progress-control.service';
 import { StoryProductionService } from './story-production.service';
 import { RecoverStoryAnalysisProfileDto, StoryAnalysisPageDto } from './dto/story-semantic-analysis.dto';
 import { StoryAnalysisDiscoveryQueryDto } from './dto/story-analysis-discovery.dto';
+import { StoryApprovedReadingCatalogQueryDto } from './dto/story-approved-reading-catalog.dto';
 import {
   ApproveCreatorGenerationProfileDto,
   UpdateStoryGenerationProfileDto,
@@ -103,6 +104,16 @@ export class StoryProductionController {
     @Query() query: StoryCatalogQueryDto,
   ) {
     return this.stories.creatorCatalog(user.id, query);
+  }
+
+  @Get('me/creator-studio/approved-reading-catalog')
+  @UseGuards(CreatorCatalogNoStoreGuard, JwtAuthGuard)
+  @Header('Cache-Control', 'private, no-store')
+  approvedReadingCatalog(
+    @CurrentUser() user: AuthUser,
+    @Query() query: StoryApprovedReadingCatalogQueryDto,
+  ) {
+    return this.stories.approvedReadingCatalog(user.id, query);
   }
 
   @Post('me/creator-studio/stories')

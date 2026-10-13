@@ -51,6 +51,10 @@ import { projectAuthoredBeatVisual } from './story-authored-beat-visual.policy';
 import { prepareValidatedJsonManuscript } from './story-manuscript-file.policy';
 import { storeManuscriptVersion } from './story-manuscript-version.store';
 import { StoryAnalysisDiscoveryQueryDto } from './dto/story-analysis-discovery.dto';
+import {
+  APPROVED_READING_CATALOG_LIMITS, APPROVED_READING_CATALOG_UUID,
+  parseApprovedReadingCatalogQuery, StoryApprovedReadingCatalogQueryDto,
+} from './dto/story-approved-reading-catalog.dto';
 import { StoryContinuationProvider } from './story-continuation.provider';
 import { StoryContinuationLegalActivationGate } from './story-continuation-legal-activation.gate';
 import { SemanticAnalysisService } from './story-semantic-analysis.service';
@@ -256,6 +260,114 @@ export class StoryProductionService {
       })),
       nextCursor: rows.length > query.limit ? page.at(-1)?.id ?? null : null,
     };
+  }
+
+  async approvedReadingCatalog(userId: string, query: StoryApprovedReadingCatalogQueryDto) {
+    const input = parseApprovedReadingCatalogQuery(query);
+    if (typeof userId !== 'string' || !APPROVED_READING_CATALOG_UUID.test(userId)) {
+      throw new BadRequestException({ code: 'STORY_APPROVED_READING_CATALOG_INPUT_INVALID' });
+    }
+    userId = userId.toLowerCase();
+    const notFound = () => new NotFoundException({ code: 'STORY_APPROVED_READING_CATALOG_NOT_FOUND' });
+    const unavailable = () => new ServiceUnavailableException({ code: 'STORY_APPROVED_READING_CATALOG_UNAVAILABLE' });
+    try {
+      return await this.prisma.$transaction(async tx => {
+        await tx.$executeRaw(Prisma.sql`SET TRANSACTION READ ONLY`);
+        let boundary: { id: string; updatedAt: string } | undefined;
+        if (input.cursor) {
+          // Preserve timestamptz(6) for keyset comparison instead of rounding it through a JS Date.
+          const anchors = await tx.$queryRaw<Array<{ id: string; ownerUserId: string; fixtureSource: boolean; updatedAt: string }>>(Prisma.sql`
+            SELECT id, owner_user_id AS "ownerUserId", fixture_source AS "fixtureSource",
+              to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS "updatedAt"
+            FROM story_works
+            WHERE id = ${input.cursor}::uuid AND owner_user_id = ${userId}::uuid AND fixture_source = false
+            LIMIT 1
+          `);
+          const anchor = anchors[0];
+          if (anchors.length !== 1 || !anchor || anchor.id !== input.cursor || anchor.ownerUserId !== userId
+            || anchor.fixtureSource !== false || typeof anchor.updatedAt !== 'string'
+            || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z$/.test(anchor.updatedAt)) throw notFound();
+          const date = new Date(anchor.updatedAt);
+          if (!Number.isFinite(date.getTime()) || date.toISOString() !== anchor.updatedAt.slice(0, 23) + 'Z') throw notFound();
+          boundary = { id: anchor.id, updatedAt: anchor.updatedAt };
+        }
+        // Match String.trim and Unicode 16 Cc/Cf without returning unbounded JSON/text to JS.
+        const trimCharacters = '\t\n\u000b\f\r \u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff';
+        const invalidTitlePattern = '[\\u0001-\\u001f\\u007f-\\u009f\\u00ad\\u0600-\\u0605\\u061c\\u06dd\\u070f\\u0890-\\u0891\\u08e2\\u180e\\u200b-\\u200f\\u202a-\\u202e\\u2060-\\u2064\\u2066-\\u206f\\ufeff\\ufff9-\\ufffb\\U000110bd\\U000110cd\\U00013430-\\U0001343f\\U0001bca0-\\U0001bca3\\U0001d173-\\U0001d17a\\U000e0001\\U000e0020-\\U000e007f]';
+        const keyset = boundary ? Prisma.sql`AND (updated_at, id) < (${boundary.updatedAt}::timestamptz, ${boundary.id}::uuid)` : Prisma.sql``;
+        const rows = await tx.$queryRaw<Array<{
+          id: string; ownerUserId: string; fixtureSource: boolean; defaultLocale: string; status: string;
+          titleValue: string; titleLocale: string; titleFallback: boolean; titleBounded: boolean; titleInvalid: boolean;
+        }>>(Prisma.sql`
+          SELECT w.id, w.owner_user_id AS "ownerUserId", w.fixture_source AS "fixtureSource",
+            left(w.default_locale, 8) AS "defaultLocale", left(w.status, 33) AS status,
+            COALESCE(left(chosen.value, ${APPROVED_READING_CATALOG_LIMITS.title}::integer), '') AS "titleValue",
+            left(COALESCE(chosen.locale, w.default_locale), 8) AS "titleLocale",
+            (chosen.locale IS NULL OR chosen.locale <> ${input.locale}) AS "titleFallback",
+            COALESCE(char_length(chosen.value) > ${APPROVED_READING_CATALOG_LIMITS.title}::integer, false) AS "titleBounded",
+            COALESCE(chosen.value ~ ${invalidTitlePattern}, false) AS "titleInvalid"
+          FROM (
+            SELECT id, owner_user_id, fixture_source, default_locale, status, title, updated_at
+            FROM story_works
+            WHERE owner_user_id = ${userId}::uuid AND fixture_source = false ${keyset}
+            ORDER BY updated_at DESC, id DESC
+            LIMIT ${input.limit + 1}
+          ) AS w
+          LEFT JOIN LATERAL (
+            SELECT candidate.locale, w.title ->> candidate.locale AS value
+            FROM unnest(ARRAY[${input.locale}, w.default_locale, 'ko', 'en', 'ja', 'zh-Hans', 'zh-Hant']::text[])
+              WITH ORDINALITY AS candidate(locale, position)
+            WHERE jsonb_typeof(w.title -> candidate.locale) = 'string'
+              AND btrim(w.title ->> candidate.locale, ${trimCharacters}) <> ''
+            ORDER BY candidate.position
+            LIMIT 1
+          ) AS chosen ON true
+          ORDER BY w.updated_at DESC, w.id DESC
+        `);
+        const ids = new Set<string>();
+        if (!Array.isArray(rows) || rows.length > input.limit + 1) throw unavailable();
+        for (const row of rows) {
+          if (!row || row.ownerUserId !== userId || row.fixtureSource !== false || typeof row.id !== 'string'
+            || !APPROVED_READING_CATALOG_UUID.test(row.id) || ids.has(row.id)
+            || !STORY_LOCALES.includes(row.defaultLocale as (typeof STORY_LOCALES)[number])
+            || typeof row.status !== 'string' || !/^[a-z][a-z0-9_]{0,31}$/.test(row.status)
+            || typeof row.titleValue !== 'string' || row.titleValue.length > APPROVED_READING_CATALOG_LIMITS.title * 2
+            || Array.from(row.titleValue).length > APPROVED_READING_CATALOG_LIMITS.title
+            || /[\p{Cc}\p{Cf}]/u.test(row.titleValue) || row.titleInvalid !== false
+            || !STORY_LOCALES.includes(row.titleLocale as (typeof STORY_LOCALES)[number])
+            || typeof row.titleFallback !== 'boolean' || typeof row.titleBounded !== 'boolean'
+            || row.titleFallback !== (row.titleValue === '' || row.titleLocale !== input.locale)) throw unavailable();
+          ids.add(row.id);
+        }
+        const page = rows.slice(0, input.limit);
+        const packet = {
+          contract: 'story-owner-approved-reading-catalog-v1' as const,
+          sourceScope: 'owner_work_records_only' as const,
+          readOnly: true as const, providerCalls: 0 as const, operatingWrites: 0 as const,
+          items: page.map(row => {
+            return {
+              workId: row.id, title: { value: row.titleValue, locale: row.titleLocale, fallback: row.titleFallback, bounded: row.titleBounded },
+              defaultLocale: row.defaultLocale,
+              recordedState: { workStatus: row.status, approval: 'not_checked' as const },
+            };
+          }),
+          nextCursor: rows.length > input.limit ? page.at(-1)?.id ?? null : null,
+        };
+        if (Buffer.byteLength(JSON.stringify(packet), 'utf8') > APPROVED_READING_CATALOG_LIMITS.responseBytes) {
+          throw new ServiceUnavailableException({ code: 'STORY_APPROVED_READING_CATALOG_RESPONSE_TOO_LARGE' });
+        }
+        return packet;
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
+    } catch (error) {
+      if (error instanceof NotFoundException) throw notFound();
+      if (error instanceof ServiceUnavailableException) {
+        const response = error.getResponse();
+        if (response !== null && typeof response === 'object' && (response as { code?: string }).code === 'STORY_APPROVED_READING_CATALOG_RESPONSE_TOO_LARGE') {
+          throw new ServiceUnavailableException({ code: 'STORY_APPROVED_READING_CATALOG_RESPONSE_TOO_LARGE' });
+        }
+      }
+      throw unavailable();
+    }
   }
 
   async catalog(userId: string | undefined, query: StoryCatalogQueryDto) {
