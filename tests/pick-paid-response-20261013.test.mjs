@@ -261,7 +261,8 @@ test('paid source fixture keeps native auth pick wallet quote receipt and escape
 test('normal fresh receipt dispatches captured canonical fields and updates only from current server GETs', options, async () => {
   const { h, item } = await ready(); const attempt = await h.begin(item); assert(attempt.post);
   const body = JSON.parse(attempt.post.options.body);
-  assert.deepEqual(Object.keys(body).sort(), ['artistId', 'artistSlug', 'quantity', 'idempotencyKey'].sort());
+  assert.deepEqual(Object.keys(body).sort(), ['artistId', 'artistSlug', 'quantity', 'expectedTotalPriceLumina', 'idempotencyKey'].sort());
+  assert.equal(body.expectedTotalPriceLumina, '10.00');
   assert.equal(body.artistId, ID.artist); assert.equal(body.artistSlug, 'artist-a'); assert.equal(body.quantity, 1);
   assert.equal(body.idempotencyKey, attempt.post.options.headers['Idempotency-Key']);
   assert.equal(attempt.post.options.headers.Authorization, 'Bearer synthetic-access-a-original');
@@ -417,17 +418,22 @@ for (const [name, data] of invalidQuotes) {
     assert.equal(h.posts().length, 0); assert.equal(h.keys, 0);
   });
 }
-test('original bundle prices remain fixed and ten at ninety is disabled against unit ten', options, async () => {
+test('approved server price supplies ten at one hundred without a client discount', options, async () => {
   const { h, item } = await ready();
-  assert.deepEqual(plain(h.read('PAID_LIKE_BUNDLES.map(row => [row.quantity, row.lumina])')), [[1, 10], [5, 50], [10, 90], [20, 200]]);
-  assert.equal(item.radios().find(radio => radio.value === '10').disabled, true);
-  item.select(10, true); const attempt = await h.begin(item); await attempt.promise;
-  assert.equal(h.posts().length, 0); assert.equal(h.keys, 0);
+  assert.deepEqual(plain(h.read('PAID_LIKE_BUNDLES.map(row => row.quantity)')), [1, 5, 10, 20]);
+  assert.equal(item.radios().find(radio => radio.value === '10').disabled, false);
+  assert.match(item.innerHTML, /10개 · 100L/);
+  item.select(10); const attempt = await h.begin(item); assert(attempt.post);
+  assert.equal(JSON.parse(attempt.post.options.body).quantity, 10);
+  attempt.post.respond(receipt(attempt.post)); await attempt.promise; await h.finishReads();
+  assert.equal(h.posts().length, 1); assert.equal(h.keys, 1);
 });
 test('fresh quote is revalidated rather than authorizing the initial price', options, async () => {
   const { h, item } = await ready(); const changed = await h.begin(item, { data: quota({ unitPriceLumina: '11' }) }); await changed.promise;
   assert.equal(h.posts().length, 0); assert.equal(h.keys, 1);
-  const retry = await h.begin(item); assert(retry.post); retry.post.respond(receipt(retry.post)); await retry.promise; await h.finishReads();
+  const blocked = await h.begin(item); await blocked.promise; assert.equal(h.posts().length, 0);
+  item.close(); const reopened = await h.open(); const retry = await h.begin(reopened);
+  assert(retry.post); retry.post.respond(receipt(retry.post)); await retry.promise; await h.finishReads();
   assert.equal(h.keys, 1);
 });
 test('fresh exhausted quota blocks a new intent without inventing a replacement key', options, async () => {

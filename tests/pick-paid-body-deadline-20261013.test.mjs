@@ -65,7 +65,7 @@ function timedOut(result) {
   assert.equal(result.reason.message, 'Paid-like response outcome unavailable');
 }
 
-test('paid body deadline source wraps actual quota and POST without changing generic API or prices', options, () => {
+test('paid body deadline retains generic API and wraps quota and POST with server priced quantities', options, () => {
   const paidStart = app.indexOf('const PAID_LIKE_BUNDLES = [');
   assert(paidStart >= 0 && app.indexOf(helper) > paidStart);
   const quota = actualFunction('async function loadPaidLikeQuota()');
@@ -75,8 +75,7 @@ test('paid body deadline source wraps actual quota and POST without changing gen
   assert.match(modal, /quantity: attempt\.quantity,[\s\S]*idempotencyKey\s*\}\s*\}\)\);/);
   assert.equal(hash(actualFunction('async function apiFetch(path, options = {}, _retryDepth = 0)')),
     '9bf7fa29a431cb46ba4f214975880632f460c2a291fe324aba5898f4aa61d9d0');
-  assert.equal(hash(app.slice(paidStart, app.indexOf('];', paidStart) + 2)),
-    '483cc0b2d06753e2658d8c810f274cf7760b07da5af1a06f8af33df86974d7ef');
+  assert.match(app.slice(paidStart, app.indexOf('];', paidStart) + 2), /^const PAID_LIKE_BUNDLES = \[\s*\{ quantity: 1 \},\s*\{ quantity: 5 \},\s*\{ quantity: 10, recommended: true \},\s*\{ quantity: 20 \}\s*\];$/);
   assert.equal((quota.match(/awaitPaidLikeSettlement\(/g) || []).length, 1);
   assert.equal((modal.match(/awaitPaidLikeSettlement\(/g) || []).length, 1);
   const offline = /if \(isLikelyOffline\(\)\) \{([\s\S]*?)\n    \}/.exec(modal);
