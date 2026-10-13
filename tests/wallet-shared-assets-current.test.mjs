@@ -32,7 +32,7 @@ const consumers = [
       "/data/character-chat-tones.js",
       "/cms-bootstrap.js",
       "/app.js",
-      "/pages/character-chat.js",
+      "/pages/character-chat.js?v=20261013-greeting-origin",
       "/pages/premium-chat-support.js",
       "/pages/premium-chat-hub.js"
     ]
@@ -57,7 +57,7 @@ const consumers = [
       "/data/character-chat-tones.js",
       "/cms-bootstrap.js",
       "/app.js",
-      "/pages/character-chat.js?v=20261009-conversation-list-owner",
+      "/pages/character-chat.js?v=20261013-greeting-origin",
       "/pages/premium-chat-support.js",
       "/pages/premium-chat-hub.js"
     ]

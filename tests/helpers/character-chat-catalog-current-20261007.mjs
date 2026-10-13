@@ -31,7 +31,7 @@ const pageFunctions = ['basicChatTokenPayload', 'chatAuthToken', 'basicChatAccou
   'basicChatStoryRouteScope', 'isBasicChatRouteScopeCurrent', 'syncBasicChatRouteScope', 'assertBasicChatRouteScope',
   'assertBasicChatContext', 'syncBasicChatAccount', 'scheduleBasicChatExpiry', 'basicChatTokenExpiry', 'setConversationStatus',
   'basicChatRequest', 'basicChatRouteStatusKey',
-  'isBasicChatContextCurrent', 'isConversationListContextCurrent', 'basicChatCopy', 'fetchCharacterCatalog',
+  'isBasicChatContextCurrent', 'isConversationListContextCurrent', 'basicChatCopy', 'greetingOwnData', 'basicGreetingOriginKind', 'basicGreetingOriginCopy', 'fetchCharacterCatalog',
   'fetchStarterPrompts', 'applyStarterResponse', 'setText', 'setFallback', 'showStarterCard', 'renderWelcomeBubble',
   'getCharacterTone', 'buildStarterOptions', 'renderStarterOptions', 'shouldPreferLocalStarters', 'applyChatEmptyForSlug',
   'updateBasicSendButton', 'setBasicChatBusy', 'showBasicChatCheck', 'setBasicChatStatus',
@@ -51,7 +51,7 @@ const callback = find(page, node => ts.isCallExpression(node) && ts.isPropertyAc
   && node.expression.expression.expression.getText(page.ast) === 'fetchCharacterCatalog', 'Actual catalog callback').arguments[0].getText(page.ast);
 const last = init.body.statements.at(-1);
 assert.ok(ts.isIfStatement(last) && last.getText(page.ast).includes('applyStarterResponse'));
-const actual = [declaration('CHAT_API_BASE'), declaration('basicChatState'), declaration('conversationListState'), declaration('STARTER_MAX'), declaration('BASIC_CHAT_COPY'), declaration('STARTER_FALLBACK_OPTIONS'),
+const actual = [declaration('CHAT_API_BASE'), declaration('basicChatState'), declaration('conversationListState'), declaration('STARTER_MAX'), declaration('BASIC_CHAT_COPY'), declaration('GREETING_ORIGIN_COPY'), declaration('STARTER_FALLBACK_OPTIONS'),
   ...pageFunctions.map(name => fn(page, name)), entryGuard,
   fn(app, 'apiFetch'), fn(app, 'authRequestSession'), fn(app, 'authRequestSessionCurrent'),
   `async function runRoomEntry(slug){${suffix}}`,
@@ -95,6 +95,11 @@ function element(tag, writes) {
     setAttribute(name, value) { this[name] = value; writes.push({ operation: 'attribute', tag }); },
     querySelector(selector) { if (!selected.has(selector)) selected.set(selector, element(selector, writes)); return selected.get(selector); },
   };
+  node.classList = { add(...tokens) {
+    const classes = new Set((node.className || '').split(/\s+/).filter(Boolean));
+    for (const token of tokens) { assert.equal(typeof token, 'string'); assert(!/\s/.test(token)); classes.add(token); }
+    node.className = [...classes].join(' '); writes.push({ operation: 'class', tag });
+  } };
   Object.defineProperty(node, 'textContent', { get() { return text + this.children.map(item => item.textContent).join(''); },
     set(value) { assert.equal(typeof value, 'string', 'DOM text must not coerce object payloads'); text = value; this.children = []; writes.push({ operation: 'text', tag }); } });
   Object.defineProperty(node, 'innerHTML', { set() { throw new Error('No arbitrary HTML rendering'); } });
