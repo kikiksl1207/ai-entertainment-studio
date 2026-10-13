@@ -286,6 +286,8 @@ export class ChatLlmProviderAdapter implements ChatLlmProvider {
                 'Character chat provider request failed',
                 'provider_request_failed',
               );
+        // A failed response does not prove that the first request was unbilled.
+        break;
       }
     }
 

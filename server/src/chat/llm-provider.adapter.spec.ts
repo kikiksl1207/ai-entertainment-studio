@@ -155,7 +155,7 @@ describe('ChatLlmProviderAdapter.generate', () => {
     });
   });
 
-  it('tries the fallback model when the primary model request fails', async () => {
+  it('stops after the primary model failure without automatic fallback', async () => {
     const fetchMock = jest
       .fn()
       .mockResolvedValueOnce(
@@ -184,17 +184,11 @@ describe('ChatLlmProviderAdapter.generate', () => {
       OPENAI_CHAT_FALLBACK_MODEL: 'gpt-5-nano',
     });
 
-    const result = await adapter.generate(baseRequest);
-
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(result).toMatchObject({
-      body: '잠깐 숨 돌리고 다시 이야기하자.',
-      usage: { model: 'gpt-5-nano' },
-      safetyMetadata: {
-        requestId: 'req_237_fallback',
-        fallbackModelUsed: true,
-      },
+    await expect(adapter.generate(baseRequest)).rejects.toMatchObject({
+      code: 'provider_http_503',
+      requestId: 'req_237_primary',
     });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('surfaces a request error without exposing raw provider response content', async () => {
