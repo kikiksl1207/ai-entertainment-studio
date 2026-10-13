@@ -22,6 +22,8 @@ const boostProduct = {
 };
 const wallet = {
   id: '44444444-4444-4444-8444-444444444444',
+  userId: 'user-1',
+  currencyCode: 'LUMINA',
   status: 'active',
   cachedBalance: new Decimal(100),
 };
@@ -29,6 +31,9 @@ const wallet = {
 function createHarness() {
   const tx = {
     $queryRaw: jest.fn().mockResolvedValue([]),
+    boostCampaign: { findFirst: jest.fn() },
+    artist: { findFirst: jest.fn() },
+    boostProduct: { findFirst: jest.fn() },
     artistBoostEvent: {
       findUnique: jest.fn(),
       findMany: jest.fn(),
@@ -97,10 +102,9 @@ describe('BoostsService wallet mutation safety', () => {
   });
 
   it('replays a paid-like idempotency key without another debit', async () => {
-    const { service, prisma, tx } = createHarness();
-    prisma.boostCampaign.findFirst.mockResolvedValue(campaign);
-    prisma.artist.findFirst.mockResolvedValue(artist);
-    prisma.boostProduct.findFirst.mockResolvedValue(boostProduct);
+    const { service, tx } = createHarness();
+    tx.artist.findFirst.mockResolvedValue(artist);
+    tx.boostProduct.findFirst.mockResolvedValue(boostProduct);
     tx.artistBoostEvent.findUnique.mockResolvedValue({
       id: 'event-1',
       userId: 'user-1',
@@ -109,7 +113,16 @@ describe('BoostsService wallet mutation safety', () => {
       boostType: 'lumina_boost',
       boostProductId: boostProduct.id,
       walletLedgerId: 'ledger-1',
-      metadata: { source: 'paid_like', quantity: 2 },
+      idempotencyKey: 'paid-like-1',
+      rawAmount: new Decimal(2),
+      walletLedger: {
+        id: 'ledger-1', walletAccountId: wallet.id, direction: 'debit',
+        amount: new Decimal(20), ledgerType: 'boost_spend',
+        referenceType: 'boost_product', referenceId: boostProduct.id,
+        idempotencyKey: 'wallet:boost-paid-like:paid-like-1',
+      },
+      metadata: { source: 'paid_like', quantity: 2, artistSlug: artist.slug,
+        unitPriceLumina: '10', totalPriceLumina: '20' },
     });
     tx.walletAccount.findFirst.mockResolvedValue(wallet);
 
@@ -127,10 +140,9 @@ describe('BoostsService wallet mutation safety', () => {
   });
 
   it('rejects paid-like idempotency key reuse with a different body', async () => {
-    const { service, prisma, tx } = createHarness();
-    prisma.boostCampaign.findFirst.mockResolvedValue(campaign);
-    prisma.artist.findFirst.mockResolvedValue(artist);
-    prisma.boostProduct.findFirst.mockResolvedValue(boostProduct);
+    const { service, tx } = createHarness();
+    tx.artist.findFirst.mockResolvedValue({ ...artist, id: '99999999-9999-4999-8999-999999999999' });
+    tx.boostProduct.findFirst.mockResolvedValue(boostProduct);
     tx.artistBoostEvent.findUnique.mockResolvedValue({
       id: 'event-1',
       userId: 'user-1',
@@ -139,7 +151,16 @@ describe('BoostsService wallet mutation safety', () => {
       boostType: 'lumina_boost',
       boostProductId: boostProduct.id,
       walletLedgerId: 'ledger-1',
-      metadata: { source: 'paid_like', quantity: 1 },
+      idempotencyKey: 'paid-like-1',
+      rawAmount: new Decimal(1),
+      walletLedger: {
+        id: 'ledger-1', walletAccountId: wallet.id, direction: 'debit',
+        amount: new Decimal(10), ledgerType: 'boost_spend',
+        referenceType: 'boost_product', referenceId: boostProduct.id,
+        idempotencyKey: 'wallet:boost-paid-like:paid-like-1',
+      },
+      metadata: { source: 'paid_like', quantity: 1, artistSlug: artist.slug,
+        unitPriceLumina: '10', totalPriceLumina: '10' },
     });
 
     await expect(
@@ -168,10 +189,10 @@ describe('BoostsService wallet mutation safety', () => {
   });
 
   it('debits paid-like only with a balance guard and scoped ledger key', async () => {
-    const { service, prisma, tx } = createHarness();
-    prisma.boostCampaign.findFirst.mockResolvedValue(campaign);
-    prisma.artist.findFirst.mockResolvedValue(artist);
-    prisma.boostProduct.findFirst.mockResolvedValue(boostProduct);
+    const { service, tx } = createHarness();
+    tx.boostCampaign.findFirst.mockResolvedValue(campaign);
+    tx.artist.findFirst.mockResolvedValue(artist);
+    tx.boostProduct.findFirst.mockResolvedValue(boostProduct);
     tx.artistBoostEvent.findUnique.mockResolvedValue(null);
     tx.artistBoostEvent.findMany.mockResolvedValue([]);
     tx.walletAccount.findUnique
@@ -187,6 +208,7 @@ describe('BoostsService wallet mutation safety', () => {
         artistId: artist.id,
         quantity: 1,
         idempotencyKey: 'paid-like-1',
+        expectedTotalPriceLumina: '10',
       }),
     ).resolves.toMatchObject({ idempotentReplay: false });
 
@@ -194,6 +216,9 @@ describe('BoostsService wallet mutation safety', () => {
       expect.objectContaining({
         where: expect.objectContaining({
           id: wallet.id,
+          userId: 'user-1',
+          currencyCode: 'LUMINA',
+          status: 'active',
           cachedBalance: { gte: new Decimal(10) },
         }),
         data: { cachedBalance: { decrement: new Decimal(10) } },

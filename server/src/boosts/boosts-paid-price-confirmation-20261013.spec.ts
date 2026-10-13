@@ -30,7 +30,8 @@ function originalEvent(unit = '10', quantity = 1) {
       ledgerType: 'boost_spend', referenceType: 'boost_product', referenceId: ID.product,
       idempotencyKey: `wallet:boost-paid-like:${key}`,
     },
-    metadata: { source: 'paid_like', quantity, unitPriceLumina: unit, totalPriceLumina: total.toString() } as Record<string, unknown>,
+    metadata: { source: 'paid_like', quantity, artistSlug: 'synthetic-artist',
+      unitPriceLumina: unit, totalPriceLumina: total.toString() } as Record<string, unknown>,
   };
 }
 type Event = ReturnType<typeof originalEvent>;
@@ -39,10 +40,25 @@ type Event = ReturnType<typeof originalEvent>;
 function fixture(unit = '10', scope = { owner: ID.owner, campaign: ID.campaign }) {
   const trace: string[] = [];
   const state = { currentPrice: unit, balance: new Decimal('100000000000000'), ledger: null as null | Record<string, unknown>,
-    event: null as null | Record<string, unknown>, onTransaction: () => {} };
+    event: null as null | Record<string, unknown>, onProductRead: () => {} };
   const forbidden = (name: string) => jest.fn(() => { trace.push(name); throw new Error('Unexpected synthetic write: ' + name); });
   const wallet = () => ({ id: ID.wallet, userId: scope.owner, currencyCode: 'LUMINA', status: 'active', cachedBalance: state.balance });
   const tx = {
+    boostCampaign: { findFirst: jest.fn(async () => {
+      trace.push('campaign.findFirst'); return { id: scope.campaign, luminaBoostWeight: new Decimal(1), dailyFreeLikeLimit: 1 };
+    }) },
+    artist: { findFirst: jest.fn(async () => {
+      trace.push('artist.findFirst'); return { id: ID.artist, slug: 'synthetic-artist', displayName: 'Synthetic artist' };
+    }) },
+    boostProduct: {
+      findFirst: jest.fn(async () => {
+        trace.push('product.findFirst');
+        const product = { id: ID.product, sku: 'BOOST_BASIC_VOTE', name: 'Synthetic vote',
+          priceLumina: new Decimal(state.currentPrice), boostAmount: new Decimal(1) };
+        state.onProductRead(); return product;
+      }),
+      update: forbidden('product.update'), upsert: forbidden('product.upsert'),
+    },
     artistBoostEvent: {
       findUnique: jest.fn(async () => { trace.push('event.findUnique'); return null as Event | null; }),
       findMany: jest.fn(async () => { trace.push('event.findMany'); return [] as Array<{ metadata: unknown }>; }),
@@ -86,7 +102,7 @@ function fixture(unit = '10', scope = { owner: ID.owner, campaign: ID.campaign }
     walletLedger: { create: forbidden('outer.ledger.create') },
     artistBoostEvent: { create: forbidden('outer.event.create') },
     $transaction: jest.fn(async (callback: (client: typeof tx) => unknown) => {
-      trace.push('transaction'); state.onTransaction(); return callback(tx);
+      trace.push('transaction'); return callback(tx);
     }),
   };
   return { state, trace, tx, prisma, service: new BoostsService(prisma as never) };
@@ -96,7 +112,8 @@ function noWrites(h: Fixture) {
   for (const method of [h.tx.walletAccount.updateMany, h.tx.walletAccount.upsert, h.tx.walletAccount.create,
     h.tx.walletAccount.update, h.tx.walletAccount.delete, h.tx.walletLedger.create, h.tx.walletLedger.update,
     h.tx.walletLedger.upsert, h.tx.walletLedger.delete, h.tx.artistBoostEvent.create, h.tx.artistBoostEvent.update,
-    h.tx.artistBoostEvent.upsert, h.tx.artistBoostEvent.delete, h.tx.$executeRaw, h.prisma.boostProduct.update,
+    h.tx.artistBoostEvent.upsert, h.tx.artistBoostEvent.delete, h.tx.$executeRaw,
+    h.tx.boostProduct.update, h.tx.boostProduct.upsert, h.prisma.boostProduct.update,
     h.prisma.boostProduct.upsert, h.prisma.walletAccount.upsert, h.prisma.walletAccount.updateMany,
     h.prisma.walletLedger.create, h.prisma.artistBoostEvent.create]) expect(method).not.toHaveBeenCalled();
   expect(h.state.balance.toString()).toBe('100000000000000'); expect(h.state.ledger).toBeNull(); expect(h.state.event).toBeNull();
@@ -120,7 +137,8 @@ describe('paid-like expected total confirmation (synthetic, no real payment)', (
     expect(result.idempotentReplay).toBe(false); expect(result.paidLike.totalPriceLumina?.equals(total)).toBe(true);
     expect(h.tx.walletAccount.updateMany).toHaveBeenCalledTimes(1);
     expect(h.tx.walletAccount.updateMany.mock.calls[0][0]).toMatchObject({
-      where: { id: ID.wallet, cachedBalance: { gte: total } }, data: { cachedBalance: { decrement: total } },
+      where: { id: ID.wallet, userId: ID.owner, currencyCode: 'LUMINA', status: 'active',
+        cachedBalance: { gte: total } }, data: { cachedBalance: { decrement: total } },
     });
     expect((h.state.ledger?.amount as Decimal).equals(total)).toBe(true);
     const metadata = h.state.event?.metadata as Record<string, unknown>;
@@ -133,12 +151,14 @@ describe('paid-like expected total confirmation (synthetic, no real payment)', (
     expect(h.trace.slice(0, 3)).toEqual(['transaction', 'scope.lock', 'event.findUnique']);
   });
 
-  it.each([1, 20])('rejects a zero configured product for quantity %s before transaction or wallet access', async quantity => {
+  it.each([1, 20])('rejects a zero configured product for quantity %s after receipt lookup, before wallet access', async quantity => {
     const h = fixture('0');
     await rejection(h.service.createPaidLike(ID.owner, request({ quantity, expectedTotalPriceLumina: '0.00' })),
       BadRequestException, 'BOOST_PAID_LIKE_PRICE_INVALID');
-    expect(h.prisma.boostProduct.findFirst).toHaveBeenCalledTimes(1);
-    expect(h.prisma.$transaction).not.toHaveBeenCalled(); expect(h.tx.$queryRaw).not.toHaveBeenCalled();
+    expect(h.tx.boostProduct.findFirst).toHaveBeenCalledTimes(1);
+    expect(h.prisma.boostProduct.findFirst).not.toHaveBeenCalled();
+    expect(h.prisma.$transaction).toHaveBeenCalledTimes(1); expect(h.tx.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(h.trace.slice(0, 3)).toEqual(['transaction', 'scope.lock', 'event.findUnique']);
     expect(h.tx.walletAccount.findUnique).not.toHaveBeenCalled(); noWrites(h);
   });
 
@@ -146,20 +166,22 @@ describe('paid-like expected total confirmation (synthetic, no real payment)', (
     const h = fixture(unit);
     await rejection(h.service.createPaidLike(ID.owner, request({ expectedTotalPriceLumina: '10' })),
       BadRequestException, 'BOOST_PAID_LIKE_PRICE_INVALID');
-    expect(h.prisma.$transaction).not.toHaveBeenCalled(); expect(h.tx.walletAccount.findUnique).not.toHaveBeenCalled(); noWrites(h);
+    expect(h.prisma.$transaction).toHaveBeenCalledTimes(1); expect(h.tx.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(h.tx.walletAccount.findUnique).not.toHaveBeenCalled(); noWrites(h);
   });
 
   it('legacy omission of expected total cannot enable a zero-price charge', async () => {
     const h = fixture('0');
-    await rejection(h.service.createPaidLike(ID.owner, request()), BadRequestException, 'BOOST_PAID_LIKE_PRICE_INVALID');
-    expect(h.prisma.$transaction).not.toHaveBeenCalled(); noWrites(h);
+    await rejection(h.service.createPaidLike(ID.owner, request()), BadRequestException, 'BOOST_PAID_LIKE_PRICE_REQUIRED');
+    expect(h.prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(h.tx.boostProduct.findFirst).not.toHaveBeenCalled(); noWrites(h);
   });
 
   it('expected zero parses successfully but mismatches a positive product without a debit', async () => {
     const h = fixture('10');
     await rejection(h.service.createPaidLike(ID.owner, request({ expectedTotalPriceLumina: '0.00' })),
       ConflictException, 'BOOST_PAID_LIKE_PRICE_MISMATCH');
-    expect(h.prisma.boostProduct.findFirst).toHaveBeenCalledTimes(1); expect(h.tx.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(h.tx.boostProduct.findFirst).toHaveBeenCalledTimes(1); expect(h.tx.$queryRaw).toHaveBeenCalledTimes(1);
     expect(h.tx.walletAccount.findUnique).not.toHaveBeenCalled(); noWrites(h);
   });
 
@@ -170,7 +192,7 @@ describe('paid-like expected total confirmation (synthetic, no real payment)', (
     ['different campaign', ID.owner, ID.other, ID.artist, key],
   ])('binds the exact owner/campaign lock for %s, independent of artist or intent key', async (_label, owner, campaign, artist, intentKey) => {
     const h = fixture('10', { owner, campaign });
-    h.prisma.artist.findFirst.mockResolvedValue({ id: artist, slug: 'synthetic-artist', displayName: 'Synthetic artist' });
+    h.tx.artist.findFirst.mockResolvedValue({ id: artist, slug: 'synthetic-artist', displayName: 'Synthetic artist' });
     await h.service.createPaidLike(owner, request({ campaignId: campaign, artistId: artist, idempotencyKey: intentKey, expectedTotalPriceLumina: '10' }));
     expect(h.tx.$queryRaw).toHaveBeenCalledTimes(1);
     expect(h.tx.$queryRaw.mock.calls[0][0].values).toEqual([`boost-paid-like:${campaign}:${owner}`]);
@@ -236,13 +258,16 @@ describe('paid-like expected total confirmation (synthetic, no real payment)', (
       ConflictException, 'BOOST_PAID_LIKE_PRICE_MISMATCH'); noWrites(h);
   });
 
-  it('legacy new requests without expected total retain the current-price behavior', async () => {
-    const h = fixture('11'), result = await h.service.createPaidLike(ID.owner, request({ quantity: 5 }));
-    expect(result.idempotentReplay).toBe(false); expect(result.paidLike.totalPriceLumina?.toString()).toBe('55');
-    expect((h.state.ledger?.amount as Decimal).toString()).toBe('55');
+  it('legacy new requests without expected total cannot debit the current price', async () => {
+    const h = fixture('11');
+    await rejection(h.service.createPaidLike(ID.owner, request({ quantity: 5 })),
+      BadRequestException, 'BOOST_PAID_LIKE_PRICE_REQUIRED');
+    expect(h.tx.boostProduct.findFirst).not.toHaveBeenCalled();
+    expect(h.tx.artistBoostEvent.findMany).not.toHaveBeenCalled();
+    expect(h.tx.walletAccount.findUnique).not.toHaveBeenCalled(); noWrites(h);
   });
 
-  it.each([['10', '11', 10], ['0.29', '0.30', 5], ['0', '99', 20]] as const)
+  it.each([['10', '11', 10], ['0.29', '0.30', 5]] as const)
     ('replays original unit %s after current price %s for quantity %s without repricing or writes', async (original, current, quantity) => {
       const h = fixture(current), event = originalEvent(original, quantity);
       h.tx.artistBoostEvent.findUnique.mockResolvedValue(event);
@@ -279,6 +304,9 @@ describe('paid-like expected total confirmation (synthetic, no real payment)', (
     ['ledger amount', event => { event.walletLedger.amount = new Decimal('9'); }],
     ['ledger direction', event => { event.walletLedger.direction = 'credit'; }],
     ['ledger key', event => { event.walletLedger.idempotencyKey = 'wallet:other:key'; }],
+    ['ledger type', event => { event.walletLedger.ledgerType = 'purchase'; }],
+    ['ledger reference type', event => { event.walletLedger.referenceType = 'other'; }],
+    ['ledger reference id', event => { event.walletLedger.referenceId = ID.other; }],
     ['ledger owner wallet', event => { event.walletLedger.walletAccountId = ID.other; }],
     ['missing original total', event => { delete event.metadata.totalPriceLumina; }],
     ['subcent original total', event => { event.metadata.totalPriceLumina = '10.001'; }],
@@ -291,12 +319,12 @@ describe('paid-like expected total confirmation (synthetic, no real payment)', (
       ConflictException, 'BOOST_IDEMPOTENCY_CONFLICT'); noWrites(h);
   });
 
-  it('valid original total without a stored unit replays without inventing a unit price', async () => {
+  it('valid original total without a stored unit derives its exact original unit price', async () => {
     const h = fixture('99'), event = originalEvent(); delete event.metadata.unitPriceLumina;
     h.tx.artistBoostEvent.findUnique.mockResolvedValue(event);
     const result = await h.service.createPaidLike(ID.owner, request({ expectedTotalPriceLumina: '10' }));
     expect(result.idempotentReplay).toBe(true); expect(result.paidLike.totalPriceLumina?.toString()).toBe('10');
-    expect(result.paidLike).not.toHaveProperty('unitPriceLumina'); noWrites(h);
+    expect(result.paidLike.unitPriceLumina?.toString()).toBe('10'); noWrites(h);
   });
 
   it('complete legacy replay returns original recorded prices rather than the changed product', async () => {
@@ -306,12 +334,17 @@ describe('paid-like expected total confirmation (synthetic, no real payment)', (
     expect(result.paidLike.totalPriceLumina?.toString()).toBe('10'); noWrites(h);
   });
 
-  it('legacy replay with missing price evidence stays compatible but has no fake current price fields', async () => {
+  it('legacy replay with missing price evidence rejects without a replacement charge', async () => {
     const h = fixture('99'), event = originalEvent(); delete event.metadata.totalPriceLumina; delete event.metadata.unitPriceLumina;
     event.walletLedger = null as unknown as Event['walletLedger']; h.tx.artistBoostEvent.findUnique.mockResolvedValue(event);
-    const result = await h.service.createPaidLike(ID.owner, request());
-    expect(result.idempotentReplay).toBe(true); expect(result.paidLike).not.toHaveProperty('unitPriceLumina');
-    expect(result.paidLike).not.toHaveProperty('totalPriceLumina'); noWrites(h);
+    await rejection(h.service.createPaidLike(ID.owner, request()),
+      ConflictException, 'BOOST_IDEMPOTENCY_CONFLICT'); noWrites(h);
+  });
+
+  it('rejects an original zero receipt rather than recovering an impossible debit', async () => {
+    const h = fixture('99'); h.tx.artistBoostEvent.findUnique.mockResolvedValue(originalEvent('0', 20));
+    await rejection(h.service.createPaidLike(ID.owner, request({ quantity: 20, expectedTotalPriceLumina: '0' })),
+      ConflictException, 'BOOST_IDEMPOTENCY_CONFLICT'); noWrites(h);
   });
 
   it('matching expected total does not bypass the original daily limit', async () => {
@@ -327,12 +360,13 @@ describe('paid-like expected total confirmation (synthetic, no real payment)', (
   });
 
   it('a later product-row change leaves the captured compared total identical to the debited total', async () => {
-    const h = fixture('10'); h.state.onTransaction = () => { h.state.currentPrice = '11'; };
+    const h = fixture('10'); h.state.onProductRead = () => { h.state.currentPrice = '11'; };
     const result = await h.service.createPaidLike(ID.owner, request({ expectedTotalPriceLumina: '10' }));
     expect(h.state.currentPrice).toBe('11'); expect(result.paidLike.totalPriceLumina?.toString()).toBe('10');
     expect((h.state.ledger?.amount as Decimal).toString()).toBe('10');
     expect((h.state.event?.metadata as Record<string, unknown>).unitPriceLumina).toBe('10');
-    expect(h.prisma.boostProduct.findFirst).toHaveBeenCalledTimes(1);
+    expect(h.tx.boostProduct.findFirst).toHaveBeenCalledTimes(1);
+    expect(h.prisma.boostProduct.findFirst).not.toHaveBeenCalled();
   });
 });
 
