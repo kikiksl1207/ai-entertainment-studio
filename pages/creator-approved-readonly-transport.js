@@ -5,6 +5,7 @@
   const apiOrigin = "https://api.lumina-stage.com";
   const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const route = /^\/api\/v1\/me\/creator-studio\/stories\/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\/generation-profile\/approved-section-bytes\?measurement=json-utf8-v1$/;
+  const catalogRoute = /^\/api\/v1\/me\/creator-studio\/approved-reading-catalog\?locale=(?:ko|en|ja|zh-Hans|zh-Hant)&limit=12(?:&cursor=[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})?$/;
   const optionKeys = new Set(["method", "identity", "token", "_retried", "cache", "headers", "signal", "auth"]);
 
   function failure(code) {
@@ -17,7 +18,7 @@
     try { Promise.resolve(response?.body?.cancel?.()).catch(() => {}); } catch (_) {}
   }
 
-  function create({ storage, fetch: nativeFetch, eventTarget = window } = {}) {
+  function createForRoute(acceptedRoute, { storage, fetch: nativeFetch, eventTarget = window } = {}) {
     let epoch = 0, initialized = false, marker = null, disposed = false;
     const pending = new Set();
     const listeners = [];
@@ -101,7 +102,7 @@
     async function fetchReadonly(path, options) {
       if (disposed) throw failure("disposed");
       try {
-        if (typeof path !== "string" || path !== path.trim() || !route.test(path) || !validOptions(options)) {
+        if (typeof path !== "string" || path !== path.trim() || !acceptedRoute.test(path) || !validOptions(options)) {
           throw failure("invalid_request");
         }
       } catch (_) { throw failure("invalid_request"); }
@@ -166,5 +167,8 @@
     return Object.freeze({ getAuth, identity, isCurrent, fetch: fetchReadonly, dispose });
   }
 
-  window.LuminaCreatorApprovedReadonlyTransport = Object.freeze({ create });
+  window.LuminaCreatorApprovedReadonlyTransport = Object.freeze({
+    create: options => createForRoute(route, options),
+    createCatalog: options => createForRoute(catalogRoute, options)
+  });
 })();

@@ -16,4 +16,14 @@ select { font: inherit; padding: 8px; border: 1px solid #89979b; border-radius: 
 #readingConnectionState { min-height: 24px; color: #626b70; }
 .approved-section-bytes-table { width: 100%; table-layout: fixed; }
 .approved-section-bytes-table th, .approved-section-bytes-table td { overflow-wrap: anywhere; }
+.reading-catalog { border-block: 1px solid #d4dcdf; padding-block: 18px; margin-block: 16px 24px; }
+.reading-catalog h2 { font-size: 18px; margin: 0 0 14px; }
+.reading-catalog-controls { display: flex; gap: 12px; align-items: end; }
+.reading-catalog-controls label { display: grid; gap: 8px; flex: 1; min-width: 0; }
+.reading-catalog-controls select { width: 100%; min-width: 0; }
+.reading-catalog-controls button { font: inherit; min-height: 40px; border: 1px solid #89979b; border-radius: 4px; padding: 8px 12px; background: #fff; color: #176a59; cursor: pointer; }
+.reading-catalog-controls button:disabled { color: #626b70; opacity: .65; cursor: default; }
+#readingCatalogNext { width: 42px; flex: 0 0 42px; }
+#readingCatalogState { min-height: 24px; color: #626b70; margin: 12px 0 0; }
+@media (max-width: 600px) { .reading-catalog-controls { flex-wrap: wrap; } .reading-catalog-controls label { flex: 1 1 100%; } }
 @media (max-width: 600px) { .reading-top { padding: 14px 16px; } main { padding: 22px 16px; } .reading-heading { flex-direction: column; } .reading-language { flex-basis: auto; width: 160px; } h1 { font-size: 22px; } }
