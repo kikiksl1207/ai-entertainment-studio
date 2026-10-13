@@ -73,7 +73,7 @@
     function sample() {
       try {
         const owner = transport.identity(), language = locale();
-        return owner && typeof owner.ownerId === "string" && uuid.test(owner.ownerId) &&
+        return owner && typeof owner.ownerId === "string" && uuid.test(owner.ownerId.toLowerCase()) &&
           Number.isSafeInteger(owner.epoch) && owner.epoch >= 0 && transport.isCurrent(owner) && locales.includes(language) ? { owner, locale: language } : null;
       } catch (_) { return null; }
     }
