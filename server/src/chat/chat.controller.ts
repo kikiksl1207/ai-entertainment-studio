@@ -176,10 +176,11 @@ export class ChatController {
   @Get('chat/usage-summary')
   getUsageSummary(
     @CurrentUser() user: AuthUser,
-    @Query('artistId') artistId?: string,
+    // Preserve raw query shape before the UUID pipe; global String conversion hides arrays.
+    @Query('artistId', new ParseUUIDPipe({ optional: true })) artistId?: unknown,
   ) {
     return this.chatService.getUsageSummary(user.id, {
-      artistId: this.requireField(artistId, 'artistId'),
+      artistId: this.requireField(typeof artistId === 'string' ? artistId : undefined, 'artistId'),
     });
   }
 

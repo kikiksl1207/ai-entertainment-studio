@@ -230,7 +230,8 @@ describe('chat usage and provider-ops privacy through existing Nest HTTP routes'
       privateStatus(result, 400);
       if (method === 'GET') {
         filteredError(result, 400);
-        expect(JSON.parse(result.text).error.message).toBe('artistId is required');
+        expect(JSON.parse(result.text).error.message).toBe(path === USAGE_PATH ?
+          'artistId is required' : 'Validation failed (uuid is expected)');
       }
     }
     expect(authenticationChecks).toBe(4);
