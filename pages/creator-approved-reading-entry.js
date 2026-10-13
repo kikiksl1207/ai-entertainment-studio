@@ -48,11 +48,11 @@
       "zh-Hant": { title: "\u5df2\u6838\u51c6\u8cc7\u6599", studio: "\u5de5\u4f5c\u5ba4", language: "\u8a9e\u8a00", empty: "\u672a\u9023\u63a5\u4f5c\u54c1" }
     };
     const catalogCopy = {
-      ko: { title: "내 작품", choose: "작품 선택", load: "작품 불러오기", next: "다음 작품", untitled: "제목 없음", idle: "", loading: "조회 중", ready: "승인 상태: 미확인", empty: "등록된 작품 없음", unauthenticated: "로그인 필요", stale: "다시 조회 필요", timeout: "응답 시간 초과", unavailable: "조회 실패" },
-      en: { title: "My Works", choose: "Select a work", load: "Load works", next: "Next works", untitled: "Untitled", idle: "", loading: "Loading", ready: "Approval: not checked", empty: "No works", unauthenticated: "Sign-in required", stale: "Reload required", timeout: "Request timed out", unavailable: "Unavailable" },
-      ja: { title: "自分の作品", choose: "作品を選択", load: "作品を取得", next: "次の作品", untitled: "無題", idle: "", loading: "取得中", ready: "承認状態: 未確認", empty: "作品なし", unauthenticated: "ログインが必要", stale: "再取得が必要", timeout: "応答時間超過", unavailable: "取得失敗" },
-      "zh-Hans": { title: "我的作品", choose: "选择作品", load: "加载作品", next: "下一页", untitled: "未命名", idle: "", loading: "加载中", ready: "审批状态：未检查", empty: "暂无作品", unauthenticated: "请登录", stale: "请重新加载", timeout: "请求超时", unavailable: "加载失败" },
-      "zh-Hant": { title: "我的作品", choose: "選擇作品", load: "載入作品", next: "下一頁", untitled: "未命名", idle: "", loading: "載入中", ready: "審批狀態：未檢查", empty: "暫無作品", unauthenticated: "請登入", stale: "請重新載入", timeout: "請求逾時", unavailable: "載入失敗" }
+      ko: { title: "내 작품", choose: "작품 선택", load: "작품 불러오기", next: "다음 작품", untitled: "제목 없음", idle: "", loading: "조회 중", ready: "승인 상태: 미확인", empty: "등록된 작품 없음", unauthenticated: "로그인 필요", auth_rejected: "읽기 로그인을 다시 확인해 주세요", stale: "다시 조회 필요", timeout: "응답 시간 초과", unavailable: "조회 실패" },
+      en: { title: "My Works", choose: "Select a work", load: "Load works", next: "Next works", untitled: "Untitled", idle: "", loading: "Loading", ready: "Approval: not checked", empty: "No works", unauthenticated: "Sign-in required", auth_rejected: "Check sign-in for this read", stale: "Reload required", timeout: "Request timed out", unavailable: "Unavailable" },
+      ja: { title: "自分の作品", choose: "作品を選択", load: "作品を取得", next: "次の作品", untitled: "無題", idle: "", loading: "取得中", ready: "承認状態: 未確認", empty: "作品なし", unauthenticated: "ログインが必要", auth_rejected: "読み取りに使うログインを確認してください", stale: "再取得が必要", timeout: "応答時間超過", unavailable: "取得失敗" },
+      "zh-Hans": { title: "我的作品", choose: "选择作品", load: "加载作品", next: "下一页", untitled: "未命名", idle: "", loading: "加载中", ready: "审批状态：未检查", empty: "暂无作品", unauthenticated: "请登录", auth_rejected: "请确认读取所用的登录", stale: "请重新加载", timeout: "请求超时", unavailable: "加载失败" },
+      "zh-Hant": { title: "我的作品", choose: "選擇作品", load: "載入作品", next: "下一頁", untitled: "未命名", idle: "", loading: "載入中", ready: "審批狀態：未檢查", empty: "暫無作品", unauthenticated: "請登入", auth_rejected: "請確認讀取所用的登入", stale: "請重新載入", timeout: "請求逾時", unavailable: "載入失敗" }
     };
     let catalogState = { phase: "idle", items: [], nextCursor: null, selected: null };
     let currentScope = null;
@@ -73,7 +73,7 @@
       document.getElementById("readingCatalogTitle").textContent = c.title;
       document.getElementById("readingCatalogWorkLabel").textContent = c.choose;
       catalogLoad.textContent = c.load; catalogNext.title = c.next; catalogNext.setAttribute("aria-label", c.next);
-      catalogLoad.disabled = ["loading", "unauthenticated"].includes(catalogState.phase);
+      catalogLoad.disabled = ["loading", "unauthenticated", "auth_rejected"].includes(catalogState.phase);
       catalogNext.disabled = !catalogState.nextCursor || catalogState.phase === "loading";
       catalogSelect.disabled = catalogState.items.length === 0 || catalogState.phase === "loading";
       catalogSelect.replaceChildren();

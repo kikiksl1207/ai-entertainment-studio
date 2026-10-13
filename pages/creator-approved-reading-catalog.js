@@ -112,7 +112,7 @@
       } catch (error) {
         if (number === ticket && !disposed) {
           data = null; selected = null;
-          phase = !same(before, sample()) ? "stale" : ["timeout", "unauthenticated"].includes(error?.kind) ? error.kind : "unavailable";
+          phase = !same(before, sample()) ? "stale" : error?.kind === "unauthenticated" ? "auth_rejected" : error?.kind === "timeout" ? "timeout" : "unavailable";
           notify();
         }
         return false;

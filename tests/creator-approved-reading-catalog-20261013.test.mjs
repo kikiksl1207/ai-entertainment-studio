@@ -148,7 +148,7 @@ test("Oversize streamed body is rejected without adopting data", async () => {
 });
 test("401 is not an auth refresh, retry, logout or storage write", async () => {
   const f = fixture({ send: async () => response({ secret: "synthetic" }, {}, 401) });
-  assert.equal(await f.controller.load(), false); assert.equal(f.latest().phase, "unauthenticated"); assert.equal(f.calls.length, 1); assert.equal(f.writes.length, 0); f.dispose();
+  assert.equal(await f.controller.load(), false); assert.equal(f.latest().phase, "auth_rejected"); assert.equal(f.calls.length, 1); assert.equal(f.writes.length, 0); f.dispose();
 });
 test("Deadline bounds a provider that ignores abort", async () => {
   const f = fixture({ send: () => new Promise(() => {}), deadlineMs: 10 });
