@@ -11,6 +11,14 @@ import { InputJsonValue } from '@prisma/client/runtime/client';
 import { isDeepStrictEqual } from 'node:util';
 import { PrismaService } from '../prisma/prisma.service';
 import {
+  artistPersonaSelectionMatches,
+  isLockedArtistPersona,
+  requiresSelectedApprovedArtistPersona,
+  selectArtistPersona,
+  type ArtistPersonaSelection,
+  type ArtistPersonaSourceArtist,
+} from './artist-persona-lock';
+import {
   ChatGenerationResult,
   ChatLlmProviderAdapter,
   ChatLlmProviderNotConfiguredError,
@@ -57,6 +65,22 @@ import {
 } from './story-chat-route-scope';
 
 const DEFAULT_CURRENCY = 'LUMINA';
+const ARTIST_PERSONA_CHAT_SELECT = {
+  id: true,
+  slug: true,
+  displayName: true,
+  status: true,
+  publicProfile: {
+    select: {
+      publicMetadata: true,
+      tagline: true,
+      summary: true,
+      publicStory: true,
+      personalityKeywords: true,
+    },
+  },
+  contentProfile: { select: { contentTone: true } },
+} as const;
 const RECENT_PROVIDER_MESSAGE_LIMIT = 20;
 const MAX_UNSCOPED_HISTORY_PAGES = 10;
 const UUID_V4_PATTERN =
@@ -412,19 +436,7 @@ type ChatOpeningGreetingSessionRecord = {
   status: string;
   createdAt: Date;
   updatedAt: Date;
-  artist: {
-    id: string;
-    slug: string;
-    displayName: string;
-    publicProfile?: {
-      publicMetadata?: unknown;
-      tagline?: string | null;
-      personalityKeywords?: string[] | null;
-    } | null;
-    contentProfile?: {
-      contentTone?: string | null;
-    } | null;
-  };
+  artist: ArtistPersonaSourceArtist;
   chatPersona: {
     id: string;
     name: string;
@@ -460,6 +472,7 @@ type ChatOpeningGreetingCandidate = {
   toneCandidate: ChatOpeningGreetingToneCandidate;
   generated?: ChatGenerationResult;
   fallbackReason?: string;
+  personaSelection?: ArtistPersonaSelection;
 };
 const CHAT_CONVERSATION_MUTABLE_STATUSES = new Set(['active', 'archived']);
 const BASIC_CHAT_POLICY = {
@@ -1075,6 +1088,7 @@ export class ChatService {
     });
 
     if (cached) {
+      await this.assertCachedArtistPersonaCurrent(cached.safetyMetadata, session.artist);
       return this.openingGreetingResponse(cached, {
         cacheHit: true,
         providerCall: false,
@@ -1098,6 +1112,7 @@ export class ChatService {
       });
 
       if (cachedInTransaction) {
+        await this.assertCachedArtistPersonaCurrent(cachedInTransaction.safetyMetadata, session.artist, tx);
         return this.openingGreetingResponse(cachedInTransaction, {
           cacheHit: true,
           providerCall: false,
@@ -1105,6 +1120,7 @@ export class ChatService {
       }
 
       const candidate = await this.buildOpeningGreetingCandidate(userId, session);
+      await this.assertArtistPersonaSelectionCurrent(candidate.personaSelection, tx);
 
       const message = await tx.chatMessage.create({
         data: {
@@ -1133,6 +1149,7 @@ export class ChatService {
     session: ChatOpeningGreetingSessionRecord,
   ): Promise<ChatOpeningGreetingCandidate> {
     const runtimePersona = this.buildCharacterRuntimePersonaContext(session.artist);
+    const personaSelection = this.selectDispatchArtistPersona(session.artist);
     const toneCandidate = this.openingGreetingToneCandidate(
       session.artist.slug,
       runtimePersona,
@@ -1154,6 +1171,7 @@ export class ChatService {
 
       if (canAttemptProvider) {
         try {
+          await this.assertArtistPersonaSelectionCurrent(personaSelection);
           const generated = await this.llmProvider.generate({
             sessionId: session.id,
             userId,
@@ -1173,12 +1191,14 @@ export class ChatService {
                 }
               : null,
             runtimePersona,
+            personaSelection,
             mode: CHARACTER_CHAT_OPENING_GREETING_MESSAGE_TYPE,
             userMessage: this.openingGreetingGenerationInstruction(session),
             maxOutputTokens: CHARACTER_CHAT_OPENING_GREETING_MAX_OUTPUT_TOKENS,
             recentMessages: [],
             order: null,
           });
+          await this.assertArtistPersonaSelectionCurrent(personaSelection);
           const body = this.normalizeOpeningGreetingText(generated.body);
 
           if (body) {
@@ -1188,6 +1208,7 @@ export class ChatService {
               providerCall: true,
               providerAttempted: true,
               toneCandidate,
+              personaSelection,
               generated: {
                 ...generated,
                 body,
@@ -1201,8 +1222,10 @@ export class ChatService {
             toneCandidate,
             'provider_empty_response',
             true,
+            personaSelection,
           );
         } catch (error) {
+          if (error instanceof ConflictException) throw error;
           return this.fallbackOpeningGreetingCandidate(
             runtimePersona,
             session.id,
@@ -1211,6 +1234,7 @@ export class ChatService {
               ? error.code
               : 'provider_failed',
             true,
+            personaSelection,
           );
         }
       }
@@ -1221,6 +1245,7 @@ export class ChatService {
         toneCandidate,
         'provider_guard_blocked',
         false,
+        personaSelection,
       );
     }
 
@@ -1230,6 +1255,7 @@ export class ChatService {
       toneCandidate,
       readiness.status,
       false,
+      personaSelection,
     );
   }
 
@@ -1239,6 +1265,7 @@ export class ChatService {
     toneCandidate: ChatOpeningGreetingToneCandidate,
     fallbackReason: string,
     providerAttempted: boolean,
+    personaSelection?: ArtistPersonaSelection,
   ): ChatOpeningGreetingCandidate {
     return {
       body: this.fallbackOpeningGreeting(runtimePersona, sessionId),
@@ -1247,6 +1274,7 @@ export class ChatService {
       providerAttempted,
       toneCandidate,
       fallbackReason,
+      ...(isLockedArtistPersona(personaSelection) ? { personaSelection } : {}),
     };
   }
 
@@ -1392,6 +1420,9 @@ export class ChatService {
   ) {
     return {
       ...(candidate.generated?.safetyMetadata ?? {}),
+      ...(!candidate.generated ? { artistPersonaLock: {
+        status: 'unverified', reason: 'compatibility_fallback', allArtistsCovered: false,
+      } } : {}),
       purpose: CHARACTER_CHAT_OPENING_GREETING_MESSAGE_TYPE,
       contractVersion: CHARACTER_CHAT_DYNAMIC_GREETING_CONTRACT_VERSION,
       openingGreetingSource: candidate.source,
@@ -2100,6 +2131,7 @@ export class ChatService {
           throw new ServiceUnavailableException('Story chat route validation unavailable');
         }
       }
+      await this.assertCachedArtistPersonaCurrent(existingGenerated.safetyMetadata, session.artist);
       return {
         generationStatus: 'completed',
         order: this.orderSummary(order),
@@ -2144,8 +2176,10 @@ export class ChatService {
       }
     }
 
+    let personaSelection: ArtistPersonaSelection | undefined;
     try {
       const runtimePersona = this.buildCharacterRuntimePersonaContext(session.artist);
+      personaSelection = this.selectDispatchArtistPersona(session.artist);
       runtimePersona.knowledgeContext = await this.loadApprovedArtistKnowledgeContext(
         session.artist.id,
       );
@@ -2160,6 +2194,7 @@ export class ChatService {
         });
         if (!current) throw this.storyChatRouteChangedException();
       }
+      await this.assertArtistPersonaSelectionCurrent(personaSelection);
       const generated = await this.llmProvider.generate({
         sessionId: session.id,
         userId,
@@ -2175,6 +2210,7 @@ export class ChatService {
             }
           : null,
         runtimePersona,
+        personaSelection,
         storyMemoryContext,
         mode: order?.chatFeatureProduct.featureType ?? BASIC_CHAT_POLICY.mode,
         userMessage: body,
@@ -2188,12 +2224,14 @@ export class ChatService {
             }
           : null,
       });
+      await this.assertArtistPersonaSelectionCurrent(personaSelection);
 
       if (storyRouteScope) {
         await this.assertStoryMemoryCurrent(userId, session.artist, storyRouteScope, memoryMarker!);
       }
       return await this.persistGeneratedMessage(
         userId, session.id, session.artist.id, body, order?.id, generated, storyRouteScope, memoryMarker,
+        personaSelection,
       );
     } catch (error) {
       if (order) {
@@ -2222,6 +2260,7 @@ export class ChatService {
           this.llmProvider.fallbackResult(error),
           storyRouteScope,
           storyRouteScope ? storyChatMemoryMarker(unverifiedStoryMemoryContext()) : null,
+          personaSelection,
         );
 
         return {
@@ -2266,23 +2305,7 @@ export class ChatService {
   private openingGreetingSessionInclude() {
     return {
       artist: {
-        select: {
-          id: true,
-          slug: true,
-          displayName: true,
-          publicProfile: {
-            select: {
-              publicMetadata: true,
-              tagline: true,
-              personalityKeywords: true,
-            },
-          },
-          contentProfile: {
-            select: {
-              contentTone: true,
-            },
-          },
-        },
+        select: ARTIST_PERSONA_CHAT_SELECT,
       },
       chatPersona: true,
     };
@@ -3073,23 +3096,7 @@ export class ChatService {
       },
       include: {
         artist: {
-          select: {
-            id: true,
-            slug: true,
-            displayName: true,
-            publicProfile: {
-              select: {
-                publicMetadata: true,
-                tagline: true,
-                personalityKeywords: true,
-              },
-            },
-            contentProfile: {
-              select: {
-                contentTone: true,
-              },
-            },
-          },
+          select: ARTIST_PERSONA_CHAT_SELECT,
         },
         chatPersona: true,
       },
@@ -3418,6 +3425,65 @@ export class ChatService {
     });
   }
 
+  private artistPersonaSourceChangedException() {
+    return new ConflictException({
+      code: 'CHAT_ARTIST_PERSONA_SOURCE_CHANGED',
+      message: 'The selected public character source changed before the reply was saved',
+      messageKey: 'chat.generation.failed',
+    });
+  }
+
+  private selectDispatchArtistPersona(artist: ArtistPersonaSourceArtist) {
+    const selected = selectArtistPersona(artist);
+    if (requiresSelectedApprovedArtistPersona(artist) && !isLockedArtistPersona(selected)) {
+      throw this.artistPersonaSourceChangedException();
+    }
+    return selected;
+  }
+
+  private async assertArtistPersonaSelectionCurrent(
+    selected: ArtistPersonaSelection | undefined,
+    tx?: Prisma.TransactionClient,
+  ) {
+    if (!isLockedArtistPersona(selected)) return;
+    if (tx) {
+      // Fence all matched rows through the existing final-save transaction.
+      const artists = await tx.$queryRaw<Array<{ id: string }>>`SELECT id FROM artists WHERE id = ${selected.artistId}::uuid FOR SHARE`;
+      if (!Array.isArray(artists) || artists.length !== 1 || artists[0]?.id !== selected.artistId) {
+        throw this.artistPersonaSourceChangedException();
+      }
+      const profiles = await tx.$queryRaw<Array<{ artist_id: string }>>`SELECT artist_id FROM artist_public_profiles WHERE artist_id = ${selected.artistId}::uuid FOR SHARE`;
+      if (!Array.isArray(profiles) || profiles.length !== 1 || profiles[0]?.artist_id !== selected.artistId) {
+        throw this.artistPersonaSourceChangedException();
+      }
+      const tones = await tx.$queryRaw<Array<{ artist_id: string }>>`SELECT artist_id FROM artist_content_profiles WHERE artist_id = ${selected.artistId}::uuid FOR SHARE`;
+      if (!Array.isArray(tones) || tones.length !== 1 || tones[0]?.artist_id !== selected.artistId) {
+        throw this.artistPersonaSourceChangedException();
+      }
+    }
+    const artist = await (tx ?? this.prisma).artist.findUnique({
+      where: { id: selected.artistId },
+      select: ARTIST_PERSONA_CHAT_SELECT,
+    });
+    if (!artist || !artistPersonaSelectionMatches(selected, selectArtistPersona(artist))) {
+      throw this.artistPersonaSourceChangedException();
+    }
+  }
+
+  private async assertCachedArtistPersonaCurrent(
+    safetyMetadata: unknown,
+    artist: ArtistPersonaSourceArtist,
+    tx?: Prisma.TransactionClient,
+  ) {
+    const lock = this.recordOrEmpty(this.recordOrEmpty(safetyMetadata).artistPersonaLock);
+    if (lock.status !== 'approved_public_fields_locked') return;
+    const selected = selectArtistPersona(artist);
+    if (!isLockedArtistPersona(selected) || selected.binding !== lock.binding) {
+      throw this.artistPersonaSourceChangedException();
+    }
+    await this.assertArtistPersonaSelectionCurrent(selected, tx);
+  }
+
   private async persistGeneratedMessage(
     userId: string,
     sessionId: string,
@@ -3427,6 +3493,7 @@ export class ChatService {
     generated: ChatGenerationResult,
     storyRouteScope: StoryChatRouteScope | null = null,
     memoryMarker: StoryChatMemoryMarker | null = null,
+    personaSelection?: ArtistPersonaSelection,
   ) {
     const usageRecordedAt = new Date().toISOString();
     const routeMarker = storyRouteScope ? storyChatRouteMarker(storyRouteScope) : null;
@@ -3465,6 +3532,7 @@ export class ChatService {
           }
         }
       }
+      await this.assertArtistPersonaSelectionCurrent(personaSelection, tx);
       const userMessage = await tx.chatMessage.create({
         data: {
           chatSessionId: sessionId,
