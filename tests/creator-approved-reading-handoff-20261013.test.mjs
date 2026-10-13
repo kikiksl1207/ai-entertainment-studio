@@ -8,6 +8,7 @@ const entrySource = readFileSync(new URL('../pages/creator-approved-reading-entr
 const html = readFileSync(new URL('../creator-studio/approved-reading/index.html', import.meta.url), 'utf8');
 const id = n => String(n).padStart(8, '0') + '-1111-4111-8111-' + String(n).padStart(12, '0');
 const nonce = id(10), origin = 'https://www.lumina-stage.com';
+const flush = async () => { for (let i = 0; i < 12; ++i) await Promise.resolve(); };
 function target() {
   const listeners = new Map();
   return { addEventListener(type, fn) { const list = listeners.get(type) || []; list.push(fn); listeners.set(type, list); },
@@ -147,8 +148,8 @@ test('actual entry and readonly transport boot without API calls and recheck cur
   function read() { return window.LuminaCreatorStudioApi.fetch('/api/v1/me/creator-studio/stories/' + id(2) + '/generation-profile/approved-section-bytes?measurement=json-utf8-v1',
     { method: 'GET', identity: owner, token: window.getAuth().accessToken, _retried: true, cache: 'no-store',
       headers: { Accept: 'application/json', 'Cache-Control': 'no-store' }, signal: new AbortController().signal }); }
-  const first = read(); h.pump(); assert.equal((await first).status, 401); assert.equal(calls.length, 1);
-  h.work(id(3)); const stale = read(); h.pump(); await assert.rejects(stale, /context changed/);
+  const first = read(); await flush(); h.pump(); assert.equal((await first).status, 401); assert.equal(calls.length, 1);
+  h.work(id(3)); const stale = read(); await flush(); h.pump(); await assert.rejects(stale, /context changed/);
   assert.equal(calls.length, 1); assert.equal(nodes.writerManuscriptWork.value, '');
   window.emit('pagehide', {}); assert.equal(intervals.size, 0); h.sender.dispose();
 });

@@ -232,14 +232,14 @@ function openerPage() {
 test('actual entry/handoff Scope validates the original source through real check/checked RPC without API reads', options, async () => {
   const f = openerPage(), selected = f.scope.snapshot(); assert(Object.isFrozen(selected)); assert.equal(selected.sourceLocale, 'ja');
   assert.equal(await f.scope.validate({ ...selected }, new AbortController().signal), false);
-  const pending = f.scope.validate(selected, new AbortController().signal), check = f.messages.at(-1);
+  const pending = f.scope.validate(selected, new AbortController().signal); await flush(); const check = f.messages.at(-1);
   assert.equal(check.data.type, 'lumina-approved-reading-check-v1'); assert.equal(check.origin, 'https://www.lumina-stage.com');
   f.receive({ type: 'lumina-approved-reading-checked-v1', requestId: check.data.requestId, valid: true });
   assert.equal(await pending, true); assert.equal(f.scope.isCurrent(selected), true); assert.equal(f.calls.length, 0); hide(f);
 });
 test('actual handoff revocation settles pending Scope validation and late checked cannot revive it', options, async () => {
   const f = openerPage(), selected = f.scope.snapshot(), pending = f.scope.validate(selected, new AbortController().signal);
-  const check = f.messages.at(-1).data; f.receive({ type: 'lumina-approved-reading-revoked-v1' });
+  await flush(); const check = f.messages.at(-1).data; assert.equal(check.type, 'lumina-approved-reading-check-v1'); f.receive({ type: 'lumina-approved-reading-revoked-v1' });
   assert.equal(await pending, false); f.receive({ type: 'lumina-approved-reading-checked-v1', requestId: check.requestId, valid: true });
   assert.equal(f.scope.snapshot(), null); assert.equal(f.scope.isCurrent(selected), false); assert.equal(f.calls.length, 0); hide(f);
 });
