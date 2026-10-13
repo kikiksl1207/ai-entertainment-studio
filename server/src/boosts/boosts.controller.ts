@@ -24,6 +24,7 @@ type PaidLikeBody = {
   artistId?: string;
   artistSlug?: string;
   quantity?: number | string;
+  expectedTotalPriceLumina?: string;
   idempotencyKey?: string;
 };
 
@@ -77,6 +78,7 @@ export class BoostsController {
       artistId: body?.artistId,
       artistSlug: body?.artistSlug,
       quantity: body?.quantity,
+      expectedTotalPriceLumina: body?.expectedTotalPriceLumina,
       idempotencyKey: body?.idempotencyKey ?? idempotencyKeyHeader,
     });
   }

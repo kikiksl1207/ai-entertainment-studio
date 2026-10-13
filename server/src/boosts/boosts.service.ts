@@ -24,6 +24,18 @@ const BOOST_IDEMPOTENCY_CONFLICT = {
   messageKey: 'boost.error.idempotencyConflict',
   walletMutation: false,
 } as const;
+const BOOST_PAID_LIKE_PRICE_INVALID = {
+  code: 'BOOST_PAID_LIKE_PRICE_INVALID',
+  message: 'boost.error.paidLikePriceInvalid',
+  messageKey: 'boost.error.paidLikePriceInvalid',
+  walletMutation: false,
+} as const;
+const BOOST_PAID_LIKE_PRICE_MISMATCH = {
+  code: 'BOOST_PAID_LIKE_PRICE_MISMATCH',
+  message: 'boost.error.paidLikePriceMismatch',
+  messageKey: 'boost.error.paidLikePriceMismatch',
+  walletMutation: false,
+} as const;
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -120,6 +132,7 @@ export class BoostsService {
       artistId?: string;
       artistSlug?: string;
       quantity?: number | string;
+      expectedTotalPriceLumina?: string;
       idempotencyKey?: string;
     },
   ) {
@@ -127,6 +140,7 @@ export class BoostsService {
     const idempotencyKey = this.requireWalletMutationIdempotencyKey(
       input.idempotencyKey,
     );
+    const expectedTotalPriceLumina = this.parsePaidLikeExpectedTotal(input.expectedTotalPriceLumina);
     const [campaign, artist, boostProduct] = await Promise.all([
       this.getActiveCampaign(input.campaignId),
       this.resolveActiveArtist(input.artistId, input.artistSlug),
@@ -138,6 +152,10 @@ export class BoostsService {
     if (!boostProduct) {
       throw new NotFoundException('Paid like product not found');
     }
+    if (!Decimal.isDecimal(boostProduct.priceLumina) || !boostProduct.priceLumina.isFinite()
+      || !boostProduct.priceLumina.greaterThan(0)) {
+      throw new BadRequestException(BOOST_PAID_LIKE_PRICE_INVALID);
+    }
 
     const quantityDecimal = new Decimal(quantity);
     const totalPriceLumina = boostProduct.priceLumina.mul(quantityDecimal);
@@ -145,6 +163,8 @@ export class BoostsService {
     const { start, resetAt } = this.todayWindow();
 
     return this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      // All paid-like keys/artists share this owner/campaign quota lock until commit.
+      await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${`boost-paid-like:${campaign.id}:${userId}`}, 0))::text`);
       const existingEvent = await tx.artistBoostEvent.findUnique({
         where: { idempotencyKey },
         include: { walletLedger: true },
@@ -158,6 +178,7 @@ export class BoostsService {
           boostProductId: boostProduct.id,
           quantity,
         });
+        const originalPrices = this.paidLikeReplayPrices(existingEvent, quantity, idempotencyKey, expectedTotalPriceLumina);
 
         const wallet = existingEvent.walletLedgerId
           ? await tx.walletAccount.findFirst({
@@ -167,19 +188,26 @@ export class BoostsService {
               },
             })
           : null;
+        if (expectedTotalPriceLumina !== null && (!wallet || existingEvent.walletLedger?.walletAccountId !== wallet.id)) {
+          throw new ConflictException(BOOST_IDEMPOTENCY_CONFLICT);
+        }
 
         return {
           event: existingEvent,
           idempotentReplay: true,
           paidLike: {
             quantity,
-            unitPriceLumina: boostProduct.priceLumina,
-            totalPriceLumina,
+            ...originalPrices,
             unitBoostAmount: boostProduct.boostAmount,
             totalBoostAmount,
           },
           wallet,
         };
+      }
+
+      // Compare the same captured Decimal that will be debited, never a client-supplied charge.
+      if (expectedTotalPriceLumina !== null && !expectedTotalPriceLumina.equals(totalPriceLumina)) {
+        throw new ConflictException(BOOST_PAID_LIKE_PRICE_MISMATCH);
       }
 
       const paidLikeEventsToday = await tx.artistBoostEvent.findMany({
@@ -672,6 +700,54 @@ export class BoostsService {
       resetsAt: resetAt.toISOString(),
       unitPriceLumina: boostProduct?.priceLumina ?? null,
     };
+  }
+
+  private paidLikePriceDecimal(value: unknown): Decimal | null {
+    const text = typeof value === 'string' ? value : Decimal.isDecimal(value) ? value.toString() : '';
+    if (!/^\d{1,16}(?:\.\d{1,2})?$/.test(text)) return null;
+    const amount = new Decimal(text);
+    return amount.isFinite() ? amount : null;
+  }
+
+  private parsePaidLikeExpectedTotal(value: unknown): Decimal | null {
+    if (value === undefined) return null;
+    const amount = typeof value === 'string' ? this.paidLikePriceDecimal(value) : null;
+    if (amount === null || amount.mul(100).greaterThan(new Decimal(String(Number.MAX_SAFE_INTEGER)))) {
+      throw new BadRequestException(BOOST_PAID_LIKE_PRICE_INVALID);
+    }
+    return amount;
+  }
+
+  private paidLikeReplayPrices(
+    event: {
+      idempotencyKey: string | null;
+      walletLedgerId: string | null;
+      walletLedger?: { id: string; direction: string; idempotencyKey: string | null; amount: Decimal } | null;
+      metadata: unknown;
+    },
+    quantity: number,
+    idempotencyKey: string,
+    expectedTotal: Decimal | null,
+  ): { unitPriceLumina?: Decimal; totalPriceLumina?: Decimal } {
+    const metadata = this.metadataRecord(event.metadata);
+    const total = this.paidLikePriceDecimal(metadata.totalPriceLumina);
+    const unit = this.paidLikePriceDecimal(metadata.unitPriceLumina);
+    const ledger = event.walletLedger;
+    const ledgerAmount = this.paidLikePriceDecimal(ledger?.amount);
+    const receiptMatches = event.idempotencyKey === idempotencyKey && !!ledger
+      && event.walletLedgerId === ledger.id && ledger.direction === 'debit'
+      && ledger.idempotencyKey === `wallet:boost-paid-like:${idempotencyKey}`
+      && total !== null && ledgerAmount !== null && total.equals(ledgerAmount);
+    const unitMatches = unit !== null && total !== null && unit.mul(quantity).equals(total);
+
+    if (expectedTotal !== null) {
+      if (!receiptMatches || (metadata.unitPriceLumina !== undefined && !unitMatches)) {
+        throw new ConflictException(BOOST_IDEMPOTENCY_CONFLICT);
+      }
+      if (!expectedTotal.equals(total!)) throw new ConflictException(BOOST_PAID_LIKE_PRICE_MISMATCH);
+    }
+    // Legacy replays stay write-free; missing original evidence never invents today's price.
+    return receiptMatches ? { totalPriceLumina: total!, ...(unitMatches ? { unitPriceLumina: unit! } : {}) } : {};
   }
 
   private parsePaidLikeQuantity(value: number | string | undefined) {

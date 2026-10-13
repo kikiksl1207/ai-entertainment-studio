@@ -28,6 +28,7 @@ const wallet = {
 
 function createHarness() {
   const tx = {
+    $queryRaw: jest.fn().mockResolvedValue([]),
     artistBoostEvent: {
       findUnique: jest.fn(),
       findMany: jest.fn(),
