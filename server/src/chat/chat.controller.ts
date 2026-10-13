@@ -5,6 +5,7 @@ import {
   Get,
   Headers,
   Param,
+  ParseUUIDPipe,
   Post,
   Query,
   UseGuards,
@@ -123,7 +124,7 @@ export class ChatController {
   @Get('chat/sessions/:sessionId/messages')
   getMessages(
     @CurrentUser() user: AuthUser,
-    @Param('sessionId') sessionId: string,
+    @Param('sessionId', new ParseUUIDPipe()) sessionId: string,
     @Query('storyProgressId') storyProgressId?: string,
   ) {
     return this.chatService.getMessages(user.id, sessionId, storyProgressId);
