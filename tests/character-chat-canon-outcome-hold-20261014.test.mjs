@@ -7,16 +7,22 @@ import vm from 'node:vm';
 
 // SOURCE-authored, UNRUN by the author. Actual product IIFE/handlers, synthetic effects only.
 const frozenSha = '8ecdef980c15d25d15ef7b6a9f5661bb1c0dab07ad69d18665754d4cf297a532';
+const frozenCrlfSha = '09349fd83061c576515ce37ad299d42e7ee5e1e04138a61398a24b3a0472e326';
 const defaultSource = fileURLToPath(new URL('../pages/character-chat.js', import.meta.url));
+function selectFrozenBytes(bytes, expectedRawSha) {
+  const sha = createHash('sha256').update(bytes).digest('hex');
+  if (expectedRawSha !== undefined) assert.equal(sha, expectedRawSha.toLowerCase(), 'Source raw SHA256');
+  assert.ok(sha === frozenSha || sha === frozenCrlfSha, 'Only canonical checkout line endings');
+  const source = bytes.toString('utf8').replace(/\r\n/g, '\n');
+  assert.equal(createHash('sha256').update(source).digest('hex'), frozenSha, 'Only the frozen product is selected');
+  return { sha, source };
+}
 function selectProduct(selectedSource, selectedSha) {
   assert.ok(selectedSource === undefined ? selectedSha === undefined :
     typeof selectedSource === 'string' && selectedSource && /^[a-f0-9]{64}$/i.test(selectedSha || ''),
   'Explicit source requires its raw SHA256');
   const path = selectedSource === undefined ? defaultSource : selectedSource;
-  const bytes = readFileSync(path), sha = createHash('sha256').update(bytes).digest('hex');
-  assert.equal(sha, selectedSha === undefined ? frozenSha : selectedSha.toLowerCase(), 'Source raw SHA256');
-  assert.equal(sha, frozenSha, 'Only the frozen product is selected');
-  return { path, sha, source: bytes.toString('utf8') };
+  return { path, ...selectFrozenBytes(readFileSync(path), selectedSha) };
 }
 const product = selectProduct(process.env.CHAT_CANON_PENDING_SOURCE, process.env.CHAT_CANON_PENDING_SHA256);
 const marker = '  if (document.readyState === "loading") {';
@@ -179,11 +185,35 @@ async function startHold(shape = 'top', checkResult = () => response(history)) {
 }
 
 test('source selection is paired, byte-pinned and fails before product evaluation', () => {
-  const explicit = selectProduct(product.path, frozenSha.toUpperCase());
-  assert.equal(explicit.path, product.path); assert.equal(explicit.sha, frozenSha); assert.equal(explicit.source, product.source);
+  const explicit = selectProduct(product.path, product.sha.toUpperCase());
+  assert.equal(explicit.path, product.path); assert.equal(explicit.sha, product.sha); assert.equal(explicit.source, product.source);
   for (const [path, sha] of [[undefined, frozenSha], [product.path, undefined], ['', frozenSha], [product.path, 'bad']])
     assert.throws(() => selectProduct(path, sha), /Explicit source requires its raw SHA256/);
   assert.throws(() => selectProduct(product.path, '0'.repeat(64)), /Source raw SHA256/);
+});
+test('exact line ending variants preserve the same frozen product', () => {
+  const lf = Buffer.from(product.source), crlf = Buffer.from(product.source.replace(/\n/g, '\r\n'));
+  assert.equal(selectFrozenBytes(lf).sha, frozenSha);
+  assert.equal(selectFrozenBytes(crlf).sha, frozenCrlfSha);
+  assert.equal(selectFrozenBytes(crlf).source, selectFrozenBytes(lf).source);
+});
+test('mixed line endings are rejected even if normalization would agree', () => {
+  const mixed = Buffer.from(product.source.replace('\n', '\r\n'));
+  assert.throws(() => selectFrozenBytes(mixed), /Only canonical checkout line endings/);
+});
+test('non-line-ending source changes are rejected before evaluation', () => {
+  for (const suffix of [' ', '\n', '\r', '\u0000'])
+    assert.throws(() => selectFrozenBytes(Buffer.from(product.source + suffix)), /Only canonical checkout line endings/);
+});
+test('explicit raw pin cannot be replaced with its normalized source pin', () => {
+  const crlf = Buffer.from(product.source.replace(/\n/g, '\r\n'));
+  assert.equal(selectFrozenBytes(crlf, frozenCrlfSha.toUpperCase()).source, product.source);
+  assert.throws(() => selectFrozenBytes(crlf, frozenSha), /Source raw SHA256/);
+});
+test('only canonical checkout bytes are accepted even with a matching external raw pin', () => {
+  const changed = Buffer.from(product.source.replace('canon_changed', 'changed_canon'));
+  const changedSha = createHash('sha256').update(changed).digest('hex');
+  assert.throws(() => selectFrozenBytes(changed, changedSha), /Only canonical checkout line endings/);
 });
 test('wrong owner, epoch, route or incomplete context cannot be current', async () => {
   const h = await harness(), current = h.api.basicChatContext();
