@@ -170,6 +170,7 @@ function harness(t) {
           assert.equal(name, 'data-active-section'); return section;
         } };
         if (selector === '[data-load-more="settlement"]') return more;
+        if (selector === '[data-load-more="settlement-partners"]') return node('partnerMore');
         return forbidden(`unexpected DOM selector: ${selector}`);
       }
     },
@@ -361,12 +362,12 @@ test('SETTLEMENT.READ.06 successful empty arrays and pages display empty, not fa
   }
 });
 
-test('SETTLEMENT.READ.07 primary rejection does not manufacture settlement rows; verified conversions remain', options, async t => {
+test('SETTLEMENT.READ.07 primary rejection does not manufacture rows; verified partners and conversions remain', options, async t => {
   const h = harness(t), work = h.start();
   h.request(MAIN).fail(); h.request(PARTNER).reply(page([studio()])); h.request(CONVERSIONS).reply(page([conversion()]));
-  await work; assertOnlyVerifiedRows(h, [0, 0, 1]);
+  await work; assertOnlyVerifiedRows(h, [1, 0, 1]);
   assert.match(h.visible('settlementRows'), primaryUnavailable);
-  assert.match(h.visible('studioSettlementRows'), studioUnavailable);
+  assert.match(h.visible('studioSettlementRows'), /synthetic-studio-a/);
   assert.match(h.visible('settlementConversionRows'), /synthetic-conversion-a/);
   assert.equal(h.state().cursor, null); assert.equal(h.state().hasMore, false);
   assert.equal(h.requests.length, 3);
@@ -413,9 +414,9 @@ test('SETTLEMENT.READ.11 malformed primary items and money cannot become sample 
     page([preview('synthetic-invalid', { financials: { grossRevenueKrw: 120, creatorShareKrw: 120 } })])];
   for (const data of cases) {
     const h = harness(t); await ready(h, data, page([studio()]), page([conversion()]));
-    assertOnlyVerifiedRows(h, [0, 0, 1]);
+    assertOnlyVerifiedRows(h, [1, 0, 1]);
     assert.match(h.visible('settlementRows'), primaryUnavailable);
-    assert.match(h.visible('studioSettlementRows'), studioUnavailable);
+    assert.match(h.visible('studioSettlementRows'), /synthetic-studio-a/);
     assert.doesNotMatch(h.visible('settlementRows'), /data-table-id=|0\uc6d0/);
   }
 });
@@ -455,7 +456,8 @@ test('SETTLEMENT.READ.14 string-false hasMore and invalid cursor envelopes fail 
     h.settle(page([preview()], kind === MAIN ? extra : {}), page([studio()], kind === PARTNER ? extra : {}),
       page([conversion()], kind === CONVERSIONS ? extra : {})); await work;
     if (kind === MAIN) {
-      assertOnlyVerifiedRows(h, [0, 0, 1]); assert.match(h.visible('settlementRows'), primaryUnavailable);
+      assertOnlyVerifiedRows(h, [1, 0, 1]); assert.match(h.visible('settlementRows'), primaryUnavailable);
+      assert.match(h.visible('studioSettlementRows'), /synthetic-studio-a/);
       assert.equal(h.state().hasMore, false); assert.equal(h.state().cursor, null);
     } else if (kind === PARTNER) {
       assertOnlyVerifiedRows(h, [0, 1, 1]); assert.match(h.visible('studioSettlementRows'), studioUnavailable);

@@ -128,7 +128,7 @@ function harness(t, initialAuth = originalAuth()) {
   let section = 'payouts', onStore = null;
   const clock = { period: '2026-10' }, nodes = new Map(TABLES.map(id => [id, sink(id, writes)]));
   nodes.set('settlementNotice', sink('settlementNotice', writes));
-  const dashboard = sink('dashboard', writes), more = sink('more', writes);
+  const dashboard = sink('dashboard', writes), more = sink('more', writes), partnerMore = sink('partnerMore', writes);
   const forbidden = name => { violations.push(name); throw new Error('Forbidden synthetic fixture branch: ' + name); };
   const context = createContext({ BACKSTAGE_API_BASE: 'https://synthetic.invalid', backstageAuthEpoch: 1,
     sectionState: { settlement: {} }, dashboardView: dashboard, URLSearchParams,
@@ -145,6 +145,7 @@ function harness(t, initialAuth = originalAuth()) {
       querySelector(selector) {
         if (selector === '.dashboard-main') return { getAttribute(name) { assert.equal(name, 'data-active-section'); return section; } };
         if (['[data-load-more="settlement"]', '.load-more-action[data-load-more="settlement"]'].includes(selector)) return more;
+        if (selector === '[data-load-more="settlement-partners"]') return partnerMore;
         return forbidden('unknown DOM selector');
       } },
     async fetch(input, options = {}) {
@@ -358,15 +359,14 @@ test('NR08 explicitly verified refresh wire user retains native authorized one-t
   for (const id of TABLES) assert.equal(h.snapshot().dom[TABLES.indexOf(id)].includes(REVERIFY), false);
 });
 
-test('NR09 synthetic refresh rejection keeps existing scoped failure and does not invent logout', timeout, async t => {
+test('NR09 synthetic refresh rejection closes private rows without inventing logout', timeout, async t => {
   const h = harness(t), state = h.seed(), initial = plain(h.auth());
   const operation = h.call('loadSettlementConversions');
   h.reply(await h.wait(CONVERSIONS), 401, {}); h.reply(await h.wait(REFRESH), 401, {}); await operation;
   assert.equal(h.requests.length, 2); assert.deepEqual(h.storageWrites, []); assert.deepEqual(plain(h.auth()), initial);
-  assert.equal(state.conversionRows.length, 0); assert.equal(state.rows.length, 1); assert.equal(state.studioRows.length, 1);
-  assert.equal(state.conversionLoading, false); assert.notEqual(state.readContext, null);
-  const conversionHtml = h.snapshot().dom[2]; assert.equal(conversionHtml.includes(REVERIFY), false);
-  assert.ok(conversionHtml.includes('\ubd88\ub7ec\uc624\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4'));
+  assert.equal(state.conversionRows.length, 0); assert.equal(state.rows.length, 0); assert.equal(state.studioRows.length, 0);
+  assert.equal(state.conversionLoading, false); assert.equal(state.readContext, null);
+  for (const html of h.snapshot().dom) assert.equal(html.includes(REVERIFY), true);
 });
 
 test('NR10 scoped status renderer escapes labels and keeps bounded sticky message markup', timeout, t => {

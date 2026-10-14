@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import { sourceWithoutPartnerPaginationDelta } from './backstage-partner-pagination-inverse-20261015.mjs';
 
 const sha = value => createHash('sha256').update(value).digest('hex');
 export const settlementReadBeforeSHA256 = 'd4defaf8ecc3be7555958e929cf85b2363bbcdd5981829f3010fec167ce7b785';
@@ -48,9 +49,10 @@ const frozen = decodeFixture(fixtureBytes);
 export function sourceWithoutSettlementReadDelta(value, pinnedFixtureBytes = fixtureBytes) {
   const delta = pinnedFixtureBytes === fixtureBytes ? frozen : decodeFixture(pinnedFixtureBytes);
   assert.equal(typeof value, 'string', 'Source string required');
-  const candidate = value.replaceAll('\r\n', '\n');
-  if (sha(candidate) !== settlementReadAfterSHA256) return value;
-  let source = uniformLF(value, 'Settlement source');
+  const prior = sourceWithoutPartnerPaginationDelta(value);
+  const candidate = prior.replaceAll('\r\n', '\n');
+  if (sha(candidate) !== settlementReadAfterSHA256) return prior;
+  let source = uniformLF(prior, 'Settlement source');
   assert.equal(sha(source), settlementReadAfterSHA256, 'Exact current settlement source');
   const replaceOnce = (after, before) => {
     assert.equal(source.split(after).length, 2, 'Exactly one frozen delta occurrence');
