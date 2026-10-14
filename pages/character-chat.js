@@ -48,6 +48,7 @@
       routeInvalid: "스토리 대화 경로가 올바르지 않아요. 현재 스토리 화면에서 다시 대화를 열어 주세요. 메시지는 전송하지 않았어요.",
       routeRequestUnknown: "스토리 대화 경로가 올바르지 않아 추가 요청을 차단했어요. 이전 요청은 이미 시작되어 여기서는 결과를 확인할 수 없어요. 결과를 확인하기 전에는 같은 메시지를 다시 보내지 마세요.",
       memoryChanged: "스토리 추억의 확인 기준이 바뀌었어요. 현재 기준으로 다시 보내 주세요.",
+      canonPending: "캐릭터 설정을 확인하고 있어요. 확인이 끝나면 다시 이용해 주세요.",
       loadError: "대화를 확인하지 못했어요. 잠시 후 다시 시도해 주세요.",
       uncertain: "전송 결과를 확인할 수 없어요. 중복 전송을 피하려면 메시지 내역을 확인해 주세요.",
       checking: "메시지 내역을 확인하고 있어요.", stillUncertain: "아직 결과를 확인할 수 없어요. 잠시 후 다시 확인해 주세요.",
@@ -65,6 +66,7 @@
       routeInvalid: "This story chat link is invalid. Reopen this chat from the current story scene. Nothing was sent.",
       routeRequestUnknown: "This story chat link is invalid. Further requests are blocked. An earlier request already started and its outcome cannot be checked here. Do not resend the same message before checking its outcome.",
       memoryChanged: "Your story memory evidence changed. Please send again using the current evidence.",
+      canonPending: "The character settings are being checked. Please use chat again once the check is complete.",
       loadError: "Could not load the conversation. Please try again.",
       uncertain: "The send result is unknown. Check messages before sending again to avoid a duplicate.",
       checking: "Checking messages.", stillUncertain: "The result is still unknown. Please check again later.",
@@ -82,6 +84,7 @@
       routeInvalid: "ストーリーチャットのリンクが無効です。現在のシーンから開き直してください。送信していません。",
       routeRequestUnknown: "ストーリーチャットのリンクが無効なため、追加のリクエストを停止しました。以前のリクエストはすでに開始され、この画面では結果を確認できません。結果を確認するまで同じメッセージを再送しないでください。",
       memoryChanged: "物語の思い出の確認基準が変わりました。現在の基準でもう一度送信してください。",
+      canonPending: "キャラクター設定を確認しています。確認が終わってから、またご利用ください。",
       loadError: "会話を確認できません。しばらくしてからお試しください。",
       uncertain: "送信結果を確認できません。重複を避けるため履歴を確認してください。",
       checking: "履歴を確認しています。", stillUncertain: "まだ結果を確認できません。後ほど再確認してください。",
@@ -99,6 +102,7 @@
       routeInvalid: "故事聊天链接无效，请从当前故事场景重新打开聊天。未发送消息。",
       routeRequestUnknown: "故事聊天链接无效，已阻止后续请求。之前的请求已开始，无法在此确认结果。确认结果前请勿重复发送同一条消息。",
       memoryChanged: "故事回忆的确认依据已变更，请按当前依据重新发送。",
+      canonPending: "正在确认角色设定。请在确认完成后再使用聊天。",
       loadError: "无法加载对话，请稍后重试。",
       uncertain: "无法确认发送结果。为避免重复，请先查看消息记录。",
       checking: "正在查看消息。", stillUncertain: "仍无法确认结果，请稍后再查看。",
@@ -116,6 +120,7 @@
       routeInvalid: "故事聊天連結無效，請從目前故事場景重新開啟聊天。未傳送訊息。",
       routeRequestUnknown: "故事聊天連結無效，已阻止後續請求。先前的請求已開始，無法在此確認結果。確認結果前請勿重複傳送同一則訊息。",
       memoryChanged: "故事回憶的確認依據已變更，請依目前依據重新傳送。",
+      canonPending: "正在確認角色設定。請在確認完成後再使用聊天。",
       loadError: "無法載入對話，請稍後再試。",
       uncertain: "無法確認傳送結果。為避免重複，請先查看訊息紀錄。",
       checking: "正在查看訊息。", stillUncertain: "仍無法確認結果，請稍後再查看。",
@@ -285,6 +290,7 @@
       }).catch(error => {
         if (isBasicChatContextCurrent(context) && !basicChatState.busy && !error?.chatAuthChanged) {
           if (isBasicStoryRouteChanged(error)) invalidateBasicStoryRoute();
+          else if (isBasicChatCanonPending(error)) setBasicChatStatus("canonPending", "error");
           else setBasicChatStatus(error?.chatReason || "loadError", "error");
         }
       });
@@ -863,6 +869,11 @@
       (error?.body?.code || error?.body?.error?.code) === "STORY_CHAT_ROUTE_CHANGED";
   }
 
+  function isBasicChatCanonPending(error) {
+    return error?.status === 409 && ["CHAT_ARTIST_PERSONA_APPROVAL_REQUIRED", "CHAT_ARTIST_PERSONA_SOURCE_CHANGED"]
+      .includes(error?.body?.code || error?.body?.error?.code);
+  }
+
   function invalidateBasicStoryRoute(reason = "routeChanged") {
     if (basicChatState.routeInvalidated) {
       setBasicChatStatus(reason, "error");
@@ -1123,6 +1134,7 @@
     } catch (error) {
       if (isBasicChatContextCurrent(context)) {
         if (isBasicStoryRouteChanged(error)) invalidateBasicStoryRoute();
+        else if (isBasicChatCanonPending(error)) setBasicChatStatus("canonPending", "error");
         else setBasicChatStatus("stillUncertain", "error");
       }
     } finally {
@@ -1255,6 +1267,8 @@
           setBasicChatStatus("memoryChanged", "error");
         } else if (error?.status === 401 || error?.status === 403) {
           setBasicChatStatus("login", "error");
+        } else if (isBasicChatCanonPending(error)) {
+          setBasicChatStatus("canonPending", "error");
         } else if (generationStarted || createStarted) {
           setBasicChatStatus("failed", "error");
         } else {
