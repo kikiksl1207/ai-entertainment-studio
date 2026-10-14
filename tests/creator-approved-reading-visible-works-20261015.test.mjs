@@ -11,12 +11,12 @@ import { decodePinnedReadingSource } from "./support/owner-reading-source-pin-20
 const SOURCE_ROOT_ENV = "LUMINA_VISIBLE_WORKS_SOURCE_ROOT";
 const SHARED_CLEAN = "E:/Codex/LuminaStage/story-completion-20261003";
 const PINS = [
-  ["creator-studio/approved-reading/index.html", "b8cc4443b01e26b5554ba8fb90a1f6bb3b261a38", "6fec444321d14256fb6ba2cd1c09cba8c3a094763385c00ef86eb8b2dce44704"],
+  ["creator-studio/approved-reading/index.html", "c3ea1239c1d7fd8c73065ac14542fafcf85c48f0", "da077207f5ebe1ffc2b857b1963a69f51ac658cd835fa688264b752a79c494a5"],
   ["pages/creator-approved-reading-entry.css", "c33455729244c6d321eedddb50afde091be82f6f", "62bb9eb9671e08fe2f85d885c7262c5d3c9b082466ae3ec1c8b892262a268d2f"],
-  ["pages/creator-approved-readonly-transport.js", "23632dbfd0f0157ecd1bfb6d458af81a5d529288", "e2a31921c2d59889ed5896f4d751d886ec7d9a356895cd72c584917f3ae03ab6"],
+  ["pages/creator-approved-readonly-transport.js", "580c990aaf88623aa18d27b7f8c00c106c753f0f", "d2e052cffc269e53549c81b9a50b0f5b34075bc93f0f6d70d005ee29d63afc33"],
   ["pages/creator-approved-reading-handoff.js", "3c89000c313c43dbf4a78bac97d63bf769b43e11", "68d1dedcedbf3ae7b259e29924836a45a1703954f0f2fe825c924250dfe9f067"],
-  ["pages/creator-approved-reading-catalog.js", "7906828d815ef7bf84d2719582b26a2e5bcc8850", "865b0183764670e9c64785ed3ed582062220cfe628827d3784adce95f4f4987b"],
-  ["pages/creator-approved-reading-entry.js", "4867b30f237acf90dff0cadd8c57c946cc6e279f", "8981c00264992c4d086b80f130258701af834c0502ad323feee96b9c4fcd8ea1"],
+  ["pages/creator-approved-reading-catalog.js", "71a9d600df2307473e6b1a05d3b1fb1d770cab6d", "69e34934bb77cb38461944062c6732fcdbf8a5406a80f1b5b1e5885e9b704ad5"],
+  ["pages/creator-approved-reading-entry.js", "feafab0ab9c0964206855199ac787063736323e5", "f6f97265c7aa22b8939b3bf8236067623e2d60a81dadf4473cfefa546de29e52"],
   ["pages/creator-approved-section-bytes.js", "19762358292026ef27d33f59133d8bb573edd2af", "72d2caf3d363979e7662f717ae19abf2d851750a24185874352e1a3225bfc9da"],
   ["pages/creator-body-preview.js", "7b879d10c613ff358f98a34a8562c0afbe727ef9", "04e8e6eebf68be3f382f6d03d1b369a145cb184aa9333a5f13ccea6aba229610"],
   ["pages/creator-approved-reading-body.js", "f32133fc9c4d877eaa66cfda0d5e30c6a503459a", "3670f84937ad2d7527d51f003e6f31082230c74e6955a0ee49cdcf059e8c0977"],

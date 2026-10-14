@@ -37,17 +37,36 @@
     } catch (_) { return null; }
   }
   const failure = kind => Object.assign(new Error("Readonly catalog unavailable"), { kind });
+  const receiptKeys = ["contract", "nativeFetchInvoked", "responseStatus", "phase", "authority"];
+  const receiptPhases = ["pre_fetch", "native_fetch", "response_status", "cache_validation", "body_validation", "catalog_validation", "complete", "timeout"];
+  function parseReceipt(value) {
+    try {
+      if (!exact(value, receiptKeys)) return null;
+      const snapshot = {};
+      for (const key of receiptKeys) {
+        const descriptor = Object.getOwnPropertyDescriptor(value, key);
+        if (!descriptor?.enumerable || !Object.prototype.hasOwnProperty.call(descriptor, "value")) return null;
+        snapshot[key] = descriptor.value;
+      }
+      return snapshot.contract === "owner-readonly-request-receipt-v1" &&
+        typeof snapshot.nativeFetchInvoked === "boolean" && ["none", "200", "401", "403", "5xx", "other"].includes(snapshot.responseStatus) &&
+        receiptPhases.includes(snapshot.phase) && snapshot.authority === "client_observation_only"
+        ? Object.freeze(snapshot) : null;
+    } catch (_) { return null; }
+  }
   function cancel(response) { try { Promise.resolve(response?.body?.cancel?.()).catch(() => {}); } catch (_) {} }
-  async function body(response, current, signal) {
+  async function body(response, current, signal, advance = () => {}) {
     if (!current()) { cancel(response); throw failure("stale"); }
     const header = key => response.headers?.get?.(key), directives = (header("cache-control") || "").toLowerCase().split(",").map(x => x.trim());
     const vary = (header("vary") || "").toLowerCase().split(",").map(x => x.trim()), length = header("content-length");
     if (response.status !== 200) { cancel(response); throw failure(response.status === 401 ? "unauthenticated" : "unavailable"); }
+    advance("cache_validation");
     if (!/^application\/json(?:\s*;\s*charset\s*=\s*utf-8)?$/i.test(header("content-type") || "") ||
         !directives.includes("private") || !directives.includes("no-store") || directives.includes("public") || !vary.includes("authorization") ||
         (length !== null && length !== undefined && (!/^\d+$/.test(length) || Number(length) > 8192)) || typeof response.body?.getReader !== "function") {
       cancel(response); throw failure("invalid");
     }
+    advance("body_validation");
     const reader = response.body.getReader(), decoder = new TextDecoder("utf-8", { fatal: true });
     let bytes = 0, text = "";
     const stop = () => { try { Promise.resolve(reader.cancel()).catch(() => {}); } catch (_) {} };
@@ -69,7 +88,7 @@
   }
   function create({ transport, locale, onChange = () => {}, deadlineMs = 30000 }) {
     if (!Number.isInteger(deadlineMs) || deadlineMs < 1 || deadlineMs > 30000) throw failure("invalid");
-    let disposed = false, scope = null, request = null, ticket = 0, data = null, selected = null, phase = "idle", seen = new Set();
+    let disposed = false, scope = null, request = null, ticket = 0, data = null, selected = null, phase = "idle", seen = new Set(), requestReceipt = null;
     function sample() {
       try {
         const owner = transport.identity(), language = locale();
@@ -78,9 +97,9 @@
       } catch (_) { return null; }
     }
     const same = (a, b) => a === null && b === null || !!a && !!b && a.owner.ownerId === b.owner.ownerId && a.owner.epoch === b.owner.epoch && a.locale === b.locale;
-    function notify() { onChange(Object.freeze({ phase, items: data?.items || Object.freeze([]), nextCursor: data?.nextCursor || null, selected })); }
+    function notify() { onChange(Object.freeze({ phase, items: data?.items || Object.freeze([]), nextCursor: data?.nextCursor || null, selected, requestReceipt })); }
     function reset() {
-      ++ticket; request?.abort(); request = null; data = null; selected = null; seen = new Set();
+      ++ticket; request?.abort(); request = null; data = null; selected = null; seen = new Set(); requestReceipt = null;
       scope = sample(); phase = scope ? "idle" : "unauthenticated"; notify();
     }
     function sync() { if (!disposed && !same(scope, sample())) reset(); }
@@ -91,8 +110,12 @@
       if (cursor !== null && (!data || cursor !== data.nextCursor || !uuid.test(cursor))) return false;
       if (cursor === null) seen = new Set();
       const before = scope, number = ++ticket, abort = new AbortController(); request = abort;
-      data = null; selected = null; phase = "loading"; notify();
+      data = null; selected = null; requestReceipt = null; phase = "loading"; notify();
       const current = () => !disposed && ticket === number && !abort.signal.aborted && same(before, sample());
+      const advance = value => { if (current() && requestReceipt) requestReceipt = Object.freeze({ ...requestReceipt, phase: value }); };
+      const receive = value => {
+        try { return parseReceipt(transport.requestReceipt?.(value)); } catch (_) { return null; }
+      };
       let timeout;
       try {
         const complete = (async () => {
@@ -100,7 +123,11 @@
           const path = "/api/v1/me/creator-studio/approved-reading-catalog?locale=" + before.locale + "&limit=12" + (cursor === null ? "" : "&cursor=" + cursor);
           const response = await transport.fetch(path, { method: "GET", identity: before.owner, token: auth.accessToken,
             _retried: true, cache: "no-store", headers: { Accept: "application/json", "Cache-Control": "no-store" }, signal: abort.signal });
-          const result = await body(response, current, abort.signal), packet = parse(result);
+          if (!current()) { cancel(response); throw failure("stale"); }
+          requestReceipt = receive(response);
+          const result = await body(response, current, abort.signal, advance);
+          advance("catalog_validation");
+          const packet = parse(result);
           if (!packet || packet.items.some(item => seen.has(item.workId))) throw failure("invalid");
           if (!current()) throw failure("stale"); return packet;
         })();
@@ -108,11 +135,16 @@
         const packet = await Promise.race([complete, expired]);
         if (!current()) throw failure("stale");
         data = packet; for (const item of data.items) seen.add(item.workId);
-        phase = data.items.length ? "ready" : "empty"; notify(); return true;
+        advance("complete"); phase = data.items.length ? "ready" : "empty"; notify(); return true;
       } catch (error) {
         if (number === ticket && !disposed) {
           data = null; selected = null;
           phase = !same(before, sample()) ? "stale" : error?.kind === "unauthenticated" ? "auth_rejected" : error?.kind === "timeout" ? "timeout" : "unavailable";
+          if (phase === "stale" || error?.kind === "stale") requestReceipt = null;
+          else {
+            requestReceipt = requestReceipt || receive(error);
+            if (phase === "timeout" && requestReceipt) requestReceipt = Object.freeze({ ...requestReceipt, phase: "timeout" });
+          }
           notify();
         }
         return false;
@@ -127,7 +159,7 @@
     }
     function dispose() {
       if (disposed) return;
-      disposed = true; ++ticket; request?.abort(); request = null; data = null; selected = null; seen = new Set(); scope = null;
+      disposed = true; ++ticket; request?.abort(); request = null; data = null; selected = null; seen = new Set(); scope = null; requestReceipt = null;
       phase = "unauthenticated"; notify();
     }
     reset();

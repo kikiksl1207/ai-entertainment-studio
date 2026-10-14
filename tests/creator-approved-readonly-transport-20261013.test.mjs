@@ -75,7 +75,7 @@ test("Factory exports only a reusable facade without installation, migration, wr
   assert.equal(f.calls.length, 0);
   assert.equal(f.reads.length, 0);
   const adapter = f.exported.create();
-  assert.deepEqual(Object.keys(adapter), ["getAuth", "identity", "isCurrent", "fetch", "dispose"]);
+  assert.deepEqual(Object.keys(adapter), ["getAuth", "identity", "isCurrent", "fetch", "requestReceipt", "dispose"]);
   assert.equal(f.calls.length, 0);
   assert.equal(f.reads.length, 0);
   assert.equal(f.writes.length, 0);

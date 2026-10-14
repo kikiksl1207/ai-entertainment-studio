@@ -23,6 +23,32 @@
     let epoch = 0, initialized = false, marker = null, disposed = false;
     const pending = new Set();
     const listeners = [];
+    const receipts = new WeakMap();
+    const receipt = (invoked, status, phase) => Object.freeze({ contract: "owner-readonly-request-receipt-v1",
+      nativeFetchInvoked: invoked, responseStatus: status, phase, authority: "client_observation_only" });
+    function remember(value, record, current = () => !disposed) {
+      try { if (record) receipts.set(value, { record, current }); } catch (_) {}
+      return value;
+    }
+    function requestReceipt(value) {
+      try { const saved = receipts.get(value); return !disposed && saved?.current() ? saved.record : null; }
+      catch (_) { return null; }
+    }
+    function preflightFailure(code) {
+      const createdEpoch = epoch;
+      return remember(failure(code), receipt(false, "none", "pre_fetch"), () => {
+        if (disposed || epoch !== createdEpoch) return false;
+        sample();
+        return !disposed && epoch === createdEpoch;
+      });
+    }
+    function statusBucket(response) {
+      try {
+        const value = response?.status;
+        return value === 200 || value === 401 || value === 403 ? String(value)
+          : Number.isInteger(value) && value >= 500 && value <= 599 ? "5xx" : "other";
+      } catch (_) { return "other"; }
+    }
 
     function read() {
       try {
@@ -104,24 +130,25 @@
       if (disposed) throw failure("disposed");
       try {
         if (typeof path !== "string" || path !== path.trim() || !acceptedRoute.test(path) || !validOptions(options)) {
-          throw failure("invalid_request");
+          throw preflightFailure("invalid_request");
         }
-      } catch (_) { throw failure("invalid_request"); }
+      } catch (_) { throw preflightFailure("invalid_request"); }
       const current = sample();
-      if (!current) throw failure("unauthenticated");
+      if (!current) throw preflightFailure("unauthenticated");
       let owner, token, signal, send;
       try {
         owner = { ownerId: options.identity?.ownerId, epoch: options.identity?.epoch };
         token = options.token; signal = options.signal;
         send = nativeFetch === undefined && typeof window.fetch === "function" ? window.fetch.bind(window) : nativeFetch;
-      } catch (_) { throw failure("invalid_request"); }
+      } catch (_) { throw preflightFailure("invalid_request"); }
       if (!isCurrent(owner) || token !== current.token || signal.aborted) throw failure("stale");
-      if (typeof send !== "function") throw failure("transport");
+      if (typeof send !== "function") throw preflightFailure("transport");
 
       // Invalidation settles callers even if native fetch ignores abort.
       return new Promise((resolve, reject) => {
         const abort = new AbortController();
-        let settled = false;
+        let settled = false, invoked = false;
+        const receiptCurrent = () => !disposed && isCurrent(owner) && marker?.token === token;
         function requestCurrent() {
           try { return !signal.aborted && isCurrent(owner) && marker?.token === token; }
           catch (_) { return false; }
@@ -132,8 +159,9 @@
           try { signal.removeEventListener("abort", onAbort); } catch (_) {}
           if (code) {
             try { abort.abort(); } catch (_) {}
-            reject(failure(code));
-          } else resolve(response);
+            reject(remember(failure(code), code === "stale" || code === "disposed" ? null
+              : receipt(invoked, "none", invoked ? "native_fetch" : "pre_fetch"), receiptCurrent));
+          } else resolve(remember(response, receipt(invoked, statusBucket(response), "response_status"), receiptCurrent));
         }
         function onAbort() { finish("stale"); }
         const gate = { stop: code => finish(code) };
@@ -141,6 +169,7 @@
         try {
           signal.addEventListener("abort", onAbort, { once: true });
           if (!requestCurrent()) { finish("stale"); return; }
+          invoked = true;
           const result = send(apiOrigin + path, {
             method: "GET", credentials: "omit", redirect: "error", cache: "no-store", referrerPolicy: "no-referrer",
             headers: { Authorization: "Bearer " + token, Accept: "application/json", "Cache-Control": "no-store" },
@@ -165,7 +194,7 @@
       }
     } catch (_) { dispose(); }
 
-    return Object.freeze({ getAuth, identity, isCurrent, fetch: fetchReadonly, dispose });
+    return Object.freeze({ getAuth, identity, isCurrent, fetch: fetchReadonly, requestReceipt, dispose });
   }
 
   window.LuminaCreatorApprovedReadonlyTransport = Object.freeze({
