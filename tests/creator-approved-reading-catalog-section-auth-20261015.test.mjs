@@ -6,6 +6,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { TextDecoder, TextEncoder } from "node:util";
 import vm from "node:vm";
+import { decodePinnedReadingSource } from "./support/owner-reading-source-pin-20261015.mjs";
 
 // Author UNRUN. Parent owns the first execution of these four new cases only.
 // Pins are the reader blobs at published 5f20237ab5a738c74401063f964868081daecd85.
@@ -28,10 +29,7 @@ function pinnedSources() {
     assert(stat.isFile() && stat.size > 0 && stat.size <= 131072, "Bounded regular reader source required");
     const raw = readFileSync(path);
     assert.equal(raw.byteLength, stat.size, "Reader source changed during selection");
-    assert.equal(createHash("sha256").update(raw).digest("hex") === sha256, true, "Published reader raw SHA256 pin mismatch");
-    assert.equal(createHash("sha1").update("blob " + raw.byteLength + "\0").update(raw).digest("hex") === blob,
-      true, "Published reader blob pin mismatch");
-    return new TextDecoder("utf-8", { fatal: true }).decode(raw);
+    return decodePinnedReadingSource(raw, blob, sha256);
   });
 }
 const [HTML, ...SOURCES] = pinnedSources();
