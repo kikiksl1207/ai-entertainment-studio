@@ -30,6 +30,13 @@ const copy = {
   'zh-CN': '\u6b63\u5728\u786e\u8ba4\u89d2\u8272\u8bbe\u5b9a\u3002\u8bf7\u5728\u786e\u8ba4\u5b8c\u6210\u540e\u518d\u4f7f\u7528\u804a\u5929\u3002',
   'zh-Hant': '\u6b63\u5728\u78ba\u8a8d\u89d2\u8272\u8a2d\u5b9a\u3002\u8acb\u5728\u78ba\u8a8d\u5b8c\u6210\u5f8c\u518d\u4f7f\u7528\u804a\u5929\u3002',
 };
+const outcomeCopy = {
+  'ko-KR': '\ub300\ud654 \ucc98\ub9ac \uc911 \uce90\ub9ad\ud130 \uae30\uc900\uc774 \ubc14\ub00c\uc5b4 \uacb0\uacfc\ub97c \ud655\uc778\ud560 \uc218 \uc5c6\uc5b4\uc694. \uac19\uc740 \uba54\uc2dc\uc9c0\ub97c \ub2e4\uc2dc \ubcf4\ub0b4\uc9c0 \ub9c8\uc138\uc694.',
+  'en-US': 'The character settings changed while your message was being processed. Its result is unconfirmed. Do not resend the same message.',
+  'ja-JP': '\u30e1\u30c3\u30bb\u30fc\u30b8\u306e\u51e6\u7406\u4e2d\u306b\u30ad\u30e3\u30e9\u30af\u30bf\u30fc\u8a2d\u5b9a\u304c\u5909\u308f\u308a\u3001\u7d50\u679c\u3092\u78ba\u8a8d\u3067\u304d\u307e\u305b\u3093\u3002\u540c\u3058\u30e1\u30c3\u30bb\u30fc\u30b8\u3092\u518d\u9001\u3057\u306a\u3044\u3067\u304f\u3060\u3055\u3044\u3002',
+  'zh-CN': '\u6d88\u606f\u5904\u7406\u671f\u95f4\u89d2\u8272\u8bbe\u5b9a\u53d1\u751f\u53d8\u5316\uff0c\u65e0\u6cd5\u786e\u8ba4\u7ed3\u679c\u3002\u8bf7\u52ff\u91cd\u590d\u53d1\u9001\u540c\u4e00\u6761\u6d88\u606f\u3002',
+  'zh-Hant': '\u8a0a\u606f\u8655\u7406\u671f\u9593\u89d2\u8272\u8a2d\u5b9a\u767c\u751f\u8b8a\u5316\uff0c\u7121\u6cd5\u78ba\u8a8d\u7d50\u679c\u3002\u8acb\u52ff\u91cd\u8907\u50b3\u9001\u540c\u4e00\u5247\u8a0a\u606f\u3002',
+};
 const slug = 'synthetic-artist', artistId = 'synthetic-artist-id', sessionId = 'synthetic-session';
 const progressId = '12345678-1234-4123-8123-123456789abc';
 const draft = 'Synthetic unsent draft <em>literal</em>';
@@ -145,17 +152,18 @@ function status(h, key) {
 }
 function saved(h) { return h.elements.chatThread.textContent; }
 function noEffects(h) { assert.deepEqual(h.effects, []); assert.equal(h.timers.size, 0); }
-async function assertLocalizedPending(h) {
+async function assertLocalizedPending(h, key = 'canonPending') {
+  const expectedCopy = key === 'canonOutcomeUnknown' ? outcomeCopy : copy;
   const count = h.requests.length, accessoryCount = h.accessories.length, transcript = saved(h);
   const currentDraft = h.elements.chatInput.value, height = h.elements.chatInput.style.height;
-  for (const [locale, expected] of Object.entries(copy)) {
-    await h.locale(locale); status(h, 'canonPending');
+  for (const [locale, expected] of Object.entries(expectedCopy)) {
+    await h.locale(locale); status(h, key);
     assert.equal(h.elements.chatSendStatus.textContent, expected);
     assert.equal(h.elements.chatInput.value, currentDraft); assert.equal(h.elements.chatInput.style.height, height);
     assert.equal(saved(h), transcript);
   }
-  await h.locale('fr-FR'); assert.equal(h.elements.chatSendStatus.textContent, copy['ko-KR']);
-  await h.account(); await settle(); status(h, 'canonPending');
+  await h.locale('fr-FR'); assert.equal(h.elements.chatSendStatus.textContent, expectedCopy['ko-KR']);
+  await h.account(); await settle(); status(h, key);
   assert.equal(h.requests.length, count, 'Locale and same-account changes cannot fetch or retry');
   assert.equal(h.accessories.length, accessoryCount);
 }
@@ -183,10 +191,16 @@ for (const stage of ['generate', 'create', 'read']) for (const code of codes) fo
       (stage === 'generate' && request.path.endsWith('/generate') || stage === 'create' && request.path === '/api/v1/chat/sessions' && request.method === 'POST' ||
        stage === 'read' && request.path.endsWith('/messages')) ? response(bodyFor(code, shape), 409) : undefined });
     const before = h.api.basicChatContext(), transcript = saved(h);
-    await h.submit(); await settle(); status(h, 'canonPending');
-    assert.equal(h.elements.chatInput.value, draft); assert.equal(h.elements.chatSendBtn.disabled, false, 'No new disabled policy');
-    assert.equal(h.api.basicChatState.busy, false); assert.equal(h.api.basicChatState.uncertain, false);
-    assert.equal(h.elements.chatCheckMessages.hidden, true); assert.equal(h.api.isBasicChatContextCurrent(before), true);
+    const held = stage === 'generate' && code === codes[1];
+    const key = held ? 'canonOutcomeUnknown' : 'canonPending';
+    await h.submit(); await settle(); status(h, key);
+    assert.equal(h.elements.chatInput.value, draft); assert.equal(h.elements.chatSendBtn.disabled, held);
+    assert.equal(h.api.basicChatState.busy, false); assert.equal(h.api.basicChatState.uncertain, held);
+    if (held) {
+      assert.equal(h.api.basicChatState.uncertainKind, 'canon_changed');
+      assert.equal(h.api.basicChatState.uncertainBody, draft);
+    }
+    assert.equal(h.elements.chatCheckMessages.hidden, !held); assert.equal(h.api.isBasicChatContextCurrent(before), true);
     assert.equal(h.api.basicChatState.routeInvalidated, false);
     assert.equal(h.requests.filter(request => request.method === 'POST').length, stage === 'read' ? 0 : 1);
     assert.equal(h.requests.filter(request => request.path.endsWith('/generate')).length, stage === 'generate' ? 1 : 0);
@@ -194,8 +208,10 @@ for (const stage of ['generate', 'create', 'read']) for (const code of codes) fo
     if (post) assert.deepEqual(post.body, stage === 'create' ? { artistId } : { body: draft, storyProgressId: progressId });
     if (stage !== 'create') { assert.equal(saved(h), transcript); assert.equal(h.api.basicChatState.knownMessageIds.size, history.length); }
     const count = h.requests.length;
-    await h.check(); await assertLocalizedPending(h);
-    assert.equal(h.requests.length, count, 'Only a deliberate later submit can attempt another send'); noEffects(h);
+    await h.check(); await assertLocalizedPending(h, key);
+    assert.equal(h.requests.length, count + (held ? 1 : 0), 'Held SOURCE permits only the deliberate history GET');
+    assert.equal(h.api.basicChatState.uncertain, held);
+    assert.equal(h.elements.chatInput.value, draft); assert.equal(h.elements.chatSendBtn.disabled, held); noEffects(h);
   });
 
 for (const code of codes) for (const shape of shapes) test('manual recheck pending: ' + code + ' / ' + shape, async () => {
@@ -266,12 +282,13 @@ test('existing 401 replay is unchanged and is not a new pending retry', async ()
   const h = await harness({ intercept: request => request.path.endsWith('/generate') ?
     ++attempts === 1 ? response(bodyFor(codes[0]), 401) : response(bodyFor(codes[1], 'nested'), 409) : undefined });
   h.window.refreshAuthOnce = async () => { refreshes++; await h.account(); return true; };
-  await h.submit(); await settle(); status(h, 'canonPending');
+  await h.submit(); await settle(); status(h, 'canonOutcomeUnknown');
   assert.equal(refreshes, 1); assert.equal(attempts, 2);
   const generates = h.requests.filter(request => request.path.endsWith('/generate'));
   assert.notEqual(generates[0].headers.Authorization, generates[1].headers.Authorization);
   assert.equal(h.elements.chatInput.value, draft);
-  await assertLocalizedPending(h); assert.equal(attempts, 2); noEffects(h);
+  assert.equal(h.api.basicChatState.uncertain, true); assert.equal(h.api.basicChatState.uncertainKind, 'canon_changed');
+  await assertLocalizedPending(h, 'canonOutcomeUnknown'); assert.equal(attempts, 2); noEffects(h);
 });
 
 async function pendingStage(stage, code, settlePoint = 'fetch') {
@@ -300,10 +317,11 @@ for (const code of codes) test('pending preserves a newer same-account draft: ' 
     h.elements.chatInput.value = newerDraft; h.elements.chatInput.scrollHeight = 112;
     await h.elements.chatInput.emit('input'); const height = h.elements.chatInput.style.height;
     if (stage !== 'entry') { await h.submit(); assert.equal(h.requests.length, count, 'Busy/uncertain duplicate guard remains'); }
-    await h.locale('ja-JP'); await p.finish(); status(h, 'canonPending');
+    const key = stage === 'generate' && code === codes[1] ? 'canonOutcomeUnknown' : 'canonPending';
+    await h.locale('ja-JP'); await p.finish(); status(h, key);
     assert.equal(h.elements.chatInput.value, newerDraft); assert.equal(h.elements.chatInput.style.height, height);
     assert.equal(saved(h).includes(newerDraft), false); assert.equal(h.requests.length, count);
-    await assertLocalizedPending(h); noEffects(h);
+    await assertLocalizedPending(h, key); noEffects(h);
   }
 });
 for (const boundary of ['account', 'route']) for (const stage of ['generate', 'create', 'check', 'entry'])
