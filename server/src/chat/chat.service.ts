@@ -399,6 +399,15 @@ type ChatProviderOpsStats = {
   }>;
   estimatedCostKrw: string;
 };
+const CHAT_PROVIDER_ESTIMATE_COVERAGE = Object.freeze({
+  contract: 'chat-provider-estimate-coverage-v1',
+  scope: 'stored_current_user_artist_messages_without_feature_order',
+  billingStatus: 'unverified',
+  actualProviderCostKrw: null,
+  providerInvoiceVerified: false,
+  failedProviderUsageIncluded: false,
+  featureOrderMessagesIncluded: false,
+});
 type ChatConversationBox = 'recent' | 'archive' | 'all';
 type ChatConversationStatusMutation = 'archive' | 'restore';
 type ChatConversationListSessionRecord = {
@@ -903,6 +912,7 @@ export class ChatService {
         fallbackCount: opsStats.fallbackCount,
         usageByModel: opsStats.usageByModel,
         estimatedCostKrw: opsStats.estimatedCostKrw,
+        accounting: CHAT_PROVIDER_ESTIMATE_COVERAGE,
       },
       walletMutation: false,
       settlementMutation: false,
@@ -957,7 +967,10 @@ export class ChatService {
       serviceDayStartAt: preflight.limits.serviceDayStartAt,
       maxInputChars: preflight.limits.maxInputChars,
       provider: preflight.provider,
-      providerOps: preflight.providerOps,
+      providerOps: {
+        ...preflight.providerOps,
+        accounting: CHAT_PROVIDER_ESTIMATE_COVERAGE,
+      },
       policy: preflight.policy,
       walletMutation: false,
       settlementEligible: false,
