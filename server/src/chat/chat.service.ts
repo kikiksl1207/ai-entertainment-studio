@@ -1112,6 +1112,7 @@ export class ChatService {
       });
     }
 
+    let returnedUsageEvidence: ChatReturnedUsageEvidence | null = null;
     return this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       // Lock the session row so concurrent opening-greeting requests serialize.
       await tx.chatSession.update({
@@ -1136,7 +1137,9 @@ export class ChatService {
         });
       }
 
-      const candidate = await this.buildOpeningGreetingCandidate(userId, session);
+      const candidate = await this.buildOpeningGreetingCandidate(userId, session, (generated) => {
+        returnedUsageEvidence = captureChatReturnedUsageEvidence(generated);
+      });
       await this.assertArtistPersonaSelectionCurrent(candidate.personaSelection, tx);
 
       const message = await tx.chatMessage.create({
@@ -1158,12 +1161,19 @@ export class ChatService {
         cacheHit: false,
         providerCall: candidate.providerCall,
       });
+    }).catch(async (error: unknown) => {
+      if (returnedUsageEvidence) {
+        await this.recordRejectedReturnedUsage(userId, session.id, null, returnedUsageEvidence,
+          error instanceof ConflictException ? 'source_conflict' : 'storage_or_processing_failure');
+      }
+      throw error;
     });
   }
 
   private async buildOpeningGreetingCandidate(
     userId: string,
     session: ChatOpeningGreetingSessionRecord,
+    onProviderReturn?: (generated: ChatGenerationResult) => void,
   ): Promise<ChatOpeningGreetingCandidate> {
     const runtimePersona = this.buildCharacterRuntimePersonaContext(session.artist);
     const personaSelection = this.selectDispatchArtistPersona(session.artist);
@@ -1215,6 +1225,7 @@ export class ChatService {
             recentMessages: [],
             order: null,
           });
+          onProviderReturn?.(generated);
           await this.assertArtistPersonaSelectionCurrent(personaSelection);
           const body = this.normalizeOpeningGreetingText(generated.body);
 
