@@ -688,7 +688,7 @@ export class ChatService {
   ) {
     const artist = await this.prisma.artist.findFirst({
       where: { id: input.artistId, status: 'active' },
-      select: { id: true },
+      select: ARTIST_PERSONA_CHAT_SELECT,
     });
 
     if (!artist) {
@@ -709,6 +709,7 @@ export class ChatService {
       }
     }
 
+    this.selectDispatchArtistPersona(artist);
     const session = await this.prisma.chatSession.create({
       data: {
         userId,
@@ -2002,6 +2003,16 @@ export class ChatService {
 
       this.assertCanCreateFeatureOrder(product, readiness);
 
+      if (this.chatGenerationPolicy(product, readiness).providerRequired) {
+        const artist = await tx.artist.findUnique({
+          where: { id: session.artistId },
+          select: ARTIST_PERSONA_CHAT_SELECT,
+        });
+        if (!artist) throw new NotFoundException('Artist not found');
+        const selected = this.selectDispatchArtistPersona(artist);
+        await this.assertArtistPersonaSelectionCurrent(selected, tx);
+      }
+
       const wallet = await tx.walletAccount.findUnique({
         where: {
           userId_currencyCode: { userId, currencyCode: DEFAULT_CURRENCY },
@@ -2154,6 +2165,9 @@ export class ChatService {
       };
     }
 
+    // Hold only new output; keep completed replay and prepaid receipts unchanged.
+    const personaSelection = this.selectDispatchArtistPersona(session.artist);
+
     if (order) {
       const readiness = await this.providerReadinessForUser(
         userId,
@@ -2186,10 +2200,8 @@ export class ChatService {
       }
     }
 
-    let personaSelection: ArtistPersonaSelection | undefined;
     try {
       const runtimePersona = this.buildCharacterRuntimePersonaContext(session.artist);
-      personaSelection = this.selectDispatchArtistPersona(session.artist);
       runtimePersona.knowledgeContext = await this.loadApprovedArtistKnowledgeContext(
         session.artist.id,
       );
@@ -3445,8 +3457,15 @@ export class ChatService {
 
   private selectDispatchArtistPersona(artist: ArtistPersonaSourceArtist) {
     const selected = selectArtistPersona(artist);
-    if (requiresSelectedApprovedArtistPersona(artist) && !isLockedArtistPersona(selected)) {
-      throw this.artistPersonaSourceChangedException();
+    if (!isLockedArtistPersona(selected)) {
+      if (requiresSelectedApprovedArtistPersona(artist)) {
+        throw this.artistPersonaSourceChangedException();
+      }
+      throw new ConflictException({
+        code: 'CHAT_ARTIST_PERSONA_APPROVAL_REQUIRED',
+        message: 'An approved current character source is required for a new reply',
+        messageKey: 'chat.generation.failed',
+      });
     }
     return selected;
   }
