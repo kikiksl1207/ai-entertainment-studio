@@ -3,10 +3,11 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { modeBeforeSHA256, modeAfterSHA256, sourceWithoutStorageModeDelta } from './support/backstage-storage-mode-inverse-20261011.mjs';
+import { sourceWithoutSettlementReadDelta } from './support/backstage-settlement-read-inverse-20261014.mjs';
 
 // The parent supplies the canonical capsule, not an unrelated dirty worktree.
 const sourceFile = process.env.BACKSTAGE_STORAGE_MODE_SOURCE_FILE || new URL('../backstage.js', import.meta.url);
-const current = readFileSync(sourceFile, 'utf8').replaceAll('\r\n', '\n');
+const current = sourceWithoutSettlementReadDelta(readFileSync(sourceFile, 'utf8')).replaceAll('\r\n', '\n');
 const sha = value => createHash('sha256').update(value).digest('hex');
 const previous = sourceWithoutStorageModeDelta(current);
 
