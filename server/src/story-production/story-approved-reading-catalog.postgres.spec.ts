@@ -248,15 +248,21 @@ native('approved reading catalog (owned PostgreSQL, no provider or auth mint)', 
     checked(h, 1, 1); expect(await state(f)).toEqual(before); expect(JSON.stringify(h.reads[0].rows)).not.toContain(privateValue);
   });
 
-  it('fails the entire response above 8192 UTF-8 bytes after a successful bounded SQL read, without returning a partial page', async () => {
+  it('byte bounded catalog returns a maximal full-title prefix above 8192 UTF-8 bytes after a bounded native SQL read', async () => {
     const f = await fixture(); for (let i = 0; i < 20; i++) await work(f.owner.id, { title: { ko: emoji.repeat(256) } });
     const before = await state(f), h = observed();
-    await failure(h.service.approvedReadingCatalog(f.owner.id, query({ limit: 20 })), ServiceUnavailableException,
-      'STORY_APPROVED_READING_CATALOG_RESPONSE_TOO_LARGE');
+    const result = await h.service.approvedReadingCatalog(f.owner.id, query({ limit: 20 }));
+    expect(result.items).toHaveLength(6); expect(result.nextCursor).toBe(result.items.at(-1)!.workId);
+    expect(result.items.map(item => item.workId)).toEqual(h.reads[0].rows.slice(0, 6).map(row => row.id));
+    for (const item of result.items) expect(item.title).toEqual({ value: emoji.repeat(256), locale: 'ko', fallback: false, bounded: false });
+    expect(Buffer.byteLength(JSON.stringify(result), 'utf8')).toBeLessThanOrEqual(8192);
+    const seventh = h.reads[0].rows[6];
+    const oneMore = { ...result, items: [...result.items, { ...result.items[0], workId: seventh.id }], nextCursor: seventh.id };
+    expect(Buffer.byteLength(JSON.stringify(oneMore), 'utf8')).toBeGreaterThan(8192);
     checked(h, 1, 1); expect(h.reads[0].rows).toHaveLength(20); expect(await state(f)).toEqual(before);
   });
 
-  it('admits exactly 8192 bytes and rejects one extra ASCII byte with native bounded titles', async () => {
+  it('byte bounded catalog admits exactly 8192 bytes and trims the tail after one extra ASCII byte with native bounded titles', async () => {
     const f = await fixture(), sources: Array<{ id: string; length: number }> = [], h = observed();
     for (let i = 0; i < 20; i++) sources.push({ id: (await work(f.owner.id, { title: { ko: 'a' } })).id, length: 1 });
     const base = await h.service.approvedReadingCatalog(f.owner.id, query({ limit: 20 }));
@@ -271,9 +277,54 @@ native('approved reading catalog (owned PostgreSQL, no provider or auth mint)', 
     const extra = sources.find(source => source.length < 256)!; expect(extra).toBeDefined();
     await db.storyWork.update({ where: { id: extra.id }, data: { title: { ko: 'a'.repeat(extra.length + 1) } } });
     const oversized = await state(f);
-    await failure(h.service.approvedReadingCatalog(f.owner.id, query({ limit: 20 })), ServiceUnavailableException,
-      'STORY_APPROVED_READING_CATALOG_RESPONSE_TOO_LARGE');
+    const prefix = await h.service.approvedReadingCatalog(f.owner.id, query({ limit: 20 }));
+    const fullItems = h.reads.at(-1)!.rows.map(row => {
+      const item = exact.items.find(item => item.workId === row.id)!;
+      return { ...item, title: { ...item.title, value: row.titleValue as string } };
+    });
+    expect(Buffer.byteLength(JSON.stringify({ ...exact, items: fullItems }), 'utf8')).toBe(8193);
+    expect(prefix.items).toEqual(fullItems.slice(0, 19)); expect(prefix.nextCursor).toBe(prefix.items.at(-1)!.workId);
+    expect(Buffer.byteLength(JSON.stringify(prefix), 'utf8')).toBeLessThanOrEqual(8192);
+    expect(Buffer.byteLength(JSON.stringify({ ...prefix, items: fullItems, nextCursor: fullItems.at(-1)!.workId }), 'utf8')).toBeGreaterThan(8192);
     checked(h, 3, 3); expect(await state(f)).toEqual(oversized);
+  });
+
+  it.each([
+    { label: 'creator-sized 120-code-point four-byte titles over 11 plus 1', count: 12, title: emoji.repeat(120), lengths: [11, 1] },
+    { label: 'maximum 256-code-point titles over two short pages', count: 12, title: emoji.repeat(256), lengths: [6, 6] },
+    { label: 'minimal titles over 12 plus a final no-cursor page', count: 13, title: 'a', lengths: [12, 1] },
+  ])('byte bounded catalog native multipage $label loses or duplicates no work and preserves the six-digit anchor', async source => {
+    const f = await fixture(), ids: string[] = [], stamp = '2026-10-13T01:02:03.123456Z';
+    for (let index = 0; index < source.count; index++) {
+      const created = await work(f.owner.id, { title: { ko: source.title } }); ids.push(created.id);
+      await db.$executeRaw(Prisma.sql`UPDATE story_works SET updated_at = ${stamp}::timestamptz WHERE id = ${created.id}::uuid`);
+    }
+    await work(f.other.id, { title: { ko: source.title } }); await work(f.owner.id, { fixtureSource: true, title: { ko: source.title } });
+    const before = await state(f), expected = [...ids].sort().reverse(), visited: string[] = [], sizes: number[] = [], h = observed();
+    let cursor: string | undefined;
+    for (let page = 0; page < source.lengths.length; page++) {
+      const result = await h.service.approvedReadingCatalog(f.owner.id, query({ ...(cursor ? { cursor } : {}) }));
+      const json = JSON.stringify(result); sizes.push(Buffer.byteLength(json, 'utf8'));
+      expect(sizes.at(-1)).toBeLessThanOrEqual(8192); expect(result.items).toHaveLength(source.lengths[page]);
+      expect(result.items.map(item => item.workId)).toEqual(expected.slice(visited.length, visited.length + source.lengths[page]));
+      expect(result).toMatchObject({ readOnly: true, providerCalls: 0, operatingWrites: 0 }); expect(json).not.toContain(privateValue);
+      for (const item of result.items) {
+        expect(item.title).toEqual({ value: source.title, locale: 'ko', fallback: false, bounded: false });
+        expect(item.recordedState.approval).toBe('not_checked');
+      }
+      visited.push(...result.items.map(item => item.workId));
+      expect(result.nextCursor).toBe(page < source.lengths.length - 1 ? result.items.at(-1)!.workId : null);
+      cursor = result.nextCursor ?? undefined;
+    }
+    expect(cursor).toBeUndefined(); expect(visited).toEqual(expected); expect(new Set(visited).size).toBe(source.count);
+    expect(Math.min(...sizes)).toBeGreaterThan(0); expect(Math.max(...sizes)).toBeLessThanOrEqual(8192);
+    checked(h, 2, 3);
+    const anchor = h.reads.find(read => read.sql.text.includes('AS "updatedAt"'))!;
+    expect(anchor.rows).toEqual([{ id: visited[source.lengths[0] - 1], ownerUserId: f.owner.id, fixtureSource: false, updatedAt: stamp }]);
+    const nextRead = h.reads.at(-1)!;
+    expect(nextRead.sql.values.slice(5, 8)).toEqual([stamp, visited[source.lengths[0] - 1], 13]);
+    expect(nextRead.sql.text).toContain('(updated_at, id) < ($6::timestamptz, $7::uuid)');
+    expect(await state(f)).toEqual(before);
   });
 
   it('enforces SET READ ONLY on a real permanent-table write in the exact service transaction and rolls back', async () => {

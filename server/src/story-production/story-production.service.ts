@@ -353,8 +353,13 @@ export class StoryProductionService {
           }),
           nextCursor: rows.length > input.limit ? page.at(-1)?.id ?? null : null,
         };
-        if (Buffer.byteLength(JSON.stringify(packet), 'utf8') > APPROVED_READING_CATALOG_LIMITS.responseBytes) {
-          throw new ServiceUnavailableException({ code: 'STORY_APPROVED_READING_CATALOG_RESPONSE_TOO_LARGE' });
+        // Keep a contiguous page within the existing wire budget without shortening titles.
+        while (Buffer.byteLength(JSON.stringify(packet), 'utf8') > APPROVED_READING_CATALOG_LIMITS.responseBytes) {
+          if (packet.items.length <= 1) {
+            throw new ServiceUnavailableException({ code: 'STORY_APPROVED_READING_CATALOG_RESPONSE_TOO_LARGE' });
+          }
+          packet.items.pop();
+          packet.nextCursor = packet.items.at(-1)!.workId;
         }
         return packet;
       }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });

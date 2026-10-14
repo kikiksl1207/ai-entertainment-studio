@@ -237,13 +237,21 @@ describe('owner approved-reading catalog (synthetic read-only boundary)', () => 
     await failure(h.service.approvedReadingCatalog(ID.owner, query()), ServiceUnavailableException, 'STORY_APPROVED_READING_CATALOG_UNAVAILABLE'); noSideEffects(h);
   });
 
-  it('rejects the complete response above 8KiB instead of silently shortening the page', async () => {
-    const h = fixture(Array.from({ length: 20 }, (_value, index) => row(index + 1, { title: { ko: '\uD83D\uDE00'.repeat(256) } })));
-    await failure(h.service.approvedReadingCatalog(ID.owner, query({ limit: 20 })), ServiceUnavailableException, 'STORY_APPROVED_READING_CATALOG_RESPONSE_TOO_LARGE');
+  it.each([12, 20])('byte bounded catalog returns the maximal contiguous full-title prefix for limit %s', async limit => {
+    const h = fixture(Array.from({ length: limit }, (_value, index) => row(index + 1, { title: { ko: '\uD83D\uDE00'.repeat(256) } })));
+    const result = await h.service.approvedReadingCatalog(ID.owner, query({ limit }));
+    expect(result.items.map(item => item.workId)).toEqual(Array.from({ length: 6 }, (_value, index) => rowId(index + 1)));
+    expect(result.nextCursor).toBe(rowId(6)); expect(Buffer.byteLength(JSON.stringify(result), 'utf8')).toBeLessThanOrEqual(8192);
+    for (const item of result.items) {
+      expect(item.title).toEqual({ value: '\uD83D\uDE00'.repeat(256), locale: 'ko', fallback: false, bounded: false });
+      expect(item.recordedState.approval).toBe('not_checked');
+    }
+    const oneMore = { ...result, items: [...result.items, { ...result.items[0], workId: rowId(7) }], nextCursor: rowId(7) };
+    expect(Buffer.byteLength(JSON.stringify(oneMore), 'utf8')).toBeGreaterThan(8192);
     expect(h.listRead).toHaveBeenCalledTimes(1); noSideEffects(h);
   });
 
-  it('admits exactly 8192 JSON UTF-8 bytes but rejects one additional byte without returning a prefix', async () => {
+  it('byte bounded catalog admits exactly 8192 JSON UTF-8 bytes and trims the tail after one additional byte', async () => {
     const rows = Array.from({ length: 20 }, (_value, index) => row(index + 1, { title: { ko: 'a', en: 'a' } }));
     const h = fixture(rows), base = await h.service.approvedReadingCatalog(ID.owner, query({ limit: 20 }));
     let remaining = 8192 - Buffer.byteLength(JSON.stringify(base), 'utf8');
@@ -254,9 +262,33 @@ describe('owner approved-reading catalog (synthetic read-only boundary)', () => 
     expect(remaining).toBe(0);
     const exact = await h.service.approvedReadingCatalog(ID.owner, query({ limit: 20 }));
     expect(Buffer.byteLength(JSON.stringify(exact), 'utf8')).toBe(8192);
-    rows.find(source => source.title.ko.length < 256)!.title.ko += 'a';
-    await failure(h.service.approvedReadingCatalog(ID.owner, query({ limit: 20 })), ServiceUnavailableException, 'STORY_APPROVED_READING_CATALOG_RESPONSE_TOO_LARGE');
+    const enlarged = rows.find(source => source.title.ko.length < 256)!; enlarged.title.ko += 'a';
+    const full = { ...exact, items: exact.items.map(item => item.workId === enlarged.id
+      ? { ...item, title: { ...item.title, value: enlarged.title.ko } } : item) };
+    expect(Buffer.byteLength(JSON.stringify(full), 'utf8')).toBe(8193);
+    const prefix = await h.service.approvedReadingCatalog(ID.owner, query({ limit: 20 }));
+    expect(prefix.items).toEqual(full.items.slice(0, 19)); expect(prefix.nextCursor).toBe(rowId(19));
+    expect(Buffer.byteLength(JSON.stringify(prefix), 'utf8')).toBeLessThanOrEqual(8192);
+    expect(Buffer.byteLength(JSON.stringify({ ...full, nextCursor: rowId(20) }), 'utf8')).toBeGreaterThan(8192);
     noSideEffects(h);
+  });
+
+  it.each([12, 13])('byte bounded catalog validates the trimmed tail or lookahead at row %s before returning any prefix', async position => {
+    const rows = Array.from({ length: 13 }, (_value, index) => row(index + 1, { title: { ko: '\uD83D\uDE00'.repeat(256) } }));
+    rows[position - 1].title.ko += '\u200b';
+    const h = fixture(rows);
+    await failure(h.service.approvedReadingCatalog(ID.owner, query()), ServiceUnavailableException, 'STORY_APPROVED_READING_CATALOG_UNAVAILABLE');
+    expect(h.listRead).toHaveBeenCalledTimes(1); noSideEffects(h);
+  });
+
+  it.each([0, 1])('byte bounded catalog keeps the fail-closed 503 for an irreducible oversized packet with %s rows', async count => {
+    const h = fixture(Array.from({ length: count }, (_value, index) => row(index + 1)));
+    // Valid bounded rows cannot reach this size; force only the serialization guard for empty/single packets.
+    const size = jest.spyOn(Buffer, 'byteLength').mockReturnValue(8193);
+    try {
+      await failure(h.service.approvedReadingCatalog(ID.owner, query()), ServiceUnavailableException, 'STORY_APPROVED_READING_CATALOG_RESPONSE_TOO_LARGE');
+    } finally { size.mockRestore(); }
+    expect(h.listRead).toHaveBeenCalledTimes(1); noSideEffects(h);
   });
 
   it('rejects a mock returning more than the single allowed lookahead instead of serving a partial list', async () => {
