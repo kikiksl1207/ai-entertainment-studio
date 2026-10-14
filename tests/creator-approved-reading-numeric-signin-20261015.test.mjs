@@ -11,11 +11,11 @@ import { decodePinnedReadingSource } from "./support/owner-reading-source-pin-20
 // Reuses the existing memory/DOM mount pattern, not its autorunning test module.
 const SOURCE_ROOT_ENV = "LUMINA_READING_SECTION_AUTH_SOURCE_ROOT";
 const PINS = [
-  ["creator-studio/approved-reading/index.html", "eeff158e9181fd09aa10014aada86bdfd2734559", "52a1f109391bfc384f0136b727086f5d775b8cffce2d9de08707ddfce54243cb"],
+  ["creator-studio/approved-reading/index.html", "b8cc4443b01e26b5554ba8fb90a1f6bb3b261a38", "6fec444321d14256fb6ba2cd1c09cba8c3a094763385c00ef86eb8b2dce44704"],
   ["pages/creator-approved-readonly-transport.js", "23632dbfd0f0157ecd1bfb6d458af81a5d529288", "e2a31921c2d59889ed5896f4d751d886ec7d9a356895cd72c584917f3ae03ab6"],
   ["pages/creator-approved-reading-handoff.js", "3c89000c313c43dbf4a78bac97d63bf769b43e11", "68d1dedcedbf3ae7b259e29924836a45a1703954f0f2fe825c924250dfe9f067"],
   ["pages/creator-approved-reading-catalog.js", "7906828d815ef7bf84d2719582b26a2e5bcc8850", "865b0183764670e9c64785ed3ed582062220cfe628827d3784adce95f4f4987b"],
-  ["pages/creator-approved-reading-entry.js", "dc069bf0eb74a405076c1c6b1aba4369edfa5c6d", "329a9c0289d7c3a322ccb7156c2abe170e83f81e9765c7add2debb0762e2872c"],
+  ["pages/creator-approved-reading-entry.js", "4867b30f237acf90dff0cadd8c57c946cc6e279f", "8981c00264992c4d086b80f130258701af834c0502ad323feee96b9c4fcd8ea1"],
   ["pages/creator-approved-section-bytes.js", "19762358292026ef27d33f59133d8bb573edd2af", "72d2caf3d363979e7662f717ae19abf2d851750a24185874352e1a3225bfc9da"],
 ];
 function pinnedSources() {

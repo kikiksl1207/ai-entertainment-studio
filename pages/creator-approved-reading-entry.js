@@ -39,6 +39,7 @@
     const catalog = document.getElementById("readingCatalog"), catalogSelect = document.getElementById("readingCatalogWork");
     const catalogLoad = document.getElementById("readingCatalogLoad"), catalogNext = document.getElementById("readingCatalogNext");
     const catalogLogin = document.getElementById("readingCatalogLogin");
+    const catalogWorks = document.getElementById("readingCatalogWorks");
     const catalogReady = !!(catalog && catalogSelect && catalogLoad && catalogNext && document.getElementById("readingCatalogTitle") &&
       document.getElementById("readingCatalogWorkLabel") && document.getElementById("readingCatalogState"));
     const copy = {
@@ -85,6 +86,26 @@
         option.textContent = item.title.value || c.untitled; catalogSelect.appendChild(option);
       }
       catalogSelect.value = catalogState.selected?.workId || "";
+      if (catalogWorks) {
+        const focused = document.activeElement;
+        const focusId = catalogWorks.contains(focused) ? focused?.dataset?.workId : null;
+        const renderedState = catalogState;
+        catalogWorks.replaceChildren();
+        catalogWorks.hidden = pageDisposed || renderedState.phase !== "ready" || !renderedState.items.length;
+        if (!catalogWorks.hidden) for (const item of renderedState.items) {
+          const row = document.createElement("li"), button = document.createElement("button");
+          button.type = "button"; button.className = "reading-work-button"; button.dataset.workId = item.workId;
+          button.textContent = item.title.value || c.untitled;
+          button.setAttribute("aria-pressed", String(item.workId === renderedState.selected?.workId));
+          button.addEventListener("click", () => {
+            if (pageDisposed || !button.isConnected || catalogState !== renderedState) return;
+            catalogController?.sync();
+            if (!pageDisposed && button.isConnected && catalogState === renderedState) catalogController?.choose(item.workId);
+          });
+          row.appendChild(button); catalogWorks.appendChild(row);
+          if (focusId === item.workId) button.focus();
+        }
+      }
       document.getElementById("readingCatalogState").textContent = c[catalogState.phase] ?? c.unavailable;
       if (catalogLogin) {
         catalogLogin.textContent = c.login;
