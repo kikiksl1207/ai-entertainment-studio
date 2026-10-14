@@ -17,6 +17,7 @@ import { fanEngagementPrivacyMiddleware } from './fan-engagement/fan-engagement.
 import { rewardsPrivacyMiddleware } from './rewards/rewards.privacy';
 import { chatBoostsPrivacyMiddleware } from './common/chat-boosts-privacy';
 import { contentRightsContractPrivacyMiddleware } from './story-settlement/content-rights-contract.privacy';
+import { settlementPreviewPrivacyMiddleware } from './story-settlement/settlement-preview.privacy';
 
 type RequestLike = {
   headers: Record<string, string | string[] | undefined>;
@@ -51,6 +52,7 @@ export async function createApplication() {
   app.use(rewardsPrivacyMiddleware);
   app.use(chatBoostsPrivacyMiddleware);
   app.use(contentRightsContractPrivacyMiddleware);
+  app.use(settlementPreviewPrivacyMiddleware);
   app.use(
     helmet({
       crossOriginResourcePolicy: { policy: 'cross-origin' },
