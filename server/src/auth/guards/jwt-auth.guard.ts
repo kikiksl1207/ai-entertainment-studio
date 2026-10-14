@@ -2,6 +2,7 @@ import {
   CanActivate,
   ExecutionContext,
   Injectable,
+  ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -30,8 +31,9 @@ export class JwtAuthGuard implements CanActivate {
       throw new UnauthorizedException('Bearer token is required');
     }
 
+    let payload: JwtPayload;
     try {
-      const payload = await this.jwtService.verifyAsync<JwtPayload>(token, {
+      payload = await this.jwtService.verifyAsync<JwtPayload>(token, {
         secret: this.configService.getOrThrow<string>('JWT_ACCESS_SECRET'),
       });
 
@@ -43,7 +45,13 @@ export class JwtAuthGuard implements CanActivate {
         throw new UnauthorizedException('Access token is required');
       }
 
-      const user = await this.prisma.user.findFirst({
+    } catch {
+      throw new UnauthorizedException('Invalid or expired access token');
+    }
+
+    let user: { id: string; email: string | null } | null;
+    try {
+      user = await this.prisma.user.findFirst({
         where: {
           id: payload.sub,
           status: 'active',
@@ -54,20 +62,23 @@ export class JwtAuthGuard implements CanActivate {
           email: true,
         },
       });
-
-      if (!user) {
-        throw new UnauthorizedException('User is not active');
-      }
-
-      request.user = {
-        id: user.id,
-        email: user.email ?? payload.email,
-      };
-
-      return true;
     } catch {
+      throw new ServiceUnavailableException({
+        code: 'AUTH_LOOKUP_UNAVAILABLE',
+        message: 'Authentication temporarily unavailable',
+      });
+    }
+
+    if (!user) {
       throw new UnauthorizedException('Invalid or expired access token');
     }
+
+    request.user = {
+      id: user.id,
+      email: user.email ?? payload.email,
+    };
+
+    return true;
   }
 
   private extractBearerToken(header: string | string[] | undefined) {
