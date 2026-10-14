@@ -8,16 +8,16 @@ import { TextDecoder, TextEncoder } from "node:util";
 import vm from "node:vm";
 import { decodePinnedReadingSource } from "./support/owner-reading-source-pin-20261015.mjs";
 
-// Author UNRUN. Parent owns the first execution of these four new cases only.
-// Pins are the reader blobs at published 5f20237ab5a738c74401063f964868081daecd85.
+// Follow-up Author UNRUN: parent targets only the changed same-owner 401 case.
+// Baseline reader pins plus the parent-owned numeric sign-in UI RAW/blob overlay.
 const SOURCE_ROOT_ENV = "LUMINA_READING_SECTION_AUTH_SOURCE_ROOT";
 const PINS = [
   ["creator-studio/approved-reading/index.html", "eeff158e9181fd09aa10014aada86bdfd2734559", "52a1f109391bfc384f0136b727086f5d775b8cffce2d9de08707ddfce54243cb"],
   ["pages/creator-approved-readonly-transport.js", "23632dbfd0f0157ecd1bfb6d458af81a5d529288", "e2a31921c2d59889ed5896f4d751d886ec7d9a356895cd72c584917f3ae03ab6"],
   ["pages/creator-approved-reading-handoff.js", "3c89000c313c43dbf4a78bac97d63bf769b43e11", "68d1dedcedbf3ae7b259e29924836a45a1703954f0f2fe825c924250dfe9f067"],
   ["pages/creator-approved-reading-catalog.js", "7906828d815ef7bf84d2719582b26a2e5bcc8850", "865b0183764670e9c64785ed3ed582062220cfe628827d3784adce95f4f4987b"],
-  ["pages/creator-approved-reading-entry.js", "ef067e4ee793df79130f782575bb9f1a28ce7bfd", "15c34a3aa7e4340f2f34aaaf0196581c68201b595019c40eff8c22fc8abe9dc4"],
-  ["pages/creator-approved-section-bytes.js", "d67d334f565710abaa814bd4adfea7ae692598e4", "99a4c281b836fa5d781b73f6d8f7ec569ee4381ad27869920244aff25d5151c7"],
+  ["pages/creator-approved-reading-entry.js", "dc069bf0eb74a405076c1c6b1aba4369edfa5c6d", "329a9c0289d7c3a322ccb7156c2abe170e83f81e9765c7add2debb0762e2872c"],
+  ["pages/creator-approved-section-bytes.js", "19762358292026ef27d33f59133d8bb573edd2af", "72d2caf3d363979e7662f717ae19abf2d851750a24185874352e1a3225bfc9da"],
 ];
 function pinnedSources() {
   const root = Object.hasOwn(process.env, SOURCE_ROOT_ENV)
@@ -339,7 +339,7 @@ test("catalog/section auth: same-owner section 401 classifies only that read, no
   assert.equal(f.scope() === scope, true); assert.equal(f.current(scope), true); assert.equal(f.latestCatalog().phase, "ready");
   assert.equal(f.latestCatalog().selected === scope, true); assert.equal(f.window.LuminaCreatorStudioApi.isCurrent(identity), true);
   assert.equal(f.rawAuth() === raw, true, "A request-local rejection never rewrites auth memory");
-  assert.equal(f.node("readingCatalogLogin").hidden, true); assert.equal(rejected.stats.canceled, 1); assert.equal(rejected.stats.readers, 0);
+  assert.equal(f.node("readingCatalogLogin").hidden, false); assert.equal(rejected.stats.canceled, 1); assert.equal(rejected.stats.readers, 0);
   f.emit("focus"); f.time.pulse(); f.time.advance(30000); await flush();
   assert.equal(f.calls.length, 2); assert.equal(f.current(scope), true); assert.equal(f.controller.snapshot().messageKey, "unauthenticated");
 });

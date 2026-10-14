@@ -568,11 +568,18 @@
     const columns = ["section", "sectionBytes", "valueBytes", "evidenceBytes"];
     const columnNodes = columns.map(() => { const cell = element("th"); cell.setAttribute("scope", "col"); headings.append(cell); return cell; });
     head.append(headings); table.append(caption, head, body); host.replaceChildren(header, status, content, table);
+    let renderedAuthRejected = null;
     function render(state) {
       const c = copy[state.locale];
       host.lang = state.locale; title.textContent = c.title; load.title = c.load; load.setAttribute("aria-label", c.load);
       load.setAttribute("aria-busy", String(state.phase === "loading")); load.disabled = !state.canLoad;
       status.textContent = c[state.messageKey]; status.className = "body-current-fit-state" + (state.phase === "error" ? " is-error" : "");
+      const authRejected = String(state.phase === "error" && state.messageKey === "unauthenticated");
+      if (renderedAuthRejected !== authRejected) {
+        renderedAuthRejected = authRejected;
+        host.dataset.readAuthRejected = authRejected;
+        try { window.dispatchEvent(new Event("creator:approved-section-auth-state")); } catch (_) {}
+      }
       content.replaceChildren(); body.replaceChildren();
       content.hidden = state.data === null; table.hidden = state.data === null;
       caption.textContent = c.tableTitle;

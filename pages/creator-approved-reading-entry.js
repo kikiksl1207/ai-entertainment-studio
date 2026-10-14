@@ -56,6 +56,7 @@
       "zh-Hant": { title: "我的作品", choose: "選擇作品", load: "載入作品", next: "下一頁", login: "登入 (新分頁)", untitled: "未命名", idle: "", loading: "載入中", ready: "審批狀態：未檢查", empty: "暫無作品", unauthenticated: "請登入", auth_rejected: "請確認讀取所用的登入", stale: "請重新載入", timeout: "請求逾時", unavailable: "載入失敗" }
     };
     let catalogState = { phase: "idle", items: [], nextCursor: null, selected: null };
+    let pageDisposed = false;
     let currentScope = null;
     let nonce;
     try { nonce = window.crypto.randomUUID(); } catch (_) { nonce = null; }
@@ -87,7 +88,10 @@
       document.getElementById("readingCatalogState").textContent = c[catalogState.phase] ?? c.unavailable;
       if (catalogLogin) {
         catalogLogin.textContent = c.login;
-        catalogLogin.hidden = !["unauthenticated", "auth_rejected"].includes(catalogState.phase);
+        const selected = catalogState.selected;
+        const numericRejected = !!selected && catalogController?.isSelectionCurrent(selected) === true &&
+          document.getElementById("writerApprovedSectionBytes")?.dataset?.readAuthRejected === "true";
+        catalogLogin.hidden = pageDisposed || (!["unauthenticated", "auth_rejected"].includes(catalogState.phase) && !numericRejected);
       }
     }
     function translated() {
@@ -122,8 +126,9 @@
     for (const name of ["storage", "lumina:authchange", "lumina:auth-expired"]) window.addEventListener(name, () => {
       if (standalone) catalogController?.sync(); else receiver?.invalidate(); });
     window.addEventListener("focus", sample);
+    window.addEventListener("creator:approved-section-auth-state", renderCatalog);
     const watch = setInterval(sample, 1000);
-    window.addEventListener("pagehide", () => { clearInterval(watch); receiver?.dispose(); catalogController?.dispose();
+    window.addEventListener("pagehide", () => { pageDisposed = true; clearInterval(watch); receiver?.dispose(); catalogController?.dispose();
       catalogTransport?.dispose(); transport.dispose(); changed(null);
       if (catalogReady) { catalogSelect.disabled = true; catalogLoad.disabled = true; catalogNext.disabled = true; }
       if (catalogLogin) catalogLogin.hidden = true;
