@@ -32,7 +32,7 @@
         items.push(Object.freeze({ workId: item.workId, title: Object.freeze({ ...item.title }), defaultLocale: item.defaultLocale,
           recordedState: Object.freeze({ ...item.recordedState }) }));
       }
-      if (value.nextCursor !== null && (items.length !== 12 || value.nextCursor !== items.at(-1)?.workId)) return null;
+      if (value.nextCursor !== null && (items.length === 0 || value.nextCursor !== items.at(-1)?.workId)) return null;
       return Object.freeze({ items: Object.freeze(items), nextCursor: value.nextCursor });
     } catch (_) { return null; }
   }
