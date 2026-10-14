@@ -149,6 +149,9 @@ type OpenAiResponseUsage = {
 };
 
 type OpenAiResponseBody = {
+  status?: unknown;
+  incomplete_details?: unknown;
+  error?: unknown;
   output_text?: unknown;
   output?: unknown;
   usage?: OpenAiResponseUsage;
@@ -158,7 +161,36 @@ type OpenAiAttemptResult = {
   body: string;
   usage: ChatGenerationUsage;
   requestId: string | null;
+  responseStatus: 'completed' | 'unreported';
 };
+
+export type ChatFailedProviderResponse = Readonly<{
+  responseStatus: 'completed' | 'incomplete' | 'failed' | 'cancelled' | 'in_progress' | 'queued' | 'unreported' | 'unknown';
+  reason: 'max_output_tokens' | 'content_filter' | 'steered' | 'unreported' | 'unknown';
+  model: string;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  estimatedCostKrw: null;
+  billingStatus: 'unverified';
+}>;
+
+function boundedFailedProviderResponse(value: {
+  responseStatus?: unknown; reason?: unknown; model?: unknown;
+  inputTokens?: unknown; outputTokens?: unknown;
+}): ChatFailedProviderResponse {
+  const statuses = ['completed', 'incomplete', 'failed', 'cancelled', 'in_progress', 'queued', 'unreported', 'unknown'] as const;
+  const reasons = ['max_output_tokens', 'content_filter', 'steered', 'unreported', 'unknown'] as const;
+  const tokens = (n: unknown) => typeof n === 'number' && Number.isSafeInteger(n) && n >= 0 ? n : null;
+  return Object.freeze({
+    responseStatus: statuses.includes(value.responseStatus as typeof statuses[number]) ? value.responseStatus as typeof statuses[number] :
+      value.responseStatus === undefined ? 'unreported' : 'unknown',
+    reason: reasons.includes(value.reason as typeof reasons[number]) ? value.reason as typeof reasons[number] :
+      value.reason === undefined ? 'unreported' : 'unknown',
+    model: typeof value.model === 'string' && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/.test(value.model) ? value.model : 'unreported',
+    inputTokens: tokens(value.inputTokens), outputTokens: tokens(value.outputTokens),
+    estimatedCostKrw: null, billingStatus: 'unverified',
+  });
+}
 
 export class ChatLlmProviderNotConfiguredError extends Error {
   readonly readiness: ChatLlmProviderReadiness;
@@ -173,12 +205,15 @@ export class ChatLlmProviderNotConfiguredError extends Error {
 export class ChatLlmProviderRequestError extends Error {
   readonly code: string;
   readonly requestId: string | null;
+  readonly failedResponse: ChatFailedProviderResponse | null;
 
-  constructor(message: string, code: string, requestId: string | null = null) {
+  constructor(message: string, code: string, requestId: string | null = null,
+    failedResponse: ChatFailedProviderResponse | null = null) {
     super(message);
     this.name = 'ChatLlmProviderRequestError';
     this.code = code;
     this.requestId = requestId;
+    this.failedResponse = failedResponse ? boundedFailedProviderResponse(failedResponse) : null;
   }
 }
 
@@ -271,6 +306,8 @@ export class ChatLlmProviderAdapter implements ChatLlmProvider {
           safetyMetadata: {
             provider: readiness.provider,
             generationStatus: 'completed',
+            providerResponseStatus: result.responseStatus,
+            providerCompletionVerified: result.responseStatus === 'completed',
             requestId: result.requestId,
             fallbackModelUsed: model !== models[0],
             inputLimitChars: CHAT_INPUT_MAX_CHARS,
@@ -321,6 +358,8 @@ export class ChatLlmProviderAdapter implements ChatLlmProvider {
         inputLimitChars: CHAT_INPUT_MAX_CHARS,
         outputLimitChars: CHAT_OUTPUT_MAX_CHARS,
         artistPersonaLock: { status: 'unverified', reason: 'provider_fallback', allArtistsCovered: false },
+        ...(providerError?.failedResponse ? { failedProviderResponse: providerError.failedResponse,
+          localFallbackCostOnly: true } : {}),
       },
     };
   }
@@ -373,6 +412,16 @@ export class ChatLlmProviderAdapter implements ChatLlmProvider {
         );
       }
 
+      if ((responseBody?.status !== undefined && responseBody.status !== 'completed') ||
+          responseBody?.incomplete_details != null || responseBody?.error != null) {
+        throw new ChatLlmProviderRequestError(
+          'Character chat provider did not complete the response',
+          responseBody?.status === 'incomplete' ? 'provider_incomplete_response' : 'provider_response_not_completed',
+          requestId,
+          this.failedResponseEvidence(model, responseBody),
+        );
+      }
+
       const body = this.normalizeProviderOutput(responseBody);
 
       if (!body) {
@@ -380,12 +429,14 @@ export class ChatLlmProviderAdapter implements ChatLlmProvider {
           'Character chat provider returned an empty response',
           'provider_empty_response',
           requestId,
+          this.failedResponseEvidence(model, responseBody),
         );
       }
 
       return {
         body,
         requestId,
+        responseStatus: responseBody?.status === 'completed' ? 'completed' : 'unreported',
         usage: {
           provider: 'openai',
           model,
@@ -597,6 +648,13 @@ export class ChatLlmProviderAdapter implements ChatLlmProvider {
 
   private numberOrZero(value: unknown) {
     return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+  }
+
+  private failedResponseEvidence(model: string, body: OpenAiResponseBody | null): ChatFailedProviderResponse {
+    return boundedFailedProviderResponse({
+      responseStatus: body?.status, reason: this.recordOrEmpty(body?.incomplete_details).reason, model,
+      inputTokens: body?.usage?.input_tokens, outputTokens: body?.usage?.output_tokens,
+    });
   }
 
   private trimToLimit(value: string, limit: number) {

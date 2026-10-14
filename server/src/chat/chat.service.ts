@@ -25,6 +25,7 @@ import {
   ChatLlmProviderRequestError,
   ChatLlmProviderReadiness,
   ChatRuntimePersonaContext,
+  type ChatFailedProviderResponse,
 } from './llm-provider.adapter';
 import {
   ARTIST_URL_KNOWLEDGE_CHAT_CONTEXT_POLICY,
@@ -473,6 +474,7 @@ type ChatOpeningGreetingCandidate = {
   generated?: ChatGenerationResult;
   fallbackReason?: string;
   personaSelection?: ArtistPersonaSelection;
+  failedProviderResponse?: ChatFailedProviderResponse;
 };
 const CHAT_CONVERSATION_MUTABLE_STATUSES = new Set(['active', 'archived']);
 const BASIC_CHAT_POLICY = {
@@ -1227,7 +1229,7 @@ export class ChatService {
           );
         } catch (error) {
           if (error instanceof ConflictException) throw error;
-          return this.fallbackOpeningGreetingCandidate(
+          const candidate = this.fallbackOpeningGreetingCandidate(
             runtimePersona,
             session.id,
             toneCandidate,
@@ -1237,6 +1239,10 @@ export class ChatService {
             true,
             personaSelection,
           );
+          if (error instanceof ChatLlmProviderRequestError && error.failedResponse) {
+            candidate.failedProviderResponse = error.failedResponse;
+          }
+          return candidate;
         }
       }
 
@@ -1394,6 +1400,9 @@ export class ChatService {
         rawPromptStored: false,
         rawProviderPayloadStored: false,
         userPrivateDataStored: false,
+        ...(candidate.failedProviderResponse ? { failedProviderResponse: candidate.failedProviderResponse,
+          failedProviderResponseStorage: 'greeting_metadata',
+          localFallbackCostOnly: true } : {}),
       };
     }
 
@@ -1434,6 +1443,9 @@ export class ChatService {
       rawPromptStored: false,
       rawProviderPayloadStored: false,
       userPrivateDataStored: false,
+      ...(candidate.failedProviderResponse ? { failedProviderResponse: candidate.failedProviderResponse,
+        failedProviderResponseStorage: 'greeting_metadata',
+        localFallbackCostOnly: true } : {}),
     };
   }
 
@@ -2266,6 +2278,9 @@ export class ChatService {
         );
       }
 
+      const failedProviderResponseAuditRecorded = error instanceof ChatLlmProviderRequestError && error.failedResponse
+        ? await this.recordFailedProviderResponse(userId, session.id, order?.id ?? null, error) : null;
+
       if (error instanceof ConflictException) throw error;
 
       if (error instanceof ChatLlmProviderNotConfiguredError) {
@@ -2273,13 +2288,16 @@ export class ChatService {
       }
 
       if (!order && error instanceof ChatLlmProviderRequestError) {
+        const generated = this.llmProvider.fallbackResult(error);
         const fallback = await this.persistGeneratedMessage(
           userId,
           session.id,
           session.artist.id,
           body,
           undefined,
-          this.llmProvider.fallbackResult(error),
+          error.failedResponse ? { ...generated, safetyMetadata: { ...generated.safetyMetadata,
+            failedProviderResponse: error.failedResponse, failedProviderResponseAuditRecorded,
+            localFallbackCostOnly: true } } : generated,
           storyRouteScope,
           storyRouteScope ? storyChatMemoryMarker(unverifiedStoryMemoryContext()) : null,
           personaSelection,
@@ -2298,6 +2316,9 @@ export class ChatService {
         messageKey: 'chat.generation.failed',
         details: {
           generationStatus: 'failed',
+          ...(error instanceof ChatLlmProviderRequestError && error.failedResponse ? {
+            failedProviderResponse: error.failedResponse, failedProviderResponseAuditRecorded,
+          } : {}),
           order: order ? this.orderSummary({ ...order, status: 'failed' }) : null,
           policy: {
             generation: this.chatGenerationPolicy(order?.chatFeatureProduct),
@@ -2322,6 +2343,24 @@ export class ChatService {
     }
 
     return session;
+  }
+
+  private async recordFailedProviderResponse(userId: string, sessionId: string, orderId: string | null,
+    error: ChatLlmProviderRequestError): Promise<boolean> {
+    if (!error.failedResponse) return false;
+    try {
+      await this.prisma.auditEvent.create({ data: {
+        actorUserId: userId, actorType: 'system', action: 'chat_provider_response_failed',
+        targetType: orderId ? 'chat_feature_order' : 'chat_session', targetId: orderId ?? sessionId,
+        metadata: this.inputJson({ schemaVersion: '2026-10-15.chat-provider-failure-v1',
+          provider: 'openai', failedProviderResponse: error.failedResponse }),
+      } });
+      return true;
+    } catch {
+      // Evidence writes must not undo the existing wallet recovery or safe fallback.
+      this.logger.warn('Character chat provider failure evidence was not recorded');
+      return false;
+    }
   }
 
   private openingGreetingSessionInclude() {
