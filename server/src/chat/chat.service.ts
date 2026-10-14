@@ -27,6 +27,7 @@ import {
   ChatRuntimePersonaContext,
   type ChatFailedProviderResponse,
 } from './llm-provider.adapter';
+import { captureChatReturnedUsageEvidence, type ChatReturnedUsageEvidence } from './chat-returned-usage-evidence';
 import {
   ARTIST_URL_KNOWLEDGE_CHAT_CONTEXT_POLICY,
   ARTIST_URL_KNOWLEDGE_CONTRACT,
@@ -2225,6 +2226,7 @@ export class ChatService {
       }
     }
 
+    let returnedUsageEvidence: ChatReturnedUsageEvidence | null = null;
     try {
       const runtimePersona = this.buildCharacterRuntimePersonaContext(session.artist);
       runtimePersona.knowledgeContext = await this.loadApprovedArtistKnowledgeContext(
@@ -2271,6 +2273,7 @@ export class ChatService {
             }
           : null,
       });
+      returnedUsageEvidence = captureChatReturnedUsageEvidence(generated);
       await this.assertArtistPersonaSelectionCurrent(personaSelection);
 
       if (storyRouteScope) {
@@ -2293,6 +2296,10 @@ export class ChatService {
 
       const failedProviderResponseAuditRecorded = error instanceof ChatLlmProviderRequestError && error.failedResponse
         ? await this.recordFailedProviderResponse(userId, session.id, order?.id ?? null, error) : null;
+      if (returnedUsageEvidence) {
+        await this.recordRejectedReturnedUsage(userId, session.id, order?.id ?? null,
+          returnedUsageEvidence, error instanceof ConflictException ? 'source_conflict' : 'storage_or_processing_failure');
+      }
 
       if (error instanceof ConflictException) throw error;
 
@@ -2372,6 +2379,24 @@ export class ChatService {
     } catch {
       // Evidence writes must not undo the existing wallet recovery or safe fallback.
       this.logger.warn('Character chat provider failure evidence was not recorded');
+      return false;
+    }
+  }
+
+  private async recordRejectedReturnedUsage(userId: string, sessionId: string, orderId: string | null,
+    evidence: ChatReturnedUsageEvidence, reason: 'source_conflict' | 'storage_or_processing_failure'): Promise<boolean> {
+    try {
+      await this.prisma.auditEvent.create({ data: {
+        actorUserId: userId, actorType: 'system', action: 'chat_provider_return_handling_failed',
+        targetType: orderId ? 'chat_feature_order' : 'chat_session', targetId: orderId ?? sessionId,
+        metadata: this.inputJson({ schemaVersion: '2026-10-15.chat-returned-usage-v1',
+          provider: 'openai', stage: 'application_after_provider_return', reason,
+          applicationOutcome: 'rejected_or_unconfirmed',
+          returnedUsageEvidence: evidence }),
+      } });
+      return true;
+    } catch {
+      this.logger.warn('Character chat returned usage evidence was not recorded');
       return false;
     }
   }
