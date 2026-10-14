@@ -3441,9 +3441,9 @@ function renderBackstageTables() {
   renderLoadingRow("feedBlockedTermRows");
   renderLoadingRow("fanMissionRows", "팬 미션 탭에서 목록을 불러옵니다.");
   renderLoadingRow("fanMissionPublicRows", "팬 미션 탭에서 public 목록을 확인합니다.");
-  renderRows("studioSettlementRows", backstageRows.studioSettlement, 7);
-  renderRows("settlementRows", backstageRows.settlement, 7);
-  renderRows("settlementConversionRows", backstageRows.settlementConversions, 4);
+  renderLoadingRow("studioSettlementRows", "정산 처리 탭에서 실제 내역을 조회합니다.");
+  renderLoadingRow("settlementRows", "정산 처리 탭에서 실제 내역을 조회합니다.");
+  renderLoadingRow("settlementConversionRows", "정산 처리 탭에서 실제 신청을 조회합니다.");
   renderRows("aiSettlementRows", backstageRows.aiSettlement, -1);
   renderRows("logRows", mergeLogRows(backstageRows.logs), -1);
 }
@@ -5392,11 +5392,107 @@ function openFanMissionArchiveConfirm(button) {
   confirmModal.classList.remove("is-hidden");
 }
 
+function settlementReadScope(state = sectionState.settlement, requireStateContext = true) {
+  const auth = getBackstageAuth(), user = auth?.user, epoch = backstageAuthEpoch;
+  const operatorId = user?.id || user?.userId || "";
+  const startedToken = auth?.accessToken || null;
+  const permissionContext = JSON.stringify([user?.adminUser?.id ?? null, user?.adminUser?.permissions]);
+  const period = currentSettlementPeriod();
+  const identityKey = JSON.stringify([epoch, operatorId, permissionContext, period]);
+  const sameOwnerView = () => {
+    const current = getBackstageAuth();
+    return epoch === backstageAuthEpoch && state === sectionState.settlement && Boolean(operatorId)
+      && operatorId === (current?.user?.id || current?.user?.userId || "")
+      && !dashboardView.classList.contains("is-hidden") && getCurrentSection() === "payouts"
+      && period === currentSettlementPeriod();
+  };
+  const recoverMissingAdminContext = () => {
+    const current = getBackstageAuth();
+    if (!sameOwnerView() || !current?.accessToken || current.accessToken === startedToken
+      || current.user?.adminUser || Array.isArray(current.user?.adminPermissions)) return false;
+    state.rows = []; state.studioRows = []; state.conversionRows = [];
+    state.cursor = null; state.hasMore = false; state.readContext = null;
+    for (const id of ["studioSettlementRows", "settlementRows", "settlementConversionRows"]) {
+      renderSettlementReadMessage(id, "운영자 확인이 필요합니다.");
+    }
+    setLoadMore("settlement", false);
+    const button = document.querySelector('.load-more-action[data-load-more="settlement"]');
+    if (button) button.disabled = false;
+    return true;
+  };
+  const isCurrent = () => {
+    const current = getBackstageAuth(), currentUser = current?.user;
+    return epoch === backstageAuthEpoch && state === sectionState.settlement
+      && (!requireStateContext || state?.readContext === identityKey)
+      && Boolean(operatorId) && operatorId === (currentUser?.id || currentUser?.userId || "")
+      && Boolean(current?.accessToken || current?.refreshToken)
+      && permissionContext === JSON.stringify([currentUser?.adminUser?.id ?? null, currentUser?.adminUser?.permissions])
+      && !dashboardView.classList.contains("is-hidden") && getCurrentSection() === "payouts"
+      && canAccessBackstageSection("payouts") && period === currentSettlementPeriod();
+  };
+  return { period, identityKey, isCurrent, recoverMissingAdminContext };
+}
+
+function settlementReadAmount(value) {
+  return (typeof value === "number" || (typeof value === "string" && value.trim() !== ""))
+    && Number.isFinite(Number(value));
+}
+
+function settlementReadPreviewItem(item) {
+  if (!item || typeof item !== "object" || Array.isArray(item)) return false;
+  const financials = item.financials || item.totals;
+  if (!financials || ["grossRevenueKrw", "netRevenueKrw", "creatorShareKrw"].some(key => !settlementReadAmount(financials[key]))) return false;
+  const children = item.artists || item.artistSettlements || item.artistBreakdown || item.children || item.items || [];
+  return Array.isArray(children) && children.every(child => child && typeof child === "object"
+    && child.financials && ["grossRevenueKrw", "netRevenueKrw", "creatorShareKrw"].every(key => settlementReadAmount(child.financials[key])));
+}
+
+function settlementReadPage(data, validateItem) {
+  const items = Array.isArray(data) ? data : data?.items;
+  if (!Array.isArray(items) || !items.every(validateItem)) throw new Error("Settlement response unavailable");
+  if (!Array.isArray(data)) {
+    if (data.hasMore != null && typeof data.hasMore !== "boolean") throw new Error("Settlement page unavailable");
+    if (data.nextCursor != null && (typeof data.nextCursor !== "string" || !data.nextCursor.trim())) throw new Error("Settlement cursor unavailable");
+    if (data.hasMore === true && !data.nextCursor) throw new Error("Settlement cursor unavailable");
+  }
+  return normalizePage(data);
+}
+
+function renderSettlementReadMessage(targetId, label = "데이터를 불러오는 중입니다.") {
+  renderLoadingRow(targetId, `<span role="status" style="display:block;position:sticky;left:12px;max-width:calc(100vw - 96px);white-space:normal;overflow-wrap:anywhere">${escapeHtml(label)}</span>`);
+}
+
+function renderSettlementReadRows(state, pageUnavailable = false) {
+  if (state.studioRows.length) {
+    renderRows("studioSettlementRows", state.studioRows, 7);
+  } else {
+    renderSettlementReadMessage("studioSettlementRows", state.partnerReadUnavailable
+      ? "스튜디오 운영자 정산 내역을 불러오지 못했습니다."
+      : "표시할 스튜디오 운영자 정산 예상치가 없습니다.");
+  }
+  if (state.rows.length) renderRows("settlementRows", state.rows, 7);
+  else renderSettlementReadMessage("settlementRows", "표시할 정산 예상치가 없습니다.");
+  const warning = pageUnavailable
+    ? "다음 정산 내역을 불러오지 못했습니다. 기존 조회 결과만 표시합니다."
+    : state.partnerReadUnavailable && state.studioRows.length
+      ? "일부 운영자 내역을 조회하지 못했습니다. 표시된 항목만 확인됐습니다." : "";
+  if (warning) {
+    for (const id of pageUnavailable ? ["studioSettlementRows", "settlementRows"] : ["studioSettlementRows"]) {
+      const target = document.getElementById(id);
+      if (target) target.innerHTML += `<tr><td colspan="${tableMeta[id]?.labels?.length || 5}"><span role="alert" style="display:block;position:sticky;left:12px;max-width:calc(100vw - 96px);white-space:normal;overflow-wrap:anywhere">${escapeHtml(warning)}</span></td></tr>`;
+    }
+  }
+}
+
 async function loadSettlementSection() {
-  sectionState.settlement = { cursor: null, hasMore: false, rows: [], studioRows: [], conversionRows: [] };
-  renderLoadingRow("settlementConversionRows");
-  renderLoadingRow("studioSettlementRows");
-  renderLoadingRow("settlementRows");
+  const scope = settlementReadScope(sectionState.settlement, false);
+  if (!scope.isCurrent()) return;
+  const prior = sectionState.settlement;
+  if (prior?.readContext === scope.identityKey && (prior.pageLoading || prior.conversionLoading)) return;
+  sectionState.settlement = { readContext: scope.identityKey, cursor: null, hasMore: false, rows: [], studioRows: [], conversionRows: [] };
+  renderSettlementReadMessage("settlementConversionRows");
+  renderSettlementReadMessage("studioSettlementRows");
+  renderSettlementReadMessage("settlementRows");
   await Promise.all([
     loadSettlementPage(false),
     loadSettlementConversions()
@@ -5404,42 +5500,61 @@ async function loadSettlementSection() {
 }
 
 async function loadSettlementConversions() {
+  const state = sectionState.settlement, scope = settlementReadScope(state);
+  if (!scope.isCurrent() || state.conversionLoading) return;
+  state.conversionLoading = true;
   try {
     const query = new URLSearchParams({
-      period: currentSettlementPeriod(),
+      period: scope.period,
       type: "artist",
       status: "requested",
       take: "20"
     });
-    const data = await backstageFetch(adminApiPath(`/backstage/settlement-conversions?${query}`), { auth: true });
-    const page = normalizePage(data);
+    const data = await backstageFetch(adminApiPath(`/backstage/settlement-conversions?${query}`), { auth: true, isCurrent: scope.isCurrent });
+    if (!scope.isCurrent()) { scope.recoverMissingAdminContext(); return; }
+    const page = settlementReadPage(data, item => item && typeof item === "object" && !Array.isArray(item)
+      && typeof item.id === "string" && Boolean(item.id) && typeof item.settlementKey === "string" && Boolean(item.settlementKey)
+      && typeof item.status === "string" && settlementReadAmount(item.amountKrw) && settlementReadAmount(item.requestedLumina));
     const rows = page.items.map(settlementConversionEntryFromItem);
-    sectionState.settlement.conversionRows = rows;
+    state.conversionRows = rows;
     if (rows.length) renderRows("settlementConversionRows", rows, 4);
-    else renderLoadingRow("settlementConversionRows", "처리 대기 중인 정산금 충전 신청이 없습니다.");
+    else renderSettlementReadMessage("settlementConversionRows", "처리 대기 중인 정산금 충전 신청이 없습니다.");
   } catch {
-    renderRows("settlementConversionRows", backstageRows.settlementConversions, 4);
-    renderFallbackNote("settlementConversionRows");
+    if (!scope.isCurrent()) { scope.recoverMissingAdminContext(); return; }
+    state.conversionRows = [];
+    renderSettlementReadMessage("settlementConversionRows", "정산금 충전 신청을 불러오지 못했습니다.");
+  } finally {
+    state.conversionLoading = false;
   }
 }
 
 async function loadSettlementPage(append = true) {
-  const state = sectionState.settlement;
-  const query = new URLSearchParams({ period: currentSettlementPeriod(), take: "20" });
+  const state = sectionState.settlement, scope = settlementReadScope(state);
+  if (!scope.isCurrent() || state.pageLoading || (append && (!state.hasMore || !state.cursor))) return;
+  state.pageLoading = true;
+  const query = new URLSearchParams({ period: scope.period, take: "20" });
   if (append && state.cursor) query.set("cursor", state.cursor);
   try {
-    const partnerQuery = new URLSearchParams({ period: currentSettlementPeriod(), take: "20", settlementRateBps: "5000" });
-    const [data, partnerData] = await Promise.all([
-      backstageFetch(adminApiPath(`/backstage/operations/settlement-preview?${query}`), { auth: true }),
-      append ? Promise.resolve(null) : backstageFetch(adminApiPath(`/backstage/operations/partner-settlement-preview?${partnerQuery}`), { auth: true }).catch(() => null)
+    const partnerQuery = new URLSearchParams({ period: scope.period, take: "20", settlementRateBps: "5000" });
+    const [data, partnerResult] = await Promise.all([
+      backstageFetch(adminApiPath(`/backstage/operations/settlement-preview?${query}`), { auth: true, isCurrent: scope.isCurrent }),
+      append ? Promise.resolve(null) : backstageFetch(adminApiPath(`/backstage/operations/partner-settlement-preview?${partnerQuery}`), { auth: true, isCurrent: scope.isCurrent })
+        .then(value => ({ available: true, value }), () => ({ available: false }))
     ]);
-    const page = normalizePage(data);
+    if (!scope.isCurrent()) { scope.recoverMissingAdminContext(); return; }
+    const page = settlementReadPage(data, settlementReadPreviewItem);
+    let partnerRows = [], partnerReadUnavailable = state.partnerReadUnavailable === true;
+    if (!append) {
+      partnerReadUnavailable = !partnerResult?.available;
+      if (partnerResult?.available) {
+        try { partnerRows = settlementReadPage(partnerResult.value, settlementReadPreviewItem).items.map(item => settlementEntryFromItem(item, true)); }
+        catch { partnerReadUnavailable = true; }
+      }
+    }
     const notice = document.getElementById("settlementNotice");
     if (notice) {
       notice.textContent = data?.notice || "정산 데이터는 예상치/확정 전입니다. 실제 지급 확정 전 환불, 차지백, 세무, 운영 확인이 필요합니다.";
     }
-    const partnerPage = partnerData ? normalizePage(partnerData) : { items: [] };
-    const partnerRows = partnerPage.items.map((item) => settlementEntryFromItem(item, true));
     const studioRows = [];
     const rows = [];
     page.items.forEach((item) => {
@@ -5452,18 +5567,23 @@ async function loadSettlementPage(append = true) {
     const visibleStudioRows = append ? (state.studioRows || []).concat(studioRows) : partnerRows.concat(studioRows);
     state.rows = append ? state.rows.concat(rows) : rows;
     state.studioRows = visibleStudioRows;
+    state.partnerReadUnavailable = partnerReadUnavailable;
     state.cursor = page.nextCursor;
     state.hasMore = page.hasMore;
     setLoadMore("settlement", page.hasMore);
-    if (visibleStudioRows.length) renderRows("studioSettlementRows", visibleStudioRows, 7);
-    else renderRows("studioSettlementRows", backstageRows.studioSettlement, 7);
-    if (state.rows.length) renderRows("settlementRows", state.rows, 7);
-    else renderLoadingRow("settlementRows", "표시할 정산 예상치가 없습니다.");
+    renderSettlementReadRows(state);
   } catch {
-    renderBackstageTables();
-    setLoadMore("settlement", false);
-    renderFallbackNote("studioSettlementRows");
-    renderFallbackNote("settlementRows");
+    if (!scope.isCurrent()) { scope.recoverMissingAdminContext(); return; }
+    if (append) {
+      renderSettlementReadRows(state, true);
+    } else {
+      state.rows = []; state.studioRows = []; state.cursor = null; state.hasMore = false;
+      renderSettlementReadMessage("studioSettlementRows", "스튜디오 운영자 정산 내역을 불러오지 못했습니다.");
+      renderSettlementReadMessage("settlementRows", "정산 예상치를 불러오지 못했습니다.");
+    }
+    setLoadMore("settlement", state.hasMore && Boolean(state.cursor));
+  } finally {
+    state.pageLoading = false;
   }
 }
 
