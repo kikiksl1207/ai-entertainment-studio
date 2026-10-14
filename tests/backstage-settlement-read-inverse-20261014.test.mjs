@@ -7,6 +7,7 @@ import { sourceWithoutSettlementReadDelta, settlementReadBeforeSHA256, settlemen
 import { sourceWithoutStorageModeDelta, modeBeforeSHA256, modeAfterSHA256 } from './support/backstage-storage-mode-inverse-20261011.mjs';
 import { sourceWithoutStorageDiagnosticsDelta, beforeSHA256, afterSHA256 } from './support/backstage-storage-diagnostics-inverse-20261011.mjs';
 import { sourceWithoutAuditPermissionDelta } from './support/backstage-audit-permission-inverse-20261009.mjs';
+import { sourceWithoutPartnerPaginationDelta } from './support/backstage-partner-pagination-inverse-20261015.mjs';
 
 // Authored only; parent owns first execution. No external QA/Git dependency by default.
 const sha = value => createHash('sha256').update(value).digest('hex');
@@ -23,7 +24,7 @@ assert.ok(raw.length > 0 && raw.length <= 1024 * 1024);
 assert.equal(raw[0] === 0xef && raw[1] === 0xbb && raw[2] === 0xbf, false, 'Source BOM forbidden');
 if (pin !== undefined) assert.equal(sha(raw), pin.toLowerCase(), 'Override RAW mismatch');
 const input = new TextDecoder('utf-8', { fatal: true }).decode(raw);
-const current = input.replaceAll('\r\n', '\n');
+const current = sourceWithoutPartnerPaginationDelta(input).replaceAll('\r\n', '\n');
 assert.equal(sha(current), settlementReadAfterSHA256, 'Select the exact published current source');
 const bytes = readFileSync(new URL('./fixtures/backstage-settlement-read-exact-delta-20261014.json', import.meta.url));
 const json = bytes.toString('utf8').replaceAll('\r\n', '\n');
