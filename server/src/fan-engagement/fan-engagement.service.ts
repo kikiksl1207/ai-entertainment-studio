@@ -994,20 +994,26 @@ export class FanEngagementService {
   }
 
   private async resultsPreview(voteId: string) {
-    const rows = await this.prisma.conceptVoteBallot.groupBy({
-      by: ['optionId'],
-      where: { voteId },
-      _count: { _all: true },
-    });
-    const total = rows.reduce((sum, row) => sum + row._count._all, 0);
+    // Publication and tally share one statement snapshot; a loaded public vote may be withdrawn.
+    const rows = await this.prisma.$queryRaw<Array<{ optionId: string | null; ballotCount: bigint }>>`
+      SELECT b.option_id AS "optionId", count(b.id)::bigint AS "ballotCount"
+      FROM public.concept_votes v
+      LEFT JOIN public.concept_vote_ballots b ON b.vote_id = v.id
+      WHERE v.id = ${voteId}::uuid AND v.visibility = 'public'
+      GROUP BY b.option_id
+      ORDER BY b.option_id
+    `;
+    if (!rows.length) return null;
+    const counts = rows.filter((row): row is { optionId: string; ballotCount: bigint } => row.optionId !== null);
+    const total = counts.reduce((sum, row) => sum + Number(row.ballotCount), 0);
 
     return {
       visible: true,
       totalBallots: total,
-      options: rows.map((row) => ({
+      options: counts.map((row) => ({
         id: row.optionId,
-        ballotCount: row._count._all,
-        ratio: total ? Math.round((row._count._all / total) * 1000) / 10 : 0,
+        ballotCount: Number(row.ballotCount),
+        ratio: total ? Math.round((Number(row.ballotCount) / total) * 1000) / 10 : 0,
       })),
     };
   }

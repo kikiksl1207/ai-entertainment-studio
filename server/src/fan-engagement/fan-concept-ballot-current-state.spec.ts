@@ -41,6 +41,7 @@ function fixture() {
     },
   };
   const prisma = {
+    $queryRaw: jest.fn().mockResolvedValue([{ optionId, ballotCount: BigInt(1) }]),
     conceptVote: { findUnique: jest.fn().mockResolvedValue(vote) },
     fanMission: { findUnique: jest.fn().mockResolvedValue(mission) },
     conceptVoteBallot: {
