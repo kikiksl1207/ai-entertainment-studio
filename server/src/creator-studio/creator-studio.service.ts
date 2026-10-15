@@ -7,7 +7,7 @@ import {
   Optional,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Prisma } from '@prisma/client';
+import { Prisma, type SettlementLuminaConversionRequest } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import { createHash } from 'crypto';
 import { AuthUser } from '../auth/auth.types';
@@ -861,6 +861,7 @@ export class CreatorStudioService {
   ) {
     const parsedKey = this.parseSettlementKey(input.settlementKey);
     await this.assertSettlementConversionAccess(userId, parsedKey);
+    const amountKrw = new Decimal(input.amountKrw);
 
     if (input.idempotencyKey) {
       const existing = await this.prisma.settlementLuminaConversionRequest.findFirst({
@@ -871,6 +872,7 @@ export class CreatorStudioService {
       });
 
       if (existing) {
+        this.assertSettlementConversionReplayIntent(existing, input, amountKrw);
         return {
           conversion: this.presentSettlementConversion(existing),
           idempotentReplay: true,
@@ -879,7 +881,6 @@ export class CreatorStudioService {
       }
     }
 
-    const amountKrw = new Decimal(input.amountKrw);
     const policy = this.settlementConversionPolicy();
 
     if (amountKrw.comparedTo(policy.minAmountKrw) < 0) {
@@ -913,28 +914,72 @@ export class CreatorStudioService {
     }
 
     const requestedLumina = amountKrw.div(policy.unitPriceKrw);
-    const row = await this.prisma.settlementLuminaConversionRequest.create({
-      data: {
-        requesterUserId: userId,
-        settlementKey: input.settlementKey,
-        settlementType: parsedKey.type,
-        period: parsedKey.period,
-        targetArtistId: parsedKey.type === 'artist' ? parsedKey.id : null,
-        amountKrw,
-        requestedLumina,
-        note: input.note ?? null,
-        idempotencyKey: input.idempotencyKey ?? null,
-        metadata: this.toJson({
-          source: 'creator_studio',
-          previewOnly: true,
-          unitPriceKrw: policy.unitPriceKrw.toString(),
-          estimatedAvailableKrw: estimatedAvailableKrw.toString(),
-          reservedKrw: reservedKrw.toString(),
-          remainingKrwBeforeRequest: remainingKrw.toString(),
-          walletCredit: 'admin_approval_required',
-        }),
-      },
-    });
+    let row: SettlementLuminaConversionRequest;
+    try {
+      row = await this.prisma.settlementLuminaConversionRequest.create({
+        data: {
+          requesterUserId: userId,
+          settlementKey: input.settlementKey,
+          settlementType: parsedKey.type,
+          period: parsedKey.period,
+          targetArtistId: parsedKey.type === 'artist' ? parsedKey.id : null,
+          amountKrw,
+          requestedLumina,
+          note: input.note ?? null,
+          idempotencyKey: input.idempotencyKey ?? null,
+          metadata: this.toJson({
+            source: 'creator_studio',
+            previewOnly: true,
+            unitPriceKrw: policy.unitPriceKrw.toString(),
+            estimatedAvailableKrw: estimatedAvailableKrw.toString(),
+            reservedKrw: reservedKrw.toString(),
+            remainingKrwBeforeRequest: remainingKrw.toString(),
+            walletCredit: 'admin_approval_required',
+          }),
+        },
+      });
+    } catch (error) {
+      if (
+        !(error instanceof Prisma.PrismaClientKnownRequestError) ||
+        error.code !== 'P2002' ||
+        !input.idempotencyKey
+      ) {
+        throw error;
+      }
+
+      const target = error.meta?.target;
+      const modelName = error.meta?.modelName;
+      const isIntentConstraint =
+        target === 'uq_settlement_lumina_conversions_idempotency' ||
+        (Array.isArray(target) &&
+          target.length === 2 &&
+          ((target.includes('requesterUserId') && target.includes('idempotencyKey')) ||
+            (target.includes('requester_user_id') && target.includes('idempotency_key'))));
+
+      if (
+        !isIntentConstraint ||
+        (modelName !== undefined && modelName !== 'SettlementLuminaConversionRequest')
+      ) {
+        throw error;
+      }
+
+      const existing = await this.prisma.settlementLuminaConversionRequest.findFirst({
+        where: {
+          requesterUserId: userId,
+          idempotencyKey: input.idempotencyKey,
+        },
+      });
+      if (!existing) {
+        throw error;
+      }
+
+      this.assertSettlementConversionReplayIntent(existing, input, amountKrw);
+      return {
+        conversion: this.presentSettlementConversion(existing),
+        idempotentReplay: true,
+        policy: this.settlementConversionPolicy(),
+      };
+    }
 
     return {
       conversion: this.presentSettlementConversion(row),
@@ -2180,6 +2225,23 @@ export class CreatorStudioService {
     });
 
     return aggregate._sum.amountKrw ?? new Decimal(0);
+  }
+
+  private assertSettlementConversionReplayIntent(
+    existing: Pick<SettlementLuminaConversionRequest, 'settlementKey' | 'amountKrw' | 'note'>,
+    input: CreateCreatorStudioSettlementConversionDto,
+    amountKrw: Decimal,
+  ) {
+    if (
+      existing.settlementKey !== input.settlementKey ||
+      existing.amountKrw.comparedTo(amountKrw) !== 0 ||
+      (existing.note ?? null) !== (input.note ?? null)
+    ) {
+      throw new ConflictException({
+        code: 'SETTLEMENT_CONVERSION_IDEMPOTENCY_CONFLICT',
+        message: 'Idempotency key is already associated with a different settlement conversion request',
+      });
+    }
   }
 
   private presentSettlementConversion(row: {
