@@ -5,7 +5,7 @@ const { TextDecoder, TextEncoder } = require('node:util');
 const PINS = Object.freeze({
   'pages/creator-approved-readonly-transport.js': 'd2e052cffc269e53549c81b9a50b0f5b34075bc93f0f6d70d005ee29d63afc33',
   'pages/creator-approved-reading-catalog.js': '69e34934bb77cb38461944062c6732fcdbf8a5406a80f1b5b1e5885e9b704ad5',
-  'pages/creator-approved-reading-entry.js': 'f6f97265c7aa22b8939b3bf8236067623e2d60a81dadf4473cfefa546de29e52',
+  'pages/creator-approved-reading-entry.js': 'c0b4a61accec55e12375ce9c5cf76d90a6f7c7d459738079e4e837694690e144',
   'creator-studio/approved-reading/index.html': 'da077207f5ebe1ffc2b857b1963a69f51ac658cd835fa688264b752a79c494a5',
 });
 const sourceRoot = path.resolve(process.env.CATALOG_RECEIPT_SOURCE_ROOT || path.join(__dirname, '..'));
@@ -105,8 +105,14 @@ function documentFixture() {
   }
   nodes.get('readingLocale').value = 'ko'; return doc;
 }
-function fixture({ entry = false, noNative = false, metadata } = {}) {
+function fixture({ entry = false, noNative = false, metadata, diagnosticDataset = 'supported' } = {}) {
   const window = new Hub(), document = documentFixture(), states = [], calls = [];
+  assert(['supported', 'missing', 'null', 'primitive'].includes(diagnosticDataset));
+  if (diagnosticDataset !== 'supported') {
+    const node = document.getElementById('readingCatalogState');
+    if (diagnosticDataset === 'missing') delete node.dataset;
+    else node.dataset = diagnosticDataset === 'null' ? null : 'unavailable';
+  }
   let auth = { accessToken: TOKEN, user: { id: OWNER } }, raw = JSON.stringify(auth), next = () => response();
   let writes = 0, directAuth = 0, timer = 0;
   const timeouts = new Map(), intervals = new Map();
@@ -293,4 +299,27 @@ test('08 legacy/invalid receipt stays null and own-descriptor snapshots never in
   assert.equal(h.calls.length, 1); assert.equal(h.state().phase, 'ready');
   checkReceipt(h.state().requestReceipt, true, '200', 'complete');
   assert.equal(proxyGets, 0); h.finish();
+});
+
+test('09 optional DOM diagnostic dataset never blocks normal entry or manual sign-in', { concurrency: false }, async () => {
+  for (const diagnosticDataset of ['missing', 'null', 'primitive']) {
+    for (const status of [200, 401]) {
+      const h = fixture({ entry: true, diagnosticDataset });
+      assert.equal(h.calls.length, 0); h.use(response(status)); await h.load();
+      assert.equal(h.calls.length, 1);
+      assert.equal(h.state().phase, status === 200 ? 'ready' : 'auth_rejected');
+      checkReceipt(h.state().requestReceipt, true, String(status), status === 200 ? 'complete' : 'response_status');
+      const node = h.document.getElementById('readingCatalogState');
+      assert.equal(node.dataset, diagnosticDataset === 'missing' ? undefined : diagnosticDataset === 'null' ? null : 'unavailable');
+      const login = h.document.getElementById('readingCatalogLogin');
+      assert.equal(login.hidden, status === 200); assert.equal(login.getAttribute('href'), '/#login');
+      if (status === 200) {
+        await h.choose();
+        const selected = h.window.LuminaCreatorApprovedReadingScope.snapshot();
+        assert.equal(h.window.LuminaCreatorApprovedReadingScope.isCurrent(selected), true);
+      } else assert.equal(h.state().selected, null);
+      assert.equal(h.calls.length, 1); await h.window.fire('pagehide');
+      empty(h); assert.equal(login.hidden, true); assert.equal(h.calls.length, 1); h.finish();
+    }
+  }
 });

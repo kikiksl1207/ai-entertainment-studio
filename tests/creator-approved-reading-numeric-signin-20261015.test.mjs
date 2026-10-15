@@ -15,7 +15,7 @@ const PINS = [
   ["pages/creator-approved-readonly-transport.js", "580c990aaf88623aa18d27b7f8c00c106c753f0f", "d2e052cffc269e53549c81b9a50b0f5b34075bc93f0f6d70d005ee29d63afc33"],
   ["pages/creator-approved-reading-handoff.js", "3c89000c313c43dbf4a78bac97d63bf769b43e11", "68d1dedcedbf3ae7b259e29924836a45a1703954f0f2fe825c924250dfe9f067"],
   ["pages/creator-approved-reading-catalog.js", "71a9d600df2307473e6b1a05d3b1fb1d770cab6d", "69e34934bb77cb38461944062c6732fcdbf8a5406a80f1b5b1e5885e9b704ad5"],
-  ["pages/creator-approved-reading-entry.js", "feafab0ab9c0964206855199ac787063736323e5", "f6f97265c7aa22b8939b3bf8236067623e2d60a81dadf4473cfefa546de29e52"],
+  ["pages/creator-approved-reading-entry.js", "efb15c91c202e08241dafd8cb55827dce10a554a", "c0b4a61accec55e12375ce9c5cf76d90a6f7c7d459738079e4e837694690e144"],
   ["pages/creator-approved-section-bytes.js", "19762358292026ef27d33f59133d8bb573edd2af", "72d2caf3d363979e7662f717ae19abf2d851750a24185874352e1a3225bfc9da"],
 ];
 function pinnedSources() {

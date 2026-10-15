@@ -109,13 +109,16 @@
       const catalogStatus = document.getElementById("readingCatalogState");
       catalogStatus.textContent = c[catalogState.phase] ?? c.unavailable;
       const receipt = pageDisposed ? null : catalogState.requestReceipt;
-      for (const key of ["requestPhase", "responseStatus", "nativeFetchInvoked", "requestReceiptContract", "receiptAuthority"]) delete catalogStatus.dataset[key];
-      if (receipt) {
-        catalogStatus.dataset.requestPhase = receipt.phase;
-        catalogStatus.dataset.responseStatus = receipt.responseStatus;
-        catalogStatus.dataset.nativeFetchInvoked = String(receipt.nativeFetchInvoked);
-        catalogStatus.dataset.requestReceiptContract = receipt.contract;
-        catalogStatus.dataset.receiptAuthority = receipt.authority;
+      const diagnosticData = catalogStatus.dataset;
+      if (diagnosticData && typeof diagnosticData === "object") {
+        for (const key of ["requestPhase", "responseStatus", "nativeFetchInvoked", "requestReceiptContract", "receiptAuthority"]) delete diagnosticData[key];
+        if (receipt) {
+          diagnosticData.requestPhase = receipt.phase;
+          diagnosticData.responseStatus = receipt.responseStatus;
+          diagnosticData.nativeFetchInvoked = String(receipt.nativeFetchInvoked);
+          diagnosticData.requestReceiptContract = receipt.contract;
+          diagnosticData.receiptAuthority = receipt.authority;
+        }
       }
       if (catalogLogin) {
         catalogLogin.textContent = c.login;
