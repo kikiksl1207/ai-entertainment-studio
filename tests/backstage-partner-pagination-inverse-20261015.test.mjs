@@ -5,9 +5,11 @@ import { test } from 'node:test';
 import { sourceWithoutPartnerPaginationDelta, partnerPaginationBeforeSHA256, partnerPaginationAfterSHA256 } from './support/backstage-partner-pagination-inverse-20261015.mjs';
 import { sourceWithoutSettlementReadDelta, settlementReadBeforeSHA256 } from './support/backstage-settlement-read-inverse-20261014.mjs';
 
+import { sourceWithoutAdminKnownDenialDelta } from './support/backstage-admin-known-denial-inverse-20261015.mjs';
+
 const sha = value => createHash('sha256').update(value).digest('hex');
 const selected = readFileSync(process.env.LUMINA_SETTLEMENT_READ_JS_PATH || new URL('../backstage.js', import.meta.url), 'utf8');
-const source = selected.replaceAll('\r\n', '\n');
+const source = sourceWithoutAdminKnownDenialDelta(selected).replaceAll('\r\n', '\n');
 assert.equal(sha(source), partnerPaginationAfterSHA256);
 
 test('PARTNER.INVERSE.01 exact current LF reconstructs only the prior published source', () => {

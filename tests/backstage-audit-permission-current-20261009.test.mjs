@@ -77,6 +77,7 @@ function harness(auth = viewer(), automatic = null) {
   const sections = ['overview', 'logs', 'admins'].map(id => new Element(id));
   const links = sections.map(section => { const node = new Element(); node.setAttribute('href', `#${section.id}`); return node; });
   const context = { URLSearchParams, dashboardView: dashboard, sectionState: { logs: state(), admins: { rows: [], auditRows: [] } },
+    userClassificationDetail: null, selectedDetail: null,
     tableMeta: { logRows: { type: 'Synthetic audit', labels: ['time', 'actor', 'action', 'target', 'reason'] } },
     statusClassMap: {}, localHistoryRows: () => [], creatorsNativeIsTable: () => false,
     creatorsNativeReadonlyCurrent: () => false, syncCreatorsNativeReadonlyView: () => {},
@@ -88,6 +89,7 @@ function harness(auth = viewer(), automatic = null) {
       getElementById: id => id === 'logRows' ? table : sections.find(section => section.id === id) || null,
       querySelector: selector => {
         if (selector === '.dashboard-main') return main;
+        if (selector === '[data-load-more="users"]') return null;
         assert.equal(selector, '[data-load-more="logs"]'); return more;
       },
       querySelectorAll: selector => {

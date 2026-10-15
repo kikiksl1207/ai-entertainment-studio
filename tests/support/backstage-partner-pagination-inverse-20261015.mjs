@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 
+import { sourceWithoutAdminKnownDenialDelta } from './backstage-admin-known-denial-inverse-20261015.mjs';
+
 const sha = value => createHash('sha256').update(value).digest('hex');
 export const partnerPaginationBeforeSHA256 = '9d7695bfad6f710148fc8015d55d77851a7583137e09b3d16225db932b1f4609';
 export const partnerPaginationAfterSHA256 = 'a2ec8324573b8113b1f1f861f08dc46fd4b5e2de18e0dfd7b16be562a759c240';
@@ -30,6 +32,7 @@ Object.freeze(delta.changes); Object.freeze(delta);
 
 export function sourceWithoutPartnerPaginationDelta(value) {
   assert.equal(typeof value, 'string');
+  value = sourceWithoutAdminKnownDenialDelta(value);
   const candidate = value.replaceAll('\r\n', '\n');
   if (sha(candidate) !== partnerPaginationAfterSHA256) return value;
   let source = uniformLF(value);

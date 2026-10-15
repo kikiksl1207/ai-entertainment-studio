@@ -3463,6 +3463,7 @@ function setActiveSection(sectionId = "overview") {
 
 function currentAdminRoleName() {
   const user = getBackstageAuth()?.user || {};
+  if (["suspended", "revoked"].includes(user.adminUser?.status)) return null;
   return firstValue(
     user.adminUser?.role?.name,
     user.adminUser?.roleName,
@@ -3488,6 +3489,7 @@ function adminPermissionList(...sources) {
 
 function currentAdminPermissions() {
   const user = getBackstageAuth()?.user || {};
+  if (["suspended", "revoked"].includes(user.adminUser?.status)) return [];
   return adminPermissionList(
     user.adminUser?.role?.permissions,
     user.adminUser?.permissions,
@@ -3611,6 +3613,7 @@ function syncCurrentAdminContext(adminUsers = []) {
 }
 
 function canAccessBackstageSection(sectionId, allowNativeReadonly = true) {
+  if (["suspended", "revoked"].includes(getBackstageAuth()?.user?.adminUser?.status)) return false;
   if (allowNativeReadonly && sectionId === "creators" && creatorsNativeReadonlyCurrent()) return true;
   if (sectionId === "overview") return true;
   if (sectionId === "logs") {
@@ -3650,6 +3653,25 @@ function canAccessBackstageSection(sectionId, allowNativeReadonly = true) {
 }
 
 function applyPermissionVisibility() {
+  if (["suspended", "revoked"].includes(getBackstageAuth()?.user?.adminUser?.status)) {
+    sectionState.users = { cursor: null, hasMore: false, rows: [], riskRows: [], search: "",
+      classification: "all", classificationSupported: false };
+    renderLoadingRow("userRows", "회원 조회 권한이 없습니다. 관리자 권한을 확인해 주세요.");
+    renderLoadingRow("userRiskRows", "회원 조회 권한이 없습니다. 관리자 권한을 확인해 주세요.");
+    setLoadMore("users", false);
+    const status = document.getElementById("users")?.querySelector("[data-users-status]");
+    if (status) status.textContent = "";
+    const filter = document.getElementById("usersClassificationFilter");
+    if (filter) { filter.value = "all"; filter.disabled = true; }
+    userClassificationDetail?.node.remove();
+    userClassificationDetail = null;
+    if (["userRows", "userRiskRows"].includes(selectedDetail?.tableId)) {
+      closeConfirmModal();
+      selectedDetail = null;
+      detailPanel?.classList.add("is-hidden");
+      if (detailForm) { detailForm.classList.add("is-hidden"); detailForm.innerHTML = ""; detailForm.dataset.draftKey = ""; }
+    }
+  }
   document.querySelectorAll(".sidebar-nav a").forEach((link) => {
     const sectionId = link.getAttribute("href")?.replace("#", "") || "overview";
     link.classList.toggle("is-hidden", !canAccessBackstageSection(sectionId));

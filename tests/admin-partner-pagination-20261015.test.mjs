@@ -15,8 +15,8 @@ const serverRequire = createRequire(resolve(repoRoot, 'server/package.json'));
 const { parse } = serverRequire('@babel/parser');
 const ENV = ['LUMINA_ADMIN_PARTNER_JS_PATH', 'LUMINA_ADMIN_PARTNER_JS_SHA256',
   'LUMINA_ADMIN_PARTNER_HTML_PATH', 'LUMINA_ADMIN_PARTNER_HTML_SHA256'];
-const PINS = { jsLf: 'a2ec8324573b8113b1f1f861f08dc46fd4b5e2de18e0dfd7b16be562a759c240',
-  htmlLf: '0c45de8ceb7aad1018297dace7b8d5d4a250e76470429e85803141dd97d133e8',
+const PINS = { jsLf: '23d49705138ce5d8a5b249ddead30104deb4c5d1186d4ae069b976d7b6fc688d',
+  htmlLf: 'dc74c52e61e45883335132281f737601984d7e1852ce2d83ef87d6b1fe5de234',
   money: 'ae32bd3dba0528f3769473342c7dd6729e76f6c606c4d4096349d388a7e94aa6' };
 const digest = bytes => createHash('sha256').update(bytes).digest('hex');
 const plain = value => JSON.parse(JSON.stringify(value));
@@ -258,7 +258,7 @@ test('ADMIN.PARTNER.01 actual independent pager, HTML control, portable admissio
   assert.equal(buttons.length, 1); assert.match(buttons[0][1], /\btype=["']button["']/);
   assert.match(buttons[0][1], /\bclass=["'][^"']*load-more-action[^"']*is-hidden/);
   assert.equal(buttons[0][2].trim(), '\uc6b4\uc601\uc790 \ub354 \ubcf4\uae30');
-  assert.match(selected.html.text, /backstage\.js\?v=admin-partner-pagination-20261015/);
+  assert.match(selected.html.text, /backstage\.js\?v=admin-known-denial-20261015/);
   const calls = [], disables = [], branches = []; walk(product.wireNode, node => {
     if (node.type === 'CallExpression' && node.callee.name === 'loadSettlementPartners') calls.push(node);
     if (node.type === 'AssignmentExpression' && node.left.object?.name === 'button' && node.left.property?.name === 'disabled') disables.push(node);
