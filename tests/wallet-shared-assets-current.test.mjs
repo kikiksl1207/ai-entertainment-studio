@@ -163,7 +163,7 @@ const consumers = [
       "https://www.googletagmanager.com/gtag/js?id=G-1L7TCBQ0N4",
       "/data/characters.js",
       "/data/shortforms.js",
-      "/pages/lumina-feed.js?v=feed-search-owner-20261009-deadline-20261011",
+      "/pages/lumina-feed.js?v=feed-search-locale-20261015",
       "/pages/feed-report.js?v=feed-report-safety-20261001",
       "/pages/premium-chat-hub.js",
       "/app.js?v=feed-report-safety-20261001",

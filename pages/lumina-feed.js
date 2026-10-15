@@ -80,6 +80,7 @@ let _luminaFeedQuery = "";
 let _luminaFeedSearchTimer = null;
 
 let _luminaFeedSearchSeq = 0;
+let _luminaFeedSearchLanguage = "";
 
 let _feedListLoadSeq = 0;
 let _feedDetailLoadSeq = 0;
@@ -925,17 +926,18 @@ async function executeLuminaFeedSearch(query) {
   _feedListLoadSeq += 1;
   const type = q.startsWith("#") ? "hashtag" : "text";
   const language = feedLocaleToLanguage();
+  _luminaFeedSearchLanguage = language;
   try {
     const res = await apiFetch(`/api/v1/lumina-feed/search?q=${encodeURIComponent(q)}&type=${encodeURIComponent(type)}&language=${encodeURIComponent(language)}&take=30`, {
       auth: typeof isLoggedIn === "function" && isLoggedIn(), throwOnError: true
     });
-    if (seq !== _luminaFeedSearchSeq || owner !== feedViewerKey()) return;
+    if (seq !== _luminaFeedSearchSeq || owner !== feedViewerKey() || language !== feedLocaleToLanguage()) return;
     _luminaFeedItems = feedResponseItems(res);
     _luminaFeedSource = "search";
     renderLuminaFeed();
     refreshLuminaFeedDiscoveryIfDue(FEED_DISCOVERY_SEARCH_REFRESH_MS);
   } catch (err) {
-    if (seq !== _luminaFeedSearchSeq || owner !== feedViewerKey()) return;
+    if (seq !== _luminaFeedSearchSeq || owner !== feedViewerKey() || language !== feedLocaleToLanguage()) return;
     _luminaFeedItems = [];
     _luminaFeedSource = "error";
     renderLuminaFeed();
@@ -2441,6 +2443,11 @@ async function runFeedComposeUploadStages(item, onStateChange) {
 
   window.addEventListener("lumina:localechange", () => {
     if (!document.getElementById("luminaFeedList")) return;
+    const language = feedLocaleToLanguage();
+    if (_luminaFeedSearchLanguage && language !== _luminaFeedSearchLanguage) {
+      _luminaFeedSearchSeq += 1;
+    }
+    _luminaFeedSearchLanguage = language;
     renderLuminaFeed();
     initLuminaFeedSidebar();
     initLuminaFeedDiscovery();

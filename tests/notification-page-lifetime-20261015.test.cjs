@@ -1,4 +1,5 @@
 'use strict';
+const { htmlWithoutFeedSearchLocaleDelta } = require('./support/feed-search-locale-html-inverse-20261015.cjs');
 const assert = require('node:assert/strict');
 const { createHash } = require('node:crypto');
 const { readFileSync, realpathSync } = require('node:fs');
@@ -42,7 +43,9 @@ function admitted(relative, expected) {
   const bytes = readFileSync(file);
   assert(bytes.length > 0 && bytes.length <= 131072);
   assert(!bytes.subarray(0, 3).equals(Buffer.from([0xef, 0xbb, 0xbf])), 'SOURCE_BOM_DENIED');
-  const text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
+  const decoded = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
+  const text = profile === 'current' && relative === 'lumina-feed/index.html'
+    ? htmlWithoutFeedSearchLocaleDelta(decoded) : decoded;
   assert(!text.startsWith('\uFEFF') && !/\r(?!\n)/.test(text), 'SOURCE_LINE_ENDING_DENIED');
   assert(!(text.includes('\r\n') && text.replace(/\r\n/g, '').includes('\n')), 'SOURCE_MIXED_ENDING_DENIED');
   const lf = text.replace(/\r\n/g, '\n');

@@ -9,11 +9,11 @@ function refs(html) {
 
 test('feed entry loads the input-owner guard once with a fresh cache version', () => {
   const html = readFileSync(new URL('../lumina-feed/index.html', import.meta.url), 'utf8');
-  const expected = ['/pages/lumina-feed.js?v=feed-search-owner-20261009-deadline-20261011'];
+  const expected = ['/pages/lumina-feed.js?v=feed-search-locale-20261015'];
   assert.deepEqual(refs(html), expected);
   for (const invalid of [
-    html.replace('feed-search-owner-20261009-deadline-20261011', 'feed-report-safety-20261001'),
-    html.replace(/<script src="\/pages\/lumina-feed\.js\?v=feed-search-owner-20261009-deadline-20261011"><\/script>/, ''),
-    html.replace('</body>', '<script src="/pages/lumina-feed.js?v=feed-search-owner-20261009-deadline-20261011"></script></body>'),
+    html.replace('feed-search-locale-20261015', 'feed-report-safety-20261001'),
+    html.replace(/<script src="\/pages\/lumina-feed\.js\?v=feed-search-locale-20261015"><\/script>/, ''),
+    html.replace('</body>', '<script src="/pages/lumina-feed.js?v=feed-search-locale-20261015"></script></body>'),
   ]) assert.notDeepEqual(refs(invalid), expected);
 });
