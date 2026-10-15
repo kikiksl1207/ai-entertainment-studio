@@ -1214,7 +1214,8 @@ async function loadUserProfilePosts(endpoint, isAuth, append) {
   section.style.display = "";
   try {
     const res = await apiFetch(endpoint, { auth: isAuth, throwOnError: true });
-    const items = Array.isArray(res?.items) ? res.items : [];
+    if (!Array.isArray(res?.items)) throw new Error("Invalid public profile posts payload");
+    const items = res.items;
     const normalized = items.map(normalizeFeedPost);
 
     if (!append) {

@@ -7,8 +7,8 @@ const root = path.resolve(process.env.PUBLIC_PROFILE_ERROR_SOURCE_ROOT || path.j
 const pins = {
   baseline: { 'pages/user-profile.js': '1f82e2948091180627f4f6665fedecf6850da9b7e103722dc7504859737177ec',
     'user-profile/index.html': '0fc25fa70aa80df8d1c5f19e43a9e7363b21dc30eba72eb74fc260b754fac50d' },
-  current: { 'pages/user-profile.js': '40523801f56d532f6caeaf6f64aae6283759f52f99c85dc949e9d35cf0d1d2f4',
-    'user-profile/index.html': 'a4a12b1470a31f3723520b2b976f78586b82df7b690c1b2e26d37bd4d8a9ffa6' },
+  current: { 'pages/user-profile.js': 'ddeb79308d7fcf0c236d561d2214944623f011066a9fb49460e83937d44acce8',
+    'user-profile/index.html': 'dbd1cd661a3c51cbf397b33ca81feab7f67f878bdf33e0d0f5e42f0eddca200b' },
 };
 function read(file, pin) {
   const bytes = fs.readFileSync(path.join(root, file));
@@ -31,7 +31,7 @@ const actualApi = app.slice(start, end).trimEnd();
 assert(actualApi.startsWith(apiStart) && actualApi.endsWith('\n}'));
 const actualBase = 'const API_BASE = "https://api.lumina-stage.com";';
 assert.equal(app.split(actualBase).length, 2);
-const pageScript = phase === 'baseline' ? '/pages/user-profile.js' : '/pages/user-profile.js?v=public-profile-post-error-truth-20261016';
+const pageScript = phase === 'baseline' ? '/pages/user-profile.js' : '/pages/user-profile.js?v=public-profile-post-payload-truth-20261016';
 assert.equal(html.split('<script src="' + pageScript + '"></script>').length, 2);
 assert(html.indexOf(pageScript) < html.indexOf('/app.js?v=wallet-session-20261011'));
 const secret = 'synthetic-message-not-for-console';
