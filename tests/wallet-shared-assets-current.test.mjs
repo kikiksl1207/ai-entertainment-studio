@@ -110,7 +110,7 @@ const consumers = [
     "previousSrc": "/app.js?v=studio-auth-20261001",
     "beforeScripts": [
       "https://www.googletagmanager.com/gtag/js?id=G-1L7TCBQ0N4",
-      "/pages/creator-studio.js?v=creator-payout-current-20261015",
+      "/pages/creator-studio.js?v=settlement-submit-outcome-20261016-v1",
       "/data/characters.js",
       "/app.js?v=studio-auth-20261001",
       "/pages/creator-analysis-review.js",

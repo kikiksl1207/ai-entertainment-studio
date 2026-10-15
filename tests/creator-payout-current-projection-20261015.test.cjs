@@ -13,8 +13,8 @@ assert(!/[\\/]story-completion-20261003(?:[\\/]|$)/i.test(realpathSync.native(ro
 const pins = {
   baseline: ['18aa1e2b8594ceb0206a9861ab2ddd89d17712ee7864e4a24ee1f754825185df',
     '10522445a90813dd68394c27f6ec9a6d2400e9b2f5b8d408b97aa1b4e4aedf2d'],
-  current: ['0380465fa757466b97a14808c5fb8b9f9c31cee0b7076efcf1215296c8533fcf',
-    '9adbf061676c9869b798e55031edd8d5ae32b8147b6ece27f8caba11c5eba50f'],
+  current: ['a59a6e729b92f7795ad085d4e61afaca2fcafaf64f10d26b4e63d17369ba12f6',
+    '8c72858fb4de25647f3dd53502c35ef763997c833f55b8e08c08c5ef0267e9af'],
 };
 function source(relative, expected) {
   const bytes = readFileSync(path.join(root, relative));
@@ -35,7 +35,7 @@ const labelIds = ['studioPayoutCurrencyLabel', 'studioPayoutFxLabel', 'studioPay
 for (const id of ['studioPayoutBreakdown', ...amountIds, ...labelIds]) {
   assert.equal(html.split('id="' + id + '"').length, 2, 'Actual HTML uniquely provides payout target');
 }
-const entry = profile === 'current' ? 'creator-payout-current-20261015' : 'creator-trial-cache-20261002';
+const entry = profile === 'current' ? 'settlement-submit-outcome-20261016-v1' : 'creator-trial-cache-20261002';
 assert.equal(html.split('/pages/creator-studio.js?v=' + entry).length, 2);
 const seam = '  verify();\n})();';
 assert.equal(script.split(seam).length, 2, 'Only the existing final auto-verify seam may be exposed');

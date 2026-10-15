@@ -42,6 +42,11 @@
   let studioVerification = 0;
   let studioVerificationController = null;
   let studioAccessIdentity = null;
+  let conversionAccess = null;
+  let conversionOperation = null;
+  let conversionView = null;
+  let conversionLifetime = 0;
+  let conversionSealed = false;
   let artistIdentityResponse = null;
   let artistIdentityBusy = false;
   let artistIdentityRequestEpoch = 0;
@@ -364,6 +369,7 @@
   }
 
   function deny(message) {
+    retireConversionAccess(false);
     if (shell) shell.hidden = true;
     if (gate) gate.hidden = false;
     if (kicker) kicker.textContent = "접근 확인 필요";
@@ -382,7 +388,9 @@
     deny("스튜디오 권한 확인 중 오류가 발생했습니다. 새로고침 후에도 반복되면 로그인 상태를 확인해 주세요.");
   });
 
-  function allow(data) {
+  function allow(data, verifiedIdentity, verificationTicket) {
+    conversionAccess = !conversionSealed && verificationTicket === studioVerification && currentStudioIdentity(verifiedIdentity) &&
+      verificationTicket === studioVerification ? { identity: verifiedIdentity, lifetime: conversionLifetime } : null;
     if (gate) gate.hidden = true;
     if (shell) shell.hidden = false;
     const email = data?.viewer?.email || readAuth()?.user?.email;
@@ -469,12 +477,14 @@
   }
 
   function closeStudioModal() {
+    retireConversionView();
     const modal = document.getElementById("studioModal");
     if (modal) modal.classList.add("is-hidden");
     studioModalConfirmHandler = null;
   }
 
   function openStudioModal({ type = "확인", title = "확인", message = "", summaryHtml = "", confirmText = "확인", cancelText = "취소", onConfirm = null } = {}) {
+    retireConversionView();
     const modal = document.getElementById("studioModal");
     if (!modal) return;
     text("studioModalType", type);
@@ -1116,7 +1126,8 @@
     text("studioMetricSettlementSub", total != null && Number.isFinite(Number(total))
       ? "환불·세무 검토 전 예상치" : "예상 정산액이 제공되지 않았습니다.");
     const conversionButton = document.querySelector('[data-action="settlement-conversion"]');
-    if (conversionButton) conversionButton.disabled = settlementOptions().length === 0;
+    if (conversionButton) conversionButton.disabled = conversionSealed ||
+      (settlementOptions().length === 0 && !(conversionOperation && conversionScopeCurrent(conversionOperation.identity, conversionLifetime)));
     const rows = document.getElementById("studioSettlementRows");
     if (rows && Array.isArray(data?.items) && data.items.length) {
       rows.innerHTML = [
@@ -2382,34 +2393,57 @@
   }
 
   function openSettlementConversionModal() {
+    const identity = studioIdentity();
+    if (!conversionScopeCurrent(identity, conversionLifetime) || document.visibilityState === "hidden") {
+      showToast(conversionSealed ? "이 화면에서는 이전 요청의 결과를 확인할 수 없습니다. 운영팀에 확인해 주세요." : "현재 계정의 스튜디오 권한을 먼저 확인해 주세요.");
+      return;
+    }
+    if (conversionOperation && !sameConversionOwner(conversionOperation.identity, identity)) {
+      retireConversionAccess(true);
+      return;
+    }
+    const retained = conversionOperation;
     const options = settlementOptions();
     const minAmount = 1000;
-    if (!options.length) {
+    if (!retained && !options.length) {
       showToast("충전 요청 가능한 예상 정산액이 아직 없습니다.");
       return;
     }
-    const first = options[0];
+    const first = retained ? { key: retained.intent.settlementKey, available: Number(retained.intent.amountKrw) } : options[0];
+    const displayedOptions = retained ? [{ key: first.key, name: "이전 요청 대상", available: first.available }] : options;
     const maxAmount = Math.max(0, Math.floor(first.available / 1000) * 1000);
     openStudioModal({
       type: "CHARGE REQUEST",
       title: "정산금으로 충전",
-      message: "정산금으로 충전은 요청만 접수됩니다. 상태는 요청됨/승인 필요로 시작하며, 관리자/회계 확인 후에만 루미나가 지급됩니다. 즉시 지갑에 반영되지 않습니다. 1 Lumina = 10원 기준입니다.",
+      message: retained ? conversionOutcomeCopy(retained.phase) : "정산금으로 충전은 요청만 접수됩니다. 상태는 요청됨/승인 필요로 시작하며, 관리자/회계 확인 후에만 루미나가 지급됩니다. 즉시 지갑에 반영되지 않습니다. 1 Lumina = 10원 기준입니다.",
       summaryHtml:
         '<div class="modal-form-grid">' +
           '<p class="studio-modal-safe-note is-wide">settlementKey는 정산 미리보기에서 자동 선택됩니다. 아티스트 slug를 직접 입력하지 않습니다.</p>' +
           '<label class="is-wide"><span>대상 정산</span><select id="studioConversionSettlement">' +
-            options.map(item => '<option value="' + escapeHtml(item.key) + '" data-available="' + escapeHtml(item.available) + '">' + escapeHtml(item.name + " · 가능 " + formatKrw(item.available)) + '</option>').join("") +
+            displayedOptions.map(item => '<option value="' + escapeHtml(item.key) + '" data-available="' + escapeHtml(item.available) + '">' + escapeHtml(retained ? item.name : item.name + " · 가능 " + formatKrw(item.available)) + '</option>').join("") +
           '</select></label>' +
           '<label><span>요청 금액</span><input id="studioConversionAmount" type="number" min="' + minAmount + '" step="1000" max="' + maxAmount + '" value="' + Math.max(minAmount, maxAmount) + '" /></label>' +
           '<label><span>예상 루미나</span><input id="studioConversionLumina" value="' + formatNumber(Math.floor(Math.max(minAmount, maxAmount) / 10)) + 'L" readonly /></label>' +
           '<label class="is-wide"><span>메모</span><input id="studioConversionNote" maxlength="120" placeholder="선택 입력" /></label>' +
         '</div>',
       confirmText: "충전 요청",
-      onConfirm: submitSettlementConversion
+      onConfirm: retained?.phase === "acknowledged" ? closeStudioModal : submitSettlementConversion
     });
     const select = document.getElementById("studioConversionSettlement");
     const amount = document.getElementById("studioConversionAmount");
     const lumina = document.getElementById("studioConversionLumina");
+    const note = document.getElementById("studioConversionNote");
+    conversionView = { identity, lifetime: conversionLifetime, operation: retained, select, amount, note, lumina,
+      confirm: document.getElementById("studioModalConfirm"), modal: document.getElementById("studioModal") };
+    if (retained) {
+      select.value = retained.intent.settlementKey;
+      amount.value = retained.intent.amountKrw;
+      note.value = retained.intent.note;
+      lumina.value = formatNumber(Math.floor(Number(amount.value) / 10)) + "L";
+      for (const control of [select, amount, note]) control.disabled = true;
+      renderConversionConfirm(conversionView, retained);
+      return;
+    }
     function syncLimit() {
       const available = Number(select?.selectedOptions?.[0]?.dataset.available || 0);
       const max = Math.max(0, Math.floor(available / 1000) * 1000);
@@ -2425,52 +2459,242 @@
     });
   }
 
+  function sameConversionOwner(left, right) {
+    return Boolean(left?.ownerId && left.ownerId === right?.ownerId && left.epoch === right.epoch);
+  }
+
+  function conversionScopeCurrent(identity, lifetime) {
+    return !conversionSealed && lifetime === conversionLifetime && conversionAccess?.lifetime === lifetime &&
+      sameConversionOwner(conversionAccess.identity, identity) && currentStudioIdentity(identity) &&
+      sameConversionOwner(conversionAccess?.identity, identity) && lifetime === conversionLifetime &&
+      !shell?.hidden && gate?.hidden === true;
+  }
+
+  function conversionViewCurrent(view) {
+    return view && conversionView === view && document.visibilityState !== "hidden" && conversionScopeCurrent(view.identity, view.lifetime) &&
+      !view.modal?.classList.contains("is-hidden") && view.confirm === document.getElementById("studioModalConfirm") &&
+      view.select === document.getElementById("studioConversionSettlement") &&
+      view.amount === document.getElementById("studioConversionAmount") && view.note === document.getElementById("studioConversionNote");
+  }
+
+  function conversionOutcomeCopy(phase) {
+    return phase === "pending" ? "요청 응답을 기다리고 있습니다. 창을 닫아도 접수가 취소되지는 않습니다." :
+      phase === "conflict" ? "이전 요청을 확인해야 합니다. 새 요청을 보내기 전에 운영팀에 문의해 주세요." :
+      phase === "acknowledged" ? "요청 접수가 확인되었습니다. 관리자/회계 확인 후 반영됩니다." :
+      "이전 요청의 접수 여부가 확인되지 않았습니다. 같은 내용의 요청만 다시 확인할 수 있습니다.";
+  }
+
+  function renderConversionConfirm(view, operation) {
+    if (!conversionViewCurrent(view)) return;
+    view.confirm.disabled = ["pending", "conflict"].includes(operation.phase);
+    view.confirm.textContent = operation.phase === "pending" ? "요청 중" : operation.phase === "conflict" ? "확인 필요" :
+      operation.phase === "acknowledged" ? "확인" : "같은 요청 다시 확인";
+  }
+
+  function retireConversionView() {
+    const view = conversionView;
+    if (!view) return;
+    conversionView = null;
+    if (view.confirm === document.getElementById("studioModalConfirm")) view.confirm.disabled = false;
+    if (view.operation === conversionOperation && conversionOperation?.phase === "acknowledged") conversionOperation = null;
+  }
+
+  function retireConversionAccess(clear) {
+    conversionAccess = null;
+    conversionLifetime++;
+    retireConversionView();
+    if (conversionOperation?.flight) {
+      const flight = conversionOperation.flight;
+      conversionOperation.flight = null;
+      if (flight.invoked) {
+        conversionOperation.phase = "unknown";
+        conversionOperation.uncertain = true;
+      } else if (flight.created) conversionOperation = null;
+      else {
+        conversionOperation.phase = flight.priorPhase;
+        conversionOperation.uncertain = flight.priorUncertain;
+      }
+      flight.controller.abort();
+    }
+    if (clear) conversionOperation = null;
+  }
+
+  function conversionFlightCurrent(operation, flight) {
+    return conversionOperation === operation && operation.flight === flight &&
+      conversionScopeCurrent(operation.identity, flight.lifetime) && conversionOperation === operation && operation.flight === flight;
+  }
+
+  function conversionDecimal(value) {
+    if (typeof value !== "string" || value.length > 128 || !/^\d+(?:\.\d+)?$/.test(value)) return null;
+    const [whole, fraction = ""] = value.split(".");
+    const digits = whole.replace(/^0+(?=\d)/, ""), tail = fraction.replace(/0+$/, "");
+    return digits + (tail ? "." + tail : "");
+  }
+
+  function conversionAck(data, operation) {
+    const row = data?.conversion;
+    return Boolean(data && typeof data.idempotentReplay === "boolean" && row &&
+      typeof row.id === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(row.id) &&
+      row.settlementKey === operation.intent.settlementKey && conversionDecimal(row.amountKrw) !== null &&
+      conversionDecimal(row.amountKrw) === conversionDecimal(operation.intent.amountKrw) &&
+      (row.note == null ? "" : row.note) === operation.intent.note &&
+      ["requested", "approved", "credited", "rejected", "cancelled"].includes(row.status));
+  }
+
+  function conversionFirstRejection(data) {
+    const object = value => value && typeof value === "object" && !Array.isArray(value);
+    const error = object(data) && data.success === false ? data.error : null;
+    if (!object(error) || Object.keys(data).length !== 2 || !Object.hasOwn(data, "error") ||
+      Object.keys(error).some(key => !["code", "message", "statusCode", "path", "timestamp", "requestId", "details"].includes(key)) ||
+      error.code !== "SETTLEMENT_CONVERSION_AMOUNT_EXCEEDS_PREVIEW" || error.statusCode !== 400 ||
+      error.message !== "Requested amount exceeds the current settlement preview balance" ||
+      error.path !== "/api/v1/me/creator-studio/settlement-conversions" ||
+      typeof error.timestamp !== "string" || !/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/.test(error.timestamp) ||
+      Object.hasOwn(error, "details") && !object(error.details) ||
+      Object.hasOwn(error, "requestId") && (typeof error.requestId !== "string" || !error.requestId.length ||
+        error.requestId.length > 128 || /[\p{Cc}\p{Cf}]/u.test(error.requestId))) return false;
+    try { return new Date(error.timestamp).toISOString() === error.timestamp; } catch (_) { return false; }
+  }
+
+  async function conversionAwait(promise, signal) {
+    if (signal.aborted) throw new DOMException("Request retired", "AbortError");
+    let abort;
+    try {
+      return await Promise.race([promise, new Promise((_, reject) => {
+        abort = () => reject(new DOMException("Request retired", "AbortError"));
+        signal.addEventListener("abort", abort, { once: true });
+      })]);
+    } finally { if (abort) signal.removeEventListener("abort", abort); }
+  }
+
+  async function conversionReply(response, flight) {
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error("Missing reply");
+    const timer = setTimeout(() => flight.controller.abort(), 5000);
+    let bytes = 0, count = 0;
+    const parts = [];
+    try {
+      for (;;) {
+        const part = await conversionAwait(reader.read(), flight.controller.signal);
+        if (part.done) break;
+        if (!(part.value instanceof Uint8Array) || ++count > 64 || (bytes += part.value.byteLength) > 32768) throw new Error("Reply limit");
+        parts.push(part.value);
+      }
+      const joined = new Uint8Array(bytes);
+      let offset = 0;
+      for (const part of parts) { joined.set(part, offset); offset += part.byteLength; }
+      const text = new TextDecoder("utf-8", { fatal: true }).decode(joined);
+      const data = JSON.parse(text);
+      if (!data || typeof data !== "object" || Array.isArray(data) || JSON.stringify(data) !== text) throw new Error("Invalid reply");
+      return data;
+    } finally {
+      clearTimeout(timer);
+      try { Promise.resolve(reader.cancel()).catch(() => {}); } catch (_) {}
+      try { reader.releaseLock(); } catch (_) {}
+    }
+  }
+
+  function discardConversionReply(response) {
+    try { Promise.resolve(response?.body?.cancel?.()).catch(() => {}); } catch (_) {}
+  }
+
   async function submitSettlementConversion() {
-    const token = readAuth()?.accessToken;
-    const settlementKey = document.getElementById("studioConversionSettlement")?.value || "";
-    const amountKrw = Number(document.getElementById("studioConversionAmount")?.value || 0);
-    const note = document.getElementById("studioConversionNote")?.value.trim() || "";
-    if (!token || !settlementKey || amountKrw < 1000) {
+    const view = conversionView;
+    if (!conversionViewCurrent(view)) return;
+    const identity = studioIdentity(), token = readAuth()?.accessToken;
+    const intent = { settlementKey: view.select.value || "", amountKrw: String(Number(view.amount.value || 0)), note: view.note.value.trim() };
+    const amountKrw = Number(intent.amountKrw);
+    if (!token || !intent.settlementKey || !Number.isFinite(amountKrw) || amountKrw < 1000) {
       showToast("충전 요청 금액은 1,000원 이상이어야 합니다.");
       return;
     }
-    const confirm = document.getElementById("studioModalConfirm");
-    if (confirm) {
-      confirm.disabled = true;
-      confirm.textContent = "요청 중";
-    }
-    try {
-      const res = await fetch(apiBase + "/api/v1/me/creator-studio/settlement-conversions", {
-        method: "POST",
-        headers: {
-          Authorization: "Bearer " + token,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          settlementKey,
-          amountKrw: String(amountKrw),
-          note,
-          idempotencyKey: "studio-" + Date.now() + "-" + Math.random().toString(16).slice(2)
-        })
-      });
-      if (!res.ok) {
-        let msg = "충전 요청에 실패했습니다.";
-        try {
-          const error = await res.json();
-          const remaining = error?.remainingKrw ?? error?.availableKrw ?? error?.maxAmountKrw ?? error?.details?.remainingKrw ?? error?.details?.availableKrw;
-          if (remaining !== undefined) msg = "요청 가능 금액을 초과했습니다. 남은 예상 금액: " + formatKrw(remaining);
-        } catch (_) {}
-        throw new Error(msg);
+    let operation = conversionOperation;
+    if (operation) {
+      if (!sameConversionOwner(operation.identity, identity) || operation.flight || ["conflict", "acknowledged"].includes(operation.phase)) return;
+      if (JSON.stringify(operation.intent) !== JSON.stringify(intent)) {
+        showToast("이전 요청의 결과를 확인하기 전에는 내용을 바꿔 요청할 수 없습니다.");
+        return;
       }
+    }
+    if (!conversionViewCurrent(view) || !sameConversionOwner(view.identity, identity)) return;
+    const created = !operation;
+    if (!operation) {
+      const body = JSON.stringify({ ...intent, idempotencyKey: "studio-" + Date.now() + "-" + Math.random().toString(16).slice(2) });
+      operation = { identity, intent: Object.freeze(intent), body, phase: "pending", uncertain: false, flight: null };
+      conversionOperation = operation;
+    }
+    const priorPhase = operation.phase;
+    const flight = { lifetime: conversionLifetime, controller: new AbortController(), invoked: false,
+      created, priorPhase, priorUncertain: operation.uncertain };
+    operation.phase = "pending"; operation.flight = flight; view.operation = operation;
+    renderConversionConfirm(view, operation);
+    try {
+      if (!conversionFlightCurrent(operation, flight) || !conversionViewCurrent(view) || flight.controller.signal.aborted ||
+        readAuth()?.accessToken !== token || !conversionFlightCurrent(operation, flight)) {
+        if (conversionOperation === operation && operation.flight === flight) {
+          operation.flight = null; operation.phase = priorPhase;
+          if (created) conversionOperation = null;
+        }
+        if (conversionViewCurrent(view)) {
+          if (created) { view.confirm.disabled = false; view.confirm.textContent = "충전 요청"; }
+          else renderConversionConfirm(view, operation);
+        }
+        flight.controller.abort();
+        return;
+      }
+      flight.invoked = true;
+      const headers = fetch(apiBase + "/api/v1/me/creator-studio/settlement-conversions", {
+        method: "POST",
+        headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
+        body: operation.body,
+        signal: flight.controller.signal
+      });
+      // An ignored abort can deliver headers after the awaiting flight has retired.
+      Promise.resolve(headers).then(response => {
+        try { if (flight.controller.signal.aborted || !conversionFlightCurrent(operation, flight)) discardConversionReply(response); }
+        catch (_) { discardConversionReply(response); }
+      }, () => {}).catch(() => {});
+      const res = await conversionAwait(headers, flight.controller.signal);
+      if (!conversionFlightCurrent(operation, flight)) {
+        try { Promise.resolve(res.body?.cancel()).catch(() => {}); } catch (_) {}
+        return;
+      }
+      if (res.status === 409) {
+        operation.phase = "conflict"; operation.uncertain = true;
+        try { Promise.resolve(res.body?.cancel()).catch(() => {}); } catch (_) {}
+        if (conversionViewCurrent(view)) showToast(conversionOutcomeCopy(operation.phase));
+        return;
+      }
+      if (!(res.status >= 200 && res.status < 300) && res.status !== 400) {
+        try { Promise.resolve(res.body?.cancel()).catch(() => {}); } catch (_) {}
+        throw new Error("Unconfirmed reply");
+      }
+      const data = await conversionReply(res, flight);
+      if (!conversionFlightCurrent(operation, flight)) return;
+      if (res.status === 400) {
+        const firstRejected = !operation.uncertain && conversionFirstRejection(data);
+        if (!firstRejected) throw new Error("Unconfirmed rejection");
+        operation.phase = "rejected";
+        conversionOperation = null;
+        if (conversionViewCurrent(view)) showToast("요청 가능 금액을 초과했습니다. 금액을 확인해 주세요.");
+        return;
+      }
+      if (!conversionAck(data, operation)) throw new Error("Unconfirmed acknowledgement");
+      operation.phase = "acknowledged";
+      if (!conversionViewCurrent(view)) return;
       closeStudioModal();
       showToast("정산금으로 충전 요청이 접수되었습니다. 관리자/회계 확인 후 반영됩니다.");
-      loadSettlementConversions();
-    } catch (err) {
-      showToast(err?.message || "충전 요청에 실패했습니다.");
+      if (conversionScopeCurrent(identity, flight.lifetime)) loadSettlementConversions();
+    } catch (_) {
+      if (!conversionFlightCurrent(operation, flight)) return;
+      operation.phase = "unknown"; operation.uncertain = true;
+      if (conversionViewCurrent(view)) showToast(conversionOutcomeCopy(operation.phase));
     } finally {
-      if (confirm) {
-        confirm.disabled = false;
-        confirm.textContent = "충전 요청";
+      if (conversionOperation === operation && operation.flight === flight && conversionScopeCurrent(identity, flight.lifetime)) {
+        operation.flight = null;
+        renderConversionConfirm(view, operation);
+      } else if (!conversionOperation && operation.phase === "rejected" && conversionViewCurrent(view)) {
+        view.confirm.disabled = false; view.confirm.textContent = "충전 요청";
       }
     }
   }
@@ -2657,7 +2881,7 @@
         return;
       }
       if (data?.access?.enabled === true && Array.isArray(data.artists)) {
-        allow(data);
+        allow(data, identity, ticket);
         return;
       }
       // #190 — access.enabled !== true 면 fail-closed (이전엔 toast만 보이고 shell이 열려 권한 우회됨)
@@ -2685,6 +2909,7 @@
   function studioAccountChanged(event) {
     if (event?.type === "storage" && event.key && !authStorageKeys.includes(event.key)) return;
     if (!studioAccessIdentity || currentStudioIdentity(studioAccessIdentity)) return;
+    retireConversionAccess(true);
     studioAccessIdentity = studioIdentity();
     ++studioVerification;
     studioVerificationController?.abort();
@@ -2730,5 +2955,16 @@
   window.addEventListener("storage", studioAccountChanged);
   window.addEventListener("lumina:authchange", studioAccountChanged);
   window.addEventListener("focus", studioAccountChanged);
+  window.addEventListener("pagehide", () => {
+    conversionSealed = true;
+    const view = conversionView;
+    if (view) {
+      for (const control of [view.select, view.amount, view.note, view.lumina]) { control.value = ""; control.disabled = true; }
+      view.select.replaceChildren();
+      view.modal.classList.add("is-hidden");
+      studioModalConfirmHandler = null;
+    }
+    retireConversionAccess(false);
+  });
   verify();
 })();

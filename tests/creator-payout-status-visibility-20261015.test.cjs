@@ -12,7 +12,7 @@ const hash = value => crypto.createHash('sha256').update(value).digest('hex');
 const OLD_CSS = 'f045903a3d4eacdf211b99ff64407b41a1bbd5d835e703584eb822461be7a1dc';
 const OLD_HTML = '437da1c731b3387da0965f5d32a183644c6c31a7b9ef37ca3661ef05928b6649';
 const NEW_CSS = 'ef37609791ed0594f94e061613f9007c9d9740e7ebc9a2fda9a749bc1af356df';
-const NEW_HTML = '9adbf061676c9869b798e55031edd8d5ae32b8147b6ece27f8caba11c5eba50f';
+const NEW_HTML = '8c72858fb4de25647f3dd53502c35ef763997c833f55b8e08c08c5ef0267e9af';
 function source(file, expected) {
   const bytes = readFileSync(path.join(root, file));
   assert(bytes.length > 0 && bytes.length <= 1024 * 1024);
@@ -39,10 +39,14 @@ test('CREATOR.PAYOUT.STATUS.01 explicit status-only CSS delta preserves complete
   const current = '/styles/creator-studio.css?v=payout-status-visibility-20261015';
   const before = '/styles/creator-studio.css?v=writer-final-20261001';
   assert.equal(html.split(current).length, 2);
-  assert.equal(hash(html.replace(current, before)), OLD_HTML, 'Stylesheet cache value is the only HTML delta');
+  const submitEntry = '/pages/creator-studio.js?v=settlement-submit-outcome-20261016-v1';
+  const previousEntry = '/pages/creator-studio.js?v=creator-payout-current-20261015';
+  assert.equal(html.split(submitEntry).length, 2);
+  assert.equal(hash(html.replace(submitEntry, previousEntry).replace(current, before)), OLD_HTML,
+    'Only the declared submit entry and original stylesheet cache deltas are present');
   for (const id of ['studioPayoutBreakdown', 'studioPayoutSampleBadge', 'studioPayoutSampleNote',
     'studioPayoutGrossLumina', 'studioPayoutEligibleLumina', 'studioPayoutGrossKrw', 'studioPayoutTaxKrw', 'studioPayoutNetKrw']) {
     assert.equal(html.split('id="' + id + '"').length, 2);
   }
-  assert.equal(html.split('/pages/creator-studio.js?v=creator-payout-current-20261015').length, 2);
+  assert.equal(html.split('/pages/creator-studio.js?v=settlement-submit-outcome-20261016-v1').length, 2);
 });
