@@ -149,12 +149,24 @@ export class RewardsService {
       return existingCode;
     }
 
-    return this.prisma.userReferralCode.create({
-      data: {
-        userId,
-        code: await this.generateReferralCode(),
-      },
-    });
+    try {
+      return await this.prisma.userReferralCode.create({
+        data: {
+          userId,
+          code: await this.generateReferralCode(),
+        },
+      });
+    } catch (error) {
+      if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'P2002') {
+        const concurrentCode = await this.prisma.userReferralCode.findUnique({
+          where: { userId },
+        });
+        if (concurrentCode?.userId === userId) {
+          return concurrentCode;
+        }
+      }
+      throw error;
+    }
   }
 
   getReferralRewards(userId: string) {
