@@ -624,7 +624,7 @@ export class FanEngagementService {
     this.assertUuid(userId, 'userId');
     const locale = this.locale(query.locale);
     const user = await this.prisma.user.findUnique({
-      where: { id: userId },
+      where: { id: userId, status: 'active', deletedAt: null },
       select: { id: true },
     });
 
