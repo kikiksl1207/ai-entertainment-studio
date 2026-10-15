@@ -421,6 +421,7 @@
   }
 
   function clearPublicSessionTimer() {
+    if (publicPlayback) publicPlayback.sessionEpoch = (publicPlayback.sessionEpoch ?? 0) + 1;
     if (publicSessionTimer) clearTimeout(publicSessionTimer);
     publicSessionTimer = null;
   }
@@ -444,6 +445,7 @@
 
   async function issuePublicSession(generation, key) {
     const playback = publicPlayback;
+    const sessionEpoch = playback?.sessionEpoch;
     const node = playback?.nodes.get(key);
     if (!playback || !node || generation !== publicGeneration) return null;
     const url = apiPath(node.browserPlayback.sessionPath, nodePath(playback.slug, key, "playback-session"));
@@ -461,21 +463,24 @@
       }
       const expires = Date.parse(result.playback.expiresAt);
       if (!Number.isFinite(expires) || expires <= Date.now()) throw new Error("invalid session expiry");
-      if (generation !== publicGeneration || publicPlayback?.currentKey !== key) return null;
+      if (publicPlayback !== playback || sessionEpoch !== playback.sessionEpoch || generation !== publicGeneration || playback.currentKey !== key) return null;
       playback.expiresAt = expires;
       clearPublicSessionTimer();
-      publicSessionTimer = setTimeout(() => { void renewPublicSession(generation, key); }, Math.max(1000, expires - Date.now() - 5000));
+      const renewalEpoch = playback.sessionEpoch;
+      publicSessionTimer = setTimeout(() => { void renewPublicSession(generation, key, renewalEpoch); }, Math.max(1000, expires - Date.now() - 5000));
       return API_BASE + path;
     } finally { clearTimeout(timeout); }
   }
 
-  async function renewPublicSession(generation, key) {
+  async function renewPublicSession(generation, key, sessionEpoch) {
+    const playback = publicPlayback;
+    if (!playback || sessionEpoch !== playback.sessionEpoch) return;
     try {
       await issuePublicSession(generation, key);
     } catch {
-      if (generation !== publicGeneration || publicPlayback?.currentKey !== key) return;
+      if (publicPlayback !== playback || sessionEpoch !== playback.sessionEpoch || generation !== publicGeneration || playback.currentKey !== key) return;
       if (Date.now() >= publicPlayback.expiresAt) showPublicError();
-      else publicSessionTimer = setTimeout(() => { void renewPublicSession(generation, key); },
+      else publicSessionTimer = setTimeout(() => { void renewPublicSession(generation, key, sessionEpoch); },
         Math.min(3000, Math.max(1000, publicPlayback.expiresAt - Date.now())));
     }
   }
