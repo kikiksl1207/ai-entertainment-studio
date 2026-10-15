@@ -18,7 +18,7 @@ const consumers = [
       "/data/fan-engagement-copy.js",
       "/pages/shortform.js",
       "/pages/home.js",
-      "/pages/fan-engagement.js?v=20261013-home-mission-deadline-v1",
+      "/pages/fan-engagement.js?v=20261015-home-page-lifetime-v1",
       "/cms-bootstrap.js",
       "/app.js"
     ]

@@ -14,6 +14,7 @@
   let conceptEpoch = 0;
   let missionRoot = null, missions = [], viewer = null, loading = false;
   let readFlight = null, submitFlight = null, revision = 0;
+  let pageLifetime = 0, pageHidden = false;
   let pageReady = document.readyState !== "loading";
   const homeMissionFixture = {
     generatedAt: "2026-05-10T00:00:00.000Z",
@@ -190,6 +191,10 @@
     return expected === null ? current === null : !!current && current.id === expected.id && current.token === expected.token;
   }
 
+  function homePageCurrent(lifetime) {
+    return !pageHidden && lifetime === pageLifetime;
+  }
+
   function intentName(owner, mission) {
     return owner.id + ":" + mission.id;
   }
@@ -214,7 +219,7 @@
   }
 
   function canParticipate(mission) {
-    return !loading && !submitFlight && !!viewer && sameAuth(viewer) && eligibleMission(mission) &&
+    return !pageHidden && !loading && !submitFlight && !!viewer && sameAuth(viewer) && eligibleMission(mission) &&
       missionIntent(mission)?.status !== "confirmed";
   }
 
@@ -618,20 +623,22 @@
 
   async function renderHomeMissionTeaser() {
     const root = missionRoot;
-    if (!pageReady || !root?.isConnected) return;
+    if (!pageReady || pageHidden || !root?.isConnected) return;
+    const lifetime = pageLifetime;
     const owner = authSnapshot(), ticket = ++revision, controller = new AbortController();
     clearConceptReads();
     readFlight?.abort(); readFlight = controller;
     loading = true; missions = []; viewer = null;
     renderStateMessage(root, neutral.loading || "오늘의 팬 미션을 불러오고 있어요.", "loading");
-    const current = () => ticket === revision && sameAuth(owner) && root.isConnected && !controller.signal.aborted;
+    const current = () => homePageCurrent(lifetime) && ticket === revision && sameAuth(owner) && root.isConnected && !controller.signal.aborted;
     const stale = () => {
-      if (ticket !== revision || !root.isConnected) return;
+      if (!homePageCurrent(lifetime) || ticket !== revision || !root.isConnected) return;
       loading = false; missions = []; viewer = null;
       renderStateMessage(root, "로그인 상태가 바뀌었어요. 다시 확인해 주세요.", "error");
     };
     try {
       const data = await missionRequestGate(controller, async () => {
+        if (!current()) throw new Error("fan-request-stopped");
         const url = apiBase + homeMissionEndpoint;
         const res = await fetch(url, { method: "GET", headers: requestHeaders(owner), credentials: "omit",
           redirect: "error", cache: "no-store", signal: controller.signal });
@@ -654,17 +661,18 @@
       renderMissionList(root, missions, "loaded");
       for (const mission of missions) if (mission.missionType === "vote_concept") void readConceptOptions(mission, ticket, owner);
     } catch (_) {
-      if (ticket !== revision || !root.isConnected) return;
+      if (!homePageCurrent(lifetime) || ticket !== revision || !root.isConnected) return;
       if (!sameAuth(owner)) { stale(); return; }
       loading = false; missions = []; viewer = null;
       renderStateMessage(root, "미션 정보를 확인하지 못했어요. 잠시 후 다시 시도해 주세요.", "error");
     } finally {
-      if (readFlight === controller) readFlight = null;
+      if (homePageCurrent(lifetime) && readFlight === controller) readFlight = null;
     }
   }
 
   async function participate(mission) {
     if (!missionRoot?.isConnected || document.visibilityState === "hidden" || !canParticipate(mission)) return;
+    const lifetime = pageLifetime;
     const owner = viewer, name = intentName(owner, mission), endpoint = participationEndpoint(mission);
     let intent = intents.get(name);
     try {
@@ -681,10 +689,11 @@
     const controller = new AbortController(), flight = { owner, controller, intent };
     submitFlight = flight; intent.status = "pending";
     renderMissionList(missionRoot, missions, "loaded");
-    const current = () => sameAuth(owner) && missionRoot.isConnected && !controller.signal.aborted;
+    const current = () => homePageCurrent(lifetime) && submitFlight === flight && sameAuth(owner) && missionRoot.isConnected && !controller.signal.aborted;
     try {
       if (!current()) throw new Error("fan-auth-changed");
       const receipt = await missionRequestGate(controller, async () => {
+        if (!current()) throw new Error("fan-request-stopped");
         const url = apiBase + endpoint;
         const res = await fetch(url, { method: "POST", headers: { ...requestHeaders(owner), "Content-Type": "application/json" },
           body: JSON.stringify({ action: "complete", idempotencyKey: intent.key }),
@@ -698,16 +707,18 @@
       intent.status = "confirmed";
     } catch (_) {
       // An uncertain result keeps this intent's key; only another user click may resend it.
-      if (intent.status !== "confirmed") intent.status = "indeterminate";
+      if (homePageCurrent(lifetime) && submitFlight === flight && intent.status !== "confirmed") intent.status = "indeterminate";
     } finally {
-      if (submitFlight === flight) submitFlight = null;
-      if (sameAuth(owner) && missionRoot.isConnected) await renderHomeMissionTeaser();
-      else if (!loading && sameAuth(viewer) && missionRoot.isConnected) {
-        if (missions.length) renderMissionList(missionRoot, missions, "loaded");
-        else {
-          const empty = missionRoot.dataset.state === "empty";
-          renderStateMessage(missionRoot, empty ? neutral.empty || "오늘 참여할 팬 미션을 준비하고 있어요."
-            : "미션 정보를 확인하지 못했어요. 잠시 후 다시 시도해 주세요.", empty ? "empty" : "error");
+      if (homePageCurrent(lifetime) && submitFlight === flight) {
+        submitFlight = null;
+        if (sameAuth(owner) && missionRoot.isConnected) await renderHomeMissionTeaser();
+        else if (!loading && sameAuth(viewer) && missionRoot.isConnected) {
+          if (missions.length) renderMissionList(missionRoot, missions, "loaded");
+          else {
+            const empty = missionRoot.dataset.state === "empty";
+            renderStateMessage(missionRoot, empty ? neutral.empty || "오늘 참여할 팬 미션을 준비하고 있어요."
+              : "미션 정보를 확인하지 못했어요. 잠시 후 다시 시도해 주세요.", empty ? "empty" : "error");
+          }
         }
       }
     }
@@ -715,6 +726,7 @@
 
   async function submitBallot(mission) {
     if (!canSubmitBallot(mission)) return;
+    const lifetime = pageLifetime;
     const state = conceptStates.get(mission.id), binding = ballotBinding(mission), owner = viewer;
     const { root, ticket, epoch, page } = state;
     const name = owner.id + ":" + binding.voteId;
@@ -731,8 +743,10 @@
     const controller = new AbortController(), flight = { kind: "ballot", owner, controller, intent };
     submitFlight = flight; intent.status = "pending";
     renderMissionList(root, missions, "loaded");
-    const timeoutId = setTimeout(() => controller.abort(), 7000);
-    const current = () => sameAuth(owner) && root === missionRoot && root.isConnected && missions.includes(mission) &&
+    const timeoutId = setTimeout(() => {
+      if (homePageCurrent(lifetime) && submitFlight === flight) controller.abort();
+    }, 7000);
+    const current = () => homePageCurrent(lifetime) && submitFlight === flight && sameAuth(owner) && root === missionRoot && root.isConnected && missions.includes(mission) &&
       document.visibilityState !== "hidden" && ticket === revision && epoch === conceptEpoch && page === conceptPage() && !controller.signal.aborted;
     try {
       if (!current()) throw new Error("fan-auth-changed");
@@ -753,12 +767,14 @@
     } catch (_) {
       // The outcome stays uncertain until the current owner's fresh reads confirm the stored choice.
     } finally {
-      if (intent.status === "pending") intent.status = "indeterminate";
       clearTimeout(timeoutId);
-      if (submitFlight === flight) submitFlight = null;
-      if (sameAuth(owner) && root === missionRoot && root.isConnected && ticket === revision && epoch === conceptEpoch &&
-        page === conceptPage() && document.visibilityState !== "hidden") await renderHomeMissionTeaser();
-      else if (!loading && missionRoot?.isConnected && sameAuth(viewer)) renderMissionList(missionRoot, missions, "loaded");
+      if (homePageCurrent(lifetime) && submitFlight === flight) {
+        if (intent.status === "pending") intent.status = "indeterminate";
+        submitFlight = null;
+        if (sameAuth(owner) && root === missionRoot && root.isConnected && ticket === revision && epoch === conceptEpoch &&
+          page === conceptPage() && document.visibilityState !== "hidden") await renderHomeMissionTeaser();
+        else if (!loading && missionRoot?.isConnected && sameAuth(viewer)) renderMissionList(missionRoot, missions, "loaded");
+      }
     }
   }
 
@@ -810,8 +826,24 @@
     if (missionRoot?.isConnected && missions.length && !loading) renderMissionList(missionRoot, missions, "loaded");
   }
   window.addEventListener("lumina:localechange", () => { if (!submitFlight) void renderHomeMissionTeaser(); else invalidateConceptView(); });
-  window.addEventListener("pagehide", invalidateConceptView);
-  window.addEventListener("pageshow", event => { if (event.persisted && !submitFlight) void renderHomeMissionTeaser(); });
+  function retireHomePage() {
+    pageHidden = true; pageLifetime++; revision++;
+    readFlight?.abort(); readFlight = null;
+    const flight = submitFlight;
+    submitFlight = null;
+    if (flight) {
+      if (flight.intent.status === "pending") flight.intent.status = "indeterminate";
+      flight.controller.abort();
+    }
+    loading = false;
+    invalidateConceptView();
+  }
+  window.addEventListener("pagehide", retireHomePage);
+  window.addEventListener("pageshow", event => {
+    if (!event.persisted) return;
+    pageHidden = false;
+    if (!submitFlight) void renderHomeMissionTeaser();
+  });
   if (pageReady) renderHomeMissionTeaser();
   else document.addEventListener("DOMContentLoaded", () => {
     pageReady = true;

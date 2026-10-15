@@ -286,9 +286,24 @@ test('stale auth during response-body reading cannot install old viewer state', 
 
 test('a rejected stale GET also releases refresh without installing old viewer data', async () => {
   const pending = deferred(), h = harness({ get: () => pending.promise });
+  await flush(); assert.equal(h.calls.length, 1, 'the stale transport must actually be in flight');
   h.setAuth(auth('synthetic-access-b'), false); pending.reject(new Error('Synthetic stale transport'));
   await flush(); assert.equal(h.root.dataset.state, 'error'); assert.equal(h.button(null).disabled, false);
   assert.equal(h.button(missionId), null); assert.equal(h.posts().length, 0);
+});
+
+test('auth change before HOME dispatch cannot issue an obsolete request', async () => {
+  const h = harness();
+  h.setAuth(auth('synthetic-access-b'), false);
+  await flush();
+  assert.equal(h.calls.length, 0);
+  assert.equal(h.root.dataset.state, 'error');
+  assert.equal(h.button(missionId), null);
+  assert.equal(h.button(null).disabled, false);
+  h.click(null); await flush();
+  assert.equal(h.calls.length, 1);
+  assert.equal(h.calls[0].options.headers.Authorization, 'Bearer synthetic-access-b');
+  assert.equal(h.posts().length, 0);
 });
 
 test('overlapping auth refreshes accept only the latest GET response', async () => {
