@@ -192,7 +192,7 @@ const consumers = [
       "/data/achievement-titles.js",
       "/pages/mypage.js",
       "/app.js",
-      "/pages/mypage-titles.js"
+      "/pages/mypage-titles.js?v=mypage-title-pagehide-20261015"
     ]
   },
   {

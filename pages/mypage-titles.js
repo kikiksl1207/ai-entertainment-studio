@@ -62,7 +62,7 @@
   const state = { summary: null, reason: "loading", note: "", filter: "all", loading: false, busy: false,
     uncertain: false, request: 0, operation: 0, account: null, accountVersion: 0, initialized: false, promise: null,
     activity: null, activityReason: "loading", achievements: null, achievementReason: "loading", readiness: null,
-    pendingSelection: null };
+    pendingSelection: null, selectionFlight: null, lifetime: 0, retired: false };
   const FAN_TEXT = {
     ko: { heading: "팬 활동", balance: "팬 포인트", earned: "누적 획득", today: "오늘 참여", streak: "연속 참여", accepted: "전체 참여", failed: "팬 활동을 확인하지 못했어요." },
     en: { heading: "Fan activity", balance: "Fan points", earned: "Lifetime earned", today: "Today", streak: "Streak", accepted: "Total participation", failed: "Could not verify fan activity." },
@@ -85,7 +85,11 @@
   const token = () => typeof getAccessToken === "function" ? getAccessToken() : null;
   const session = () => typeof authRequestSession === "function" ? authRequestSession() : token();
   const sessionCurrent = value => typeof authRequestSessionCurrent === "function" ? authRequestSessionCurrent(value) : session() === value;
-  function current(scope) { return scope && scope.account === state.accountVersion && sessionCurrent(state.account) && !!token(); }
+  function sameOwner(scope) { return scope && scope.account === state.accountVersion && sessionCurrent(state.account) && !!token(); }
+  function current(scope) { return !state.retired && scope?.lifetime === state.lifetime && sameOwner(scope); }
+  function selectionCurrent(scope, selection) {
+    return sameOwner(scope) && scope.operation === state.operation && state.selectionFlight === selection;
+  }
   function name(item) {
     const labels = item?.copy?.labels;
     const label = labels?.[locale()] || labels?.ko;
@@ -248,11 +252,12 @@
     }
   }
   async function load(options = {}) {
+    if (state.retired) return;
     if (state.busy && !options.fromMutation) return;
     if (state.promise) return state.promise;
     if (!state.initialized) { state.account = session(); state.initialized = true; }
     if (!token()) { state.summary = null; state.reason = "login"; state.activity = null; state.activityReason = "login"; state.achievements = null; state.achievementReason = "login"; render(); return; }
-    const scope = { account: state.accountVersion, request: ++state.request };
+    const scope = { account: state.accountVersion, request: ++state.request, lifetime: state.lifetime };
     const readiness = new AbortController(); state.readiness = readiness;
     state.loading = true; state.reason = state.summary ? "ok" : "loading"; render();
     const pending = Promise.resolve().then(async () => {
@@ -280,34 +285,52 @@
         state.achievements = null; state.achievementReason = "failed";
       } finally {
         if (state.readiness === readiness) state.readiness = null;
-        if (scope.request === state.request) { state.loading = false; state.promise = null; if (!current(scope)) accountChanged(); else render(); }
+        if (scope.request === state.request && state.promise === pending) {
+          state.loading = false; state.promise = null;
+          if (current(scope)) render();
+          else if (!state.retired && scope.lifetime === state.lifetime) accountChanged();
+        }
       }
     });
     state.promise = pending; return pending;
   }
   async function select(code) {
     const item = state.summary?.items.find(row => row.code === code);
-    if (!item?.canEquip || !name(item) || item.equipped || state.loading || state.busy || state.uncertain || !token() || !sessionCurrent(state.account)) return;
-    const scope = { account: state.accountVersion, operation: ++state.operation };
-    const selection = { code, acknowledged: false, rejected: false };
-    state.pendingSelection = selection;
+    if (state.retired || !item?.canEquip || !name(item) || item.equipped || state.loading || state.busy || state.uncertain || !token() || !sessionCurrent(state.account)) return;
+    const scope = { account: state.accountVersion, operation: ++state.operation, lifetime: state.lifetime };
+    const selection = { code, acknowledged: false, rejected: false, inFlight: true };
+    state.pendingSelection = selection; state.selectionFlight = selection;
     state.busy = true; state.note = ""; render();
     try {
-      const receipt = await apiFetch("/api/v1/me/fan-engagement/title", { method: "PATCH", auth: true, throwOnError: true, body: { titleCode: code } }, 1);
-      if (!current(scope) || scope.operation !== state.operation) return;
-      selection.acknowledged = receipt?.equipped?.code === code;
-    } catch (error) {
-      if (!current(scope) || scope.operation !== state.operation) return;
-      selection.rejected = [400, 401, 403, 404].includes(error?.status);
+      if (!current(scope) || !selectionCurrent(scope, selection)) {
+        if (selectionCurrent(scope, selection) && state.pendingSelection === selection) {
+          state.pendingSelection = null; state.uncertain = false;
+        }
+        return;
+      }
+      try {
+        const receipt = await apiFetch("/api/v1/me/fan-engagement/title", { method: "PATCH", auth: true, throwOnError: true, body: { titleCode: code } }, 1);
+        if (selectionCurrent(scope, selection) && state.pendingSelection === selection) selection.acknowledged = receipt?.equipped?.code === code;
+      } catch (error) {
+        if (selectionCurrent(scope, selection) && state.pendingSelection === selection) selection.rejected = [400, 401, 403, 404].includes(error?.status);
+      } finally { selection.inFlight = false; }
+      if (!current(scope) || !selectionCurrent(scope, selection)) return;
+      state.uncertain = true; state.note = "uncertain";
+      // An old snapshot cannot settle a write whose acknowledgement was lost.
+      await load({ fromMutation: true });
+      if (!current(scope) || !selectionCurrent(scope, selection)) return;
+      state.note = state.uncertain ? "uncertain" : state.summary?.equipped?.code === code ? "updated" : "notChanged";
+    } finally {
+      selection.inFlight = false;
+      if (selectionCurrent(scope, selection)) {
+        state.selectionFlight = null; state.busy = false;
+        if (current(scope)) render();
+        else {
+          state.uncertain = !!state.pendingSelection; state.note = state.uncertain ? "uncertain" : "";
+          if (!state.retired && !state.loading && !state.summary) render();
+        }
+      }
     }
-    if (!current(scope) || scope.operation !== state.operation) return;
-    state.uncertain = true; state.note = "uncertain";
-    // An old snapshot cannot settle a write whose acknowledgement was lost.
-    await load({ fromMutation: true });
-    if (!current(scope) || scope.operation !== state.operation) return;
-    state.busy = false;
-    state.note = state.uncertain ? "uncertain" : state.summary?.equipped?.code === code ? "updated" : "notChanged";
-    render();
   }
   function accountChanged() {
     if (!state.initialized) return;
@@ -315,10 +338,27 @@
     state.readiness?.abort(); state.readiness = null;
     state.account = session(); state.accountVersion++; state.request++; state.operation++;
     state.summary = null; state.promise = null; state.loading = false; state.busy = false; state.uncertain = false; state.note = ""; state.filter = "all";
-    state.pendingSelection = null;
+    state.pendingSelection = null; state.selectionFlight = null;
     state.activity = null; state.activityReason = token() ? "loading" : "login";
     state.achievements = null; state.achievementReason = token() ? "loading" : "login";
     state.reason = token() ? "loading" : "login"; render(); if (token()) void load();
+  }
+  function retirePage() {
+    state.retired = true; state.lifetime++; state.request++;
+    state.readiness?.abort(); state.readiness = null;
+    state.promise = null; state.loading = false;
+    state.summary = null; state.activity = null; state.achievements = null;
+    state.reason = state.activityReason = state.achievementReason = token() ? "failed" : "login";
+    state.uncertain = !!state.pendingSelection; state.note = state.uncertain ? "uncertain" : "";
+    if (!state.selectionFlight?.inFlight) { state.selectionFlight = null; state.busy = false; }
+    render();
+  }
+  function restorePage(event) {
+    if (!event.persisted || !state.retired) return;
+    // Reconcile identity while reads are still retired; restoration itself sends nothing.
+    accountChanged(); state.retired = false;
+    state.reason = state.activityReason = state.achievementReason = token() ? "failed" : "login";
+    render();
   }
   function setFilter(filter) {
     if (!["all", "owned", "locked", "rare"].includes(filter)) return;
@@ -342,6 +382,8 @@
   $("mypageFanRetry")?.addEventListener("click", () => { void load(); });
   $("mypageAchievementRetry")?.addEventListener("click", () => { void load(); });
   window.addEventListener("lumina:authchange", accountChanged);
+  window.addEventListener("pagehide", retirePage);
+  window.addEventListener("pageshow", restorePage);
   window.addEventListener("lumina:auth-expired", accountChanged);
   window.addEventListener("storage", event => { if (event.key === "lumina_auth" || event.key === null) accountChanged(); });
   window.addEventListener("lumina:localechange", () => { if (sessionCurrent(state.account)) render(); });

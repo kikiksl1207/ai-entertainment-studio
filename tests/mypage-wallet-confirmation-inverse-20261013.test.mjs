@@ -1,3 +1,4 @@
+import { htmlWithoutMypageTitlePageLifetimeDelta } from './support/mypage-title-page-lifetime-inverse-20261015.mjs';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
@@ -6,7 +7,7 @@ import { htmlWithoutWalletConfirmationDelta, walletConfirmationDelta } from './s
 import { htmlWithoutWalletCacheDelta, walletCacheDelta } from './support/mypage-wallet-cache-inverse-20261011.mjs';
 
 const sha = value => createHash('sha256').update(value, 'utf8').digest('hex');
-const after = readFileSync(new URL('../mypage/index.html', import.meta.url), 'utf8').replaceAll('\r\n', '\n');
+const after = htmlWithoutMypageTitlePageLifetimeDelta(readFileSync(new URL('../mypage/index.html', import.meta.url), 'utf8')).replaceAll('\r\n', '\n');
 assert.equal(sha(after), '8a5220be9ae3006cf30222e0dadeeb6f9c1afe08423cb40b28ca6a786a256e27',
   'Use the exact Git-derived candidate, not dirty CLEAN HTML');
 const before = htmlWithoutWalletConfirmationDelta(after);

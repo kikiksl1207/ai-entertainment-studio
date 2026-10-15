@@ -1,3 +1,4 @@
+import { htmlWithoutMypageTitlePageLifetimeDelta } from './support/mypage-title-page-lifetime-inverse-20261015.mjs';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
@@ -16,7 +17,7 @@ const expected = {
   lineEndings: 'CRLF-to-LF-only',
 };
 const sha = value => createHash('sha256').update(value, 'utf8').digest('hex');
-const rawHtml = htmlWithoutWalletConfirmationDelta(readFileSync(new URL('../mypage/index.html', import.meta.url), 'utf8'));
+const rawHtml = htmlWithoutWalletConfirmationDelta(htmlWithoutMypageTitlePageLifetimeDelta(readFileSync(new URL('../mypage/index.html', import.meta.url), 'utf8')));
 const lfHtml = rawHtml.replaceAll('\r\n', '\n');
 assert([expected.beforeSHA256, expected.afterSHA256].includes(sha(lfHtml)), 'Pinned current or BASE fixture only');
 const legacy = sha(lfHtml) === expected.beforeSHA256 ? lfHtml : lfHtml.replace(expected.afterTag, expected.beforeTag);

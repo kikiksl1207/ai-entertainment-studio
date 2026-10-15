@@ -1,3 +1,4 @@
+import { htmlWithoutMypageTitlePageLifetimeDelta } from './support/mypage-title-page-lifetime-inverse-20261015.mjs';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
@@ -5,7 +6,7 @@ import test from 'node:test';
 import { htmlWithoutActivationReadDelta } from './support/mypage-activation-read-inverse-20261009.mjs';
 import { htmlWithoutWalletCacheDelta } from './support/mypage-wallet-cache-inverse-20261011.mjs';
 
-const html = htmlWithoutWalletCacheDelta(readFileSync(new URL('../mypage/index.html', import.meta.url), 'utf8').replaceAll('\r\n', '\n'));
+const html = htmlWithoutWalletCacheDelta(htmlWithoutMypageTitlePageLifetimeDelta(readFileSync(new URL('../mypage/index.html', import.meta.url), 'utf8')).replaceAll('\r\n', '\n'));
 const app = readFileSync(new URL('../app.js', import.meta.url), 'utf8').replaceAll('\r\n', '\n');
 function between(start, end) {
   const first = html.indexOf(start), last = html.indexOf(end, first + start.length);
