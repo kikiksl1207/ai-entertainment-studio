@@ -14,7 +14,7 @@ const pins = {
   baseline: ['18aa1e2b8594ceb0206a9861ab2ddd89d17712ee7864e4a24ee1f754825185df',
     '10522445a90813dd68394c27f6ec9a6d2400e9b2f5b8d408b97aa1b4e4aedf2d'],
   current: ['0380465fa757466b97a14808c5fb8b9f9c31cee0b7076efcf1215296c8533fcf',
-    '437da1c731b3387da0965f5d32a183644c6c31a7b9ef37ca3661ef05928b6649'],
+    '9adbf061676c9869b798e55031edd8d5ae32b8147b6ece27f8caba11c5eba50f'],
 };
 function source(relative, expected) {
   const bytes = readFileSync(path.join(root, relative));

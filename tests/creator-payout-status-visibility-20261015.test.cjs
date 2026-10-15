@@ -1,0 +1,48 @@
+'use strict';
+const assert = require('node:assert/strict');
+const { readFileSync, realpathSync } = require('node:fs');
+const path = require('node:path');
+const crypto = require('node:crypto');
+const test = require('node:test');
+const root = path.resolve(process.env.CREATOR_PAYOUT_STATUS_SOURCE_ROOT || path.join(__dirname, '..'));
+const profile = process.env.CREATOR_PAYOUT_STATUS_PROFILE || 'current';
+assert(['baseline', 'current'].includes(profile));
+assert(!/[\\/]story-completion-20261003(?:[\\/]|$)/i.test(realpathSync.native(root)));
+const hash = value => crypto.createHash('sha256').update(value).digest('hex');
+const OLD_CSS = 'f045903a3d4eacdf211b99ff64407b41a1bbd5d835e703584eb822461be7a1dc';
+const OLD_HTML = '437da1c731b3387da0965f5d32a183644c6c31a7b9ef37ca3661ef05928b6649';
+const NEW_CSS = 'ef37609791ed0594f94e061613f9007c9d9740e7ebc9a2fda9a749bc1af356df';
+const NEW_HTML = '9adbf061676c9869b798e55031edd8d5ae32b8147b6ece27f8caba11c5eba50f';
+function source(file, expected) {
+  const bytes = readFileSync(path.join(root, file));
+  assert(bytes.length > 0 && bytes.length <= 1024 * 1024);
+  const value = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
+  assert(!value.startsWith('\uFEFF')); assert(Buffer.from(value).equals(bytes));
+  const lf = value.replace(/\r\n/g, '\n'); assert(!lf.includes('\r'));
+  if (value.includes('\r\n')) assert(!value.replace(/\r\n/g, '').includes('\n'), 'Mixed checkout line endings rejected');
+  assert.equal(hash(lf), expected); return lf;
+}
+const css = source('styles/creator-studio.css', profile === 'current' ? NEW_CSS : OLD_CSS);
+const html = source('creator-studio/index.html', profile === 'current' ? NEW_HTML : OLD_HTML);
+const addition = '/* Renderer status remains visible after the sample class is retired. */\n' +
+  '#studioPayoutBreakdown[data-payout-state="estimate"] .payout-sample-badge,\n' +
+  '#studioPayoutBreakdown[data-payout-state="loading"] .payout-sample-badge,\n' +
+  '#studioPayoutBreakdown[data-payout-state="unavailable"] .payout-sample-badge {\n' +
+  '  display: inline-block;\n}\n' +
+  '#studioPayoutBreakdown[data-payout-state="estimate"] .payout-sample-note,\n' +
+  '#studioPayoutBreakdown[data-payout-state="loading"] .payout-sample-note,\n' +
+  '#studioPayoutBreakdown[data-payout-state="unavailable"] .payout-sample-note {\n' +
+  '  display: block;\n}\n\n';
+test('CREATOR.PAYOUT.STATUS.01 explicit status-only CSS delta preserves complete original styles and HTML', () => {
+  assert.equal(css.split(addition).length, 2, 'PAYOUT_STATUS_VISIBLE_RULES: actual CSS lacks the exact scoped state rules');
+  assert.equal(hash(css.replace(addition, '')), OLD_CSS, 'All other CSS bytes and legacy sample rules remain exact');
+  const current = '/styles/creator-studio.css?v=payout-status-visibility-20261015';
+  const before = '/styles/creator-studio.css?v=writer-final-20261001';
+  assert.equal(html.split(current).length, 2);
+  assert.equal(hash(html.replace(current, before)), OLD_HTML, 'Stylesheet cache value is the only HTML delta');
+  for (const id of ['studioPayoutBreakdown', 'studioPayoutSampleBadge', 'studioPayoutSampleNote',
+    'studioPayoutGrossLumina', 'studioPayoutEligibleLumina', 'studioPayoutGrossKrw', 'studioPayoutTaxKrw', 'studioPayoutNetKrw']) {
+    assert.equal(html.split('id="' + id + '"').length, 2);
+  }
+  assert.equal(html.split('/pages/creator-studio.js?v=creator-payout-current-20261015').length, 2);
+});

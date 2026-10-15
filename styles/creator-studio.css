@@ -601,6 +601,18 @@ td { color: var(--text); }
   color: #ffc97a;
 }
 
+/* Renderer status remains visible after the sample class is retired. */
+#studioPayoutBreakdown[data-payout-state="estimate"] .payout-sample-badge,
+#studioPayoutBreakdown[data-payout-state="loading"] .payout-sample-badge,
+#studioPayoutBreakdown[data-payout-state="unavailable"] .payout-sample-badge {
+  display: inline-block;
+}
+#studioPayoutBreakdown[data-payout-state="estimate"] .payout-sample-note,
+#studioPayoutBreakdown[data-payout-state="loading"] .payout-sample-note,
+#studioPayoutBreakdown[data-payout-state="unavailable"] .payout-sample-note {
+  display: block;
+}
+
 /* #353 — 정산 회차 확정 전 row 자리에 사용자 화면용 "준비 중" placeholder를 채운다. */
 .payout-pending-row td {
   padding: 18px 14px;
