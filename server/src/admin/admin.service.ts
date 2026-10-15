@@ -3218,9 +3218,25 @@ export class AdminService {
     const status = this.settlementConversionMutationStatus(input, 'status');
     const adminNote = this.optionalString(input, 'adminNote') ?? null;
 
-    const before = await this.prisma.settlementLuminaConversionRequest.findUnique({
-      where: { id: conversionId },
-    });
+    // Keep the row and its server-side version in one snapshot; Date loses sub-ms precision.
+    const snapshot = status === 'credited'
+      ? {
+          before: await this.prisma.settlementLuminaConversionRequest.findUnique({
+            where: { id: conversionId },
+          }),
+          rowVersion: null,
+        }
+      : await this.prisma.$transaction(async (tx) => {
+          await tx.$executeRaw`SET TRANSACTION READ ONLY`;
+          const before = await tx.settlementLuminaConversionRequest.findUnique({
+            where: { id: conversionId },
+          });
+          const [version] = await tx.$queryRaw<Array<{ rowVersion: string }>>`
+            SELECT xmin::text AS "rowVersion" FROM settlement_lumina_conversion_requests
+            WHERE id = ${conversionId}::uuid`;
+          return { before, rowVersion: version?.rowVersion ?? null };
+        }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
+    const before = snapshot.before;
 
     if (!before) {
       throw new NotFoundException('Settlement Lumina conversion request not found');
@@ -3235,42 +3251,65 @@ export class AdminService {
     }
 
     if (status === 'credited') {
-      return this.creditSettlementConversion(user, before, adminNote);
+      return this.creditSettlementConversion(user, before.id, adminNote);
     }
 
     if (before.status === status) {
       throw new BadRequestException(`Conversion is already ${status}`);
     }
 
-    const updated = await this.prisma.settlementLuminaConversionRequest.update({
-      where: { id: before.id },
-      data: {
-        status,
-        adminNote,
-        processedByUserId: user.id,
-        processedAt: new Date(),
-        updatedAt: new Date(),
-      },
-    });
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const [lockedVersion] = await tx.$queryRaw<Array<{ rowVersion: string }>>`
+        SELECT xmin::text AS "rowVersion" FROM settlement_lumina_conversion_requests
+        WHERE id = ${before.id}::uuid FOR UPDATE`;
+      if (!snapshot.rowVersion || lockedVersion?.rowVersion !== snapshot.rowVersion) {
+        throw new ConflictException('Settlement conversion changed; reload before retrying');
+      }
 
-    await this.prisma.auditEvent.create({
-      data: {
-        actorUserId: user.id,
-        actorType: 'admin',
-        action: 'settlement_lumina_conversion.status.update',
-        targetType: 'settlement_lumina_conversion_request',
-        targetId: updated.id,
-        beforeData: this.toJson(before),
-        afterData: this.toJson(updated),
-        metadata: this.toJson({
-          settlementKey: updated.settlementKey,
-          settlementType: updated.settlementType,
-          period: updated.period,
+      const changed = await tx.settlementLuminaConversionRequest.updateMany({
+        where: {
+          id: before.id,
+          status: before.status,
+        },
+        data: {
           status,
-          walletCredited: false,
-        }),
-      },
-    });
+          adminNote,
+          processedByUserId: user.id,
+          processedAt: new Date(),
+          updatedAt: new Date(),
+        },
+      });
+      if (changed.count !== 1) {
+        throw new ConflictException('Settlement conversion changed; reload before retrying');
+      }
+
+      const current = await tx.settlementLuminaConversionRequest.findUnique({
+        where: { id: before.id },
+      });
+      if (!current) {
+        throw new ConflictException('Settlement conversion changed; reload before retrying');
+      }
+
+      await tx.auditEvent.create({
+        data: {
+          actorUserId: user.id,
+          actorType: 'admin',
+          action: 'settlement_lumina_conversion.status.update',
+          targetType: 'settlement_lumina_conversion_request',
+          targetId: current.id,
+          beforeData: this.toJson(before),
+          afterData: this.toJson(current),
+          metadata: this.toJson({
+            settlementKey: current.settlementKey,
+            settlementType: current.settlementType,
+            period: current.period,
+            status,
+            walletCredited: false,
+          }),
+        },
+      });
+      return current;
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted });
 
     return {
       ok: true,
@@ -7030,16 +7069,26 @@ export class AdminService {
 
   private async creditSettlementConversion(
     user: AuthUser,
-    before: SettlementLuminaConversionRequest,
+    conversionId: string,
     adminNote: string | null,
   ) {
-    if (!['requested', 'approved', 'credited'].includes(before.status)) {
-      throw new BadRequestException(
-        'Only requested or approved conversions can be credited',
-      );
-    }
-
     const result = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM settlement_lumina_conversion_requests WHERE id = ${conversionId}::uuid FOR UPDATE`;
+      const before = await tx.settlementLuminaConversionRequest.findUnique({
+        where: { id: conversionId },
+      });
+      if (!before) {
+        throw new NotFoundException('Settlement Lumina conversion request not found');
+      }
+      if (['rejected', 'cancelled'].includes(before.status)) {
+        throw new BadRequestException(`Conversion is already terminal: ${before.status}`);
+      }
+      if (!['requested', 'approved', 'credited'].includes(before.status)) {
+        throw new BadRequestException(
+          'Only requested or approved conversions can be credited',
+        );
+      }
+
       if (before.walletLedgerId) {
         const existingLedger = await tx.walletLedger.findUnique({
           where: { id: before.walletLedgerId },
@@ -7056,6 +7105,7 @@ export class AdminService {
         });
 
         return {
+          before,
           conversion: replayed,
           ledger: existingLedger,
           idempotentReplay: true,
@@ -7081,6 +7131,7 @@ export class AdminService {
         });
 
         return {
+          before,
           conversion: replayed,
           ledger: existingLedger,
           idempotentReplay: true,
@@ -7137,6 +7188,7 @@ export class AdminService {
       });
 
       return {
+        before,
         conversion: credited,
         ledger,
         idempotentReplay: false,
@@ -7150,7 +7202,7 @@ export class AdminService {
         action: 'settlement_lumina_conversion.status.update',
         targetType: 'settlement_lumina_conversion_request',
         targetId: result.conversion.id,
-        beforeData: this.toJson(before),
+        beforeData: this.toJson(result.before),
         afterData: this.toJson(result.conversion),
         metadata: this.toJson({
           settlementKey: result.conversion.settlementKey,
