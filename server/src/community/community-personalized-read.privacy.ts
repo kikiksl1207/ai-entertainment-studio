@@ -4,7 +4,7 @@ type PrivacyResponse = {
   vary?: (field: string) => unknown;
 };
 
-const privateReadRoute = /^\/api\/v1\/me\/(?:lumina-feed(?:\/likes)?|hidden-posts)\/?$/i;
+const privateReadRoute = /^\/api\/v1\/me\/(?:lumina-feed(?:\/likes)?|hidden-posts|blocked-users)\/?$/i;
 
 // Apply before guards so private read failures cannot become shared cache entries.
 export function communityPersonalizedReadPrivacyMiddleware(

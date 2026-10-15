@@ -212,7 +212,7 @@ describe('community personalized read privacy native HTTP', () => {
     expect(service.getFeed.mock.calls).toEqual([[{}]]);
     for (const [method, path, status] of [
       ['GET', routes[0] + '-extra', 404], ['GET', routes[1] + '/child', 404],
-      ['GET', routes[2] + '/child', 404], ['GET', '/api/v1/me/blocked-users', 401],
+      ['GET', routes[2] + '/child', 404], ['GET', '/api/v1/me/blocked-users-extra', 404],
       ['POST', routes[0], 404], ['PATCH', routes[2], 404], ['OPTIONS', routes[1], 204],
     ] as const) {
       const result = await call(method, path, null);

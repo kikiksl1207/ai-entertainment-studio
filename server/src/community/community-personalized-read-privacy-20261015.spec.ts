@@ -59,7 +59,7 @@ describe('community personalized read privacy middleware', () => {
       }
     }
     for (const path of ['/health', '/api/v1/lumina-feed', '/api/v1/lumina-feed/search',
-      '/api/v1/me/blocked-users', '/api/me/lumina-feed', '/api/v2/me/hidden-posts',
+      '/api/v1/me/blocked-users-extra', '/api/me/lumina-feed', '/api/v2/me/hidden-posts',
       '/api/v1/me/%6cumina-feed', '/prefix/api/v1/me/hidden-posts']) pairs.push(['GET', path]);
     const requests = pairs.map(([method, path]) => ({ method, path }));
     requests.push({ method: 'GET', path: undefined as unknown as string });
