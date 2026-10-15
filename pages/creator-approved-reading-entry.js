@@ -56,7 +56,14 @@
       "zh-Hans": { title: "我的作品", choose: "选择作品", load: "加载作品", next: "下一页", login: "登录 (新标签页)", untitled: "未命名", idle: "", loading: "加载中", ready: "审批状态：未检查", empty: "暂无作品", unauthenticated: "请登录", auth_rejected: "请确认读取所用的登录", stale: "请重新加载", timeout: "请求超时", unavailable: "加载失败" },
       "zh-Hant": { title: "我的作品", choose: "選擇作品", load: "載入作品", next: "下一頁", login: "登入 (新分頁)", untitled: "未命名", idle: "", loading: "載入中", ready: "審批狀態：未檢查", empty: "暫無作品", unauthenticated: "請登入", auth_rejected: "請確認讀取所用的登入", stale: "請重新載入", timeout: "請求逾時", unavailable: "載入失敗" }
     };
-    let catalogState = { phase: "idle", items: [], nextCursor: null, selected: null };
+    const catalogAuthCopy = {
+      ko: { AUTH_TOKEN_EXPIRED: "읽기에 보낸 로그인 정보가 만료되었습니다", AUTH_CONFIG_UNAVAILABLE: "서버 인증 설정을 확인할 수 없습니다", AUTH_LOOKUP_UNAVAILABLE: "서버에서 로그인 상태를 확인할 수 없습니다" },
+      en: { AUTH_TOKEN_EXPIRED: "The sign-in sent for this read has expired", AUTH_CONFIG_UNAVAILABLE: "Server authentication settings are unavailable", AUTH_LOOKUP_UNAVAILABLE: "The server cannot check sign-in right now" },
+      ja: { AUTH_TOKEN_EXPIRED: "読み取りに送信したログイン情報の期限が切れています", AUTH_CONFIG_UNAVAILABLE: "サーバーの認証設定を確認できません", AUTH_LOOKUP_UNAVAILABLE: "サーバーでログイン状態を確認できません" },
+      "zh-Hans": { AUTH_TOKEN_EXPIRED: "本次读取使用的登录信息已过期", AUTH_CONFIG_UNAVAILABLE: "无法确认服务器认证设置", AUTH_LOOKUP_UNAVAILABLE: "服务器暂时无法确认登录状态" },
+      "zh-Hant": { AUTH_TOKEN_EXPIRED: "本次讀取使用的登入資訊已過期", AUTH_CONFIG_UNAVAILABLE: "無法確認伺服器驗證設定", AUTH_LOOKUP_UNAVAILABLE: "伺服器暫時無法確認登入狀態" }
+    };
+    let catalogState = { phase: "idle", items: [], nextCursor: null, selected: null, authReason: null };
     let pageDisposed = false;
     let currentScope = null;
     let nonce;
@@ -107,7 +114,9 @@
         }
       }
       const catalogStatus = document.getElementById("readingCatalogState");
-      catalogStatus.textContent = c[catalogState.phase] ?? c.unavailable;
+      const reason = !pageDisposed && (catalogState.phase === "auth_rejected" && catalogState.authReason === "AUTH_TOKEN_EXPIRED" ||
+        catalogState.phase === "unavailable" && ["AUTH_CONFIG_UNAVAILABLE", "AUTH_LOOKUP_UNAVAILABLE"].includes(catalogState.authReason)) ? catalogState.authReason : null;
+      catalogStatus.textContent = (catalogAuthCopy[language.value] || catalogAuthCopy.ko)[reason] ?? c[catalogState.phase] ?? c.unavailable;
       const receipt = pageDisposed ? null : catalogState.requestReceipt;
       const diagnosticData = catalogStatus.dataset;
       if (diagnosticData && typeof diagnosticData === "object") {

@@ -134,7 +134,7 @@ describe('JwtAuthGuard lookup classification', () => {
     }
   });
 
-  it('keeps verification ServiceUnavailableException and configuration throws classified as 401', async () => {
+  it('keeps verification ServiceUnavailableException 401 and configuration getter throws 503', async () => {
     const verification = setup();
     verification.jwt.verifyAsync.mockRejectedValueOnce(new ServiceUnavailableException(PRIVATE_DETAIL));
     expectUnauthorized(await deniedRead(verification));
@@ -142,7 +142,13 @@ describe('JwtAuthGuard lookup classification', () => {
     for (const error of [new Error(PRIVATE_DETAIL), new ServiceUnavailableException(PRIVATE_DETAIL)]) {
       const state = setup();
       state.config.getOrThrow.mockImplementationOnce(() => { throw error; });
-      expectUnauthorized(await deniedRead(state));
+      const unavailable = await deniedRead(state);
+      expect(unavailable).toBeInstanceOf(ServiceUnavailableException);
+      expect(unavailable.getStatus()).toBe(503);
+      expect(unavailable.getResponse()).toEqual({
+        code: 'AUTH_CONFIG_UNAVAILABLE', message: 'Authentication temporarily unavailable',
+      });
+      expect(JSON.stringify(unavailable.getResponse())).not.toContain(PRIVATE_DETAIL);
       expect(state.jwt.verifyAsync).not.toHaveBeenCalled();
       expect(state.prisma.user.findFirst).not.toHaveBeenCalled();
     }

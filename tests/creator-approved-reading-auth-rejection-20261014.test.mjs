@@ -217,8 +217,11 @@ test("reading auth-rejection: one manual cached-identity 401 clears prior items 
   assert.deepEqual(f.transport.getAuth(), beforeAuth);
   assert.deepEqual(f.transport.identity(), beforeIdentity);
   assert.deepEqual(f.snapshot(), beforeStorage);
-  assert.equal(rejected.stats.canceled, 1);
-  assert.equal(rejected.stats.readers, 0);
+  assert.equal(rejected.stats.canceled, 0);
+  assert.equal(rejected.stats.readers, 1);
+  assert.equal(rejected.stats.readerCanceled, 1);
+  assert.equal(rejected.stats.released, 1);
+  assert.equal(f.latest().authReason, null);
   f.catalog.sync(); await flush(); f.clock.advance(100); await flush();
   assert.equal(f.calls.length, 2);
   assert.equal(f.writes.length, 0);

@@ -6,7 +6,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { JwtService } from '@nestjs/jwt';
+import { JwtService, TokenExpiredError } from '@nestjs/jwt';
 import { AuthUser, JwtPayload } from '../auth.types';
 import { PrismaService } from '../../prisma/prisma.service';
 
@@ -31,10 +31,20 @@ export class JwtAuthGuard implements CanActivate {
       throw new UnauthorizedException('Bearer token is required');
     }
 
+    let secret: string;
+    try {
+      secret = this.configService.getOrThrow<string>('JWT_ACCESS_SECRET');
+    } catch {
+      throw new ServiceUnavailableException({
+        code: 'AUTH_CONFIG_UNAVAILABLE',
+        message: 'Authentication temporarily unavailable',
+      });
+    }
+
     let payload: JwtPayload;
     try {
       payload = await this.jwtService.verifyAsync<JwtPayload>(token, {
-        secret: this.configService.getOrThrow<string>('JWT_ACCESS_SECRET'),
+        secret,
       });
 
       if (
@@ -45,7 +55,13 @@ export class JwtAuthGuard implements CanActivate {
         throw new UnauthorizedException('Access token is required');
       }
 
-    } catch {
+    } catch (error) {
+      if (error instanceof TokenExpiredError) {
+        throw new UnauthorizedException({
+          code: 'AUTH_TOKEN_EXPIRED',
+          message: 'Invalid or expired access token',
+        });
+      }
       throw new UnauthorizedException('Invalid or expired access token');
     }
 

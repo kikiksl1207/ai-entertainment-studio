@@ -385,7 +385,7 @@ describe('approved-reading DTO/controller source boundary', () => {
   it('retains cache-before-JWT order and exposes only the exact GET route', () => {
     const method = StoryProductionController.prototype.approvedReadingCatalog;
     const guards = Reflect.getMetadata(GUARDS_METADATA, method);
-    expect(guards).toHaveLength(2); expect(guards[0].name).toBe('CreatorCatalogNoStoreGuard'); expect(guards[1]).toBe(JwtAuthGuard);
+    expect(guards).toHaveLength(2); expect(guards[0].name).toBe('ApprovedReadingCatalogNoStoreGuard'); expect(guards[1]).toBe(JwtAuthGuard);
     expect(Reflect.getMetadata(PATH_METADATA, method)).toBe('me/creator-studio/approved-reading-catalog');
     expect(Reflect.getMetadata(METHOD_METADATA, method)).toBe(0);
   });
@@ -396,7 +396,7 @@ describe('approved-reading DTO/controller source boundary', () => {
       vary: (field: string) => { headers.Vary += ', ' + field; } };
     const context = { switchToHttp: () => ({ getResponse: () => response }) } as unknown as ExecutionContext;
     expect(new guards[0]().canActivate(context)).toBe(true);
-    expect(headers).toEqual({ Vary: 'Accept-Encoding, Authorization', 'Cache-Control': 'private, no-store', Pragma: 'no-cache', Expires: '0' });
+    expect(headers).toEqual({ Vary: 'Accept-Encoding, Authorization', 'Cache-Control': 'private, no-store', Pragma: 'no-cache', Expires: '0', 'Access-Control-Expose-Headers': 'Vary' });
   });
   it('forwards only CurrentUser owner and query without invoking Studio bootstrap', async () => {
     const approvedReadingCatalog = jest.fn(async () => ({ readOnly: true })), getStudio = jest.fn(() => { throw new Error('Studio forbidden'); });

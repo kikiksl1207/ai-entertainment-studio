@@ -55,11 +55,66 @@
     } catch (_) { return null; }
   }
   function cancel(response) { try { Promise.resolve(response?.body?.cancel?.()).catch(() => {}); } catch (_) {} }
-  async function body(response, current, signal, advance = () => {}) {
+  const authReasons = ["AUTH_TOKEN_EXPIRED", "AUTH_CONFIG_UNAVAILABLE", "AUTH_LOOKUP_UNAVAILABLE"];
+  async function authReason(response, current, signal, expectedPath) {
+    let reader, timer, alive = true, interrupted;
+    const stop = () => {
+      alive = false; interrupted?.(null);
+      try { Promise.resolve(reader ? reader.cancel() : response?.body?.cancel?.()).catch(() => {}); } catch (_) {}
+    };
+    const usable = () => alive && !signal.aborted && current();
+    try {
+      if (![401, 503].includes(response.status) || !usable()) return null;
+      const header = key => response.headers?.get?.(key);
+      const directives = (header("cache-control") || "").toLowerCase().split(",").map(x => x.trim());
+      const vary = (header("vary") || "").toLowerCase().split(",").map(x => x.trim()), length = header("content-length");
+      if (!directives.includes("private") || !directives.includes("no-store") || directives.includes("public") || !vary.includes("authorization") ||
+          !/^application\/json(?:\s*;\s*charset\s*=\s*utf-8)?$/i.test(header("content-type") || "") ||
+          (length !== null && length !== undefined && (!/^\d+$/.test(length) || Number(length) > 1024)) ||
+          typeof response.body?.getReader !== "function" || !usable()) return null;
+      const cancelled = new Promise(resolve => { interrupted = resolve; });
+      signal.addEventListener("abort", stop, { once: true });
+      timer = setTimeout(stop, 250);
+      reader = response.body.getReader();
+      const decoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
+      let bytes = 0, chunks = 0, text = "";
+      for (;;) {
+        if (!usable()) return null;
+        const chunk = await Promise.race([reader.read(), cancelled]);
+        if (!usable() || !chunk || typeof chunk.done !== "boolean") return null;
+        if (chunk.done) break;
+        if (!(chunk.value instanceof Uint8Array) || ++chunks > 16) return null;
+        bytes += chunk.value.byteLength; if (bytes > 1024) return null;
+        text += decoder.decode(chunk.value, { stream: true });
+      }
+      text += decoder.decode();
+      if (!usable() || !bytes) return null;
+      const value = JSON.parse(text);
+      // The existing JSON serializer is canonical; duplicates and alternate encodings fall back safely.
+      if (JSON.stringify(value) !== text || !exact(value, ["success", "error"]) || value.success !== false) return null;
+      const error = value.error, keys = ["code", "message", "statusCode", "path", "timestamp"];
+      if (Object.prototype.hasOwnProperty.call(error || {}, "requestId")) keys.push("requestId");
+      if (!exact(error, keys) || !authReasons.includes(error.code) || error.statusCode !== response.status || error.path !== expectedPath ||
+          typeof error.timestamp !== "string" || error.timestamp.length !== 24 || !Number.isFinite(Date.parse(error.timestamp)) ||
+          new Date(error.timestamp).toISOString() !== error.timestamp ||
+          (keys.includes("requestId") && (typeof error.requestId !== "string" || error.requestId.length > 128))) return null;
+      const expired = error.code === "AUTH_TOKEN_EXPIRED";
+      if (response.status !== (expired ? 401 : 503) || error.message !== (expired ? "Invalid or expired access token" : "Authentication temporarily unavailable")) return null;
+      return usable() ? error.code : null;
+    } catch (_) { return null; }
+    finally {
+      clearTimeout(timer); signal.removeEventListener("abort", stop); stop();
+      try { reader?.releaseLock(); } catch (_) {}
+    }
+  }
+  async function body(response, current, signal, advance = () => {}, expectedPath) {
     if (!current()) { cancel(response); throw failure("stale"); }
+    if (response.status !== 200) {
+      const reason = await authReason(response, current, signal, expectedPath);
+      throw Object.assign(failure(response.status === 401 ? "unauthenticated" : "unavailable"), { authReason: reason });
+    }
     const header = key => response.headers?.get?.(key), directives = (header("cache-control") || "").toLowerCase().split(",").map(x => x.trim());
     const vary = (header("vary") || "").toLowerCase().split(",").map(x => x.trim()), length = header("content-length");
-    if (response.status !== 200) { cancel(response); throw failure(response.status === 401 ? "unauthenticated" : "unavailable"); }
     advance("cache_validation");
     if (!/^application\/json(?:\s*;\s*charset\s*=\s*utf-8)?$/i.test(header("content-type") || "") ||
         !directives.includes("private") || !directives.includes("no-store") || directives.includes("public") || !vary.includes("authorization") ||
@@ -88,7 +143,7 @@
   }
   function create({ transport, locale, onChange = () => {}, deadlineMs = 30000 }) {
     if (!Number.isInteger(deadlineMs) || deadlineMs < 1 || deadlineMs > 30000) throw failure("invalid");
-    let disposed = false, scope = null, request = null, ticket = 0, data = null, selected = null, phase = "idle", seen = new Set(), requestReceipt = null;
+    let disposed = false, scope = null, request = null, ticket = 0, data = null, selected = null, phase = "idle", seen = new Set(), requestReceipt = null, reason = null;
     function sample() {
       try {
         const owner = transport.identity(), language = locale();
@@ -97,9 +152,9 @@
       } catch (_) { return null; }
     }
     const same = (a, b) => a === null && b === null || !!a && !!b && a.owner.ownerId === b.owner.ownerId && a.owner.epoch === b.owner.epoch && a.locale === b.locale;
-    function notify() { onChange(Object.freeze({ phase, items: data?.items || Object.freeze([]), nextCursor: data?.nextCursor || null, selected, requestReceipt })); }
+    function notify() { onChange(Object.freeze({ phase, items: data?.items || Object.freeze([]), nextCursor: data?.nextCursor || null, selected, requestReceipt, authReason: reason })); }
     function reset() {
-      ++ticket; request?.abort(); request = null; data = null; selected = null; seen = new Set(); requestReceipt = null;
+      ++ticket; request?.abort(); request = null; data = null; selected = null; seen = new Set(); requestReceipt = null; reason = null;
       scope = sample(); phase = scope ? "idle" : "unauthenticated"; notify();
     }
     function sync() { if (!disposed && !same(scope, sample())) reset(); }
@@ -110,13 +165,13 @@
       if (cursor !== null && (!data || cursor !== data.nextCursor || !uuid.test(cursor))) return false;
       if (cursor === null) seen = new Set();
       const before = scope, number = ++ticket, abort = new AbortController(); request = abort;
-      data = null; selected = null; requestReceipt = null; phase = "loading"; notify();
+      data = null; selected = null; requestReceipt = null; reason = null; phase = "loading"; notify();
       const current = () => !disposed && ticket === number && !abort.signal.aborted && same(before, sample());
       const advance = value => { if (current() && requestReceipt) requestReceipt = Object.freeze({ ...requestReceipt, phase: value }); };
       const receive = value => {
         try { return parseReceipt(transport.requestReceipt?.(value)); } catch (_) { return null; }
       };
-      let timeout;
+      let timeout, observedFailureKind = null;
       try {
         const complete = (async () => {
           const auth = transport.getAuth(); if (!auth || !current()) throw failure("stale");
@@ -125,13 +180,14 @@
             _retried: true, cache: "no-store", headers: { Accept: "application/json", "Cache-Control": "no-store" }, signal: abort.signal });
           if (!current()) { cancel(response); throw failure("stale"); }
           requestReceipt = receive(response);
-          const result = await body(response, current, abort.signal, advance);
+          if (response.status === 401 || response.status === 503) observedFailureKind = response.status === 401 ? "unauthenticated" : "unavailable";
+          const result = await body(response, current, abort.signal, advance, path);
           advance("catalog_validation");
           const packet = parse(result);
           if (!packet || packet.items.some(item => seen.has(item.workId))) throw failure("invalid");
           if (!current()) throw failure("stale"); return packet;
         })();
-        const expired = new Promise((_, reject) => { timeout = setTimeout(() => { reject(failure("timeout")); abort.abort(); }, deadlineMs); });
+        const expired = new Promise((_, reject) => { timeout = setTimeout(() => { reject(failure(observedFailureKind || "timeout")); abort.abort(); }, deadlineMs); });
         const packet = await Promise.race([complete, expired]);
         if (!current()) throw failure("stale");
         data = packet; for (const item of data.items) seen.add(item.workId);
@@ -140,6 +196,7 @@
         if (number === ticket && !disposed) {
           data = null; selected = null;
           phase = !same(before, sample()) ? "stale" : error?.kind === "unauthenticated" ? "auth_rejected" : error?.kind === "timeout" ? "timeout" : "unavailable";
+          reason = !abort.signal.aborted && phase !== "stale" && authReasons.includes(error?.authReason) ? error.authReason : null;
           if (phase === "stale" || error?.kind === "stale") requestReceipt = null;
           else {
             requestReceipt = requestReceipt || receive(error);
@@ -159,7 +216,7 @@
     }
     function dispose() {
       if (disposed) return;
-      disposed = true; ++ticket; request?.abort(); request = null; data = null; selected = null; seen = new Set(); scope = null; requestReceipt = null;
+      disposed = true; ++ticket; request?.abort(); request = null; data = null; selected = null; seen = new Set(); scope = null; requestReceipt = null; reason = null;
       phase = "unauthenticated"; notify();
     }
     reset();

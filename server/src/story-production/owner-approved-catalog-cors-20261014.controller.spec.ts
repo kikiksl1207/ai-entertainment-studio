@@ -150,7 +150,7 @@ describe('owner approved catalog route-scoped CORS exposure (synthetic HTTP)', (
     expect(reply.status).toBe(401);
     expectPrivatePolicy(reply);
     expect(reply.headers['access-control-allow-origin']).toBe(allowedOrigin);
-    expect(reply.headers['access-control-expose-headers']).toBeUndefined();
+    expect(reply.headers['access-control-expose-headers']).toBe('Vary');
     if (method === 'HEAD') expect(reply.raw).toBe('');
     else {
       expect(reply.body).toMatchObject({ success: false, error: { code: 'UNAUTHORIZED', statusCode: 401 } });

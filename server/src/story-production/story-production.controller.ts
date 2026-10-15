@@ -80,6 +80,15 @@ class CreatorCatalogNoStoreGuard implements CanActivate {
   }
 }
 
+class ApprovedReadingCatalogNoStoreGuard extends CreatorCatalogNoStoreGuard {
+  canActivate(context: ExecutionContext) {
+    const allowed = super.canActivate(context);
+    context.switchToHttp().getResponse<{ setHeader(name: string, value: string): void }>()
+      .setHeader('Access-Control-Expose-Headers', 'Vary');
+    return allowed;
+  }
+}
+
 @Controller()
 export class StoryProductionController {
   constructor(
@@ -107,7 +116,7 @@ export class StoryProductionController {
   }
 
   @Get('me/creator-studio/approved-reading-catalog')
-  @UseGuards(CreatorCatalogNoStoreGuard, JwtAuthGuard)
+  @UseGuards(ApprovedReadingCatalogNoStoreGuard, JwtAuthGuard)
   @Header('Cache-Control', 'private, no-store')
   @Header('Access-Control-Expose-Headers', 'Vary')
   approvedReadingCatalog(
