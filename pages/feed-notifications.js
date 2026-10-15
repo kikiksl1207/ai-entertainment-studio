@@ -276,6 +276,7 @@
     retryButton.addEventListener("click", () => load());
     moreButton.addEventListener("click", () => load(true));
     allReadButton.addEventListener("click", () => mutate(null));
+    window.addEventListener("pagehide", () => close(false));
     window.addEventListener("lumina:authchange", () => resetAccount());
     window.addEventListener("lumina:auth-expired", () => resetAccount());
     window.addEventListener("storage", event => { if (event.key === "lumina_auth" || event.key === null) resetAccount(); });

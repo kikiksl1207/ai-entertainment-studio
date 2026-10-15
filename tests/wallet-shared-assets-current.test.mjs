@@ -167,7 +167,7 @@ const consumers = [
       "/pages/feed-report.js?v=feed-report-safety-20261001",
       "/pages/premium-chat-hub.js",
       "/app.js?v=feed-report-safety-20261001",
-      "/pages/feed-notifications.js?v=notification-read-20261008"
+      "/pages/feed-notifications.js?v=notification-pagehide-20261015"
     ]
   },
   {
