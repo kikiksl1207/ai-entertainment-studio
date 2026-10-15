@@ -201,7 +201,7 @@ const consumers = [
     "beforeScripts": [
       "/data/characters.js",
       "/app.js",
-      "/pages/ott.js?v=ott-session-body-deadline-20261011"
+      "/pages/ott.js?v=ott-clip-seek-20261015"
     ]
   },
   {

@@ -208,6 +208,19 @@
       .find((button) => !button.hidden && !button.disabled);
     (available || restart).focus({ preventScroll: true });
   }
+  function seekBounds() {
+    const duration = Number.isFinite(demoVideo.duration) && demoVideo.duration > 0 ? demoVideo.duration : 0;
+    if (!publicPlayback) return { min: 0, max: duration || 100, end: duration, enabled: duration > 0 };
+    const node = publicPlayback.nodes.get(publicPlayback.currentKey);
+    if (!node) return { min: 0, max: 0, end: 0, enabled: false };
+    const max = duration > 0 ? Math.min(duration, node.clip.endMs / 1000) : node.clip.endMs / 1000;
+    const min = Math.min(node.clip.startMs / 1000, max);
+    const current = publicPlayback.loadedKey === publicPlayback.currentKey &&
+      publicPlayback.loadedGeneration === publicGeneration && !publicSeeking;
+    return { min, max, end: max, enabled: duration > 0 && max > min && current &&
+      !demoSection.hidden && choiceOverlay.hidden && videoError.hidden };
+  }
+
   function syncPlayerControls() {
     const labels = controlsCopy[locale()] || controlsCopy.ko;
     const playing = !demoVideo.paused && !demoVideo.ended;
@@ -223,11 +236,13 @@
     fullscreenExit.textContent = labels.exitFullscreen;
     fullscreenExit.hidden = !isFullscreen() || (choiceOverlay.hidden && videoError.hidden);
     seek.ariaLabel = labels.seek;
-    const duration = Number.isFinite(demoVideo.duration) ? demoVideo.duration : 0;
-    seek.disabled = duration <= 0;
-    seek.max = String(duration || 100);
-    seek.value = String(Math.min(demoVideo.currentTime || 0, duration || 100));
-    time.textContent = `${formatTime(demoVideo.currentTime)} / ${formatTime(duration)}`;
+    const bounds = seekBounds();
+    seek.disabled = !bounds.enabled;
+    seek.min = String(bounds.min);
+    seek.max = String(bounds.max);
+    const position = Number.isFinite(demoVideo.currentTime) ? demoVideo.currentTime : bounds.min;
+    seek.value = String(Math.max(bounds.min, Math.min(position, bounds.max)));
+    time.textContent = `${formatTime(position)} / ${formatTime(bounds.end)}`;
   }
 
   async function exitPlayerFullscreen() {
@@ -636,7 +651,13 @@
     if (demoVideo.paused) demoVideo.play().catch(syncPlayerControls);
     else demoVideo.pause();
   });
-  seek.addEventListener("input", () => { if (!seek.disabled) demoVideo.currentTime = Number(seek.value); });
+  seek.addEventListener("input", () => {
+    const bounds = seekBounds();
+    const position = Number(seek.value);
+    if (seek.disabled || !bounds.enabled || !Number.isFinite(position)) return;
+    demoVideo.currentTime = Math.max(bounds.min, Math.min(position, bounds.max));
+    syncPlayerControls();
+  });
   toggleMute.addEventListener("click", () => { demoVideo.muted = !demoVideo.muted; syncPlayerControls(); });
   toggleCaptions.addEventListener("click", () => {
     captionsEnabled = !captionsEnabled;
@@ -729,6 +750,7 @@
     demoVideo.currentTime = publicPlayback.resumeAt ?? node.clip.startMs / 1000;
     publicSeeking = false;
     syncCaptionDisplay();
+    syncPlayerControls();
   });
   demoVideo.addEventListener("error", () => {
     if (publicPlayback) return showPublicError();

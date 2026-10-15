@@ -14,6 +14,7 @@ function section(from, to) {
 // Execute the runtime helpers and listeners, never the page bootstrap or a copied implementation.
 const runtime = [
   section('  const formatTime =', '  function syncBranchButtons()'),
+  section('  function seekBounds()', '  function syncPlayerControls()'),
   section('  function syncPlayerControls()', '  async function refreshBranchAvailability()'),
   section('  toggleFullscreen.addEventListener("click"', '  playerWrap.addEventListener("keydown"'),
 ].join('\n');
@@ -78,6 +79,7 @@ function player({ touch = false, hidden = false, native = true, deferExit = fals
     choiceOverlay: element(true), videoError: element(true), seek: element(), time: element(),
     controlsCopy: { en: labels, ko: labels }, locale: () => 'en', captionsEnabled: true,
     orientationLocked: false, fullscreenOperation: null, fullscreenEpoch: 0,
+    publicPlayback: null,
     navigator: { maxTouchPoints: touch ? 1 : 0 },
     screen: { orientation: {
       lock(mode) { calls.locks.push(mode); return orientation.promise; },
