@@ -283,7 +283,7 @@ const consumers = [
     "beforeScripts": [
       "https://www.googletagmanager.com/gtag/js?id=G-1L7TCBQ0N4",
       "/data/characters.js",
-      "/pages/user-profile.js?v=public-profile-error-truth-20261016",
+      "/pages/user-profile.js?v=public-profile-post-error-truth-20261016",
       "/app.js"
     ]
   },

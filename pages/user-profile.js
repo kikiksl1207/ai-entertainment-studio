@@ -1213,7 +1213,7 @@ async function loadUserProfilePosts(endpoint, isAuth, append) {
   section.hidden = false;
   section.style.display = "";
   try {
-    const res = await apiFetch(endpoint, { auth: isAuth });
+    const res = await apiFetch(endpoint, { auth: isAuth, throwOnError: true });
     const items = Array.isArray(res?.items) ? res.items : [];
     const normalized = items.map(normalizeFeedPost);
 
@@ -1248,7 +1248,8 @@ async function loadUserProfilePosts(endpoint, isAuth, append) {
       loadMoreBtn.style.display = show ? "" : "none";
     }
   } catch (err) {
-    console.warn("[#152 user-profile posts] 조회 실패:", err?.status, err?.message);
+    const status = Number.isInteger(err?.status) && err.status >= 400 && err.status <= 599 ? err.status : "unavailable";
+    console.warn("[#152 user-profile posts] 조회 실패:", status);
     if (!append && list) {
       list.innerHTML = `<p class="user-profile-posts-empty" style="display:block;">글 목록을 불러오지 못했어요.</p>`;
     }
