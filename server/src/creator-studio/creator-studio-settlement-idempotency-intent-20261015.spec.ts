@@ -1,4 +1,5 @@
 import assert = require('node:assert/strict');
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import type { ConfigService } from '@nestjs/config';
 import { Prisma, type SettlementLuminaConversionRequest } from '@prisma/client';
@@ -60,12 +61,14 @@ async function conflict(action: () => Promise<unknown>, label: string) {
   assert.deepEqual(error.getResponse(), CONFLICT, 'Fixed response has no intent/winner/difference payload');
 }
 function fixture(initial: Row[] = [], operators: Operator[] = [operator()]) {
+  type Tx = { locked: boolean; active: boolean; aborted: boolean; staged: Row[]; client: unknown };
+  const txContext = new AsyncLocalStorage<Tx>(), txHistory: Tx[] = [];
   const calls = { access: [] as OperatorArgs[], lookup: [] as Lookup[], aggregate: [] as Aggregate[],
     create: [] as { data: CreateData }[], preview: [] as { userId: string; period?: string }[] };
   const state = { rows: initial.slice(), operators: operators.slice(), available: new Decimal(5000),
     reserved: new Decimal(0), createError: undefined as unknown, lookupError: undefined as unknown,
     lookupErrorAt: 0, previewError: undefined as unknown, winner: null as Row | null,
-    ownCreates: 0, externalCommits: 0, forbiddenCalls: 0 };
+    ownCreates: 0, externalCommits: 0, forbiddenCalls: 0, admissionAttempts: 0, admissionFaults: 0 };
   const financial = { cachedBalance: '77', ledgers: [] as unknown[], audits: [] as unknown[] };
   const initialFinancial = snapshot(financial);
   const delegates = {
@@ -104,24 +107,74 @@ function fixture(initial: Row[] = [], operators: Operator[] = [operator()]) {
         if (state.createError !== undefined) throw state.createError;
         const saved = row({ id: CREATED, ...args.data, status: 'requested', adminNote: null,
           metadata: args.data.metadata as Prisma.JsonValue });
-        state.rows.push(saved); state.ownCreates++; return saved;
+        const tx = txContext.getStore();
+        if (tx) tx.staged.push(saved); else { state.rows.push(saved); state.ownCreates++; }
+        return saved;
       },
     },
   };
-  const prisma = new Proxy(delegates, { get(target, property) {
-    if (Object.prototype.hasOwnProperty.call(target, property)) return Reflect.get(target, property);
-    state.forbiddenCalls++; throw new Error('SYNTHETIC_UNADMITTED_PRISMA_OPERATION');
-  } });
+  function boundary(tx: Tx | null) {
+    const models = Object.fromEntries(Object.entries(delegates).map(([name, methods]) => [name,
+      Object.fromEntries(Object.entries(methods).map(([operation, implementation]) => [operation, async (...args: unknown[]) => {
+        state.admissionAttempts++;
+        try {
+          assert(state.admissionAttempts < 256);
+          if (tx) { assert.equal(txContext.getStore(), tx); assert(tx.active && tx.locked && !tx.aborted); }
+          else assert.equal(txContext.getStore(), undefined, 'No root pool checkout inside transaction');
+          return await (implementation as (...values: unknown[]) => Promise<unknown>)(...args);
+        } catch (error) {
+          if (tx) tx.aborted = true;
+          if (error !== state.createError && error !== state.lookupError && error !== state.previewError) state.admissionFaults++;
+          throw error;
+        }
+      }]))]));
+    return new Proxy(models, { get(target, property) {
+      if (property === '$queryRaw' && tx) return async (query: Prisma.Sql) => {
+        state.admissionAttempts++;
+        try {
+          assert.equal(txContext.getStore(), tx); assert(tx.active && !tx.locked && !tx.aborted);
+          assert.deepEqual(query.strings.map(value => value.replace(/\s+/g, ' ').trim()), [
+            'SELECT 1 AS locked FROM pg_advisory_xact_lock( hashtextextended(', '::text, 0::bigint) )',
+          ]);
+          assert.equal(query.values.length, 1);
+          assert([USER + ':' + partner(), USER + ':' + artist(), OTHER + ':' + partner(OTHER)]
+            .map(value => 'creator_settlement_conversion:v1:' + value).includes(query.values[0] as string));
+        } catch (error) { state.admissionFaults++; throw error; }
+        tx.locked = true; return [{ locked: 1 }];
+      };
+      if (property === '$transaction' && !tx) return async (callback: (client: unknown) => Promise<unknown>,
+        options: { isolationLevel: string }) => {
+        state.admissionAttempts++;
+        try { assert.equal(txContext.getStore(), undefined); assert.equal(typeof callback, 'function');
+          assert.deepEqual(options, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted }); }
+        catch (error) { state.admissionFaults++; throw error; }
+        const current: Tx = { active: true, locked: false, aborted: false, staged: [], client: null };
+        current.client = boundary(current); txHistory.push(current);
+        try {
+          const result = await txContext.run(current, () => callback(current.client));
+          state.rows.push(...current.staged); state.ownCreates += current.staged.length; return result;
+        } finally { current.active = false; }
+      };
+      if (Object.prototype.hasOwnProperty.call(target, property)) return Reflect.get(target, property);
+      state.admissionFaults++; state.forbiddenCalls++; throw new Error('SYNTHETIC_UNADMITTED_PRISMA_OPERATION');
+    } });
+  }
+  const prisma = boundary(null);
   const service = new CreatorStudioService(prisma as unknown as PrismaService,
     { get() { throw new Error('SYNTHETIC_UNADMITTED_CONFIGURATION_READ'); } } as unknown as ConfigService);
   type Preview = Awaited<ReturnType<CreatorStudioService['getSettlementPreview']>>;
-  jest.spyOn(service, 'getSettlementPreview').mockImplementation(async (userId, query) => {
+  jest.spyOn(service, 'getSettlementPreview').mockImplementation(async (userId, query, db) => {
+    state.admissionAttempts++;
+    try { const tx = txContext.getStore(); assert(tx && tx.active && tx.locked && !tx.aborted); assert.equal(db, tx.client); }
+    catch (error) { state.admissionFaults++; throw error; }
     calls.preview.push({ userId, period: query.period });
     if (state.previewError !== undefined) throw state.previewError;
     return { items: [{ artist: { id: ARTIST }, financials: { creatorShareKrw: state.available } }],
       totals: { creatorShareKrw: state.available } } as unknown as Preview;
   });
   function noFinancialWrites() {
+    assert.equal(state.admissionFaults, 0, 'Admission errors cannot disappear inside product catch');
+    assert.equal(txContext.getStore(), undefined); assert(txHistory.every(tx => !tx.active));
     assert.equal(state.forbiddenCalls, 0); assert.equal(snapshot(financial), initialFinancial);
   }
   function scope(userId = USER) {
@@ -166,10 +219,10 @@ describe('CreatorStudioService settlement idempotency intent focused', () => {
       assert.equal(result.idempotentReplay, false); assert.equal(result.conversion.id, CREATED);
       assert.equal(result.conversion.requestedLumina.toString(), '100'); assert.equal(result.conversion.status, 'requested');
       assert.equal(f.calls.create.length, 1); assert.equal(f.state.ownCreates, 1); assert.equal(f.state.rows.length, 1);
-      assert.equal(f.calls.lookup.length, idempotencyKey ? 1 : 0);
-      assert.deepEqual(f.calls.access, [{ where: { userId: USER,
+      assert.equal(f.calls.lookup.length, idempotencyKey ? 2 : 0);
+      assert.deepEqual(f.calls.access, Array(2).fill({ where: { userId: USER,
         ...(settlementKey.startsWith('artist:') ? { artistId: ARTIST } : {}), status: 'active',
-        revokedAt: null, role: 'owner', permissions: { has: 'settlement:read' } }, select: { id: true } }]);
+        revokedAt: null, role: 'owner', permissions: { has: 'settlement:read' } }, select: { id: true } }));
       assert.deepEqual(f.calls.preview, [{ userId: USER, period: '2026-10' }]);
       assert.deepEqual(f.calls.aggregate, [{ where: { requesterUserId: USER, settlementKey,
         status: { in: ['requested', 'approved', 'credited'] } }, _sum: { amountKrw: true } }]);
@@ -218,8 +271,8 @@ describe('CreatorStudioService settlement idempotency intent focused', () => {
         assert.equal(result.conversion.id, winner.id); assert.equal(result.conversion.requestedLumina.toString(), '37');
         assert.equal(result.conversion.status, winner.status); assert.deepEqual(result.conversion.metadata, winner.metadata);
       } else await conflict(action, 'Different competing intent must not replay');
-      assert.equal(f.calls.lookup.length, 2); assert.equal(f.calls.create.length, 1);
-      assert.equal(f.calls.access.length, 1); assert.equal(f.calls.preview.length, 1); assert.equal(f.calls.aggregate.length, 1);
+      assert.equal(f.calls.lookup.length, 3); assert.equal(f.calls.create.length, 1);
+      assert.equal(f.calls.access.length, 2); assert.equal(f.calls.preview.length, 1); assert.equal(f.calls.aggregate.length, 1);
       assert.equal(f.state.ownCreates, 0); assert.equal(f.state.externalCommits, 1);
       assert.equal(snapshot(f.state.rows), expectedWinner); f.scope(); f.noFinancialWrites();
     }
@@ -241,19 +294,19 @@ describe('CreatorStudioService settlement idempotency intent focused', () => {
     for (const error of rejected) {
       const f = fixture(); f.state.createError = error;
       assert.equal(await failure(() => f.service.createSettlementConversion(USER, input()), 'Original create error must propagate'), error);
-      assert.equal(f.calls.lookup.length, 1); assert.equal(f.calls.create.length, 1); assert.equal(f.state.rows.length, 0);
+      assert.equal(f.calls.lookup.length, 2); assert.equal(f.calls.create.length, 1); assert.equal(f.state.rows.length, 0);
       assert.equal(f.state.ownCreates, 0); f.scope(); f.noFinancialWrites();
     }
     {
       const error = unique({ target: CONSTRAINT }), f = fixture(); f.state.createError = error;
       assert.equal(await failure(() => f.service.createSettlementConversion(USER, input()), 'Absent winner retains exact P2002'), error);
-      assert.equal(f.calls.lookup.length, 2); assert.equal(f.calls.create.length, 1); assert.equal(f.state.rows.length, 0); f.scope(); f.noFinancialWrites();
+      assert.equal(f.calls.lookup.length, 3); assert.equal(f.calls.create.length, 1); assert.equal(f.state.rows.length, 0); f.scope(); f.noFinancialWrites();
     }
     {
       const error = unique({ target: CONSTRAINT }), lookup = new Error('Synthetic recovery lookup failure'), f = fixture();
-      f.state.createError = error; f.state.lookupErrorAt = 2; f.state.lookupError = lookup;
+      f.state.createError = error; f.state.lookupErrorAt = 3; f.state.lookupError = lookup;
       assert.equal(await failure(() => f.service.createSettlementConversion(USER, input()), 'Recovery lookup failure is not remapped'), lookup);
-      assert.equal(f.calls.lookup.length, 2); assert.equal(f.calls.create.length, 1); f.noFinancialWrites();
+      assert.equal(f.calls.lookup.length, 3); assert.equal(f.calls.create.length, 1); f.noFinancialWrites();
     }
     {
       const error = unique({ target: CONSTRAINT }), f = fixture(); f.state.createError = error;

@@ -388,10 +388,11 @@ export class CreatorStudioService {
   async getSettlementPreview(
     userId: string,
     query: CreatorStudioSettlementPreviewQueryDto,
+    db: Prisma.TransactionClient = this.prisma,
   ) {
     const period = this.settlementPeriod(query.period);
     const policy = this.creatorSettlementPolicy();
-    const operators = await this.prisma.artistOperator.findMany({
+    const operators = await db.artistOperator.findMany({
       where: {
         userId,
         status: 'active',
@@ -426,7 +427,7 @@ export class CreatorStudioService {
     const [chatOrders, giftOrders, boostEvents, premiumUnlocks, fanLetters] =
       await Promise.all([
         artistIds.length
-          ? this.prisma.chatFeatureOrder.findMany({
+          ? db.chatFeatureOrder.findMany({
               where: {
                 artistId: { in: artistIds },
                 status: 'completed',
@@ -440,7 +441,7 @@ export class CreatorStudioService {
             })
           : [],
         artistIds.length
-          ? this.prisma.giftOrder.findMany({
+          ? db.giftOrder.findMany({
               where: {
                 artistId: { in: artistIds },
                 status: 'completed',
@@ -453,7 +454,7 @@ export class CreatorStudioService {
             })
           : [],
         artistIds.length
-          ? this.prisma.artistBoostEvent.findMany({
+          ? db.artistBoostEvent.findMany({
               where: {
                 artistId: { in: artistIds },
                 boostType: 'lumina_boost',
@@ -466,7 +467,7 @@ export class CreatorStudioService {
             })
           : [],
         artistIds.length
-          ? this.prisma.userPremiumVideoUnlock.findMany({
+          ? db.userPremiumVideoUnlock.findMany({
               where: {
                 unlockedAt: { gte: period.start, lt: period.end },
                 premiumVideoProduct: {
@@ -484,7 +485,7 @@ export class CreatorStudioService {
             })
           : [],
         artistIds.length
-          ? this.prisma.fanLetter.findMany({
+          ? db.fanLetter.findMany({
               where: {
                 artistId: { in: artistIds },
                 status: { in: ['submitted', 'seen', 'replied', 'archived'] },
@@ -883,60 +884,84 @@ export class CreatorStudioService {
 
     const policy = this.settlementConversionPolicy();
 
-    if (amountKrw.comparedTo(policy.minAmountKrw) < 0) {
-      throw new BadRequestException(
-        `amountKrw must be greater than or equal to ${policy.minAmountKrw.toString()}`,
-      );
-    }
-
-    const preview = await this.getSettlementPreview(userId, { period: parsedKey.period });
-    const estimatedAvailableKrw =
-      parsedKey.type === 'artist'
-        ? preview.items.find((item) => item.artist.id === parsedKey.id)?.financials
-            .creatorShareKrw ?? new Decimal(0)
-        : preview.totals.creatorShareKrw;
-    const reservedKrw = await this.reservedSettlementConversionAmount(
-      userId,
-      input.settlementKey,
-    );
-    const remainingKrw = Decimal.max(0, estimatedAvailableKrw.minus(reservedKrw));
-
-    if (amountKrw.comparedTo(remainingKrw) > 0) {
-      throw new BadRequestException({
-        code: 'SETTLEMENT_CONVERSION_AMOUNT_EXCEEDS_PREVIEW',
-        message: 'Requested amount exceeds the current settlement preview balance',
-        details: {
-          estimatedAvailableKrw: estimatedAvailableKrw.toString(),
-          reservedKrw: reservedKrw.toString(),
-          remainingKrw: remainingKrw.toString(),
-        },
-      });
-    }
-
-    const requestedLumina = amountKrw.div(policy.unitPriceKrw);
-    let row: SettlementLuminaConversionRequest;
+    let outcome: { row: SettlementLuminaConversionRequest; replay: boolean };
     try {
-      row = await this.prisma.settlementLuminaConversionRequest.create({
-        data: {
-          requesterUserId: userId,
-          settlementKey: input.settlementKey,
-          settlementType: parsedKey.type,
-          period: parsedKey.period,
-          targetArtistId: parsedKey.type === 'artist' ? parsedKey.id : null,
-          amountKrw,
-          requestedLumina,
-          note: input.note ?? null,
-          idempotencyKey: input.idempotencyKey ?? null,
-          metadata: this.toJson({
-            source: 'creator_studio',
-            previewOnly: true,
-            unitPriceKrw: policy.unitPriceKrw.toString(),
-            estimatedAvailableKrw: estimatedAvailableKrw.toString(),
-            reservedKrw: reservedKrw.toString(),
-            remainingKrwBeforeRequest: remainingKrw.toString(),
-            walletCredit: 'admin_approval_required',
-          }),
-        },
+      outcome = await this.prisma.$transaction(async (tx) => {
+        // Wait before reading capacity so a later claim sees the preceding commit.
+        await tx.$queryRaw(Prisma.sql`
+          SELECT 1 AS locked FROM pg_advisory_xact_lock(
+            hashtextextended(${`creator_settlement_conversion:v1:${userId}:${input.settlementKey}`}::text, 0::bigint)
+          )
+        `);
+        await this.assertSettlementConversionAccess(userId, parsedKey, tx);
+
+        if (input.idempotencyKey) {
+          const existing = await tx.settlementLuminaConversionRequest.findFirst({
+            where: { requesterUserId: userId, idempotencyKey: input.idempotencyKey },
+          });
+          if (existing) {
+            this.assertSettlementConversionReplayIntent(existing, input, amountKrw);
+            return { row: existing, replay: true };
+          }
+        }
+
+        if (amountKrw.comparedTo(policy.minAmountKrw) < 0) {
+          throw new BadRequestException(
+            `amountKrw must be greater than or equal to ${policy.minAmountKrw.toString()}`,
+          );
+        }
+
+        const preview = await this.getSettlementPreview(userId, { period: parsedKey.period }, tx);
+        const estimatedAvailableKrw =
+          parsedKey.type === 'artist'
+            ? preview.items.find((item) => item.artist.id === parsedKey.id)?.financials
+                .creatorShareKrw ?? new Decimal(0)
+            : preview.totals.creatorShareKrw;
+        const reservedKrw = await this.reservedSettlementConversionAmount(
+          userId,
+          input.settlementKey,
+          tx,
+        );
+        const remainingKrw = Decimal.max(0, estimatedAvailableKrw.minus(reservedKrw));
+
+        if (amountKrw.comparedTo(remainingKrw) > 0) {
+          throw new BadRequestException({
+            code: 'SETTLEMENT_CONVERSION_AMOUNT_EXCEEDS_PREVIEW',
+            message: 'Requested amount exceeds the current settlement preview balance',
+            details: {
+              estimatedAvailableKrw: estimatedAvailableKrw.toString(),
+              reservedKrw: reservedKrw.toString(),
+              remainingKrw: remainingKrw.toString(),
+            },
+          });
+        }
+
+        const requestedLumina = amountKrw.div(policy.unitPriceKrw);
+        const row = await tx.settlementLuminaConversionRequest.create({
+          data: {
+            requesterUserId: userId,
+            settlementKey: input.settlementKey,
+            settlementType: parsedKey.type,
+            period: parsedKey.period,
+            targetArtistId: parsedKey.type === 'artist' ? parsedKey.id : null,
+            amountKrw,
+            requestedLumina,
+            note: input.note ?? null,
+            idempotencyKey: input.idempotencyKey ?? null,
+            metadata: this.toJson({
+              source: 'creator_studio',
+              previewOnly: true,
+              unitPriceKrw: policy.unitPriceKrw.toString(),
+              estimatedAvailableKrw: estimatedAvailableKrw.toString(),
+              reservedKrw: reservedKrw.toString(),
+              remainingKrwBeforeRequest: remainingKrw.toString(),
+              walletCredit: 'admin_approval_required',
+            }),
+          },
+        });
+        return { row, replay: false };
+      }, {
+        isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
       });
     } catch (error) {
       if (
@@ -981,8 +1006,16 @@ export class CreatorStudioService {
       };
     }
 
+    if (outcome.replay) {
+      return {
+        conversion: this.presentSettlementConversion(outcome.row),
+        idempotentReplay: true,
+        policy,
+      };
+    }
+
     return {
-      conversion: this.presentSettlementConversion(row),
+      conversion: this.presentSettlementConversion(outcome.row),
       idempotentReplay: false,
       policy,
       notice:
@@ -2170,12 +2203,13 @@ export class CreatorStudioService {
   private async assertSettlementConversionAccess(
     userId: string,
     parsedKey: ReturnType<typeof this.parseSettlementKey>,
+    db: Prisma.TransactionClient = this.prisma,
   ) {
     if (parsedKey.type === 'partner' && parsedKey.id !== userId) {
       throw new ForbiddenException('Creator settlement conversion access is required');
     }
 
-    const operator = await this.prisma.artistOperator.findFirst({
+    const operator = await db.artistOperator.findFirst({
       where: {
         userId,
         ...(parsedKey.type === 'artist' ? { artistId: parsedKey.id } : {}),
@@ -2214,8 +2248,9 @@ export class CreatorStudioService {
   private async reservedSettlementConversionAmount(
     userId: string,
     settlementKey: string,
+    db: Prisma.TransactionClient = this.prisma,
   ) {
-    const aggregate = await this.prisma.settlementLuminaConversionRequest.aggregate({
+    const aggregate = await db.settlementLuminaConversionRequest.aggregate({
       where: {
         requesterUserId: userId,
         settlementKey,
