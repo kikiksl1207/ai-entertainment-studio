@@ -7,7 +7,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Prisma, SettlementLuminaConversionRequest, SettlementRecord } from '@prisma/client';
+import { Prisma, SettlementLuminaConversionRequest, SettlementRecord, type WalletLedger } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import { createHash, createHmac, randomUUID } from 'crypto';
 import { AuthUser } from '../auth/auth.types';
@@ -7089,6 +7089,34 @@ export class AdminService {
         );
       }
 
+      const recordResult = async (
+        conversion: SettlementLuminaConversionRequest,
+        ledger: WalletLedger | null,
+        idempotentReplay: boolean,
+      ) => {
+        await tx.auditEvent.create({
+          data: {
+            actorUserId: user.id,
+            actorType: 'admin',
+            action: 'settlement_lumina_conversion.status.update',
+            targetType: 'settlement_lumina_conversion_request',
+            targetId: conversion.id,
+            beforeData: this.toJson(before),
+            afterData: this.toJson(conversion),
+            metadata: this.toJson({
+              settlementKey: conversion.settlementKey,
+              settlementType: conversion.settlementType,
+              period: conversion.period,
+              status: conversion.status,
+              walletCredited: true,
+              walletLedgerId: conversion.walletLedgerId,
+              idempotentReplay,
+            }),
+          },
+        });
+        return { before, conversion, ledger, idempotentReplay };
+      };
+
       if (before.walletLedgerId) {
         const existingLedger = await tx.walletLedger.findUnique({
           where: { id: before.walletLedgerId },
@@ -7104,12 +7132,7 @@ export class AdminService {
           },
         });
 
-        return {
-          before,
-          conversion: replayed,
-          ledger: existingLedger,
-          idempotentReplay: true,
-        };
+        return recordResult(replayed, existingLedger, true);
       }
 
       const idempotencyKey = `settlement-lumina-conversion:${before.id}`;
@@ -7130,12 +7153,7 @@ export class AdminService {
           },
         });
 
-        return {
-          before,
-          conversion: replayed,
-          ledger: existingLedger,
-          idempotentReplay: true,
-        };
+        return recordResult(replayed, existingLedger, true);
       }
 
       const wallet = await tx.walletAccount.upsert({
@@ -7187,33 +7205,7 @@ export class AdminService {
         },
       });
 
-      return {
-        before,
-        conversion: credited,
-        ledger,
-        idempotentReplay: false,
-      };
-    });
-
-    await this.prisma.auditEvent.create({
-      data: {
-        actorUserId: user.id,
-        actorType: 'admin',
-        action: 'settlement_lumina_conversion.status.update',
-        targetType: 'settlement_lumina_conversion_request',
-        targetId: result.conversion.id,
-        beforeData: this.toJson(result.before),
-        afterData: this.toJson(result.conversion),
-        metadata: this.toJson({
-          settlementKey: result.conversion.settlementKey,
-          settlementType: result.conversion.settlementType,
-          period: result.conversion.period,
-          status: result.conversion.status,
-          walletCredited: true,
-          walletLedgerId: result.conversion.walletLedgerId,
-          idempotentReplay: result.idempotentReplay,
-        }),
-      },
+      return recordResult(credited, ledger, false);
     });
 
     return {
