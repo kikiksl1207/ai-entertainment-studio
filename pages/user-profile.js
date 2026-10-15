@@ -191,7 +191,7 @@ window.addEventListener("lumina:localechange", () => {
 function buildFeedProfileFixture(handle, userId) {
   const normalizedHandle = String(handle || "").trim();
   const match = normalizedHandle.match(FEED_PROFILE_FIXTURE_HANDLE_RE);
-  if (!followListUsesFixture() && !match) return null;
+  if (!followListUsesFixture()) return null;
   if (!match && !userId) return null;
   const kind = match ? match[1].toLowerCase() : "fan";
   const numericId = Number(match ? match[2] : userId) || 0;
@@ -291,7 +291,7 @@ async function initUserProfilePage() {
 
   // 1. 프로필 조회
   try {
-    const res = await apiFetch(profileEndpoint, { auth: isAuth });
+    const res = await apiFetch(profileEndpoint, { auth: isAuth, throwOnError: true });
     if (!res?.user) {
       const fixture = buildFeedProfileFixture(handle, userId);
       if (fixture) {
@@ -309,7 +309,7 @@ async function initUserProfilePage() {
       // 차단된 계정
       showUserProfileBlocked();
     } else {
-      console.warn("[#152 user-profile] 프로필 조회 실패:", err?.status, err?.message);
+      console.warn("[#152 user-profile] 프로필 조회 실패:", Number.isInteger(err?.status) && err.status >= 400 && err.status <= 599 ? err.status : "unavailable");
       const fixture = buildFeedProfileFixture(handle, userId);
       if (fixture) {
         renderFeedProfileFixture(fixture);
