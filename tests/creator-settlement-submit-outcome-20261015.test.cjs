@@ -22,10 +22,13 @@ const sha = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
 function source(file, expected) {
   const bytes = fs.readFileSync(path.join(root, file));
   assert(bytes.length > 0 && bytes.length <= 1024 * 1024);
-  assert.equal(sha(bytes), expected, 'Exact admitted raw source');
   const text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
   assert(!text.startsWith('\uFEFF'));
-  return text.replace(/\r\n/g, '\n');
+  const lf = text.replace(/\r\n/g, '\n');
+  assert(!lf.includes('\r'));
+  assert(text === lf || text === lf.replace(/\n/g, '\r\n'), 'Uniform checkout line endings required');
+  assert.equal(sha(lf), expected, 'Exact LF source or uniform checkout CRLF required');
+  return lf;
 }
 const script = source('pages/creator-studio.js', pins[0]);
 const html = source('creator-studio/index.html', pins[1]);
