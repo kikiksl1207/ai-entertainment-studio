@@ -19,6 +19,7 @@ import { chatBoostsPrivacyMiddleware } from './common/chat-boosts-privacy';
 import { contentRightsContractPrivacyMiddleware } from './story-settlement/content-rights-contract.privacy';
 import { settlementPreviewPrivacyMiddleware } from './story-settlement/settlement-preview.privacy';
 import { communityPersonalizedReadPrivacyMiddleware } from './community/community-personalized-read.privacy';
+import { communitySearchReadPrivacyMiddleware } from './community/community-search-read.privacy';
 
 type RequestLike = {
   headers: Record<string, string | string[] | undefined>;
@@ -55,6 +56,7 @@ export async function createApplication() {
   app.use(contentRightsContractPrivacyMiddleware);
   app.use(settlementPreviewPrivacyMiddleware);
   app.use(communityPersonalizedReadPrivacyMiddleware);
+  app.use(communitySearchReadPrivacyMiddleware);
   app.use(
     helmet({
       crossOriginResourcePolicy: { policy: 'cross-origin' },
