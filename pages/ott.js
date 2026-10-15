@@ -404,7 +404,7 @@
         !Number.isFinite(node.clip?.startMs) || !Number.isFinite(node.clip?.endMs) ||
         node.clip.startMs < 0 || node.clip.endMs <= node.clip.startMs ||
         !Array.isArray(node.choices) || node.choices.length > 3 || !Array.isArray(node.subtitles) ||
-        node.subtitles.length > 500 || node.browserPlayback?.method !== "POST" ||
+        node.subtitles.length > 2000 || node.browserPlayback?.method !== "POST" ||
         !apiPath(node.browserPlayback.sessionPath, nodePath(slug, node.key, "playback-session"))) {
         throw new Error("invalid watch node");
       }
