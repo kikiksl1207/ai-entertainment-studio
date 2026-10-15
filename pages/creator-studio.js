@@ -10,6 +10,7 @@
   const actions = document.getElementById("studioGateActions");
   let studioArtists = [];
   let settlementPreview = null;
+  let payoutSummaryRequest = 0;
   let studioModalConfirmHandler = null;
   let studioToastTimer = null;
   let storyIntakeRequestKey = null;
@@ -1044,17 +1045,19 @@
 
   async function loadPayoutSummary() {
     const identity = studioIdentity();
+    const ticket = ++payoutSummaryRequest;
+    const current = () => ticket === payoutSummaryRequest && currentStudioIdentity(identity);
+    if (!current()) return;
+    resetPayoutBreakdown("loading", "확인 중", "정산 요약을 불러오는 중입니다.");
     try {
       const res = await fetchCreatorStudioApi("/api/v1/me/creator-studio/payout-summary?period=" + currentPeriod(), { identity });
-      if (!currentStudioIdentity(identity)) return;
+      if (!current()) return;
       if (!res.ok) throw new Error("payout unavailable");
       const data = await res.json();
-      if (currentStudioIdentity(identity)) renderPayoutBreakdown(data);
+      if (current()) renderPayoutBreakdown(data);
     } catch (_) {
-      if (!currentStudioIdentity(identity)) return;
-      text("studioPayoutSampleBadge", "조회 불가");
-      const note = document.getElementById("studioPayoutSampleNote");
-      if (note) note.textContent = "정산 요약을 불러오지 못했습니다.";
+      if (!current()) return;
+      resetPayoutBreakdown("unavailable", "조회 불가", "정산 요약을 불러오지 못했습니다.");
     }
   }
 
@@ -1136,15 +1139,35 @@
     }
   }
 
+  function resetPayoutBreakdown(state = "unavailable", badge = "조회 불가", note = "정산 요약을 확인하지 못했습니다.") {
+    const card = document.getElementById("studioPayoutBreakdown");
+    if (!card) return;
+    card.classList.remove("is-payout-sample");
+    card.dataset.payoutState = state;
+    ["studioPayoutGrossLumina", "studioPayoutEligibleLumina", "studioPayoutGrossKrw", "studioPayoutTaxKrw", "studioPayoutNetKrw"].forEach(id => {
+      const element = document.getElementById(id);
+      if (!element) return;
+      element.textContent = "-";
+      element.dataset.payoutSample = "true";
+      element.setAttribute("aria-label", "정산 요약 미확인");
+    });
+    text("studioPayoutCurrencyLabel", "-");
+    text("studioPayoutFxLabel", "-");
+    text("studioPayoutSampleBadge", badge);
+    text("studioPayoutSampleNote", note);
+  }
+
   function renderPayoutBreakdown(data) {
     const card = document.getElementById("studioPayoutBreakdown");
-    if (!card || !data?.totals) return;
-    if (data.policy?.hidePayoutRow === true) {
+    if (!card) return;
+    resetPayoutBreakdown();
+    if (data?.policy?.hidePayoutRow === true) {
       text("studioPayoutSampleBadge", "표시 대상 없음");
       const note = document.getElementById("studioPayoutSampleNote");
       if (note) note.textContent = "이 계정에는 표시 가능한 정산 요약이 없습니다.";
       return;
     }
+    if (!data?.totals) return;
     const totals = data.totals;
     const values = {
       studioPayoutGrossLumina: totals.grossLumina,
@@ -1153,7 +1176,8 @@
       studioPayoutTaxKrw: totals.taxAmount?.amount,
       studioPayoutNetKrw: totals.netAmount?.amount
     };
-    const hasAmounts = Object.values(values).some(value => value != null && Number.isFinite(Number(value)));
+    const knownAmount = value => (typeof value === "number" || (typeof value === "string" && value.trim() !== "")) && Number.isFinite(Number(value));
+    const hasAmounts = Object.values(values).some(knownAmount);
     if (!hasAmounts) {
       const note = document.getElementById("studioPayoutSampleNote");
       if (note) note.textContent = "표시 가능한 예상 정산 금액이 없습니다.";
@@ -1162,13 +1186,14 @@
     card.classList.remove("is-payout-sample");
     card.dataset.payoutState = "estimate";
     text("studioPayoutSampleBadge", "예상치");
-    card.querySelectorAll("[data-payout-sample]").forEach(el => {
-      el.dataset.payoutSample = "false";
-      el.removeAttribute("aria-label");
-    });
     for (const [id, value] of Object.entries(values)) {
-      if (value != null && Number.isFinite(Number(value))) {
+      if (knownAmount(value)) {
         text(id, id.endsWith("Lumina") ? formatNumber(value) + "L" : formatKrw(value));
+        const element = document.getElementById(id);
+        if (element) {
+          element.dataset.payoutSample = "false";
+          element.removeAttribute("aria-label");
+        }
       }
     }
     text("studioPayoutCurrencyLabel", totals.currency || data.currency || "통화 정보 없음");
