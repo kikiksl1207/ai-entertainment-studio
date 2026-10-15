@@ -853,6 +853,8 @@
       void refreshPublicWatch();
       return;
     }
+    // An initial pending watch has no playback object to retire it.
+    publicWatchRequest += 1;
     if (!demoSection.hidden) void loadCaptions();
     load();
   });

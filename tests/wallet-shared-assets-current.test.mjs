@@ -201,7 +201,7 @@ const consumers = [
     "beforeScripts": [
       "/data/characters.js",
       "/app.js",
-      "/pages/ott.js?v=ott-subtitle-cap-20261016"
+      "/pages/ott.js?v=ott-initial-locale-20261016"
     ]
   },
   {
