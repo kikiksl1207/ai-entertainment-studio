@@ -1476,6 +1476,9 @@ export class CommunityService {
     const where = {
       ...this.feedSearchWhere(normalizedKeyword, searchType),
       ...(blockedUserIds.length ? { authorUserId: { notIn: blockedUserIds } } : {}),
+      ...(context.userId
+        ? { hiddenByUsers: { none: { userId: context.userId, status: 'active', deletedAt: null } } }
+        : {}),
     };
     const posts = await this.prisma.communityPost.findMany({
       where,
