@@ -90,8 +90,15 @@ const i18nExportSource = fragment('window.luminaI18n = {', '\n  };');
 if (process.env.MYPAGE_FAN_BASELINE_APP) {
   assert.equal(sha(authSource), snapshots.appAuth, 'Historical auth CRLF->LF source pin');
 } else {
-  assert.equal(sha(authSource), snapshots.appAuthBodyTimeout, 'Consumed auth with bounded response body');
-  const previousAuth = authSource.replace('      if (session !== authRequestSession()) return null;',
+  const catalogDeadline = [
+    '    // Keep the existing deadline through JSON for the credential-free public catalog.',
+    '    if (!(path === "/api/v1/ott" && method === "GET" && auth === false &&',
+    '      body === undefined && Object.keys(headers).length === 0)) clearTimeout(timer);',
+  ].join('\n');
+  assert.equal(authSource.split(catalogDeadline).length, 2, 'Exact separate public catalog deadline delta');
+  const withoutCatalogDeadline = authSource.replace(catalogDeadline, '    clearTimeout(timer);');
+  assert.equal(sha(withoutCatalogDeadline), snapshots.appAuthBodyTimeout, 'Consumed auth with bounded response body');
+  const previousAuth = withoutCatalogDeadline.replace('      if (session !== authRequestSession()) return null;',
     '      clearTimeout(timer);\n      if (session !== authRequestSession()) return null;');
   assert.equal(sha(previousAuth), snapshots.appAuth, 'Only the separately verified body-timeout delta');
 }

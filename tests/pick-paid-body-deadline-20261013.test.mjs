@@ -73,7 +73,14 @@ test('paid body deadline retains generic API and wraps quota and POST with serve
   assert.match(quota, /const data = await awaitPaidLikeSettlement\(apiFetch\("\/api\/v1\/me\/paid-like-quota", \{ auth: true \}\)\)/);
   assert.match(modal, /const result = await awaitPaidLikeSettlement\(apiFetch\(`\/api\/v1\/boost-campaigns\/\$\{campaignId\}\/paid-like`, \{/);
   assert.match(modal, /quantity: attempt\.quantity,[\s\S]*idempotencyKey\s*\}\s*\}\)\);/);
-  assert.equal(hash(actualFunction('async function apiFetch(path, options = {}, _retryDepth = 0)')),
+  const apiSource = actualFunction('async function apiFetch(path, options = {}, _retryDepth = 0)');
+  const catalogDeadline = [
+    '    // Keep the existing deadline through JSON for the credential-free public catalog.',
+    '    if (!(path === "/api/v1/ott" && method === "GET" && auth === false &&',
+    '      body === undefined && Object.keys(headers).length === 0)) clearTimeout(timer);',
+  ].join('\n');
+  assert.equal(apiSource.split(catalogDeadline).length, 2, 'Exact separate public catalog deadline delta');
+  assert.equal(hash(apiSource.replace(catalogDeadline, '    clearTimeout(timer);')),
     '9bf7fa29a431cb46ba4f214975880632f460c2a291fe324aba5898f4aa61d9d0');
   assert.match(app.slice(paidStart, app.indexOf('];', paidStart) + 2), /^const PAID_LIKE_BUNDLES = \[\s*\{ quantity: 1 \},\s*\{ quantity: 5 \},\s*\{ quantity: 10, recommended: true \},\s*\{ quantity: 20 \}\s*\];$/);
   assert.equal((quota.match(/awaitPaidLikeSettlement\(/g) || []).length, 1);
