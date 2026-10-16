@@ -696,6 +696,15 @@ describe('AdminService community feed cleanup audit guard', () => {
         create: jest.fn().mockResolvedValue({ id: 'audit-609' }),
       },
     };
+    Object.assign(prisma, {
+      $transaction: jest.fn().mockImplementation(
+        async (callback: (tx: typeof prisma) => Promise<unknown>, options: unknown, ...extra: unknown[]) => {
+          expect(extra).toEqual([]);
+          expect(options).toEqual({ isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted });
+          return callback(prisma);
+        },
+      ),
+    });
     const config = { get: jest.fn() };
     const service = new AdminService(
       prisma as unknown as PrismaService,

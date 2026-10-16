@@ -5795,37 +5795,40 @@ export class AdminService {
     const metadata = this.metadataObject(before.metadata);
     const moderation = this.metadataObject(metadata.moderation);
     const hiddenAt = new Date().toISOString();
-    const post = await this.prisma.communityPost.update({
-      where: { id: postId },
-      data: {
-        status: 'hidden',
-        updatedAt: new Date(),
-        metadata: this.toJson({
-          ...metadata,
-          moderation: {
-            ...moderation,
-            status: 'hidden',
-            reason: this.optionalString(input, 'reason') ?? null,
-            note: this.optionalString(input, 'note') ?? null,
-            hiddenByUserId: user.id,
-            hiddenAt,
-          },
-        }),
-      },
-      include: this.communityPostInclude(),
-    });
+    return this.prisma.$transaction(async (tx) => {
+      const post = await tx.communityPost.update({
+        where: { id: postId },
+        data: {
+          status: 'hidden',
+          updatedAt: new Date(),
+          metadata: this.toJson({
+            ...metadata,
+            moderation: {
+              ...moderation,
+              status: 'hidden',
+              reason: this.optionalString(input, 'reason') ?? null,
+              note: this.optionalString(input, 'note') ?? null,
+              hiddenByUserId: user.id,
+              hiddenAt,
+            },
+          }),
+        },
+        include: this.communityPostInclude(),
+      });
 
-    await this.recordAudit(
-      user,
-      'community_post.hide',
-      'community_post',
-      post.id,
-      this.communityPostAuditSnapshot(before),
-      this.communityPostAuditSnapshot(post),
-      this.communityModerationAuditMetadata(input),
-    );
+      await this.recordAudit(
+        user,
+        'community_post.hide',
+        'community_post',
+        post.id,
+        this.communityPostAuditSnapshot(before),
+        this.communityPostAuditSnapshot(post),
+        this.communityModerationAuditMetadata(input),
+        tx,
+      );
 
-    return { ok: true, post };
+      return { ok: true, post };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted });
   }
 
   async restoreCommunityPost(user: AuthUser, postId: string, input: AdminPayload) {
@@ -5833,38 +5836,41 @@ export class AdminService {
     const metadata = this.metadataObject(before.metadata);
     const moderation = this.metadataObject(metadata.moderation);
     const restoredAt = new Date().toISOString();
-    const post = await this.prisma.communityPost.update({
-      where: { id: postId },
-      data: {
-        status: 'published',
-        deletedAt: null,
-        updatedAt: new Date(),
-        metadata: this.toJson({
-          ...metadata,
-          moderation: {
-            ...moderation,
-            status: 'restored',
-            reason: this.optionalString(input, 'reason') ?? null,
-            note: this.optionalString(input, 'note') ?? null,
-            restoredByUserId: user.id,
-            restoredAt,
-          },
-        }),
-      },
-      include: this.communityPostInclude(),
-    });
+    return this.prisma.$transaction(async (tx) => {
+      const post = await tx.communityPost.update({
+        where: { id: postId },
+        data: {
+          status: 'published',
+          deletedAt: null,
+          updatedAt: new Date(),
+          metadata: this.toJson({
+            ...metadata,
+            moderation: {
+              ...moderation,
+              status: 'restored',
+              reason: this.optionalString(input, 'reason') ?? null,
+              note: this.optionalString(input, 'note') ?? null,
+              restoredByUserId: user.id,
+              restoredAt,
+            },
+          }),
+        },
+        include: this.communityPostInclude(),
+      });
 
-    await this.recordAudit(
-      user,
-      'community_post.restore',
-      'community_post',
-      post.id,
-      this.communityPostAuditSnapshot(before),
-      this.communityPostAuditSnapshot(post),
-      this.communityModerationAuditMetadata(input),
-    );
+      await this.recordAudit(
+        user,
+        'community_post.restore',
+        'community_post',
+        post.id,
+        this.communityPostAuditSnapshot(before),
+        this.communityPostAuditSnapshot(post),
+        this.communityModerationAuditMetadata(input),
+        tx,
+      );
 
-    return { ok: true, post };
+      return { ok: true, post };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted });
   }
 
   async getBackstageArtistKnowledgeUrls(query: AuditQuery) {
