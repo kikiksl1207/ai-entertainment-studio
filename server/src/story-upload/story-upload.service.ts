@@ -288,13 +288,26 @@ export class StoryUploadService {
       };
       let profile: typeof current;
       if (!current || current.status === 'approved') {
-        profile = await tx.storyUploadGenerationProfile.create({
-          data: {
-            submissionId: submission.id,
-            profileVersion: (current?.profileVersion ?? 0) + 1,
-            ...data,
-          },
-        });
+        try {
+          profile = await tx.storyUploadGenerationProfile.create({
+            data: {
+              submissionId: submission.id,
+              profileVersion: (current?.profileVersion ?? 0) + 1,
+              ...data,
+            },
+          });
+        } catch (error) {
+          const target = error instanceof Prisma.PrismaClientKnownRequestError ? error.meta?.target : undefined;
+          if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002' &&
+            Array.isArray(target) && target.length === 2 &&
+            target[0] === 'submission_id' && target[1] === 'profile_version') {
+            throw new ConflictException({
+              code: 'GENERATION_PROFILE_DRAFT_CHANGED',
+              message: 'Review the latest generation profile before saving',
+            });
+          }
+          throw error;
+        }
       } else {
         const updated = await tx.storyUploadGenerationProfile.updateMany({
           where: {
