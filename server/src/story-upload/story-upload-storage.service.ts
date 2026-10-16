@@ -1,6 +1,7 @@
 import { createHash, createHmac } from 'crypto';
 import { mkdir, readFile, stat, writeFile } from 'fs/promises';
 import { dirname, resolve, sep } from 'path';
+import { types } from 'node:util';
 import {
   BadRequestException,
   Injectable,
@@ -118,15 +119,69 @@ export class StoryUploadStorageService {
       } catch {
         throw this.storageUnavailable();
       }
-      if (!response.ok) throw this.storageUnavailable();
-      const declaredLength = Number(response.headers.get('content-length'));
-      if (Number.isFinite(declaredLength) && declaredLength !== input.expectedBytes) {
+      if (!response.ok) {
+        void response.body?.cancel().catch(() => undefined);
         throw this.storageUnavailable();
       }
-      buffer = Buffer.from(await response.arrayBuffer());
+      const declaredLength = Number(response.headers.get('content-length'));
+      if (Number.isFinite(declaredLength) && declaredLength !== input.expectedBytes) {
+        void response.body?.cancel().catch(() => undefined);
+        throw this.storageUnavailable();
+      }
+      buffer = await this.readRemoteObjectBytes(response, input.expectedBytes);
     }
     if (buffer.length !== input.expectedBytes) throw this.storageUnavailable();
     return buffer;
+  }
+
+  private async readRemoteObjectBytes(response: Response, expectedBytes: number): Promise<Buffer> {
+    if (!Number.isSafeInteger(expectedBytes) || expectedBytes < 0) {
+      void response.body?.cancel().catch(() => undefined);
+      throw this.storageUnavailable();
+    }
+    if (!response.body) {
+      if (expectedBytes === 0) return Buffer.alloc(0);
+      throw this.storageUnavailable();
+    }
+    let reader: ReadableStreamDefaultReader<Uint8Array>;
+    try {
+      reader = response.body.getReader();
+    } catch {
+      void response.body.cancel().catch(() => undefined);
+      throw this.storageUnavailable();
+    }
+    const blocks: Buffer[] = [];
+    let total = 0;
+    let block: Buffer | undefined;
+    let offset = 0;
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (!types.isUint8Array(value) || value.byteLength > expectedBytes - total) throw this.storageUnavailable();
+        let consumed = 0;
+        // Fixed blocks keep many tiny chunks from multiplying retained buffer metadata.
+        while (consumed < value.byteLength) {
+          if (!block || offset === block.length) {
+            block = Buffer.allocUnsafe(Math.min(64 * 1024, expectedBytes - total));
+            blocks.push(block);
+            offset = 0;
+          }
+          const count = Math.min(block.length - offset, value.byteLength - consumed);
+          block.set(value.subarray(consumed, consumed + count), offset);
+          consumed += count;
+          offset += count;
+          total += count;
+        }
+      }
+      if (total !== expectedBytes) throw this.storageUnavailable();
+      return Buffer.concat(blocks, total);
+    } catch {
+      throw this.storageUnavailable();
+    } finally {
+      void reader.cancel().catch(() => undefined);
+      reader.releaseLock();
+    }
   }
 
   private assertStorageModeAllowed(provider: StoryUploadStorageProvider) {
