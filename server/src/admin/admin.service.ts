@@ -687,38 +687,42 @@ export class AdminService {
       );
     }
 
-    const before = await this.prisma.fanMission.findUnique({
-      where: { id: missionId },
-      include: BACKSTAGE_FAN_MISSION_INCLUDE,
-    });
+    const { before, mission } = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM fan_missions WHERE id=${missionId}::uuid FOR UPDATE`;
+      const before = await tx.fanMission.findUnique({
+        where: { id: missionId },
+        include: BACKSTAGE_FAN_MISSION_INCLUDE,
+      });
 
-    if (!before) {
-      throw this.adminNotFound(
-        'FAN_MISSION_NOT_FOUND',
-        'Fan mission not found',
-        'admin.fanEngagement.mission.notFound',
-      );
-    }
+      if (!before) {
+        throw this.adminNotFound(
+          'FAN_MISSION_NOT_FOUND',
+          'Fan mission not found',
+          'admin.fanEngagement.mission.notFound',
+        );
+      }
 
-    const nextStatus = this.optionalString(input, 'status') ?? 'archived';
+      const nextStatus = this.optionalString(input, 'status') ?? 'archived';
 
-    if (!FAN_MISSION_ARCHIVE_STATUSES.has(nextStatus)) {
-      throw this.adminBadRequest(
-        'FAN_MISSION_INVALID_ARCHIVE_STATUS',
-        'Archive status must be inactive or archived',
-        'admin.fanEngagement.mission.invalidArchiveStatus',
-        { allowed: [...FAN_MISSION_ARCHIVE_STATUSES] },
-      );
-    }
+      if (!FAN_MISSION_ARCHIVE_STATUSES.has(nextStatus)) {
+        throw this.adminBadRequest(
+          'FAN_MISSION_INVALID_ARCHIVE_STATUS',
+          'Archive status must be inactive or archived',
+          'admin.fanEngagement.mission.invalidArchiveStatus',
+          { allowed: [...FAN_MISSION_ARCHIVE_STATUSES] },
+        );
+      }
 
-    const mission = await this.prisma.fanMission.update({
-      where: { id: missionId },
-      data: {
-        status: nextStatus,
-        updatedAt: new Date(),
-      },
-      include: BACKSTAGE_FAN_MISSION_INCLUDE,
-    });
+      const mission = await tx.fanMission.update({
+        where: { id: missionId },
+        data: {
+          status: before.status === 'archived' ? 'archived' : nextStatus,
+          updatedAt: new Date(),
+        },
+        include: BACKSTAGE_FAN_MISSION_INCLUDE,
+      });
+      return { before, mission };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted });
 
     await this.recordAudit(
       user,
