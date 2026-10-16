@@ -20,6 +20,7 @@ import { contentRightsContractPrivacyMiddleware } from './story-settlement/conte
 import { settlementPreviewPrivacyMiddleware } from './story-settlement/settlement-preview.privacy';
 import { communityPersonalizedReadPrivacyMiddleware } from './community/community-personalized-read.privacy';
 import { communitySearchReadPrivacyMiddleware } from './community/community-search-read.privacy';
+import { storyUploadPrivacyMiddleware } from './common/story-upload.privacy';
 
 type RequestLike = {
   headers: Record<string, string | string[] | undefined>;
@@ -46,6 +47,7 @@ export async function createApplication() {
   app.use(requestIdMiddleware);
   app.use(storyChatHistoryPrivacyMiddleware);
   app.use(authorBodyReviewPrivacyMiddleware);
+  app.use(storyUploadPrivacyMiddleware);
   app.use(generatedEndingReadPrivacyMiddleware);
   app.use(authorBodyTrialReceiptPrivacyMiddleware);
   app.use(settingsPrivacyMiddleware);
