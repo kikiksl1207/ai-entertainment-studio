@@ -28,7 +28,12 @@ import {
   StoryUploadStoredFile,
 } from './story-upload.types';
 
-export const STORY_UPLOAD_TOTAL_MAX_BYTES = 150 * 1024 * 1024;
+import {
+  createStoryUploadTotalSizeError,
+  STORY_UPLOAD_TOTAL_MAX_BYTES,
+} from './story-upload-size.policy';
+
+export { STORY_UPLOAD_TOTAL_MAX_BYTES } from './story-upload-size.policy';
 
 const CATEGORY_MAX_BYTES: Record<StoryUploadFileCategory, number> = {
   manuscript: 50 * 1024 * 1024,
@@ -93,11 +98,7 @@ export function assertStoryUploadTotalBytes(
 ) {
   const totalBytes = files.reduce((sum, file) => sum + file.size, 0);
   if (totalBytes > STORY_UPLOAD_TOTAL_MAX_BYTES) {
-    throw new PayloadTooLargeException({
-      code: 'STORY_UPLOAD_TOTAL_SIZE_EXCEEDED',
-      messageKey: 'storyUpload.intake.totalSizeExceeded',
-      maxBytes: STORY_UPLOAD_TOTAL_MAX_BYTES,
-    });
+    throw createStoryUploadTotalSizeError();
   }
   return totalBytes;
 }

@@ -20,6 +20,7 @@ import {
 } from '../generation-profile/dto/creator-generation-profile.dto';
 import { StoryUploadIntakeDto } from './dto/story-upload-intake.dto';
 import { StoryUploadService } from './story-upload.service';
+import { createStoryUploadMemoryStorage } from './story-upload-memory-storage';
 import { StoryUploadFileFields } from './story-upload.types';
 
 @Controller('story-upload')
@@ -36,6 +37,7 @@ export class StoryUploadController {
         { name: 'visuals', maxCount: 20 },
       ],
       {
+        storage: createStoryUploadMemoryStorage(),
         limits: {
           files: 40,
           fields: 10,
