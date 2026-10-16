@@ -13,6 +13,7 @@ import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import { createHash, createHmac } from 'crypto';
 import { currentApprovedStoryVisual } from './story-approved-visual-context.policy';
+import { readStoryVisualStorageErrorCode } from './story-visual-storage-error.policy';
 import { readFile } from 'fs/promises';
 import { resolve } from 'path';
 import * as sharp from 'sharp';
@@ -2047,16 +2048,11 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
     const key = [prefix, 'story-visuals', workId, releaseId, sourceSceneKey,
       `${variantSha256}-${promptSha256}-${safeModel}-${quality}-${this.size()}.webp`].filter(Boolean).join('/');
     const url = this.presignedPutUrl(provider, key, 'image/webp');
+    const errorBodyController = new AbortController();
     const response = await fetch(url, { method: 'PUT', headers: { 'content-type': 'image/webp' },
-      body: image as unknown as BodyInit });
+      body: image as unknown as BodyInit, signal: errorBodyController.signal });
     if (!response.ok) {
-      let objectStorageCode = 'unknown';
-      try {
-        const errorBody = await response.text();
-        objectStorageCode = errorBody.match(/<Code>([A-Za-z][A-Za-z0-9]{0,63})<\/Code>/)?.[1] ?? 'unknown';
-      } catch {
-        // The HTTP status remains enough when object storage omits an XML error body.
-      }
+      const objectStorageCode = await readStoryVisualStorageErrorCode(response, errorBodyController);
       if (this.databaseFallbackEnabled()) {
         this.logger.warn({ event: 'story_visual_database_fallback', workId, sourceSceneKey,
           objectStorageStatus: response.status, objectStorageCode });

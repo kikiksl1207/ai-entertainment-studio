@@ -1527,9 +1527,10 @@ describe('StoryVisualGenerationService', () => {
     }).webp().toBuffer();
     jest.spyOn(global, 'fetch')
       .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [{ b64_json: image.toString('base64') }] }) } as Response)
-      .mockResolvedValueOnce({ ok: false, status: 403,
-        text: async () => '<Error><Code>AccessDenied</Code><Message>private account details</Message></Error>',
-      } as Response);
+      .mockResolvedValueOnce(new Response(
+        '<Error><Code>AccessDenied</Code><Message>private account details</Message></Error>',
+        { status: 403 },
+      ));
 
     await expect(f.service.requestForProgress('user-id', progressId, sourceSceneKey)).resolves.toEqual({
       status: 'ready', sourceSceneKey,
