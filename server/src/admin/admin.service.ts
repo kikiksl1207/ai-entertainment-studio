@@ -653,17 +653,20 @@ export class AdminService {
       );
     }
 
-    const mission = await this.createFanMissionWithStableDuplicateError(data);
-
-    await this.recordAudit(
-      user,
-      'fan_mission.create',
-      'fan_mission',
-      mission.id,
-      null,
-      this.backstageFanMission(mission),
-      { policy: this.fanMissionNonCashPolicy() },
-    );
+    const mission = await this.prisma.$transaction(async (tx) => {
+      const mission = await this.createFanMissionWithStableDuplicateError(data, tx);
+      await this.recordAudit(
+        user,
+        'fan_mission.create',
+        'fan_mission',
+        mission.id,
+        null,
+        this.backstageFanMission(mission),
+        { policy: this.fanMissionNonCashPolicy() },
+        tx,
+      );
+      return mission;
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted });
 
     return {
       mission: this.backstageFanMission(mission),
@@ -9178,9 +9181,10 @@ export class AdminService {
 
   private async createFanMissionWithStableDuplicateError(
     data: Prisma.FanMissionUncheckedCreateInput,
+    missionClient: Pick<Prisma.TransactionClient, 'fanMission'>,
   ) {
     try {
-      return await this.prisma.fanMission.create({
+      return await missionClient.fanMission.create({
         data,
         include: BACKSTAGE_FAN_MISSION_INCLUDE,
       });
