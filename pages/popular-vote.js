@@ -476,13 +476,15 @@ function bindVoteTabs() {
   }
 }
 
-function renderArchiveYearOptions() {
+function renderArchiveYearOptions(preferredYear) {
   const select = document.getElementById("voteArchiveYear");
   if (!select) return;
   const currentYear = kstCurrentYear();
   select.innerHTML = Array.from({ length: currentYear - 2026 + 1 }, (_, index) => currentYear - index)
     .map(year => `<option value="${year}">${pickText("pick.archive.yearOption", "{year}년", { year })}</option>`).join("");
-  select.value = String(_popularVote.archiveYear || currentYear);
+  const requestedYear = Number(preferredYear);
+  const preserveYear = Number.isInteger(requestedYear) && requestedYear >= 2026 && requestedYear <= currentYear;
+  select.value = String(preserveYear ? requestedYear : (_popularVote.archiveYear || currentYear));
   if (!select.dataset.bound) {
     select.dataset.bound = "1";
     select.addEventListener("change", async () => {
@@ -564,7 +566,7 @@ function renderPopularVoteLocale() {
   renderDebutRaceTab();
   if (popularVoteRefresh) renderArchiveLoading();
   else renderHallOfFameTab();
-  renderArchiveYearOptions();
+  renderArchiveYearOptions(document.getElementById("voteArchiveYear")?.value);
   updateHeroQuotaDisplay();
 }
 

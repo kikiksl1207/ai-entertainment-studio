@@ -178,7 +178,7 @@ const consumers = [
       "/data/character-messages.js",
       "/data/lineup.js",
       "/data/characters.js",
-      "/pages/popular-vote.js?v=pick-response-scope-20261001",
+      "/pages/popular-vote.js?v=pick-archive-locale-intent-20261017",
       "/cms-bootstrap.js",
       "/app.js"
     ]
