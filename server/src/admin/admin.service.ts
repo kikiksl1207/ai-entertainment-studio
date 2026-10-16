@@ -687,7 +687,7 @@ export class AdminService {
       );
     }
 
-    const { before, mission } = await this.prisma.$transaction(async (tx) => {
+    const mission = await this.prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM fan_missions WHERE id=${missionId}::uuid FOR UPDATE`;
       const before = await tx.fanMission.findUnique({
         where: { id: missionId },
@@ -721,21 +721,21 @@ export class AdminService {
         },
         include: BACKSTAGE_FAN_MISSION_INCLUDE,
       });
-      return { before, mission };
+      await this.recordAudit(
+        user,
+        'fan_mission.archive',
+        'fan_mission',
+        mission.id,
+        this.backstageFanMission(before),
+        this.backstageFanMission(mission),
+        {
+          reason: this.optionalString(input, 'reason') ?? null,
+          policy: this.fanMissionNonCashPolicy(),
+        },
+        tx,
+      );
+      return mission;
     }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted });
-
-    await this.recordAudit(
-      user,
-      'fan_mission.archive',
-      'fan_mission',
-      mission.id,
-      this.backstageFanMission(before),
-      this.backstageFanMission(mission),
-      {
-        reason: this.optionalString(input, 'reason') ?? null,
-        policy: this.fanMissionNonCashPolicy(),
-      },
-    );
 
     return {
       mission: this.backstageFanMission(mission),
@@ -7858,8 +7858,9 @@ export class AdminService {
     beforeData: unknown,
     afterData: unknown,
     metadata: AdminPayload = {},
+    auditClient: Pick<Prisma.TransactionClient, 'auditEvent'> = this.prisma,
   ) {
-    return this.prisma.auditEvent.create({
+    return auditClient.auditEvent.create({
       data: {
         actorUserId: user.id,
         actorType: 'admin',

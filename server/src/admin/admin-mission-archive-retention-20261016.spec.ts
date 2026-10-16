@@ -17,7 +17,7 @@ const OPERATOR: AuthUser = { id: ACTOR, adminRole: 'super_admin' };
 const INCLUDE = { artist: { select: { id: true, slug: true, displayName: true, status: true } } };
 const POLICY = { cashLike: false, luminaAmount: 0, settlementEligible: false, transferable: false };
 type Row = Prisma.FanMissionGetPayload<{ include: typeof INCLUDE }>;
-type Tx = { active: boolean; locked: boolean; work: Row | null; release: (() => void) | null };
+type Tx = { active: boolean; locked: boolean; work: Row | null; audits: Record<string, unknown>[]; release: (() => void) | null };
 type Failure = 'transaction' | 'lock' | 'read' | 'update' | 'commit' | 'audit';
 
 function clone<T>(value: T): T {
@@ -161,11 +161,10 @@ function fixture(initial: Row | null = row()) {
     }, tx ? 'tx.fanMission' : 'root.fanMission');
   }
 
-  const prisma = closed({
-    fanMission: delegate(null),
-    auditEvent: closed({ create: async (args: unknown) => {
+  function auditDelegate(tx: Tx | null) {
+    return closed({ create: async (args: unknown) => {
       stats.auditAttempts++;
-      const data = admit(null, 'audit', () => {
+      const data = admit(tx, 'audit', () => {
         assert(args && typeof args === 'object');
         const value = args as { data: Record<string, unknown> };
         assert.deepEqual(Object.keys(value), ['data']);
@@ -174,11 +173,19 @@ function fixture(initial: Row | null = row()) {
         assert.equal(value.data.actorUserId, ACTOR); assert.equal(value.data.actorType, 'admin');
         assert.equal(value.data.action, 'fan_mission.archive');
         assert.equal(value.data.targetType, 'fan_mission'); assert.equal(value.data.targetId, ID);
-        // admit(null) checks this caller's context; another caller may still hold its own transaction.
+        // Audit writes must use this caller's transaction context.
         return clone(value.data);
       });
-      failAt('audit'); audits.push(data); return { id: 'synthetic-audit-' + audits.length, ...data };
-    } }, 'root.auditEvent'),
+      failAt('audit');
+      const target = tx ? tx.audits : audits;
+      target.push(data);
+      return { id: 'synthetic-audit-' + target.length, ...data };
+    } }, tx ? 'tx.auditEvent' : 'root.auditEvent');
+  }
+
+  const prisma = closed({
+    fanMission: delegate(null),
+    auditEvent: auditDelegate(null),
     $transaction: async <T>(work: (tx: unknown) => Promise<T>, options?: unknown): Promise<T> => {
       stats.txStarts++;
       admit(null, 'transaction', () => {
@@ -186,10 +193,11 @@ function fixture(initial: Row | null = row()) {
         assert.deepEqual(options, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted });
       });
       failAt('transaction');
-      const tx: Tx = { active: true, locked: false, work: null, release: null };
+      const tx: Tx = { active: true, locked: false, work: null, audits: [], release: null };
       stats.activeTransactions++;
       const client = closed({
         fanMission: delegate(tx),
+        auditEvent: auditDelegate(tx),
         $queryRaw: async (strings: TemplateStringsArray, ...values: unknown[]) => {
           stats.lockAttempts++;
           admit(tx, 'lock', () => {
@@ -210,7 +218,7 @@ function fixture(initial: Row | null = row()) {
           const value = await work(client);
           assert.equal(tx.locked, true);
           failAt('commit');
-          committed = clone(tx.work); stats.commits++; events.push('tx:commit');
+          committed = clone(tx.work); audits.push(...clone(tx.audits)); stats.commits++; events.push('tx:commit');
           return value;
         });
       } catch (error) { stats.rollbacks++; events.push('tx:rollback'); throw error; }
@@ -303,7 +311,8 @@ describe('AdminService mission archive retention focused', () => {
         receipt(result, saved); audit(f, before, saved, requested === undefined ? null : 'synthetic-reason');
         currentOnly(f, 1); assert.equal(f.stats.txUpdates, 1); assert.equal(f.stats.commits, 1);
         assert.equal(f.stats.auditAttempts, 1); assert.equal(f.stats.rollbacks, 0);
-        assert(f.events.indexOf('tx:commit') < f.events.indexOf('root:audit'));
+        assert(f.events.indexOf('tx:audit') < f.events.indexOf('tx:commit'));
+        assert(!f.events.includes('root:audit'));
       } finally { f.finish(); }
     }
   });
@@ -342,7 +351,7 @@ describe('AdminService mission archive retention focused', () => {
     }
   });
 
-  it('04 authority input missing and failures preserve precedence identity and postcommit audit failure semantics', async () => {
+  it('04 authority input missing and failures preserve precedence identity and transactional audit failure semantics', async () => {
     for (const principal of [{ id: ACTOR }, { id: ACTOR, adminRole: 'viewer' }]) {
       const f = fixture();
       try {
@@ -376,9 +385,9 @@ describe('AdminService mission archive retention focused', () => {
         await assert.rejects(f.service.archiveBackstageFanMission(OPERATOR, ID, { status: 'archived' }), error => error === f.failureValue);
         assert.equal(f.stats.txStarts, 1, 'No transaction retry');
         assert.equal(f.stats.rootReads, 0); assert.equal(f.stats.rootUpdates, 0);
-        if (stage === 'audit') {
-          assert.equal(f.stats.commits, 1); assert.equal(f.stats.rollbacks, 0);
-          assert.equal(f.snapshot()?.status, 'archived', 'Existing audit rejection occurs after the archive commit');
+        if (stage === 'audit' || stage === 'commit') {
+          assert.equal(f.stats.commits, 0); assert.equal(f.stats.rollbacks, 1);
+          assert.deepEqual(f.snapshot(), before, 'Audit or commit rejection publishes neither staged row nor audit');
           assert.equal(f.stats.auditAttempts, 1); assert.equal(f.audits.length, 0);
         } else {
           assert.deepEqual(f.snapshot(), before, 'Synthetic failed transaction publishes no staged state');
