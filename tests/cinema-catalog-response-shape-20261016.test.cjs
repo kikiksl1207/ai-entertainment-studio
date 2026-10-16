@@ -13,8 +13,8 @@ const PINS = Object.freeze({
     'ott/index.html': Object.freeze({ sha256: 'cf83b7696b20f88e2703597572a1c64aba1589f4a119b9bd0a3992ba38047cc1', blob: '12086715b3070b71ad477cf8c441699e75079913' }),
   }),
   current: Object.freeze({
-    'pages/ott.js': Object.freeze({ sha256: '036d5f8e2f443233809fe7fc3e4b9d9a56d8d58a4f228b3700d2c7572e72c38e', blob: '63f1bced28ed3f4b8bc4f3cce8d6c0275552b72f' }),
-    'ott/index.html': Object.freeze({ sha256: 'f74b3be9cfed0d612cd338bacff06f58b9bc7c6eb559eaa58e27a53964ec0578', blob: 'dced362527d389f3201348909ac4617cdf6ad643' }),
+    'pages/ott.js': Object.freeze({ sha256: '67849c40848626d81a517be37fea424686589cd8b26381980d4d66c29acd5265', blob: '15b1db545f907899df0f87b76125394b5e8c6b69' }),
+    'ott/index.html': Object.freeze({ sha256: 'da4e55fd982c5f176687dfeb1c8928023b47f9947f6df4287704b6acf4273d86', blob: 'e3a801e08e311c218e9177e106160629074ee084' }),
   }),
 });
 const NAMES = Object.freeze([

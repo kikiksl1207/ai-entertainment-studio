@@ -11,6 +11,8 @@
 
   const root = document.getElementById("ottCatalogRoot");
   const catalog = document.getElementById("ottCatalog");
+  const catalogRetry = document.getElementById("ottCatalogRetry");
+  const catalogRecovery = document.getElementById("ottCatalogRecovery");
   const demoCopy = {
     ko: { description: "선택에 따라 달라지는 영상을 만나보세요.", browse: "영상 작품", watch: "시청하기", back: "작품 목록", kicker: "인터랙티브 영상 시연", title: "엄마의 선택", synopsis: "도망치던 엄마 앞에 아이가 쓰러진다.", meta: "한국어 음성 · 선택형 시연", prompt: "아이가 쓰러졌다. 엄마는 어떻게 할까?", again: "다른 선택을 해보세요.", embrace: "돌아가 아이를 안아준다", ignore: "아이를 외면하고 계속 도망간다", hesitate: "그 자리에서 망설인다", pending: "아직 선택할 수 없습니다.", restart: "처음부터 다시 보기", error: "영상을 불러오지 못했어요.", retry: "다시 시도" },
     en: { description: "Watch a story change with your choice.", browse: "Video titles", watch: "Watch", back: "All titles", kicker: "Interactive video preview", title: "A Mother's Choice", synopsis: "A fleeing mother sees her child fall.", meta: "Korean audio · interactive preview", prompt: "The child has fallen. What will her mother do?", again: "Make another choice.", embrace: "Go back and hold her child", ignore: "Leave her child and keep running", hesitate: "Stop and hesitate", pending: "This choice is not available yet.", restart: "Watch from the beginning", error: "The video could not be loaded.", retry: "Try again" },
@@ -88,6 +90,9 @@
   let availableBranches = new Set(works.mother.initiallyAvailable);
   let currentClip = "common";
   let catalogHasItems = false;
+  let catalogError = false;
+  let catalogRequest = null;
+  let catalogDocumentActive = true;
   let availabilityRequestId = 0;
   let orientationLocked = false;
   let fullscreenOperation = null;
@@ -699,6 +704,7 @@
 
   posterButtons.forEach((button) => {
     button.addEventListener("click", () => {
+      retireCatalogRequest();
       if (publicPlayback) stopPublicPlayback();
       selectedWork = button.dataset.ottDemo;
       activePoster = button;
@@ -731,7 +737,8 @@
     demoSection.hidden = true;
     intro.hidden = wasPublic;
     browse.hidden = wasPublic;
-    catalog.hidden = wasPublic ? false : !catalogHasItems;
+    catalog.hidden = wasPublic ? false : !(catalogHasItems || catalogError);
+    if (!wasPublic && catalogError && !catalogRequest && isCatalogView()) showCatalogError();
     if (wasPublic) {
       document.body.classList.add("ott-detail-view");
       root.querySelector("#ottStartViewing")?.focus();
@@ -815,6 +822,7 @@
   }
 
   function renderDetail(item) {
+    catalogRecovery.hidden = true;
     document.body.classList.add("ott-detail-view");
     catalog.hidden = false;
     const canWatch = item.viewing?.available === true &&
@@ -831,21 +839,76 @@
     if (canWatch) root.querySelector("#ottStartViewing").addEventListener("click", () => { void openPublicWatch(item); });
   }
 
+  function isCatalogView() {
+    return catalogDocumentActive && !requestedSlug() && demoSection.hidden && !publicPlayback;
+  }
+
+  function showCatalogError() {
+    catalogError = true;
+    catalog.hidden = !isCatalogView();
+    status(tr("errorTitle"), tr("errorBody"));
+    catalogRetry.textContent = demoCopy[locale()].retry;
+    catalogRecovery.hidden = false;
+    catalogRetry.disabled = false;
+  }
+
+  function retireCatalogRequest() {
+    if (!catalogRequest) return;
+    catalogRequest = null;
+    showCatalogError();
+  }
+
+  async function loadCatalog(explicitRetry = false) {
+    if (!isCatalogView() || (explicitRetry &&
+      (catalogRequest || catalogRecovery.hidden || catalogRetry.disabled))) return;
+    const ticket = {};
+    catalogRequest = ticket;
+    const current = () => catalogRequest === ticket && isCatalogView();
+    const showPending = explicitRetry || catalogError;
+    catalog.hidden = !showPending;
+    catalogRecovery.hidden = !showPending;
+    catalogRetry.disabled = true;
+    catalogRetry.textContent = demoCopy[locale()].retry;
+    if (showPending) status(tr("loading"));
+    try {
+      const payload = await apiFetch("/api/v1/ott", { throwOnError: true });
+      if (!current()) return;
+      if (!payload || Array.isArray(payload) || !Array.isArray(payload.items)) throw new Error("invalid catalog");
+      catalogError = false;
+      catalogRecovery.hidden = true;
+      render(payload.items);
+    } catch {
+      if (current()) showCatalogError();
+    } finally {
+      if (catalogRequest === ticket) {
+        catalogRequest = null;
+        catalogRetry.disabled = false;
+      }
+    }
+  }
+
+  catalogRetry.addEventListener("click", () => { void loadCatalog(true); });
+  window.addEventListener("pagehide", () => {
+    catalogDocumentActive = false;
+    retireCatalogRequest();
+  });
+  window.addEventListener("pageshow", () => {
+    catalogDocumentActive = true;
+    if (!catalogRequest && catalogError && isCatalogView()) showCatalogError();
+  });
+
   async function load() {
     const slug = requestedSlug();
-    if (slug) {
-      document.body.classList.add("ott-detail-view");
-      catalog.hidden = false;
-      status(tr("loading"));
-    } else catalog.hidden = true;
+    if (!slug) return loadCatalog();
+    retireCatalogRequest();
+    catalogRecovery.hidden = true;
+    document.body.classList.add("ott-detail-view");
+    catalog.hidden = false;
+    status(tr("loading"));
     try {
-      if (slug && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) throw new Error("invalid title");
-      const payload = await apiFetch(slug ? `/api/v1/ott/${encodeURIComponent(slug)}` : "/api/v1/ott", { throwOnError: true });
-      if (slug) renderDetail(payload);
-      else {
-        if (!payload || Array.isArray(payload) || !Array.isArray(payload.items)) throw new Error("invalid catalog");
-        render(payload.items);
-      }
+      if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) throw new Error("invalid title");
+      const payload = await apiFetch(`/api/v1/ott/${encodeURIComponent(slug)}`, { throwOnError: true });
+      renderDetail(payload);
     } catch {
       catalog.hidden = false;
       status(tr("errorTitle"), tr("errorBody"));

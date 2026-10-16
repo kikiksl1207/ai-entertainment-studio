@@ -13,8 +13,8 @@ const PINS = Object.freeze({
     'ott/index.html': 'cb819348717f4fd13b7253cd1aac1093450009da69340082548c805336f44f1f',
   }),
   current: Object.freeze({
-    'pages/ott.js': '036d5f8e2f443233809fe7fc3e4b9d9a56d8d58a4f228b3700d2c7572e72c38e',
-    'ott/index.html': 'f74b3be9cfed0d612cd338bacff06f58b9bc7c6eb559eaa58e27a53964ec0578',
+    'pages/ott.js': '67849c40848626d81a517be37fea424686589cd8b26381980d4d66c29acd5265',
+    'ott/index.html': 'da4e55fd982c5f176687dfeb1c8928023b47f9947f6df4287704b6acf4273d86',
   }),
 });
 const phase = process.env.CINEMA_SUBTITLE_CAP_PHASE || 'current';

@@ -12,8 +12,8 @@ const PINS = Object.freeze({
     'ott/index.html': Object.freeze({ sha256: 'da223280df839e703dc4e0ecd56fb0e511599e9a52b13504f8c6246e08c89f68', gitBlob: '7424232db5e453ba39e990c8b071548939aa6438' }),
   }),
   current: Object.freeze({
-    'pages/ott.js': Object.freeze({ sha256: '036d5f8e2f443233809fe7fc3e4b9d9a56d8d58a4f228b3700d2c7572e72c38e', gitBlob: '63f1bced28ed3f4b8bc4f3cce8d6c0275552b72f' }),
-    'ott/index.html': Object.freeze({ sha256: 'f74b3be9cfed0d612cd338bacff06f58b9bc7c6eb559eaa58e27a53964ec0578', gitBlob: 'dced362527d389f3201348909ac4617cdf6ad643' }),
+    'pages/ott.js': Object.freeze({ sha256: '67849c40848626d81a517be37fea424686589cd8b26381980d4d66c29acd5265', gitBlob: '15b1db545f907899df0f87b76125394b5e8c6b69' }),
+    'ott/index.html': Object.freeze({ sha256: 'da4e55fd982c5f176687dfeb1c8928023b47f9947f6df4287704b6acf4273d86', gitBlob: 'e3a801e08e311c218e9177e106160629074ee084' }),
   }),
 });
 const phase = process.env.CINEMA_INITIAL_LOCALE_PHASE || 'current';
