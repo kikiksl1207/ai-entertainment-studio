@@ -37,6 +37,10 @@ export class AdminAuthGuard implements CanActivate {
       include: { role: true },
     });
 
+    if (adminUser && adminUser.status !== 'active') {
+      throw new ForbiddenException('Admin access is required');
+    }
+
     if (adminUser?.status === 'active') {
       await this.prisma.adminUser.update({
         where: { id: adminUser.id },
