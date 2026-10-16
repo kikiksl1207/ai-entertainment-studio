@@ -8,8 +8,8 @@ const PINS = Object.freeze({
     'ott/index.html': { sha256: '0236d4bebbe4f213e5955357ddec25616a659c698e6f70e7aa55aa7496f1006c', gitBlob: '65267e089cb985ecaa3eb212f504bae1d82c2ad7' },
   },
   current: {
-    'pages/ott.js': { sha256: '237efc9aa1eec8894d0163a60523a50348e535957f47e65e90f66ff9287892d0', gitBlob: 'fae9f04ade7083f6a0e1d897e6c9e15fd8a88a2c' },
-    'ott/index.html': { sha256: 'cf83b7696b20f88e2703597572a1c64aba1589f4a119b9bd0a3992ba38047cc1', gitBlob: '12086715b3070b71ad477cf8c441699e75079913' },
+    'pages/ott.js': { sha256: '036d5f8e2f443233809fe7fc3e4b9d9a56d8d58a4f228b3700d2c7572e72c38e', gitBlob: '63f1bced28ed3f4b8bc4f3cce8d6c0275552b72f' },
+    'ott/index.html': { sha256: 'f74b3be9cfed0d612cd338bacff06f58b9bc7c6eb559eaa58e27a53964ec0578', gitBlob: 'dced362527d389f3201348909ac4617cdf6ad643' },
   },
 });
 const phase = process.env.CINEMA_RENEWAL_STOP_PHASE || 'current';
@@ -36,7 +36,7 @@ function source(file, rawPin) {
 }
 const product = source('pages/ott.js', process.env.CINEMA_RENEWAL_STOP_JS_SHA);
 const html = source('ott/index.html', process.env.CINEMA_RENEWAL_STOP_HTML_SHA);
-const tag = phase === 'baseline' ? 'ott-initial-locale-20261016' : 'ott-renewal-stop-20261016';
+const tag = phase === 'baseline' ? 'ott-initial-locale-20261016' : 'ott-catalog-shape-20261016';
 assert.equal(html.split('<script src="/pages/ott.js?v=' + tag + '"></script>').length, 2);
 const slug = 'synthetic-renewal-stop', route = '/api/v1/ott/' + slug;
 const origin = 'https://cinema.example.invalid';

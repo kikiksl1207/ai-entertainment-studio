@@ -201,7 +201,7 @@ const consumers = [
     "beforeScripts": [
       "/data/characters.js",
       "/app.js",
-      "/pages/ott.js?v=ott-renewal-stop-20261016"
+      "/pages/ott.js?v=ott-catalog-shape-20261016"
     ]
   },
   {

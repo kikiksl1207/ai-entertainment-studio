@@ -842,7 +842,10 @@
       if (slug && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) throw new Error("invalid title");
       const payload = await apiFetch(slug ? `/api/v1/ott/${encodeURIComponent(slug)}` : "/api/v1/ott", { throwOnError: true });
       if (slug) renderDetail(payload);
-      else render(Array.isArray(payload?.items) ? payload.items : []);
+      else {
+        if (!payload || Array.isArray(payload) || !Array.isArray(payload.items)) throw new Error("invalid catalog");
+        render(payload.items);
+      }
     } catch {
       catalog.hidden = false;
       status(tr("errorTitle"), tr("errorBody"));
