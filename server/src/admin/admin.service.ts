@@ -6042,9 +6042,18 @@ export class AdminService {
     input: AdminPayload,
   ) {
     this.assertArtistKnowledgeUuid(knowledgeUrlId, 'knowledgeUrlId');
-    const existing = await this.prisma.artistKnowledgeUrl.findUnique({
-      where: { id: knowledgeUrlId },
-    });
+    // Read the submission and its version together; Date loses sub-ms precision.
+    const snapshot = await this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SET TRANSACTION READ ONLY`;
+      const before = await tx.artistKnowledgeUrl.findUnique({
+        where: { id: knowledgeUrlId },
+      });
+      const [version] = await tx.$queryRaw<Array<{ rowVersion: string }>>`
+        SELECT xmin::text AS "rowVersion" FROM artist_knowledge_urls
+        WHERE id = ${knowledgeUrlId}::uuid`;
+      return { before, rowVersion: version?.rowVersion ?? null };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
+    const existing = snapshot.before;
 
     if (!existing) {
       this.throwArtistKnowledgeNotFound();
@@ -6071,37 +6080,49 @@ export class AdminService {
     }
 
     const before = existing;
-    const row = await this.prisma.artistKnowledgeUrl.update({
-      where: { id: existing.id },
-      data: {
-        status: 'approved',
-        summary,
-        allowChatReference: this.boolean(
-          input,
-          'allowChatRef',
-          existing.allowChatReference,
-        ),
-        rejectionReason: null,
-        reviewedByUserId: user.id,
-        reviewedAt: new Date(),
-        archivedAt: null,
-        updatedAt: new Date(),
-        metadata: this.toJson({
-          ...this.metadataObject(existing.metadata),
-          contractVersion: ARTIST_URL_KNOWLEDGE_CONTRACT.version,
-          summarySource: input.summary
-            ? 'admin_review_summary'
-            : 'artist_description_reviewed',
-          externalFetchPerformed: false,
-          rawPageBodyStored: false,
-        }),
-      },
-      include: {
-        artist: true,
-        submittedBy: true,
-        reviewedBy: true,
-      },
-    });
+    const row = await this.prisma.$transaction(async (tx) => {
+      const [lockedVersion] = await tx.$queryRaw<Array<{ rowVersion: string }>>`
+        SELECT xmin::text AS "rowVersion" FROM artist_knowledge_urls
+        WHERE id = ${existing.id}::uuid FOR UPDATE`;
+      if (!snapshot.rowVersion || lockedVersion?.rowVersion !== snapshot.rowVersion) {
+        throw new ConflictException({
+          code: 'ARTIST_KNOWLEDGE_URL_REVIEW_STALE',
+          message: 'The submitted URL changed during review. Reload it before approving.',
+        });
+      }
+
+      return tx.artistKnowledgeUrl.update({
+        where: { id: existing.id, status: existing.status },
+        data: {
+          status: 'approved',
+          summary,
+          allowChatReference: this.boolean(
+            input,
+            'allowChatRef',
+            existing.allowChatReference,
+          ),
+          rejectionReason: null,
+          reviewedByUserId: user.id,
+          reviewedAt: new Date(),
+          archivedAt: null,
+          updatedAt: new Date(),
+          metadata: this.toJson({
+            ...this.metadataObject(existing.metadata),
+            contractVersion: ARTIST_URL_KNOWLEDGE_CONTRACT.version,
+            summarySource: input.summary
+              ? 'admin_review_summary'
+              : 'artist_description_reviewed',
+            externalFetchPerformed: false,
+            rawPageBodyStored: false,
+          }),
+        },
+        include: {
+          artist: true,
+          submittedBy: true,
+          reviewedBy: true,
+        },
+      });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted });
     const audit = buildArtistKnowledgeAuditPayload(
       'artist_knowledge_url.approve',
       before,

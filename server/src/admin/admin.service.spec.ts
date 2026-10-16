@@ -1,5 +1,6 @@
 import { BadRequestException, HttpException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Prisma } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import { PrismaService } from '../prisma/prisma.service';
 import { ADMIN_AUTH_EMAIL_VERIFICATION_COOLDOWN_CONTRACT } from './admin-auth-email-verification-cooldown-contract';
@@ -1016,6 +1017,7 @@ describe('AdminService artist knowledge URL operations', () => {
 
   function createKnowledgeService(overrides: Record<string, unknown> = {}) {
     const prisma = {
+      $transaction: jest.fn(),
       artistKnowledgeUrl: {
         findMany: jest.fn().mockResolvedValue([row]),
         findUnique: jest.fn().mockResolvedValue(row),
@@ -1044,6 +1046,24 @@ describe('AdminService artist knowledge URL operations', () => {
 
   it('approves pending artist knowledge URLs and makes them chat eligible', async () => {
     const { service, prisma } = createKnowledgeService();
+    const readOnly = {
+      artistKnowledgeUrl: prisma.artistKnowledgeUrl,
+      $executeRaw: jest.fn().mockResolvedValue(0),
+      $queryRaw: jest.fn().mockResolvedValue([{ rowVersion: '700' }]),
+    };
+    const writable = {
+      artistKnowledgeUrl: prisma.artistKnowledgeUrl,
+      $queryRaw: jest.fn().mockResolvedValue([{ rowVersion: '700' }]),
+    };
+    prisma.$transaction
+      .mockImplementationOnce(async (callback: (tx: unknown) => Promise<unknown>, options: unknown) => {
+        expect(options).toEqual({ isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
+        return callback(readOnly);
+      })
+      .mockImplementationOnce(async (callback: (tx: unknown) => Promise<unknown>, options: unknown) => {
+        expect(options).toEqual({ isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted });
+        return callback(writable);
+      });
 
     const result = await service.approveBackstageArtistKnowledgeUrl(
       adminUser as never,
@@ -1053,7 +1073,7 @@ describe('AdminService artist knowledge URL operations', () => {
 
     expect(prisma.artistKnowledgeUrl.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { id: row.id },
+        where: { id: row.id, status: row.status },
         data: expect.objectContaining({
           status: 'approved',
           summary: 'Approved artist-provided summary.',
@@ -1062,6 +1082,13 @@ describe('AdminService artist knowledge URL operations', () => {
         }),
       }),
     );
+    expect(prisma.$transaction).toHaveBeenCalledTimes(2);
+    expect(readOnly.$executeRaw).toHaveBeenCalledWith(['SET TRANSACTION READ ONLY']);
+    expect(readOnly.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(writable.$queryRaw).toHaveBeenCalledTimes(1);
+    expect([...writable.$queryRaw.mock.calls[0][0]].join('?').replace(/\s+/g, ' ').trim())
+      .toBe('SELECT xmin::text AS "rowVersion" FROM artist_knowledge_urls WHERE id = ?::uuid FOR UPDATE');
+    expect(writable.$queryRaw.mock.calls[0][1]).toBe(row.id);
     expect(prisma.auditEvent.create).toHaveBeenCalled();
     expect(prisma.auditEvent.create).toHaveBeenCalledWith(
       expect.objectContaining({

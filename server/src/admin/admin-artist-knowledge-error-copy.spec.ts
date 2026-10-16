@@ -1,5 +1,6 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Prisma } from '@prisma/client';
 import { AuthUser } from '../auth/auth.types';
 import { ARTIST_URL_KNOWLEDGE_CONTRACT } from '../chat/artist-url-knowledge-contract';
 import { PrismaService } from '../prisma/prisma.service';
@@ -243,6 +244,18 @@ describe('AdminService artist-knowledge error copy only', () => {
 
   it('allows a valid shared UUID to reach the missing-record reader, not approval writes', async () => {
     const { service, prisma, writes } = createService();
+    const readOnly = {
+      artistKnowledgeUrl: prisma.artistKnowledgeUrl,
+      $executeRaw: jest.fn().mockResolvedValue(0),
+      $queryRaw: jest.fn().mockResolvedValue([]),
+    };
+    prisma.$transaction.mockImplementationOnce(async (
+      callback: (tx: unknown) => Promise<unknown>,
+      options: unknown,
+    ) => {
+      expect(options).toEqual({ isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
+      return callback(readOnly);
+    });
     const error = await service.approveBackstageArtistKnowledgeUrl(
       SYNTHETIC_USER, VALID_UUID, {},
     ).catch((caught: unknown) => caught);
@@ -257,6 +270,12 @@ describe('AdminService artist-knowledge error copy only', () => {
     expect(prisma.artistKnowledgeUrl.findUnique).toHaveBeenCalledWith({ where: { id: VALID_UUID } });
     expect(prisma.artistKnowledgeUrl.findMany).not.toHaveBeenCalled();
     expect(prisma.auditEvent.findMany).not.toHaveBeenCalled();
-    expectNoWrites(writes);
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(readOnly.$executeRaw).toHaveBeenCalledWith(['SET TRANSACTION READ ONLY']);
+    expect(readOnly.$queryRaw).toHaveBeenCalledTimes(1);
+    expect([...readOnly.$queryRaw.mock.calls[0][0]].join('?').replace(/\s+/g, ' ').trim())
+      .toBe('SELECT xmin::text AS "rowVersion" FROM artist_knowledge_urls WHERE id = ?::uuid');
+    expect(readOnly.$queryRaw.mock.calls[0][1]).toBe(VALID_UUID);
+    expectNoWrites(writes.filter(write => write !== prisma.$transaction));
   });
 });
