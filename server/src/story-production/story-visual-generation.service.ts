@@ -2062,6 +2062,7 @@ export class StoryVisualGenerationService implements OnApplicationBootstrap, OnM
         objectStorageStatus: response.status, objectStorageCode });
       throw new Error(`OBJECT_STORAGE_${response.status}`);
     }
+    void response.body?.cancel().catch(() => undefined);
     return { provider, key };
   }
 
