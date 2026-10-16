@@ -77,7 +77,10 @@ describe('StoryUploadService generation profile', () => {
       requestFingerprint: sourceFingerprint,
       generationProfiles: [current],
     });
-    f.tx.storyUploadGenerationProfile.update.mockImplementation(({ data }) => row({ ...data }));
+    f.tx.storyUploadGenerationProfile.updateMany.mockResolvedValue({ count: 1 });
+    f.tx.storyUploadGenerationProfile.findUniqueOrThrow.mockImplementation(() => row({
+      ...f.tx.storyUploadGenerationProfile.updateMany.mock.calls[0][0].data,
+    }));
 
     const result = await f.service.updateGenerationProfile(owner, submissionId, { settings: settings() } as never);
 

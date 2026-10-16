@@ -286,18 +286,36 @@ export class StoryUploadService {
         analysisErrorCode: null,
         updatedAt: new Date(),
       };
-      const profile = !current || current.status === 'approved'
-        ? await tx.storyUploadGenerationProfile.create({
-            data: {
-              submissionId: submission.id,
-              profileVersion: (current?.profileVersion ?? 0) + 1,
-              ...data,
-            },
-          })
-        : await tx.storyUploadGenerationProfile.update({
-            where: { id: current.id },
-            data,
+      let profile: typeof current;
+      if (!current || current.status === 'approved') {
+        profile = await tx.storyUploadGenerationProfile.create({
+          data: {
+            submissionId: submission.id,
+            profileVersion: (current?.profileVersion ?? 0) + 1,
+            ...data,
+          },
+        });
+      } else {
+        const updated = await tx.storyUploadGenerationProfile.updateMany({
+          where: {
+            id: current.id,
+            submissionId: submission.id,
+            ownerUserId: current.ownerUserId,
+            sourceFingerprint: current.sourceFingerprint,
+            status: current.status,
+            draftFingerprint: current.draftFingerprint,
+            reviewRevision: current.reviewRevision,
+          },
+          data,
+        });
+        if (updated.count !== 1) {
+          throw new ConflictException({
+            code: 'GENERATION_PROFILE_DRAFT_CHANGED',
+            message: 'Review the latest generation profile before saving',
           });
+        }
+        profile = await tx.storyUploadGenerationProfile.findUniqueOrThrow({ where: { id: current.id } });
+      }
       await tx.auditEvent.create({
         data: {
           actorUserId: userId,
