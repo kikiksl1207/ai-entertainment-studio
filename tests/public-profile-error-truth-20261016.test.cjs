@@ -22,7 +22,9 @@ function read(file, pin) {
 }
 const source = read('pages/user-profile.js', pins[phase]['pages/user-profile.js']);
 const html = read('user-profile/index.html', pins[phase]['user-profile/index.html']);
-const app = read('app.js', 'a1d791ee7ba4fce5e5777777d5326147a1f0a3ae32f90ce38728a9ec40ec9f1b');
+const app = read('app.js', phase === 'baseline'
+  ? 'a1d791ee7ba4fce5e5777777d5326147a1f0a3ae32f90ce38728a9ec40ec9f1b'
+  : '1eb15f95ab8a43168b6cc7d8ffbe615c3ef827f7e6fd677da08d245fc769ae87');
 const apiStart = 'async function apiFetch(path, options = {}, _retryDepth = 0) {';
 assert.equal(app.split(apiStart).length, 2);
 const start = app.indexOf(apiStart), end = app.indexOf('\n/*', start);

@@ -352,11 +352,13 @@ function scriptSources(html) {
 }
 const isAppSource = src => src.split(/[?#]/)[0] === '/app.js';
 function assertWalletScripts(html, consumer) {
+  const expectedAppSource = consumer.file === 'ott/index.html'
+    ? '/app.js?v=ott-catalog-body-deadline-20261016' : appSource;
   const scripts = scriptSources(html);
-  assert.equal(scripts.filter(src => src === appSource).length, 1, consumer.file + ' exact current app once');
-  assert.deepEqual(scripts.filter(isAppSource), [appSource], consumer.file + ' no alternate app source');
+  assert.equal(scripts.filter(src => src === expectedAppSource).length, 1, consumer.file + ' exact current app once');
+  assert.deepEqual(scripts.filter(isAppSource), [expectedAppSource], consumer.file + ' no alternate app source');
   for (const previous of previousAppSources) assert(!scripts.includes(previous), consumer.file + ' no previous app URL');
-  assert.deepEqual(scripts.map(src => src === appSource ? consumer.previousSrc : src), consumer.beforeScripts,
+  assert.deepEqual(scripts.map(src => src === expectedAppSource ? consumer.previousSrc : src), consumer.beforeScripts,
     consumer.file + ' only app URL changed; every outside script and its order is unchanged');
 }
 function html(file) { return readFileSync(new URL('../' + file, import.meta.url), 'utf8'); }

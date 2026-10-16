@@ -9,7 +9,7 @@ const PINS = Object.freeze({
   },
   current: {
     'pages/ott.js': { sha256: '67849c40848626d81a517be37fea424686589cd8b26381980d4d66c29acd5265', gitBlob: '15b1db545f907899df0f87b76125394b5e8c6b69' },
-    'ott/index.html': { sha256: 'da4e55fd982c5f176687dfeb1c8928023b47f9947f6df4287704b6acf4273d86', gitBlob: 'e3a801e08e311c218e9177e106160629074ee084' },
+    'ott/index.html': { sha256: '0d59c409a225e9c6ac6c0076f78872778fdcc491d9b782d456ccdb9fee7467fc', gitBlob: '7623bb411ca880f9eeffb3e81fb5ef7868d5557f' },
   },
 });
 const phase = process.env.CINEMA_RENEWAL_STOP_PHASE || 'current';

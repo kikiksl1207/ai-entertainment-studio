@@ -46,7 +46,9 @@ async function apiFetch(path, options = {}, _retryDepth = 0) {
       body: body ? JSON.stringify(body) : undefined,
       signal: controller.signal
     });
-    clearTimeout(timer);
+    // Keep the existing deadline through JSON for the credential-free public catalog.
+    if (!(path === "/api/v1/ott" && method === "GET" && auth === false &&
+      body === undefined && Object.keys(headers).length === 0)) clearTimeout(timer);
 
     // #088 — auth 요청이 401이고 첫 시도면 refresh + 원래 요청 1회 재시도
     // refresh endpoint 자체는 retry 대상에서 제외 (무한 루프 방지)

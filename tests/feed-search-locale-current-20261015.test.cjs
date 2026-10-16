@@ -65,12 +65,12 @@ const PINS = { baseline: {
   ],
   "app.js": [
     [
-      "a1d791ee7ba4fce5e5777777d5326147a1f0a3ae32f90ce38728a9ec40ec9f1b",
-      "83a6937820eee028efdeb9817490fe979b797c56"
+      "1eb15f95ab8a43168b6cc7d8ffbe615c3ef827f7e6fd677da08d245fc769ae87",
+      "7c3a65b55c3e2f12623d3f782663c2e2233243a5"
     ],
     [
-      "c49eb83c89d77e6e393a67dc1abf78a7ed81375d959b4b753593703e21c3694e",
-      "06f5b0e24229023ef27b9a40e143402e85eece70"
+      "c0dde13eca015b3fdd2c775b8c01fee7f75a4e3000ef486f7a9190003864744f",
+      "b95bae7a9d1cdf0becee90a89e460b00a7c5188f"
     ]
   ]
 } };

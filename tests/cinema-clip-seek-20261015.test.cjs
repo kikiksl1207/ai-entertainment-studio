@@ -14,7 +14,7 @@ const PINS = Object.freeze({
   }),
   focused: Object.freeze({
     'pages/ott.js': '67849c40848626d81a517be37fea424686589cd8b26381980d4d66c29acd5265',
-    'ott/index.html': 'da4e55fd982c5f176687dfeb1c8928023b47f9947f6df4287704b6acf4273d86',
+    'ott/index.html': '0d59c409a225e9c6ac6c0076f78872778fdcc491d9b782d456ccdb9fee7467fc',
   }),
 });
 const phase = process.env.CINEMA_CLIP_SEEK_PHASE || 'focused';
