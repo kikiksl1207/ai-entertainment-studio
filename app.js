@@ -46,9 +46,11 @@ async function apiFetch(path, options = {}, _retryDepth = 0) {
       body: body ? JSON.stringify(body) : undefined,
       signal: controller.signal
     });
-    // Keep the existing deadline through JSON for the credential-free public catalog.
-    if (!(path === "/api/v1/ott" && method === "GET" && auth === false &&
-      body === undefined && Object.keys(headers).length === 0)) clearTimeout(timer);
+    // Keep entry JSON and the credential-free public catalog inside the existing deadline.
+    if (!((path === "/api/v1/ott" && method === "GET" && auth === false &&
+      body === undefined && Object.keys(headers).length === 0) ||
+      (method === "POST" && auth === false &&
+        (path === "/api/v1/auth/login" || path === "/api/v1/auth/register")))) clearTimeout(timer);
 
     // #088 — auth 요청이 401이고 첫 시도면 refresh + 원래 요청 1회 재시도
     // refresh endpoint 자체는 retry 대상에서 제외 (무한 루프 방지)
@@ -132,7 +134,9 @@ async function refreshAuthOnce(auth = getAuth()) {
       const user = data?.user || auth.user;
       if (session !== authRequestSession()) return null;
       const originalUserId = auth?.user?.id || auth?.user?.userId;
-      if (!newAccess || (originalUserId && String(user?.id || user?.userId || "") !== String(originalUserId))) {
+      if (typeof newAccess !== "string" || !newAccess.trim() ||
+        (newRefresh && (typeof newRefresh !== "string" || !newRefresh.trim())) ||
+        (originalUserId && String(user?.id || user?.userId || "") !== String(originalUserId))) {
         console.warn("[#088 refresh] 응답에 accessToken 없음", { keys: data && typeof data === "object" ? Object.keys(data) : [] });
         clearAuth();
         notifyAuthExpired();

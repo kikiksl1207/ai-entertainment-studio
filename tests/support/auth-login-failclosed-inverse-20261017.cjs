@@ -40,8 +40,55 @@ function identity(source) {
   };
 }
 
+function restoreOwnedAuthEntryHardeningDelta(source) {
+  if (typeof source !== 'string') throw new TypeError('AUTH_ENTRY_HARDENING_INVERSE_STRING_REQUIRED');
+  let lf = source.replace(/\r\n/g, '\n');
+  const crlf = source.includes('\r\n');
+  if (lf.includes('\r') || (crlf && source !== lf.replace(/\n/g, '\r\n'))) return source;
+  if (Buffer.from(lf, 'utf8').toString('utf8') !== lf) return source;
+  const after = identity(lf);
+  const sha256 = 'be93793dc67d1bb0cd848dff28a3f1d212ac2bd09099ac1f959b8ee68b9d2fc2';
+  const blob = '8c9aba0a3cd35b11a676ee123d83f3f4fa84779e';
+  if (after.sha256 !== sha256 && after.blob !== blob) return source;
+  if (Buffer.byteLength(lf, 'utf8') !== 430667 || after.sha256 !== sha256 || after.blob !== blob) {
+    throw new Error('AUTH_ENTRY_HARDENING_INVERSE_IDENTITY_MISMATCH');
+  }
+  const inverse = [
+    [[
+      '    // Keep entry JSON and the credential-free public catalog inside the existing deadline.',
+      '    if (!((path === "/api/v1/ott" && method === "GET" && auth === false &&',
+      '      body === undefined && Object.keys(headers).length === 0) ||',
+      '      (method === "POST" && auth === false &&',
+      '        (path === "/api/v1/auth/login" || path === "/api/v1/auth/register")))) clearTimeout(timer);',
+    ].join('\n'), [
+      '    // Keep the existing deadline through JSON for the credential-free public catalog.',
+      '    if (!(path === "/api/v1/ott" && method === "GET" && auth === false &&',
+      '      body === undefined && Object.keys(headers).length === 0)) clearTimeout(timer);',
+    ].join('\n')],
+    [[
+      '      if (typeof newAccess !== "string" || !newAccess.trim() ||',
+      '        (newRefresh && (typeof newRefresh !== "string" || !newRefresh.trim())) ||',
+      '        (originalUserId && String(user?.id || user?.userId || "") !== String(originalUserId))) {',
+    ].join('\n'), '      if (!newAccess || (originalUserId && String(user?.id || user?.userId || "") !== String(originalUserId))) {'],
+  ];
+  for (const [owned, previous] of inverse) {
+    const at = lf.indexOf(owned);
+    if (at < 0 || lf.indexOf(owned, at + owned.length) !== -1) {
+      throw new Error('AUTH_ENTRY_HARDENING_INVERSE_OWNED_SUBSTITUTION_MISMATCH');
+    }
+    lf = lf.slice(0, at) + previous + lf.slice(at + owned.length);
+  }
+  const before = identity(lf);
+  if (Buffer.byteLength(lf, 'utf8') !== 430404 ||
+      before.sha256 !== BOOTSTRAP_SHA256 || before.blob !== BOOTSTRAP_BLOB) {
+    throw new Error('AUTH_ENTRY_HARDENING_INVERSE_RESTORED_IDENTITY_MISMATCH');
+  }
+  return crlf ? lf.replace(/\n/g, '\r\n') : lf;
+}
+
 function restoreOwnedBootstrapDelta(source) {
   if (typeof source !== 'string') throw new TypeError('AUTH_BOOTSTRAP_INVERSE_STRING_REQUIRED');
+  source = restoreOwnedAuthEntryHardeningDelta(source);
   let lf = source.replace(/\r\n/g, '\n');
   const crlf = source.includes('\r\n');
   if (lf.includes('\r') || (crlf && source !== lf.replace(/\n/g, '\r\n'))) return source;
@@ -157,4 +204,4 @@ function restoreOwnedLoginDelta(source) {
   return crlf ? restored.replace(/\n/g, '\r\n') : restored;
 }
 
-module.exports = { restoreOwnedBootstrapDelta, restoreOwnedLoginDelta };
+module.exports = { restoreOwnedAuthEntryHardeningDelta, restoreOwnedBootstrapDelta, restoreOwnedLoginDelta };

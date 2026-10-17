@@ -10,9 +10,9 @@ const { test } = require('node:test');
 
 const variant = 'candidate';
 const APP = {
-  size: 430404,
-  sha256: '5f5b2bd6e568a80d14bbf7c522a0b7e038dc3d116471bfc2bed92cb2c8ad8028',
-  blob: '4e9e2f1861574d25bf6b7bfd9d61a1bd9966adb3'
+  size: 430667,
+  sha256: 'be93793dc67d1bb0cd848dff28a3f1d212ac2bd09099ac1f959b8ee68b9d2fc2',
+  blob: '8c9aba0a3cd35b11a676ee123d83f3f4fa84779e'
 };
 const PARSER = { size: 9112572,
   sha256: '3ae902c92cc44dace175c0e69e13a4b0899f6983c6121d76b9ab8dd5795e7675' };
