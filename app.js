@@ -2646,6 +2646,7 @@ function isLikelyOffline() {
 }
 
 async function authLogin(email, password) {
+  const session = authRequestSession();
   const data = await apiFetch("/api/v1/auth/login", {
     method: "POST",
     body: { email, password },
@@ -2662,6 +2663,9 @@ async function authLogin(email, password) {
   });
   if (typeof token !== "string" || !token.trim()) {
     throw new Error("Login response is missing a usable access token");
+  }
+  if (!authRequestSessionCurrent(session)) {
+    throw new Error("Login response no longer matches the current session");
   }
   setAuth({ accessToken: token, refreshToken: refresh, user });
   return data;
