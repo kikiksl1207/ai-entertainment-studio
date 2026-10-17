@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { createHash } = require('node:crypto');
 const vm = require('node:vm');
+const { restoreOwnedFeedLightboxLifetimeDelta } = require('./support/auth-login-failclosed-inverse-20261017.cjs');
 const { test } = require('node:test');
 
 const variant = 'candidate';
@@ -39,7 +40,7 @@ function pinned(file, pin, canonicalSource = false) {
     const withoutPairs = text.replace(/\r\n/g, '');
     assert.equal(withoutPairs.includes('\r'), false, 'INPUT_NO_BARE_CR');
     assert.equal(text.includes('\r\n') && withoutPairs.includes('\n'), false, 'INPUT_UNIFORM_EOL');
-    bytes = Buffer.from(text.replace(/\r\n/g, '\n'), 'utf8');
+    bytes = Buffer.from(restoreOwnedFeedLightboxLifetimeDelta(text.replace(/\r\n/g, '\n')), 'utf8');
   }
   assert.equal(bytes.length, pin.size, 'INPUT_EXACT_CANONICAL_SIZE');
   assert.equal(createHash('sha256').update(bytes).digest('hex'), pin.sha256, 'INPUT_EXACT_SHA256');

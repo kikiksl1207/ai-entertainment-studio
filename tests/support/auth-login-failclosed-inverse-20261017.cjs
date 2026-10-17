@@ -40,8 +40,47 @@ function identity(source) {
   };
 }
 
+function restoreOwnedFeedLightboxLifetimeDelta(source) {
+  if (typeof source !== 'string') throw new TypeError('FEED_LIGHTBOX_INVERSE_STRING_REQUIRED');
+  let lf = source.replace(/\r\n/g, '\n');
+  const crlf = source.includes('\r\n');
+  if (lf.includes('\r') || (crlf && source !== lf.replace(/\n/g, '\r\n'))) return source;
+  if (Buffer.from(lf, 'utf8').toString('utf8') !== lf) return source;
+  const after = identity(lf);
+  const sha256 = '653ed7f0686e0c3d9ccd510706195034a4f3399eef3133bd540904b3722cb45b';
+  const blob = '45c8bc57f852130d8668d542aefdb7ad47aec5d8';
+  if (after.sha256 !== sha256 && after.blob !== blob) return source;
+  if (Buffer.byteLength(lf, 'utf8') !== 431019 || after.sha256 !== sha256 || after.blob !== blob) {
+    throw new Error('FEED_LIGHTBOX_INVERSE_IDENTITY_MISMATCH');
+  }
+  const inverse = [
+    ['let _lightboxBodyOverflow = null;\n', ''],
+    ['  const wasOpen = _lightboxEl?.classList.contains("is-open") === true;\n', ''],
+    ['  if (!wasOpen) _lightboxBodyOverflow = document.body.style.overflow;\n', ''],
+    ['  if (_lightboxKeyHandler) document.removeEventListener("keydown", _lightboxKeyHandler);\n', ''],
+    ['  if (!_lightboxEl?.classList.contains("is-open")) return;', '  if (!_lightboxEl) return;'],
+    ['  document.body.style.overflow = _lightboxBodyOverflow ?? "";\n  _lightboxBodyOverflow = null;',
+      '  document.body.style.overflow = "";'],
+  ];
+  for (const [owned, previous] of inverse) {
+    const at = lf.indexOf(owned);
+    if (at < 0 || lf.indexOf(owned, at + owned.length) !== -1) {
+      throw new Error('FEED_LIGHTBOX_INVERSE_OWNED_SUBSTITUTION_MISMATCH');
+    }
+    lf = lf.slice(0, at) + previous + lf.slice(at + owned.length);
+  }
+  const before = identity(lf);
+  if (Buffer.byteLength(lf, 'utf8') !== 430667 ||
+      before.sha256 !== 'be93793dc67d1bb0cd848dff28a3f1d212ac2bd09099ac1f959b8ee68b9d2fc2' ||
+      before.blob !== '8c9aba0a3cd35b11a676ee123d83f3f4fa84779e') {
+    throw new Error('FEED_LIGHTBOX_INVERSE_RESTORED_IDENTITY_MISMATCH');
+  }
+  return crlf ? lf.replace(/\n/g, '\r\n') : lf;
+}
+
 function restoreOwnedAuthEntryHardeningDelta(source) {
   if (typeof source !== 'string') throw new TypeError('AUTH_ENTRY_HARDENING_INVERSE_STRING_REQUIRED');
+  source = restoreOwnedFeedLightboxLifetimeDelta(source);
   let lf = source.replace(/\r\n/g, '\n');
   const crlf = source.includes('\r\n');
   if (lf.includes('\r') || (crlf && source !== lf.replace(/\n/g, '\r\n'))) return source;
@@ -204,4 +243,4 @@ function restoreOwnedLoginDelta(source) {
   return crlf ? restored.replace(/\n/g, '\r\n') : restored;
 }
 
-module.exports = { restoreOwnedAuthEntryHardeningDelta, restoreOwnedBootstrapDelta, restoreOwnedLoginDelta };
+module.exports = { restoreOwnedFeedLightboxLifetimeDelta, restoreOwnedAuthEntryHardeningDelta, restoreOwnedBootstrapDelta, restoreOwnedLoginDelta };

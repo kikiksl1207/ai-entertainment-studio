@@ -5682,9 +5682,11 @@ function bindLuminaFeedComment() {
    - 같은 게시글에 여러 장이면 ←/→ 키 + 좌우 버튼으로 슬라이드 */
 let _lightboxEl = null;
 let _lightboxKeyHandler = null;
+let _lightboxBodyOverflow = null;
 let _lightboxState = { sources: [], index: 0, zoomed: false };
 function openLightbox(sources, startIndex) {
   if (!Array.isArray(sources) || sources.length === 0) return;
+  const wasOpen = _lightboxEl?.classList.contains("is-open") === true;
   _lightboxState = { sources, index: Math.max(0, Math.min(startIndex || 0, sources.length - 1)), zoomed: false };
 
   if (!_lightboxEl) {
@@ -5729,9 +5731,11 @@ function openLightbox(sources, startIndex) {
 
   applyLightbox();
   _lightboxEl.classList.add("is-open");
+  if (!wasOpen) _lightboxBodyOverflow = document.body.style.overflow;
   document.body.style.overflow = "hidden";
 
   // ESC + 좌우 키
+  if (_lightboxKeyHandler) document.removeEventListener("keydown", _lightboxKeyHandler);
   _lightboxKeyHandler = e => {
     if (e.key === "Escape") closeLightbox();
     else if (e.key === "ArrowLeft") navigateLightbox(-1);
@@ -5772,10 +5776,11 @@ function applyLightbox() {
   if (next) next.style.display = showNav ? "" : "none";
 }
 function closeLightbox() {
-  if (!_lightboxEl) return;
+  if (!_lightboxEl?.classList.contains("is-open")) return;
   _lightboxEl.classList.remove("is-open");
   _lightboxEl.classList.remove("is-zoomed");
-  document.body.style.overflow = "";
+  document.body.style.overflow = _lightboxBodyOverflow ?? "";
+  _lightboxBodyOverflow = null;
   if (_lightboxKeyHandler) {
     document.removeEventListener("keydown", _lightboxKeyHandler);
     _lightboxKeyHandler = null;

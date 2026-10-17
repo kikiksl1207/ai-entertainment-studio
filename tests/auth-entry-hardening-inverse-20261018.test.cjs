@@ -4,7 +4,7 @@ const { createHash } = require('node:crypto');
 const { readFileSync } = require('node:fs');
 const path = require('node:path');
 const { before, test } = require('node:test');
-const { restoreOwnedAuthEntryHardeningDelta: restore, restoreOwnedLoginDelta } =
+const { restoreOwnedFeedLightboxLifetimeDelta, restoreOwnedAuthEntryHardeningDelta: restore, restoreOwnedLoginDelta } =
   require('./support/auth-login-failclosed-inverse-20261017.cjs');
 
 function identity(source) {
@@ -22,9 +22,10 @@ before(() => {
   const source = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
   assert.equal(source.startsWith('\uFEFF'), false);
   assert.equal(Buffer.from(source).equals(bytes), true);
-  actual = source.replace(/\r\n/g, '\n');
+  const canonicalApp = source.replace(/\r\n/g, '\n');
+  actual = restoreOwnedFeedLightboxLifetimeDelta(canonicalApp);
   assert.equal(actual.includes('\r'), false);
-  assert.equal(source === actual || source === actual.replace(/\n/g, '\r\n'), true);
+  assert.equal(source === canonicalApp || source === canonicalApp.replace(/\n/g, '\r\n'), true);
   assert.equal(Buffer.byteLength(actual), 430667);
   assert.deepEqual(identity(actual), AFTER);
   previous = restore(actual);

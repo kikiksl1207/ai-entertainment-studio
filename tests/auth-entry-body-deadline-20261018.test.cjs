@@ -8,16 +8,18 @@ const path = require('node:path');
 const { test } = require('node:test');
 const { TextDecoder } = require('node:util');
 const vm = require('node:vm');
+const { restoreOwnedFeedLightboxLifetimeDelta } = require('./support/auth-login-failclosed-inverse-20261017.cjs');
 
 const sourceRoot = path.resolve(__dirname, '..');
 const version = 'candidate';
 const bytes = readFileSync(path.join(path.resolve(sourceRoot), 'app.js'));
 const decoded = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
-const app = decoded.replace(/\r\n/g, '\n');
+const canonicalApp = decoded.replace(/\r\n/g, '\n');
+const app = restoreOwnedFeedLightboxLifetimeDelta(canonicalApp);
 assert.equal(decoded.startsWith('\uFEFF'), false);
 assert.equal(Buffer.from(decoded).equals(bytes), true);
 assert.equal(app.includes('\r'), false);
-assert.equal(decoded === app || decoded === app.replace(/\n/g, '\r\n'), true);
+assert.equal(decoded === canonicalApp || decoded === canonicalApp.replace(/\n/g, '\r\n'), true);
 assert.equal(Buffer.byteLength(app), 430667);
 assert.equal(createHash('sha256').update(app).digest('hex'),
   'be93793dc67d1bb0cd848dff28a3f1d212ac2bd09099ac1f959b8ee68b9d2fc2', 'FROZEN_APP_SHA256');

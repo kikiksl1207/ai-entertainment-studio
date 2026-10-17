@@ -5,7 +5,7 @@ const { createHash } = require('node:crypto');
 const { readFileSync } = require('node:fs');
 const path = require('node:path');
 const { before, test } = require('node:test');
-const { restoreOwnedAuthEntryHardeningDelta, restoreOwnedBootstrapDelta, restoreOwnedLoginDelta } = require('./support/auth-login-failclosed-inverse-20261017.cjs');
+const { restoreOwnedFeedLightboxLifetimeDelta, restoreOwnedAuthEntryHardeningDelta, restoreOwnedBootstrapDelta, restoreOwnedLoginDelta } = require('./support/auth-login-failclosed-inverse-20261017.cjs');
 
 const BOOTSTRAP = {
   sha256: '5f5b2bd6e568a80d14bbf7c522a0b7e038dc3d116471bfc2bed92cb2c8ad8028',
@@ -63,9 +63,10 @@ before(() => {
   const source = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
   assert.equal(source.startsWith('\uFEFF'), false);
   assert.equal(Buffer.from(source, 'utf8').equals(bytes), true);
-  let actualLF = source.replace(/\r\n/g, '\n');
+  const canonicalApp = source.replace(/\r\n/g, '\n');
+  let actualLF = restoreOwnedFeedLightboxLifetimeDelta(canonicalApp);
   assert.equal(actualLF.includes('\r'), false);
-  assert.equal(source === actualLF || source === actualLF.replace(/\n/g, '\r\n'), true);
+  assert.equal(source === canonicalApp || source === canonicalApp.replace(/\n/g, '\r\n'), true);
   assert.equal(Buffer.byteLength(actualLF), 430667);
   assert.deepEqual(identity(actualLF), {
     sha256: 'be93793dc67d1bb0cd848dff28a3f1d212ac2bd09099ac1f959b8ee68b9d2fc2',

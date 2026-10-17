@@ -13,7 +13,7 @@ assert(!/[\\/]story-completion-20261003(?:[\\/]|$)/i.test(fs.realpathSync.native
 const oldPins = ['0380465fa757466b97a14808c5fb8b9f9c31cee0b7076efcf1215296c8533fcf',
   '9adbf061676c9869b798e55031edd8d5ae32b8147b6ece27f8caba11c5eba50f'];
 const currentPins = ['a59a6e729b92f7795ad085d4e61afaca2fcafaf64f10d26b4e63d17369ba12f6',
-  '516654c33a9484e2ef149f4aaba76c414cc19013f6db789adcaa8b5151962613'];
+  '13d1bd83ced766606c34f033ae060fb6c3f9264e392eda09c52b5464f5efb713'];
 const overrides = [process.env.SETTLEMENT_SUBMIT_JS_SHA, process.env.SETTLEMENT_SUBMIT_HTML_SHA];
 if (overrides.some(value => value !== undefined)) assert(overrides.every(value => typeof value === 'string'), 'Explicit pair, never half an override');
 const pins = profile === 'baseline' ? oldPins : overrides.every(value => value !== undefined) ? overrides : currentPins;
