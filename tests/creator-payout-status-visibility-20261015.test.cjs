@@ -12,7 +12,7 @@ const hash = value => crypto.createHash('sha256').update(value).digest('hex');
 const OLD_CSS = 'f045903a3d4eacdf211b99ff64407b41a1bbd5d835e703584eb822461be7a1dc';
 const OLD_HTML = '437da1c731b3387da0965f5d32a183644c6c31a7b9ef37ca3661ef05928b6649';
 const NEW_CSS = 'ef37609791ed0594f94e061613f9007c9d9740e7ebc9a2fda9a749bc1af356df';
-const NEW_HTML = '13d1bd83ced766606c34f033ae060fb6c3f9264e392eda09c52b5464f5efb713';
+const NEW_HTML = '291b4e7ca81adaf02c96e77f72f3cb0d601c28b70194ba31ae6261afe320d33a';
 function source(file, expected) {
   const bytes = readFileSync(path.join(root, file));
   assert(bytes.length > 0 && bytes.length <= 1024 * 1024);
@@ -43,7 +43,7 @@ test('CREATOR.PAYOUT.STATUS.01 explicit status-only CSS delta preserves complete
   const previousEntry = '/pages/creator-studio.js?v=creator-payout-current-20261015';
   assert.equal(html.split(submitEntry).length, 2);
   const appSource = '/app.js?v=wallet-session-20261011';
-  const appQuery = '&amp;content=653ed7f0686e0c3d9ccd510706195034a4f3399eef3133bd540904b3722cb45b';
+  const appQuery = '&amp;content=5e4f1fbb89c82ca51c2b2cbf89707eac8dcdc571b6799a690e18fc065c235c4d';
   assert.equal(html.split(appSource + appQuery).length, 2, 'Unique declared app source');
   assert.equal(html.split(appQuery).length, 2, 'Only one declared app hash query');
   const deliveryInverse = html.replace(appSource + appQuery, appSource);
