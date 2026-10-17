@@ -1,0 +1,138 @@
+# AUTHOR/UNRUN, deliberately blocked template. Not a .github/workflows file.
+# Action/npm provenance is parent-qualified, not a complete action security audit.
+# User approval and runtime/installation qualification remain required.
+name: PR Bootstrap Immutable Server Types Only
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+    paths:
+      - '.github/workflows/manual-server-typecheck.yml'
+
+permissions:
+  contents: read
+  pages: none
+  id-token: none
+
+jobs:
+  production-types-only:
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'codex/server-typecheck-20261017' && github.base_ref == 'main' }}
+    runs-on: windows-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: pwsh
+        working-directory: server
+    env:
+      CI: 'true'
+      EXPECTED_SOURCE_SHA: '0dececa19887e5f46643c305bdb86e39dec12173'
+      EXPECTED_NPM_VERSION: '10.9.2'
+    steps:
+      - name: Checkout only immutable production source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: '0dececa19887e5f46643c305bdb86e39dec12173'
+          fetch-depth: 1
+          persist-credentials: false
+          submodules: false
+          lfs: false
+
+      - name: Admit source and absence of operating configuration
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $head = (& git rev-parse HEAD).Trim()
+          if ($LASTEXITCODE -ne 0 -or $head -cne $env:EXPECTED_SOURCE_SHA) { throw 'SOURCE_REF_MISMATCH' }
+          $pins = [ordered]@{
+            'server/package.json' = '3b2ad25369bedd23c4f81eeb62b2248258443f5e'
+            'server/package-lock.json' = '961f97fc39cdf1ff5e3aa2f686237dadc9e553f5'
+            'server/tsconfig.json' = 'a3d88262ca89cc794514addb9197f00b691e82e2'
+            'server/tsconfig.build.json' = '64f86c6bd2bb30e3d22e752295eb7c7923fc191e'
+            'server/prisma/schema.prisma' = '6d8e9d7575ef607432d41c0fe27c7d143be44099'
+          }
+          foreach ($file in $pins.Keys) {
+            $blob = (& git rev-parse ('HEAD:' + $file)).Trim()
+            if ($LASTEXITCODE -ne 0 -or $blob -cne $pins[$file]) { throw 'SOURCE_BLOB_MISMATCH' }
+          }
+          foreach ($file in @('../.env', '.env', 'prisma/.env', '../.npmrc', '.npmrc')) {
+            if (Test-Path -LiteralPath $file) { throw 'UNEXPECTED_LOCAL_CONFIGURATION' }
+          }
+          foreach ($name in @('DATABASE_URL', 'DIRECT_URL', 'SHADOW_DATABASE_URL', 'NODE_OPTIONS', 'NODE_PATH',
+            'OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'RUNWAY_API_KEY', 'PRISMA_SCHEMA_ENGINE_BINARY',
+            'PRISMA_QUERY_ENGINE_LIBRARY', 'PRISMA_QUERY_ENGINE_BINARY')) {
+            if (Test-Path ('Env:' + $name)) { throw 'UNEXPECTED_OPERATING_OR_TOOL_OVERRIDE' }
+          }
+          $schema = [IO.File]::ReadAllText((Resolve-Path 'prisma/schema.prisma')).Replace("`r`n", "`n")
+          $schemaSha = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($schema))).ToLowerInvariant()
+          if ($schemaSha -cne '63a8afc17c3928379d6642b2bd9ec65cfa3911d736dcdc1c425c4e34f74507f6') { throw 'SCHEMA_BYTES_MISMATCH' }
+          if (([regex]::Matches($schema, '(?m)^model\s+')).Count -ne 174) { throw 'SCHEMA_MODEL_SCOPE_MISMATCH' }
+
+      - name: Set up exact proposed Node 22 patch without dependency cache
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: '22.14.0'
+          package-manager-cache: false
+
+      - name: Admit Node and reviewed npm version
+        run: |
+          $nodeVersion = (& node --version).Trim()
+          if ($LASTEXITCODE -ne 0 -or $nodeVersion -cne 'v22.14.0') { throw 'NODE_VERSION_MISMATCH' }
+          if ($env:EXPECTED_NPM_VERSION -notmatch '^\d+\.\d+\.\d+$') { throw 'NPM_VERSION_UNQUALIFIED' }
+          $npmVersion = (& npm --version).Trim()
+          if ($LASTEXITCODE -ne 0 -or $npmVersion -cne $env:EXPECTED_NPM_VERSION) { throw 'NPM_VERSION_MISMATCH' }
+
+      - name: Install only locked dependencies without lifecycle scripts
+        run: |
+          $captured = & npm ci --ignore-scripts --no-audit --no-fund --include=dev 2>&1 | Out-String
+          $code = $LASTEXITCODE
+          if ($code -ne 0) { throw 'LOCKED_DEPENDENCY_INSTALL_FAILED' }
+          $captured = $null
+          $expected = @{ 'prisma' = '6.19.3'; '@prisma/client' = '6.19.3'; 'typescript' = '5.9.3'; '@types/node' = '22.19.17' }
+          foreach ($name in $expected.Keys) {
+            $package = Get-Content -LiteralPath ('node_modules/' + $name + '/package.json') -Raw | ConvertFrom-Json
+            if ($package.version -cne $expected[$name]) { throw 'LOCKED_TOOL_VERSION_MISMATCH' }
+          }
+
+      - name: Generate fresh client from tracked schema only, no SQL or supplied URL
+        run: |
+          $captured = & node node_modules/prisma/build/index.js generate --schema prisma/schema.prisma 2>&1 | Out-String
+          $code = $LASTEXITCODE
+          if ($code -ne 0) { throw 'TRACKED_SCHEMA_GENERATION_FAILED_NO_ENV_FALLBACK' }
+          $captured = $null
+          if (!(Test-Path -LiteralPath 'node_modules/.prisma/client/index.d.ts')) { throw 'GENERATED_TYPES_MISSING' }
+
+      - name: One full production semantic check, no emit or diagnostic acceptance filter
+        run: |
+          $captured = & node node_modules/typescript/bin/tsc --project tsconfig.build.json --noEmit --incremental false --pretty false --listFiles 2>&1 | Out-String
+          $code = $LASTEXITCODE
+          $diagnostics = @()
+          $prefix = ((Get-Location).Path.Replace('\', '/') + '/')
+          foreach ($line in ($captured -split '\r?\n')) {
+            if ($line -match '^(.*?)(?:\(\d+,\d+\))?: error TS(\d+):') {
+              $file = $Matches[1].Replace('\', '/')
+              $safeFile = if ($file.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)) { $file.Substring($prefix.Length) } else { $null }
+              $diagnostics += @{ file = $safeFile; code = [int]$Matches[2] }
+            } elseif ($line -match '^error TS(\d+):') {
+              $diagnostics += @{ file = $null; code = [int]$Matches[1] }
+            }
+          }
+          $sourceFiles = @(($captured -split '\r?\n') | Where-Object {
+            $_.Replace('\', '/').StartsWith($prefix + 'src/', [StringComparison]::OrdinalIgnoreCase) -and $_ -match '\.ts$'
+          }).Count
+          $measured = $code -eq 0 -and $sourceFiles -gt 0 -and $diagnostics.Count -eq 0
+          $diagnosticCount = if ($code -ne 0 -and $diagnostics.Count -eq 0) { $null } else { $diagnostics.Count }
+          @{ contract = 'immutable-server-production-types-only-v1'; source = $env:EXPECTED_SOURCE_SHA;
+             compilerExit = $code; diagnosticCount = $diagnosticCount; diagnostics = $diagnostics;
+             productionSourceFiles = $sourceFiles; semanticTypesVerified = $measured;
+             privateCandidatesIncluded = $false; uploadedLocalSDK = $false; productionInstalled = $false;
+             overallReady = $false; providerCalls = 0; databaseCalls = 0 } | ConvertTo-Json -Depth 5 -Compress
+          $captured = $null
+          if (!$measured) { throw 'PRODUCTION_TYPECHECK_FAILED_OR_UNMEASURED' }
+
+      - name: Retain failure and require tracked source stability
+        if: ${{ always() }}
+        run: |
+          if (!(Test-Path -LiteralPath '../.git')) { throw 'SOURCE_STABILITY_UNAVAILABLE' }
+          & git diff --quiet HEAD -- .
+          if ($LASTEXITCODE -ne 0) { throw 'TRACKED_SERVER_SOURCE_CHANGED' }
+          Write-Output 'TRACKED_SERVER_SOURCE_UNCHANGED_NOT_DEPLOYMENT_APPROVAL'
