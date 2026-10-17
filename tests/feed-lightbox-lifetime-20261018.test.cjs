@@ -5,27 +5,32 @@ const assert = require('node:assert/strict');
 const { createHash } = require('node:crypto');
 const path = require('node:path');
 const { test } = require('node:test');
+const { restoreOwnedFeedLightboxLanguagesDelta } = require('./support/auth-login-failclosed-inverse-20261017.cjs');
 
 const bytes = fs.readFileSync(path.join(__dirname, '../app.js'));
-assert(bytes.length >= 431019 && bytes.length <= 862038);
+assert(bytes.length >= 432976 && bytes.length <= 865952);
 const decoded = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
 assert.equal(decoded.startsWith('\uFEFF'), false);
 assert.equal(Buffer.from(decoded).equals(bytes), true);
-const fullSource = decoded.replace(/\r\n/g, '\n');
-assert.equal(fullSource.includes('\r'), false);
-assert.equal(decoded === fullSource || decoded === fullSource.replace(/\n/g, '\r\n'), true);
-const canonicalBytes = Buffer.from(fullSource);
-assert.equal(canonicalBytes.length, 431019);
+const deliveredSource = decoded.replace(/\r\n/g, '\n');
+assert.equal(deliveredSource.includes('\r'), false);
+assert.equal(decoded === deliveredSource || decoded === deliveredSource.replace(/\n/g, '\r\n'), true);
+const canonicalBytes = Buffer.from(deliveredSource);
+assert.equal(canonicalBytes.length, 432976);
 assert.equal(createHash('sha256').update(canonicalBytes).digest('hex'),
-  '653ed7f0686e0c3d9ccd510706195034a4f3399eef3133bd540904b3722cb45b');
+  '5e4f1fbb89c82ca51c2b2cbf89707eac8dcdc571b6799a690e18fc065c235c4d');
+const fullSource = restoreOwnedFeedLightboxLanguagesDelta(deliveredSource);
+assert.equal(Buffer.byteLength(fullSource), 432500);
+assert.equal(createHash('sha256').update(fullSource).digest('hex'),
+  'ac1c0c12da29ea90ee93c24224e39aa37b4833bc6fd070ccf60adbe93a0f593d');
 const begin = fullSource.indexOf('let _lightboxEl = null;');
 const end = fullSource.indexOf('\n/* ', begin);
 assert.equal(begin, 282165);
-assert.equal(end, 286827);
+assert.equal(end, 288308);
 assert.equal(fullSource.indexOf('let _lightboxEl = null;', begin + 1), -1);
 const source = fullSource.slice(begin, end);
 assert.equal(createHash('sha256').update(source).digest('hex'),
-  'd32823877e570ec1cd2c653ca9121a16301be045974d23b0f15d85fe272381e2');
+  '811e2257bf5f654c22048199e377a0a80765f4922fee6a5840c75358f80e791d');
 
 function harness(overflow = '') {
   const keyHandlers = new Set();

@@ -40,8 +40,240 @@ function identity(source) {
   };
 }
 
+function restoreOwnedFeedLightboxLanguagesDelta(source) {
+  if (typeof source !== 'string') throw new TypeError('FEED_LIGHTBOX_LANGUAGES_INVERSE_STRING_REQUIRED');
+  let lf = source.replace(/\r\n/g, '\n');
+  const crlf = source.includes('\r\n');
+  if (lf.startsWith('\uFEFF') || lf.includes('\r') ||
+      (crlf && source !== lf.replace(/\n/g, '\r\n'))) return source;
+  if (Buffer.from(lf, 'utf8').toString('utf8') !== lf) return source;
+  const after = identity(lf);
+  const sha256 = '5e4f1fbb89c82ca51c2b2cbf89707eac8dcdc571b6799a690e18fc065c235c4d';
+  const blob = '609d8253eebaa968b9654e4d961f197a20a8ba6e';
+  if (after.sha256 !== sha256 && after.blob !== blob) return source;
+  if (Buffer.byteLength(lf, 'utf8') !== 432976 || after.sha256 !== sha256 || after.blob !== blob) {
+    throw new Error('FEED_LIGHTBOX_LANGUAGES_INVERSE_IDENTITY_MISMATCH');
+  }
+  const admitted = lf;
+  const inverse = [
+    [
+      [
+        "  \"detail.gallery.error\": { \"ko-KR\": \"\uc774\ubbf8\uc9c0\ub97c \ubd88\ub7ec\uc624\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4.\", \"ja-JP\": \"\u753b\u50cf\u3092\u8aad\u307f\u8fbc\u3081\u307e\u305b\u3093\u3067\u3057\u305f\u3002\", \"en-US\": \"Image could not be loaded.\", \"zh-CN\": \"\u65e0\u6cd5\u52a0\u8f7d\u56fe\u7247\u3002\", \"zh-Hant\": \"\u7121\u6cd5\u8f09\u5165\u5716\u7247\u3002\" },",
+        "  \"feed.lightbox.name\": { \"ko-KR\": \"\uc0ac\uc9c4 \ubcf4\uae30\", \"ja-JP\": \"\u753b\u50cf\u30d3\u30e5\u30fc\u30a2\", \"en-US\": \"Image viewer\", \"zh-CN\": \"\u56fe\u7247\u67e5\u770b\u5668\", \"zh-Hant\": \"\u5716\u7247\u6aa2\u8996\u5668\" },",
+        "",
+      ].join('\n'),
+      [
+        "  \"detail.gallery.error\": { \"ko-KR\": \"\uc774\ubbf8\uc9c0\ub97c \ubd88\ub7ec\uc624\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4.\", \"ja-JP\": \"\u753b\u50cf\u3092\u8aad\u307f\u8fbc\u3081\u307e\u305b\u3093\u3067\u3057\u305f\u3002\", \"en-US\": \"Image could not be loaded.\", \"zh-CN\": \"\u65e0\u6cd5\u52a0\u8f7d\u56fe\u7247\u3002\", \"zh-Hant\": \"\u7121\u6cd5\u8f09\u5165\u5716\u7247\u3002\" },",
+        "",
+      ].join('\n'),
+    ],
+    [
+      [
+        "    _lightboxEl.setAttribute(\"aria-modal\", \"true\");",
+        "    _lightboxEl.setAttribute(\"data-i18n-aria\", \"feed.lightbox.name\");",
+        "",
+      ].join('\n'),
+      [
+        "    _lightboxEl.setAttribute(\"aria-modal\", \"true\");",
+        "",
+      ].join('\n'),
+    ],
+    [
+      [
+        "      <button class=\"lightbox-close\" type=\"button\" aria-label=\"\ub2eb\uae30\" data-i18n-aria=\"auth.modal.close\">\u00d7</button>",
+        "      <button class=\"lightbox-prev\" type=\"button\" aria-label=\"\uc774\uc804 \uc774\ubbf8\uc9c0\" data-i18n-aria=\"detail.gallery.previous\">\u2039</button>",
+        "      <button class=\"lightbox-next\" type=\"button\" aria-label=\"\ub2e4\uc74c \uc774\ubbf8\uc9c0\" data-i18n-aria=\"detail.gallery.next\">\u203a</button>",
+      ].join('\n'),
+      [
+        "      <button class=\"lightbox-close\" type=\"button\" aria-label=\"\ub2eb\uae30\">\u00d7</button>",
+        "      <button class=\"lightbox-prev\" type=\"button\" aria-label=\"\uc774\uc804 \uc774\ubbf8\uc9c0\">\u2039</button>",
+        "      <button class=\"lightbox-next\" type=\"button\" aria-label=\"\ub2e4\uc74c \uc774\ubbf8\uc9c0\">\u203a</button>",
+      ].join('\n'),
+    ],
+    [
+      [
+        "        <div class=\"lightbox-error\" data-lightbox-error data-i18n=\"detail.gallery.error\" hidden>\uc774\ubbf8\uc9c0\ub97c \ubd88\ub7ec\uc62c \uc218 \uc5c6\uc5b4\uc694</div>",
+      ].join('\n'),
+      [
+        "        <div class=\"lightbox-error\" data-lightbox-error hidden>\uc774\ubbf8\uc9c0\ub97c \ubd88\ub7ec\uc62c \uc218 \uc5c6\uc5b4\uc694</div>",
+      ].join('\n'),
+    ],
+    [
+      [
+        "  _lightboxEl.setAttribute(\"aria-label\", t(\"feed.lightbox.name\"));",
+        "  applyI18n(_lightboxEl);",
+        "  applyLightbox();",
+        "  _lightboxEl.classList.add(\"is-open\");",
+      ].join('\n'),
+      [
+        "  applyLightbox();",
+        "  _lightboxEl.classList.add(\"is-open\");",
+      ].join('\n'),
+    ],
+  ];
+  for (const [owned, previous] of inverse) {
+    const at = lf.indexOf(owned);
+    if (at < 0 || lf.indexOf(owned, at + owned.length) !== -1) {
+      throw new Error('FEED_LIGHTBOX_LANGUAGES_INVERSE_OWNED_SUBSTITUTION_MISMATCH');
+    }
+    lf = lf.slice(0, at) + previous + lf.slice(at + owned.length);
+  }
+  const before = identity(lf);
+  if (Buffer.byteLength(lf, 'utf8') !== 432500 ||
+      before.sha256 !== 'ac1c0c12da29ea90ee93c24224e39aa37b4833bc6fd070ccf60adbe93a0f593d' ||
+      before.blob !== 'f18ceafed7678b5d42878e086cecd5e4ca096ac8') {
+    throw new Error('FEED_LIGHTBOX_LANGUAGES_INVERSE_RESTORED_IDENTITY_MISMATCH');
+  }
+  let forward = lf;
+  for (const [owned, previous] of inverse) {
+    const at = forward.indexOf(previous);
+    if (at < 0 || forward.indexOf(previous, at + previous.length) !== -1) {
+      throw new Error('FEED_LIGHTBOX_LANGUAGES_INVERSE_FORWARD_SUBSTITUTION_MISMATCH');
+    }
+    forward = forward.slice(0, at) + owned + forward.slice(at + previous.length);
+  }
+  if (forward !== admitted) throw new Error('FEED_LIGHTBOX_LANGUAGES_INVERSE_FORWARD_MISMATCH');
+  return crlf ? lf.replace(/\n/g, '\r\n') : lf;
+}
+
+function restoreOwnedFeedLightboxFocusDelta(source) {
+  if (typeof source !== 'string') throw new TypeError('FEED_LIGHTBOX_FOCUS_INVERSE_STRING_REQUIRED');
+  source = restoreOwnedFeedLightboxLanguagesDelta(source);
+  let lf = source.replace(/\r\n/g, '\n');
+  const crlf = source.includes('\r\n');
+  if (lf.startsWith('\uFEFF') || lf.includes('\r') ||
+      (crlf && source !== lf.replace(/\n/g, '\r\n'))) return source;
+  if (Buffer.from(lf, 'utf8').toString('utf8') !== lf) return source;
+  const after = identity(lf);
+  const sha256 = 'ac1c0c12da29ea90ee93c24224e39aa37b4833bc6fd070ccf60adbe93a0f593d';
+  const blob = 'f18ceafed7678b5d42878e086cecd5e4ca096ac8';
+  if (after.sha256 !== sha256 && after.blob !== blob) return source;
+  if (Buffer.byteLength(lf, 'utf8') !== 432500 || after.sha256 !== sha256 || after.blob !== blob) {
+    throw new Error('FEED_LIGHTBOX_FOCUS_INVERSE_IDENTITY_MISMATCH');
+  }
+  const admitted = lf;
+  const inverse = [
+    [
+      [
+        "let _lightboxBodyOverflow = null;",
+        "let _lightboxPreviousFocus = null;",
+        "let _lightboxState",
+      ].join('\n'),
+      [
+        "let _lightboxBodyOverflow = null;",
+        "let _lightboxState",
+      ].join('\n'),
+    ],
+    [
+      [
+        "  const wasOpen = _lightboxEl?.classList.contains(\"is-open\") === true;",
+        "  const activeBeforeOpen = document.activeElement;",
+        "  const ownedFocusBeforeOpen = wasOpen && _lightboxEl.contains?.(activeBeforeOpen) === true;",
+        "  if (!wasOpen) _lightboxPreviousFocus = activeBeforeOpen;",
+        "  _lightboxState",
+      ].join('\n'),
+      [
+        "  const wasOpen = _lightboxEl?.classList.contains(\"is-open\") === true;",
+        "  _lightboxState",
+      ].join('\n'),
+    ],
+    [
+      [
+        "  _lightboxKeyHandler = e => {",
+        "    if (e.key === \"Tab\") {",
+        "      const focusable = [..._lightboxEl.querySelectorAll('button:not([disabled])')]",
+        "        .filter(el => el.getClientRects().length && getComputedStyle(el).visibility !== \"hidden\");",
+        "      if (!focusable.length) { e.preventDefault(); return; }",
+        "      const current = focusable.indexOf(document.activeElement);",
+        "      if (current === -1 || (e.shiftKey ? current === 0 : current === focusable.length - 1)) {",
+        "        e.preventDefault();",
+        "        focusable[e.shiftKey ? focusable.length - 1 : 0].focus({ preventScroll: true });",
+        "      }",
+        "      return;",
+        "    }",
+        "    if (e.key === \"Escape\")",
+      ].join('\n'),
+      [
+        "  _lightboxKeyHandler = e => {",
+        "    if (e.key === \"Escape\")",
+      ].join('\n'),
+    ],
+    [
+      [
+        "  document.addEventListener(\"keydown\", _lightboxKeyHandler);",
+        "  const active = document.activeElement;",
+        "  const lostOwnedFocus = ownedFocusBeforeOpen &&",
+        "    (!activeBeforeOpen.getClientRects().length || getComputedStyle(activeBeforeOpen).visibility === \"hidden\") &&",
+        "    (active === activeBeforeOpen || active === document.body || active == null);",
+        "  if (!wasOpen || lostOwnedFocus) {",
+        "    _lightboxEl.querySelector(\".lightbox-close\")?.focus?.({ preventScroll: true });",
+        "  }",
+        "}",
+      ].join('\n'),
+      [
+        "  document.addEventListener(\"keydown\", _lightboxKeyHandler);",
+        "}",
+      ].join('\n'),
+    ],
+    [
+      [
+        "function closeLightbox() {",
+        "  if (!_lightboxEl?.classList.contains(\"is-open\")) return;",
+        "  const previousFocus = _lightboxPreviousFocus;",
+        "  const restoreFocus = _lightboxEl.contains?.(document.activeElement) === true;",
+        "  _lightboxPreviousFocus = null;",
+        "  _lightboxEl.classList.remove(\"is-open\");",
+      ].join('\n'),
+      [
+        "function closeLightbox() {",
+        "  if (!_lightboxEl?.classList.contains(\"is-open\")) return;",
+        "  _lightboxEl.classList.remove(\"is-open\");",
+      ].join('\n'),
+    ],
+    [
+      [
+        "    document.removeEventListener(\"keydown\", _lightboxKeyHandler);",
+        "    _lightboxKeyHandler = null;",
+        "  }",
+        "  if (restoreFocus && previousFocus?.isConnected) previousFocus.focus?.({ preventScroll: true });",
+        "}",
+      ].join('\n'),
+      [
+        "    document.removeEventListener(\"keydown\", _lightboxKeyHandler);",
+        "    _lightboxKeyHandler = null;",
+        "  }",
+        "}",
+      ].join('\n'),
+    ],
+  ];
+  for (const [owned, previous] of inverse) {
+    const at = lf.indexOf(owned);
+    if (at < 0 || lf.indexOf(owned, at + owned.length) !== -1) {
+      throw new Error('FEED_LIGHTBOX_FOCUS_INVERSE_OWNED_SUBSTITUTION_MISMATCH');
+    }
+    lf = lf.slice(0, at) + previous + lf.slice(at + owned.length);
+  }
+  const before = identity(lf);
+  if (Buffer.byteLength(lf, 'utf8') !== 431019 ||
+      before.sha256 !== '653ed7f0686e0c3d9ccd510706195034a4f3399eef3133bd540904b3722cb45b' ||
+      before.blob !== '45c8bc57f852130d8668d542aefdb7ad47aec5d8') {
+    throw new Error('FEED_LIGHTBOX_FOCUS_INVERSE_RESTORED_IDENTITY_MISMATCH');
+  }
+  let forward = lf;
+  for (const [owned, previous] of inverse) {
+    const at = forward.indexOf(previous);
+    if (at < 0 || forward.indexOf(previous, at + previous.length) !== -1) {
+      throw new Error('FEED_LIGHTBOX_FOCUS_INVERSE_FORWARD_SUBSTITUTION_MISMATCH');
+    }
+    forward = forward.slice(0, at) + owned + forward.slice(at + previous.length);
+  }
+  if (forward !== admitted) throw new Error('FEED_LIGHTBOX_FOCUS_INVERSE_FORWARD_MISMATCH');
+  return crlf ? lf.replace(/\n/g, '\r\n') : lf;
+}
+
 function restoreOwnedFeedLightboxLifetimeDelta(source) {
   if (typeof source !== 'string') throw new TypeError('FEED_LIGHTBOX_INVERSE_STRING_REQUIRED');
+  source = restoreOwnedFeedLightboxFocusDelta(source);
   let lf = source.replace(/\r\n/g, '\n');
   const crlf = source.includes('\r\n');
   if (lf.includes('\r') || (crlf && source !== lf.replace(/\n/g, '\r\n'))) return source;
@@ -243,4 +475,4 @@ function restoreOwnedLoginDelta(source) {
   return crlf ? restored.replace(/\n/g, '\r\n') : restored;
 }
 
-module.exports = { restoreOwnedFeedLightboxLifetimeDelta, restoreOwnedAuthEntryHardeningDelta, restoreOwnedBootstrapDelta, restoreOwnedLoginDelta };
+module.exports = { restoreOwnedFeedLightboxLanguagesDelta, restoreOwnedFeedLightboxFocusDelta, restoreOwnedFeedLightboxLifetimeDelta, restoreOwnedAuthEntryHardeningDelta, restoreOwnedBootstrapDelta, restoreOwnedLoginDelta };

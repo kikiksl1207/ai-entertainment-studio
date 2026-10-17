@@ -14,14 +14,24 @@ const current = decoded.replace(/\r\n/g, '\n');
 assert(!current.includes('\r') && (decoded === current || decoded === current.replace(/\n/g, '\r\n')));
 const sha = text => createHash('sha256').update(text).digest('hex');
 const blob = text => createHash('sha1').update('blob ' + Buffer.byteLength(text) + '\0').update(text).digest('hex');
-assert.equal(sha(current), 'f17604dabc043c07f1f382da2dfc510683bba3fa69bbb9074256418886b683c9');
-assert.equal(blob(current), 'a4893cd696951c2a179a076f7a98c0d3d2ee160e');
+assert.equal(sha(current), '694c46006a8f8892aae7a57dd9c403c3034e3b22d67d9aba7d65bc14949bb2ee');
+assert.equal(blob(current), 'ae1f703f8eb1041a71c730def16c518b726da37b');
 const layouts = [text => text, text => text.replace(/\n/g, '\r\n')];
 const lf = text => text.replace(/\r\n/g, '\n');
-const query = '&amp;content=653ed7f0686e0c3d9ccd510706195034a4f3399eef3133bd540904b3722cb45b';
+const query = '&amp;content=5e4f1fbb89c82ca51c2b2cbf89707eac8dcdc571b6799a690e18fc065c235c4d';
 
 test('feed lightbox cache inverse restores the exact complete LF and CRLF predecessor', () => {
+  const previousViewer = current.replace(query,
+    '&amp;content=653ed7f0686e0c3d9ccd510706195034a4f3399eef3133bd540904b3722cb45b');
+  assert.equal(sha(previousViewer), 'f17604dabc043c07f1f382da2dfc510683bba3fa69bbb9074256418886b683c9');
+  assert.equal(blob(previousViewer), 'a4893cd696951c2a179a076f7a98c0d3d2ee160e');
+  const previousFocus = current.replace(query,
+    '&amp;content=ac1c0c12da29ea90ee93c24224e39aa37b4833bc6fd070ccf60adbe93a0f593d');
+  assert.equal(sha(previousFocus), '6d49aeef9179be2dc843eb2ec83506a327379f5a0017b1aaa72a15283f701914');
+  assert.equal(blob(previousFocus), '256f05c5c8bd93ac47fb3246dfa18ce00b6f27ef');
   for (const layout of layouts) {
+    assert.equal(restore(layout(previousViewer)), restore(layout(current)));
+    assert.equal(restore(layout(previousFocus)), restore(layout(current)));
     const restored = restore(layout(current));
     assert.equal(sha(lf(restored)), 'd778963f9f2fd7b9f410472ca434ba9a3bdf0b1e6c8c989b997599d5767a8d15');
     assert.equal(blob(lf(restored)), 'b1ff4c312396da36f63f9d38157332e0fc37995f');

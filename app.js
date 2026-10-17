@@ -452,6 +452,7 @@ const I18N_DICT = {
   "detail.gallery.previous": { "ko-KR": "이전", "ja-JP": "前へ", "en-US": "Previous", "zh-CN": "上一张", "zh-Hant": "上一張" },
   "detail.gallery.next": { "ko-KR": "다음", "ja-JP": "次へ", "en-US": "Next", "zh-CN": "下一张", "zh-Hant": "下一張" },
   "detail.gallery.error": { "ko-KR": "이미지를 불러오지 못했습니다.", "ja-JP": "画像を読み込めませんでした。", "en-US": "Image could not be loaded.", "zh-CN": "无法加载图片。", "zh-Hant": "無法載入圖片。" },
+  "feed.lightbox.name": { "ko-KR": "사진 보기", "ja-JP": "画像ビューア", "en-US": "Image viewer", "zh-CN": "图片查看器", "zh-Hant": "圖片檢視器" },
   "detail.gallery.retry": { "ko-KR": "이미지 다시 불러오기", "ja-JP": "画像を再読み込み", "en-US": "Retry image", "zh-CN": "重新加载图片", "zh-Hant": "重新載入圖片" },
   "detail.gallery.loading": { "ko-KR": "불러오는 중…", "ja-JP": "読み込み中…", "en-US": "Loading…", "zh-CN": "加载中…", "zh-Hant": "載入中…" },
   "feed.follow.action": { "ko-KR": "팔로우", "ja-JP": "フォロー", "en-US": "Follow", "zh-CN": "关注", "zh-Hant": "追蹤" },
@@ -5683,10 +5684,14 @@ function bindLuminaFeedComment() {
 let _lightboxEl = null;
 let _lightboxKeyHandler = null;
 let _lightboxBodyOverflow = null;
+let _lightboxPreviousFocus = null;
 let _lightboxState = { sources: [], index: 0, zoomed: false };
 function openLightbox(sources, startIndex) {
   if (!Array.isArray(sources) || sources.length === 0) return;
   const wasOpen = _lightboxEl?.classList.contains("is-open") === true;
+  const activeBeforeOpen = document.activeElement;
+  const ownedFocusBeforeOpen = wasOpen && _lightboxEl.contains?.(activeBeforeOpen) === true;
+  if (!wasOpen) _lightboxPreviousFocus = activeBeforeOpen;
   _lightboxState = { sources, index: Math.max(0, Math.min(startIndex || 0, sources.length - 1)), zoomed: false };
 
   if (!_lightboxEl) {
@@ -5694,13 +5699,14 @@ function openLightbox(sources, startIndex) {
     _lightboxEl.className = "lightbox-overlay";
     _lightboxEl.setAttribute("role", "dialog");
     _lightboxEl.setAttribute("aria-modal", "true");
+    _lightboxEl.setAttribute("data-i18n-aria", "feed.lightbox.name");
     _lightboxEl.innerHTML = `
-      <button class="lightbox-close" type="button" aria-label="닫기">×</button>
-      <button class="lightbox-prev" type="button" aria-label="이전 이미지">‹</button>
-      <button class="lightbox-next" type="button" aria-label="다음 이미지">›</button>
+      <button class="lightbox-close" type="button" aria-label="닫기" data-i18n-aria="auth.modal.close">×</button>
+      <button class="lightbox-prev" type="button" aria-label="이전 이미지" data-i18n-aria="detail.gallery.previous">‹</button>
+      <button class="lightbox-next" type="button" aria-label="다음 이미지" data-i18n-aria="detail.gallery.next">›</button>
       <div class="lightbox-stage" data-lightbox-stage>
         <img class="lightbox-img" alt="" draggable="false" oncontextmenu="return false;" />
-        <div class="lightbox-error" data-lightbox-error hidden>이미지를 불러올 수 없어요</div>
+        <div class="lightbox-error" data-lightbox-error data-i18n="detail.gallery.error" hidden>이미지를 불러올 수 없어요</div>
       </div>
       <div class="lightbox-counter" data-lightbox-counter></div>
     `;
@@ -5729,6 +5735,8 @@ function openLightbox(sources, startIndex) {
     _lightboxEl.addEventListener("contextmenu", e => e.preventDefault());
   }
 
+  _lightboxEl.setAttribute("aria-label", t("feed.lightbox.name"));
+  applyI18n(_lightboxEl);
   applyLightbox();
   _lightboxEl.classList.add("is-open");
   if (!wasOpen) _lightboxBodyOverflow = document.body.style.overflow;
@@ -5737,11 +5745,29 @@ function openLightbox(sources, startIndex) {
   // ESC + 좌우 키
   if (_lightboxKeyHandler) document.removeEventListener("keydown", _lightboxKeyHandler);
   _lightboxKeyHandler = e => {
+    if (e.key === "Tab") {
+      const focusable = [..._lightboxEl.querySelectorAll('button:not([disabled])')]
+        .filter(el => el.getClientRects().length && getComputedStyle(el).visibility !== "hidden");
+      if (!focusable.length) { e.preventDefault(); return; }
+      const current = focusable.indexOf(document.activeElement);
+      if (current === -1 || (e.shiftKey ? current === 0 : current === focusable.length - 1)) {
+        e.preventDefault();
+        focusable[e.shiftKey ? focusable.length - 1 : 0].focus({ preventScroll: true });
+      }
+      return;
+    }
     if (e.key === "Escape") closeLightbox();
     else if (e.key === "ArrowLeft") navigateLightbox(-1);
     else if (e.key === "ArrowRight") navigateLightbox(1);
   };
   document.addEventListener("keydown", _lightboxKeyHandler);
+  const active = document.activeElement;
+  const lostOwnedFocus = ownedFocusBeforeOpen &&
+    (!activeBeforeOpen.getClientRects().length || getComputedStyle(activeBeforeOpen).visibility === "hidden") &&
+    (active === activeBeforeOpen || active === document.body || active == null);
+  if (!wasOpen || lostOwnedFocus) {
+    _lightboxEl.querySelector(".lightbox-close")?.focus?.({ preventScroll: true });
+  }
 }
 function navigateLightbox(delta) {
   if (!_lightboxState.sources.length) return;
@@ -5777,6 +5803,9 @@ function applyLightbox() {
 }
 function closeLightbox() {
   if (!_lightboxEl?.classList.contains("is-open")) return;
+  const previousFocus = _lightboxPreviousFocus;
+  const restoreFocus = _lightboxEl.contains?.(document.activeElement) === true;
+  _lightboxPreviousFocus = null;
   _lightboxEl.classList.remove("is-open");
   _lightboxEl.classList.remove("is-zoomed");
   document.body.style.overflow = _lightboxBodyOverflow ?? "";
@@ -5785,6 +5814,7 @@ function closeLightbox() {
     document.removeEventListener("keydown", _lightboxKeyHandler);
     _lightboxKeyHandler = null;
   }
+  if (restoreFocus && previousFocus?.isConnected) previousFocus.focus?.({ preventScroll: true });
 }
 
 /* 피드 이미지 썸네일 클릭 → 라이트박스 열기 + 우클릭 차단 (이벤트 위임) */

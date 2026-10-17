@@ -40,13 +40,24 @@ function htmlWithoutFeedLightboxCacheDelta(text) {
       (crlf && text !== lf.replace(/\n/g, '\r\n')) ||
       Buffer.from(lf, 'utf8').toString('utf8') !== lf) return text;
   const bytes = Buffer.from(lf, 'utf8'), actualSha = sha(bytes), actualBlob = blob(bytes);
-  const expectedSha = 'f17604dabc043c07f1f382da2dfc510683bba3fa69bbb9074256418886b683c9';
-  const expectedBlob = 'a4893cd696951c2a179a076f7a98c0d3d2ee160e';
-  if (actualSha !== expectedSha && actualBlob !== expectedBlob) return text;
+  const versions = [
+    ['f17604dabc043c07f1f382da2dfc510683bba3fa69bbb9074256418886b683c9',
+      'a4893cd696951c2a179a076f7a98c0d3d2ee160e',
+      '653ed7f0686e0c3d9ccd510706195034a4f3399eef3133bd540904b3722cb45b'],
+    ['6d49aeef9179be2dc843eb2ec83506a327379f5a0017b1aaa72a15283f701914',
+      '256f05c5c8bd93ac47fb3246dfa18ce00b6f27ef',
+      'ac1c0c12da29ea90ee93c24224e39aa37b4833bc6fd070ccf60adbe93a0f593d'],
+    ['694c46006a8f8892aae7a57dd9c403c3034e3b22d67d9aba7d65bc14949bb2ee',
+      'ae1f703f8eb1041a71c730def16c518b726da37b',
+      '5e4f1fbb89c82ca51c2b2cbf89707eac8dcdc571b6799a690e18fc065c235c4d'],
+  ];
+  const admittedVersion = versions.find(row => actualSha === row[0] || actualBlob === row[1]);
+  if (!admittedVersion) return text;
+  const [expectedSha, expectedBlob, appSha] = admittedVersion;
   assert(bytes.length === 24596 && actualSha === expectedSha && actualBlob === expectedBlob,
     'Exact whole lightbox cache HTML SHA/blob/length required');
   const previous = '/app.js?v=wallet-session-20261011';
-  const current = previous + '&amp;content=653ed7f0686e0c3d9ccd510706195034a4f3399eef3133bd540904b3722cb45b';
+  const current = previous + '&amp;content=' + appSha;
   assert.equal(lf.split(current).length, 2, 'One exact lightbox app cache reference');
   const restored = lf.replace(current, previous), beforeBytes = Buffer.from(restored);
   assert.equal(beforeBytes.length, 24519);
