@@ -240,7 +240,7 @@ describe('AdminService mission archive audit focused', () => {
     }
   });
 
-  it('03 an unchanged public consumer uses the real default root audit client and JSON conversion', async () => {
+  it('03 the unchanged audit helper preserves its default root client and JSON conversion', async () => {
     for (const failAudit of [false, true]) {
       const faults: string[] = [], events: string[] = [], audits: Audit[] = [];
       let attempts = 0, creates = 0, auditAttempts = 0;
@@ -284,16 +284,21 @@ describe('AdminService mission archive audit focused', () => {
       const config = closed({}, 'config');
       const service = new AdminService(prisma as unknown as PrismaService, config as unknown as ConfigService);
       try {
-        const call = service.createBackstageFeedSearchBlockedTerm(OPERATOR,
-          { keyword: ' Synthetic   phrase ', type: 'text', language: 'en', reason: null });
+        const recordAudit = (service as unknown as {
+          recordAudit: (...args: unknown[]) => Promise<unknown>;
+        }).recordAudit;
+        assert.equal(typeof recordAudit, 'function');
+        const call = recordAudit.call(service, OPERATOR, 'feed_search_blocked_term.create',
+          'feed_search_blocked_term', OTHER, null, created,
+          { keyword: 'Synthetic phrase', normalizedKeyword: 'synthetic phrase', searchType: 'text', language: 'en', status: 'active' });
         if (failAudit) await assert.rejects(call, caught => caught === error);
         else {
-          const result = await call; assert.equal(result.ok, true); assert.deepEqual(result.item, created);
-          assert.deepEqual(result.policy.auditEvents, ['feed_search_blocked_term.create', 'feed_search_blocked_term.update']);
+          const result = await call;
+          assert.deepEqual(result, { id: 'synthetic-default-audit', ...audits[0] });
           assert.equal(audits.length, 1);
         }
-        assert.equal(creates, 1); assert.equal(auditAttempts, 1); assert.equal(attempts, 2);
-        assert.deepEqual(events, ['root:create', 'root:audit']);
+        assert.equal(creates, 0); assert.equal(auditAttempts, 1); assert.equal(attempts, 1);
+        assert.deepEqual(events, ['root:audit']);
         if (failAudit) assert.deepEqual(audits, []);
       } finally { assert.deepEqual(faults, [], 'Default-client faults cannot hide inside the consumer catch'); }
     }

@@ -1802,28 +1802,32 @@ export class AdminService {
     const reason = body.reason === null ? null : this.optionalString(body, 'reason') ?? null;
 
     try {
-      const created = await this.prisma.feedSearchBlockedTerm.create({
-        data: {
-          keyword,
-          normalizedKeyword,
-          searchType,
-          language,
-          status,
-          reason,
-          createdByUserId: user.id,
-          updatedByUserId: user.id,
-        },
-      });
+      const created = await this.prisma.$transaction(async (tx) => {
+        const term = await tx.feedSearchBlockedTerm.create({
+          data: {
+            keyword,
+            normalizedKeyword,
+            searchType,
+            language,
+            status,
+            reason,
+            createdByUserId: user.id,
+            updatedByUserId: user.id,
+          },
+        });
 
-      await this.recordAudit(
-        user,
-        'feed_search_blocked_term.create',
-        'feed_search_blocked_term',
-        created.id,
-        null,
-        created,
-        { keyword, normalizedKeyword, searchType, language, status },
-      );
+        await this.recordAudit(
+          user,
+          'feed_search_blocked_term.create',
+          'feed_search_blocked_term',
+          term.id,
+          null,
+          term,
+          { keyword, normalizedKeyword, searchType, language, status },
+          tx,
+        );
+        return term;
+      });
 
       return {
         ok: true,
