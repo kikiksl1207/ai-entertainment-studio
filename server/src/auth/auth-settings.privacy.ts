@@ -4,8 +4,10 @@ export function settingsPrivacyMiddleware(
   response: { setHeader(name: string, value: string): void },
   next: () => void,
 ) {
-  if (['GET', 'HEAD', 'PATCH'].includes(request.method ?? '') &&
-    /^\/api\/(?:v1\/)?me\/settings\/?(?:\?|$)/i.test(request.url)) {
+  if ((['GET', 'HEAD', 'PATCH'].includes(request.method ?? '') &&
+    /^\/api\/(?:v1\/)?me\/settings\/?(?:\?|$)/i.test(request.url)) ||
+    (['GET', 'HEAD'].includes(request.method ?? '') &&
+    /^\/api\/v1\/me\/?(?:\?|$)/i.test(request.url))) {
     response.setHeader('Cache-Control', 'private, no-store');
   }
   next();
