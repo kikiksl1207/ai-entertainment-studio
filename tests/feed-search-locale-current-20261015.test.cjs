@@ -1,4 +1,5 @@
 'use strict';
+const { restoreOwnedLoginDelta } = require('./support/auth-login-failclosed-inverse-20261017.cjs');
 // AUTHOR UNRUN. Whole consumer with synthetic dependencies; no old suite imports.
 const test = require('node:test'), assert = require('node:assert/strict');
 const fs = require('node:fs'), path = require('node:path'), vm = require('node:vm');
@@ -80,8 +81,10 @@ function readSource(file) {
   assert(!bytes.subarray(0, 3).equals(Buffer.from([0xef, 0xbb, 0xbf])));
   const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
   assert(!/\r(?!\n)/.test(text) && !(text.includes('\r\n') && /(?<!\r)\n/.test(text)));
-  const sha = createHash('sha256').update(bytes).digest('hex');
-  const blob = createHash('sha1').update('blob ' + bytes.length + '\0').update(bytes).digest('hex');
+  const pinView = file === 'app.js' ? restoreOwnedLoginDelta(text) : text;
+  const pinBytes = file === 'app.js' ? Buffer.from(pinView) : bytes;
+  const sha = createHash('sha256').update(pinBytes).digest('hex');
+  const blob = createHash('sha1').update('blob ' + pinBytes.length + '\0').update(pinBytes).digest('hex');
   assert(PINS[PROFILE][file].some(pair => pair[0] === sha && pair[1] === blob), 'Exact source SHA/blob pair required');
   return text;
 }

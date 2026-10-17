@@ -2660,7 +2660,10 @@ async function authLogin(email, password) {
     hasAccessToken: Boolean(token),
     hasRefreshToken: Boolean(refresh)
   });
-  if (token) setAuth({ accessToken: token, refreshToken: refresh, user });
+  if (typeof token !== "string" || !token.trim()) {
+    throw new Error("Login response is missing a usable access token");
+  }
+  setAuth({ accessToken: token, refreshToken: refresh, user });
   return data;
 }
 async function authRegister(email, password, displayName, referralCode) {

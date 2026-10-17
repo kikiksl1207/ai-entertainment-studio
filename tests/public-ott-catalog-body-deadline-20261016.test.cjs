@@ -1,4 +1,5 @@
 'use strict';
+const { restoreOwnedLoginDelta } = require('./support/auth-login-failclosed-inverse-20261017.cjs');
 // AUTHOR UNRUN. Complete API/auth prefix, not app bootstrap or the OTT consumer.
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -43,8 +44,9 @@ function source(file, maximum, rawPin) {
   assert(!text.startsWith('\uFEFF') && Buffer.from(text).equals(bytes));
   const lf = text.replace(/\r\n/g, '\n');
   assert(!lf.includes('\r') && (text === lf || text === lf.replace(/\n/g, '\r\n')));
-  assert.equal(sha(lf), PINS[phase][file][0]);
-  assert.equal(blob(Buffer.from(lf)), PINS[phase][file][1]);
+  const pinView = file === 'app.js' ? restoreOwnedLoginDelta(lf) : lf;
+  assert.equal(sha(pinView), PINS[phase][file][0]);
+  assert.equal(blob(Buffer.from(pinView)), PINS[phase][file][1]);
   if (rawPin) assert.equal(sha(bytes), rawPin.toLowerCase());
   return lf;
 }

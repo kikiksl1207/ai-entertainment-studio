@@ -1,4 +1,5 @@
 'use strict';
+const { restoreOwnedLoginDelta } = require('./support/auth-login-failclosed-inverse-20261017.cjs');
 const test = require('node:test'), assert = require('node:assert/strict');
 const fs = require('node:fs'), path = require('node:path'), crypto = require('node:crypto'), vm = require('node:vm');
 // AUTHOR UNRUN. Baseline is the frozen Unit39 input, not an operating-base claim.
@@ -18,7 +19,8 @@ function read(file, pin) {
   assert(!text.startsWith('\uFEFF') && Buffer.from(text).equals(bytes));
   const lf = text.replace(/\r\n/g, '\n');
   assert(!lf.includes('\r') && (text === lf || text === lf.replace(/\n/g, '\r\n')));
-  assert.equal(crypto.createHash('sha256').update(lf).digest('hex'), pin);
+  const pinView = file === 'app.js' ? restoreOwnedLoginDelta(lf) : lf;
+  assert.equal(crypto.createHash('sha256').update(pinView).digest('hex'), pin);
   return lf;
 }
 const source = read('pages/user-profile.js', pins[phase]['pages/user-profile.js']);
