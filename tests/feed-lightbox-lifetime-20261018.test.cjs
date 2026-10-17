@@ -7,13 +7,17 @@ const path = require('node:path');
 const { test } = require('node:test');
 
 const bytes = fs.readFileSync(path.join(__dirname, '../app.js'));
-assert.equal(bytes.length, 431019);
-assert.equal(createHash('sha256').update(bytes).digest('hex'),
-  '653ed7f0686e0c3d9ccd510706195034a4f3399eef3133bd540904b3722cb45b');
-const fullSource = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
-assert.equal(fullSource.startsWith('\uFEFF'), false);
+assert(bytes.length >= 431019 && bytes.length <= 862038);
+const decoded = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
+assert.equal(decoded.startsWith('\uFEFF'), false);
+assert.equal(Buffer.from(decoded).equals(bytes), true);
+const fullSource = decoded.replace(/\r\n/g, '\n');
 assert.equal(fullSource.includes('\r'), false);
-assert.equal(Buffer.from(fullSource).equals(bytes), true);
+assert.equal(decoded === fullSource || decoded === fullSource.replace(/\n/g, '\r\n'), true);
+const canonicalBytes = Buffer.from(fullSource);
+assert.equal(canonicalBytes.length, 431019);
+assert.equal(createHash('sha256').update(canonicalBytes).digest('hex'),
+  '653ed7f0686e0c3d9ccd510706195034a4f3399eef3133bd540904b3722cb45b');
 const begin = fullSource.indexOf('let _lightboxEl = null;');
 const end = fullSource.indexOf('\n/* ', begin);
 assert.equal(begin, 282165);

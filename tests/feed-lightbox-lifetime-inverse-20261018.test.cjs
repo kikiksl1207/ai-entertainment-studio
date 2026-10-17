@@ -6,7 +6,14 @@ const { join } = require('node:path');
 const { test } = require('node:test');
 const inverse = require('./support/auth-login-failclosed-inverse-20261017.cjs');
 
-const source = readFileSync(join(__dirname, '../app.js'), 'utf8');
+const bytes = readFileSync(join(__dirname, '../app.js'));
+assert(bytes.length >= 431019 && bytes.length <= 862038);
+const decoded = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
+assert.equal(decoded.startsWith('\uFEFF'), false);
+assert.equal(Buffer.from(decoded).equals(bytes), true);
+const source = decoded.replace(/\r\n/g, '\n');
+assert.equal(source.includes('\r'), false);
+assert.equal(decoded === source || decoded === source.replace(/\n/g, '\r\n'), true);
 const sha = text => createHash('sha256').update(text, 'utf8').digest('hex');
 assert.equal(sha(source), '653ed7f0686e0c3d9ccd510706195034a4f3399eef3133bd540904b3722cb45b');
 assert.equal(Buffer.byteLength(source), 431019);

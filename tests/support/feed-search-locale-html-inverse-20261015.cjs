@@ -33,10 +33,35 @@ function admitted(text, pairs) {
   assert.equal(new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes), text);
   assert(pairs.some(pair => sha(bytes) === pair[0] && blob(bytes) === pair[1]), 'Exact whole HTML SHA/blob pair required');
 }
+function htmlWithoutFeedLightboxCacheDelta(text) {
+  if (typeof text !== 'string') throw new TypeError('FEED_LIGHTBOX_HTML_INVERSE_STRING_REQUIRED');
+  const lf = text.replace(/\r\n/g, '\n'), crlf = text.includes('\r\n');
+  if (text.startsWith('\uFEFF') || lf.includes('\r') ||
+      (crlf && text !== lf.replace(/\n/g, '\r\n')) ||
+      Buffer.from(lf, 'utf8').toString('utf8') !== lf) return text;
+  const bytes = Buffer.from(lf, 'utf8'), actualSha = sha(bytes), actualBlob = blob(bytes);
+  const expectedSha = 'f17604dabc043c07f1f382da2dfc510683bba3fa69bbb9074256418886b683c9';
+  const expectedBlob = 'a4893cd696951c2a179a076f7a98c0d3d2ee160e';
+  if (actualSha !== expectedSha && actualBlob !== expectedBlob) return text;
+  assert(bytes.length === 24596 && actualSha === expectedSha && actualBlob === expectedBlob,
+    'Exact whole lightbox cache HTML SHA/blob/length required');
+  const previous = '/app.js?v=wallet-session-20261011';
+  const current = previous + '&amp;content=653ed7f0686e0c3d9ccd510706195034a4f3399eef3133bd540904b3722cb45b';
+  assert.equal(lf.split(current).length, 2, 'One exact lightbox app cache reference');
+  const restored = lf.replace(current, previous), beforeBytes = Buffer.from(restored);
+  assert.equal(beforeBytes.length, 24519);
+  assert.equal(sha(beforeBytes), 'd778963f9f2fd7b9f410472ca434ba9a3bdf0b1e6c8c989b997599d5767a8d15');
+  assert.equal(blob(beforeBytes), 'b1ff4c312396da36f63f9d38157332e0fc37995f');
+  assert.equal(restored.split(previous).length, 2);
+  assert.equal(restored.replace(previous, current), lf, 'Only the exact app cache reference changes');
+  return crlf ? restored.replace(/\n/g, '\r\n') : restored;
+}
+
 function htmlWithoutFeedSearchLocaleDelta(text) {
   assert.equal(typeof text, 'string');
   assert(!text.startsWith('\ufeff') && !/\r(?!\n)/.test(text), 'No BOM or lone CR');
   assert(!(text.includes('\r\n') && /(?<!\r)\n/.test(text)), 'Uniform LF or CRLF only');
+  text = htmlWithoutFeedLightboxCacheDelta(text);
   admitted(text, pins.current);
   assert.equal(text.split(after).length - 1, 1, 'One approved current feed script tag');
   assert.equal(text.split(before).length - 1, 0, 'No old feed script tag');
@@ -46,4 +71,4 @@ function htmlWithoutFeedSearchLocaleDelta(text) {
   assert.equal(restored.includes('\r\n'), text.includes('\r\n'), 'Preserve the original uniform line-ending form');
   return restored;
 }
-module.exports = Object.freeze({ htmlWithoutFeedSearchLocaleDelta });
+module.exports = Object.freeze({ htmlWithoutFeedLightboxCacheDelta, htmlWithoutFeedSearchLocaleDelta });
