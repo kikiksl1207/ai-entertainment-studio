@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import test from 'node:test';
+import { restoreOwnedAuthEntryHardeningDelta } from './support/auth-login-failclosed-inverse-20261017.cjs';
 import vm from 'node:vm';
 import { htmlWithoutMypageTitlePageLifetimeDelta } from './support/mypage-title-page-lifetime-inverse-20261015.mjs';
 import { htmlWithoutActivationReadDelta } from './support/mypage-activation-read-inverse-20261009.mjs';
@@ -90,13 +91,15 @@ const i18nExportSource = fragment('window.luminaI18n = {', '\n  };');
 if (process.env.MYPAGE_FAN_BASELINE_APP) {
   assert.equal(sha(authSource), snapshots.appAuth, 'Historical auth CRLF->LF source pin');
 } else {
+  const pinnedApp = restoreOwnedAuthEntryHardeningDelta(app);
+  const pinnedAuthSource = pinnedApp.slice(pinnedApp.indexOf('const API_BASE ='), pinnedApp.indexOf('const I18N_LOCALES ='));
   const catalogDeadline = [
     '    // Keep the existing deadline through JSON for the credential-free public catalog.',
     '    if (!(path === "/api/v1/ott" && method === "GET" && auth === false &&',
     '      body === undefined && Object.keys(headers).length === 0)) clearTimeout(timer);',
   ].join('\n');
-  assert.equal(authSource.split(catalogDeadline).length, 2, 'Exact separate public catalog deadline delta');
-  const withoutCatalogDeadline = authSource.replace(catalogDeadline, '    clearTimeout(timer);');
+  assert.equal(pinnedAuthSource.split(catalogDeadline).length, 2, 'Exact separate public catalog deadline delta');
+  const withoutCatalogDeadline = pinnedAuthSource.replace(catalogDeadline, '    clearTimeout(timer);');
   assert.equal(sha(withoutCatalogDeadline), snapshots.appAuthBodyTimeout, 'Consumed auth with bounded response body');
   const previousAuth = withoutCatalogDeadline.replace('      if (session !== authRequestSession()) return null;',
     '      clearTimeout(timer);\n      if (session !== authRequestSession()) return null;');

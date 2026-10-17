@@ -3,16 +3,17 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 import test from 'node:test';
+import { restoreOwnedAuthEntryHardeningDelta } from './support/auth-login-failclosed-inverse-20261017.cjs';
 
 const app = readFileSync(new URL('../app.js', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 const options = { timeout: 2500 };
 const hash = text => createHash('sha256').update(text).digest('hex');
-function actualFunction(signature) {
+function actualFunction(signature, source = app) {
   const anchor = signature + ' {';
-  assert.equal(app.split(anchor).length, 2, 'Unique actual function anchor');
-  const start = app.indexOf(anchor), end = app.indexOf('\n}', start) + 2;
+  assert.equal(source.split(anchor).length, 2, 'Unique actual function anchor');
+  const start = source.indexOf(anchor), end = source.indexOf('\n}', start) + 2;
   assert(end > start, 'Actual top-level function boundary');
-  return app.slice(start, end);
+  return source.slice(start, end);
 }
 const helper = actualFunction('function awaitPaidLikeSettlement(request)');
 function deferred() {
@@ -73,7 +74,8 @@ test('paid body deadline retains generic API and wraps quota and POST with serve
   assert.match(quota, /const data = await awaitPaidLikeSettlement\(apiFetch\("\/api\/v1\/me\/paid-like-quota", \{ auth: true \}\)\)/);
   assert.match(modal, /const result = await awaitPaidLikeSettlement\(apiFetch\(`\/api\/v1\/boost-campaigns\/\$\{campaignId\}\/paid-like`, \{/);
   assert.match(modal, /quantity: attempt\.quantity,[\s\S]*idempotencyKey\s*\}\s*\}\)\);/);
-  const apiSource = actualFunction('async function apiFetch(path, options = {}, _retryDepth = 0)');
+  const apiSource = actualFunction('async function apiFetch(path, options = {}, _retryDepth = 0)',
+    restoreOwnedAuthEntryHardeningDelta(app));
   const catalogDeadline = [
     '    // Keep the existing deadline through JSON for the credential-free public catalog.',
     '    if (!(path === "/api/v1/ott" && method === "GET" && auth === false &&',
