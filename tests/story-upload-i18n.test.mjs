@@ -27,7 +27,7 @@ test('story-upload binds title and footer to locale updates', () => {
   assert.match(html, /<title data-i18n="story\.upload\.documentTitle">최종 원고 업로드 \| Lumina Stage<\/title>/);
   assert.match(html, /<p data-i18n="footer\.tagline">아티스트와 팬이 같은 무대에서 만나는 공간입니다\.<\/p>/);
   assert.match(app, /async function setLocale\(locale\)[\s\S]*?applyI18n\(\)/);
-  assert.match(app, /async function initI18n\(\)[\s\S]*?applyI18n\(\)/);
+  assert.match(app, /async function initI18n\(syncAuthenticatedSettings = true\)[\s\S]*?applyI18n\(\)/);
   assert.doesNotMatch(html, /Artists and fans meet on the same stage\./);
 });
 
