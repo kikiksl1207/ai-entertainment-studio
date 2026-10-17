@@ -2,6 +2,8 @@
 
 const { createHash } = require('node:crypto');
 
+const REGISTER_SHA256 = '7ee22fe15e52d715473fe8b0f26b344d3f66377a0827854bab2f80dd83463d36';
+const REGISTER_BLOB = '4cf6cb0e00ef0ceb4c7276e56e5d8e4bbda24195';
 const CURRENT_SHA256 = '298e13c1933080e9e31b7ceee67589f6d3cf35a564c5e5b16133537745b8f997';
 const CURRENT_BLOB = '548c1db86d704dc1e505ead64b8670cece27e00e';
 const AFTER_SHA256 = '6f005936bf0fb0ab4950ab5ed219ceb31c7aa8ae01f5ed24b6a035e0976c50da';
@@ -11,6 +13,9 @@ const BEFORE_BLOB = '7c3a65b55c3e2f12623d3f782663c2e2233243a5';
 const LOGIN_START = 'async function authLogin(email, password) {';
 const NEXT_FUNCTION = '\nasync function authRegister(';
 const CURRENT_CAPTURE = '  const session = authRequestSession();\n';
+const REGISTER_START = 'async function authRegister(email, password, displayName, referralCode) {';
+const REGISTER_NEXT_FUNCTION = '\nasync function authLogout(';
+const REGISTER_GUARD = '  if (!authRequestSessionCurrent(session)) return data;\n';
 const CURRENT_GUARD = [
   '  if (!authRequestSessionCurrent(session)) {',
   '    throw new Error("Login response no longer matches the current session");',
@@ -41,6 +46,30 @@ function restoreOwnedLoginDelta(source) {
   if (Buffer.from(lf, 'utf8').toString('utf8') !== lf) return source;
 
   let after = identity(lf);
+  if (after.sha256 === REGISTER_SHA256 || after.blob === REGISTER_BLOB) {
+    if (after.sha256 !== REGISTER_SHA256 || after.blob !== REGISTER_BLOB) {
+      throw new Error('AUTH_LOGIN_INVERSE_REGISTER_IDENTITY_MISMATCH');
+    }
+    // Only the registered 96-byte authRegister delta may precede the login chain.
+    const start = lf.indexOf(REGISTER_START);
+    const end = lf.indexOf(REGISTER_NEXT_FUNCTION, start);
+    const captureAt = start + REGISTER_START.length + 1;
+    const gateAt = lf.indexOf(REGISTER_GUARD);
+    const owned = lf.slice(start, end);
+    if (start < 0 || lf.indexOf(REGISTER_START, start + 1) !== -1 || end <= start ||
+        !owned.startsWith(REGISTER_START + '\n' + CURRENT_CAPTURE) ||
+        owned.split(CURRENT_CAPTURE).length !== 2 || owned.split(REGISTER_GUARD).length !== 2 ||
+        gateAt < captureAt + CURRENT_CAPTURE.length || gateAt + REGISTER_GUARD.length >= end ||
+        lf.indexOf(REGISTER_GUARD, gateAt + 1) !== -1 || lf[gateAt - 1] !== '\n') {
+      throw new Error('AUTH_LOGIN_INVERSE_REGISTER_BLOCK_MISMATCH');
+    }
+    lf = lf.slice(0, gateAt) + lf.slice(gateAt + REGISTER_GUARD.length);
+    lf = lf.slice(0, captureAt) + lf.slice(captureAt + CURRENT_CAPTURE.length);
+    after = identity(lf);
+    if (after.sha256 !== CURRENT_SHA256 || after.blob !== CURRENT_BLOB) {
+      throw new Error('AUTH_LOGIN_INVERSE_REGISTER_RESTORED_IDENTITY_MISMATCH');
+    }
+  }
   if (after.sha256 === CURRENT_SHA256 || after.blob === CURRENT_BLOB) {
     if (after.sha256 !== CURRENT_SHA256 || after.blob !== CURRENT_BLOB) {
       throw new Error('AUTH_LOGIN_INVERSE_CURRENT_IDENTITY_MISMATCH');

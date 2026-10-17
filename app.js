@@ -2671,6 +2671,7 @@ async function authLogin(email, password) {
   return data;
 }
 async function authRegister(email, password, displayName, referralCode) {
+  const session = authRequestSession();
   const body = { email, password, displayName };
   if (referralCode) body.referralCode = referralCode;
   console.info("[Lumina] register 시도", {
@@ -2684,6 +2685,7 @@ async function authRegister(email, password, displayName, referralCode) {
     body,
     throwOnError: true
   });
+  if (!authRequestSessionCurrent(session)) return data;
   // 응답 구조: { user, tokens } 또는 호환 별칭
   const token = data?.accessToken || data?.tokens?.accessToken || data?.access_token;
   const refresh = data?.refreshToken || data?.tokens?.refreshToken;

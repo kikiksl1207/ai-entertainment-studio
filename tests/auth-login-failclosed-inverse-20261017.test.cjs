@@ -7,6 +7,10 @@ const path = require('node:path');
 const { before, test } = require('node:test');
 const { restoreOwnedLoginDelta } = require('./support/auth-login-failclosed-inverse-20261017.cjs');
 
+const REGISTER = {
+  sha256: '7ee22fe15e52d715473fe8b0f26b344d3f66377a0827854bab2f80dd83463d36',
+  blob: '4cf6cb0e00ef0ceb4c7276e56e5d8e4bbda24195',
+};
 const CURRENT = {
   sha256: '298e13c1933080e9e31b7ceee67589f6d3cf35a564c5e5b16133537745b8f997',
   blob: '548c1db86d704dc1e505ead64b8670cece27e00e',
@@ -19,6 +23,9 @@ const BEFORE = {
   sha256: '1eb15f95ab8a43168b6cc7d8ffbe615c3ef827f7e6fd677da08d245fc769ae87',
   blob: '7c3a65b55c3e2f12623d3f782663c2e2233243a5',
 };
+const REGISTER_START = 'async function authRegister(email, password, displayName, referralCode) {';
+const REGISTER_WITH_CAPTURE = REGISTER_START + '\n  const session = authRequestSession();';
+const REGISTER_GUARD = '  if (!authRequestSessionCurrent(session)) return data;\n';
 const CURRENT_LOGIN_START = 'async function authLogin(email, password) {\n  const session = authRequestSession();';
 const CURRENT_GUARD = [
   '  if (!authRequestSessionCurrent(session)) {',
@@ -42,6 +49,7 @@ function identity(source) {
   };
 }
 
+let registerLF;
 let currentLF;
 let afterLF;
 let beforeLF;
@@ -53,13 +61,19 @@ before(() => {
   const lf = source.replace(/\r\n/g, '\n');
   assert.equal(lf.includes('\r'), false);
   assert.equal(source === lf || source === lf.replace(/\n/g, '\r\n'), true);
-  assert.deepEqual(identity(lf), CURRENT, 'Actual app must be the frozen owned current source');
-  assert.equal(Buffer.byteLength(lf), 430066);
-  assert.equal(lf.split(CURRENT_LOGIN_START).length, 2);
-  assert.equal(lf.split(CURRENT_GUARD).length, 2);
-  currentLF = lf;
+  assert.deepEqual(identity(lf), REGISTER, 'Actual app must be the frozen owned registration source');
+  assert.equal(Buffer.byteLength(lf), 430162);
+  assert.equal(lf.split(REGISTER_WITH_CAPTURE).length, 2);
+  assert.equal(lf.split(REGISTER_GUARD).length, 2);
+  registerLF = lf;
+  // This independent 96-byte inverse must first recover the exact prior current source.
+  currentLF = lf.replace(REGISTER_WITH_CAPTURE, REGISTER_START).replace(REGISTER_GUARD, '');
+  assert.deepEqual(identity(currentLF), CURRENT, 'Derived current oracle must match both frozen 298E hashes');
+  assert.equal(Buffer.byteLength(currentLF), 430066);
+  assert.equal(currentLF.split(CURRENT_LOGIN_START).length, 2);
+  assert.equal(currentLF.split(CURRENT_GUARD).length, 2);
   // Independent tiny inverses bind both intermediate and original whole-file identities.
-  afterLF = lf.replace(CURRENT_LOGIN_START, 'async function authLogin(email, password) {').replace(CURRENT_GUARD, '');
+  afterLF = currentLF.replace(CURRENT_LOGIN_START, 'async function authLogin(email, password) {').replace(CURRENT_GUARD, '');
   assert.equal(Buffer.byteLength(afterLF), 429900);
   assert.deepEqual(identity(afterLF), AFTER, 'Derived intermediate oracle must match both frozen 6F hashes');
   assert.equal(afterLF.split(AFTER_BLOCK).length, 2);
@@ -161,5 +175,41 @@ test('owned login inverse: tampered or nonuniform current source remains unregis
     assert.notEqual(identity(source).sha256, CURRENT.sha256);
     assert.notEqual(identity(source).sha256, AFTER.sha256);
     assert.notEqual(identity(source).sha256, BEFORE.sha256);
+  }
+});
+
+test('owned login inverse: known LF registration restores through exact 298E and 6F to the whole-file before', () => {
+  const restored = restoreOwnedLoginDelta(registerLF);
+  assert.equal(restored, beforeLF);
+  assert.equal(Buffer.byteLength(restored), 429783);
+  assert.deepEqual(identity(restored), BEFORE);
+});
+
+test('owned login inverse: known CRLF registration preserves uniform CRLF through all three inverses', () => {
+  const restored = restoreOwnedLoginDelta(registerLF.replace(/\n/g, '\r\n'));
+  assert.equal(restored, beforeLF.replace(/\n/g, '\r\n'));
+  assert.equal(restored.replace(/\r\n/g, '').includes('\n'), false);
+  assert.equal(restored.replace(/\r\n/g, '').includes('\r'), false);
+  assert.deepEqual(identity(restored.replace(/\r\n/g, '\n')), BEFORE);
+});
+
+test('owned login inverse: tampered or nonuniform registration source remains unregistered and unchanged', () => {
+  for (const source of [
+    registerLF + '// unregistered registration trailing change\n',
+    registerLF.replace(REGISTER_WITH_CAPTURE, REGISTER_START),
+    registerLF.replace(REGISTER_GUARD, ''),
+    registerLF.replace(REGISTER_GUARD, REGISTER_GUARD + REGISTER_GUARD),
+    registerLF.replace(REGISTER_GUARD, '  if (!authRequestSessionCurrent(session)) return null;\n'),
+    registerLF.replace(REGISTER_GUARD, '') + REGISTER_GUARD,
+    '\uFEFF' + registerLF,
+    registerLF.replace('\n', '\r\n'),
+    registerLF.replace('\n', '\r'),
+  ]) {
+    assert.equal(restoreOwnedLoginDelta(source), source);
+    for (const known of [REGISTER, CURRENT, AFTER, BEFORE]) {
+      const actual = identity(source);
+      assert.notEqual(actual.sha256, known.sha256);
+      assert.notEqual(actual.blob, known.blob);
+    }
   }
 });
