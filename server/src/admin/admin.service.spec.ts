@@ -696,12 +696,40 @@ describe('AdminService community feed cleanup audit guard', () => {
         create: jest.fn().mockResolvedValue({ id: 'audit-609' }),
       },
     };
+    const tx = {
+      $queryRaw: jest.fn(async (strings: TemplateStringsArray, ...values: unknown[]) => {
+        expect(Object.isFrozen(strings)).toBe(true);
+        expect(Object.isFrozen(strings.raw)).toBe(true);
+        expect(strings.length).toBe(2);
+        expect([...strings.raw]).toEqual([...strings]);
+        expect(values).toEqual([postId]);
+        expect((strings[0] + '$1' + strings[1]).replace(/\s+/g, ' ').trim()).toBe(
+          'SELECT id FROM community_posts WHERE id = $1::uuid FOR UPDATE',
+        );
+        return [{ id: postId }];
+      }),
+      communityPost: {
+        ...prisma.communityPost,
+        findUnique: jest.fn().mockResolvedValue(basePost),
+      },
+      auditEvent: prisma.auditEvent,
+    };
     Object.assign(prisma, {
       $transaction: jest.fn().mockImplementation(
-        async (callback: (tx: typeof prisma) => Promise<unknown>, options: unknown, ...extra: unknown[]) => {
+        async (callback: (client: typeof tx) => Promise<unknown>, options: unknown, ...extra: unknown[]) => {
           expect(extra).toEqual([]);
           expect(options).toEqual({ isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted });
-          return callback(prisma);
+          const result = await callback(tx);
+          expect(prisma.communityPost.findUnique).toHaveBeenCalledTimes(1);
+          expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
+          expect(tx.communityPost.findUnique).toHaveBeenCalledTimes(1);
+          expect(tx.communityPost.findUnique).toHaveBeenCalledWith(prisma.communityPost.findUnique.mock.calls[0][0]);
+          expect(tx.communityPost.update).toHaveBeenCalledTimes(1);
+          expect(tx.auditEvent.create).toHaveBeenCalledTimes(1);
+          const order = [prisma.communityPost.findUnique, tx.$queryRaw, tx.communityPost.findUnique,
+            tx.communityPost.update, tx.auditEvent.create].map(call => call.mock.invocationCallOrder[0]);
+          for (let index = 1; index < order.length; index++) expect(order[index]).toBeGreaterThan(order[index - 1]);
+          return result;
         },
       ),
     });

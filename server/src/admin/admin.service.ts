@@ -5791,11 +5791,17 @@ export class AdminService {
   }
 
   async hideCommunityPost(user: AuthUser, postId: string, input: AdminPayload) {
-    const before = await this.findCommunityPostForAdmin(postId);
-    const metadata = this.metadataObject(before.metadata);
-    const moderation = this.metadataObject(metadata.moderation);
-    const hiddenAt = new Date().toISOString();
+    await this.findCommunityPostForAdmin(postId);
     return this.prisma.$transaction(async (tx) => {
+      const lockedRows = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT id FROM community_posts WHERE id = ${postId}::uuid FOR UPDATE`;
+      if (lockedRows.length !== 1) {
+        throw new NotFoundException('Community post not found');
+      }
+      const before = await this.findCommunityPostForAdmin(postId, tx);
+      const metadata = this.metadataObject(before.metadata);
+      const moderation = this.metadataObject(metadata.moderation);
+      const hiddenAt = new Date().toISOString();
       const post = await tx.communityPost.update({
         where: { id: postId },
         data: {
@@ -5832,11 +5838,17 @@ export class AdminService {
   }
 
   async restoreCommunityPost(user: AuthUser, postId: string, input: AdminPayload) {
-    const before = await this.findCommunityPostForAdmin(postId);
-    const metadata = this.metadataObject(before.metadata);
-    const moderation = this.metadataObject(metadata.moderation);
-    const restoredAt = new Date().toISOString();
+    await this.findCommunityPostForAdmin(postId);
     return this.prisma.$transaction(async (tx) => {
+      const lockedRows = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT id FROM community_posts WHERE id = ${postId}::uuid FOR UPDATE`;
+      if (lockedRows.length !== 1) {
+        throw new NotFoundException('Community post not found');
+      }
+      const before = await this.findCommunityPostForAdmin(postId, tx);
+      const metadata = this.metadataObject(before.metadata);
+      const moderation = this.metadataObject(metadata.moderation);
+      const restoredAt = new Date().toISOString();
       const post = await tx.communityPost.update({
         where: { id: postId },
         data: {
@@ -8752,12 +8764,15 @@ export class AdminService {
     };
   }
 
-  private async findCommunityPostForAdmin(postId: string) {
+  private async findCommunityPostForAdmin(
+    postId: string,
+    client: Pick<Prisma.TransactionClient, 'communityPost'> = this.prisma,
+  ) {
     if (!this.isUuid(postId)) {
       throw new BadRequestException('postId must be a UUID');
     }
 
-    const post = await this.prisma.communityPost.findUnique({
+    const post = await client.communityPost.findUnique({
       where: { id: postId },
       include: this.communityPostInclude(),
     });

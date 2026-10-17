@@ -100,7 +100,7 @@ function fixture(action: Action, payload: Record<string, unknown> = input()) {
   const context = new AsyncLocalStorage<Tx>();
   let failure: { stage: Failure; error: unknown } | null = null;
   const error = new Error('SYNTHETIC_COMMUNITY_AUDIT_OR_DB_FAILURE');
-  const stats = { attempts: 0, unexpected: 0, finds: 0, rootUpdates: 0, txUpdates: 0,
+  const stats = { attempts: 0, unexpected: 0, finds: 0, txLocks: 0, txFinds: 0, rootUpdates: 0, txUpdates: 0,
     rootAudits: 0, txAudits: 0, transactions: 0, active: 0, commits: 0, rollbacks: 0 };
   function admit<T>(tx: Tx | null, label: string, extra: unknown[], check: () => T): T {
     stats.attempts++; events.push((tx ? 'tx:' : 'root:') + label);
@@ -128,6 +128,7 @@ function fixture(action: Action, payload: Record<string, unknown> = input()) {
       const row = admit(tx, 'update', extra, () => {
         assert.equal(stats.rootUpdates + stats.txUpdates, 1);
         assert.equal(stats.finds, 1);
+        assert.equal(stats.txLocks, 1); assert.equal(stats.txFinds, 1);
         const value = args as { data: { updatedAt: Date; metadata: Record<string, unknown> } };
         assert(value.data.updatedAt instanceof Date); assert(Number.isFinite(value.data.updatedAt.getTime()));
         const metadata = value.data.metadata;
@@ -157,7 +158,15 @@ function fixture(action: Action, payload: Record<string, unknown> = input()) {
       if (tx) tx.row = row; else committed = row;
       return clone(row);
     };
-    if (tx) return closed({ update }, 'tx.communityPost');
+    if (tx) return closed({ update, findUnique: async (args: unknown, ...extra: unknown[]) => {
+      stats.txFinds++;
+      return admit(tx, 'find', extra, () => {
+        assert.equal(stats.txFinds, 1); assert.equal(stats.txLocks, 1);
+        assert.equal(stats.finds, 1); assert.equal(stats.txUpdates, 0);
+        assert.deepEqual(args, { where: { id: ID }, include: INCLUDE });
+        return clone(tx.row);
+      });
+    } }, 'tx.communityPost');
     return closed({ update, findUnique: async (args: unknown, ...extra: unknown[]) => {
       stats.finds++;
       admit(null, 'find', extra, () => {
@@ -195,7 +204,22 @@ function fixture(action: Action, payload: Record<string, unknown> = input()) {
       });
       failAt('transaction');
       const tx: Tx = { active: true, row: clone(committed), audits: [] }; stats.active++;
-      const client = closed({ communityPost: posts(tx), auditEvent: auditDelegate(tx) }, 'tx');
+      const client = closed({
+        $queryRaw: async (strings: TemplateStringsArray, ...values: unknown[]) => {
+          stats.txLocks++;
+          return admit(tx, 'lock', [], () => {
+            assert.equal(stats.txLocks, 1); assert.equal(stats.txFinds, 0);
+            assert.equal(stats.finds, 1); assert.equal(stats.txUpdates, 0); assert.equal(stats.txAudits, 0);
+            assert(Object.isFrozen(strings) && Object.isFrozen(strings.raw));
+            assert.equal(strings.length, 2); assert.deepEqual([...strings.raw], [...strings]);
+            assert.deepEqual(values, [ID]);
+            assert.equal((strings[0] + '$1' + strings[1]).replace(/\s+/g, ' ').trim(),
+              'SELECT id FROM community_posts WHERE id = $1::uuid FOR UPDATE');
+            return [{ id: ID }];
+          });
+        },
+        communityPost: posts(tx), auditEvent: auditDelegate(tx),
+      }, 'tx');
       try {
         return await context.run(tx, async () => {
           const value = await work(client); failAt('commit');
@@ -211,6 +235,8 @@ function fixture(action: Action, payload: Record<string, unknown> = input()) {
   function check() {
     assert.deepEqual(faults, [], 'Fixture admission faults cannot be swallowed by product catches');
     assert.equal(stats.unexpected, 0); assert.deepEqual(unrelated, beforeOther);
+    const currentReads = stats.transactions === 1 && failure?.stage !== 'transaction' ? 1 : 0;
+    assert.equal(stats.txLocks, currentReads); assert.equal(stats.txFinds, currentReads);
   }
   return { service, initial, stats, audits, events, error, check,
     call: (postId = ID) => action === 'hide'
@@ -242,7 +268,7 @@ describe('AdminService community moderation audit focused', () => {
         f.check();
         assert.deepEqual(f.snapshot(), before, 'COMMUNITY_MODERATION_AUDIT_PARTIAL_COMMIT');
         rolledBack(f, 1, 1);
-        assert.deepEqual(f.events, ['root:find', 'root:transaction', 'tx:update', 'tx:audit', 'tx:rollback']);
+        assert.deepEqual(f.events, ['root:find', 'root:transaction', 'tx:lock', 'tx:find', 'tx:update', 'tx:audit', 'tx:rollback']);
       } finally { f.finish(); }
     }
   });
@@ -264,7 +290,7 @@ describe('AdminService community moderation audit focused', () => {
           assert.equal(f.stats.txUpdates, 1); assert.equal(f.stats.txAudits, 1);
           assert.equal(f.stats.rootUpdates, 0); assert.equal(f.stats.rootAudits, 0);
           assert.equal(f.stats.commits, 1); assert.equal(f.stats.rollbacks, 0);
-          assert.deepEqual(f.events, ['root:find', 'root:transaction', 'tx:update', 'tx:audit', 'tx:commit']);
+          assert.deepEqual(f.events, ['root:find', 'root:transaction', 'tx:lock', 'tx:find', 'tx:update', 'tx:audit', 'tx:commit']);
         } finally { f.finish(); }
       }
     }
