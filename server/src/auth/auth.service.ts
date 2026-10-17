@@ -507,13 +507,23 @@ export class AuthService {
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
 
-    await this.prisma.userRefreshToken.update({
-      where: { id: storedToken.id },
+    const consumedAt = new Date();
+    const consumed = await this.prisma.userRefreshToken.updateMany({
+      where: {
+        id: storedToken.id,
+        userId: user.id,
+        tokenHash: this.hashToken(refreshToken),
+        revokedAt: null,
+        expiresAt: { gt: consumedAt },
+      },
       data: {
-        revokedAt: new Date(),
-        lastUsedAt: new Date(),
+        revokedAt: consumedAt,
+        lastUsedAt: consumedAt,
       },
     });
+    if (consumed.count !== 1) {
+      throw new UnauthorizedException('Invalid or expired refresh token');
+    }
 
     return this.authResponse(
       await this.getMe(user.id),
