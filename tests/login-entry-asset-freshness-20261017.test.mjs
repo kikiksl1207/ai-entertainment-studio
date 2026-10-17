@@ -9,7 +9,14 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 const host = 'https://www.lumina-stage.com';
 const legacy = new URL('/app.js?v=wallet-session-20261011', host);
 const paths = ['index.html', 'creator-studio/index.html'];
-const currentHash = createHash('sha256').update(readFileSync(path.join(root, 'app.js'))).digest('hex');
+const appBytes = readFileSync(path.join(root, 'app.js'));
+const appText = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(appBytes);
+assert(!appText.startsWith('\uFEFF') && Buffer.from(appText).equals(appBytes), 'EXACT_UTF8_APP_SOURCE');
+const appLf = appText.replace(/\r\n/g, '\n');
+assert(!appLf.includes('\r'), 'NO_BARE_CR_APP_SOURCE');
+assert(appText === appLf || appText === appLf.replace(/\n/g, '\r\n'), 'UNIFORM_APP_CHECKOUT_EOL');
+// The publishing checkout uses the canonical LF Git source, unlike Windows QA.
+const currentHash = createHash('sha256').update(appLf).digest('hex');
 
 // Exact source-tag contract only, not a general HTML parser or browser cache probe.
 function entry(file) {

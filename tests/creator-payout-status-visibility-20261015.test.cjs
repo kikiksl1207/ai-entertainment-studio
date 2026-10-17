@@ -12,7 +12,7 @@ const hash = value => crypto.createHash('sha256').update(value).digest('hex');
 const OLD_CSS = 'f045903a3d4eacdf211b99ff64407b41a1bbd5d835e703584eb822461be7a1dc';
 const OLD_HTML = '437da1c731b3387da0965f5d32a183644c6c31a7b9ef37ca3661ef05928b6649';
 const NEW_CSS = 'ef37609791ed0594f94e061613f9007c9d9740e7ebc9a2fda9a749bc1af356df';
-const NEW_HTML = '8c72858fb4de25647f3dd53502c35ef763997c833f55b8e08c08c5ef0267e9af';
+const NEW_HTML = '875c7c06ec476c8e86964fed38cb5d62ec31c3d0101f93192fafe86a10d0d62b';
 function source(file, expected) {
   const bytes = readFileSync(path.join(root, file));
   assert(bytes.length > 0 && bytes.length <= 1024 * 1024);
@@ -42,7 +42,14 @@ test('CREATOR.PAYOUT.STATUS.01 explicit status-only CSS delta preserves complete
   const submitEntry = '/pages/creator-studio.js?v=settlement-submit-outcome-20261016-v1';
   const previousEntry = '/pages/creator-studio.js?v=creator-payout-current-20261015';
   assert.equal(html.split(submitEntry).length, 2);
-  assert.equal(hash(html.replace(submitEntry, previousEntry).replace(current, before)), OLD_HTML,
+  const appSource = '/app.js?v=wallet-session-20261011';
+  const appQuery = '&amp;content=7ee22fe15e52d715473fe8b0f26b344d3f66377a0827854bab2f80dd83463d36';
+  assert.equal(html.split(appSource + appQuery).length, 2, 'Unique declared app source');
+  assert.equal(html.split(appQuery).length, 2, 'Only one declared app hash query');
+  const deliveryInverse = html.replace(appSource + appQuery, appSource);
+  assert.equal(hash(deliveryInverse), '8c72858fb4de25647f3dd53502c35ef763997c833f55b8e08c08c5ef0267e9af',
+    'Removing only the declared app hash query restores the complete prior HTML');
+  assert.equal(hash(deliveryInverse.replace(submitEntry, previousEntry).replace(current, before)), OLD_HTML,
     'Only the declared submit entry and original stylesheet cache deltas are present');
   for (const id of ['studioPayoutBreakdown', 'studioPayoutSampleBadge', 'studioPayoutSampleNote',
     'studioPayoutGrossLumina', 'studioPayoutEligibleLumina', 'studioPayoutGrossKrw', 'studioPayoutTaxKrw', 'studioPayoutNetKrw']) {
