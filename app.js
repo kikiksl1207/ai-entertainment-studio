@@ -2576,10 +2576,10 @@ async function setLocale(locale) {
 }
 
 /** init — 페이지 로드 시 호출. 서버 settings 우선, 그다음 detectLocale. */
-async function initI18n() {
+async function initI18n(syncAuthenticatedSettings = true) {
   let resolved = detectLocale();
   // 로그인 사용자: 서버 settings.locale을 최우선으로 사용
-  if (isLoggedIn()) {
+  if (syncAuthenticatedSettings && isLoggedIn()) {
     try {
       const res = await apiFetch("/api/v1/me/settings", { auth: true });
       const serverLocale = normalizeLocale(res?.settings?.locale || res?.locale);
@@ -6770,8 +6770,10 @@ function markAppReady() {
 }
 
 async function init() {
+  const explicitLoginEntry = typeof window !== "undefined" &&
+    window.location?.pathname === "/" && window.location?.hash === "#login";
   // #064 i18n — UI 깜빡임 최소화 위해 가장 먼저 실행 (비로그인 시 즉시, 로그인 시 서버 동기화 포함)
-  await initI18n();
+  await initI18n(!explicitLoginEntry);
   normalizePublicDiscoveryNavigation();
 
   // 🔥 인증 UI는 API 호출 전에 먼저 초기화 (await에 막히지 않게)
@@ -6785,7 +6787,7 @@ async function init() {
   bindShareButtons();
 
   // 이미 로그인 상태이면 잔액 미리 로드 (await 안 함 — 백그라운드)
-  if (isLoggedIn()) loadWallet();
+  if (!explicitLoginEntry && isLoggedIn()) loadWallet();
   if (typeof initMypagePage === "function") initMypagePage();
 
   if (document.body.classList.contains("page-creator-studio")) {

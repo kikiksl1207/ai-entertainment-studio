@@ -6,6 +6,7 @@ import { createRequire } from 'node:module';
 import { before, test } from 'node:test';
 import { isDeepStrictEqual } from 'node:util';
 import { createContext, runInContext } from 'node:vm';
+import { restoreOwnedBootstrapDelta } from './support/auth-login-failclosed-inverse-20261017.cjs';
 
 const require = createRequire(new URL('../server/package.json', import.meta.url));
 const ts = require('typescript');
@@ -65,7 +66,9 @@ before(() => {
   assert.equal(Buffer.from(text).equals(bytes), true, 'SOURCE_UTF8_ROUNDTRIP');
   const source = text.replace(/\r\n/g, '\n');
   assert.equal(!source.includes('\r') && (text === source || text === source.replace(/\n/g, '\r\n')), true, 'SOURCE_UNIFORM_LINE_ENDINGS');
-  const currentBytes = Buffer.from(source);
+  // Only whole-file pin/oracle admission uses the bootstrap inverse; extract actual current functions below.
+  const registerSource = restoreOwnedBootstrapDelta(source);
+  const currentBytes = Buffer.from(registerSource);
   assert.equal(currentBytes.length, 430162, 'CURRENT_APP_EXACT_LF_BYTES');
   assert.equal(sha256(currentBytes), CURRENT_APP_SHA256, 'CURRENT_APP_EXACT_LF_IDENTITY');
   assert.equal(blobSha1(currentBytes), CURRENT_APP_BLOB, 'CURRENT_APP_EXACT_LF_BLOB');
@@ -87,9 +90,9 @@ before(() => {
   assert.equal(sha256(originalRegister), ORIGINAL_REGISTER_SHA256, 'ORIGINAL_REGISTER_INDEPENDENT_IDENTITY');
   assert.equal(extractDeclarations(originalRegister, ['authRegister']).get('authRegister'), originalRegister, 'ORIGINAL_REGISTER_EXACT_AST_FUNCTION');
 
-  const at = source.indexOf(currentRegister);
-  assert.equal(at >= 0 && source.indexOf(currentRegister, at + currentRegister.length) === -1, true, 'SOURCE_REGISTER_SPAN_UNIQUE');
-  const originalSource = source.slice(0, at) + originalRegister + source.slice(at + currentRegister.length);
+  const at = registerSource.indexOf(currentRegister);
+  assert.equal(at >= 0 && registerSource.indexOf(currentRegister, at + currentRegister.length) === -1, true, 'SOURCE_REGISTER_SPAN_UNIQUE');
+  const originalSource = registerSource.slice(0, at) + originalRegister + registerSource.slice(at + currentRegister.length);
   const originalBytes = Buffer.from(originalSource);
   assert.equal(originalBytes.length, 430066, 'ORIGINAL_APP_EXACT_LF_BYTES');
   assert.equal(sha256(originalBytes), ORIGINAL_APP_SHA256, 'ORIGINAL_APP_EXACT_OWNED_INVERSE');

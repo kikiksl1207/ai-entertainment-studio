@@ -5,8 +5,12 @@ const { createHash } = require('node:crypto');
 const { readFileSync } = require('node:fs');
 const path = require('node:path');
 const { before, test } = require('node:test');
-const { restoreOwnedLoginDelta } = require('./support/auth-login-failclosed-inverse-20261017.cjs');
+const { restoreOwnedBootstrapDelta, restoreOwnedLoginDelta } = require('./support/auth-login-failclosed-inverse-20261017.cjs');
 
+const BOOTSTRAP = {
+  sha256: '5f5b2bd6e568a80d14bbf7c522a0b7e038dc3d116471bfc2bed92cb2c8ad8028',
+  blob: '4e9e2f1861574d25bf6b7bfd9d61a1bd9966adb3',
+};
 const REGISTER = {
   sha256: '7ee22fe15e52d715473fe8b0f26b344d3f66377a0827854bab2f80dd83463d36',
   blob: '4cf6cb0e00ef0ceb4c7276e56e5d8e4bbda24195',
@@ -49,6 +53,7 @@ function identity(source) {
   };
 }
 
+let bootstrapLF;
 let registerLF;
 let currentLF;
 let afterLF;
@@ -58,9 +63,13 @@ before(() => {
   const source = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
   assert.equal(source.startsWith('\uFEFF'), false);
   assert.equal(Buffer.from(source, 'utf8').equals(bytes), true);
-  const lf = source.replace(/\r\n/g, '\n');
-  assert.equal(lf.includes('\r'), false);
-  assert.equal(source === lf || source === lf.replace(/\n/g, '\r\n'), true);
+  const actualLF = source.replace(/\r\n/g, '\n');
+  assert.equal(actualLF.includes('\r'), false);
+  assert.equal(source === actualLF || source === actualLF.replace(/\n/g, '\r\n'), true);
+  assert.deepEqual(identity(actualLF), BOOTSTRAP, 'Actual app must be the frozen owned bootstrap source');
+  assert.equal(Buffer.byteLength(actualLF), 430404);
+  bootstrapLF = actualLF;
+  const lf = restoreOwnedBootstrapDelta(actualLF);
   assert.deepEqual(identity(lf), REGISTER, 'Actual app must be the frozen owned registration source');
   assert.equal(Buffer.byteLength(lf), 430162);
   assert.equal(lf.split(REGISTER_WITH_CAPTURE).length, 2);
@@ -211,5 +220,57 @@ test('owned login inverse: tampered or nonuniform registration source remains un
       assert.notEqual(actual.sha256, known.sha256);
       assert.notEqual(actual.blob, known.blob);
     }
+  }
+});
+
+test('owned bootstrap inverse: exact LF bootstrap restores registration before the historical login chain', () => {
+  const restored = restoreOwnedBootstrapDelta(bootstrapLF);
+  assert.equal(restored, registerLF);
+  assert.equal(Buffer.byteLength(bootstrapLF) - Buffer.byteLength(restored), 242);
+  assert.deepEqual(identity(restored), REGISTER);
+  assert.equal(restoreOwnedLoginDelta(bootstrapLF), beforeLF);
+  assert.deepEqual(identity(restoreOwnedLoginDelta(bootstrapLF)), BEFORE);
+  for (const historical of [registerLF, currentLF, afterLF, beforeLF]) {
+    assert.equal(restoreOwnedBootstrapDelta(historical), historical);
+  }
+});
+
+test('owned bootstrap inverse: exact CRLF bootstrap preserves its format through every inverse', () => {
+  const source = bootstrapLF.replace(/\n/g, '\r\n');
+  const restored = restoreOwnedBootstrapDelta(source);
+  assert.equal(restored, registerLF.replace(/\n/g, '\r\n'));
+  assert.deepEqual(identity(restored.replace(/\r\n/g, '\n')), REGISTER);
+  assert.equal(restored.replace(/\r\n/g, '').includes('\n'), false);
+  assert.equal(restored.replace(/\r\n/g, '').includes('\r'), false);
+  assert.equal(restoreOwnedLoginDelta(source), beforeLF.replace(/\n/g, '\r\n'));
+});
+
+test('owned bootstrap inverse: unknown, tampered, duplicated and malformed inputs never gain admission', () => {
+  const owned = [
+    'async function initI18n(syncAuthenticatedSettings = true) {',
+    '  if (syncAuthenticatedSettings && isLoggedIn()) {',
+    '  const explicitLoginEntry = typeof window !== "undefined" &&\n' +
+      '    window.location?.pathname === "/" && window.location?.hash === "#login";\n',
+    '  await initI18n(!explicitLoginEntry);',
+    '  if (!explicitLoginEntry && isLoggedIn()) loadWallet();',
+  ];
+  const inputs = ['', 'unregistered bootstrap source\n', 'unpaired-surrogate:\uD800\n',
+    bootstrapLF + '// unregistered bootstrap trailing change\n', '\uFEFF' + bootstrapLF,
+    bootstrapLF.replace('\n', '\r\n'), bootstrapLF.replace('\n', '\r')];
+  for (const span of owned) {
+    assert.equal(bootstrapLF.split(span).length, 2, 'EXACT_BOOTSTRAP_OWNED_SPAN');
+    inputs.push(bootstrapLF.replace(span, ''), bootstrapLF.replace(span, span + span));
+  }
+  for (const source of inputs) {
+    assert.equal(restoreOwnedBootstrapDelta(source), source);
+    assert.equal(restoreOwnedLoginDelta(source), source);
+    for (const known of [BOOTSTRAP, REGISTER, CURRENT, AFTER, BEFORE]) {
+      const actual = identity(source);
+      assert.notEqual(actual.sha256, known.sha256);
+      assert.notEqual(actual.blob, known.blob);
+    }
+  }
+  for (const source of [undefined, null, 0, {}, Buffer.from('source')]) {
+    assert.throws(() => restoreOwnedBootstrapDelta(source), { name: 'TypeError' });
   }
 });

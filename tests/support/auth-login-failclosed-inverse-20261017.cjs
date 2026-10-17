@@ -2,6 +2,8 @@
 
 const { createHash } = require('node:crypto');
 
+const BOOTSTRAP_SHA256 = '5f5b2bd6e568a80d14bbf7c522a0b7e038dc3d116471bfc2bed92cb2c8ad8028';
+const BOOTSTRAP_BLOB = '4e9e2f1861574d25bf6b7bfd9d61a1bd9966adb3';
 const REGISTER_SHA256 = '7ee22fe15e52d715473fe8b0f26b344d3f66377a0827854bab2f80dd83463d36';
 const REGISTER_BLOB = '4cf6cb0e00ef0ceb4c7276e56e5d8e4bbda24195';
 const CURRENT_SHA256 = '298e13c1933080e9e31b7ceee67589f6d3cf35a564c5e5b16133537745b8f997';
@@ -38,8 +40,46 @@ function identity(source) {
   };
 }
 
+function restoreOwnedBootstrapDelta(source) {
+  if (typeof source !== 'string') throw new TypeError('AUTH_BOOTSTRAP_INVERSE_STRING_REQUIRED');
+  let lf = source.replace(/\r\n/g, '\n');
+  const crlf = source.includes('\r\n');
+  if (lf.includes('\r') || (crlf && source !== lf.replace(/\n/g, '\r\n'))) return source;
+  if (Buffer.from(lf, 'utf8').toString('utf8') !== lf) return source;
+  const after = identity(lf);
+  if (after.sha256 !== BOOTSTRAP_SHA256 && after.blob !== BOOTSTRAP_BLOB) return source;
+  if (Buffer.byteLength(lf, 'utf8') !== 430404 ||
+      after.sha256 !== BOOTSTRAP_SHA256 || after.blob !== BOOTSTRAP_BLOB) {
+    throw new Error('AUTH_BOOTSTRAP_INVERSE_IDENTITY_MISMATCH');
+  }
+
+  // Only these five substitutions may precede the unchanged registration/login chain.
+  const inverse = [
+    ['async function initI18n(syncAuthenticatedSettings = true) {', 'async function initI18n() {'],
+    ['  if (syncAuthenticatedSettings && isLoggedIn()) {', '  if (isLoggedIn()) {'],
+    ['  const explicitLoginEntry = typeof window !== "undefined" &&\n' +
+      '    window.location?.pathname === "/" && window.location?.hash === "#login";\n', ''],
+    ['  await initI18n(!explicitLoginEntry);', '  await initI18n();'],
+    ['  if (!explicitLoginEntry && isLoggedIn()) loadWallet();', '  if (isLoggedIn()) loadWallet();'],
+  ];
+  for (const [owned, previous] of inverse) {
+    const at = lf.indexOf(owned);
+    if (at < 0 || lf.indexOf(owned, at + owned.length) !== -1) {
+      throw new Error('AUTH_BOOTSTRAP_INVERSE_OWNED_SUBSTITUTION_MISMATCH');
+    }
+    lf = lf.slice(0, at) + previous + lf.slice(at + owned.length);
+  }
+  const before = identity(lf);
+  if (Buffer.byteLength(lf, 'utf8') !== 430162 ||
+      before.sha256 !== REGISTER_SHA256 || before.blob !== REGISTER_BLOB) {
+    throw new Error('AUTH_BOOTSTRAP_INVERSE_RESTORED_IDENTITY_MISMATCH');
+  }
+  return crlf ? lf.replace(/\n/g, '\r\n') : lf;
+}
+
 function restoreOwnedLoginDelta(source) {
   if (typeof source !== 'string') throw new TypeError('AUTH_LOGIN_INVERSE_STRING_REQUIRED');
+  source = restoreOwnedBootstrapDelta(source);
   let lf = source.replace(/\r\n/g, '\n');
   const crlf = source.includes('\r\n');
   if (lf.includes('\r') || (crlf && source !== lf.replace(/\n/g, '\r\n'))) return source;
@@ -117,4 +157,4 @@ function restoreOwnedLoginDelta(source) {
   return crlf ? restored.replace(/\n/g, '\r\n') : restored;
 }
 
-module.exports = { restoreOwnedLoginDelta };
+module.exports = { restoreOwnedBootstrapDelta, restoreOwnedLoginDelta };

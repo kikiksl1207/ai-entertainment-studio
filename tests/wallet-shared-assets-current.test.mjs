@@ -353,7 +353,7 @@ function scriptSources(html) {
 const isAppSource = src => src.split(/[?#]/)[0] === '/app.js';
 function assertWalletScripts(html, consumer) {
   const expectedAppSource = ['index.html', 'creator-studio/index.html'].includes(consumer.file)
-    ? appSource + '&amp;content=7ee22fe15e52d715473fe8b0f26b344d3f66377a0827854bab2f80dd83463d36'
+    ? appSource + '&amp;content=5f5b2bd6e568a80d14bbf7c522a0b7e038dc3d116471bfc2bed92cb2c8ad8028'
     : consumer.file === 'ott/index.html'
     ? '/app.js?v=ott-catalog-body-deadline-20261016' : appSource;
   const scripts = scriptSources(html);
