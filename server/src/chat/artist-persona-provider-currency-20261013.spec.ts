@@ -57,10 +57,9 @@ describe('issued persona currency before any model dispatch', () => {
     expect(body.instructions).toContain(manifest.artists[0].contentTone);
   });
 
-  it('preserves old optional-context compatibility without falsely declaring its output canonical', async () => {
+  it('rejects approved-release missing context before dispatch instead of legacy compatibility', async () => {
     const f = fixture(); delete f.request.personaSelection;
-    const result = await f.adapter.generate(f.request);
-    expect(f.fetch).toHaveBeenCalledTimes(1);
-    expect(result.safetyMetadata.artistPersonaLock).toMatchObject({ status: 'unverified', allArtistsCovered: false });
+    await expect(f.adapter.generate(f.request)).rejects.toMatchObject({ code: 'provider_persona_source_changed' });
+    expect(f.fetch).not.toHaveBeenCalled();
   });
 });

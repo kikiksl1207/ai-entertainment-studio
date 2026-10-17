@@ -312,7 +312,7 @@ describe('bounded hierarchy with a working legacy transport path', () => {
   });
 
   it.each(['missing-optional-field', 'unknown-artist', 'changed-source-row', 'known-lock'])(
-    'continues provider-ready generation for %s using mocked transport only', async condition => {
+    'handles %s under the current approved-source rule using mocked transport only', async condition => {
       const render = adapter(); const request = requestFor(condition !== 'missing-optional-field');
       if (condition === 'unknown-artist') {
         request.artist.slug = 'yoon-serin';
@@ -325,6 +325,11 @@ describe('bounded hierarchy with a working legacy transport path', () => {
       const fetchSpy = jest.spyOn(global, 'fetch').mockResolvedValue({
         ok: true, headers: { get: () => 'mock-only' }, json: async () => ({ output_text: 'Synthetic transport result', usage: {} }),
       } as unknown as Response);
+      if (condition === 'missing-optional-field') {
+        await expect(render.generate(request)).rejects.toMatchObject({ code: 'provider_persona_source_changed' });
+        expect(fetchSpy).not.toHaveBeenCalled();
+        return;
+      }
       const result = await render.generate(request);
       expect(fetchSpy).toHaveBeenCalledTimes(1);
       const payload = JSON.parse(fetchSpy.mock.calls[0][1]!.body as string);
@@ -343,16 +348,21 @@ describe('bounded hierarchy with a working legacy transport path', () => {
     },
   );
 
-  it('preserves primary/fallback models and the same prepared source snapshot across retries', async () => {
+  it('preserves the prepared approved source in a single primary-model attempt without automatic retry', async () => {
     const render = adapter(); const request = requestFor();
+    const selected = effectiveArtistPersonaSelection(request.artist, request.personaSelection);
+    expect(isLockedArtistPersona(selected)).toBe(true);
+    const instructions = buildArtistPersonaLockInstructions(selected);
+    const input = render['buildConversationInput'](request);
     const fetchSpy = jest.spyOn(global, 'fetch')
-      .mockResolvedValueOnce(new Response('{}', { status: 503 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ output_text: 'Synthetic fallback transport', usage: {} }), { status: 200 }));
-    await render.generate(request);
+      .mockResolvedValueOnce(new Response('{}', { status: 503 }));
+    await expect(render.generate(request)).rejects.toMatchObject({
+      name: 'ChatLlmProviderRequestError', code: 'provider_http_503', requestId: null, failedResponse: null,
+    });
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
     const first = JSON.parse(fetchSpy.mock.calls[0][1]!.body as string);
-    const second = JSON.parse(fetchSpy.mock.calls[1][1]!.body as string);
-    expect([first.model, second.model]).toEqual(['gpt-5-mini', 'gpt-5-nano']);
-    expect(first.instructions).toBe(second.instructions);
-    expect(first.input).toBe(second.input);
+    expect(first.model).toBe('gpt-5-mini');
+    expect(first.instructions).toBe(instructions);
+    expect(first.input).toBe(input);
   });
 });

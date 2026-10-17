@@ -7,6 +7,7 @@ import {
   buildArtistPersonaLockInstructions,
   effectiveArtistPersonaSelection,
   isLockedArtistPersona,
+  requiresSelectedApprovedArtistPersona,
   type ArtistPersonaSelection,
 } from './artist-persona-lock';
 
@@ -275,7 +276,9 @@ export class ChatLlmProviderAdapter implements ChatLlmProvider {
     }
 
     const personaSelection = effectiveArtistPersonaSelection(request.artist, request.personaSelection);
-    if (isLockedArtistPersona(request.personaSelection) && !isLockedArtistPersona(personaSelection)) {
+    const selectedSourceRequired = requiresSelectedApprovedArtistPersona(request.artist) ||
+      Boolean(request.personaSelection && request.personaSelection.status !== 'unverified');
+    if (selectedSourceRequired && !isLockedArtistPersona(personaSelection)) {
       throw new ChatLlmProviderRequestError(
         'Selected character source is unavailable before dispatch',
         'provider_persona_source_changed',
