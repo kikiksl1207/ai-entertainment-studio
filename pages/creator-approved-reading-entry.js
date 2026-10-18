@@ -65,6 +65,35 @@
     };
     let catalogState = { phase: "idle", items: [], nextCursor: null, selected: null, authReason: null };
     let pageDisposed = false;
+    let authTimeBusy = false, authTimeRetired = false;
+    function removeAuthTimeHint() {
+      try { document.documentElement.removeAttribute("data-unverified-auth-time"); } catch (_) {}
+    }
+    function retireAuthTimeHint() {
+      authTimeRetired = true;
+      removeAuthTimeHint();
+    }
+    function renderAuthTimeHint() {
+      if (authTimeRetired) return;
+      if (pageDisposed) { retireAuthTimeHint(); return; }
+      if (authTimeBusy) { authTimeRetired = true; return; }
+      authTimeBusy = true;
+      try {
+        const inspector = window.LuminaCreatorApprovedUnverifiedAuthTime?.inspect;
+        const observed = typeof inspector === "function" ? inspector() : undefined;
+        const hint = typeof observed === "string" && ["expired", "future", "unknown"].includes(observed) ? observed : "unknown";
+        if (pageDisposed || authTimeRetired) return;
+        const root = document.documentElement;
+        const previous = root.getAttribute("data-unverified-auth-time");
+        if (pageDisposed || authTimeRetired) return;
+        if (previous !== hint) root.setAttribute("data-unverified-auth-time", hint);
+      } catch (_) { authTimeRetired = true; }
+      finally {
+        if (pageDisposed) authTimeRetired = true;
+        if (authTimeRetired) removeAuthTimeHint();
+        authTimeBusy = false;
+      }
+    }
     let currentScope = null;
     let nonce;
     try { nonce = window.crypto.randomUUID(); } catch (_) { nonce = null; }
@@ -78,6 +107,7 @@
       window.dispatchEvent(new Event("creator:approved-reading-scope-changed"));
     }
     function renderCatalog() {
+      renderAuthTimeHint();
       if (!standalone || !catalogReady) return;
       const c = catalogCopy[language.value] || catalogCopy.ko;
       document.getElementById("readingCatalogTitle").textContent = c.title;
@@ -165,13 +195,13 @@
     language.addEventListener("change", () => { translated();
       catalogController?.sync();
       window.dispatchEvent(new Event("lumina:localechange")); });
-    const sample = () => { if (standalone) catalogController?.sync(); else receiver?.snapshot(); };
+    const sample = () => { if (standalone) catalogController?.sync(); else receiver?.snapshot(); renderAuthTimeHint(); };
     for (const name of ["storage", "lumina:authchange", "lumina:auth-expired"]) window.addEventListener(name, () => {
       if (standalone) catalogController?.sync(); else receiver?.invalidate(); });
     window.addEventListener("focus", sample);
     window.addEventListener("creator:approved-section-auth-state", renderCatalog);
     const watch = setInterval(sample, 1000);
-    window.addEventListener("pagehide", () => { pageDisposed = true; clearInterval(watch); receiver?.dispose(); catalogController?.dispose();
+    window.addEventListener("pagehide", () => { pageDisposed = true; retireAuthTimeHint(); clearInterval(watch); receiver?.dispose(); catalogController?.dispose();
       catalogTransport?.dispose(); transport.dispose(); changed(null);
       if (catalogReady) { catalogSelect.disabled = true; catalogLoad.disabled = true; catalogNext.disabled = true; }
       if (catalogLogin) catalogLogin.hidden = true;

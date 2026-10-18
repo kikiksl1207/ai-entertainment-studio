@@ -3,10 +3,10 @@ const test = require('node:test'), assert = require('node:assert/strict');
 const fs = require('node:fs'), path = require('node:path'), vm = require('node:vm'), crypto = require('node:crypto');
 const { TextDecoder, TextEncoder } = require('node:util');
 const PINS = Object.freeze({
-  'pages/creator-approved-readonly-transport.js': 'd2e052cffc269e53549c81b9a50b0f5b34075bc93f0f6d70d005ee29d63afc33',
+  'pages/creator-approved-readonly-transport.js': 'dc1b8ae160470c3cd4f3909f07d53638d8d9a8df8598413b39b4f590ffa0b632',
   'pages/creator-approved-reading-catalog.js': '69da822d55237f040e9b324c6732d7a2e7038ea3dcc3dd45372bec398bd2fa9f',
-  'pages/creator-approved-reading-entry.js': 'e8e05992f82a86b15365bd6ae1259d0ab8f3781aa6424044dcdd0665cc885848',
-  'creator-studio/approved-reading/index.html': 'f658cdf4966cbd7bb30ae0a5b0f10f4245b3cb826e82a61f0bd9e635c4ce7098',
+  'pages/creator-approved-reading-entry.js': '683e262ca34cf0727c2a0e6e6d3673783eb7e7540d36fb335ae84deadc81d444',
+  'creator-studio/approved-reading/index.html': 'e67f0b1543b4da44c7e96c44fcb610f89afb694ce0a62a286bf91da38fa5a700',
 });
 const sourceRoot = path.resolve(process.env.CATALOG_RECEIPT_SOURCE_ROOT || path.join(__dirname, '..'));
 assert(!/(?:^|[\\/])story-completion-20261003(?:[\\/]|$)/i.test(sourceRoot), 'Shared CLEAN cannot be the product source');
