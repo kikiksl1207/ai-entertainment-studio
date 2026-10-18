@@ -4924,28 +4924,40 @@ export class AdminService {
         : status === 'active'
           ? null
           : undefined;
-
-    const operator = await this.prisma.artistOperator.update({
-      where: { id: operatorId },
-      data: this.clean({
-        role: this.optionalString(input, 'role'),
-        status,
-        permissions,
-        revokedAt,
-        updatedAt: new Date(),
-      }),
-      include: this.artistOperatorInclude(),
+    const data = this.clean({
+      role: this.optionalString(input, 'role'),
+      status,
+      permissions,
+      revokedAt,
+      updatedAt: new Date(),
     });
 
-    await this.recordAudit(
-      user,
-      'artist_operator.update',
-      'artist_operator',
-      operator.id,
-      before,
-      operator,
-      { note: this.optionalString(input, 'note') },
-    );
+    const operator = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`
+        SELECT id FROM artist_operators WHERE id = ${operatorId}::uuid FOR UPDATE
+      `;
+      const current = await tx.artistOperator.findUniqueOrThrow({
+        where: { id: operatorId },
+        include: this.artistOperatorInclude(),
+      });
+      const updated = await tx.artistOperator.update({
+        where: { id: operatorId },
+        data,
+        include: this.artistOperatorInclude(),
+      });
+
+      await this.recordAudit(
+        user,
+        'artist_operator.update',
+        'artist_operator',
+        updated.id,
+        current,
+        updated,
+        { note: this.optionalString(input, 'note') },
+        tx,
+      );
+      return updated;
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted });
 
     return operator;
   }
