@@ -3452,6 +3452,7 @@ async function handleKakaoCallback() {
     return;
   }
 
+  const session = authRequestSession();
   try {
     console.info("[Lumina] Kakao code 수신, 백엔드 호출 중");
     // 백엔드에 code 전달 — 백엔드가 카카오와 토큰 교환 + 우리 토큰 발급
@@ -3464,6 +3465,7 @@ async function handleKakaoCallback() {
       },
       throwOnError: true
     });
+    if (!authRequestSessionCurrent(session)) return;
     applyAuthResponse(data, "Kakao");
   } catch (err) {
     // #379 — 사용자 alert에 raw err.message 노출 금지. 콘솔 로그는 status만.
@@ -3527,6 +3529,7 @@ async function handleNaverCallback() {
     return;
   }
 
+  const session = authRequestSession();
   try {
     console.info("[Lumina] Naver access token 수신, 백엔드 호출 중");
     // 백엔드 명세: token handoff — { provider, token }
@@ -3538,6 +3541,7 @@ async function handleNaverCallback() {
       },
       throwOnError: true
     });
+    if (!authRequestSessionCurrent(session)) return;
     applyAuthResponse(data, "Naver");
   } catch (err) {
     // #379 — 사용자 alert에는 raw err.message 노출 금지.
@@ -3609,6 +3613,7 @@ async function handleGoogleTokenResponse(tokenResponse) {
     console.error("[Lumina] Google access_token 누락");
     return;
   }
+  const session = authRequestSession();
   try {
     const data = await apiFetch("/api/v1/auth/social/login", {
       method: "POST",
@@ -3618,6 +3623,7 @@ async function handleGoogleTokenResponse(tokenResponse) {
       },
       throwOnError: true
     });
+    if (!authRequestSessionCurrent(session)) return;
     applyAuthResponse(data, "Google");
   } catch (err) {
     // #379 — raw err.message 사용자 노출 금지. status만 콘솔 로그.
