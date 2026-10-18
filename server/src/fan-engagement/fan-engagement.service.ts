@@ -326,6 +326,7 @@ export class FanEngagementService {
     input: FanEngagementBody,
   ) {
     this.assertUuid(missionId, 'missionId');
+    missionId = missionId.toLowerCase();
     if (!input || typeof input !== 'object' || Array.isArray(input)) {
       throw this.badRequestError({
         code: 'INVALID_REQUEST',
