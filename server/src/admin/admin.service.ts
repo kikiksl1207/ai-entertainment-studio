@@ -4868,7 +4868,7 @@ export class AdminService {
       'feed:reply',
     ];
 
-    const operator = await this.prisma.artistOperator.upsert({
+    const args = {
       where: {
         userId_artistId: {
           userId: targetUser.id,
@@ -4890,17 +4890,22 @@ export class AdminService {
         updatedAt: new Date(),
       },
       include: this.artistOperatorInclude(),
-    });
+    };
 
-    await this.recordAudit(
-      user,
-      'artist_operator.upsert',
-      'artist_operator',
-      operator.id,
-      null,
-      operator,
-      { artistId, targetUserId: targetUser.id },
-    );
+    const operator = await this.prisma.$transaction(async (tx) => {
+      const saved = await tx.artistOperator.upsert(args);
+      await this.recordAudit(
+        user,
+        'artist_operator.upsert',
+        'artist_operator',
+        saved.id,
+        null,
+        saved,
+        { artistId, targetUserId: targetUser.id },
+        tx,
+      );
+      return saved;
+    });
 
     return operator;
   }
