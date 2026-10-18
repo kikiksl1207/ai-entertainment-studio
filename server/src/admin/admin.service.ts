@@ -2230,45 +2230,49 @@ export class AdminService {
       },
       include: this.artistOperatorInclude(),
     });
-    const operator = await this.prisma.artistOperator.upsert({
-      where: {
-        userId_artistId: {
+    const operator = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.artistOperator.upsert({
+        where: {
+          userId_artistId: {
+            userId: targetUser.id,
+            artistId: artist.id,
+          },
+        },
+        create: {
           userId: targetUser.id,
           artistId: artist.id,
+          role,
+          status,
+          permissions,
+          revokedAt: status === 'active' ? null : new Date(),
         },
-      },
-      create: {
-        userId: targetUser.id,
-        artistId: artist.id,
-        role,
-        status,
-        permissions,
-        revokedAt: status === 'active' ? null : new Date(),
-      },
-      update: {
-        role,
-        status,
-        permissions,
-        revokedAt: status === 'active' ? null : new Date(),
-        updatedAt: new Date(),
-      },
-      include: this.artistOperatorInclude(),
-    });
+        update: {
+          role,
+          status,
+          permissions,
+          revokedAt: status === 'active' ? null : new Date(),
+          updatedAt: new Date(),
+        },
+        include: this.artistOperatorInclude(),
+      });
 
-    await this.recordAudit(
-      user,
-      before ? 'backstage.creator_access.restore' : 'backstage.creator_access.grant',
-      'artist_operator',
-      operator.id,
-      before,
-      operator,
-      {
-        targetUserId: targetUser.id,
-        artistId: artist.id,
-        artistSlug: artist.slug,
-        note: this.optionalString(input, 'note') ?? null,
-      },
-    );
+      await this.recordAudit(
+        user,
+        before ? 'backstage.creator_access.restore' : 'backstage.creator_access.grant',
+        'artist_operator',
+        updated.id,
+        before,
+        updated,
+        {
+          targetUserId: targetUser.id,
+          artistId: artist.id,
+          artistSlug: artist.slug,
+          note: this.optionalString(input, 'note') ?? null,
+        },
+        tx,
+      );
+      return updated;
+    });
 
     return {
       ok: true,
