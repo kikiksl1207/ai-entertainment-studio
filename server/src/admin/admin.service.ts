@@ -1896,21 +1896,42 @@ export class AdminService {
       updatedAt: new Date(),
     });
 
-    try {
-      const updated = await this.prisma.feedSearchBlockedTerm.update({
-        where: { id: termId },
-        data,
-      });
+    const updatesKeyword = body.keyword !== undefined;
+    const updatesSearchType = body.type !== undefined || body.searchType !== undefined;
 
-      await this.recordAudit(
-        user,
-        'feed_search_blocked_term.update',
-        'feed_search_blocked_term',
-        updated.id,
-        before,
-        updated,
-        { status: updated.status, searchType: updated.searchType, language: updated.language },
-      );
+    try {
+      const updated = await this.prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`
+          SELECT id FROM feed_search_blocked_terms WHERE id = ${termId}::uuid FOR UPDATE`;
+        const current = await tx.feedSearchBlockedTerm.findUniqueOrThrow({
+          where: { id: termId },
+        });
+        const currentNormalizedKeyword = this.normalizeFeedSearchBlockedKeyword(
+          updatesKeyword ? keyword : current.keyword,
+          updatesSearchType ? searchType : current.searchType,
+        );
+        const term = await tx.feedSearchBlockedTerm.update({
+          where: { id: termId },
+          data: {
+            ...data,
+            ...(updatesKeyword || updatesSearchType
+              ? { normalizedKeyword: currentNormalizedKeyword }
+              : {}),
+            updatedAt: new Date(),
+          },
+        });
+        await this.recordAudit(
+          user,
+          'feed_search_blocked_term.update',
+          'feed_search_blocked_term',
+          term.id,
+          current,
+          term,
+          { status: term.status, searchType: term.searchType, language: term.language },
+          tx,
+        );
+        return term;
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted });
 
       return {
         ok: true,
