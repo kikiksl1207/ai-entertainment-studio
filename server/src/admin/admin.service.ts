@@ -3755,33 +3755,38 @@ export class AdminService {
     }
 
     const role = await this.findAdminRole(this.string(input, 'roleName', 'content_admin'));
-    const adminUser = await this.prisma.adminUser.create({
-      data: {
-        userId: targetUser.id,
-        roleId: role.id,
-        status: this.adminStatus(input, 'status', 'active'),
-        createdByUserId: user.id,
-      },
-      include: {
-        role: true,
-        user: {
-          select: {
-            id: true,
-            email: true,
-            status: true,
+    const status = this.adminStatus(input, 'status', 'active');
+    const adminUser = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.adminUser.create({
+        data: {
+          userId: targetUser.id,
+          roleId: role.id,
+          status,
+          createdByUserId: user.id,
+        },
+        include: {
+          role: true,
+          user: {
+            select: {
+              id: true,
+              email: true,
+              status: true,
+            },
           },
         },
-      },
+      });
+      await this.recordAudit(
+        user,
+        'admin_user.create',
+        'admin_user',
+        created.id,
+        null,
+        created,
+        {},
+        tx,
+      );
+      return created;
     });
-
-    await this.recordAudit(
-      user,
-      'admin_user.create',
-      'admin_user',
-      adminUser.id,
-      null,
-      adminUser,
-    );
 
     return adminUser;
   }
