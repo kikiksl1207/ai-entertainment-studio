@@ -7,8 +7,31 @@ const beforeSHA = '8a5220be9ae3006cf30222e0dadeeb6f9c1afe08423cb40b28ca6a786a256
 const afterSHA = '5327cb32e959c767791d60466095fa69b01cc5b91fd5f6de2478b50f561a3523';
 const sha = value => createHash('sha256').update(value, 'utf8').digest('hex');
 
+const localeTag = '<script src="/pages/mypage-titles.js?v=mypage-title-locale-20261018"></script>';
+const localeSHA = 'ebf2e0531895977c9b6345a2c296fbfec7d749f26761b96e0f803a0c392841d3';
+
+export function htmlWithoutMypageTitleLocaleDelta(value) {
+  assert.equal(typeof value, 'string', 'HTML must be source text');
+  assert(!value.startsWith('\ufeff'), 'No HTML BOM substitution');
+  assert(!/\r(?!\n)/.test(value), 'No lone CR substitution');
+  assert(!(value.includes('\r\n') && /(?<!\r)\n/.test(value)), 'Uniform LF or CRLF only');
+  const hash = sha(value.replace(/\r\n/g, '\n'));
+  if (hash === afterSHA) return value;
+  assert.equal(hash, localeSHA, 'Exact whole locale lifetime HTML');
+  assert.equal(value.split(localeTag).length - 1, 1, 'Exactly one locale lifetime tag');
+  const scripts = [...value.matchAll(/<script\b[^>]*\ssrc=(?:"([^"]*)"|'([^']*)')[^>]*>/gi)]
+    .map(match => match[1] ?? match[2]);
+  assert.deepEqual(scripts.filter(src => src.split(/[?#]/)[0] === '/pages/mypage-titles.js'),
+    ['/pages/mypage-titles.js?v=mypage-title-locale-20261018']);
+  const restored = value.replace(localeTag, afterTag);
+  assert.equal(sha(restored.replace(/\r\n/g, '\n')), afterSHA, 'Every previous HTML byte restored');
+  assert.equal(restored.replace(afterTag, localeTag), value, 'Only the exact locale tag can advance');
+  return restored;
+}
+
 export function htmlWithoutMypageTitlePageLifetimeDelta(value) {
   assert.equal(typeof value, 'string', 'HTML must be source text');
+  value = htmlWithoutMypageTitleLocaleDelta(value);
   assert(!value.startsWith('\ufeff'), 'No HTML BOM substitution');
   assert(!/\r(?!\n)/.test(value), 'No lone CR substitution');
   assert(!(value.includes('\r\n') && /(?<!\r)\n/.test(value)), 'Uniform LF or CRLF only');

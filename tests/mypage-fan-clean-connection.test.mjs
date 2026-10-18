@@ -489,14 +489,29 @@ test('native pinned GET401 refresh rotation keeps one owner epoch and applies on
   h.auth(null); blank(h); assert.equal(h.rows().length, 0); assert.equal(h.text('mypageAchievementList'), '');
 });
 
-test('five locale labels and hostile title/achievement content remain DOM text without more requests', async () => {
+test('five locale labels and hostile title/achievement content remain DOM text after bounded current reads', async () => {
   const attack = '<img src=x onerror=alert(1)>', data = summary([title('A', { copy: { labels: { ko: { displayName: attack } } } })]);
   data.achievements = [achievement({ copy: { labels: { ko: { title: attack, description: '<script>synthetic</script>' } } } })];
   const h = await loaded(harness(), data);
+  let previousLocale = 'ko';
   for (const [locale, label] of [['ko', '\uD32C \uD65C\uB3D9'], ['en', 'Fan activity'], ['ja', '\u30D5\u30A1\u30F3\u6D3B\u52D5'], ['zh-Hans', '\u7C89\u4E1D\u6D3B\u52A8'], ['zh-Hant', '\u7C89\u7D72\u6D3B\u52D5']]) {
-    h.locale(locale); assert.equal(h.text('mypageFanHeading'), label); assert.equal(h.rows()[0].children[0].textContent, attack);
+    const beforeRequests = h.requests.length;
+    h.locale(locale); assert.equal(h.text('mypageFanHeading'), label);
+    if (locale !== previousLocale) {
+      assert.equal(h.rows().length, 0); await tick();
+      assert.equal(h.requests.length, beforeRequests + 1);
+      const read = h.requests.at(-1);
+      assert.equal(read.path, '/api/v1/me/fan-engagement/summary?locale=' + encodeURIComponent(locale));
+      assert.equal(read.options.method, undefined);
+      read.resolve(data); await tick();
+    }
+    assert.equal(h.rows()[0].children[0].textContent, attack);
     assert.match(h.text('mypageAchievementList'), /<img src=x onerror=alert\(1\)>/);
+    const settledRequests = h.requests.length;
+    h.locale(locale); await tick(); assert.equal(h.requests.length, settledRequests);
+    previousLocale = locale;
   }
-  assert.equal(h.requests.length, 1);
+  assert.equal(h.requests.length, 5);
+  assert(h.requests.every(row => row.options.method === undefined));
   const absent = harness({ missing: 'mypageTitlesRetry' }); assert.equal(absent.api, undefined); assert.equal(absent.requests.length, 0);
 });

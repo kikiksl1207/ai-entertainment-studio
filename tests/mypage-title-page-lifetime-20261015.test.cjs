@@ -23,12 +23,12 @@ const PINS = {
   },
   current: {
     'pages/mypage-titles.js': [
-      ['7806f2370077e48507c9f82571e4fc6c48ad1ca38437f63c16298b10347f76b9', '168159fdddbd551f2b92acb7aa4c0b0e44ec7c8f'],
-      ['1268ad786a006720cb012fa9eb063876e55b2efcad16f06149113e98371a92e9', '0c1fa7f93228c07ff8861e0079f7a0c0f109bf41'],
+      ['2e5fcdf386eaa4b200195f921aed9bba81e46f2780655266ae9873b2301227a3', 'e8d10832003096552a8586182a1802147e2e464d'],
+      ['bbf7170f80fb536f342590fbccf19b24689453893b83b55ea03931488ac79922', 'e86fe564cebbda75d1cf2b5554f9e890951d92ea'],
     ],
     'mypage/index.html': [
-      ['5327cb32e959c767791d60466095fa69b01cc5b91fd5f6de2478b50f561a3523', '050d0f55091457035f8622e289e7f258eca5634d'],
-      ['2bf8ea4475057dd850936bdc7ddf292508c05448be9057985b6212417ba1d4bb', '36076afa0c0cbd4e9fd2b5763ecf54822dc35cbf'],
+      ['ebf2e0531895977c9b6345a2c296fbfec7d749f26761b96e0f803a0c392841d3', '6c144645ba47926c97e45186bf95e56d51673057'],
+      ['c49628f703d019a72a9a860b444d57c8e4b3f51ddfc65861df28f6cd2707b184', '17a4c8ed705a9927325fc97a6e249efeb2c4c594'],
     ],
   },
 };
@@ -44,7 +44,7 @@ function source(file) {
   return text;
 }
 const moduleSource = source('pages/mypage-titles.js'), html = source('mypage/index.html');
-const expectedScript = profile === 'baseline' ? '/pages/mypage-titles.js' : '/pages/mypage-titles.js?v=mypage-title-pagehide-20261015';
+const expectedScript = profile === 'baseline' ? '/pages/mypage-titles.js' : '/pages/mypage-titles.js?v=mypage-title-locale-20261018';
 assert.equal((html.match(/<script\b[^>]*src="\/pages\/mypage-titles\.js(?:\?[^"<>]*)?"[^>]*><\/script>/g) || []).length, 1);
 assert(html.includes('<script src="' + expectedScript + '"></script>'));
 
@@ -277,5 +277,46 @@ if (selected === 'all') {
     same.patches()[1].finish({ equipped: { code: 'same-choice' } }); await flush();
     assert.equal(same.requests.length, 6); same.requests[5].finish(summary('same', 'same-choice')); await second;
     assert.equal(same.text('mypageTitleFoot'), 'Featured title saved.'); assert.equal(same.patches().length, 2);
+  });
+}
+
+function localeSummary(prefix, language, equipped = prefix + '-equipped') {
+  const value = summary(prefix, equipped);
+  for (const item of value.titles.items) item.copy.labels[language] = { displayName: 'Locale ' + language + ' ' + item.code };
+  for (const item of value.achievements) item.copy.labels[language] = { title: 'Locale achievement ' + language + ' ' + item.code };
+  return value;
+}
+
+if (selected === 'all') {
+  test('MYPAGE.TITLE.LOCALE.01 deferred old language cannot replace the latest normalized locale', async t => {
+    const h = harness(t), old = h.api.load(); await flush();
+    assert.equal(h.gets().length, 1); assert(h.gets()[0].url.endsWith('locale=en'));
+    h.locale('ja'); blank(h);
+    h.gets()[0].finish(summary('old')); await old; await flush();
+    assert.equal(h.gets().length, 2); assert(h.gets()[1].url.endsWith('locale=ja')); blank(h);
+    h.locale('ja-JP'); h.locale('ja'); await flush(); assert.equal(h.gets().length, 2);
+    h.gets()[1].finish(localeSummary('latest', 'ja')); await flush();
+    assert.equal(h.rows().length, 2); assert(h.rows().every(row => row.textContent.includes('Locale ja latest-')));
+    assert(h.text('mypageAchievementList').includes('Locale achievement ja latest-'));
+    assert.equal(h.text('mypageFanBalance'), '7'); assert.equal(h.patches().length, 0);
+    assert.equal(h.elements.get('mypageTitlesRetry').hidden, true); assert.equal(h.timers.size, 0);
+  });
+
+  test('MYPAGE.TITLE.LOCALE.02 a language change retains unknown selection until explicit matching reconciliation', async t => {
+    const h = harness(t); await loaded(h, 'owned');
+    const pending = h.api.select('owned-choice'); await flush();
+    assert.equal(h.patches().length, 1); h.locale('ja'); h.patches()[0].rejectHeaders(); await flush();
+    assert.equal(h.gets().length, 2); assert(h.gets()[1].url.endsWith('locale=ja'));
+    h.gets()[1].finish(localeSummary('owned', 'ja')); await pending; await flush();
+    const choice = () => h.rows().find(row => row.dataset.titleCode === 'owned-choice');
+    assert.equal(choice().disabled, true); assert.equal(h.elements.get('mypageTitlesRetry').hidden, false);
+    await h.api.select('owned-choice'); assert.equal(h.patches().length, 1);
+    const explicit = h.api.load(); await flush(); assert.equal(h.gets().length, 3);
+    h.gets()[2].finish(localeSummary('owned', 'ja', 'owned-choice')); await explicit; await flush();
+    assert.equal(h.elements.get('mypageTitlesRetry').hidden, true);
+    assert.equal(h.rows().find(row => row.dataset.titleCode === 'owned-equipped').disabled, false);
+    assert.equal(h.patches().length, 1); assert.equal(h.patches()[0].attempts, 1);
+    assert.deepEqual(JSON.parse(JSON.stringify(h.patches()[0].options.body)), { titleCode: 'owned-choice' });
+    assert.equal(h.authWrites(), 0); assert.equal(h.timers.size, 0);
   });
 }

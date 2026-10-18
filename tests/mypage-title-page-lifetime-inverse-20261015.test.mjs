@@ -2,10 +2,10 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { htmlWithoutMypageTitlePageLifetimeDelta } from './support/mypage-title-page-lifetime-inverse-20261015.mjs';
+import { htmlWithoutMypageTitlePageLifetimeDelta, htmlWithoutMypageTitleLocaleDelta } from './support/mypage-title-page-lifetime-inverse-20261015.mjs';
 
 const current = readFileSync(new URL('../mypage/index.html', import.meta.url), 'utf8');
-const after = current.replace(/\r\n/g, '\n');
+const after = htmlWithoutMypageTitleLocaleDelta(current).replace(/\r\n/g, '\n');
 const beforeTag = '<script src="/pages/mypage-titles.js"></script>';
 const afterTag = '<script src="/pages/mypage-titles.js?v=mypage-title-pagehide-20261015"></script>';
 const sha = value => createHash('sha256').update(value, 'utf8').digest('hex');
@@ -44,4 +44,24 @@ test('mypage title lifetime inverse 03 rejects adjacent bytes and nonuniform dec
     after.replace('\n', '\r'),
     after.replace('\n', '\r\n'),
   ]) assert.throws(() => htmlWithoutMypageTitlePageLifetimeDelta(value));
+});
+
+test('mypage title locale inverse 04 retains full previous source and rejects tampering before canonicalization', () => {
+  const nextTag = '<script src="/pages/mypage-titles.js?v=mypage-title-locale-20261018"></script>';
+  const next = current.replace(/\r\n/g, '\n');
+  assert.equal(sha(next), 'ebf2e0531895977c9b6345a2c296fbfec7d749f26761b96e0f803a0c392841d3');
+  for (const value of [next, next.replace(/\n/g, '\r\n')]) {
+    const restored = htmlWithoutMypageTitleLocaleDelta(value);
+    assert.equal(restored, value.replace(nextTag, afterTag));
+    assert.equal(sha(restored.replace(/\r\n/g, '\n')), '5327cb32e959c767791d60466095fa69b01cc5b91fd5f6de2478b50f561a3523');
+    assert.equal(htmlWithoutMypageTitleLocaleDelta(restored), restored);
+    assert.equal(htmlWithoutMypageTitlePageLifetimeDelta(value), restored.replace(afterTag, beforeTag));
+  }
+  for (const value of [
+    ' ' + next, next + ' ', '\ufeff' + next, next.replace('\n', '\r'), next.replace('\n', '\r\n'),
+    next.replace(nextTag, ''), next.replace(nextTag, nextTag + nextTag), next + beforeTag,
+    next.replace(nextTag, nextTag.replace('20261018', 'unapproved')),
+    next.replace(nextTag, nextTag.replace('.js?v=', '.js?extra=1&v=')),
+    next.replace('<html', '<html '),
+  ]) assert.throws(() => htmlWithoutMypageTitleLocaleDelta(value));
 });

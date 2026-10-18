@@ -62,7 +62,8 @@
   const state = { summary: null, reason: "loading", note: "", filter: "all", loading: false, busy: false,
     uncertain: false, request: 0, operation: 0, account: null, accountVersion: 0, initialized: false, promise: null,
     activity: null, activityReason: "loading", achievements: null, achievementReason: "loading", readiness: null,
-    pendingSelection: null, selectionFlight: null, lifetime: 0, retired: false };
+    pendingSelection: null, selectionFlight: null, lifetime: 0, retired: false,
+    readLocale: locale(), localeVersion: 0, localeReload: false };
   const FAN_TEXT = {
     ko: { heading: "팬 활동", balance: "팬 포인트", earned: "누적 획득", today: "오늘 참여", streak: "연속 참여", accepted: "전체 참여", failed: "팬 활동을 확인하지 못했어요." },
     en: { heading: "Fan activity", balance: "Fan points", earned: "Lifetime earned", today: "Today", streak: "Streak", accepted: "Total participation", failed: "Could not verify fan activity." },
@@ -87,6 +88,9 @@
   const sessionCurrent = value => typeof authRequestSessionCurrent === "function" ? authRequestSessionCurrent(value) : session() === value;
   function sameOwner(scope) { return scope && scope.account === state.accountVersion && sessionCurrent(state.account) && !!token(); }
   function current(scope) { return !state.retired && scope?.lifetime === state.lifetime && sameOwner(scope); }
+  function readCurrent(scope) {
+    return current(scope) && scope.request === state.request && scope.localeVersion === state.localeVersion && scope.locale === locale();
+  }
   function selectionCurrent(scope, selection) {
     return sameOwner(scope) && scope.operation === state.operation && state.selectionFlight === selection;
   }
@@ -257,15 +261,19 @@
     if (state.promise) return state.promise;
     if (!state.initialized) { state.account = session(); state.initialized = true; }
     if (!token()) { state.summary = null; state.reason = "login"; state.activity = null; state.activityReason = "login"; state.achievements = null; state.achievementReason = "login"; render(); return; }
-    const scope = { account: state.accountVersion, request: ++state.request, lifetime: state.lifetime };
+    const scope = { account: state.accountVersion, request: ++state.request, lifetime: state.lifetime,
+      locale: locale(), localeVersion: state.localeVersion, dispatched: false };
     const readiness = new AbortController(); state.readiness = readiness;
     state.loading = true; state.reason = state.summary ? "ok" : "loading"; render();
     const pending = Promise.resolve().then(async () => {
       try {
         await awaitLocaleReady(readiness.signal);
         if (!current(scope) || scope.request !== state.request) return;
-        const data = await apiFetch("/api/v1/me/fan-engagement/summary?locale=" + encodeURIComponent(locale()), { auth: true, throwOnError: true });
-        if (!current(scope) || scope.request !== state.request) return;
+        scope.locale = locale(); scope.localeVersion = state.localeVersion;
+        state.readLocale = scope.locale; state.localeReload = false;
+        scope.dispatched = true;
+        const data = await apiFetch("/api/v1/me/fan-engagement/summary?locale=" + encodeURIComponent(scope.locale), { auth: true, throwOnError: true });
+        if (!readCurrent(scope)) return;
         state.achievements = normalizeAchievements(data); state.achievementReason = state.achievements ? "ok" : "failed";
         state.activity = normalizeActivity(data); state.activityReason = state.activity ? "ok" : "failed";
         const titles = normalize(data);
@@ -281,13 +289,15 @@
         }
       } catch (_) {
         if (!current(scope) || scope.request !== state.request) return;
+        if (scope.dispatched && !readCurrent(scope)) return;
+        if (!scope.dispatched) state.localeReload = false;
         state.summary = null; state.reason = "failed"; state.activity = null; state.activityReason = "failed";
         state.achievements = null; state.achievementReason = "failed";
       } finally {
         if (state.readiness === readiness) state.readiness = null;
         if (scope.request === state.request && state.promise === pending) {
           state.loading = false; state.promise = null;
-          if (current(scope)) render();
+          if (current(scope)) { render(); drainLocaleRead(); }
           else if (!state.retired && scope.lifetime === state.lifetime) accountChanged();
         }
       }
@@ -324,7 +334,7 @@
       selection.inFlight = false;
       if (selectionCurrent(scope, selection)) {
         state.selectionFlight = null; state.busy = false;
-        if (current(scope)) render();
+        if (current(scope)) { render(); drainLocaleRead(); }
         else {
           state.uncertain = !!state.pendingSelection; state.note = state.uncertain ? "uncertain" : "";
           if (!state.retired && !state.loading && !state.summary) render();
@@ -338,6 +348,7 @@
     state.readiness?.abort(); state.readiness = null;
     state.account = session(); state.accountVersion++; state.request++; state.operation++;
     state.summary = null; state.promise = null; state.loading = false; state.busy = false; state.uncertain = false; state.note = ""; state.filter = "all";
+    state.localeReload = false;
     state.pendingSelection = null; state.selectionFlight = null;
     state.activity = null; state.activityReason = token() ? "loading" : "login";
     state.achievements = null; state.achievementReason = token() ? "loading" : "login";
@@ -346,7 +357,7 @@
   function retirePage() {
     state.retired = true; state.lifetime++; state.request++;
     state.readiness?.abort(); state.readiness = null;
-    state.promise = null; state.loading = false;
+    state.promise = null; state.loading = false; state.localeReload = false;
     state.summary = null; state.activity = null; state.achievements = null;
     state.reason = state.activityReason = state.achievementReason = token() ? "failed" : "login";
     state.uncertain = !!state.pendingSelection; state.note = state.uncertain ? "uncertain" : "";
@@ -363,6 +374,21 @@
   function setFilter(filter) {
     if (!["all", "owned", "locked", "rare"].includes(filter)) return;
     state.filter = filter; render();
+  }
+  function drainLocaleRead() {
+    if (!state.localeReload || state.retired || state.promise || state.loading || state.busy || !token() || !sessionCurrent(state.account)) return;
+    state.localeReload = false; void load();
+  }
+  function localeChanged() {
+    const next = locale();
+    if (state.readLocale === next) { if (sessionCurrent(state.account)) render(); return; }
+    state.readLocale = next; state.localeVersion++;
+    if (!state.initialized || !sessionCurrent(state.account)) return;
+    if (state.retired) { render(); return; }
+    state.localeReload = !!token();
+    state.summary = null; state.activity = null; state.achievements = null;
+    state.reason = state.activityReason = state.achievementReason = token() ? "loading" : "login";
+    render(); drainLocaleRead();
   }
   const filter = $("mypageTitleFilter");
   filter.addEventListener("click", event => { const button = event.target.closest("[data-title-filter]"); if (button) setFilter(button.dataset.titleFilter); });
@@ -386,7 +412,7 @@
   window.addEventListener("pageshow", restorePage);
   window.addEventListener("lumina:auth-expired", accountChanged);
   window.addEventListener("storage", event => { if (event.key === "lumina_auth" || event.key === null) accountChanged(); });
-  window.addEventListener("lumina:localechange", () => { if (sessionCurrent(state.account)) render(); });
+  window.addEventListener("lumina:localechange", localeChanged);
   window.LuminaMypageTitles = { load, select };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", () => { void load(); });
   else void load();
