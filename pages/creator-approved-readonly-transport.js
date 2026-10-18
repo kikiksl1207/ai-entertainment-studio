@@ -34,28 +34,47 @@
     } catch (_) { return null; }
   }
 
+  function readAuthPayload(storage) {
+    const current = readAuth(storage);
+    if (!current) return null;
+    const parts = current.token.split(".");
+    if (parts.length !== 3 || parts.some(part => !part || part.length % 4 === 1 || !/^[A-Za-z0-9_-]+$/.test(part))) return null;
+    const encoded = parts[1];
+    if (encoded.length % 4 === 1) return null;
+    const binary = atob(encoded.replace(/-/g, "+").replace(/_/g, "/") + "=".repeat((4 - encoded.length % 4) % 4));
+    if (binary.length > 6144) return null;
+    const bytes = Uint8Array.from(binary, character => character.charCodeAt(0));
+    if (bytes[0] === 239 && bytes[1] === 187 && bytes[2] === 191) return null;
+    const text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes);
+    const payload = JSON.parse(text);
+    if (!payload || typeof payload !== "object" || Array.isArray(payload) ||
+        !Object.prototype.hasOwnProperty.call(payload, "exp") ||
+        typeof payload.exp !== "number" || !Number.isFinite(payload.exp)) return null;
+    return payload;
+  }
+
   function inspectAuthTime(options) {
     try {
       if (options !== undefined && (!options || typeof options !== "object" || Array.isArray(options))) return "unknown";
-      const current = readAuth(options?.storage);
-      if (!current) return "unknown";
-      const parts = current.token.split(".");
-      if (parts.length !== 3 || parts.some(part => !part || part.length % 4 === 1 || !/^[A-Za-z0-9_-]+$/.test(part))) return "unknown";
-      const encoded = parts[1];
-      if (encoded.length % 4 === 1) return "unknown";
-      const binary = atob(encoded.replace(/-/g, "+").replace(/_/g, "/") + "=".repeat((4 - encoded.length % 4) % 4));
-      if (binary.length > 6144) return "unknown";
-      const bytes = Uint8Array.from(binary, character => character.charCodeAt(0));
-      if (bytes[0] === 239 && bytes[1] === 187 && bytes[2] === 191) return "unknown";
-      const text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes);
-      const payload = JSON.parse(text);
-      if (!payload || typeof payload !== "object" || Array.isArray(payload) ||
-          !Object.prototype.hasOwnProperty.call(payload, "exp") ||
-          typeof payload.exp !== "number" || !Number.isFinite(payload.exp)) return "unknown";
+      const payload = readAuthPayload(options?.storage);
+      if (!payload) return "unknown";
       const suppliedNow = options?.now;
       const now = suppliedNow === undefined ? Date.now() : suppliedNow;
       if (typeof now !== "number" || !Number.isFinite(now)) return "unknown";
       return payload.exp <= now / 1000 ? "expired" : "future";
+    } catch (_) { return "unknown"; }
+  }
+
+  function inspectAuthLifetime(options) {
+    try {
+      if (options !== undefined && (!options || typeof options !== "object" || Array.isArray(options))) return "unknown";
+      const payload = readAuthPayload(options?.storage);
+      if (!payload || !Object.prototype.hasOwnProperty.call(payload, "iat") ||
+          typeof payload.iat !== "number" || !Number.isFinite(payload.iat)) return "unknown";
+      const lifetime = payload.exp - payload.iat;
+      if (!Number.isFinite(lifetime)) return "unknown";
+      if (lifetime <= 0) return "nonpositive";
+      return lifetime < 60 ? "under-minute" : "minute-or-longer";
     } catch (_) { return "unknown"; }
   }
 
@@ -230,4 +249,5 @@
     createBody: options => createForRoute(bodyRoute, options)
   });
   try { window.LuminaCreatorApprovedUnverifiedAuthTime = Object.freeze({ inspect: inspectAuthTime }); } catch (_) {}
+  try { window.LuminaCreatorApprovedUnverifiedAuthLifetime = Object.freeze({ inspect: inspectAuthLifetime }); } catch (_) {}
 })();

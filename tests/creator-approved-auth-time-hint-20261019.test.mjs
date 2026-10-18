@@ -379,8 +379,11 @@ function entryWorld({ standalone = true, disabled = false } = {}) {
     sets: () => control.changes.filter(row => row[0] === 'set' && row[1] === ATTR).length,
     verify(label) {
       check(counts.fetch === 0 && counts.writes === 0 && counts.timeout === 0 && counts.interval === 1, label);
-      check(control.changes.every(row => row[1] === ATTR && (row[0] !== 'set' ||
-        ['expired', 'future', 'unknown'].includes(row[2]))), label + ':ONE_ENUM_ATTRIBUTE');
+      check(control.changes.every(row => (row[1] === ATTR && (row[0] !== 'set' ||
+        ['expired', 'future', 'unknown'].includes(row[2]))) ||
+        (row[1] === 'data-unverified-auth-lifetime' && (row[0] !== 'set' ||
+          ['unknown', 'nonpositive', 'under-minute', 'minute-or-longer'].includes(row[2])))),
+      label + ':ONLY_KNOWN_ENUM_ATTRIBUTES');
       check(control.nodes.get('readingCatalogState').dataset.requestReceiptContract === undefined,
         label + ':NO_INVENTED_RECEIPT');
     } });

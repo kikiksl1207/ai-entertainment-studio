@@ -12,11 +12,11 @@ import { decodePinnedReadingSource } from "./support/owner-reading-source-pin-20
 // Baseline reader pins plus the parent-owned numeric sign-in UI RAW/blob overlay.
 const SOURCE_ROOT_ENV = "LUMINA_READING_SECTION_AUTH_SOURCE_ROOT";
 const PINS = [
-  ["creator-studio/approved-reading/index.html", "af1a65b207150771f8b9494b8730e8802dbcdf2f", "e67f0b1543b4da44c7e96c44fcb610f89afb694ce0a62a286bf91da38fa5a700"],
-  ["pages/creator-approved-readonly-transport.js", "46314689c89aa1bfbc404af2bfb5aa4fefc41e72", "dc1b8ae160470c3cd4f3909f07d53638d8d9a8df8598413b39b4f590ffa0b632"],
+  ["creator-studio/approved-reading/index.html", "59465ac3d3cce8eaa3a8f2d35939667ef8730d00", "a6347ee37b3150b1653c9a49711e428e0c1f113ce7143d4fa7fbb6162f15bde5"],
+  ["pages/creator-approved-readonly-transport.js", "f120a229a93e27fabded1ff79357a3e59c47ad09", "5d26e7c5098e60212905eccae402210a4fd7993d9f9bf470aac727025be04030"],
   ["pages/creator-approved-reading-handoff.js", "3c89000c313c43dbf4a78bac97d63bf769b43e11", "68d1dedcedbf3ae7b259e29924836a45a1703954f0f2fe825c924250dfe9f067"],
   ["pages/creator-approved-reading-catalog.js", "fc8d009cd7e546df0c253d4c9ca080a10c2983e4", "69da822d55237f040e9b324c6732d7a2e7038ea3dcc3dd45372bec398bd2fa9f"],
-  ["pages/creator-approved-reading-entry.js", "bf06cbc577d8170221eeaa7dc5030066f1eb6e62", "683e262ca34cf0727c2a0e6e6d3673783eb7e7540d36fb335ae84deadc81d444"],
+  ["pages/creator-approved-reading-entry.js", "faaada59c90f97bab29a1f43f0edfa45181d4001", "7cf81c4d64cce89d30c96ef20bc2aaea685cc92fa8761fbaab4fa11f66da8f8a"],
   ["pages/creator-approved-section-bytes.js", "19762358292026ef27d33f59133d8bb573edd2af", "72d2caf3d363979e7662f717ae19abf2d851750a24185874352e1a3225bfc9da"],
 ];
 function pinnedSources() {

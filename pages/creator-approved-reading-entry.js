@@ -94,6 +94,35 @@
         authTimeBusy = false;
       }
     }
+    let authLifetimeBusy = false, authLifetimeRetired = false;
+    function removeAuthLifetimeHint() {
+      try { document.documentElement.removeAttribute("data-unverified-auth-lifetime"); } catch (_) {}
+    }
+    function retireAuthLifetimeHint() {
+      authLifetimeRetired = true;
+      removeAuthLifetimeHint();
+    }
+    function renderAuthLifetimeHint() {
+      if (authLifetimeRetired) return;
+      if (pageDisposed) { retireAuthLifetimeHint(); return; }
+      if (authLifetimeBusy) { authLifetimeRetired = true; return; }
+      authLifetimeBusy = true;
+      try {
+        const inspector = window.LuminaCreatorApprovedUnverifiedAuthLifetime?.inspect;
+        const observed = typeof inspector === "function" ? inspector() : undefined;
+        const hint = typeof observed === "string" && ["unknown", "nonpositive", "under-minute", "minute-or-longer"].includes(observed) ? observed : "unknown";
+        if (pageDisposed || authLifetimeRetired) return;
+        const root = document.documentElement;
+        const previous = root.getAttribute("data-unverified-auth-lifetime");
+        if (pageDisposed || authLifetimeRetired) return;
+        if (previous !== hint) root.setAttribute("data-unverified-auth-lifetime", hint);
+      } catch (_) { authLifetimeRetired = true; }
+      finally {
+        if (pageDisposed) authLifetimeRetired = true;
+        if (authLifetimeRetired) removeAuthLifetimeHint();
+        authLifetimeBusy = false;
+      }
+    }
     let currentScope = null;
     let nonce;
     try { nonce = window.crypto.randomUUID(); } catch (_) { nonce = null; }
@@ -108,6 +137,7 @@
     }
     function renderCatalog() {
       renderAuthTimeHint();
+      renderAuthLifetimeHint();
       if (!standalone || !catalogReady) return;
       const c = catalogCopy[language.value] || catalogCopy.ko;
       document.getElementById("readingCatalogTitle").textContent = c.title;
@@ -195,13 +225,13 @@
     language.addEventListener("change", () => { translated();
       catalogController?.sync();
       window.dispatchEvent(new Event("lumina:localechange")); });
-    const sample = () => { if (standalone) catalogController?.sync(); else receiver?.snapshot(); renderAuthTimeHint(); };
+    const sample = () => { if (standalone) catalogController?.sync(); else receiver?.snapshot(); renderAuthTimeHint(); renderAuthLifetimeHint(); };
     for (const name of ["storage", "lumina:authchange", "lumina:auth-expired"]) window.addEventListener(name, () => {
       if (standalone) catalogController?.sync(); else receiver?.invalidate(); });
     window.addEventListener("focus", sample);
     window.addEventListener("creator:approved-section-auth-state", renderCatalog);
     const watch = setInterval(sample, 1000);
-    window.addEventListener("pagehide", () => { pageDisposed = true; retireAuthTimeHint(); clearInterval(watch); receiver?.dispose(); catalogController?.dispose();
+    window.addEventListener("pagehide", () => { pageDisposed = true; retireAuthTimeHint(); retireAuthLifetimeHint(); clearInterval(watch); receiver?.dispose(); catalogController?.dispose();
       catalogTransport?.dispose(); transport.dispose(); changed(null);
       if (catalogReady) { catalogSelect.disabled = true; catalogLoad.disabled = true; catalogNext.disabled = true; }
       if (catalogLogin) catalogLogin.hidden = true;

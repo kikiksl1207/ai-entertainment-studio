@@ -14,10 +14,10 @@ const PINS = {
     [CATALOG]: '69e34934bb77cb38461944062c6732fcdbf8a5406a80f1b5b1e5885e9b704ad5',
     [ENTRY]: 'c0b4a61accec55e12375ce9c5cf76d90a6f7c7d459738079e4e837694690e144',
     [HTML]: 'da077207f5ebe1ffc2b857b1963a69f51ac658cd835fa688264b752a79c494a5' },
-  current: { [TRANSPORT]: 'dc1b8ae160470c3cd4f3909f07d53638d8d9a8df8598413b39b4f590ffa0b632',
+  current: { [TRANSPORT]: '5d26e7c5098e60212905eccae402210a4fd7993d9f9bf470aac727025be04030',
     [CATALOG]: '69da822d55237f040e9b324c6732d7a2e7038ea3dcc3dd45372bec398bd2fa9f',
-    [ENTRY]: '683e262ca34cf0727c2a0e6e6d3673783eb7e7540d36fb335ae84deadc81d444',
-    [HTML]: 'e67f0b1543b4da44c7e96c44fcb610f89afb694ce0a62a286bf91da38fa5a700' },
+    [ENTRY]: '7cf81c4d64cce89d30c96ef20bc2aaea685cc92fa8761fbaab4fa11f66da8f8a',
+    [HTML]: 'a6347ee37b3150b1653c9a49711e428e0c1f113ce7143d4fa7fbb6162f15bde5' },
 };
 const sourceRoot = path.resolve(process.env.OWNER_AUTH_REASON_SOURCE_ROOT || path.join(__dirname, '..'));
 assert(!/(?:^|[\\/])story-completion-20261003(?:[\\/]|$)/i.test(sourceRoot), 'Shared CLEAN is not an admitted source');
