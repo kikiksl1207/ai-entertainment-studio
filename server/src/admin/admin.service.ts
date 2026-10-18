@@ -3807,33 +3807,43 @@ export class AdminService {
 
     const roleName = this.optionalString(input, 'roleName');
     const role = roleName ? await this.findAdminRole(roleName) : null;
-    const adminUser = await this.prisma.adminUser.update({
-      where: { id: adminUserId },
-      data: this.clean({
-        roleId: role?.id,
-        status: nextStatus,
-        updatedAt: new Date(),
-      }),
-      include: {
-        role: true,
-        user: {
-          select: {
-            id: true,
-            email: true,
-            status: true,
+    const adminUser = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`
+        SELECT id FROM admin_users WHERE id = ${adminUserId}::uuid FOR UPDATE`;
+      const current = await tx.adminUser.findUniqueOrThrow({
+        where: { id: adminUserId },
+        include: { role: true, user: true },
+      });
+      const updated = await tx.adminUser.update({
+        where: { id: adminUserId },
+        data: this.clean({
+          roleId: role?.id,
+          status: nextStatus,
+          updatedAt: new Date(),
+        }),
+        include: {
+          role: true,
+          user: {
+            select: {
+              id: true,
+              email: true,
+              status: true,
+            },
           },
         },
-      },
-    });
-
-    await this.recordAudit(
-      user,
-      'admin_user.update',
-      'admin_user',
-      adminUser.id,
-      before,
-      adminUser,
-    );
+      });
+      await this.recordAudit(
+        user,
+        'admin_user.update',
+        'admin_user',
+        updated.id,
+        current,
+        updated,
+        {},
+        tx,
+      );
+      return updated;
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted });
 
     return adminUser;
   }
