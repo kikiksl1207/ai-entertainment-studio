@@ -527,7 +527,7 @@ export class FanEngagementService {
         earnedAt: row.earnedAt,
       })),
       titles: {
-        equipped: this.presentEquippedTitle(equippedTitle),
+        equipped: this.presentEquippedTitle(equippedTitle, locale),
         items: titles.map((row) => ({
           code: row.title.code,
           status: row.status,
@@ -536,7 +536,7 @@ export class FanEngagementService {
           canEquip: row.status === 'active' && row.title.status === 'active',
           rarity: row.title.rarity,
           rarityKey: `fanTitle.rarity.${row.title.rarity}`,
-          copy: this.titleCopy(row.title.copy, row.title.code),
+          copy: this.titleCopy(row.title.copy, row.title.code, locale),
         })),
       },
       recentLedger: ledger.map((row) => ({
@@ -1043,16 +1043,18 @@ export class FanEngagementService {
           equippedAt: Date | null;
         }
       | undefined,
+    locale = 'ko',
   ) {
     if (!row) {
       return null;
     }
 
+    const copy = this.titleCopy(row.title.copy, row.title.code, locale);
     return {
       code: row.title.code,
       copy: {
-        displayNameKey: this.titleCopy(row.title.copy, row.title.code).displayNameKey,
-        labels: this.labels(row.title.copy, 'ko'),
+        displayNameKey: copy.displayNameKey,
+        labels: copy.labels,
       },
       equippedAt: row.equippedAt,
     };
@@ -1127,12 +1129,13 @@ export class FanEngagementService {
     };
   }
 
-  private titleCopy(value: Prisma.JsonValue, code: string) {
+  private titleCopy(value: Prisma.JsonValue, code: string, locale = 'ko') {
     const copy = this.metadataObject(value);
+    const labels = { ...this.labels(copy, 'ko'), ...this.labels(copy, locale) };
     return {
       displayNameKey: this.copyKey(copy, 'displayNameKey', `fanTitle.${code}.name`),
       descriptionKey: this.copyKey(copy, 'descriptionKey', `fanTitle.${code}.description`),
-      labels: this.labels(copy, 'ko'),
+      labels: Object.keys(labels).length ? labels : undefined,
     };
   }
 
