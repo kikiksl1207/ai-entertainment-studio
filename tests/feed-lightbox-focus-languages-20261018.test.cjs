@@ -1,4 +1,5 @@
 'use strict';
+const { restoreOwnedSocialLoginCurrentnessDelta } = require('./support/auth-login-failclosed-inverse-20261017.cjs');
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const assert=require('node:assert/strict'),test=require('node:test'),{createHash}=require('node:crypto');
 const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
@@ -37,8 +38,9 @@ assert.equal(real,path.join(realRoot,'app.js'),'LANGUAGE_INPUT_REALPATH');
 const info=fs.statSync(real);assert(info.isFile()&&info.size>0&&info.size<=866000,'LANGUAGE_INPUT_SIZE');
 const bytes=fs.readFileSync(real),decoded=new TextDecoder('utf-8',{fatal:true,ignoreBOM:true}).decode(bytes);
 assert(!decoded.startsWith('\uFEFF')&&Buffer.from(decoded).equals(bytes),'LANGUAGE_INPUT_UTF8');
-const full=decoded.replace(/\r\n/g,'\n'),pin=PINS[version];
-assert(!full.includes('\r')&&(decoded===full||decoded===full.replace(/\n/g,'\r\n')),'LANGUAGE_INPUT_UNIFORM_EOL');
+const delivered=decoded.replace(/\r\n/g,'\n');
+assert(!delivered.includes('\r')&&(decoded===delivered||decoded===delivered.replace(/\n/g,'\r\n')),'LANGUAGE_INPUT_UNIFORM_EOL');
+const full=restoreOwnedSocialLoginCurrentnessDelta(delivered),pin=PINS[version];
 assert.equal(Buffer.byteLength(full),pin.bytes,'LANGUAGE_FULL_SOURCE_BYTES');
 assert.equal(sha(full),pin.sha,'LANGUAGE_FULL_SOURCE_SHA');
 const begin=full.indexOf('let _lightboxEl = null;'),end=full.indexOf('\n/* ',begin);

@@ -35,9 +35,10 @@ const decoded = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decod
 assert.equal(decoded.startsWith('\uFEFF'), false, 'FOCUS_INVERSE_INPUT_BOM');
 assert.equal(Buffer.from(decoded).equals(bytes), true, 'FOCUS_INVERSE_INPUT_UTF8');
 const lf = text => text.replace(/\r\n/g, '\n');
-const rawSource = lf(decoded);
-assert.equal(rawSource.includes('\r'), false, 'LANGUAGES_INVERSE_INPUT_BARE_CR');
-assert.equal(decoded === rawSource || decoded === rawSource.replace(/\n/g, '\r\n'), true, 'LANGUAGES_INVERSE_INPUT_UNIFORM_EOL');
+const deliveredSource = lf(decoded);
+assert.equal(deliveredSource.includes('\r'), false, 'LANGUAGES_INVERSE_INPUT_BARE_CR');
+assert.equal(decoded === deliveredSource || decoded === deliveredSource.replace(/\n/g, '\r\n'), true, 'LANGUAGES_INVERSE_INPUT_UNIFORM_EOL');
+const rawSource = inverse.restoreOwnedSocialLoginCurrentnessDelta(deliveredSource);
 assert.deepEqual(identity(rawSource), INPUT, 'LANGUAGES_INVERSE_INPUT_WHOLE_IDENTITY');
 const source = inverse.restoreOwnedFeedLightboxLanguagesDelta(rawSource);
 assert.deepEqual(identity(source), CURRENT, 'FOCUS_INVERSE_INPUT_WHOLE_IDENTITY');

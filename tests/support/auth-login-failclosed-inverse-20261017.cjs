@@ -40,8 +40,57 @@ function identity(source) {
   };
 }
 
+function restoreOwnedSocialLoginCurrentnessDelta(source) {
+  if (typeof source !== 'string') throw new TypeError('SOCIAL_CURRENTNESS_INVERSE_STRING_REQUIRED');
+  let lf = source.replace(/\r\n/g, '\n');
+  const crlf = source.includes('\r\n');
+  if (lf.startsWith('\uFEFF') || lf.includes('\r') ||
+      (crlf && source !== lf.replace(/\n/g, '\r\n'))) return source;
+  if (Buffer.from(lf, 'utf8').toString('utf8') !== lf) return source;
+  const after = identity(lf);
+  const sha256 = '6089683740bfbc19b3f85e1754169acf5c7576d6b851d4ed38314c423d2ea47c';
+  const blob = 'b9985ba4b0121dfc48792ff908c02b7b91e0f5a8';
+  if (after.sha256 !== sha256 && after.blob !== blob) return source;
+  if (Buffer.byteLength(lf, 'utf8') !== 433255 || after.sha256 !== sha256 || after.blob !== blob) {
+    throw new Error('SOCIAL_CURRENTNESS_INVERSE_IDENTITY_MISMATCH');
+  }
+  const admitted = lf;
+  const inverse = [
+    ["  const session = authRequestSession();\n  try {\n    console.info(\"[Lumina] Kakao code \uc218\uc2e0, \ubc31\uc5d4\ub4dc \ud638\ucd9c \uc911\");", "  try {\n    console.info(\"[Lumina] Kakao code \uc218\uc2e0, \ubc31\uc5d4\ub4dc \ud638\ucd9c \uc911\");"],
+    ["  const session = authRequestSession();\n  try {\n    console.info(\"[Lumina] Naver access token \uc218\uc2e0, \ubc31\uc5d4\ub4dc \ud638\ucd9c \uc911\");", "  try {\n    console.info(\"[Lumina] Naver access token \uc218\uc2e0, \ubc31\uc5d4\ub4dc \ud638\ucd9c \uc911\");"],
+    ["    console.error(\"[Lumina] Google access_token \ub204\ub77d\");\n    return;\n  }\n  const session = authRequestSession();\n  try {", "    console.error(\"[Lumina] Google access_token \ub204\ub77d\");\n    return;\n  }\n  try {"],
+    ["    if (!authRequestSessionCurrent(session)) return;\n    applyAuthResponse(data, \"Kakao\");", "    applyAuthResponse(data, \"Kakao\");"],
+    ["    if (!authRequestSessionCurrent(session)) return;\n    applyAuthResponse(data, \"Naver\");", "    applyAuthResponse(data, \"Naver\");"],
+    ["    if (!authRequestSessionCurrent(session)) return;\n    applyAuthResponse(data, \"Google\");", "    applyAuthResponse(data, \"Google\");"],
+  ];
+  for (const [owned, previous] of inverse) {
+    const at = lf.indexOf(owned);
+    if (at < 0 || lf.indexOf(owned, at + owned.length) !== -1) {
+      throw new Error('SOCIAL_CURRENTNESS_INVERSE_OWNED_SUBSTITUTION_MISMATCH');
+    }
+    lf = lf.slice(0, at) + previous + lf.slice(at + owned.length);
+  }
+  const before = identity(lf);
+  if (Buffer.byteLength(lf, 'utf8') !== 432976 ||
+      before.sha256 !== '5e4f1fbb89c82ca51c2b2cbf89707eac8dcdc571b6799a690e18fc065c235c4d' ||
+      before.blob !== '609d8253eebaa968b9654e4d961f197a20a8ba6e') {
+    throw new Error('SOCIAL_CURRENTNESS_INVERSE_RESTORED_IDENTITY_MISMATCH');
+  }
+  let forward = lf;
+  for (const [owned, previous] of inverse) {
+    const at = forward.indexOf(previous);
+    if (at < 0 || forward.indexOf(previous, at + previous.length) !== -1) {
+      throw new Error('SOCIAL_CURRENTNESS_INVERSE_FORWARD_SUBSTITUTION_MISMATCH');
+    }
+    forward = forward.slice(0, at) + owned + forward.slice(at + previous.length);
+  }
+  if (forward !== admitted) throw new Error('SOCIAL_CURRENTNESS_INVERSE_FORWARD_MISMATCH');
+  return crlf ? lf.replace(/\n/g, '\r\n') : lf;
+}
+
 function restoreOwnedFeedLightboxLanguagesDelta(source) {
   if (typeof source !== 'string') throw new TypeError('FEED_LIGHTBOX_LANGUAGES_INVERSE_STRING_REQUIRED');
+  source = restoreOwnedSocialLoginCurrentnessDelta(source);
   let lf = source.replace(/\r\n/g, '\n');
   const crlf = source.includes('\r\n');
   if (lf.startsWith('\uFEFF') || lf.includes('\r') ||
@@ -475,4 +524,4 @@ function restoreOwnedLoginDelta(source) {
   return crlf ? restored.replace(/\n/g, '\r\n') : restored;
 }
 
-module.exports = { restoreOwnedFeedLightboxLanguagesDelta, restoreOwnedFeedLightboxFocusDelta, restoreOwnedFeedLightboxLifetimeDelta, restoreOwnedAuthEntryHardeningDelta, restoreOwnedBootstrapDelta, restoreOwnedLoginDelta };
+module.exports = { restoreOwnedSocialLoginCurrentnessDelta, restoreOwnedFeedLightboxLanguagesDelta, restoreOwnedFeedLightboxFocusDelta, restoreOwnedFeedLightboxLifetimeDelta, restoreOwnedAuthEntryHardeningDelta, restoreOwnedBootstrapDelta, restoreOwnedLoginDelta };

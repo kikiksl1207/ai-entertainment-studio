@@ -14,11 +14,11 @@ const current = decoded.replace(/\r\n/g, '\n');
 assert(!current.includes('\r') && (decoded === current || decoded === current.replace(/\n/g, '\r\n')));
 const sha = text => createHash('sha256').update(text).digest('hex');
 const blob = text => createHash('sha1').update('blob ' + Buffer.byteLength(text) + '\0').update(text).digest('hex');
-assert.equal(sha(current), '694c46006a8f8892aae7a57dd9c403c3034e3b22d67d9aba7d65bc14949bb2ee');
-assert.equal(blob(current), 'ae1f703f8eb1041a71c730def16c518b726da37b');
+assert.equal(sha(current), '317cf9442fd863604568e361ab836313130dc94fe79465209dd152c9ab764536');
+assert.equal(blob(current), '9e3bf9ee1dc29207b97e500b8d17cecbe57e3d53');
 const layouts = [text => text, text => text.replace(/\n/g, '\r\n')];
 const lf = text => text.replace(/\r\n/g, '\n');
-const query = '&amp;content=5e4f1fbb89c82ca51c2b2cbf89707eac8dcdc571b6799a690e18fc065c235c4d';
+const query = '&amp;content=6089683740bfbc19b3f85e1754169acf5c7576d6b851d4ed38314c423d2ea47c';
 
 test('feed lightbox cache inverse restores the exact complete LF and CRLF predecessor', () => {
   const previousViewer = current.replace(query,

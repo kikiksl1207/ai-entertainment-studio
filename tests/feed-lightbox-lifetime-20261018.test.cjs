@@ -5,16 +5,17 @@ const assert = require('node:assert/strict');
 const { createHash } = require('node:crypto');
 const path = require('node:path');
 const { test } = require('node:test');
-const { restoreOwnedFeedLightboxLanguagesDelta } = require('./support/auth-login-failclosed-inverse-20261017.cjs');
+const { restoreOwnedSocialLoginCurrentnessDelta, restoreOwnedFeedLightboxLanguagesDelta } = require('./support/auth-login-failclosed-inverse-20261017.cjs');
 
 const bytes = fs.readFileSync(path.join(__dirname, '../app.js'));
 assert(bytes.length >= 432976 && bytes.length <= 865952);
 const decoded = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
 assert.equal(decoded.startsWith('\uFEFF'), false);
 assert.equal(Buffer.from(decoded).equals(bytes), true);
-const deliveredSource = decoded.replace(/\r\n/g, '\n');
-assert.equal(deliveredSource.includes('\r'), false);
-assert.equal(decoded === deliveredSource || decoded === deliveredSource.replace(/\n/g, '\r\n'), true);
+const suppliedSource = decoded.replace(/\r\n/g, '\n');
+assert.equal(suppliedSource.includes('\r'), false);
+assert.equal(decoded === suppliedSource || decoded === suppliedSource.replace(/\n/g, '\r\n'), true);
+const deliveredSource = restoreOwnedSocialLoginCurrentnessDelta(suppliedSource);
 const canonicalBytes = Buffer.from(deliveredSource);
 assert.equal(canonicalBytes.length, 432976);
 assert.equal(createHash('sha256').update(canonicalBytes).digest('hex'),

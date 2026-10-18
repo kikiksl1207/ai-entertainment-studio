@@ -18,7 +18,7 @@ const PINS = Object.freeze({
   }),
   focused: Object.freeze({
     'pages/fan-engagement.js': 'a97c6f60a07046e789469a0518d03553c0cee5ce4d4ef0b1e25cf230b1e172bf',
-    'index.html': '53e5770e1c77697166245fb29df2fb3d360d36b45a5a642b001754d485a5db12',
+    'index.html': '181a76ea6609ed8525f75afab603262aa7b579d91c9050dc65f74e800c309985',
   }),
 });
 const phase = process.env.FAN_HOME_LIFETIME_PHASE || 'focused';

@@ -41,6 +41,9 @@ function htmlWithoutFeedLightboxCacheDelta(text) {
       Buffer.from(lf, 'utf8').toString('utf8') !== lf) return text;
   const bytes = Buffer.from(lf, 'utf8'), actualSha = sha(bytes), actualBlob = blob(bytes);
   const versions = [
+    ['317cf9442fd863604568e361ab836313130dc94fe79465209dd152c9ab764536',
+      '9e3bf9ee1dc29207b97e500b8d17cecbe57e3d53',
+      '6089683740bfbc19b3f85e1754169acf5c7576d6b851d4ed38314c423d2ea47c'],
     ['f17604dabc043c07f1f382da2dfc510683bba3fa69bbb9074256418886b683c9',
       'a4893cd696951c2a179a076f7a98c0d3d2ee160e',
       '653ed7f0686e0c3d9ccd510706195034a4f3399eef3133bd540904b3722cb45b'],
