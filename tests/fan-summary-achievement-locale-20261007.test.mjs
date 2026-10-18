@@ -83,7 +83,7 @@ test('default public achievement title copy and global locale behavior remain Ko
   assert.equal(helpers.achievementCopy({ labels: { en } }, 'synthetic-record').labels, undefined);
 });
 
-test('actual owner callsite alone routes summary locale to achievement copy', () => {
+test('actual owner callsites route summary locale to achievement and title copy while public defaults stay unchanged', () => {
   const summary = methods.get('getMySummary'), publicSummary = methods.get('getPublicSummary');
   assert(summary && publicSummary);
   const summaryCalls = calls(summary), publicCalls = calls(publicSummary);
@@ -100,6 +100,12 @@ test('actual owner callsite alone routes summary locale to achievement copy', ()
   assert.equal(allSummaryCalls.length, 1);
   const title = summaryCalls.filter(call => call.expression.getText(tree) === 'this.titleCopy');
   assert.equal(title.length, 1);
-  assert.equal(title[0].arguments.length, 2);
+  assert.deepEqual(title[0].arguments.map(node => node.getText(tree)), ['row.title.copy', 'row.title.code', 'locale']);
+  const equipped = summaryCalls.filter(call => call.expression.getText(tree) === 'this.presentEquippedTitle');
+  assert.equal(equipped.length, 1);
+  assert.deepEqual(equipped[0].arguments.map(node => node.getText(tree)), ['equippedTitle', 'locale']);
+  const publicEquipped = publicCalls.filter(call => call.expression.getText(tree) === 'this.presentEquippedTitle');
+  assert.equal(publicEquipped.length, 1);
+  assert.equal(publicEquipped[0].arguments.length, 1);
   assert(publicCalls.some(call => call.expression.getText(tree) === 'this.locale'));
 });
