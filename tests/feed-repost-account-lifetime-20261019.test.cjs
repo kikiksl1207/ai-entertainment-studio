@@ -12,8 +12,21 @@ const appFile = path.join(ROOT, 'app.js');
 const sha = b => createHash('sha256').update(b).digest('hex');
 const tracked = [feedFile, appFile, __filename];
 const opening = tracked.map(p => sha(fs.readFileSync(p)));
-const feedRaw = fs.readFileSync(feedFile);
-const appRaw = fs.readFileSync(appFile);
+function canonicalSource(raw) {
+  assert.equal(Buffer.isBuffer(raw), true);
+  let text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(raw);
+  assert.equal(Buffer.from(text).equals(raw), true);
+  assert.equal(text.startsWith('\uFEFF'), false);
+  if (text.includes('\r')) {
+    const withoutPairs = text.replace(/\r\n/g, '');
+    assert.equal(withoutPairs.includes('\r'), false);
+    assert.equal(withoutPairs.includes('\n'), false);
+    text = text.replace(/\r\n/g, '\n');
+  }
+  return Buffer.from(text);
+}
+const feedRaw = canonicalSource(fs.readFileSync(feedFile));
+const appRaw = canonicalSource(fs.readFileSync(appFile));
 assert.ok([
   '29537a1f381992c63ffd6b1c40255d1466918a1a287dcf5cf2fdc16c27b0d1e4',
   '4f026d788f7e1dfeae1fe36df495070d78a85540830325484094c14b66dac91b',
