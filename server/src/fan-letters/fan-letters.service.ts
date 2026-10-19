@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
@@ -27,6 +28,8 @@ const UUID_PATTERN =
 
 @Injectable()
 export class FanLettersService {
+  private readonly logger = new Logger(FanLettersService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationsService: NotificationsService,
@@ -191,7 +194,14 @@ export class FanLettersService {
     });
 
     if (!result.idempotentReplay) {
-      await this.notifyArtistOperatorsSafely(artist.id, userId, result.fanLetter.id, body);
+      try {
+        await this.notifyArtistOperatorsSafely(artist.id, userId, result.fanLetter.id, body);
+      } catch {
+        // Diagnostics cannot change the committed create response.
+        try {
+          this.logger.warn('FAN_LETTER_CREATE_NOTIFICATION_FAILED');
+        } catch {}
+      }
     }
 
     return result;
@@ -287,16 +297,23 @@ export class FanLettersService {
     });
 
     if (input.status === 'replied') {
-      await this.notificationsService.createNotification({
-        userId: updated.senderUserId,
-        type: 'fan_letter.reply',
-        title: 'Fan letter reply arrived',
-        body: this.truncate(replyBody ?? '', 120),
-        actorUserId: userId,
-        artistId: updated.artistId,
-        targetType: 'fan_letter',
-        targetId: updated.id,
-      });
+      try {
+        await this.notificationsService.createNotification({
+          userId: updated.senderUserId,
+          type: 'fan_letter.reply',
+          title: 'Fan letter reply arrived',
+          body: this.truncate(replyBody ?? '', 120),
+          actorUserId: userId,
+          artistId: updated.artistId,
+          targetType: 'fan_letter',
+          targetId: updated.id,
+        });
+      } catch {
+        // Diagnostics cannot change the persisted reply response.
+        try {
+          this.logger.warn('FAN_LETTER_REPLY_NOTIFICATION_FAILED');
+        } catch {}
+      }
     }
 
     return { fanLetter: this.toFanLetterView(updated) };
