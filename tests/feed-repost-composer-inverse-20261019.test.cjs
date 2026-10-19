@@ -7,7 +7,8 @@ const { createHash } = require('node:crypto');
 const ROOT = path.resolve(__dirname, '..');
 const sourceFile = path.join(ROOT, 'pages/lumina-feed.js');
 const helperFile = path.join(ROOT, 'tests/support/feed-repost-composer-lifetime-inverse-20261019.cjs');
-const files = [sourceFile, helperFile, __filename];
+const accountHelperFile = path.join(ROOT, 'tests/support/feed-repost-account-lifetime-inverse-20261019.cjs');
+const files = [sourceFile, helperFile, accountHelperFile, __filename];
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 const blob = bytes => createHash('sha1').update('blob ' + bytes.length + '\0').update(bytes).digest('hex');
 const opening = files.map(file => sha(fs.readFileSync(file)));
@@ -17,7 +18,7 @@ assert.equal(Buffer.from(text, 'utf8').equals(raw), true);
 assert.equal(text.startsWith('\uFEFF'), false);
 assert.equal(/\r(?!\n)/.test(text), false);
 assert.equal(text.includes('\r\n') && /(?<!\r)\n/.test(text), false);
-const current = text.replace(/\r\n/g, '\n');
+const current = require(accountHelperFile).feedWithoutRepostAccountLifetimeDelta(text).replace(/\r\n/g, '\n');
 const helper = require(helperFile);
 const restore = helper.feedWithoutRepostComposerLifetimeDelta;
 

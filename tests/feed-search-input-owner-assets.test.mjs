@@ -9,7 +9,7 @@ function refs(html) {
 
 test('feed entry loads the input-owner guard once with a fresh cache version', () => {
   const html = readFileSync(new URL('../lumina-feed/index.html', import.meta.url), 'utf8');
-  const expected = ['/pages/lumina-feed.js?v=feed-search-locale-20261015&amp;content=29537a1f381992c63ffd6b1c40255d1466918a1a287dcf5cf2fdc16c27b0d1e4'];
+  const expected = ['/pages/lumina-feed.js?v=feed-search-locale-20261015&amp;content=4f026d788f7e1dfeae1fe36df495070d78a85540830325484094c14b66dac91b'];
   const tag = '<script src="' + expected[0] + '"></script>';
   assert.deepEqual(refs(html), expected);
   for (const invalid of [

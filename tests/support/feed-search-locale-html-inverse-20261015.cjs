@@ -33,6 +33,29 @@ function admitted(text, pairs) {
   assert.equal(new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes), text);
   assert(pairs.some(pair => sha(bytes) === pair[0] && blob(bytes) === pair[1]), 'Exact whole HTML SHA/blob pair required');
 }
+function restoreOwnedRepostAccountScriptCacheDelta(source) {
+  const lf = source.replace(/\r\n/g, '\n'), crlf = source.includes('\r\n');
+  if (lf.startsWith('\uFEFF') || lf.includes('\r') ||
+      (crlf && source !== lf.replace(/\n/g, '\r\n')) ||
+      Buffer.from(lf, 'utf8').toString('utf8') !== lf) return source;
+  const bytes = Buffer.from(lf, 'utf8'), actualSha = sha(bytes), actualBlob = blob(bytes);
+  const expectedSha = '4e0b216c07b2cb1ee64d19050295b23cb546e27c9b7b3bea79872778b9a9c7d1';
+  const expectedBlob = 'b6f6b0841c9a440e4e00ab9eb0113992165cf112';
+  if (actualSha !== expectedSha && actualBlob !== expectedBlob) return source;
+  assert(bytes.length === 24673 && actualSha === expectedSha && actualBlob === expectedBlob,
+    'Exact whole repost cache HTML SHA/blob/length required');
+  const previous = "<script src=\"/pages/lumina-feed.js?v=feed-search-locale-20261015&amp;content=29537a1f381992c63ffd6b1c40255d1466918a1a287dcf5cf2fdc16c27b0d1e4\"></script>";
+  const current = "<script src=\"/pages/lumina-feed.js?v=feed-search-locale-20261015&amp;content=4f026d788f7e1dfeae1fe36df495070d78a85540830325484094c14b66dac91b\"></script>";
+  assert.equal(lf.split(current).length, 2, 'One exact repost script cache reference');
+  const restored = lf.replace(current, previous), previousBytes = Buffer.from(restored, 'utf8');
+  assert.equal(previousBytes.length, 24673);
+  assert.equal(sha(previousBytes), '7e6144f2043acc1cc2031a5f5b5612dc64b1b58806f2d5925bb70040fba9d405');
+  assert.equal(blob(previousBytes), '9ff46d03b968eab40285119dad17b7b0f55fd847');
+  assert.equal(restored.split(previous).length, 2, 'One exact previous repost script reference');
+  assert.equal(restored.replace(previous, current), lf, 'Exact whole repost script cache forward');
+  return crlf ? restored.replace(/\n/g, '\r\n') : restored;
+}
+
 function restoreOwnedRepostScriptCacheDelta(source) {
   const lf = source.replace(/\r\n/g, '\n'), crlf = source.includes('\r\n');
   if (lf.startsWith('\uFEFF') || lf.includes('\r') ||
@@ -58,7 +81,7 @@ function restoreOwnedRepostScriptCacheDelta(source) {
 
 function htmlWithoutNaverStateAppCacheDelta(source) {
   if (typeof source !== 'string') throw new TypeError('NAVER_STATE_APP_CACHE_HTML_INVERSE_STRING_REQUIRED');
-  source = restoreOwnedRepostScriptCacheDelta(source);
+  source = restoreOwnedRepostScriptCacheDelta(restoreOwnedRepostAccountScriptCacheDelta(source));
   const lf = source.replace(/\r\n/g, '\n'), crlf = source.includes('\r\n');
   if (lf.startsWith('\uFEFF') || lf.includes('\r') ||
       (crlf && source !== lf.replace(/\n/g, '\r\n')) ||

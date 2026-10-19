@@ -2423,6 +2423,7 @@ async function runFeedComposeUploadStages(item, onStateChange) {
 
   let _feedLastViewerKey = feedViewerKey();
   function clearFeedOnAccountChange() {
+    retireRepostOnAccountChange();
     const owner = feedViewerKey();
     if (owner === _feedLastViewerKey) return;
     _feedLastViewerKey = owner;
@@ -2697,7 +2698,20 @@ async function runFeedComposeUploadStages(item, onStateChange) {
   }
 
   var repostReturnFocus = null;
+  var repostLifetime = null;
+  function repostAccountKey() {
+    var auth = typeof getAuth === "function" ? getAuth() : null;
+    var user = auth && auth.user;
+    var id = user && (user.id || user.userId);
+    if (!auth || !auth.accessToken) return "";
+    if (typeof id === "string") return id.trim() ? id : "";
+    return typeof id === "number" && Number.isFinite(id) ? String(id) : "";
+  }
+  function retireRepostOnAccountChange() {
+    if (repostLifetime && repostLifetime.owner !== repostAccountKey()) closeRepostModal();
+  }
   function closeRepostModal() {
+    repostLifetime = null;
     var backdrop = document.getElementById("feedRepostBackdrop");
     var modal = document.getElementById("feedRepostModal");
     if (!modal || modal.hidden) return;
@@ -2712,6 +2726,12 @@ async function runFeedComposeUploadStages(item, onStateChange) {
     var backdrop = document.getElementById("feedRepostBackdrop");
     var modal = document.getElementById("feedRepostModal");
     if (!modal || !backdrop) return;
+    var owner = repostAccountKey();
+    repostLifetime = null;
+    if (!owner) {
+      closeRepostModal();
+      return;
+    }
     repostReturnFocus = document.activeElement;
     // #401 — 리포스트 모달 원글 참조: 본문이 길 때 160자에서 자르고 말줄임 처리.
     //         원글 전체는 "원글 보기 →" 링크로 접근. 민감값 기록 없음.
@@ -2744,6 +2764,7 @@ async function runFeedComposeUploadStages(item, onStateChange) {
         '<button type="button" class="feed-repost-submit" data-feed-repost-submit>리포스트 게시</button>' +
       '</footer>';
     modal.dataset.busy = "0";
+    repostLifetime = { owner: owner };
     modal.hidden = false;
     backdrop.hidden = false;
     document.body.classList.add("is-feed-repost-open");
@@ -2763,7 +2784,13 @@ async function runFeedComposeUploadStages(item, onStateChange) {
 
   async function submitRepost() {
     var modal = document.getElementById("feedRepostModal");
-    if (!modal || modal.dataset.busy === "1") return;
+    if (!modal) return;
+    var lifetime = repostLifetime;
+    if (!lifetime || lifetime.owner !== repostAccountKey()) {
+      closeRepostModal();
+      return;
+    }
+    if (modal.dataset.busy === "1") return;
     var postId = modal.dataset.postId || "";
     if (!postId) return;
     if (typeof isLoggedIn === "function" && !isLoggedIn()) {
@@ -2774,7 +2801,8 @@ async function runFeedComposeUploadStages(item, onStateChange) {
     var body = (ta && ta.value || "").trim();
     var submitBtn = modal.querySelector("[data-feed-repost-submit]");
     function ownsComposer() {
-      return !!ta && !modal.hidden && modal.querySelector("[data-feed-repost-input]") === ta;
+      return lifetime === repostLifetime && lifetime.owner === repostAccountKey() &&
+        !!ta && !modal.hidden && modal.querySelector("[data-feed-repost-input]") === ta;
     }
     modal.dataset.busy = "1";
     if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = "게시 중"; }

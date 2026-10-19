@@ -95,6 +95,7 @@ function fixture({ deferLoad = false } = {}) {
     document, encodeURIComponent,
     window: { location: { origin: 'https://synthetic.example.test' } },
     isLoggedIn() { return true; },
+    getAuth() { return { accessToken: "synthetic-api-A", user: { id: "10000000-0000-4000-8000-000000000001" } }; },
     _luminaFeedFilter: 'all',
     apiFetch(url, options) {
       let resolve, reject;
