@@ -10,9 +10,11 @@ const ROOT = path.resolve(__dirname, '..');
 const APP = path.join(ROOT, 'app.js');
 const TS = path.join(ROOT, 'server/node_modules/typescript/lib/typescript.js');
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
-const tracked = [APP, TS, __filename];
+const EDIT = path.join(__dirname, 'support/feed-edit-modal-lifetime-inverse-20261019.cjs');
+const tracked = [APP, TS, __filename, EDIT];
 assert.ok(fs.statSync(APP).size <= 1024 * 1024);
 assert.equal(fs.statSync(TS).size, 9112572);
+assert.ok([4876, 4982].includes(fs.statSync(EDIT).size), 'only pinned LF or uniform CRLF edit helper sizes');
 const opening = tracked.map(file => sha(fs.readFileSync(file)));
 assert.equal(opening[1], '3ae902c92cc44dace175c0e69e13a4b0899f6983c6121d76b9ab8dd5795e7675');
 
@@ -30,6 +32,15 @@ function canonicalSource(raw) {
   }
   return Buffer.from(text);
 }
+const editRaw = fs.readFileSync(EDIT);
+assert.equal(sha(editRaw), opening[3], 'physical edit helper opening pin');
+const editCanonical = canonicalSource(editRaw);
+assert.equal(editCanonical.length, 4876);
+assert.equal(sha(editCanonical), '7ea92475b314c022abf6c58259164db7699c24ede4497191cca91ec1db3f7b84');
+assert.equal(createHash('sha1').update('blob ' + editCanonical.length + '\0').update(editCanonical).digest('hex'),
+  'c6ac2110893157fb5d2c3b20baa241af445b3bd8');
+const editHelpers = require(EDIT);
+assert.deepEqual(Object.keys(editHelpers), ['restoreOwnedFeedEditModalLifetime']);
 const profiles = new Map([
   ['7aac5b75851189fc919f26f5f64ba48c4910237a8c1f0b349a039d346b9d4b61', {
     bytes: 433479, functionBytes: 3053,
@@ -41,7 +52,8 @@ const profiles = new Map([
   }],
 ]);
 function admitted(raw) {
-  const canonical = canonicalSource(raw);
+  const physicalCanonical = canonicalSource(raw);
+  const canonical = Buffer.from(editHelpers.restoreOwnedFeedEditModalLifetime(physicalCanonical.toString('utf8')));
   const profile = profiles.get(sha(canonical));
   assert.ok(profile, 'only two exact whole app profiles are admitted');
   assert.equal(canonical.length, profile.bytes);
@@ -371,5 +383,5 @@ test('Old finally preserves successor B busy and detached completion has no cont
 
 process.once('exit', () => {
   assert.deepEqual(tracked.map(file => sha(fs.readFileSync(file))), opening,
-    'physical app, TypeScript and test bytes remain unchanged');
+    'physical app, TypeScript, test and edit helper bytes remain unchanged');
 });

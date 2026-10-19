@@ -6,14 +6,26 @@ const path = require('node:path');
 const vm = require('node:vm');
 const { createHash } = require('node:crypto');
 const ROOT = path.resolve(__dirname, '..');
-const ts = require(path.join(ROOT, 'server/node_modules/typescript/lib/typescript.js'));
+const tsFile = path.join(ROOT, 'server/node_modules/typescript/lib/typescript.js');
 const feedFile = path.join(ROOT, 'pages/lumina-feed.js');
 const appFile = path.join(ROOT, 'app.js');
 const helperFile = path.join(__dirname, 'support/feed-like-account-lifetime-inverse-20261019.cjs');
-const { restoreOwnedFeedLikeLifetime } = require(helperFile);
+const editHelperFile = path.join(__dirname, 'support/feed-edit-modal-lifetime-inverse-20261019.cjs');
 const sha = b => createHash('sha256').update(b).digest('hex');
-const tracked = [feedFile, appFile, helperFile, __filename];
+const blob = b => createHash('sha1').update('blob ' + b.length + '\0').update(b).digest('hex');
+const tracked = [feedFile, appFile, helperFile, __filename, tsFile, editHelperFile];
+const caps = [1024 * 1024, 1024 * 1024, 16 * 1024, 128 * 1024, 16 * 1024 * 1024, 16 * 1024];
+for (const [i, file] of tracked.entries()) {
+  const stat = fs.lstatSync(file);
+  assert.ok(stat.isFile() && !stat.isSymbolicLink());
+  assert.ok(stat.size > 0 && stat.size <= caps[i]);
+  assert.equal(fs.realpathSync.native(file).toLowerCase(), path.resolve(file).toLowerCase());
+}
+assert.equal(fs.statSync(tsFile).size, 9112572);
+assert.ok([5869, 6007].includes(fs.statSync(helperFile).size));
+assert.ok([4876, 4982].includes(fs.statSync(editHelperFile).size));
 const opening = tracked.map(p => sha(fs.readFileSync(p)));
+assert.equal(opening[4], '3ae902c92cc44dace175c0e69e13a4b0899f6983c6121d76b9ab8dd5795e7675');
 function canonicalSource(raw) {
   assert.equal(Buffer.isBuffer(raw), true);
   let text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(raw);
@@ -27,6 +39,19 @@ function canonicalSource(raw) {
   }
   return Buffer.from(text);
 }
+const helperRaw = fs.readFileSync(helperFile);
+assert.equal(sha(helperRaw), opening[2]);
+const helperCanonical = canonicalSource(helperRaw);
+assert.equal(helperCanonical.length, 5869);
+assert.equal(sha(helperCanonical), '5d0c23c5f666c710019c44f8d59c4734e28d8c85743c9c6cde240e11c5f6be1a');
+assert.equal(blob(helperCanonical), '4726a461e9d7c3c772b442ca5a20d810a548c8af');
+const editRaw = fs.readFileSync(editHelperFile);
+assert.equal(sha(editRaw), opening[5]);
+const editCanonical = canonicalSource(editRaw);
+assert.equal(editCanonical.length, 4876);
+assert.equal(sha(editCanonical), '7ea92475b314c022abf6c58259164db7699c24ede4497191cca91ec1db3f7b84');
+assert.equal(blob(editCanonical), 'c6ac2110893157fb5d2c3b20baa241af445b3bd8');
+const { restoreOwnedFeedLikeLifetime } = require(helperFile);
 const feedRaw = canonicalSource(fs.readFileSync(feedFile));
 const appRaw = Buffer.from(restoreOwnedFeedLikeLifetime(canonicalSource(fs.readFileSync(appFile)).toString('utf8')));
 assert.ok([
@@ -34,6 +59,8 @@ assert.ok([
   '4f026d788f7e1dfeae1fe36df495070d78a85540830325484094c14b66dac91b',
 ].includes(sha(feedRaw)));
 assert.equal(sha(appRaw), '7aac5b75851189fc919f26f5f64ba48c4910237a8c1f0b349a039d346b9d4b61');
+assert.equal(sha(fs.readFileSync(tsFile)), opening[4]);
+const ts = require(tsFile);
 function parse(file, raw) {
   const text = raw.toString('utf8');
   assert.equal(Buffer.from(text).equals(raw), true);

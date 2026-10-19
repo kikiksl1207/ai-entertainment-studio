@@ -1,6 +1,7 @@
 'use strict';
 
 const { createHash } = require('node:crypto');
+const { restoreOwnedFeedEditAppHtml } = require('./feed-edit-app-html-inverse-20261020.cjs');
 
 const OLD_LITERAL = '7aac5b75851189fc919f26f5f64ba48c4910237a8c1f0b349a039d346b9d4b61';
 const NEW_LITERAL = '848556f38941670e90cdec3dc491d387b9c00a6f369cc6aa00002c64fb1dca07';
@@ -47,6 +48,7 @@ function substituteUnique(source, from, to) {
 
 function restoreOwnedFeedLikeAppHtml(source) {
   if (typeof source !== 'string') throw new TypeError('FEED_LIKE_APP_HTML_INVERSE_STRING_REQUIRED');
+  source = restoreOwnedFeedEditAppHtml(source);
   const lf = source.replace(/\r\n/g, '\n');
   const crlf = source.includes('\r\n');
   if (lf.startsWith('\uFEFF') || lf.includes('\r') ||

@@ -1,6 +1,7 @@
 'use strict';
 
 const { createHash } = require('node:crypto');
+const { restoreOwnedFeedEditModalLifetime } = require('./feed-edit-modal-lifetime-inverse-20261019.cjs');
 
 const AFTER = {
   bytes: 434541,
@@ -95,6 +96,7 @@ function substituteUnique(source, from, to) {
 
 function restoreOwnedFeedLikeLifetime(source) {
   if (typeof source !== 'string') throw new TypeError('FEED_LIKE_LIFETIME_INVERSE_STRING_REQUIRED');
+  source = restoreOwnedFeedEditModalLifetime(source);
   const lf = source.replace(/\r\n/g, '\n');
   const crlf = source.includes('\r\n');
   if (lf.startsWith('\uFEFF') || lf.includes('\r') ||

@@ -5134,8 +5134,12 @@ function bindLuminaFeedEdit() {
     e.stopPropagation();
     const postId = saveBtn.dataset.postId;
     if (!postId || !_feedEditModalEl) return;
-    const textarea = _feedEditModalEl.querySelector("textarea");
-    const errorEl = _feedEditModalEl.querySelector(".feed-edit-modal-error");
+    const modal = _feedEditModalEl;
+    const current = () => modal === _feedEditModalEl &&
+      modal.querySelector("[data-feed-edit-save]") === saveBtn && saveBtn.dataset.postId === postId;
+    if (!current()) return;
+    const textarea = modal.querySelector("textarea");
+    const errorEl = modal.querySelector(".feed-edit-modal-error");
     const newBody = (textarea.value || "").trim();
     if (!newBody) {
       errorEl.textContent = "내용을 입력해주세요.";
@@ -5159,6 +5163,7 @@ function bindLuminaFeedEdit() {
         throwOnError: true,
         body: { body: newBody }
       });
+      if (!current()) return;
       const updatedPost = res?.post || res?.data?.post || null;
       if (updatedPost) {
         const idx = _luminaFeedItems.findIndex(p => p.id === postId);
@@ -5177,6 +5182,7 @@ function bindLuminaFeedEdit() {
         showLuminaToast("피드 글이 수정됐어요.", { kind: "success" });
       }
     } catch (err) {
+      if (!current()) return;
       console.warn("[#137 edit] 실패", { status: err?.status, body: err?.body });
       errorEl.textContent = err?.message || "글 수정에 실패했어요. 잠시 후 다시 시도해주세요.";
       errorEl.hidden = false;

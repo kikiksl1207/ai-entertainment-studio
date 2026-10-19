@@ -7,11 +7,13 @@ const { createHash } = require('node:crypto');
 const ROOT = path.resolve(__dirname, '..');
 const appFile = path.join(ROOT, 'app.js');
 const helperFile = path.join(__dirname, 'support/feed-like-account-lifetime-inverse-20261019.cjs');
-const tracked = [appFile, helperFile, __filename];
+const editHelperFile = path.join(__dirname, 'support/feed-edit-modal-lifetime-inverse-20261019.cjs');
+const tracked = [appFile, helperFile, __filename, editHelperFile];
 const sha = value => createHash('sha256').update(value).digest('hex');
 const blob = value => createHash('sha1').update('blob ' + value.length + '\0').update(value).digest('hex');
 assert.ok(fs.statSync(appFile).size <= 1024 * 1024);
-assert.ok([5709, 5845].includes(fs.statSync(helperFile).size), 'only pinned LF or uniform CRLF helper sizes');
+assert.ok([5869, 6007].includes(fs.statSync(helperFile).size), 'only pinned LF or uniform CRLF helper sizes');
+assert.ok([4876, 4982].includes(fs.statSync(editHelperFile).size), 'only pinned LF or uniform CRLF edit helper sizes');
 const opening = tracked.map(file => sha(fs.readFileSync(file)));
 const helperRaw = fs.readFileSync(helperFile);
 let helperText = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(helperRaw);
@@ -23,8 +25,22 @@ if (helperText.includes('\r')) {
   assert.equal(rest.includes('\n'), false);
   helperText = helperText.replace(/\r\n/g, '\n');
 }
-assert.equal(Buffer.byteLength(helperText), 5709);
-assert.equal(sha(helperText), '3b1cad5e188b0f1a2b2112b426eade8ee8c2406ee81e5d9bc76d6c280c6ad403');
+assert.equal(Buffer.byteLength(helperText), 5869);
+assert.equal(sha(helperText), '5d0c23c5f666c710019c44f8d59c4734e28d8c85743c9c6cde240e11c5f6be1a');
+const editRaw = fs.readFileSync(editHelperFile);
+assert.equal(sha(editRaw), opening[3]);
+let editText = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(editRaw);
+assert.equal(Buffer.from(editText).equals(editRaw), true);
+assert.equal(editText.startsWith('\uFEFF'), false);
+if (editText.includes('\r')) {
+  const rest = editText.replace(/\r\n/g, '');
+  assert.equal(rest.includes('\r'), false);
+  assert.equal(rest.includes('\n'), false);
+  editText = editText.replace(/\r\n/g, '\n');
+}
+assert.equal(Buffer.byteLength(editText), 4876);
+assert.equal(sha(editText), '7ea92475b314c022abf6c58259164db7699c24ede4497191cca91ec1db3f7b84');
+assert.equal(blob(Buffer.from(editText, 'utf8')), 'c6ac2110893157fb5d2c3b20baa241af445b3bd8');
 const raw = fs.readFileSync(appFile);
 let app = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(raw);
 assert.equal(Buffer.from(app).equals(raw), true);
@@ -35,8 +51,8 @@ if (app.includes('\r')) {
   assert.equal(rest.includes('\n'), false);
   app = app.replace(/\r\n/g, '\n');
 }
-assert.equal(Buffer.byteLength(app), 434541);
-assert.equal(sha(app), '848556f38941670e90cdec3dc491d387b9c00a6f369cc6aa00002c64fb1dca07');
+assert.equal(Buffer.byteLength(app), 434800);
+assert.equal(sha(app), '4730707c2fae82363401f6f11dc5dc3daa68b9bb88b151ffdcec37e65c5e73ff');
 const helpers = require(helperFile);
 assert.deepEqual(Object.keys(helpers), ['restoreOwnedFeedLikeLifetime']);
 const restore = helpers.restoreOwnedFeedLikeLifetime;
