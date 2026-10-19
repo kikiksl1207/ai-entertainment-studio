@@ -40,8 +40,45 @@ function identity(source) {
   };
 }
 
+function restoreOwnedNaverStateRequiredDelta(source) {
+  if (typeof source !== 'string') throw new TypeError('NAVER_STATE_REQUIRED_INVERSE_STRING_REQUIRED');
+  const lf = source.replace(/\r\n/g, '\n'), crlf = source.includes('\r\n');
+  if (lf.startsWith('\uFEFF') || lf.includes('\r') ||
+      (crlf && source !== lf.replace(/\n/g, '\r\n')) ||
+      Buffer.from(lf, 'utf8').toString('utf8') !== lf) return source;
+  const after = identity(lf);
+  const sha256 = '1722e0229ac0706970d088eab353ec80b1a728a570381d3b82ebd4c510bb1418';
+  const blob = '1ad79903745cf9b8f363cf5126a13b2b16f840f8';
+  if (after.sha256 !== sha256 && after.blob !== blob) return source;
+  if (Buffer.byteLength(lf, 'utf8') !== 433266 || after.sha256 !== sha256 || after.blob !== blob) {
+    throw new Error('NAVER_STATE_REQUIRED_INVERSE_IDENTITY_MISMATCH');
+  }
+  const owned = 'if (!savedState || !state || state !== savedState) {';
+  const previous = 'if (savedState && state !== savedState) {';
+  const at = lf.indexOf(owned);
+  if (at < 0 || lf.indexOf(owned, at + owned.length) !== -1) {
+    throw new Error('NAVER_STATE_REQUIRED_INVERSE_OWNED_SUBSTITUTION_MISMATCH');
+  }
+  const restored = lf.slice(0, at) + previous + lf.slice(at + owned.length);
+  const before = identity(restored);
+  if (Buffer.byteLength(restored, 'utf8') !== 433255 ||
+      before.sha256 !== '6089683740bfbc19b3f85e1754169acf5c7576d6b851d4ed38314c423d2ea47c' ||
+      before.blob !== 'b9985ba4b0121dfc48792ff908c02b7b91e0f5a8') {
+    throw new Error('NAVER_STATE_REQUIRED_INVERSE_RESTORED_IDENTITY_MISMATCH');
+  }
+  const forwardAt = restored.indexOf(previous);
+  if (forwardAt < 0 || restored.indexOf(previous, forwardAt + previous.length) !== -1) {
+    throw new Error('NAVER_STATE_REQUIRED_INVERSE_FORWARD_SUBSTITUTION_MISMATCH');
+  }
+  if (restored.slice(0, forwardAt) + owned + restored.slice(forwardAt + previous.length) !== lf) {
+    throw new Error('NAVER_STATE_REQUIRED_INVERSE_FORWARD_MISMATCH');
+  }
+  return crlf ? restored.replace(/\n/g, '\r\n') : restored;
+}
+
 function restoreOwnedSocialLoginCurrentnessDelta(source) {
   if (typeof source !== 'string') throw new TypeError('SOCIAL_CURRENTNESS_INVERSE_STRING_REQUIRED');
+  source = restoreOwnedNaverStateRequiredDelta(source);
   let lf = source.replace(/\r\n/g, '\n');
   const crlf = source.includes('\r\n');
   if (lf.startsWith('\uFEFF') || lf.includes('\r') ||
@@ -524,4 +561,4 @@ function restoreOwnedLoginDelta(source) {
   return crlf ? restored.replace(/\n/g, '\r\n') : restored;
 }
 
-module.exports = { restoreOwnedSocialLoginCurrentnessDelta, restoreOwnedFeedLightboxLanguagesDelta, restoreOwnedFeedLightboxFocusDelta, restoreOwnedFeedLightboxLifetimeDelta, restoreOwnedAuthEntryHardeningDelta, restoreOwnedBootstrapDelta, restoreOwnedLoginDelta };
+module.exports = { restoreOwnedNaverStateRequiredDelta, restoreOwnedSocialLoginCurrentnessDelta, restoreOwnedFeedLightboxLanguagesDelta, restoreOwnedFeedLightboxFocusDelta, restoreOwnedFeedLightboxLifetimeDelta, restoreOwnedAuthEntryHardeningDelta, restoreOwnedBootstrapDelta, restoreOwnedLoginDelta };

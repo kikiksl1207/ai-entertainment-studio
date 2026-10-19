@@ -92,9 +92,11 @@ function readSource(relative, pin, maximum) {
   const text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
   assert.equal(text.startsWith('\uFEFF'), false, 'NO_SOURCE_BOM');
   assert.equal(Buffer.from(text, 'utf8').equals(bytes), true, 'EXACT_UTF8_ROUNDTRIP');
-  const canonical = lf(text);
+  let canonical = lf(text);
   assert.equal(canonical.includes('\r'), false, 'NO_BARE_CR');
   assert.equal(text === canonical || text === layouts[1](canonical), true, 'UNIFORM_INPUT_EOL');
+  if (relative === 'app.js') canonical = inverse.restoreOwnedNaverStateRequiredDelta(canonical);
+  if (relative === 'lumina-feed/index.html') canonical = html.htmlWithoutNaverStateAppCacheDelta(canonical);
   known(canonical, pin, 'EXACT_INPUT_IDENTITY');
   return canonical;
 }

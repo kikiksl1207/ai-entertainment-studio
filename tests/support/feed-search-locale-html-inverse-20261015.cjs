@@ -33,8 +33,34 @@ function admitted(text, pairs) {
   assert.equal(new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes), text);
   assert(pairs.some(pair => sha(bytes) === pair[0] && blob(bytes) === pair[1]), 'Exact whole HTML SHA/blob pair required');
 }
+function htmlWithoutNaverStateAppCacheDelta(source) {
+  if (typeof source !== 'string') throw new TypeError('NAVER_STATE_APP_CACHE_HTML_INVERSE_STRING_REQUIRED');
+  const lf = source.replace(/\r\n/g, '\n'), crlf = source.includes('\r\n');
+  if (lf.startsWith('\uFEFF') || lf.includes('\r') ||
+      (crlf && source !== lf.replace(/\n/g, '\r\n')) ||
+      Buffer.from(lf, 'utf8').toString('utf8') !== lf) return source;
+  const bytes = Buffer.from(lf, 'utf8'), actualSha = sha(bytes), actualBlob = blob(bytes);
+  const expectedSha = '454ea75b588a9ac0db0e05915c2601c03a5db1474700a4c6e2cb7be3bf1b5aca';
+  const expectedBlob = 'bb542016a15606c915db759ed1a2adf79bfdc0b0';
+  if (actualSha !== expectedSha && actualBlob !== expectedBlob) return source;
+  assert(bytes.length === 24596 && actualSha === expectedSha && actualBlob === expectedBlob,
+    'Exact whole Naver state app cache HTML SHA/blob/length required');
+  const appUrl = '/app.js?v=wallet-session-20261011&amp;content=';
+  const current = appUrl + '1722e0229ac0706970d088eab353ec80b1a728a570381d3b82ebd4c510bb1418';
+  const previous = appUrl + '6089683740bfbc19b3f85e1754169acf5c7576d6b851d4ed38314c423d2ea47c';
+  assert.equal(lf.split(current).length, 2, 'One exact Naver state app cache reference');
+  const restored = lf.replace(current, previous), beforeBytes = Buffer.from(restored, 'utf8');
+  assert.equal(beforeBytes.length, 24596);
+  assert.equal(sha(beforeBytes), '317cf9442fd863604568e361ab836313130dc94fe79465209dd152c9ab764536');
+  assert.equal(blob(beforeBytes), '9e3bf9ee1dc29207b97e500b8d17cecbe57e3d53');
+  assert.equal(restored.split(previous).length, 2, 'One exact prior app cache reference');
+  assert.equal(restored.replace(previous, current) === lf, true, 'Exact whole Naver state cache forward');
+  return crlf ? restored.replace(/\n/g, '\r\n') : restored;
+}
+
 function htmlWithoutFeedLightboxCacheDelta(text) {
   if (typeof text !== 'string') throw new TypeError('FEED_LIGHTBOX_HTML_INVERSE_STRING_REQUIRED');
+  text = htmlWithoutNaverStateAppCacheDelta(text);
   const lf = text.replace(/\r\n/g, '\n'), crlf = text.includes('\r\n');
   if (text.startsWith('\uFEFF') || lf.includes('\r') ||
       (crlf && text !== lf.replace(/\n/g, '\r\n')) ||
@@ -85,4 +111,4 @@ function htmlWithoutFeedSearchLocaleDelta(text) {
   assert.equal(restored.includes('\r\n'), text.includes('\r\n'), 'Preserve the original uniform line-ending form');
   return restored;
 }
-module.exports = Object.freeze({ htmlWithoutFeedLightboxCacheDelta, htmlWithoutFeedSearchLocaleDelta });
+module.exports = Object.freeze({ htmlWithoutNaverStateAppCacheDelta, htmlWithoutFeedLightboxCacheDelta, htmlWithoutFeedSearchLocaleDelta });

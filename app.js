@@ -3519,7 +3519,7 @@ async function handleNaverCallback() {
     console.warn("[Lumina] Naver 로그인 취소/실패:", error, params.get("error_description"));
     return;
   }
-  if (savedState && state !== savedState) {
+  if (!savedState || !state || state !== savedState) {
     console.error("[Lumina] Naver state 불일치 — CSRF 의심");
     alert("네이버 로그인 보안 검증 실패");
     return;
