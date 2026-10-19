@@ -1,6 +1,7 @@
 'use strict';
 const { restoreOwnedLoginDelta } = require('./support/auth-login-failclosed-inverse-20261017.cjs');
 const { htmlWithoutFeedLightboxCacheDelta } = require('./support/feed-search-locale-html-inverse-20261015.cjs');
+const { feedWithoutRepostComposerLifetimeDelta } = require('./support/feed-repost-composer-lifetime-inverse-20261019.cjs');
 // AUTHOR UNRUN. Whole consumer with synthetic dependencies; no old suite imports.
 const test = require('node:test'), assert = require('node:assert/strict');
 const fs = require('node:fs'), path = require('node:path'), vm = require('node:vm');
@@ -83,8 +84,9 @@ function readSource(file) {
   const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
   assert(!/\r(?!\n)/.test(text) && !(text.includes('\r\n') && /(?<!\r)\n/.test(text)));
   const pinView = file === 'app.js' ? restoreOwnedLoginDelta(text) :
-    file === 'lumina-feed/index.html' ? htmlWithoutFeedLightboxCacheDelta(text) : text;
-  const pinBytes = file === 'app.js' || file === 'lumina-feed/index.html' ? Buffer.from(pinView) : bytes;
+    file === 'lumina-feed/index.html' ? htmlWithoutFeedLightboxCacheDelta(text) :
+    file === 'pages/lumina-feed.js' ? feedWithoutRepostComposerLifetimeDelta(text) : text;
+  const pinBytes = file === 'app.js' || file === 'lumina-feed/index.html' || file === 'pages/lumina-feed.js' ? Buffer.from(pinView) : bytes;
   const sha = createHash('sha256').update(pinBytes).digest('hex');
   const blob = createHash('sha1').update('blob ' + pinBytes.length + '\0').update(pinBytes).digest('hex');
   assert(PINS[PROFILE][file].some(pair => pair[0] === sha && pair[1] === blob), 'Exact source SHA/blob pair required');
@@ -92,8 +94,13 @@ function readSource(file) {
 }
 const page = readSource('pages/lumina-feed.js'), html = readSource('lumina-feed/index.html'), app = readSource('app.js');
 const cache = PROFILE === 'baseline' ? 'feed-search-owner-20261009-deadline-20261011' : 'feed-search-locale-20261015';
+const pageLfBytes = Buffer.from(page.replace(/\r\n/g, '\n'), 'utf8');
+const repostCache = PROFILE === 'current' && pageLfBytes.length === 140113
+  && createHash('sha256').update(pageLfBytes).digest('hex') === '29537a1f381992c63ffd6b1c40255d1466918a1a287dcf5cf2fdc16c27b0d1e4'
+  && createHash('sha1').update('blob ' + pageLfBytes.length + '\0').update(pageLfBytes).digest('hex') === '4698f985e99ee52f0a630984cdf51f75c36c7f3a'
+  ? '&amp;content=29537a1f381992c63ffd6b1c40255d1466918a1a287dcf5cf2fdc16c27b0d1e4' : '';
 assert.equal((html.match(/<script\b[^>]*src="\/pages\/lumina-feed\.js(?:\?[^"<>]*)?"[^>]*><\/script>/g) || []).length, 1);
-assert(html.includes('<script src="/pages/lumina-feed.js?v=' + cache + '"></script>'));
+assert(html.includes('<script src="/pages/lumina-feed.js?v=' + cache + repostCache + '"></script>'));
 for (const id of ['luminaFeedList', 'feedSearchInput', 'feedTrendList', 'feedHashtagList']) {
   assert.equal(html.split('id="' + id + '"').length - 1, 1, 'Actual selected HTML control must exist once');
 }
