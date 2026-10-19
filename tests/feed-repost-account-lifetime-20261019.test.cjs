@@ -9,8 +9,10 @@ const ROOT = path.resolve(__dirname, '..');
 const ts = require(path.join(ROOT, 'server/node_modules/typescript/lib/typescript.js'));
 const feedFile = path.join(ROOT, 'pages/lumina-feed.js');
 const appFile = path.join(ROOT, 'app.js');
+const helperFile = path.join(__dirname, 'support/feed-like-account-lifetime-inverse-20261019.cjs');
+const { restoreOwnedFeedLikeLifetime } = require(helperFile);
 const sha = b => createHash('sha256').update(b).digest('hex');
-const tracked = [feedFile, appFile, __filename];
+const tracked = [feedFile, appFile, helperFile, __filename];
 const opening = tracked.map(p => sha(fs.readFileSync(p)));
 function canonicalSource(raw) {
   assert.equal(Buffer.isBuffer(raw), true);
@@ -26,7 +28,7 @@ function canonicalSource(raw) {
   return Buffer.from(text);
 }
 const feedRaw = canonicalSource(fs.readFileSync(feedFile));
-const appRaw = canonicalSource(fs.readFileSync(appFile));
+const appRaw = Buffer.from(restoreOwnedFeedLikeLifetime(canonicalSource(fs.readFileSync(appFile)).toString('utf8')));
 assert.ok([
   '29537a1f381992c63ffd6b1c40255d1466918a1a287dcf5cf2fdc16c27b0d1e4',
   '4f026d788f7e1dfeae1fe36df495070d78a85540830325484094c14b66dac91b',

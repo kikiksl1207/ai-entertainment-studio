@@ -1,6 +1,7 @@
 'use strict';
 
 const { createHash } = require('node:crypto');
+const { restoreOwnedFeedLikeLifetime } = require('./feed-like-account-lifetime-inverse-20261019.cjs');
 
 const BOOTSTRAP_SHA256 = '5f5b2bd6e568a80d14bbf7c522a0b7e038dc3d116471bfc2bed92cb2c8ad8028';
 const BOOTSTRAP_BLOB = '4e9e2f1861574d25bf6b7bfd9d61a1bd9966adb3';
@@ -41,6 +42,7 @@ function identity(source) {
 }
 
 function restoreOwnedNaverStateEntropyDelta(source) {
+  source = restoreOwnedFeedLikeLifetime(source);
   const lf = source.replace(/\r\n/g, '\n'), crlf = source.includes('\r\n');
   if (lf.startsWith('\uFEFF') || lf.includes('\r') ||
       (crlf && source !== lf.replace(/\n/g, '\r\n')) ||

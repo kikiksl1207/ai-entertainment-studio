@@ -1,6 +1,7 @@
 'use strict';
 const assert = require('node:assert/strict');
 const { createHash } = require('node:crypto');
+const { restoreOwnedFeedLikeAppHtml } = require('./feed-like-app-html-inverse-20261019.cjs');
 const { TextDecoder } = require('node:util');
 const before = '<script src="/pages/lumina-feed.js?v=feed-search-owner-20261009-deadline-20261011"></script>';
 const after = '<script src="/pages/lumina-feed.js?v=feed-search-locale-20261015"></script>';
@@ -34,6 +35,7 @@ function admitted(text, pairs) {
   assert(pairs.some(pair => sha(bytes) === pair[0] && blob(bytes) === pair[1]), 'Exact whole HTML SHA/blob pair required');
 }
 function restoreOwnedRepostAccountScriptCacheDelta(source) {
+  source = restoreOwnedFeedLikeAppHtml(source);
   const lf = source.replace(/\r\n/g, '\n'), crlf = source.includes('\r\n');
   if (lf.startsWith('\uFEFF') || lf.includes('\r') ||
       (crlf && source !== lf.replace(/\n/g, '\r\n')) ||

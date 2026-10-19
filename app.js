@@ -5400,6 +5400,7 @@ function bindLuminaFeedThreadBadge() {
 function bindLuminaFeedLike() {
   if (document._feedLikeBound) return;
   document._feedLikeBound = true;
+  const pending = new WeakMap();
   document.addEventListener("click", async e => {
     const btn = e.target.closest("[data-feed-like]");
     if (!btn) return;
@@ -5413,6 +5414,21 @@ function bindLuminaFeedLike() {
       alert("로그인하면 좋아요를 보낼 수 있어요.");
       return;
     }
+    const owner = feedModalViewerKey();
+    if (!owner) return;
+    const flight = { current: true };
+    const observeOwner = () => {
+      if (owner !== feedModalViewerKey()) flight.current = false;
+    };
+    const observeStorage = event => {
+      if (event.key === "lumina_auth" || event.key === null) observeOwner();
+    };
+    const current = () => flight.current && pending.get(btn) === flight &&
+      owner === feedModalViewerKey() && btn.isConnected !== false;
+    window.addEventListener("lumina:authchange", observeOwner);
+    window.addEventListener("lumina:auth-expired", observeOwner);
+    window.addEventListener("storage", observeStorage);
+    pending.set(btn, flight);
     const wasLiked = btn.classList.contains("is-liked");
     btn.dataset.busy = "1";
     // 낙관적 UI: 즉시 토글 (실패 시 롤백)
@@ -5424,6 +5440,7 @@ function bindLuminaFeedLike() {
         auth: true,
         throwOnError: true
       });
+      if (!current()) return;
       // #191 — method 기반 의도된 상태가 진실. 서버 viewer.hasLiked가 stale로 와도 덮어쓰지 않음.
       const targetLiked = !wasLiked;
       const post = res?.post || res?.data?.post || null;
@@ -5457,13 +5474,20 @@ function bindLuminaFeedLike() {
         countEl.textContent = String(n); // #147 B-3 — 0도 보여줌
       }
     } catch (err) {
+      if (!current()) return;
       // 실패 시 낙관적 토글 롤백
       btn.classList.toggle("is-liked", wasLiked);
       btn.setAttribute("aria-pressed", String(wasLiked));
       console.warn("[#137 like] 실패", { status: err?.status, body: err?.body });
       alert(err?.message || "좋아요 처리에 실패했어요. 잠시 후 다시 시도해주세요.");
     } finally {
-      btn.dataset.busy = "0";
+      window.removeEventListener("lumina:authchange", observeOwner);
+      window.removeEventListener("lumina:auth-expired", observeOwner);
+      window.removeEventListener("storage", observeStorage);
+      if (pending.get(btn) === flight) {
+        pending.delete(btn);
+        btn.dataset.busy = "0";
+      }
     }
   });
 }
