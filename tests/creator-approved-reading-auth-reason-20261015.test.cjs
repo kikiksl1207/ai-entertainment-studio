@@ -14,10 +14,10 @@ const PINS = {
     [CATALOG]: '69e34934bb77cb38461944062c6732fcdbf8a5406a80f1b5b1e5885e9b704ad5',
     [ENTRY]: 'c0b4a61accec55e12375ce9c5cf76d90a6f7c7d459738079e4e837694690e144',
     [HTML]: 'da077207f5ebe1ffc2b857b1963a69f51ac658cd835fa688264b752a79c494a5' },
-  current: { [TRANSPORT]: '5d26e7c5098e60212905eccae402210a4fd7993d9f9bf470aac727025be04030',
+  current: { [TRANSPORT]: '7eb37bef05dbecb13bffee73191fcf407ef846b1ee35622c21080c9cacb30fda',
     [CATALOG]: '69da822d55237f040e9b324c6732d7a2e7038ea3dcc3dd45372bec398bd2fa9f',
-    [ENTRY]: '7cf81c4d64cce89d30c96ef20bc2aaea685cc92fa8761fbaab4fa11f66da8f8a',
-    [HTML]: 'a6347ee37b3150b1653c9a49711e428e0c1f113ce7143d4fa7fbb6162f15bde5' },
+    [ENTRY]: '6d7505c3818de9ee386cc02f2c25d1cf15977407b05132fd50c89eebb655d17d',
+    [HTML]: 'cfe4f556526a3598ac62ce8c979eda7adf61e1f86c6b61e417a72b83b52652f6' },
 };
 const sourceRoot = path.resolve(process.env.OWNER_AUTH_REASON_SOURCE_ROOT || path.join(__dirname, '..'));
 assert(!/(?:^|[\\/])story-completion-20261003(?:[\\/]|$)/i.test(sourceRoot), 'Shared CLEAN is not an admitted source');
@@ -151,7 +151,7 @@ function documentFixture() {
   document.getElementById('readingLocale').value = 'en'; document.nodes = nodes;
   const scripts = [...SOURCE[HTML].matchAll(/<script defer src="([^"?]+)\?[^"\s]+"><\/script>/g)].map(match => match[1]);
   assert.deepEqual(scripts, ['/pages/creator-approved-readonly-transport.js', '/pages/creator-approved-reading-handoff.js',
-    '/pages/creator-approved-reading-catalog.js', '/pages/creator-approved-reading-entry.js', '/pages/creator-approved-section-bytes.js',
+    '/pages/creator-approved-reading-catalog.js', ...(PROFILE === 'current' ? ['/pages/creator-approved-auth-connection.js'] : []), '/pages/creator-approved-reading-entry.js', '/pages/creator-approved-section-bytes.js',
     '/pages/creator-body-preview.js', '/pages/creator-approved-reading-body.js']);
   return document;
 }

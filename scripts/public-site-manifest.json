@@ -19,7 +19,7 @@
     "pages/creator-approved-section-bytes.css", "pages/creator-approved-section-bytes.js",
     "pages/creator-body-original-reference.css", "pages/creator-body-original-reference.js",
     "pages/creator-approved-style.css", "pages/creator-approved-style.js",
-    "pages/creator-approved-readonly-transport.js", "pages/creator-approved-reading-handoff.js",
+    "pages/creator-approved-readonly-transport.js", "pages/creator-approved-auth-connection.js", "pages/creator-approved-reading-handoff.js",
     "pages/creator-approved-reading-catalog.js",
     "pages/creator-approved-reading-body.js",
     "pages/creator-approved-reading-entry.js", "pages/creator-approved-reading-entry.css", "creator-studio/approved-reading/index.html",

@@ -107,7 +107,7 @@ test('standalone page without an opener stays unlinked without issuing a request
 test('entry ships only the fixed reader dependencies and no whole Studio, analytics or shared app', () => {
   const scripts = [...html.matchAll(/<script defer src="([^"?]+)(?:\?[^" ]+)?"><\/script>/g)].map(r => r[1]);
   assert.deepEqual(scripts, ['/pages/creator-approved-readonly-transport.js', '/pages/creator-approved-reading-handoff.js',
-    '/pages/creator-approved-reading-catalog.js', '/pages/creator-approved-reading-entry.js', '/pages/creator-approved-section-bytes.js', '/pages/creator-body-preview.js', '/pages/creator-approved-reading-body.js']);
+    '/pages/creator-approved-reading-catalog.js', '/pages/creator-approved-auth-connection.js', '/pages/creator-approved-reading-entry.js', '/pages/creator-approved-section-bytes.js', '/pages/creator-body-preview.js', '/pages/creator-approved-reading-body.js']);
   for (const forbidden of ['gtag', 'app.js', 'creator-studio.js', 'localStorage', 'sessionStorage', 'history.replaceState']) assert.equal(html.includes(forbidden), false);
   assert.match(html, /name="referrer" content="no-referrer"/);
 });

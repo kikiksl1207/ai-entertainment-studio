@@ -9,10 +9,11 @@
     <link rel="icon" href="/assets/brand/lumina-stage-logo.png" />
     <link rel="stylesheet" href="/pages/creator-approved-section-bytes.css?v=approved-section-bytes-20261013-v1" />
     <link rel="stylesheet" href="/pages/creator-approved-reading-entry.css?v=20261015-visible-works-v1" />
-    <script defer src="/pages/creator-approved-readonly-transport.js?v=20261019-auth-lifetime-v1"></script>
+    <script defer src="/pages/creator-approved-readonly-transport.js?v=20261020-explicit-v1"></script>
     <script defer src="/pages/creator-approved-reading-handoff.js?v=20261013-v1"></script>
     <script defer src="/pages/creator-approved-reading-catalog.js?v=20261015-auth-reason-v1"></script>
-    <script defer src="/pages/creator-approved-reading-entry.js?v=20261019-auth-lifetime-v1"></script>
+    <script defer src="/pages/creator-approved-auth-connection.js?v=20261020-explicit-v1"></script>
+    <script defer src="/pages/creator-approved-reading-entry.js?v=20261020-explicit-v1"></script>
     <script defer src="/pages/creator-approved-section-bytes.js?v=approved-section-bytes-20261013-v1"></script>
     <script defer src="/pages/creator-body-preview.js?v=author-body-preview-20261002-v1"></script>
     <script defer src="/pages/creator-approved-reading-body.js?v=20261013-body-v1"></script>
@@ -32,13 +33,16 @@
         <section id="readingCatalog" class="reading-catalog" aria-labelledby="readingCatalogTitle" hidden>
           <h2 id="readingCatalogTitle">내 작품</h2>
           <div class="reading-catalog-controls">
+            <button id="readingCatalogConnect" type="button" disabled>인증 연결</button>
             <label><span id="readingCatalogWorkLabel">작품 선택</span><select id="readingCatalogWork" disabled><option value="">작품 선택</option></select></label>
             <button id="readingCatalogLoad" type="button">작품 불러오기</button>
             <button id="readingCatalogNext" type="button" title="다음 작품" aria-label="다음 작품" disabled>&#8594;</button>
           </div>
           <ul id="readingCatalogWorks" class="reading-catalog-works" aria-labelledby="readingCatalogTitle" hidden></ul>
           <p id="readingCatalogState" role="status" aria-live="polite"></p>
+          <p id="readingAuthConnectionState" role="status" aria-live="polite"></p>
           <a id="readingCatalogLogin" href="/#login" target="_blank" rel="noopener noreferrer" hidden>로그인 (새 탭)</a>
+          <a id="readingCatalogRestart" href="/creator-studio/approved-reading/" hidden>읽기 화면 다시 열기</a>
         </section>
         <input id="writerManuscriptWork" type="hidden" value="" />
         <input id="writerManuscriptLocale" type="hidden" value="ko" />

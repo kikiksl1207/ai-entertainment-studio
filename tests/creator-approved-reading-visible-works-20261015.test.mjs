@@ -11,12 +11,12 @@ import { decodePinnedReadingSource } from "./support/owner-reading-source-pin-20
 const SOURCE_ROOT_ENV = "LUMINA_VISIBLE_WORKS_SOURCE_ROOT";
 const SHARED_CLEAN = "E:/Codex/LuminaStage/story-completion-20261003";
 const PINS = [
-  ["creator-studio/approved-reading/index.html", "59465ac3d3cce8eaa3a8f2d35939667ef8730d00", "a6347ee37b3150b1653c9a49711e428e0c1f113ce7143d4fa7fbb6162f15bde5"],
+  ["creator-studio/approved-reading/index.html", "f8eace0adf9098b3ab0a13dd458701268e922bc2", "cfe4f556526a3598ac62ce8c979eda7adf61e1f86c6b61e417a72b83b52652f6"],
   ["pages/creator-approved-reading-entry.css", "c33455729244c6d321eedddb50afde091be82f6f", "62bb9eb9671e08fe2f85d885c7262c5d3c9b082466ae3ec1c8b892262a268d2f"],
-  ["pages/creator-approved-readonly-transport.js", "f120a229a93e27fabded1ff79357a3e59c47ad09", "5d26e7c5098e60212905eccae402210a4fd7993d9f9bf470aac727025be04030"],
+  ["pages/creator-approved-readonly-transport.js", "ef5736c503c432e8d04c52dba484287faeb636a4", "7eb37bef05dbecb13bffee73191fcf407ef846b1ee35622c21080c9cacb30fda"],
   ["pages/creator-approved-reading-handoff.js", "3c89000c313c43dbf4a78bac97d63bf769b43e11", "68d1dedcedbf3ae7b259e29924836a45a1703954f0f2fe825c924250dfe9f067"],
   ["pages/creator-approved-reading-catalog.js", "fc8d009cd7e546df0c253d4c9ca080a10c2983e4", "69da822d55237f040e9b324c6732d7a2e7038ea3dcc3dd45372bec398bd2fa9f"],
-  ["pages/creator-approved-reading-entry.js", "faaada59c90f97bab29a1f43f0edfa45181d4001", "7cf81c4d64cce89d30c96ef20bc2aaea685cc92fa8761fbaab4fa11f66da8f8a"],
+  ["pages/creator-approved-reading-entry.js", "cb6f10f8dac8f460c6747af72a90395b70933bd2", "6d7505c3818de9ee386cc02f2c25d1cf15977407b05132fd50c89eebb655d17d"],
   ["pages/creator-approved-section-bytes.js", "19762358292026ef27d33f59133d8bb573edd2af", "72d2caf3d363979e7662f717ae19abf2d851750a24185874352e1a3225bfc9da"],
   ["pages/creator-body-preview.js", "7b879d10c613ff358f98a34a8562c0afbe727ef9", "04e8e6eebf68be3f382f6d03d1b369a145cb184aa9333a5f13ccea6aba229610"],
   ["pages/creator-approved-reading-body.js", "f32133fc9c4d877eaa66cfda0d5e30c6a503459a", "3670f84937ad2d7527d51f003e6f31082230c74e6955a0ee49cdcf059e8c0977"],

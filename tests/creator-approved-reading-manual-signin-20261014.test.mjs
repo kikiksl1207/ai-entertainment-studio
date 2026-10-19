@@ -56,12 +56,12 @@ function validateHtml(html) {
   assert.match(html, /<section id="readingCatalog" class="reading-catalog" aria-labelledby="readingCatalogTitle" hidden>/);
   assert.equal(html.split('id="readingCatalogLogin"').length - 1, 1, "Exactly one optional native link");
   assert.equal(html.split(LOGIN_HTML).length - 1, 1, "Only fixed native anchor attributes and initial Korean label");
-  assert.match(html, /<p id="readingCatalogState" role="status" aria-live="polite"><\/p>\s*<a id="readingCatalogLogin"/);
+  assert.match(html, /<p id="readingCatalogState" role="status" aria-live="polite"><\/p>\s*<p id="readingAuthConnectionState" role="status" aria-live="polite"><\/p>\s*<a id="readingCatalogLogin"/);
   assert.equal(html.split(STATUS_HTML).length - 1, 1);
   assert.doesNotMatch(html, /\bon[a-z]+\s*=|javascript:|<(?:base|iframe|object|embed|form)\b/i);
   const expectedScripts = [
     "creator-approved-readonly-transport.js", "creator-approved-reading-handoff.js", "creator-approved-reading-catalog.js",
-    "creator-approved-reading-entry.js", "creator-approved-section-bytes.js", "creator-body-preview.js", "creator-approved-reading-body.js",
+    "creator-approved-auth-connection.js", "creator-approved-reading-entry.js", "creator-approved-section-bytes.js", "creator-body-preview.js", "creator-approved-reading-body.js",
   ];
   const scripts = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)];
   assert.equal(scripts.length, expectedScripts.length);

@@ -39,6 +39,9 @@
     const catalog = document.getElementById("readingCatalog"), catalogSelect = document.getElementById("readingCatalogWork");
     const catalogLoad = document.getElementById("readingCatalogLoad"), catalogNext = document.getElementById("readingCatalogNext");
     const catalogLogin = document.getElementById("readingCatalogLogin");
+    const catalogConnect = document.getElementById("readingCatalogConnect");
+    const catalogRestart = document.getElementById("readingCatalogRestart");
+    const authConnectionStatus = document.getElementById("readingAuthConnectionState");
     const catalogWorks = document.getElementById("readingCatalogWorks");
     const catalogReady = !!(catalog && catalogSelect && catalogLoad && catalogNext && document.getElementById("readingCatalogTitle") &&
       document.getElementById("readingCatalogWorkLabel") && document.getElementById("readingCatalogState"));
@@ -65,6 +68,16 @@
     };
     let catalogState = { phase: "idle", items: [], nextCursor: null, selected: null, authReason: null };
     let pageDisposed = false;
+    let authConnection = null, authConnectionState = { phase: "idle", canConnect: false };
+    const authConnectionCopy = {
+      ko: { connect: "인증 연결", connecting: "인증 연결 중", connected: "인증 연결됨", rejected: "인증 연결 거절", uncertain: "인증 처리 상태 확인 필요", changed: "로그인 정보 변경됨", unavailable: "인증 연결 불가", confirm: "로그인 인증을 갱신하고 현재 읽기 선택을 해제하시겠습니까? 작품은 자동 조회하지 않습니다." },
+      en: { connect: "Connect sign-in", connecting: "Connecting sign-in", connected: "Sign-in connected", rejected: "Connection rejected", uncertain: "Connection outcome needs review", changed: "Sign-in changed", unavailable: "Connection unavailable", confirm: "Renew sign-in and clear the current reading selection? Works will not be loaded automatically." },
+      ja: { connect: "認証を接続", connecting: "認証を接続中", connected: "認証接続済み", rejected: "認証接続が拒否されました", uncertain: "認証処理の確認が必要です", changed: "ログイン情報が変更されました", unavailable: "認証接続不可", confirm: "認証を更新し、現在の閲覧選択を解除しますか？作品は自動取得しません。" },
+      "zh-Hans": { connect: "连接认证", connecting: "正在连接认证", connected: "认证已连接", rejected: "认证连接被拒绝", uncertain: "需要确认认证处理状态", changed: "登录信息已更改", unavailable: "无法连接认证", confirm: "更新登录认证并清除当前阅读选择吗？不会自动加载作品。" },
+      "zh-Hant": { connect: "連接驗證", connecting: "正在連接驗證", connected: "驗證已連接", rejected: "驗證連接遭拒", uncertain: "需要確認驗證處理狀態", changed: "登入資訊已變更", unavailable: "無法連接驗證", confirm: "更新登入驗證並清除目前閱讀選擇嗎？不會自動載入作品。" }
+    };
+    const connectionLocksRead = () => ["connecting", "uncertain", "rejected", "changed"].includes(authConnectionState.phase);
+    const restartCopy = { ko: "읽기 화면 다시 열기", en: "Reopen reading", ja: "閲覧画面を開き直す", "zh-Hans": "重新打开阅读页面", "zh-Hant": "重新開啟閱讀頁面" };
     let authTimeBusy = false, authTimeRetired = false;
     function removeAuthTimeHint() {
       try { document.documentElement.removeAttribute("data-unverified-auth-time"); } catch (_) {}
@@ -138,14 +151,26 @@
     function renderCatalog() {
       renderAuthTimeHint();
       renderAuthLifetimeHint();
+      const connectionCopy = authConnectionCopy[language.value] || authConnectionCopy.ko;
+      if (catalogConnect) {
+        catalogConnect.hidden = !standalone;
+        catalogConnect.textContent = connectionCopy.connect;
+        catalogConnect.disabled = pageDisposed || !standalone || !authConnectionState.canConnect;
+      }
+      if (authConnectionStatus) authConnectionStatus.textContent = pageDisposed ? "" : connectionCopy[authConnectionState.phase] || "";
+      const recovery = ["uncertain", "rejected", "changed"].includes(authConnectionState.phase);
+      if (catalogRestart) {
+        catalogRestart.textContent = restartCopy[language.value] || restartCopy.ko;
+        catalogRestart.hidden = pageDisposed || !standalone || !(recovery || catalogState.phase === "auth_rejected" && !authConnectionState.canConnect);
+      }
       if (!standalone || !catalogReady) return;
       const c = catalogCopy[language.value] || catalogCopy.ko;
       document.getElementById("readingCatalogTitle").textContent = c.title;
       document.getElementById("readingCatalogWorkLabel").textContent = c.choose;
       catalogLoad.textContent = c.load; catalogNext.title = c.next; catalogNext.setAttribute("aria-label", c.next);
-      catalogLoad.disabled = ["loading", "unauthenticated", "auth_rejected"].includes(catalogState.phase);
-      catalogNext.disabled = !catalogState.nextCursor || catalogState.phase === "loading";
-      catalogSelect.disabled = catalogState.items.length === 0 || catalogState.phase === "loading";
+      catalogLoad.disabled = connectionLocksRead() || ["loading", "unauthenticated", "auth_rejected"].includes(catalogState.phase);
+      catalogNext.disabled = connectionLocksRead() || !catalogState.nextCursor || catalogState.phase === "loading";
+      catalogSelect.disabled = connectionLocksRead() || catalogState.items.length === 0 || catalogState.phase === "loading";
       catalogSelect.replaceChildren();
       const empty = document.createElement("option"); empty.value = ""; empty.textContent = c.choose; catalogSelect.appendChild(empty);
       for (const item of catalogState.items) {
@@ -165,7 +190,7 @@
           button.textContent = item.title.value || c.untitled;
           button.setAttribute("aria-pressed", String(item.workId === renderedState.selected?.workId));
           button.addEventListener("click", () => {
-            if (pageDisposed || !button.isConnected || catalogState !== renderedState) return;
+            if (pageDisposed || connectionLocksRead() || !button.isConnected || catalogState !== renderedState) return;
             catalogController?.sync();
             if (!pageDisposed && button.isConnected && catalogState === renderedState) catalogController?.choose(item.workId);
           });
@@ -194,7 +219,7 @@
         const selected = catalogState.selected;
         const numericRejected = !!selected && catalogController?.isSelectionCurrent(selected) === true &&
           document.getElementById("writerApprovedSectionBytes")?.dataset?.readAuthRejected === "true";
-        catalogLogin.hidden = pageDisposed || (!["unauthenticated", "auth_rejected"].includes(catalogState.phase) && !numericRejected);
+        catalogLogin.hidden = pageDisposed || (!["unauthenticated", "auth_rejected"].includes(catalogState.phase) && !numericRejected && !recovery);
       }
     }
     function translated() {
@@ -211,9 +236,9 @@
     if (standalone && catalogReady && catalogTransport && window.LuminaCreatorApprovedReadingCatalog) {
       catalogController = window.LuminaCreatorApprovedReadingCatalog.create({ transport: catalogTransport, locale: () => language.value,
         onChange(value) { catalogState = value; changed(value.selected); renderCatalog(); } });
-      catalogLoad.addEventListener("click", () => catalogController.load());
-      catalogNext.addEventListener("click", () => catalogController.load(catalogState.nextCursor));
-      catalogSelect.addEventListener("change", () => catalogController.choose(catalogSelect.value));
+      catalogLoad.addEventListener("click", () => { if (!connectionLocksRead()) return catalogController.load(); });
+      catalogNext.addEventListener("click", () => { if (!connectionLocksRead()) return catalogController.load(catalogState.nextCursor); });
+      catalogSelect.addEventListener("change", () => { if (!connectionLocksRead()) return catalogController.choose(catalogSelect.value); });
     } else if (!standalone) {
       receiver = window.LuminaCreatorApprovedReadingHandoff.createReceiver({ opener: window.opener, nonce,
         identity: transport.identity, isCurrent: transport.isCurrent, onChange: changed });
@@ -221,20 +246,39 @@
       receiver = Object.freeze({ ...originalReceiver, validate: signal => (validationTail = validationTail.catch(() => false).then(() => originalReceiver.validate(signal))) });
       receiver.start();
     }
+    if (standalone && catalogConnect && window.LuminaCreatorApprovedAuthConnection) {
+      try {
+        authConnection = window.LuminaCreatorApprovedAuthConnection.create({ onChange(value) { authConnectionState = value; renderCatalog(); } });
+        authConnectionState = authConnection.state();
+      } catch (_) { authConnectionState = { phase: "unavailable", canConnect: false }; }
+      catalogConnect.addEventListener("click", () => {
+        if (pageDisposed || !authConnection || !authConnection.state().canConnect) return;
+        try {
+          const identity = transport.identity(), raw = window.localStorage.getItem("lumina_auth");
+          if (!identity || !raw) return;
+          const confirmed = window.confirm((authConnectionCopy[language.value] || authConnectionCopy.ko).confirm);
+          if (confirmed === true && !pageDisposed && transport.isCurrent(identity) && window.localStorage.getItem("lumina_auth") === raw) {
+            void authConnection.connect(true);
+          }
+        } catch (_) {}
+      });
+    }
     changed(null); translated();
     language.addEventListener("change", () => { translated();
       catalogController?.sync();
       window.dispatchEvent(new Event("lumina:localechange")); });
-    const sample = () => { if (standalone) catalogController?.sync(); else receiver?.snapshot(); renderAuthTimeHint(); renderAuthLifetimeHint(); };
-    for (const name of ["storage", "lumina:authchange", "lumina:auth-expired"]) window.addEventListener(name, () => {
+    const sample = () => { authConnection?.sync(); if (standalone) catalogController?.sync(); else receiver?.snapshot(); renderAuthTimeHint(); renderAuthLifetimeHint(); };
+    for (const name of ["storage", "lumina:authchange", "lumina:auth-expired", "creator:approved-auth-connection-start"]) window.addEventListener(name, () => {
       if (standalone) catalogController?.sync(); else receiver?.invalidate(); });
     window.addEventListener("focus", sample);
     window.addEventListener("creator:approved-section-auth-state", renderCatalog);
     const watch = setInterval(sample, 1000);
-    window.addEventListener("pagehide", () => { pageDisposed = true; retireAuthTimeHint(); retireAuthLifetimeHint(); clearInterval(watch); receiver?.dispose(); catalogController?.dispose();
+    window.addEventListener("pagehide", () => { pageDisposed = true; authConnection?.dispose(); retireAuthTimeHint(); retireAuthLifetimeHint(); clearInterval(watch); receiver?.dispose(); catalogController?.dispose();
       catalogTransport?.dispose(); transport.dispose(); changed(null);
       if (catalogReady) { catalogSelect.disabled = true; catalogLoad.disabled = true; catalogNext.disabled = true; }
       if (catalogLogin) catalogLogin.hidden = true;
+      if (catalogConnect) catalogConnect.disabled = true;
+      if (catalogRestart) catalogRestart.hidden = true;
     }, { once: true });
     window.addEventListener("pageshow", event => {
       // BFCache restores disposed readers; a fresh document has no selected work or automatic API request.

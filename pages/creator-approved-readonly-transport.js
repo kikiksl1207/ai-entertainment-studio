@@ -235,7 +235,7 @@
     try {
       const storageChanged = event => { if (event.key === authKey || event.key === null) invalidate(); };
       for (const [type, listener] of [["storage", storageChanged], ["lumina:authchange", invalidate],
-        ["lumina:auth-expired", invalidate], ["pagehide", dispose]]) {
+        ["lumina:auth-expired", invalidate], ["creator:approved-auth-connection-start", invalidate], ["pagehide", dispose]]) {
         listeners.push([type, listener]); eventTarget.addEventListener(type, listener);
       }
     } catch (_) { dispose(); }

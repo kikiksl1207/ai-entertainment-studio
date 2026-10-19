@@ -7,7 +7,7 @@ import { TextDecoder } from 'node:util';
 
 const ASSETS = ['creator-approved-readonly-transport.js', 'creator-approved-reading-catalog.js',
   'creator-approved-reading-entry.js'];
-const HTML_SCRIPTS = [ASSETS[0], 'creator-approved-reading-handoff.js', ASSETS[1], ASSETS[2],
+const HTML_SCRIPTS = [ASSETS[0], 'creator-approved-reading-handoff.js', ASSETS[1], 'creator-approved-auth-connection.js', ASSETS[2],
   'creator-approved-section-bytes.js', 'creator-body-preview.js', 'creator-approved-reading-body.js'];
 const NS = 'LuminaCreatorApprovedUnverifiedAuthLifetime';
 const TIME_NS = 'LuminaCreatorApprovedUnverifiedAuthTime';
@@ -45,9 +45,9 @@ before(() => {
     check(route !== null, 'HTML_ROOT_RELATIVE_SCRIPT');
     return { name: route[1], version: route[2] };
   });
-  check(same(rows.map(row => row.name), HTML_SCRIPTS) && new Set(rows.map(row => row.name)).size === 7,
+  check(same(rows.map(row => row.name), HTML_SCRIPTS) && new Set(rows.map(row => row.name)).size === 8,
     'HTML_GENUINE_SCRIPT_ORDER');
-  check(rows[0].version === rows[3].version, 'HTML_TRANSPORT_ENTRY_VERSION_PAIR');
+  check(rows[0].version === rows[4].version, 'HTML_TRANSPORT_ENTRY_VERSION_PAIR');
   htmlIds = [...html.matchAll(/\bid="([A-Za-z][A-Za-z0-9_-]*)"/g)].map(match => match[1]);
   check(new Set(htmlIds).size === htmlIds.length, 'HTML_UNIQUE_FIXTURE_IDS');
   for (const name of ASSETS) {
