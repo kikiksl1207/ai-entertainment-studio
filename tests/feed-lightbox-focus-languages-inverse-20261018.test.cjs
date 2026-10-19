@@ -80,7 +80,7 @@ const deltas = [
 ];
 
 test('focus inverse restores only the complete admitted LF or CRLF app', () => {
-  assert.deepEqual(Object.keys(inverse), ['restoreOwnedSocialLoginCurrentnessDelta', ...names], 'FOCUS_INVERSE_EXPORTS');
+  assert.deepEqual(Object.keys(inverse), ['restoreOwnedNaverStateRequiredDelta', 'restoreOwnedSocialLoginCurrentnessDelta', ...names], 'FOCUS_INVERSE_EXPORTS');
   for (const eol of eols) {
     const input = eol(source);
     const result = inverse.restoreOwnedFeedLightboxFocusDelta(input);

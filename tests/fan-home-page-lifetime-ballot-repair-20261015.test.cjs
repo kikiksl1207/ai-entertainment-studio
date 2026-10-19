@@ -6,6 +6,7 @@ const { readFileSync } = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const vm = require('node:vm');
+const { htmlWithoutNaverStateAppCacheDelta } = require('./support/feed-search-locale-html-inverse-20261015.cjs');
 
 const PINS = Object.freeze({
   baseline: Object.freeze({
@@ -35,9 +36,10 @@ function readSource(file, rawPin) {
   const text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
   assert(!text.startsWith('\uFEFF'), 'unexpected source BOM');
   assert(Buffer.from(text).equals(bytes));
-  const lf = text.replace(/\r\n/g, '\n');
+  let lf = text.replace(/\r\n/g, '\n');
   assert(!lf.includes('\r'));
   if (text.includes('\r')) assert.equal(text, lf.replace(/\n/g, '\r\n'));
+  if (file === 'index.html') lf = htmlWithoutNaverStateAppCacheDelta(text).replace(/\r\n/g, '\n');
   assert.equal(sha(Buffer.from(lf)), PINS[phase][file], file);
   if (rawPin) assert.equal(sha(bytes), rawPin, 'explicit raw source pin');
   return lf;

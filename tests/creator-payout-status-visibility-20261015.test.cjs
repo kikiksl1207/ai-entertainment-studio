@@ -4,6 +4,7 @@ const { readFileSync, realpathSync } = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const test = require('node:test');
+const { htmlWithoutNaverStateAppCacheDelta } = require('./support/feed-search-locale-html-inverse-20261015.cjs');
 const root = path.resolve(process.env.CREATOR_PAYOUT_STATUS_SOURCE_ROOT || path.join(__dirname, '..'));
 const profile = process.env.CREATOR_PAYOUT_STATUS_PROFILE || 'current';
 assert(['baseline', 'current'].includes(profile));
@@ -18,8 +19,9 @@ function source(file, expected) {
   assert(bytes.length > 0 && bytes.length <= 1024 * 1024);
   const value = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
   assert(!value.startsWith('\uFEFF')); assert(Buffer.from(value).equals(bytes));
-  const lf = value.replace(/\r\n/g, '\n'); assert(!lf.includes('\r'));
+  let lf = value.replace(/\r\n/g, '\n'); assert(!lf.includes('\r'));
   if (value.includes('\r\n')) assert(!value.replace(/\r\n/g, '').includes('\n'), 'Mixed checkout line endings rejected');
+  if (file === 'creator-studio/index.html') lf = htmlWithoutNaverStateAppCacheDelta(value).replace(/\r\n/g, '\n');
   assert.equal(hash(lf), expected); return lf;
 }
 const css = source('styles/creator-studio.css', profile === 'current' ? NEW_CSS : OLD_CSS);

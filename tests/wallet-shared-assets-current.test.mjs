@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { publicationFiles } from '../scripts/build-public-site.mjs';
+import htmlInverse from './support/feed-search-locale-html-inverse-20261015.cjs';
 
 const appSource = '/app.js?v=wallet-session-20261011';
 const previousAppSources = ['/app.js', '/app.js?v=studio-auth-20261001', '/app.js?v=feed-report-safety-20261001'];
@@ -363,7 +364,18 @@ function assertWalletScripts(html, consumer) {
   assert.deepEqual(scripts.map(src => src === expectedAppSource ? consumer.previousSrc : src), consumer.beforeScripts,
     consumer.file + ' only app URL changed; every outside script and its order is unchanged');
 }
-function html(file) { return readFileSync(new URL('../' + file, import.meta.url), 'utf8'); }
+function html(file) {
+  if (!['index.html', 'creator-studio/index.html', 'lumina-feed/index.html'].includes(file)) {
+    return readFileSync(new URL('../' + file, import.meta.url), 'utf8');
+  }
+  const bytes = readFileSync(new URL('../' + file, import.meta.url));
+  const text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
+  assert(!text.startsWith('\uFEFF'), file + ' no source BOM');
+  assert(Buffer.from(text).equals(bytes), file + ' exact physical UTF8');
+  const lf = text.replace(/\r\n/g, '\n');
+  assert(!lf.includes('\r') && (text === lf || text === lf.replace(/\n/g, '\r\n')), file + ' uniform physical EOL');
+  return htmlInverse.htmlWithoutNaverStateAppCacheDelta(text);
+}
 
 test('wallet cache consumer scope is exactly the explicit25 within manifest HTML49', () => {
   const manifest = JSON.parse(readFileSync(new URL('../scripts/public-site-manifest.json', import.meta.url), 'utf8'));

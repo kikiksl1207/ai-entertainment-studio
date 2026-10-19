@@ -5,6 +5,7 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const vm = require('node:vm');
 const test = require('node:test');
+const { htmlWithoutNaverStateAppCacheDelta } = require('./support/feed-search-locale-html-inverse-20261015.cjs');
 
 const root = path.resolve(process.env.CREATOR_PAYOUT_SOURCE_ROOT || path.join(__dirname, '..'));
 const profile = process.env.CREATOR_PAYOUT_PROFILE || 'current';
@@ -21,8 +22,9 @@ function source(relative, expected) {
   assert(bytes.length > 0 && bytes.length < 1024 * 1024);
   const text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
   assert(!text.startsWith('\uFEFF'));
-  const lf = text.replace(/\r\n/g, '\n');
+  let lf = text.replace(/\r\n/g, '\n');
   assert(!lf.includes('\r'));
+  if (relative === 'creator-studio/index.html') lf = htmlWithoutNaverStateAppCacheDelta(text).replace(/\r\n/g, '\n');
   const hash = value => crypto.createHash('sha256').update(value).digest('hex');
   assert(hash(bytes) === expected || hash(lf) === expected, 'Exact source or uniform checkout CRLF required');
   return lf;

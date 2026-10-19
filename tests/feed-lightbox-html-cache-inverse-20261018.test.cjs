@@ -4,14 +4,15 @@ const { readFileSync } = require('node:fs');
 const { createHash } = require('node:crypto');
 const { join } = require('node:path');
 const { test } = require('node:test');
-const { htmlWithoutFeedLightboxCacheDelta: restore, htmlWithoutFeedSearchLocaleDelta } =
+const { htmlWithoutNaverStateAppCacheDelta, htmlWithoutFeedLightboxCacheDelta: restore, htmlWithoutFeedSearchLocaleDelta } =
   require('./support/feed-search-locale-html-inverse-20261015.cjs');
 const bytes = readFileSync(join(__dirname, '../lumina-feed/index.html'));
 assert(bytes.length >= 24596 && bytes.length <= 49192);
 const decoded = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
 assert(!decoded.startsWith('\uFEFF') && Buffer.from(decoded).equals(bytes));
-const current = decoded.replace(/\r\n/g, '\n');
+let current = decoded.replace(/\r\n/g, '\n');
 assert(!current.includes('\r') && (decoded === current || decoded === current.replace(/\n/g, '\r\n')));
+current = htmlWithoutNaverStateAppCacheDelta(decoded).replace(/\r\n/g, '\n');
 const sha = text => createHash('sha256').update(text).digest('hex');
 const blob = text => createHash('sha1').update('blob ' + Buffer.byteLength(text) + '\0').update(text).digest('hex');
 assert.equal(sha(current), '317cf9442fd863604568e361ab836313130dc94fe79465209dd152c9ab764536');

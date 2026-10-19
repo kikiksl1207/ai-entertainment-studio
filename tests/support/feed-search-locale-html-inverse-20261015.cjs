@@ -40,19 +40,33 @@ function htmlWithoutNaverStateAppCacheDelta(source) {
       (crlf && source !== lf.replace(/\n/g, '\r\n')) ||
       Buffer.from(lf, 'utf8').toString('utf8') !== lf) return source;
   const bytes = Buffer.from(lf, 'utf8'), actualSha = sha(bytes), actualBlob = blob(bytes);
-  const expectedSha = '454ea75b588a9ac0db0e05915c2601c03a5db1474700a4c6e2cb7be3bf1b5aca';
-  const expectedBlob = 'bb542016a15606c915db759ed1a2adf79bfdc0b0';
-  if (actualSha !== expectedSha && actualBlob !== expectedBlob) return source;
-  assert(bytes.length === 24596 && actualSha === expectedSha && actualBlob === expectedBlob,
+  const versions = [
+    [20210, 'caa90c20868dea871745f39b1d8566b68b3793513ffb284fe189caf235b745e1',
+      '8fa6079ec48784acd7388a93885a7c659e557ec6',
+      '181a76ea6609ed8525f75afab603262aa7b579d91c9050dc65f74e800c309985',
+      '9f08efb86b56858f2e5f11d31d9a177053b7c27c'],
+    [62703, '41e6fe88a9b71a6ef71f62b204f4c8acbd703927b4301662191e98a53df60303',
+      '739c14a5a1f296d51f66546f072d7ae8d77b1464',
+      '592d4c36d3f7503759d1c3e910c00054efb9027461f5e61ff9f7e0c0db34277a',
+      '3dff6c8877d3f45acb9b67a5d39bbde69d93db39'],
+    [24596, '454ea75b588a9ac0db0e05915c2601c03a5db1474700a4c6e2cb7be3bf1b5aca',
+      'bb542016a15606c915db759ed1a2adf79bfdc0b0',
+      '317cf9442fd863604568e361ab836313130dc94fe79465209dd152c9ab764536',
+      '9e3bf9ee1dc29207b97e500b8d17cecbe57e3d53'],
+  ];
+  const row = versions.find(item => actualSha === item[1] || actualBlob === item[2]);
+  if (!row) return source;
+  const [expectedBytes, expectedSha, expectedBlob, previousSha, previousBlob] = row;
+  assert(bytes.length === expectedBytes && actualSha === expectedSha && actualBlob === expectedBlob,
     'Exact whole Naver state app cache HTML SHA/blob/length required');
   const appUrl = '/app.js?v=wallet-session-20261011&amp;content=';
   const current = appUrl + '1722e0229ac0706970d088eab353ec80b1a728a570381d3b82ebd4c510bb1418';
   const previous = appUrl + '6089683740bfbc19b3f85e1754169acf5c7576d6b851d4ed38314c423d2ea47c';
   assert.equal(lf.split(current).length, 2, 'One exact Naver state app cache reference');
   const restored = lf.replace(current, previous), beforeBytes = Buffer.from(restored, 'utf8');
-  assert.equal(beforeBytes.length, 24596);
-  assert.equal(sha(beforeBytes), '317cf9442fd863604568e361ab836313130dc94fe79465209dd152c9ab764536');
-  assert.equal(blob(beforeBytes), '9e3bf9ee1dc29207b97e500b8d17cecbe57e3d53');
+  assert.equal(beforeBytes.length, expectedBytes);
+  assert.equal(sha(beforeBytes), previousSha);
+  assert.equal(blob(beforeBytes), previousBlob);
   assert.equal(restored.split(previous).length, 2, 'One exact prior app cache reference');
   assert.equal(restored.replace(previous, current) === lf, true, 'Exact whole Naver state cache forward');
   return crlf ? restored.replace(/\n/g, '\r\n') : restored;
@@ -60,6 +74,7 @@ function htmlWithoutNaverStateAppCacheDelta(source) {
 
 function htmlWithoutFeedLightboxCacheDelta(text) {
   if (typeof text !== 'string') throw new TypeError('FEED_LIGHTBOX_HTML_INVERSE_STRING_REQUIRED');
+  const originalText = text;
   text = htmlWithoutNaverStateAppCacheDelta(text);
   const lf = text.replace(/\r\n/g, '\n'), crlf = text.includes('\r\n');
   if (text.startsWith('\uFEFF') || lf.includes('\r') ||
@@ -81,7 +96,7 @@ function htmlWithoutFeedLightboxCacheDelta(text) {
       '5e4f1fbb89c82ca51c2b2cbf89707eac8dcdc571b6799a690e18fc065c235c4d'],
   ];
   const admittedVersion = versions.find(row => actualSha === row[0] || actualBlob === row[1]);
-  if (!admittedVersion) return text;
+  if (!admittedVersion) return originalText;
   const [expectedSha, expectedBlob, appSha] = admittedVersion;
   assert(bytes.length === 24596 && actualSha === expectedSha && actualBlob === expectedBlob,
     'Exact whole lightbox cache HTML SHA/blob/length required');

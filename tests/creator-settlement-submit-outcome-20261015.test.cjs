@@ -6,6 +6,7 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const vm = require('node:vm');
 const test = require('node:test');
+const { htmlWithoutNaverStateAppCacheDelta } = require('./support/feed-search-locale-html-inverse-20261015.cjs');
 const root = path.resolve(process.env.SETTLEMENT_SUBMIT_SOURCE_ROOT || path.join(__dirname, '..'));
 const profile = process.env.SETTLEMENT_SUBMIT_PROFILE || 'current';
 assert(['baseline', 'current'].includes(profile));
@@ -24,9 +25,10 @@ function source(file, expected) {
   assert(bytes.length > 0 && bytes.length <= 1024 * 1024);
   const text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
   assert(!text.startsWith('\uFEFF'));
-  const lf = text.replace(/\r\n/g, '\n');
+  let lf = text.replace(/\r\n/g, '\n');
   assert(!lf.includes('\r'));
   assert(text === lf || text === lf.replace(/\n/g, '\r\n'), 'Uniform checkout line endings required');
+  if (file === 'creator-studio/index.html' && sha(lf) !== expected) lf = htmlWithoutNaverStateAppCacheDelta(text).replace(/\r\n/g, '\n');
   assert.equal(sha(lf), expected, 'Exact LF source or uniform checkout CRLF required');
   return lf;
 }
