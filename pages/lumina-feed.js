@@ -2743,6 +2743,7 @@ async function runFeedComposeUploadStages(item, onStateChange) {
         '<button type="button" class="feed-repost-cancel" data-feed-repost-close>취소</button>' +
         '<button type="button" class="feed-repost-submit" data-feed-repost-submit>리포스트 게시</button>' +
       '</footer>';
+    modal.dataset.busy = "0";
     modal.hidden = false;
     backdrop.hidden = false;
     document.body.classList.add("is-feed-repost-open");
@@ -2772,6 +2773,9 @@ async function runFeedComposeUploadStages(item, onStateChange) {
     var ta = modal.querySelector("[data-feed-repost-input]");
     var body = (ta && ta.value || "").trim();
     var submitBtn = modal.querySelector("[data-feed-repost-submit]");
+    function ownsComposer() {
+      return !!ta && !modal.hidden && modal.querySelector("[data-feed-repost-input]") === ta;
+    }
     modal.dataset.busy = "1";
     if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = "게시 중"; }
     setPanelStatus(modal, "", "info");
@@ -2782,6 +2786,8 @@ async function runFeedComposeUploadStages(item, onStateChange) {
         "/api/v1/lumina-feed/posts/" + encodeURIComponent(postId) + "/reposts",
         { method: "POST", auth: true, throwOnError: true, body: payload }
       );
+      if (!ownsComposer()) return;
+      modal.dataset.busy = "0";
       closeRepostModal();
       if (typeof loadLuminaFeedData === "function" && typeof renderLuminaFeed === "function") {
         try {
@@ -2790,11 +2796,12 @@ async function runFeedComposeUploadStages(item, onStateChange) {
         } catch (_) {}
       }
     } catch (err) {
+      if (!ownsComposer()) return;
       console.warn("[#357 repost submit]", { status: err && err.status });
       setPanelStatus(modal, feedSubmitErrorMessage(err, { context: "repost" }), "error");
       if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = "리포스트 게시"; }
     } finally {
-      modal.dataset.busy = "0";
+      if (ownsComposer()) modal.dataset.busy = "0";
     }
   }
 
