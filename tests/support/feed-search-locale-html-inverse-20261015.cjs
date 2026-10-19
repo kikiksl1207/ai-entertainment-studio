@@ -44,23 +44,41 @@ function htmlWithoutNaverStateAppCacheDelta(source) {
     [20210, 'caa90c20868dea871745f39b1d8566b68b3793513ffb284fe189caf235b745e1',
       '8fa6079ec48784acd7388a93885a7c659e557ec6',
       '181a76ea6609ed8525f75afab603262aa7b579d91c9050dc65f74e800c309985',
-      '9f08efb86b56858f2e5f11d31d9a177053b7c27c'],
+      '9f08efb86b56858f2e5f11d31d9a177053b7c27c',
+      '1722e0229ac0706970d088eab353ec80b1a728a570381d3b82ebd4c510bb1418'],
     [62703, '41e6fe88a9b71a6ef71f62b204f4c8acbd703927b4301662191e98a53df60303',
       '739c14a5a1f296d51f66546f072d7ae8d77b1464',
       '592d4c36d3f7503759d1c3e910c00054efb9027461f5e61ff9f7e0c0db34277a',
-      '3dff6c8877d3f45acb9b67a5d39bbde69d93db39'],
+      '3dff6c8877d3f45acb9b67a5d39bbde69d93db39',
+      '1722e0229ac0706970d088eab353ec80b1a728a570381d3b82ebd4c510bb1418'],
     [24596, '454ea75b588a9ac0db0e05915c2601c03a5db1474700a4c6e2cb7be3bf1b5aca',
       'bb542016a15606c915db759ed1a2adf79bfdc0b0',
       '317cf9442fd863604568e361ab836313130dc94fe79465209dd152c9ab764536',
-      '9e3bf9ee1dc29207b97e500b8d17cecbe57e3d53'],
+      '9e3bf9ee1dc29207b97e500b8d17cecbe57e3d53',
+      '1722e0229ac0706970d088eab353ec80b1a728a570381d3b82ebd4c510bb1418'],
+    [20210, 'e4e18d9bae9d2c9add41424efb1423df8ba6dd490423fa7168dd62dd96f1864d',
+      'aa9fdc099927df4385f5119a527b7afcbf15fe51',
+      '181a76ea6609ed8525f75afab603262aa7b579d91c9050dc65f74e800c309985',
+      '9f08efb86b56858f2e5f11d31d9a177053b7c27c',
+      '7aac5b75851189fc919f26f5f64ba48c4910237a8c1f0b349a039d346b9d4b61'],
+    [62703, '07811e59dacfd174647bc4beedbc91aec27536690db2649485067547647889c9',
+      '6a73fc57691fb11691009cf459da3b669b86519b',
+      '592d4c36d3f7503759d1c3e910c00054efb9027461f5e61ff9f7e0c0db34277a',
+      '3dff6c8877d3f45acb9b67a5d39bbde69d93db39',
+      '7aac5b75851189fc919f26f5f64ba48c4910237a8c1f0b349a039d346b9d4b61'],
+    [24596, 'b7f9df9c6458efd8576025593b7d0e3048585d505ae6ab508409ab81a19316e2',
+      '4260a18e51005d7d8e0b5bb54bc9a0853d8a60c7',
+      '317cf9442fd863604568e361ab836313130dc94fe79465209dd152c9ab764536',
+      '9e3bf9ee1dc29207b97e500b8d17cecbe57e3d53',
+      '7aac5b75851189fc919f26f5f64ba48c4910237a8c1f0b349a039d346b9d4b61'],
   ];
   const row = versions.find(item => actualSha === item[1] || actualBlob === item[2]);
   if (!row) return source;
-  const [expectedBytes, expectedSha, expectedBlob, previousSha, previousBlob] = row;
+  const [expectedBytes, expectedSha, expectedBlob, previousSha, previousBlob, appSha] = row;
   assert(bytes.length === expectedBytes && actualSha === expectedSha && actualBlob === expectedBlob,
     'Exact whole Naver state app cache HTML SHA/blob/length required');
   const appUrl = '/app.js?v=wallet-session-20261011&amp;content=';
-  const current = appUrl + '1722e0229ac0706970d088eab353ec80b1a728a570381d3b82ebd4c510bb1418';
+  const current = appUrl + appSha;
   const previous = appUrl + '6089683740bfbc19b3f85e1754169acf5c7576d6b851d4ed38314c423d2ea47c';
   assert.equal(lf.split(current).length, 2, 'One exact Naver state app cache reference');
   const restored = lf.replace(current, previous), beforeBytes = Buffer.from(restored, 'utf8');

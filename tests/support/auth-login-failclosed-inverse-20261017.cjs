@@ -40,8 +40,55 @@ function identity(source) {
   };
 }
 
+function restoreOwnedNaverStateEntropyDelta(source) {
+  const lf = source.replace(/\r\n/g, '\n'), crlf = source.includes('\r\n');
+  if (lf.startsWith('\uFEFF') || lf.includes('\r') ||
+      (crlf && source !== lf.replace(/\n/g, '\r\n')) ||
+      Buffer.from(lf, 'utf8').toString('utf8') !== lf) return source;
+  const after = identity(lf);
+  const sha256 = '7aac5b75851189fc919f26f5f64ba48c4910237a8c1f0b349a039d346b9d4b61';
+  const blob = '892c0bd98d93e90f9ec257be57ba5ab7ac6cd75f';
+  if (after.sha256 !== sha256 && after.blob !== blob) return source;
+  if (Buffer.byteLength(lf, 'utf8') !== 433479 || after.sha256 !== sha256 || after.blob !== blob) {
+    throw new Error('NAVER_STATE_ENTROPY_INVERSE_IDENTITY_MISMATCH');
+  }
+  const owned = [
+    '  let state;',
+    '  try {',
+    '    const entropy = new Uint8Array(16);',
+    '    window.crypto.getRandomValues(entropy);',
+    '    state = Array.from(entropy, byte => byte.toString(16).padStart(2, "0")).join("");',
+    '  } catch {',
+    '    alert("\ub124\uc774\ubc84 \ub85c\uadf8\uc778 \ubcf4\uc548 \uac80\uc99d \uc2e4\ud328");',
+    '    return;',
+    '  }',
+    '',
+  ].join('\n');
+  const previous = '  const state = Math.random().toString(36).substring(2, 15);\n';
+  const at = lf.indexOf(owned);
+  if (at < 0 || lf.indexOf(owned, at + owned.length) !== -1) {
+    throw new Error('NAVER_STATE_ENTROPY_INVERSE_OWNED_SUBSTITUTION_MISMATCH');
+  }
+  const restored = lf.slice(0, at) + previous + lf.slice(at + owned.length);
+  const before = identity(restored);
+  if (Buffer.byteLength(restored, 'utf8') !== 433266 ||
+      before.sha256 !== '1722e0229ac0706970d088eab353ec80b1a728a570381d3b82ebd4c510bb1418' ||
+      before.blob !== '1ad79903745cf9b8f363cf5126a13b2b16f840f8') {
+    throw new Error('NAVER_STATE_ENTROPY_INVERSE_RESTORED_IDENTITY_MISMATCH');
+  }
+  const forwardAt = restored.indexOf(previous);
+  if (forwardAt < 0 || restored.indexOf(previous, forwardAt + previous.length) !== -1) {
+    throw new Error('NAVER_STATE_ENTROPY_INVERSE_FORWARD_SUBSTITUTION_MISMATCH');
+  }
+  if (restored.slice(0, forwardAt) + owned + restored.slice(forwardAt + previous.length) !== lf) {
+    throw new Error('NAVER_STATE_ENTROPY_INVERSE_FORWARD_MISMATCH');
+  }
+  return crlf ? restored.replace(/\n/g, '\r\n') : restored;
+}
+
 function restoreOwnedNaverStateRequiredDelta(source) {
   if (typeof source !== 'string') throw new TypeError('NAVER_STATE_REQUIRED_INVERSE_STRING_REQUIRED');
+  source = restoreOwnedNaverStateEntropyDelta(source);
   const lf = source.replace(/\r\n/g, '\n'), crlf = source.includes('\r\n');
   if (lf.startsWith('\uFEFF') || lf.includes('\r') ||
       (crlf && source !== lf.replace(/\n/g, '\r\n')) ||

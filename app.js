@@ -3486,7 +3486,15 @@ async function handleNaverLogin() {
     return;
   }
   // CSRF 방지용 state 토큰
-  const state = Math.random().toString(36).substring(2, 15);
+  let state;
+  try {
+    const entropy = new Uint8Array(16);
+    window.crypto.getRandomValues(entropy);
+    state = Array.from(entropy, byte => byte.toString(16).padStart(2, "0")).join("");
+  } catch {
+    alert("네이버 로그인 보안 검증 실패");
+    return;
+  }
   sessionStorage.setItem("naver_oauth_state", state);
   sessionStorage.setItem("oauth_provider", "naver");
 
