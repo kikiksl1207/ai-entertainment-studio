@@ -11,9 +11,20 @@ const tracked = [appFile, helperFile, __filename];
 const sha = value => createHash('sha256').update(value).digest('hex');
 const blob = value => createHash('sha1').update('blob ' + value.length + '\0').update(value).digest('hex');
 assert.ok(fs.statSync(appFile).size <= 1024 * 1024);
-assert.equal(fs.statSync(helperFile).size, 5709);
+assert.ok([5709, 5845].includes(fs.statSync(helperFile).size), 'only pinned LF or uniform CRLF helper sizes');
 const opening = tracked.map(file => sha(fs.readFileSync(file)));
-assert.equal(opening[1], '3b1cad5e188b0f1a2b2112b426eade8ee8c2406ee81e5d9bc76d6c280c6ad403');
+const helperRaw = fs.readFileSync(helperFile);
+let helperText = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(helperRaw);
+assert.equal(Buffer.from(helperText).equals(helperRaw), true);
+assert.equal(helperText.startsWith('\uFEFF'), false);
+if (helperText.includes('\r')) {
+  const rest = helperText.replace(/\r\n/g, '');
+  assert.equal(rest.includes('\r'), false);
+  assert.equal(rest.includes('\n'), false);
+  helperText = helperText.replace(/\r\n/g, '\n');
+}
+assert.equal(Buffer.byteLength(helperText), 5709);
+assert.equal(sha(helperText), '3b1cad5e188b0f1a2b2112b426eade8ee8c2406ee81e5d9bc76d6c280c6ad403');
 const raw = fs.readFileSync(appFile);
 let app = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(raw);
 assert.equal(Buffer.from(app).equals(raw), true);

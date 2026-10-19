@@ -16,8 +16,19 @@ const rows = [
   ['lumina-feed/index.html', 24673, 'd01c4134bd859d6314b930ae4f16f6fbc10baa565908c640ff69c4da6e30a238',
     '4e0b216c07b2cb1ee64d19050295b23cb546e27c9b7b3bea79872778b9a9c7d1', 'b6f6b0841c9a440e4e00ab9eb0113992165cf112'],
 ];
-assert.equal(fs.statSync(helperFile).size, 3277);
-assert.equal(sha(fs.readFileSync(helperFile)), '2ff36bec87ab6ab3d0231817ce7653a79ac20697fcb986d7280df01a6b921ac3');
+assert.ok([3277, 3352].includes(fs.statSync(helperFile).size), 'only pinned LF or uniform CRLF helper sizes');
+const helperRaw = fs.readFileSync(helperFile);
+let helperText = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(helperRaw);
+assert.equal(Buffer.from(helperText).equals(helperRaw), true);
+assert.equal(helperText.startsWith('\uFEFF'), false);
+if (helperText.includes('\r')) {
+  const rest = helperText.replace(/\r\n/g, '');
+  assert.equal(rest.includes('\r'), false);
+  assert.equal(rest.includes('\n'), false);
+  helperText = helperText.replace(/\r\n/g, '\n');
+}
+assert.equal(Buffer.byteLength(helperText), 3277);
+assert.equal(sha(helperText), '2ff36bec87ab6ab3d0231817ce7653a79ac20697fcb986d7280df01a6b921ac3');
 const tracked = [helperFile, __filename, ...rows.map(row => path.join(ROOT, row[0]))];
 for (const row of rows) assert.ok(fs.statSync(path.join(ROOT, row[0])).size <= 128 * 1024);
 const opening = tracked.map(file => sha(fs.readFileSync(file)));
