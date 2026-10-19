@@ -15,7 +15,15 @@ export function fanEngagementPrivacyMiddleware(
     /^\/api\/v1\/fan-engagement\/missions\/?$/i.test(pathname);
   const conceptList = ['GET', 'HEAD'].includes(request.method ?? '') &&
     /^\/api\/v1\/fan-engagement\/concept-votes\/?$/i.test(pathname);
-  if (read || write || missionList || conceptList) response.setHeader('Cache-Control', 'private, no-store');
+  const fanLetterRead = ['GET', 'HEAD'].includes(request.method ?? '') &&
+    /^\/api\/v1\/me\/fan-letters\/(?:sent|received)\/?$/i.test(pathname);
+  const fanLetterCreate = request.method === 'POST' &&
+    /^\/api\/v1\/fan-letters(?:\/preview)?\/?$/i.test(pathname);
+  const fanLetterStatus = request.method === 'PATCH' &&
+    /^\/api\/v1\/me\/fan-letters\/received\/[^/]+\/status\/?$/i.test(pathname);
+  if (read || write || missionList || conceptList || fanLetterRead || fanLetterCreate || fanLetterStatus) {
+    response.setHeader('Cache-Control', 'private, no-store');
+  }
   if (missionList || conceptList) {
     if (typeof response.vary !== 'function') throw new TypeError(missionList
       ? 'Mission-list response requires Vary support' : 'Concept-list response requires Vary support');
