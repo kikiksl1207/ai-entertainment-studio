@@ -13,7 +13,7 @@ const sha = value => createHash('sha256').update(value).digest('hex');
 const blob = value => createHash('sha1').update('blob ' + value.length + '\0').update(value).digest('hex');
 assert.ok(fs.statSync(appFile).size <= 1024 * 1024);
 assert.ok([5869, 6007].includes(fs.statSync(helperFile).size), 'only pinned LF or uniform CRLF helper sizes');
-assert.ok([4876, 4982].includes(fs.statSync(editHelperFile).size), 'only pinned LF or uniform CRLF edit helper sizes');
+assert.ok([9615, 9812].includes(fs.statSync(editHelperFile).size), 'only pinned LF or uniform CRLF edit helper sizes');
 const opening = tracked.map(file => sha(fs.readFileSync(file)));
 const helperRaw = fs.readFileSync(helperFile);
 let helperText = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(helperRaw);
@@ -38,9 +38,9 @@ if (editText.includes('\r')) {
   assert.equal(rest.includes('\n'), false);
   editText = editText.replace(/\r\n/g, '\n');
 }
-assert.equal(Buffer.byteLength(editText), 4876);
-assert.equal(sha(editText), '7ea92475b314c022abf6c58259164db7699c24ede4497191cca91ec1db3f7b84');
-assert.equal(blob(Buffer.from(editText, 'utf8')), 'c6ac2110893157fb5d2c3b20baa241af445b3bd8');
+assert.equal(Buffer.byteLength(editText), 9615);
+assert.equal(sha(editText), '93c4de9c4df3cc65ceeee081c57c5b95320428552b363813e6dbad024b2df8ad');
+assert.equal(blob(Buffer.from(editText, 'utf8')), '3265048e8ad17481b0892ce57932a7939010e212');
 const raw = fs.readFileSync(appFile);
 let app = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(raw);
 assert.equal(Buffer.from(app).equals(raw), true);
@@ -51,8 +51,8 @@ if (app.includes('\r')) {
   assert.equal(rest.includes('\n'), false);
   app = app.replace(/\r\n/g, '\n');
 }
-assert.equal(Buffer.byteLength(app), 434800);
-assert.equal(sha(app), '4730707c2fae82363401f6f11dc5dc3daa68b9bb88b151ffdcec37e65c5e73ff');
+assert.equal(Buffer.byteLength(app), 435410);
+assert.equal(sha(app), '22437069572d993e76a8f0f7ca7055ed6f7d46fd98feb38a8175eb406860e33c');
 const helpers = require(helperFile);
 assert.deepEqual(Object.keys(helpers), ['restoreOwnedFeedLikeLifetime']);
 const restore = helpers.restoreOwnedFeedLikeLifetime;

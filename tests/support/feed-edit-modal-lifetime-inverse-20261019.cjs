@@ -63,8 +63,99 @@ function substituteUnique(source, from, to) {
   return source.slice(0, at) + to + source.slice(at + from.length);
 }
 
+const OWNER_BOUNDARIES = [
+  {
+    "kind": "app",
+    "before": {
+      "bytes": 434800,
+      "sha256": "4730707c2fae82363401f6f11dc5dc3daa68b9bb88b151ffdcec37e65c5e73ff",
+      "blob": "b83bdd503d1ad80c11cc7724a3e6f3ee2bb268d2"
+    },
+    "after": {
+      "bytes": 435410,
+      "sha256": "22437069572d993e76a8f0f7ca7055ed6f7d46fd98feb38a8175eb406860e33c",
+      "blob": "495f192c1236b9d45e3cbcb6710433f1cbf3e1ed"
+    },
+    "ports": [
+      {
+        "before": "let _feedEditModalEl = null;\n",
+        "after": "let _feedEditModalEl = null;\nfunction feedEditModalCurrent(modal) {\n  if (!modal || modal !== _feedEditModalEl) return false;\n  if (!modal._feedEditOwnerId || modal._feedEditOwnerId !== pickOwnerId()) {\n    closeFeedEditModal();\n    return false;\n  }\n  return true;\n}\nfunction retireFeedEditOnAccountChange() {\n  if (_feedEditModalEl) feedEditModalCurrent(_feedEditModalEl);\n}\n"
+      },
+      {
+        "before": "function openFeedEditModal(post) {\n  closeFeedEditModal();\n  const modal = document.createElement(\"div\");",
+        "after": "function openFeedEditModal(post) {\n  closeFeedEditModal();\n  const owner = pickOwnerId();\n  if (!owner) return;\n  const modal = document.createElement(\"div\");\n  modal._feedEditOwnerId = owner;"
+      },
+      {
+        "before": "  setTimeout(() => {\n    textarea.focus();\n    textarea.setSelectionRange(textarea.value.length, textarea.value.length);\n  }, 0);",
+        "after": "  setTimeout(() => {\n    if (!feedEditModalCurrent(modal)) return;\n    textarea.focus();\n    if (!feedEditModalCurrent(modal)) return;\n    textarea.setSelectionRange(textarea.value.length, textarea.value.length);\n  }, 0);"
+      },
+      {
+        "before": "    _feedEditModalEl.remove();\n    _feedEditModalEl = null;",
+        "after": "    _feedEditModalEl._feedEditOwnerId = null;\n    _feedEditModalEl.remove();\n    _feedEditModalEl = null;"
+      },
+      {
+        "before": "    const current = () => modal === _feedEditModalEl &&\n      modal.querySelector(\"[data-feed-edit-save]\") === saveBtn && saveBtn.dataset.postId === postId;",
+        "after": "    const current = () => modal === _feedEditModalEl &&\n      feedEditModalCurrent(modal) &&\n      modal.querySelector(\"[data-feed-edit-save]\") === saveBtn && saveBtn.dataset.postId === postId;"
+      }
+    ]
+  },
+  {
+    "kind": "feed",
+    "before": {
+      "bytes": 141110,
+      "sha256": "4f026d788f7e1dfeae1fe36df495070d78a85540830325484094c14b66dac91b",
+      "blob": "c26788917d62a5517190764ca8fa74269be25f25"
+    },
+    "after": {
+      "bytes": 141156,
+      "sha256": "67de05ce0342e26be6a06e2261d1380f8f81a49e6bcaf52ba09e900d7102b207",
+      "blob": "4ee9e314b7e34059b007adeb252f8dd8f76e9f06"
+    },
+    "ports": [
+      {
+        "before": "  function clearFeedOnAccountChange() {\n    retireRepostOnAccountChange();",
+        "after": "  function clearFeedOnAccountChange() {\n    window.retireFeedEditOnAccountChange?.();\n    retireRepostOnAccountChange();"
+      }
+    ]
+  }
+];
+
+function restoreOwnerBoundary(source, kind) {
+  if (typeof source !== 'string') throw new TypeError('FEED_EDIT_OWNER_INVERSE_STRING_REQUIRED');
+  const row = OWNER_BOUNDARIES.find(item => item.kind === kind);
+  if (!row) throw new Error('FEED_EDIT_OWNER_INVERSE_KIND');
+  const lf = source.replace(/\r\n/g, '\n');
+  const crlf = source.includes('\r\n');
+  if (lf.startsWith('\uFEFF') || lf.includes('\r') ||
+      (crlf && source !== lf.replace(/\n/g, '\r\n')) ||
+      Buffer.from(lf, 'utf8').toString('utf8') !== lf) return source;
+  const current = identity(lf);
+  if (current.sha256 !== row.after.sha256 && current.blob !== row.after.blob) return source;
+  const matches = (value, expected) => value.bytes === expected.bytes &&
+    value.sha256 === expected.sha256 && value.blob === expected.blob;
+  if (!matches(current, row.after)) throw new Error('FEED_EDIT_OWNER_INVERSE_IDENTITY');
+  let restored = lf;
+  for (const port of row.ports.slice().reverse()) {
+    restored = substituteUnique(restored, port.after, port.before);
+  }
+  if (!matches(identity(restored), row.before)) throw new Error('FEED_EDIT_OWNER_INVERSE_RESTORED');
+  let forward = restored;
+  for (const port of row.ports) forward = substituteUnique(forward, port.before, port.after);
+  if (forward !== lf) throw new Error('FEED_EDIT_OWNER_INVERSE_FORWARD');
+  return crlf ? restored.replace(/\n/g, '\r\n') : restored;
+}
+
+function restoreOwnedFeedEditAccountFeed(source) {
+  return restoreOwnerBoundary(source, 'feed');
+}
+
+function restoreOwnedFeedEditAccountApp(source) {
+  return restoreOwnerBoundary(source, 'app');
+}
+
 function restoreOwnedFeedEditModalLifetime(source) {
   if (typeof source !== 'string') throw new TypeError('FEED_EDIT_MODAL_LIFETIME_INVERSE_STRING_REQUIRED');
+  source = restoreOwnerBoundary(source, 'app');
   const lf = source.replace(/\r\n/g, '\n');
   const crlf = source.includes('\r\n');
   if (lf.startsWith('\uFEFF') || lf.includes('\r') ||
@@ -103,4 +194,4 @@ function restoreOwnedFeedEditModalLifetime(source) {
   return crlf ? restored.replace(/\n/g, '\r\n') : restored;
 }
 
-module.exports = { restoreOwnedFeedEditModalLifetime };
+module.exports = { restoreOwnedFeedEditModalLifetime, restoreOwnedFeedEditAccountFeed, restoreOwnedFeedEditAccountApp };

@@ -11,6 +11,11 @@ const sha = value => createHash('sha256').update(value).digest('hex');
 const blob = value => createHash('sha1').update('blob ' + value.length + '\0').update(value).digest('hex');
 const OLD = '848556f38941670e90cdec3dc491d387b9c00a6f369cc6aa00002c64fb1dca07';
 const NEW = '4730707c2fae82363401f6f11dc5dc3daa68b9bb88b151ffdcec37e65c5e73ff';
+const actualProfiles = [
+  ['index.html', 20210, '13f9ad2655afda166c4f14ae873e32ba96bbd11ba0f74acda27393f9baeaca8e', '9c8e97cd753a4c959a1c00bc5a954169bdcee04a'],
+  ['creator-studio/index.html', 62703, '03764953dfd8fbb359f185051070f6adf0a50e84c0f6071580abff52e133a5b8', '7211a8d47738a397d0453d5708a68e4e3a9682a1'],
+  ['lumina-feed/index.html', 24673, '6cc3bf5ef12b525e7c01e212cd11429f5c009c5693db8078438667117b2ce6bc', '9bd1f484ada81e23db7c9d916124d41ef32a09c6'],
+];
 const profiles = [
   ['index.html', 20210,
     '7b44ebef67fe443952c956f202d1caf70c52ed0fcf414368bd81a45fc9634b13',
@@ -51,10 +56,18 @@ function canonical(bytes) {
 const opening = files.map(read);
 after(() => files.forEach((file, i) => assert.equal(read(file).equals(opening[i]), true)));
 const helperBytes = Buffer.from(canonical(opening[0]));
-assert.equal(helperBytes.length, 3284);
-assert.equal(sha(helperBytes), '84cfc73baf1bed00a2632a99b47a97d18a53583ba08fb2f6aad2f1cdf5a44c3e');
+assert.equal(helperBytes.length, 6825);
+assert.equal(sha(helperBytes), '0aeab29505e13df2e9d0711a5e0172149a703dd2ee355bff757e460727e56fe6');
+assert.equal(blob(helperBytes), '72ee0f6d9cf99ceb159fc5e91b371c77278e003c');
+const { restoreOwnedFeedEditAppHtml: restore, restoreOwnedFeedEditAccountHtml } = require(helper);
 const fixtures = profiles.map((row, i) => {
-  const current = canonical(opening[i + 1]);
+  const actual = canonical(opening[i + 1]);
+  const actualBytes = Buffer.from(actual);
+  assert.equal(actualProfiles[i][0], row[0]);
+  assert.equal(actualBytes.length, actualProfiles[i][1]);
+  assert.equal(sha(actualBytes), actualProfiles[i][2]);
+  assert.equal(blob(actualBytes), actualProfiles[i][3]);
+  const current = restoreOwnedFeedEditAccountHtml(actual);
   const bytes = Buffer.from(current);
   assert.equal(bytes.length, row[1]);
   assert.equal(sha(bytes), row[2]);
@@ -69,7 +82,6 @@ const fixtures = profiles.map((row, i) => {
   assert.equal(previous.replace(OLD, NEW), current);
   return { current, previous };
 });
-const { restoreOwnedFeedEditAppHtml: restore } = require(helper);
 
 test('edit HTML query inverse restores only the three exact LF and CRLF views', () => {
   for (const { current, previous } of fixtures) {

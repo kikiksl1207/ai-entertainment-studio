@@ -9,6 +9,11 @@ const helperFile = path.join(__dirname, 'support/feed-like-app-html-inverse-2026
 const editHelperFile = path.join(__dirname, 'support/feed-edit-app-html-inverse-20261020.cjs');
 const sha = value => createHash('sha256').update(value).digest('hex');
 const blob = value => createHash('sha1').update('blob ' + value.length + '\0').update(value).digest('hex');
+const actualProfiles = [
+  ['index.html', 20210, '13f9ad2655afda166c4f14ae873e32ba96bbd11ba0f74acda27393f9baeaca8e', '9c8e97cd753a4c959a1c00bc5a954169bdcee04a'],
+  ['creator-studio/index.html', 62703, '03764953dfd8fbb359f185051070f6adf0a50e84c0f6071580abff52e133a5b8', '7211a8d47738a397d0453d5708a68e4e3a9682a1'],
+  ['lumina-feed/index.html', 24673, '6cc3bf5ef12b525e7c01e212cd11429f5c009c5693db8078438667117b2ce6bc', '9bd1f484ada81e23db7c9d916124d41ef32a09c6'],
+];
 const rows = [
   ['index.html', 20210, '7b44ebef67fe443952c956f202d1caf70c52ed0fcf414368bd81a45fc9634b13',
     'e4e18d9bae9d2c9add41424efb1423df8ba6dd490423fa7168dd62dd96f1864d', 'aa9fdc099927df4385f5119a527b7afcbf15fe51'],
@@ -18,7 +23,7 @@ const rows = [
     '4e0b216c07b2cb1ee64d19050295b23cb546e27c9b7b3bea79872778b9a9c7d1', 'b6f6b0841c9a440e4e00ab9eb0113992165cf112'],
 ];
 assert.ok([3419, 3496].includes(fs.statSync(helperFile).size), 'only pinned LF or uniform CRLF helper sizes');
-assert.ok([3284, 3359].includes(fs.statSync(editHelperFile).size), 'only pinned LF or uniform CRLF edit HTML helper sizes');
+assert.ok([6825, 6989].includes(fs.statSync(editHelperFile).size), 'only pinned LF or uniform CRLF edit HTML helper sizes');
 const helperRaw = fs.readFileSync(helperFile);
 let helperText = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(helperRaw);
 assert.equal(Buffer.from(helperText).equals(helperRaw), true);
@@ -45,10 +50,11 @@ if (editText.includes('\r')) {
   assert.equal(rest.includes('\n'), false);
   editText = editText.replace(/\r\n/g, '\n');
 }
-assert.equal(Buffer.byteLength(editText), 3284);
-assert.equal(sha(editText), '84cfc73baf1bed00a2632a99b47a97d18a53583ba08fb2f6aad2f1cdf5a44c3e');
-assert.equal(blob(editText), '731a84589a79f7649d9895dbd4bef3b906845b7f');
-const inputs = rows.map(row => {
+assert.equal(Buffer.byteLength(editText), 6825);
+assert.equal(sha(editText), '0aeab29505e13df2e9d0711a5e0172149a703dd2ee355bff757e460727e56fe6');
+assert.equal(blob(editText), '72ee0f6d9cf99ceb159fc5e91b371c77278e003c');
+const { restoreOwnedFeedEditAccountHtml } = require(editHelperFile);
+const inputs = rows.map((row, i) => {
   const file = path.join(ROOT, row[0]);
   const raw = fs.readFileSync(file);
   let text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(raw);
@@ -60,6 +66,11 @@ const inputs = rows.map(row => {
     assert.equal(rest.includes('\n'), false);
     text = text.replace(/\r\n/g, '\n');
   }
+  assert.equal(actualProfiles[i][0], row[0]);
+  assert.equal(Buffer.byteLength(text), actualProfiles[i][1]);
+  assert.equal(sha(text), actualProfiles[i][2]);
+  assert.equal(blob(Buffer.from(text, 'utf8')), actualProfiles[i][3]);
+  text = restoreOwnedFeedEditAccountHtml(text);
   assert.equal(Buffer.byteLength(text), row[1]);
   assert.equal(sha(text), row[2]);
   return { row, text };

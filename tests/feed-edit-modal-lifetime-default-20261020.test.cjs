@@ -11,6 +11,7 @@ const { createHash } = require('node:crypto');
 const ROOT = path.resolve(__dirname, '..');
 const APP = path.join(ROOT, 'app.js');
 const TS = path.join(ROOT, 'server/node_modules/typescript/lib/typescript.js');
+const EDIT = path.join(__dirname, 'support/feed-edit-modal-lifetime-inverse-20261019.cjs');
 const sha = value => createHash('sha256').update(value).digest('hex');
 const blob = value => createHash('sha1').update('blob ' + value.length + '\0').update(value).digest('hex');
 const expectedSource = '4730707c2fae82363401f6f11dc5dc3daa68b9bb88b151ffdcec37e65c5e73ff';
@@ -31,7 +32,8 @@ function readBounded(file, cap) {
 const tracked = [
   { file: APP, cap: 1024 * 1024 },
   { file: TS, cap: 16 * 1024 * 1024 },
-  { file: __filename, cap: 256 * 1024 }
+  { file: __filename, cap: 256 * 1024 },
+  { file: EDIT, cap: 16 * 1024 }
 ];
 const opening = tracked.map(row => readBounded(row.file, row.cap));
 after(() => {
@@ -45,10 +47,26 @@ const decodedApp = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).de
 assert.equal(Buffer.from(decodedApp, 'utf8').equals(physicalApp), true);
 assert.notEqual(decodedApp.charCodeAt(0), 0xFEFF);
 assert.equal(/\r(?!\n)/.test(decodedApp), false, 'bare CR is not admitted');
-// Physical inputs stay untouched; only this admitted EOL view reaches extraction.
-const source = decodedApp.replace(/\r\n/g, '\n');
-assert.equal(decodedApp === source || decodedApp === source.replace(/\n/g, '\r\n'), true,
+// This historical modal view is separate from the new owner-boundary oracle.
+const actualSource = decodedApp.replace(/\r\n/g, '\n');
+assert.equal(decodedApp === actualSource || decodedApp === actualSource.replace(/\n/g, '\r\n'), true,
   'only LF or uniform CRLF is admitted');
+const actualCanonical = Buffer.from(actualSource, 'utf8');
+assert.equal(actualCanonical.length, 435410);
+assert.equal(sha(actualCanonical), '22437069572d993e76a8f0f7ca7055ed6f7d46fd98feb38a8175eb406860e33c');
+assert.equal(blob(actualCanonical), '495f192c1236b9d45e3cbcb6710433f1cbf3e1ed');
+const helperDecoded = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(opening[3]);
+assert.equal(Buffer.from(helperDecoded, 'utf8').equals(opening[3]), true);
+assert.notEqual(helperDecoded.charCodeAt(0), 0xFEFF);
+assert.equal(/\r(?!\n)/.test(helperDecoded), false);
+const helperSource = helperDecoded.replace(/\r\n/g, '\n');
+assert.equal(helperDecoded === helperSource || helperDecoded === helperSource.replace(/\n/g, '\r\n'), true);
+const helperCanonical = Buffer.from(helperSource, 'utf8');
+assert.equal(helperCanonical.length, 9615);
+assert.equal(sha(helperCanonical), '93c4de9c4df3cc65ceeee081c57c5b95320428552b363813e6dbad024b2df8ad');
+assert.equal(blob(helperCanonical), '3265048e8ad17481b0892ce57932a7939010e212');
+const { restoreOwnedFeedEditAccountApp } = require(EDIT);
+const source = restoreOwnedFeedEditAccountApp(actualSource);
 const canonicalApp = Buffer.from(source, 'utf8');
 assert.equal(canonicalApp.length, profile.bytes);
 assert.equal(sha(canonicalApp), expectedSource, 'only the frozen candidate whole app');

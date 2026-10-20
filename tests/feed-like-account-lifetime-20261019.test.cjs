@@ -14,7 +14,7 @@ const EDIT = path.join(__dirname, 'support/feed-edit-modal-lifetime-inverse-2026
 const tracked = [APP, TS, __filename, EDIT];
 assert.ok(fs.statSync(APP).size <= 1024 * 1024);
 assert.equal(fs.statSync(TS).size, 9112572);
-assert.ok([4876, 4982].includes(fs.statSync(EDIT).size), 'only pinned LF or uniform CRLF edit helper sizes');
+assert.ok([9615, 9812].includes(fs.statSync(EDIT).size), 'only pinned LF or uniform CRLF edit helper sizes');
 const opening = tracked.map(file => sha(fs.readFileSync(file)));
 assert.equal(opening[1], '3ae902c92cc44dace175c0e69e13a4b0899f6983c6121d76b9ab8dd5795e7675');
 
@@ -35,12 +35,12 @@ function canonicalSource(raw) {
 const editRaw = fs.readFileSync(EDIT);
 assert.equal(sha(editRaw), opening[3], 'physical edit helper opening pin');
 const editCanonical = canonicalSource(editRaw);
-assert.equal(editCanonical.length, 4876);
-assert.equal(sha(editCanonical), '7ea92475b314c022abf6c58259164db7699c24ede4497191cca91ec1db3f7b84');
+assert.equal(editCanonical.length, 9615);
+assert.equal(sha(editCanonical), '93c4de9c4df3cc65ceeee081c57c5b95320428552b363813e6dbad024b2df8ad');
 assert.equal(createHash('sha1').update('blob ' + editCanonical.length + '\0').update(editCanonical).digest('hex'),
-  'c6ac2110893157fb5d2c3b20baa241af445b3bd8');
+  '3265048e8ad17481b0892ce57932a7939010e212');
 const editHelpers = require(EDIT);
-assert.deepEqual(Object.keys(editHelpers), ['restoreOwnedFeedEditModalLifetime']);
+assert.deepEqual(Object.keys(editHelpers), ['restoreOwnedFeedEditModalLifetime', 'restoreOwnedFeedEditAccountFeed', 'restoreOwnedFeedEditAccountApp']);
 const profiles = new Map([
   ['7aac5b75851189fc919f26f5f64ba48c4910237a8c1f0b349a039d346b9d4b61', {
     bytes: 433479, functionBytes: 3053,

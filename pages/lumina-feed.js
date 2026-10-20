@@ -2423,6 +2423,7 @@ async function runFeedComposeUploadStages(item, onStateChange) {
 
   let _feedLastViewerKey = feedViewerKey();
   function clearFeedOnAccountChange() {
+    window.retireFeedEditOnAccountChange?.();
     retireRepostOnAccountChange();
     const owner = feedViewerKey();
     if (owner === _feedLastViewerKey) return;

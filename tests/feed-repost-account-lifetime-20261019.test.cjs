@@ -23,7 +23,7 @@ for (const [i, file] of tracked.entries()) {
 }
 assert.equal(fs.statSync(tsFile).size, 9112572);
 assert.ok([5869, 6007].includes(fs.statSync(helperFile).size));
-assert.ok([4876, 4982].includes(fs.statSync(editHelperFile).size));
+assert.ok([9615, 9812].includes(fs.statSync(editHelperFile).size));
 const opening = tracked.map(p => sha(fs.readFileSync(p)));
 assert.equal(opening[4], '3ae902c92cc44dace175c0e69e13a4b0899f6983c6121d76b9ab8dd5795e7675');
 function canonicalSource(raw) {
@@ -48,11 +48,16 @@ assert.equal(blob(helperCanonical), '4726a461e9d7c3c772b442ca5a20d810a548c8af');
 const editRaw = fs.readFileSync(editHelperFile);
 assert.equal(sha(editRaw), opening[5]);
 const editCanonical = canonicalSource(editRaw);
-assert.equal(editCanonical.length, 4876);
-assert.equal(sha(editCanonical), '7ea92475b314c022abf6c58259164db7699c24ede4497191cca91ec1db3f7b84');
-assert.equal(blob(editCanonical), 'c6ac2110893157fb5d2c3b20baa241af445b3bd8');
+assert.equal(editCanonical.length, 9615);
+assert.equal(sha(editCanonical), '93c4de9c4df3cc65ceeee081c57c5b95320428552b363813e6dbad024b2df8ad');
+assert.equal(blob(editCanonical), '3265048e8ad17481b0892ce57932a7939010e212');
 const { restoreOwnedFeedLikeLifetime } = require(helperFile);
-const feedRaw = canonicalSource(fs.readFileSync(feedFile));
+const { restoreOwnedFeedEditAccountFeed } = require(editHelperFile);
+const actualFeed = canonicalSource(fs.readFileSync(feedFile));
+assert.equal(actualFeed.length, 141156);
+assert.equal(sha(actualFeed), '67de05ce0342e26be6a06e2261d1380f8f81a49e6bcaf52ba09e900d7102b207');
+assert.equal(blob(actualFeed), '4ee9e314b7e34059b007adeb252f8dd8f76e9f06');
+const feedRaw = Buffer.from(restoreOwnedFeedEditAccountFeed(actualFeed.toString('utf8')));
 const appRaw = Buffer.from(restoreOwnedFeedLikeLifetime(canonicalSource(fs.readFileSync(appFile)).toString('utf8')));
 assert.ok([
   '29537a1f381992c63ffd6b1c40255d1466918a1a287dcf5cf2fdc16c27b0d1e4',

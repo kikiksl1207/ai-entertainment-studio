@@ -5039,9 +5039,23 @@ function normalizeFeedPost(raw) {
    - 이미지 교체는 1차 미지원 (assetEditing: not_supported_yet)
    - 모달 동적 생성 — 한 번에 하나만 열림 보장 */
 let _feedEditModalEl = null;
+function feedEditModalCurrent(modal) {
+  if (!modal || modal !== _feedEditModalEl) return false;
+  if (!modal._feedEditOwnerId || modal._feedEditOwnerId !== pickOwnerId()) {
+    closeFeedEditModal();
+    return false;
+  }
+  return true;
+}
+function retireFeedEditOnAccountChange() {
+  if (_feedEditModalEl) feedEditModalCurrent(_feedEditModalEl);
+}
 function openFeedEditModal(post) {
   closeFeedEditModal();
+  const owner = pickOwnerId();
+  if (!owner) return;
   const modal = document.createElement("div");
+  modal._feedEditOwnerId = owner;
   modal.className = "feed-edit-modal";
   modal.setAttribute("role", "dialog");
   modal.setAttribute("aria-modal", "true");
@@ -5089,7 +5103,9 @@ function openFeedEditModal(post) {
   document.addEventListener("keydown", escHandler);
   // 자동 포커스 + 커서 끝으로
   setTimeout(() => {
+    if (!feedEditModalCurrent(modal)) return;
     textarea.focus();
+    if (!feedEditModalCurrent(modal)) return;
     textarea.setSelectionRange(textarea.value.length, textarea.value.length);
   }, 0);
 }
@@ -5098,6 +5114,7 @@ function closeFeedEditModal() {
     if (_feedEditModalEl._escHandler) {
       document.removeEventListener("keydown", _feedEditModalEl._escHandler);
     }
+    _feedEditModalEl._feedEditOwnerId = null;
     _feedEditModalEl.remove();
     _feedEditModalEl = null;
   }
@@ -5136,6 +5153,7 @@ function bindLuminaFeedEdit() {
     if (!postId || !_feedEditModalEl) return;
     const modal = _feedEditModalEl;
     const current = () => modal === _feedEditModalEl &&
+      feedEditModalCurrent(modal) &&
       modal.querySelector("[data-feed-edit-save]") === saveBtn && saveBtn.dataset.postId === postId;
     if (!current()) return;
     const textarea = modal.querySelector("textarea");
