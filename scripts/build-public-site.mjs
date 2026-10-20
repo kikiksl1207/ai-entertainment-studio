@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 const hash = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const root = fileURLToPath(new URL('../', import.meta.url));
-const blocked = /(^|\/)(?:server|scripts|tests|docs|agents|qa-artifacts|node_modules|dist|outputs|hold|reference|reference-rebuild)(\/|$)|(^|\/)\.|(?:\.spec|\.test|\.bak|\.map|\.log|\.sql|\.md|\.dump)(?:\.|$)|(?:^|\/)(?:secrets?|credentials?|_check)(?:\.|\/|$)/i;
+const blocked = /(^|\/)(?:server|scripts|tests|docs|agents|qa|qa-artifacts|node_modules|dist|outputs|hold|reference|reference-rebuild)(\/|$)|(^|\/)\.|(?:\.spec|\.test|\.bak|\.map|\.log|\.sql|\.md|\.dump)(?:\.|$)|(?:^|\/)(?:secrets?|credentials?|_check)(?:\.|\/|$)/i;
 
 function publicPath(file) {
   if (typeof file !== 'string' || !file || file.includes('\\') || /[\x00-\x1f:?#]/.test(file) ||
