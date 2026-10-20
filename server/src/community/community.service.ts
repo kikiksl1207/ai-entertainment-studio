@@ -2690,7 +2690,7 @@ export class CommunityService {
       );
     }
 
-    if (followerUserId === followingUserId) {
+    if (followerUserId.toLowerCase() === followingUserId.toLowerCase()) {
       throw this.socialConflict(
         'SELF_FOLLOW_NOT_ALLOWED',
         'social.follow.selfNotAllowed',
@@ -2805,7 +2805,7 @@ export class CommunityService {
       );
     }
 
-    if (blockerUserId === blockedUserId) {
+    if (blockerUserId.toLowerCase() === blockedUserId.toLowerCase()) {
       throw this.socialConflict(
         'SELF_BLOCK_NOT_ALLOWED',
         'social.block.selfNotAllowed',
@@ -3879,7 +3879,7 @@ export class CommunityService {
       );
     }
 
-    if (userId === followerUserId) {
+    if (userId.toLowerCase() === followerUserId.toLowerCase()) {
       throw this.socialConflict(
         'SELF_FOLLOW_NOT_ALLOWED',
         'social.follow.selfNotAllowed',
