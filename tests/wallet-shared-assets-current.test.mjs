@@ -2,7 +2,122 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { publicationFiles } from '../scripts/build-public-site.mjs';
-import htmlInverse from './support/feed-search-locale-html-inverse-20261015.cjs';
+import cancelCompatOldModule from './support/feed-search-locale-html-inverse-20261015.cjs';
+import * as cancelCompatFs from 'node:fs';
+import * as cancelCompatPath from 'node:path';
+import { createHash as cancelCompatCreateHash } from 'node:crypto';
+import { createRequire as cancelCompatCreateRequire } from 'node:module';
+import { fileURLToPath as cancelCompatFileURLToPath } from 'node:url';
+import { after as cancelCompatAfter } from 'node:test';
+
+const cancelCompatRequire = cancelCompatCreateRequire(import.meta.url);
+const cancelCompatSelf = cancelCompatFileURLToPath(import.meta.url);
+const cancelCompatOldProjection = cancelCompatOldModule.htmlWithoutNaverStateAppCacheDelta;
+function cancelCompatIdentity(raw) {
+  return { bytes: raw.length,
+    sha256: cancelCompatCreateHash('sha256').update(raw).digest('hex'),
+    blob: cancelCompatCreateHash('sha1').update('blob ' + raw.length + '\0').update(raw).digest('hex') };
+}
+function cancelCompatMatches(raw, expected) {
+  const value = cancelCompatIdentity(raw);
+  return value.bytes === expected.bytes && value.sha256 === expected.sha256 && value.blob === expected.blob;
+}
+const cancelCompatHelperProfiles = [
+  { bytes: 2382, sha256: '7a181fceda5853dd17dd3fbe604cd32d4098e629428771af5d2ab4cc381984c6',
+    blob: '9dfc855aca5dbc50ebdac3e8f6a92b928174c4bc' },
+  { bytes: 2435, sha256: 'ae2697cd3411c2b65e50263fd1e1c8ded29234ec2b1598cbd1dd697ecebf4061',
+    blob: '7a61ba03a275323a36722fb5094e992d36abf8b7' },
+];
+const cancelCompatEntryProfiles = [
+  { bytes: 62719, sha256: '41a27d40735a83e98d5a6977df20082748a3fa81e72fd3528c8240088cb6ef6a',
+    blob: '1a20a15b1f0814d722b97bb1abc12f32411c4e58' },
+  { bytes: 63523, sha256: '77123c64ff7c6ce94bf36868fcea6f8d2fa2e2e5451a36a7683aab2e6b5c131d',
+    blob: '10286286828722a4e8e6293dd77c75849e316992' },
+];
+const cancelCompatBeforeProfiles = [
+  { bytes: 62703, sha256: '03764953dfd8fbb359f185051070f6adf0a50e84c0f6071580abff52e133a5b8',
+    blob: '7211a8d47738a397d0453d5708a68e4e3a9682a1' },
+  { bytes: 63507, sha256: 'd43cb981b40be46c548cc10a51a3b544281134207400d1c0110b024616447be4',
+    blob: 'e58b4deb1d87c84006f6c811c22046e109d5c1c5' },
+];
+const cancelCompatTracked = new Map();
+function cancelCompatRead(file, sizes) {
+  const stat = cancelCompatFs.lstatSync(file);
+  assert(stat.isFile() && !stat.isSymbolicLink(), 'ordinary cancel compatibility input');
+  assert(stat.size > 0 && stat.size <= 128 * 1024, 'cancel input cap before allocation');
+  if (sizes) assert(sizes.includes(stat.size), 'exact cancel input size before allocation');
+  assert.equal(cancelCompatFs.realpathSync.native(file).toLowerCase(),
+    cancelCompatPath.resolve(file).toLowerCase(), 'no cancel input path redirection');
+  const raw = cancelCompatFs.readFileSync(file);
+  assert.equal(raw.length, stat.size, 'cancel input length remains stable');
+  return raw;
+}
+function cancelCompatText(raw) {
+  const text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(raw);
+  assert(Buffer.from(text, 'utf8').equals(raw), 'cancel input exact UTF8');
+  assert.notEqual(text.charCodeAt(0), 0xFEFF, 'cancel input no BOM');
+  const lf = text.replace(/\r\n/g, '\n');
+  assert(!lf.includes('\r') && (text === lf || text === lf.replace(/\n/g, '\r\n')),
+    'cancel input LF or uniform CRLF');
+  return { text, lf };
+}
+function cancelCompatTrack(file, raw, sizes) {
+  const previous = cancelCompatTracked.get(file);
+  if (previous) assert(raw.equals(previous.raw), 'cancel input unchanged between reads');
+  else cancelCompatTracked.set(file, { raw, sizes });
+}
+const cancelCompatQPath = cancelCompatPath.join(cancelCompatPath.dirname(cancelCompatSelf),
+  'support/creator-interaction-cancel-inverse-20261020.cjs');
+const cancelCompatQSizes = cancelCompatHelperProfiles.map(row => row.bytes);
+const cancelCompatQRaw = cancelCompatRead(cancelCompatQPath, cancelCompatQSizes);
+assert(cancelCompatHelperProfiles.some(row => cancelCompatMatches(cancelCompatQRaw, row)),
+  'exact whole raw cancel helper before require');
+const cancelCompatQView = cancelCompatText(cancelCompatQRaw);
+assert(cancelCompatMatches(Buffer.from(cancelCompatQView.lf, 'utf8'), cancelCompatHelperProfiles[0]),
+  'exact whole canonical cancel helper');
+cancelCompatTrack(cancelCompatQPath, cancelCompatQRaw, cancelCompatQSizes);
+cancelCompatTrack(cancelCompatSelf, cancelCompatRead(cancelCompatSelf), undefined);
+cancelCompatAfter(() => {
+  const errors = [];
+  for (const [file, row] of cancelCompatTracked) {
+    try {
+      const closing = cancelCompatRead(file, row.sizes);
+      assert(closing.equals(row.raw), 'closing cancel compatibility raw bytes');
+      assert.deepEqual(cancelCompatIdentity(closing), cancelCompatIdentity(row.raw),
+        'closing cancel compatibility length/SHA/blob');
+    } catch (error) { errors.push(error); }
+  }
+  if (errors.length === 1) throw errors[0];
+  if (errors.length > 1) throw new AggregateError(errors, 'All cancel compatibility closing inputs attempted');
+});
+const cancelCompatQModule = cancelCompatRequire(cancelCompatQPath);
+assert.deepEqual(Object.keys(cancelCompatQModule), ['restoreCreatorInteractionCancelHtml']);
+assert.equal(typeof cancelCompatQModule.restoreCreatorInteractionCancelHtml, 'function');
+function cancelCompatProjection(text) {
+  if (typeof text !== 'string') return cancelCompatOldProjection(text);
+  const raw = Buffer.from(text, 'utf8');
+  const index = cancelCompatEntryProfiles.findIndex(row => cancelCompatMatches(raw, row));
+  if (index === -1) return cancelCompatOldProjection(text);
+  const file = cancelCompatFileURLToPath(new URL('../creator-studio/index.html', import.meta.url));
+  const sizes = cancelCompatEntryProfiles.map(row => row.bytes);
+  const physical = cancelCompatRead(file, sizes);
+  assert(cancelCompatMatches(physical, cancelCompatEntryProfiles[index]),
+    'exact physical new entry before historical query view');
+  assert(physical.equals(raw), 'projection sees the same physical new entry');
+  assert.equal(cancelCompatText(physical).text, text, 'new entry physical text preserved');
+  cancelCompatTrack(file, physical, sizes);
+  const restored = cancelCompatQModule.restoreCreatorInteractionCancelHtml(text);
+  assert.equal(typeof restored, 'string');
+  assert(cancelCompatMatches(Buffer.from(restored, 'utf8'), cancelCompatBeforeProfiles[index]),
+    'exact old entry after query-only view');
+  const before = '/pages/creator-story-interactions.js?v=interactions-20261001';
+  const after = '/pages/creator-story-interactions.js?v=interactions-cancel-20261020-6eb98ed7';
+  assert.equal(restored.split(before).length, 2, 'one restored interaction query');
+  assert.equal(restored.replace(before, after), text, 'whole query view forward');
+  return cancelCompatOldProjection(restored);
+}
+const htmlInverse = Object.freeze({ ...cancelCompatOldModule,
+  htmlWithoutNaverStateAppCacheDelta: cancelCompatProjection });
 
 const appSource = '/app.js?v=wallet-session-20261011';
 const previousAppSources = ['/app.js', '/app.js?v=studio-auth-20261001', '/app.js?v=feed-report-safety-20261001'];

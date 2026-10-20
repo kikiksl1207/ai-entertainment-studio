@@ -230,9 +230,23 @@ function textView(raw) {
   assert.ok(text === lf || text === lf.replace(/\n/g, '\r\n'), 'LF or uniform CRLF only');
   return { lf, crlf: text !== lf };
 }
+const CANCEL_ENTRY = {
+  lf: { bytes: 62719, sha256: '41a27d40735a83e98d5a6977df20082748a3fa81e72fd3528c8240088cb6ef6a',
+    blob: '1a20a15b1f0814d722b97bb1abc12f32411c4e58' },
+  crlf: { bytes: 63523, sha256: '77123c64ff7c6ce94bf36868fcea6f8d2fa2e2e5451a36a7683aab2e6b5c131d',
+    blob: '10286286828722a4e8e6293dd77c75849e316992' },
+};
+const CANCEL_HELPER = {
+  relative: 'tests/support/creator-interaction-cancel-inverse-20261020.cjs',
+  lf: { bytes: 2382, sha256: '7a181fceda5853dd17dd3fbe604cd32d4098e629428771af5d2ab4cc381984c6',
+    blob: '9dfc855aca5dbc50ebdac3e8f6a92b928174c4bc' },
+  crlf: { bytes: 2435, sha256: 'ae2697cd3411c2b65e50263fd1e1c8ded29234ec2b1598cbd1dd697ecebf4061',
+    blob: '7a61ba03a275323a36722fb5094e992d36abf8b7' },
+};
 const tracked = INPUTS.map(row => ({ file: path.join(ROOT, row.relative), cap: row.cap }));
 tracked.push({ file: __filename, cap: 256 * 1024 });
-assert.equal(tracked.length, 8);
+tracked.push({ file: path.join(ROOT, CANCEL_HELPER.relative), cap: 128 * 1024 });
+assert.equal(tracked.length, 9);
 const opening = tracked.map(row => readBounded(row.file, row.cap));
 const openingPins = opening.map(identity);
 after(() => {
@@ -245,13 +259,28 @@ after(() => {
     } catch (error) { errors.push(error); }
   }
   if (errors.length === 1) throw errors[0];
-  if (errors.length > 1) throw new AggregateError(errors, 'All eight closing vectors attempted');
+  if (errors.length > 1) throw new AggregateError(errors, 'All nine closing vectors attempted');
 });
+INPUTS.forEach((row, i) => {
+  const view = textView(opening[i]);
+  const profile = i === 3 ? CANCEL_ENTRY : row;
+  assertIdentity(opening[i], view.crlf ? profile.crlf : profile.lf,
+    'physical product/helper before query helper import ' + row.relative);
+});
+const cancelView = textView(opening[8]);
+assertIdentity(opening[8], cancelView.crlf ? CANCEL_HELPER.crlf : CANCEL_HELPER.lf,
+  'whole physical cancel query helper before import');
+assertIdentity(Buffer.from(cancelView.lf, 'utf8'), CANCEL_HELPER.lf,
+  'whole canonical cancel query helper');
+const cancelModule = require(tracked[8].file);
+assert.deepEqual(Object.keys(cancelModule), ['restoreCreatorInteractionCancelHtml']);
+const { restoreCreatorInteractionCancelHtml } = cancelModule;
+assert.equal(typeof restoreCreatorInteractionCancelHtml, 'function');
 const source = INPUTS.map((row, i) => {
   const view = textView(opening[i]);
-  assertIdentity(opening[i], view.crlf ? row.crlf : row.lf, 'whole physical input ' + row.relative);
-  assertIdentity(Buffer.from(view.lf, 'utf8'), row.lf, 'whole canonical input ' + row.relative);
-  return view.lf;
+  const lf = i === 3 ? restoreCreatorInteractionCancelHtml(view.lf) : view.lf;
+  assertIdentity(Buffer.from(lf, 'utf8'), row.lf, 'whole restored canonical input ' + row.relative);
+  return lf;
 });
 textView(opening[7]);
 // Both full helper profiles and all five product bodies are admitted BEFORE target import.

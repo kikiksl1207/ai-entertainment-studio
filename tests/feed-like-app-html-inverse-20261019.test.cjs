@@ -7,6 +7,7 @@ const { createHash } = require('node:crypto');
 const ROOT = path.resolve(__dirname, '..');
 const helperFile = path.join(__dirname, 'support/feed-like-app-html-inverse-20261019.cjs');
 const editHelperFile = path.join(__dirname, 'support/feed-edit-app-html-inverse-20261020.cjs');
+const cancelHelperFile = path.join(__dirname, 'support/creator-interaction-cancel-inverse-20261020.cjs');
 const sha = value => createHash('sha256').update(value).digest('hex');
 const blob = value => createHash('sha1').update('blob ' + value.length + '\0').update(value).digest('hex');
 const actualProfiles = [
@@ -36,7 +37,11 @@ if (helperText.includes('\r')) {
 }
 assert.equal(Buffer.byteLength(helperText), 3419);
 assert.equal(sha(helperText), 'da77205835891dd62588eab8d54f1f39f2b74a357700c0f6477ef497a6d55bcd');
-const tracked = [helperFile, editHelperFile, __filename, ...rows.map(row => path.join(ROOT, row[0]))];
+const cancelStat = fs.lstatSync(cancelHelperFile);
+assert.ok(cancelStat.isFile() && !cancelStat.isSymbolicLink());
+assert.ok([2382, 2435].includes(cancelStat.size), 'exact cancel helper size before allocation');
+assert.equal(fs.realpathSync.native(cancelHelperFile).toLowerCase(), path.resolve(cancelHelperFile).toLowerCase());
+const tracked = [helperFile, editHelperFile, __filename, ...rows.map(row => path.join(ROOT, row[0])), cancelHelperFile];
 for (const row of rows) assert.ok(fs.statSync(path.join(ROOT, row[0])).size <= 128 * 1024);
 const opening = tracked.map(file => sha(fs.readFileSync(file)));
 const editRaw = fs.readFileSync(editHelperFile);
@@ -54,9 +59,27 @@ assert.equal(Buffer.byteLength(editText), 6825);
 assert.equal(sha(editText), '0aeab29505e13df2e9d0711a5e0172149a703dd2ee355bff757e460727e56fe6');
 assert.equal(blob(editText), '72ee0f6d9cf99ceb159fc5e91b371c77278e003c');
 const { restoreOwnedFeedEditAccountHtml } = require(editHelperFile);
+const cancelRaw = fs.readFileSync(cancelHelperFile);
+assert.equal(cancelRaw.length, cancelStat.size);
+assert.equal(sha(cancelRaw), opening[6]);
+assert.ok([
+  [2382, '7a181fceda5853dd17dd3fbe604cd32d4098e629428771af5d2ab4cc381984c6', '9dfc855aca5dbc50ebdac3e8f6a92b928174c4bc'],
+  [2435, 'ae2697cd3411c2b65e50263fd1e1c8ded29234ec2b1598cbd1dd697ecebf4061', '7a61ba03a275323a36722fb5094e992d36abf8b7'],
+].some(([length, hash, git]) => cancelRaw.length === length && sha(cancelRaw) === hash && blob(cancelRaw) === git));
+const cancelModule = require(cancelHelperFile);
+assert.deepEqual(Object.keys(cancelModule), ['restoreCreatorInteractionCancelHtml']);
+const { restoreCreatorInteractionCancelHtml } = cancelModule;
+assert.equal(typeof restoreCreatorInteractionCancelHtml, 'function');
 const inputs = rows.map((row, i) => {
   const file = path.join(ROOT, row[0]);
   const raw = fs.readFileSync(file);
+  if (i === 1) {
+    assert.ok([
+      [62719, '41a27d40735a83e98d5a6977df20082748a3fa81e72fd3528c8240088cb6ef6a', '1a20a15b1f0814d722b97bb1abc12f32411c4e58'],
+      [63523, '77123c64ff7c6ce94bf36868fcea6f8d2fa2e2e5451a36a7683aab2e6b5c131d', '10286286828722a4e8e6293dd77c75849e316992'],
+    ].some(([length, hash, git]) => raw.length === length && sha(raw) === hash && blob(raw) === git),
+    'exact new entry raw LF or CRLF before the historical view');
+  }
   let text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(raw);
   assert.equal(Buffer.from(text).equals(raw), true);
   assert.equal(text.startsWith('\uFEFF'), false);
@@ -66,6 +89,7 @@ const inputs = rows.map((row, i) => {
     assert.equal(rest.includes('\n'), false);
     text = text.replace(/\r\n/g, '\n');
   }
+  text = restoreCreatorInteractionCancelHtml(text);
   assert.equal(actualProfiles[i][0], row[0]);
   assert.equal(Buffer.byteLength(text), actualProfiles[i][1]);
   assert.equal(sha(text), actualProfiles[i][2]);

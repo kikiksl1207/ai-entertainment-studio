@@ -34,7 +34,8 @@ const profiles = [
     '0773eec72d89b611e2bb145c9babf430f87ce35a'],
 ];
 const helper = path.join(ROOT, 'tests/support/feed-edit-app-html-inverse-20261020.cjs');
-const files = [helper, ...profiles.map(row => path.join(ROOT, row[0])), __filename];
+const cancelHelper = path.join(ROOT, 'tests/support/creator-interaction-cancel-inverse-20261020.cjs');
+const files = [helper, ...profiles.map(row => path.join(ROOT, row[0])), __filename, cancelHelper];
 function read(file) {
   const stat = fs.lstatSync(file);
   assert.ok(stat.isFile() && !stat.isSymbolicLink());
@@ -60,8 +61,25 @@ assert.equal(helperBytes.length, 6825);
 assert.equal(sha(helperBytes), '0aeab29505e13df2e9d0711a5e0172149a703dd2ee355bff757e460727e56fe6');
 assert.equal(blob(helperBytes), '72ee0f6d9cf99ceb159fc5e91b371c77278e003c');
 const { restoreOwnedFeedEditAppHtml: restore, restoreOwnedFeedEditAccountHtml } = require(helper);
+const cancelRaw = opening[5];
+const cancelBytes = Buffer.from(canonical(cancelRaw));
+assert.equal(cancelBytes.length, 2382);
+assert.equal(sha(cancelBytes), '7a181fceda5853dd17dd3fbe604cd32d4098e629428771af5d2ab4cc381984c6');
+assert.equal(blob(cancelBytes), '9dfc855aca5dbc50ebdac3e8f6a92b928174c4bc');
+const cancelModule = require(cancelHelper);
+assert.deepEqual(Object.keys(cancelModule), ['restoreCreatorInteractionCancelHtml']);
+const { restoreCreatorInteractionCancelHtml } = cancelModule;
+assert.equal(typeof restoreCreatorInteractionCancelHtml, 'function');
 const fixtures = profiles.map((row, i) => {
-  const actual = canonical(opening[i + 1]);
+  const raw = opening[i + 1];
+  if (i === 1) {
+    assert.ok([
+      [62719, '41a27d40735a83e98d5a6977df20082748a3fa81e72fd3528c8240088cb6ef6a', '1a20a15b1f0814d722b97bb1abc12f32411c4e58'],
+      [63523, '77123c64ff7c6ce94bf36868fcea6f8d2fa2e2e5451a36a7683aab2e6b5c131d', '10286286828722a4e8e6293dd77c75849e316992'],
+    ].some(([length, hash, git]) => raw.length === length && sha(raw) === hash && blob(raw) === git),
+    'exact new entry raw LF or CRLF before the historical view');
+  }
+  const actual = restoreCreatorInteractionCancelHtml(canonical(raw));
   const actualBytes = Buffer.from(actual);
   assert.equal(actualProfiles[i][0], row[0]);
   assert.equal(actualBytes.length, actualProfiles[i][1]);

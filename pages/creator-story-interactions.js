@@ -224,7 +224,7 @@
       if (!active(rev) || !state.review?.approvals.some(row => row.approvalId === id && row.status === "approved")) return;
       state.revokeId = id; revision++; emit();
     }
-    function cancelRevoke() { if (!state.busy) { state.revokeId = null; revision++; emit(); } }
+    function cancelRevoke(rev) { if (active(rev)) { state.revokeId = null; revision++; emit(); } }
     async function confirmRevoke(rev) {
       if (!active(rev)) return;
       const review = clone(state.review), row = review?.approvals.find(item => item.approvalId === state.revokeId && item.status === "approved");
@@ -268,7 +268,7 @@
         <p class="writer-interaction-boundary">${t.boundary}</p>
         ${state.revokeId ? `<dialog aria-labelledby="writerInteractionRevokeTitle"><h4 id="writerInteractionRevokeTitle">${t.revokeTitle}</h4>${button("cancel", t.cancel)}${button("confirm", t.confirm)}</dialog>` : ""}`;
       for (const name of ["previous", "next"]) { const node = host.querySelector(`[data-interaction-action="${name}"]`); node?.setAttribute("aria-label", t[name]); node?.setAttribute("title", t[name]); }
-      if (state.revokeId) { const dialog = host.querySelector("dialog"); dialog.addEventListener("cancel", event => { event.preventDefault(); controller.cancelRevoke(); }); dialog.showModal(); }
+      if (state.revokeId) { const dialog = host.querySelector("dialog"); dialog.addEventListener("cancel", event => { event.preventDefault(); controller.cancelRevoke(state.revision); }); dialog.showModal(); }
       else if (focusKey) { const node = [...host.querySelectorAll("[data-interaction-focus]")].find(item => item.dataset.interactionFocus === focusKey && !item.disabled); if (node) { node.focus(); if (selection) node.setSelectionRange(...selection); } }
     }
     controller = createController({ identity: () => visible() ? api.identity() : null, isCurrent: value => visible() && api.isCurrent(value),
@@ -294,7 +294,7 @@
       if (node.dataset.interactionRevoke) return controller.requestRevoke(node.dataset.interactionRevoke, rev);
       const actions = { works: () => controller.loadWorks(), source: () => controller.loadBeats("first", rev), previous: () => controller.loadBeats("previous", rev), next: () => controller.loadBeats("next", rev),
         search: () => controller.searchArtists(searchValue, rev), review: () => controller.loadReview(rev), extract: () => { const source = host.querySelector("[data-interaction-evidence-source]"); controller.setEvidence(source.selectionStart, source.selectionEnd, rev); },
-        approve: () => controller.approve(rev), cancel: () => controller.cancelRevoke(), confirm: () => controller.confirmRevoke(rev) };
+        approve: () => controller.approve(rev), cancel: () => controller.cancelRevoke(rev), confirm: () => controller.confirmRevoke(rev) };
       actions[node.dataset.interactionAction]?.();
     });
     const sync = () => {
