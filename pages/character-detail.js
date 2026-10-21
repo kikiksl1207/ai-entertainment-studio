@@ -67,7 +67,8 @@ function detailPublicCoreLabels() {
 function readyDetailPublicCore(artist) {
   const slug = new URLSearchParams(window.location.search).get("slug");
   const raw = _detailArtistData;
-  if (window.location.pathname.replace(/\/+$/, "") !== "/character-detail" ||
+  if (typeof window.location.pathname !== "string" ||
+      window.location.pathname.replace(/\/+$/, "") !== "/character-detail" ||
       !slug || detailLoad.phase !== "ready" || artist !== detailLoad.artist ||
       detailLoad.slug !== slug || artist?.slug !== slug || raw?.slug !== slug ||
       raw.status !== "active" || typeof raw.id !== "string" || !raw.id || raw.id !== artist.id) return null;

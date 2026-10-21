@@ -185,7 +185,7 @@ const consumers = [
       "https://www.googletagmanager.com/gtag/js?id=G-1L7TCBQ0N4",
       "/data/characters.js",
       "/data/artist-profile-locales.js?v=20260929",
-      "/pages/character-detail.js?v=portrait-current-20261011",
+      "/pages/character-detail.js?v=public-core-20261021",
       "/cms-bootstrap.js",
       "/app.js"
     ]
