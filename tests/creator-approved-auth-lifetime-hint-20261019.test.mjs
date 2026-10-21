@@ -47,7 +47,7 @@ before(() => {
   });
   check(same(rows.map(row => row.name), HTML_SCRIPTS) && new Set(rows.map(row => row.name)).size === 8,
     'HTML_GENUINE_SCRIPT_ORDER');
-  check(rows[0].version === rows[4].version, 'HTML_TRANSPORT_ENTRY_VERSION_PAIR');
+  check(rows[0].version === '20261020-explicit-v1' && rows[4].version === '20261022-idle-status-v1', 'HTML_TRANSPORT_ENTRY_VERSION_PAIR');
   htmlIds = [...html.matchAll(/\bid="([A-Za-z][A-Za-z0-9_-]*)"/g)].map(match => match[1]);
   check(new Set(htmlIds).size === htmlIds.length, 'HTML_UNIQUE_FIXTURE_IDS');
   for (const name of ASSETS) {

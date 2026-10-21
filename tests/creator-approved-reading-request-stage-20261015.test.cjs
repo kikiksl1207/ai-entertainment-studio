@@ -5,8 +5,8 @@ const { TextDecoder, TextEncoder } = require('node:util');
 const PINS = Object.freeze({
   'pages/creator-approved-readonly-transport.js': '7eb37bef05dbecb13bffee73191fcf407ef846b1ee35622c21080c9cacb30fda',
   'pages/creator-approved-reading-catalog.js': '69da822d55237f040e9b324c6732d7a2e7038ea3dcc3dd45372bec398bd2fa9f',
-  'pages/creator-approved-reading-entry.js': '6d7505c3818de9ee386cc02f2c25d1cf15977407b05132fd50c89eebb655d17d',
-  'creator-studio/approved-reading/index.html': 'cfe4f556526a3598ac62ce8c979eda7adf61e1f86c6b61e417a72b83b52652f6',
+  'pages/creator-approved-reading-entry.js': '8e0878e98d1adb68a4b35866e47d03bad99730d16ff75b7211545fdadbf028ee',
+  'creator-studio/approved-reading/index.html': 'd03d5234b59828fd2c78d14cf38b9aebf00947acbb39323a03020b34e9e304eb',
 });
 const sourceRoot = path.resolve(process.env.CATALOG_RECEIPT_SOURCE_ROOT || path.join(__dirname, '..'));
 assert(!/(?:^|[\\/])story-completion-20261003(?:[\\/]|$)/i.test(sourceRoot), 'Shared CLEAN cannot be the product source');
