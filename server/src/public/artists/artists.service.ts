@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { buildPublicAssetUrl } from '../../common/asset-url';
 import { PrismaService } from '../../prisma/prisma.service';
 import { approvedPublicArtistProfile } from './approved-artist-profile.policy';
+import { selectedPublicArtistCore } from './selected-public-artist-core.policy';
 
 const contentType: { parse(value: string): { type: string } } = require('content-type');
 
@@ -102,7 +103,9 @@ export class ArtistsService {
       return null;
     }
 
-    return this.withViewerFollowState(publicArtist, viewerUserId);
+    const selectedPublicCore = selectedPublicArtistCore(artist);
+    const detail = await this.withViewerFollowState(publicArtist, viewerUserId);
+    return { ...detail, selectedPublicCore };
   }
 
   private async withViewerFollowState(

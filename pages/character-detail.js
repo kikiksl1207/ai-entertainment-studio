@@ -52,6 +52,61 @@ function detailHasValue(value) {
     !/^(?:-|—|N\/A|TBD)$/i.test(String(value).trim());
 }
 
+const DETAIL_PUBLIC_CORE_LABELS = {
+  ko: { core: "캐릭터 코어", source: "승인된 공개 원문", intro: "아티스트 소개" },
+  en: { core: "Character core", source: "Approved public source", intro: "Artist introduction" },
+  ja: { core: "キャラクターのコア", source: "承認済みの公開原文", intro: "アーティスト紹介" },
+  "zh-Hans": { core: "角色核心", source: "已批准的公开原文", intro: "艺人简介" },
+  "zh-Hant": { core: "角色核心", source: "已核准的公開原文", intro: "藝人簡介" }
+};
+
+function detailPublicCoreLabels() {
+  return DETAIL_PUBLIC_CORE_LABELS[window.luminaI18n?.getLocale?.()] || DETAIL_PUBLIC_CORE_LABELS.ko;
+}
+
+function readyDetailPublicCore(artist) {
+  const slug = new URLSearchParams(window.location.search).get("slug");
+  const raw = _detailArtistData;
+  if (window.location.pathname.replace(/\/+$/, "") !== "/character-detail" ||
+      !slug || detailLoad.phase !== "ready" || artist !== detailLoad.artist ||
+      detailLoad.slug !== slug || artist?.slug !== slug || raw?.slug !== slug ||
+      raw.status !== "active" || typeof raw.id !== "string" || !raw.id || raw.id !== artist.id) return null;
+  const core = raw.selectedPublicCore;
+  const keys = ["release", "summary", "publicStory", "personalityKeywords"];
+  if (!core || typeof core !== "object" || Array.isArray(core) ||
+      Reflect.ownKeys(core).length !== 4 ||
+      !keys.every(key => Object.prototype.hasOwnProperty.call(core, key)) ||
+      core.release !== "approved-public-artists-2026-09-27" ||
+      ![core.summary, core.publicStory].every(value =>
+        typeof value === "string" && value.length > 0 && value.length <= 2000) ||
+      !Array.isArray(core.personalityKeywords) || core.personalityKeywords.length > 8) return null;
+  for (const keyword of core.personalityKeywords) {
+    if (typeof keyword !== "string" || keyword.length > 80) return null;
+  }
+  return core;
+}
+
+function refreshDetailPublicCore(artist) {
+  const intro = document.getElementById("detailIntro");
+  if (!intro?.querySelector) return;
+  intro.querySelector(".detail-public-core")?.remove();
+  const heading = intro.querySelector(".detail-public-introduction-heading");
+  const labels = detailPublicCoreLabels();
+  if (heading) heading.innerHTML = detailText(labels.intro);
+  const core = readyDetailPublicCore(artist);
+  if (!core || !heading) return;
+  const section = document.createElement("section");
+  section.className = "detail-public-core";
+  section.setAttribute("aria-labelledby", "detailPublicCoreHeading");
+  section.innerHTML = `
+    <h2 class="detail-public-core-heading" id="detailPublicCoreHeading">${detailText(labels.core)}</h2>
+    <p class="detail-public-core-source">${detailText(labels.source)} <span class="detail-public-core-release">${detailText(core.release)}</span></p>
+    <p class="detail-public-core-summary">${detailText(core.summary)}</p>
+    <p class="detail-public-core-story">${detailText(core.publicStory)}</p>
+    ${core.personalityKeywords.length ? `<ul class="detail-public-core-keywords">${core.personalityKeywords.map(keyword => `<li class="detail-public-core-keyword">${detailText(keyword)}</li>`).join("")}</ul>` : ""}`;
+  intro.insertBefore(section, heading);
+}
+
 const DETAIL_PROFILE_EMPTY_COPY = {
   ko: "공개된 프로필 정보가 없습니다.",
   en: "No public profile information is available.",
@@ -127,6 +182,7 @@ function refreshDetailArtistLocale() {
   const slug = new URLSearchParams(window.location.search).get("slug");
   const artist = detailLoad.phase === "ready" && detailLoad.slug === slug ? detailLoad.artist : null;
   const introRoot = document.getElementById("detailIntro");
+  refreshDetailPublicCore(artist);
   if (!artist) {
     renderCharacterDetail();
     return;
@@ -350,6 +406,7 @@ function bindArtistDetailFollow() {
 }
 
 function renderCharacterDetail() {
+  document.querySelector?.("#detailIntro > .detail-public-core")?.remove();
   const hero = document.getElementById("detailHero");
   if (!hero) return;
 
@@ -434,8 +491,8 @@ function renderCharacterDetail() {
   const intro = document.getElementById("detailIntro");
   if (intro) {
     intro.innerHTML = `
-      <p class="eyebrow">공식 프로필</p>
       <h1 data-cms-key="character-detail.intro.publicName">${detailText(artist.publicName)}</h1>
+      <h2 class="detail-public-introduction-heading">${detailText(detailPublicCoreLabels().intro)}</h2>
       ${detailHasValue(artist.summary) ? `<p class="detail-summary" data-cms-key="character-detail.intro.summary" data-cms-field="body">${detailText(artist.summary)}</p>` : ""}
       <div class="detail-bio">
         ${detailHasValue(artist.intro) ? `<p data-cms-key="character-detail.intro.body" data-cms-field="body">${detailText(artist.intro)}</p>` : ""}

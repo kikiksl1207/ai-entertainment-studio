@@ -1,5 +1,80 @@
 /* Character detail page styles. Loaded after styles.css. */
 
+.detail-public-core {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 16px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  overflow-wrap: anywhere;
+  letter-spacing: 0;
+}
+
+.detail-public-core-heading,
+.detail-public-introduction-heading {
+  margin: 0;
+  color: var(--ink);
+  font-size: 18px;
+  line-height: 1.45;
+  letter-spacing: 0;
+}
+
+.detail-public-core-source {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.detail-public-core-release {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.detail-public-core-summary,
+.detail-public-core-story {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.detail-public-core-summary {
+  color: var(--ink);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.7;
+}
+
+.detail-public-core-story {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.85;
+}
+
+.detail-public-core-keywords {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.detail-public-core-keyword {
+  min-width: 0;
+  max-width: 100%;
+  padding-left: 8px;
+  border-left: 2px solid var(--line);
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+
 /* 새 상세 레이아웃 */
 .detail-hero-layout {
   display: grid;
