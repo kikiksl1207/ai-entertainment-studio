@@ -4,6 +4,7 @@ import { buildPublicAssetUrl } from '../../common/asset-url';
 import { PrismaService } from '../../prisma/prisma.service';
 import { approvedPublicArtistProfile } from './approved-artist-profile.policy';
 import { selectedPublicArtistCore } from './selected-public-artist-core.policy';
+import { publicArtistContentProfile } from './public-artist-content-profile.policy';
 
 const contentType: { parse(value: string): { type: string } } = require('content-type');
 
@@ -211,7 +212,7 @@ export class ArtistsService {
       launchedAt: artist.launchedAt,
       profile: approvedPublicArtistProfile(artist.slug, artist.status, artist.publicProfile),
       visual: artist.visualProfile,
-      contentProfile: options.includeContentProfile ? artist.contentProfile : undefined,
+      contentProfile: options.includeContentProfile ? publicArtistContentProfile(artist.contentProfile) : undefined,
       coverImage,
       thumbnailImage,
       assets,
