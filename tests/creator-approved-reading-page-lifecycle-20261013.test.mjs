@@ -33,7 +33,7 @@ function fixture({ oldHtml = false, opener = null } = {}) {
 }
 test("Actual standalone entry loads and selects without opener, automatic GET or DOM HTML insertion", async () => {
   const f = fixture(); assert.equal(f.calls.length, 0); assert.equal(f.elements.get("readingCatalog").hidden, false);
-  assert.equal(f.elements.get("readingCatalogState").textContent, "");
+  assert.equal(f.elements.get("readingCatalogState").textContent, "작품 조회 전");
   await f.elements.get("readingCatalogLoad").emit("click"); assert.equal(f.calls.length, 1);
   f.elements.get("readingCatalogWork").value = work; f.elements.get("readingCatalogWork").emit("change");
   assert.equal(f.elements.get("readingWorkTitle").textContent, "PRIVATE_SYNTHETIC_TITLE"); assert.equal(f.elements.get("writerManuscriptWork").value, work);
