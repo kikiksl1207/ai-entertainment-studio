@@ -107,7 +107,7 @@ export async function streamResponse(media: StoredObject, range: string | undefi
 
 export function byteRange(value: string | undefined, size: number) {
   if (value === undefined) return { start: 0, end: size - 1 };
-  const match = /^bytes=(\d*)-(\d*)$/.exec(value);
+  const match = /^bytes=(\d*)-(\d*)$/i.exec(value);
   if (!match || (!match[1] && !match[2])) fail('RANGE_INVALID');
   const start = match[1] ? Number(match[1]) : Math.max(0, size - Number(match[2]));
   const end = match[1] && match[2] ? Math.min(size - 1, Number(match[2])) : size - 1;
