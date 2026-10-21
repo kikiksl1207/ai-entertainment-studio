@@ -40,7 +40,8 @@ export class PopularVoteService {
   constructor(private readonly prisma: PrismaService) {}
 
   async getMainPick() {
-    const campaign = await this.findCurrentMainPickCampaign();
+    const now = new Date();
+    const campaign = await this.findCurrentMainPickCampaign(now);
     if (!campaign) {
       return {
         campaign: null,
@@ -49,7 +50,7 @@ export class PopularVoteService {
       };
     }
 
-    const { year, month } = this.kstParts(new Date());
+    const { year, month } = this.kstParts(now);
     const { start, end } = this.kstMonthRange(year, month);
     const rankings = await this.buildRankings(campaign.id, {
       includeZeroScoreActiveArtists: true,
@@ -223,8 +224,7 @@ export class PopularVoteService {
     });
   }
 
-  private findCurrentMainPickCampaign() {
-    const now = new Date();
+  private findCurrentMainPickCampaign(now: Date) {
     return this.prisma.boostCampaign.findFirst({
       where: {
         status: 'active',
