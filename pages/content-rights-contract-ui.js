@@ -65,7 +65,11 @@
 
   function t(key) { return TEXT[locale()]?.[key] || TEXT.en[key] || TEXT.ko[key] || key; }
   function esc(value) { return String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\"/g, "&quot;").replace(/'/g, "&#039;"); }
-  function percent(bps) { return `${(Number(bps || 0) / 100).toLocaleString(locale(), { maximumFractionDigits: 2 })}%`; }
+  function percent(bps) {
+    const present = typeof bps === "number" || (typeof bps === "string" && bps.trim() !== "");
+    const value = present ? Number(bps === 0 ? 0 : bps) : NaN;
+    return Number.isFinite(value) ? `${(value / 100).toLocaleString(locale(), { maximumFractionDigits: 2 })}%` : "-";
+  }
   function date(value) { if (!value) return "-"; const parsed = new Date(value); return Number.isNaN(parsed.getTime()) ? "-" : new Intl.DateTimeFormat(locale(), { dateStyle: "medium", timeStyle: "short" }).format(parsed); }
 
   function partyView(contract, userId) {
