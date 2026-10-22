@@ -79,9 +79,11 @@
 
   function receiptMatches(value, preview) {
     if (!validPreview(preview) || value?.contract !== "story-canonical-read-receipt-v1" || !uuid(value.receiptId) ||
-        value.invalidatedAt !== null || value.readerMemoryApplied !== false || typeof value.idempotentReplay !== "boolean" ||
-        typeof value.confirmedAt !== "string" || !/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/.test(value.confirmedAt) ||
-        !Number.isFinite(Date.parse(value.confirmedAt))) return false;
+        value.invalidatedAt !== null || value.readerMemoryApplied !== false || typeof value.idempotentReplay !== "boolean") return false;
+    const confirmedAt = value.confirmedAt;
+    if (typeof confirmedAt !== "string" || !/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/.test(confirmedAt)) return false;
+    const instant = Date.parse(confirmedAt);
+    if (!Number.isFinite(instant) || new Date(instant).toISOString() !== confirmedAt) return false;
     return ["progressId", "workId", "sceneId", "beatId", "sourceChecksum", "sourceTextHash", "locale", "routeNodeId", "progressRevision"]
       .every((key) => value[key] === preview.identity[key]) && value.scopeChecksum === preview.scopeChecksum;
   }
