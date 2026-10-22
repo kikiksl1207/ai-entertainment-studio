@@ -47,10 +47,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const code = this.getCode(body, statusCode);
 
     if (!(exception instanceof HttpException)) {
-      this.logger.error(
-        `Unhandled exception requestId=${requestId ?? 'unknown'} path=${request.url ?? 'unknown'} message=${this.getUnhandledMessage(exception)}`,
-        exception instanceof Error ? exception.stack : undefined,
-      );
+      this.logger.error('Unhandled exception');
     }
 
     response.status(statusCode).json({
@@ -134,11 +131,4 @@ export class HttpExceptionFilter implements ExceptionFilter {
     return Array.isArray(requestId) ? requestId[0] : requestId;
   }
 
-  private getUnhandledMessage(exception: unknown) {
-    if (exception instanceof Error) {
-      return exception.message;
-    }
-
-    return String(exception);
-  }
 }
