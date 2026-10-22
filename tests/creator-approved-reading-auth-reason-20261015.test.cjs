@@ -17,7 +17,7 @@ const PINS = {
   current: { [TRANSPORT]: '7eb37bef05dbecb13bffee73191fcf407ef846b1ee35622c21080c9cacb30fda',
     [CATALOG]: '69da822d55237f040e9b324c6732d7a2e7038ea3dcc3dd45372bec398bd2fa9f',
     [ENTRY]: '8e0878e98d1adb68a4b35866e47d03bad99730d16ff75b7211545fdadbf028ee',
-    [HTML]: 'd03d5234b59828fd2c78d14cf38b9aebf00947acbb39323a03020b34e9e304eb' },
+    [HTML]: '6c681ed9bb092a28757a0ebcdfa8fa699b53794e38a72595a690e42c0d7034af' },
 };
 const sourceRoot = path.resolve(process.env.OWNER_AUTH_REASON_SOURCE_ROOT || path.join(__dirname, '..'));
 assert(!/(?:^|[\\/])story-completion-20261003(?:[\\/]|$)/i.test(sourceRoot), 'Shared CLEAN is not an admitted source');

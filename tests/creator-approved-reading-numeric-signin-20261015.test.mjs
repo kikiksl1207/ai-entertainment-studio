@@ -11,7 +11,7 @@ import { decodePinnedReadingSource } from "./support/owner-reading-source-pin-20
 // Reuses the existing memory/DOM mount pattern, not its autorunning test module.
 const SOURCE_ROOT_ENV = "LUMINA_READING_SECTION_AUTH_SOURCE_ROOT";
 const PINS = [
-  ["creator-studio/approved-reading/index.html", "bb23870037ce149dc191131daac57ae8061536bb", "d03d5234b59828fd2c78d14cf38b9aebf00947acbb39323a03020b34e9e304eb"],
+  ["creator-studio/approved-reading/index.html", "e60630ed2a7448f9b440dc09ce0cc55c0a38638c", "6c681ed9bb092a28757a0ebcdfa8fa699b53794e38a72595a690e42c0d7034af"],
   ["pages/creator-approved-readonly-transport.js", "ef5736c503c432e8d04c52dba484287faeb636a4", "7eb37bef05dbecb13bffee73191fcf407ef846b1ee35622c21080c9cacb30fda"],
   ["pages/creator-approved-reading-handoff.js", "3c89000c313c43dbf4a78bac97d63bf769b43e11", "68d1dedcedbf3ae7b259e29924836a45a1703954f0f2fe825c924250dfe9f067"],
   ["pages/creator-approved-reading-catalog.js", "fc8d009cd7e546df0c253d4c9ca080a10c2983e4", "69da822d55237f040e9b324c6732d7a2e7038ea3dcc3dd45372bec398bd2fa9f"],
