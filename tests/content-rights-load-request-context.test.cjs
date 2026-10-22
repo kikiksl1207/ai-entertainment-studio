@@ -12,17 +12,21 @@ const PLAN = [
   ['owner-epoch', ['owner', 'epoch', 'logout', 'provider-rejection']],
   ['request-options', ['captured-identity']],
   ['controlled-reentry', ['after-loading', 'after-current-user', 'current-user-new-load']],
-  ['locale-explicit-next', ['locale-rerender', 'auth-event-no-get', 'next-after-stale']]
+  ['locale-explicit-next', ['locale-rerender', 'auth-event-no-get', 'next-after-stale']],
+  ['display-current-cache', ['current-events-refresh']],
+  ['display-owner-retirement', ['storage', 'authchange', 'focus', 'locale', 'next-load']],
+  ['display-context-retirement', ['logout', 'epoch', 'predicate-throw']],
+  ['display-retirement-reentry', ['starts-new-pending']]
 ];
 const GROUPS = PLAN.map(p => p[0]);
-const EXPECTED = { contract: 'content-rights-load-request-context-expected-v1', groups: GROUPS,
-  baselineFailures: GROUPS.slice(1, 7) };
+const EXPECTED = { contract: 'content-rights-display-retirement-expected-v1', groups: GROUPS,
+  baselineFailures: GROUPS.slice(9) };
 const REPO = 'E:/Codex/LuminaStage/ai-entertainment-studio-git';
-const BASE = REPO + '/qa/20261022-content-rights-load-request-context';
+const BASE = REPO + '/qa/20261022-content-rights-display-retirement';
 const SOURCE = 'pages/creator-content-rights.js', ORACLE = 'tests/content-rights-load-request-context.test.cjs';
 const CODE = {
-  baseline: [3939, 'b566dba103a5e2c3e5f04e8f9e80a713d8edcc7baef8607fc98b8ecb0f06f249'],
-  candidate: [4611, '52fc789e2cc87eedb8aa107e209f24a4486f6728f3a463ba7cef3dba7b9bd0be']
+  baseline: [4611, '52fc789e2cc87eedb8aa107e209f24a4486f6728f3a463ba7cef3dba7b9bd0be'],
+  candidate: [5341, 'f355d477b1bf00c2e78633c48a566d38f5632ef81b59e838947de35ed17f6554']
 };
 const SUPPORT = [
   [REPO + '/qa/20261021-night-studio-video-workspace/workspace-unit-preload.cjs', 420,
@@ -76,11 +80,11 @@ function setup() {
     const ab = read(process.argv[2]); need(ab.length <= 32768 && hash(ab) === process.argv[3], 'admission-hash');
     const a = admission = json(ab);
     need(shape(a, 'contract mode deadlineUtcMs runRoot node preload guard expected primary pins') &&
-      a.contract === 'content-rights-load-request-context-admission-v1' && ['baseline', 'candidate'].includes(a.mode) &&
+      a.contract === 'content-rights-display-retirement-admission-v1' && ['baseline', 'candidate'].includes(a.mode) &&
       norm(a.runRoot) === root, 'admission-shape');
     mode = a.mode; deadline(); need(a.deadlineUtcMs <= Date.now() + 120000, 'deadline-range');
     need(Array.isArray(a.primary) && a.primary.length === 2 && Array.isArray(a.pins) && a.pins.length === 6, 'roles');
-    const wanted = [mode === 'baseline' ? REPO + '/qa/20261022-content-rights-load-current-source/snapshot/' + SOURCE : BASE + '/candidate/' + SOURCE,
+    const wanted = [mode === 'baseline' ? BASE + '/baseline/' + SOURCE : BASE + '/candidate/' + SOURCE,
       BASE + '/' + ORACLE];
     need(a.primary.every((r, i) => norm(r.path) === wanted[i] && r.repoPath === [SOURCE, ORACLE][i]), 'primary-order');
     need(norm(a.expected.path) === BASE + '/expected.json', 'expected-path');
@@ -144,7 +148,10 @@ function fixture(active = false) {
   function bus() {
     const listeners = new Map();
     const b = {
-      addEventListener(k, fn) { if (!listeners.has(k)) listeners.set(k, new Set()); listeners.get(k).add(fn); },
+      addEventListener(k, fn) {
+        need(['click', 'lumina:localechange', 'storage', 'lumina:authchange', 'focus'].includes(k), 'fixture-event');
+        if (!listeners.has(k)) listeners.set(k, new Set()); listeners.get(k).add(fn);
+      },
       removeEventListener(k, fn) { listeners.get(k)?.delete(fn); },
       emit(k) { for (const fn of [...(listeners.get(k) || [])]) track(fn({ preventDefault() {} })); },
       count(k) { return k ? (listeners.get(k)?.size || 0) : [...listeners.values()].reduce((n, s) => n + s.size, 0); },
@@ -390,6 +397,65 @@ async function exercise() {
     check(f.calls.length === (name === 'next-after-stale' ? total + 2 : total + 1), 'next-explicit-request-allowed');
     await newest(f, c, 'explicit-next'); check(f.html().includes('explicit-next-content-2') && f.status() === '', 'next-current-result');
   });
+  group = GROUPS[8];
+  await scenario('current-events-refresh', async (f, check) => {
+    await seed(f, check); const total = f.calls.length, before = f.html();
+    const events = ['storage', 'lumina:authchange', 'focus'];
+    for (const event of events) { f.win.emit(event); await f.tick();
+      check(f.calls.length === total && f.html() === before, 'current-observation-retains-' + event); }
+    f.load(); const c = f.calls.at(-1);
+    check(f.calls.length === total + 1 && f.status() === 'ko:loading' && f.html() === before, 'current-refresh-keeps-cache');
+    f.reply(c, null, 'hold'); await f.tick();
+    for (const event of events) f.win.emit(event);
+    f.locale = 'en'; f.win.emit('lumina:localechange'); await f.tick();
+    check(c.jsonRead && f.calls.length === total + 1 && f.status() === 'ko:loading' &&
+      f.html().includes('seed-content-1') && f.html().includes('en:contract'), 'pending-current-cache-locale-no-get');
+    f.json(c, f.data('refreshed')); await f.tick();
+    check(f.status() === '' && f.html().includes('refreshed-content-1'), 'current-refresh-completes');
+  });
+  group = GROUPS[9];
+  for (const name of PLAN[9][1]) await scenario(name, async (f, check) => {
+    await seed(f, check); const total = f.calls.length; f.owner = OTHER; f.epoch++;
+    const event = name === 'locale' ? 'lumina:localechange' : name === 'authchange' ? 'lumina:authchange' : name === 'next-load' ? 'focus' : name;
+    if (name === 'locale') f.locale = 'en';
+    if (name === 'next-load') f.load(); else f.win.emit(event);
+    await f.tick();
+    check(f.calls.length === total + (name === 'next-load' ? 1 : 0), 'observation-does-not-dispatch');
+    check(!f.html().includes('seed-content-1'), 'accepted-old-owner-display-retired');
+    if (name !== 'next-load') f.load(); const c = f.calls.at(-1);
+    check(f.calls.length === total + 1 && c?.captured.ownerId === OTHER && c.captured.epoch === f.epoch, 'explicit-current-owner-load');
+    f.reply(c, null, 'hold'); await f.tick(); f.win.emit(event); await f.tick();
+    check(c.jsonRead && f.calls.length === total + 1 && f.status() === f.locale + ':loading' &&
+      !f.html().includes('seed-content-1'), 'retirement-keeps-new-json-pending');
+    f.json(c, f.data('display-b')); await f.tick();
+    check(f.status() === '' && f.html().includes('display-b-content-1') && !f.html().includes('seed-content-1'), 'pending-new-owner-can-accept');
+  });
+  group = GROUPS[10];
+  for (const name of PLAN[10][1]) await scenario(name, async (f, check) => {
+    await seed(f, check); const total = f.calls.length;
+    if (name === 'logout') f.owner = null;
+    if (name !== 'predicate-throw') f.epoch++;
+    else f.currentHook = () => {
+      const e = Object.assign(new Error('synthetic-currentness-failure'), { name: 'FixtureCurrentError', code: 'FIXTURE_CURRENT' });
+      f.expectedFaults.push(causeOf(e)); throw e;
+    };
+    f.win.emit('focus'); await f.tick(); f.currentHook = null;
+    check(f.calls.length === total, 'context-observation-no-automatic-get');
+    check(!f.html().includes('seed-content-1'), 'unconfirmed-display-removed');
+    if (!f.owner) { f.owner = OTHER; f.epoch++; }
+    f.click(); const c = f.calls.at(-1); f.reply(c, f.data('restored')); await f.tick();
+    check(f.calls.length === total + 1 && f.status() === '' && f.html().includes('restored-content-1'), 'explicit-load-after-retirement');
+  });
+  group = GROUPS[11];
+  await scenario('starts-new-pending', async (f, check) => {
+    await seed(f, check); f.owner = OTHER; f.epoch++; const start = f.calls.length;
+    f.currentHook = () => { f.hookRuns++; f.load(); };
+    f.load(); await f.tick(); const calls = f.calls.slice(start);
+    check(f.hookRuns === 1 && calls.length === 1 && calls[0]?.captured.ownerId === OTHER, 'controlled-pending-reentry-reached');
+    check(f.status() === 'ko:loading' && !f.html().includes('seed-content-1'), 'reentry-clears-stale-not-pending');
+    if (calls[0]) { f.reply(calls[0], f.data('reentry-b')); await f.tick();
+      check(f.status() === '' && f.html().includes('reentry-b-content-1'), 'reentrant-pending-load-completes'); }
+  });
 }
 (async () => {
   try {
@@ -405,13 +471,13 @@ async function exercise() {
     complete = cases.length === wanted.length && cases.every((c, i) => c.finished && c.group + '/' + c.case === wanted[i]);
   } catch (e) { errors.push({ group: 'protocol', case: 'qualification', check: 'not-qualified', cause: causeOf(e) }); }
   const failedGroups = GROUPS.filter(g => failed.has(g));
-  const result = { contract: 'content-rights-load-request-context-result-v1', mode, admissionSupplied: supplied,
+  const result = { contract: 'content-rights-display-retirement-result-v1', mode, admissionSupplied: supplied,
     complete, inputsStable, loadedModulesAdmitted: supplied && modules, resourcesClosed,
     moduleAllowlistVerified: modules, fixtureResourcesClosed: fixturesClosed, nativeGuards,
     generationAuthorized: false, productInstalled: false, realAuthProof: false,
     groups: GROUPS, passed: GROUPS.length - failedGroups.length, failed: failedGroups.length,
     failedGroups, errors, cases, input: raw ? { bytes: raw.length, sha256: hash(raw), allPinnedText } : null };
-  output.write('CONTENT_RIGHTS_LOAD_REQUEST_CONTEXT_RESULT ' + JSON.stringify(result) + '\n');
+  output.write('CONTENT_RIGHTS_DISPLAY_RETIREMENT_RESULT ' + JSON.stringify(result) + '\n');
   process.exitCode = !complete || !inputsStable || !modules || !fixturesClosed ||
     (supplied && resourcesClosed !== true) || errors.length > 0 ? 1 : 0;
 })();

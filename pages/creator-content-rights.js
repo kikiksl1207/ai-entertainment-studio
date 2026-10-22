@@ -5,13 +5,26 @@
   const state = document.getElementById("contentRightsState");
   const list = document.getElementById("contentRightsList");
   let contracts = [];
+  let acceptedDisplay = null;
   let activeLoad = null;
 
   function setText(id, value) { const node = document.getElementById(id); if (node) node.textContent = value; }
   function localizedMedia(value) { return String(value || "").replace(/_/g, " "); }
   function row(label, value) { return `<div><dt>${ui.esc(label)}</dt><dd>${ui.esc(value)}</dd></div>`; }
 
+  function retireStaleDisplay() {
+    const display = acceptedDisplay;
+    if (!display) return;
+    let current = false;
+    try { current = api?.isCurrent?.(display.identity) === true; } catch (_) {}
+    if (current || acceptedDisplay !== display) return;
+    acceptedDisplay = null;
+    contracts = [];
+    if (list) list.innerHTML = "";
+  }
+
   function render() {
+    retireStaleDisplay();
     setText("contentRightsNavLabel", ui.t("nav"));
     setText("contentRightsTitle", ui.t("title"));
     setText("contentRightsIntro", ui.t("intro"));
@@ -42,6 +55,7 @@
     activeLoad = request;
     try {
       request.identity = api.identity();
+      retireStaleDisplay();
       if (!currentLoad(request)) return;
       state.textContent = ui.t("loading");
       if (!currentLoad(request)) return;
@@ -50,6 +64,7 @@
       if (!response?.ok) {
         state.textContent = response?.status === 403 ? ui.t("forbidden") : ui.t("error");
         contracts = [];
+        acceptedDisplay = null;
         render();
         return;
       }
@@ -58,11 +73,13 @@
       const userId = api.currentUser()?.id;
       if (!currentLoad(request)) return;
       contracts = (data?.items || []).map((item) => ui.partyView(item, userId)).filter(Boolean);
+      acceptedDisplay = { identity: request.identity };
       state.textContent = contracts.length ? "" : ui.t("empty");
       render();
     } catch (_) {
       if (!currentLoad(request)) return;
       contracts = [];
+      acceptedDisplay = null;
       state.textContent = ui.t("error");
       render();
     }
@@ -70,6 +87,9 @@
 
   document.getElementById("contentRightsRefresh")?.addEventListener("click", load);
   window.addEventListener("lumina:localechange", render);
+  window.addEventListener("storage", retireStaleDisplay);
+  window.addEventListener("lumina:authchange", retireStaleDisplay);
+  window.addEventListener("focus", retireStaleDisplay);
   window.LuminaCreatorContentRights = { load };
   render();
   if (document.getElementById("content-rights")?.classList.contains("is-active")) load();
