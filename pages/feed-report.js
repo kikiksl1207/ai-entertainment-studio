@@ -58,11 +58,16 @@
     try { key = requestKey(current.owner.id, current.postId, reason); }
     catch (_) { return message(current, "error"); }
     const controls = [...form.querySelectorAll("select, textarea, [type=submit]")];
-    controls.forEach(control => { control.disabled = true; });
-    message(current, "sending");
     const pending = { done: false };
     flights.set(flightName, pending);
     try {
+      controls.forEach(control => { control.disabled = true; });
+      message(current, "sending");
+      if (!available() || view !== current || !current.dialog.open || !sameOwner(current.owner)
+          || flights.get(flightName) !== pending) {
+        message(current, "unavailable");
+        return;
+      }
       const result = await apiFetch(`/api/v1/lumina-feed/posts/${encodeURIComponent(current.postId)}/report`, {
         method: "POST", auth: true, throwOnError: true, body: { reason, detail, requestKey: key.value }
       });
