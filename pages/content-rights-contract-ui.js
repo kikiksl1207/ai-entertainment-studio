@@ -87,8 +87,10 @@
 
   function toIso(value) { return value ? new Date(value).toISOString() : null; }
   function configuration(values) {
-    const agencyBps = Number(values.salesAgencyShareBps || 0);
-    const creatorBps = Number(values.authorRightsHolderShareBps);
+    const rates = [values.authorRightsHolderShareBps, values.salesAgencyShareBps];
+    if (!rates.every((value) => typeof value === "number" || (typeof value === "string" && value.trim() !== ""))) throw new Error("invalid");
+    const agencyBps = Number(rates[1]);
+    const creatorBps = Number(rates[0]);
     const media = Array.isArray(values.media) ? values.media : [];
     const regions = String(values.regions || "").split(",").map((item) => item.trim().toUpperCase()).filter(Boolean);
     if (!values.workId || !values.contentVersionId || !values.creatorUserId || !values.startsAt || !values.effectiveFrom || !media.length || !regions.length || !Number.isInteger(creatorBps) || !Number.isInteger(agencyBps)) throw new Error("invalid");

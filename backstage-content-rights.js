@@ -58,7 +58,7 @@
     field("workId").disabled = false;
     field("workType").disabled = false;
     field("regions").value = "WORLDWIDE";
-    field("salesAgencyShareBps").value = "0";
+    field("salesAgencyShareBps").value = "";
     formState.textContent = "";
     localize();
   }
@@ -74,7 +74,7 @@
     field("contentVersionId").value = version.contentVersionId; field("exclusivity").value = version.exclusivity; field("regions").value = (version.regions || []).join(", ");
     field("startsAt").value = localValue(version.startsAt); field("endsAt").value = localValue(version.endsAt); field("effectiveFrom").value = localValue(version.effectiveFrom);
     field("creatorRole").value = creator?.role || "author"; field("creatorUserId").value = creator?.userId || ""; field("authorRightsHolderShareBps").value = version.shares?.authorRightsHolderBps ?? "";
-    field("agencyIdentifier").value = agency?.agencyIdentifier || ""; field("agencyUserId").value = agency?.userId || ""; field("salesAgencyShareBps").value = version.shares?.salesAgencyBps ?? 0;
+    field("agencyIdentifier").value = agency?.agencyIdentifier || ""; field("agencyUserId").value = agency?.userId || ""; field("salesAgencyShareBps").value = version.shares?.salesAgencyBps ?? "";
     field("saleAllowed").checked = version.saleAllowed === true; field("aiTransformationAllowed").checked = version.aiTransformationAllowed === true; field("generatedResultReuseAllowed").checked = version.generatedResultReuseAllowed === true;
     form.querySelectorAll('input[name="media"]').forEach((input) => { input.checked = (version.media || []).includes(input.value); });
     localize(); form.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -85,7 +85,7 @@
     return {
       workId: field("workId").value.trim(), contentVersionId: field("contentVersionId").value.trim(), exclusivity: field("exclusivity").value, media, regions: field("regions").value,
       startsAt: field("startsAt").value, endsAt: field("endsAt").value, effectiveFrom: field("effectiveFrom").value, creatorRole: field("creatorRole").value, creatorUserId: field("creatorUserId").value.trim(),
-      authorRightsHolderShareBps: Number(field("authorRightsHolderShareBps").value), agencyIdentifier: field("agencyIdentifier").value.trim(), agencyUserId: field("agencyUserId").value.trim(), salesAgencyShareBps: Number(field("salesAgencyShareBps").value),
+      authorRightsHolderShareBps: field("authorRightsHolderShareBps").value, agencyIdentifier: field("agencyIdentifier").value.trim(), agencyUserId: field("agencyUserId").value.trim(), salesAgencyShareBps: field("salesAgencyShareBps").value,
       saleAllowed: field("saleAllowed").checked, aiTransformationAllowed: field("aiTransformationAllowed").checked, generatedResultReuseAllowed: field("generatedResultReuseAllowed").checked
     };
   }
