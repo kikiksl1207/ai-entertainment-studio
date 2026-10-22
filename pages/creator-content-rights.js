@@ -5,6 +5,7 @@
   const state = document.getElementById("contentRightsState");
   const list = document.getElementById("contentRightsList");
   let contracts = [];
+  let activeLoad = null;
 
   function setText(id, value) { const node = document.getElementById(id); if (node) node.textContent = value; }
   function localizedMedia(value) { return String(value || "").replace(/_/g, " "); }
@@ -30,11 +31,22 @@
     </article>`).join("");
   }
 
+  function currentLoad(request) {
+    try { const current = api.isCurrent(request.identity); return current === true && activeLoad === request; }
+    catch (_) { return false; }
+  }
+
   async function load() {
-    if (!api || !state || !list) return;
-    state.textContent = ui.t("loading");
+    if (!api || !state || !list || typeof api.identity !== "function" || typeof api.isCurrent !== "function") return;
+    const request = { identity: null };
+    activeLoad = request;
     try {
-      const response = await api.fetch("/api/v1/me/creator-studio/content-rights-contracts");
+      request.identity = api.identity();
+      if (!currentLoad(request)) return;
+      state.textContent = ui.t("loading");
+      if (!currentLoad(request)) return;
+      const response = await api.fetch("/api/v1/me/creator-studio/content-rights-contracts", { identity: request.identity });
+      if (!currentLoad(request)) return;
       if (!response?.ok) {
         state.textContent = response?.status === 403 ? ui.t("forbidden") : ui.t("error");
         contracts = [];
@@ -42,11 +54,14 @@
         return;
       }
       const data = await response.json();
+      if (!currentLoad(request)) return;
       const userId = api.currentUser()?.id;
+      if (!currentLoad(request)) return;
       contracts = (data?.items || []).map((item) => ui.partyView(item, userId)).filter(Boolean);
       state.textContent = contracts.length ? "" : ui.t("empty");
       render();
     } catch (_) {
+      if (!currentLoad(request)) return;
       contracts = [];
       state.textContent = ui.t("error");
       render();
