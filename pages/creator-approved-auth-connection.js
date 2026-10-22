@@ -175,7 +175,16 @@
       }
     }
     try {
-      const storageChanged = event => { if (event.key === authKey || event.key === null) changed(); };
+      const storageChanged = event => {
+        if (event.key !== authKey && event.key !== null) return;
+        try {
+          const local = window.localStorage, session = window.sessionStorage, area = event.storageArea;
+          // Only a positively identified other native store is irrelevant.
+          if (local && session && typeof local === "object" && typeof session === "object" && local !== session &&
+              (store === local && area === session || store === session && area === local)) return;
+        } catch (_) {}
+        changed();
+      };
       for (const [name, listener] of [["storage", storageChanged], ["lumina:authchange", changed],
         ["lumina:auth-expired", changed], ["pagehide", dispose]]) {
         listeners.push([name, listener]); eventTarget.addEventListener(name, listener);
