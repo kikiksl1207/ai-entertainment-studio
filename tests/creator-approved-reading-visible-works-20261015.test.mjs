@@ -11,7 +11,7 @@ import { decodePinnedReadingSource } from "./support/owner-reading-source-pin-20
 const SOURCE_ROOT_ENV = "LUMINA_VISIBLE_WORKS_SOURCE_ROOT";
 const SHARED_CLEAN = "E:/Codex/LuminaStage/story-completion-20261003";
 const PINS = [
-  ["creator-studio/approved-reading/index.html", "e60630ed2a7448f9b440dc09ce0cc55c0a38638c", "6c681ed9bb092a28757a0ebcdfa8fa699b53794e38a72595a690e42c0d7034af"],
+  ["creator-studio/approved-reading/index.html", "f506fa024f41bbaf5eef55919f9bd7a69149d96d", "205085237ffe581fe7c9a21af50d25c384b0395f7e212853dc24096bb4204478"],
   ["pages/creator-approved-reading-entry.css", "c33455729244c6d321eedddb50afde091be82f6f", "62bb9eb9671e08fe2f85d885c7262c5d3c9b082466ae3ec1c8b892262a268d2f"],
   ["pages/creator-approved-readonly-transport.js", "ef5736c503c432e8d04c52dba484287faeb636a4", "7eb37bef05dbecb13bffee73191fcf407ef846b1ee35622c21080c9cacb30fda"],
   ["pages/creator-approved-reading-handoff.js", "3c89000c313c43dbf4a78bac97d63bf769b43e11", "68d1dedcedbf3ae7b259e29924836a45a1703954f0f2fe825c924250dfe9f067"],
