@@ -1,0 +1,212 @@
+# AUTHOR/UNRUN, local proposal only. Separate eleven-file approval is pending.
+# Never merge. This is not the old closed baseline checker or a runtime/DDL test.
+name: Immutable Current Story Candidate Types Only
+on:
+  pull_request:
+    types: [opened]
+    branches: [main]
+    paths:
+      - '.github/workflows/manual-current-story-fit-types.yml'
+      - 'qa/ci-current-story-fit-inputs/**'
+permissions:
+  contents: read
+  pages: none
+  id-token: none
+jobs:
+  candidate-types-only:
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.action == 'opened' &&
+      github.run_attempt == 1 &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.repo.full_name == github.repository &&
+      github.base_ref == 'main' &&
+      github.head_ref == 'codex/server-current-candidate-20261017'
+    runs-on: windows-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      CI: 'true'
+      CANDIDATE_HEAD: '${{ github.event.pull_request.head.sha }}'
+      MANIFEST_SHA256: 'fb4eea7ccffcca70f15b106c7b824d95da4596cfe7501f59894a5edd82e3d48c'
+      DRIVER_SHA256: 'cc90ea593bce221d3d609f4cbee55cc0d7d06cc80f3c8a42a9c01174724e21cf'
+    steps:
+      - name: Checkout fixed production baseline only
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: '52982c80e514f32fc947811e00912dab4e380dfd'
+          path: baseline
+          fetch-depth: 1
+          persist-credentials: false
+          submodules: false
+          lfs: false
+
+      - name: Checkout sparse proposal inputs without executing candidate code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: '${{ github.event.pull_request.head.sha }}'
+          path: candidate-inputs
+          fetch-depth: 1
+          filter: blob:none
+          sparse-checkout: qa/ci-current-story-fit-inputs
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+          submodules: false
+          lfs: false
+
+      - name: Set up exact reviewed Node without dependency cache
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: '22.14.0'
+          package-manager-cache: false
+
+      - name: Admit exact CI definition and manifest, then materialize frozen overlays
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($env:CANDIDATE_HEAD -notmatch '^[a-f0-9]{40}$') { throw 'PROPOSAL_HEAD_FORMAT' }
+          if ((& node --version).Trim() -cne 'v22.14.0' -or $LASTEXITCODE -ne 0) { throw 'NODE_VERSION' }
+          $source = Join-Path $env:GITHUB_WORKSPACE 'candidate-inputs'
+          $definition = Join-Path $env:RUNNER_TEMP 'lumina-candidate-definition'
+          if (Test-Path -LiteralPath $definition) { throw 'DEFINITION_ALREADY_EXISTS' }
+          New-Item -ItemType Directory -Path $definition | Out-Null
+          $git = 'C:/Program Files/Git/cmd/git.exe'
+          $env:GIT_NO_LAZY_FETCH = '1'
+          $head = (& $git -C $source rev-parse HEAD).Trim()
+          if ($LASTEXITCODE -ne 0 -or $head -cne $env:CANDIDATE_HEAD) { throw 'PROPOSAL_HEAD_MISMATCH' }
+          function Read-DefinitionBlob($relative, $expectedBlob, $expectedHash, $expectedSize, $name) {
+            $actual = (& $git -C $source rev-parse ('HEAD:' + $relative)).Trim()
+            if ($LASTEXITCODE -ne 0 -or $actual -cne $expectedBlob) { throw 'DEFINITION_GIT_PIN' }
+            $start = [Diagnostics.ProcessStartInfo]::new()
+            $start.FileName = $git
+            $start.WorkingDirectory = $source
+            $start.UseShellExecute = $false
+            $start.CreateNoWindow = $true
+            $start.RedirectStandardOutput = $true
+            $start.RedirectStandardError = $true
+            $start.Environment.Clear()
+            $start.Environment['SystemRoot'] = 'C:/Windows'
+            $start.Environment['WINDIR'] = 'C:/Windows'
+            $start.Environment['PATH'] = 'C:/Windows/System32;C:/Program Files/Git/cmd'
+            $start.Environment['HOME'] = $env:RUNNER_TEMP
+            $start.Environment['USERPROFILE'] = $env:RUNNER_TEMP
+            $start.Environment['GIT_CONFIG_GLOBAL'] = 'NUL'
+            $start.Environment['GIT_CONFIG_NOSYSTEM'] = '1'
+            $start.Environment['GIT_NO_LAZY_FETCH'] = '1'
+            $start.Environment['GIT_NO_REPLACE_OBJECTS'] = '1'
+            foreach ($arg in @('-C', $source, 'cat-file', 'blob', $expectedBlob)) { $start.ArgumentList.Add($arg) }
+            $process = [Diagnostics.Process]::new()
+            $process.StartInfo = $start
+            $started = $false
+            $failure = $null
+            $bytes = $null
+            $cleanupConfirmed = $true
+            $memory = [IO.MemoryStream]::new()
+            $watch = [Diagnostics.Stopwatch]::StartNew()
+            try {
+              if (!$process.Start()) { throw 'DEFINITION_GIT_START' }
+              $started = $true
+              $stderr = $process.StandardError.ReadToEndAsync()
+              $buffer = [byte[]]::new(16384)
+              while ($true) {
+                $remaining = 30000 - [int]$watch.ElapsedMilliseconds
+                if ($remaining -le 0) { throw 'DEFINITION_GIT_DEADLINE' }
+                $pending = $process.StandardOutput.BaseStream.ReadAsync($buffer, 0, $buffer.Length)
+                if (!$pending.Wait($remaining)) { throw 'DEFINITION_GIT_DEADLINE' }
+                $count = $pending.GetAwaiter().GetResult()
+                if ($count -eq 0) { break }
+                if ($memory.Length + $count -gt $expectedSize) { throw 'DEFINITION_GIT_SIZE' }
+                $memory.Write($buffer, 0, $count)
+              }
+              $remaining = 30000 - [int]$watch.ElapsedMilliseconds
+              if ($remaining -le 0 -or !$process.WaitForExit($remaining)) { throw 'DEFINITION_GIT_DEADLINE' }
+              if (!$stderr.Wait(5000) -or $process.ExitCode -ne 0 -or $stderr.GetAwaiter().GetResult().Length -ne 0) { throw 'DEFINITION_GIT_OUTCOME' }
+              $bytes = $memory.ToArray()
+              $hash = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($bytes)).ToLowerInvariant()
+              if ($bytes.Length -ne $expectedSize -or $hash -cne $expectedHash) { throw 'DEFINITION_BYTES_PIN' }
+            } catch {
+              $failure = $_
+            } finally {
+              # Separate allowances: read/exit30s, stderr5s, forced reaping5s.
+              try {
+                if ($started -and !$process.HasExited) {
+                  $cleanupConfirmed = $false
+                  $process.Kill($true)
+                  $cleanupConfirmed = $process.WaitForExit(5000)
+                }
+              } catch { $cleanupConfirmed = $false }
+              try { $process.Dispose() } catch { $cleanupConfirmed = $false }
+              $memory.Dispose()
+              $watch.Stop()
+            }
+            if (!$cleanupConfirmed) {
+              if ($failure) {
+                $primary = [Text.Encoding]::UTF8.GetBytes($failure.Exception.Message)
+                $primaryHash = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($primary)).ToLowerInvariant()
+                throw ('DEFINITION_GIT_FAILED_AND_CLEANUP_UNCONFIRMED; primarySha256=' + $primaryHash)
+              }
+              throw 'DEFINITION_GIT_CLEANUP_UNCONFIRMED'
+            }
+            if ($failure) { throw $failure }
+            [IO.File]::WriteAllBytes((Join-Path $definition $name), $bytes)
+          }
+          Read-DefinitionBlob 'qa/ci-current-story-fit-inputs/manifest.json' '562af564b04fbf46e6b7cdd23de5d484b2f12957' $env:MANIFEST_SHA256 4007 'manifest.json'
+          Read-DefinitionBlob 'qa/ci-current-story-fit-inputs/typecheck.cjs' '4e91d643efd83cb3863ccec72d5a656763143618' $env:DRIVER_SHA256 17815 'typecheck.cjs'
+          $driver = Join-Path $definition 'typecheck.cjs'
+          $manifest = Join-Path $definition 'manifest.json'
+          & node --max-old-space-size=256 $driver 'prepare' $manifest $env:MANIFEST_SHA256 (Join-Path $env:GITHUB_WORKSPACE 'baseline') $source (Join-Path $env:RUNNER_TEMP 'lumina-candidate-check') $env:CANDIDATE_HEAD
+          if ($LASTEXITCODE -ne 0) { throw 'CANDIDATE_SOURCE_UNQUALIFIED' }
+          if ((& npm --version).Trim() -cne '10.9.2' -or $LASTEXITCODE -ne 0) { throw 'NPM_VERSION' }
+
+      - name: Install only baseline locked dependencies without lifecycle scripts
+        working-directory: baseline/server
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $captured = & npm ci --ignore-scripts --no-audit --no-fund --include=dev 2>&1 | Out-String
+          $code = $LASTEXITCODE
+          if ($code -ne 0) { throw 'LOCKED_DEPENDENCY_INSTALL_FAILED' }
+          $captured = $null
+          $expected = @{ 'prisma' = '6.19.3'; '@prisma/client' = '6.19.3'; 'typescript' = '5.9.3'; '@types/node' = '22.19.17' }
+          foreach ($name in $expected.Keys) {
+            $package = Get-Content -LiteralPath ('node_modules/' + $name + '/package.json') -Raw | ConvertFrom-Json
+            if ($package.version -cne $expected[$name]) { throw 'LOCKED_TOOL_VERSION_MISMATCH' }
+          }
+
+      - name: Generate only fresh tracked-schema declarations without a supplied URL
+        working-directory: baseline/server
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $captured = & node node_modules/prisma/build/index.js generate --schema prisma/schema.prisma 2>&1 | Out-String
+          $code = $LASTEXITCODE
+          if ($code -ne 0) { throw 'TRACKED_CLIENT_GENERATION_FAILED' }
+          $captured = $null
+          if (!(Test-Path -LiteralPath 'node_modules/.prisma/client/index.d.ts')) { throw 'FRESH_DECLARATIONS_MISSING' }
+
+      - name: First separately approved whole-candidate semantic type check only
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $definition = Join-Path $env:RUNNER_TEMP 'lumina-candidate-definition'
+          $driver = Join-Path $definition 'typecheck.cjs'
+          $manifest = Join-Path $definition 'manifest.json'
+          if ((Get-FileHash -LiteralPath $driver -Algorithm SHA256).Hash.ToLowerInvariant() -cne $env:DRIVER_SHA256) { throw 'DRIVER_CHANGED' }
+          if ((Get-FileHash -LiteralPath $manifest -Algorithm SHA256).Hash.ToLowerInvariant() -cne $env:MANIFEST_SHA256) { throw 'MANIFEST_CHANGED' }
+          & node --max-old-space-size=256 $driver 'compile' $manifest $env:MANIFEST_SHA256 (Join-Path $env:GITHUB_WORKSPACE 'baseline') (Join-Path $env:GITHUB_WORKSPACE 'candidate-inputs') (Join-Path $env:RUNNER_TEMP 'lumina-candidate-check') $env:CANDIDATE_HEAD
+          if ($LASTEXITCODE -ne 0) { throw 'CANDIDATE_TYPECHECK_FAILED_OR_UNMEASURED' }
+
+      - name: Preserve safe measured outcome without raw input, uploads or deployment
+        if: ${{ always() }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $file = Join-Path $env:RUNNER_TEMP 'lumina-candidate-check/compile-result.json'
+          if (Test-Path -LiteralPath $file) {
+            $result = Get-Content -LiteralPath $file -Raw | ConvertFrom-Json
+            if ($result.contract -cne 'current-story-fit-types-only-v1' -or $result.mode -cne 'compile') { throw 'RESULT_CONTRACT' }
+          } else {
+            $result = @{ contract = 'current-story-fit-types-only-v1'; mode = 'compile'; passed = $false;
+              phase = 'bootstrap_or_receipt_unmeasured'; compilerExit = $null; diagnosticCount = $null;
+              compilerInvocations = $null; semanticTypesVerified = $false; productionInstalled = $false;
+              overallReady = $false; providerCalls = 0; databaseCalls = 0 }
+          }
+          $result | ConvertTo-Json -Depth 8 -Compress
+          if (!$result.passed -or !$result.semanticTypesVerified) { throw 'NO_CANDIDATE_PASS' }
