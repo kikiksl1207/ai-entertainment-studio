@@ -1,0 +1,408 @@
+# LOCAL_COMPLETE_PACKET/NO_REMOTE. Exact pins rebound for independent SOURCE only.
+# EXPLICIT_NEW_RUN_APPROVAL_PENDING. No upload/ref/PR/run authority.
+# Never merge. This is not the old closed baseline checker or a runtime/DDL test.
+name: Immutable Current Story Candidate Types Only
+on:
+  pull_request:
+    types: [opened]
+    branches: [main]
+    paths:
+      - '.github/workflows/manual-current-story-fit-types.yml'
+      - 'qa/ci-current-story-fit-inputs/**'
+permissions:
+  contents: read
+  pages: none
+  id-token: none
+jobs:
+  candidate-types-only:
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.action == 'opened' &&
+      github.run_attempt == 1 &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.repo.full_name == github.repository &&
+      github.base_ref == 'main' &&
+      github.head_ref == 'codex/server-current-receipt-20261019'
+    runs-on: windows-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      CI: 'true'
+      CANDIDATE_HEAD: '${{ github.event.pull_request.head.sha }}'
+      MANIFEST_SHA256: '98af95eaa10910325f0d1da618d01e2a8e45310d88cd03cd4a48d297404fd69b'
+      DRIVER_SHA256: 'fecb58c6b7bd4e8413988e8b1949d615f4c415da517fac7b10f55963be6523b0'
+    steps:
+      - name: Checkout fixed production baseline only
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        env:
+          GIT_CONFIG_COUNT: '1'
+          GIT_CONFIG_KEY_0: core.autocrlf
+          GIT_CONFIG_VALUE_0: 'false'
+        with:
+          ref: 'cba30d0c67873f913b6cfd47e5b3b4fb7b3e882b'
+          path: baseline
+          fetch-depth: 1
+          persist-credentials: false
+          submodules: false
+          lfs: false
+
+      - name: Checkout sparse proposal inputs without executing candidate code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        env:
+          GIT_CONFIG_COUNT: '1'
+          GIT_CONFIG_KEY_0: core.autocrlf
+          GIT_CONFIG_VALUE_0: 'false'
+        with:
+          ref: '${{ github.event.pull_request.head.sha }}'
+          path: candidate-inputs
+          fetch-depth: 1
+          filter: blob:none
+          sparse-checkout: qa/ci-current-story-fit-inputs
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+          submodules: false
+          lfs: false
+
+      - name: Set up exact reviewed Node without dependency cache
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: '22.14.0'
+          package-manager-cache: false
+
+      - name: Admit exact CI definition and manifest, then materialize frozen overlays
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($env:CANDIDATE_HEAD -notmatch '^[a-f0-9]{40}$') { throw 'PROPOSAL_HEAD_FORMAT' }
+          if ((& node --version).Trim() -cne 'v22.14.0' -or $LASTEXITCODE -ne 0) { throw 'NODE_VERSION' }
+          $source = Join-Path $env:GITHUB_WORKSPACE 'candidate-inputs'
+          $definition = Join-Path $env:RUNNER_TEMP 'lumina-candidate-definition'
+          if (Test-Path -LiteralPath $definition) { throw 'DEFINITION_ALREADY_EXISTS' }
+          New-Item -ItemType Directory -Path $definition | Out-Null
+          $git = 'C:/Program Files/Git/cmd/git.exe'
+          $env:GIT_NO_LAZY_FETCH = '1'
+          $head = (& $git -C $source rev-parse HEAD).Trim()
+          if ($LASTEXITCODE -ne 0 -or $head -cne $env:CANDIDATE_HEAD) { throw 'PROPOSAL_HEAD_MISMATCH' }
+          function Read-DefinitionBlob($relative, $expectedBlob, $expectedHash, $expectedSize, $name) {
+            $actual = (& $git -C $source rev-parse ('HEAD:' + $relative)).Trim()
+            if ($LASTEXITCODE -ne 0 -or $actual -cne $expectedBlob) { throw 'DEFINITION_GIT_PIN' }
+            $start = [Diagnostics.ProcessStartInfo]::new()
+            $start.FileName = $git
+            $start.WorkingDirectory = $source
+            $start.UseShellExecute = $false
+            $start.CreateNoWindow = $true
+            $start.RedirectStandardOutput = $true
+            $start.RedirectStandardError = $true
+            $start.Environment.Clear()
+            $start.Environment['SystemRoot'] = 'C:/Windows'
+            $start.Environment['WINDIR'] = 'C:/Windows'
+            $start.Environment['PATH'] = 'C:/Windows/System32;C:/Program Files/Git/cmd'
+            $start.Environment['HOME'] = $env:RUNNER_TEMP
+            $start.Environment['USERPROFILE'] = $env:RUNNER_TEMP
+            $start.Environment['GIT_CONFIG_GLOBAL'] = 'NUL'
+            $start.Environment['GIT_CONFIG_NOSYSTEM'] = '1'
+            $start.Environment['GIT_NO_LAZY_FETCH'] = '1'
+            $start.Environment['GIT_NO_REPLACE_OBJECTS'] = '1'
+            foreach ($arg in @('-C', $source, 'cat-file', 'blob', $expectedBlob)) { $start.ArgumentList.Add($arg) }
+            $process = [Diagnostics.Process]::new()
+            $process.StartInfo = $start
+            $started = $false
+            $failure = $null
+            $bytes = $null
+            $cleanupConfirmed = $true
+            $memory = [IO.MemoryStream]::new()
+            $watch = [Diagnostics.Stopwatch]::StartNew()
+            try {
+              if (!$process.Start()) { throw 'DEFINITION_GIT_START' }
+              $started = $true
+              $stderr = $process.StandardError.ReadToEndAsync()
+              $buffer = [byte[]]::new(16384)
+              while ($true) {
+                $remaining = 30000 - [int]$watch.ElapsedMilliseconds
+                if ($remaining -le 0) { throw 'DEFINITION_GIT_DEADLINE' }
+                $pending = $process.StandardOutput.BaseStream.ReadAsync($buffer, 0, $buffer.Length)
+                if (!$pending.Wait($remaining)) { throw 'DEFINITION_GIT_DEADLINE' }
+                $count = $pending.GetAwaiter().GetResult()
+                if ($count -eq 0) { break }
+                if ($memory.Length + $count -gt $expectedSize) { throw 'DEFINITION_GIT_SIZE' }
+                $memory.Write($buffer, 0, $count)
+              }
+              $remaining = 30000 - [int]$watch.ElapsedMilliseconds
+              if ($remaining -le 0 -or !$process.WaitForExit($remaining)) { throw 'DEFINITION_GIT_DEADLINE' }
+              if (!$stderr.Wait(5000) -or $process.ExitCode -ne 0 -or $stderr.GetAwaiter().GetResult().Length -ne 0) { throw 'DEFINITION_GIT_OUTCOME' }
+              $bytes = $memory.ToArray()
+              $hash = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($bytes)).ToLowerInvariant()
+              if ($bytes.Length -ne $expectedSize -or $hash -cne $expectedHash) { throw 'DEFINITION_BYTES_PIN' }
+            } catch {
+              $failure = $_
+            } finally {
+              # Separate allowances: read/exit30s, stderr5s, forced reaping5s.
+              try {
+                if ($started -and !$process.HasExited) {
+                  $cleanupConfirmed = $false
+                  $process.Kill($true)
+                  $cleanupConfirmed = $process.WaitForExit(5000)
+                }
+              } catch { $cleanupConfirmed = $false }
+              try { $process.Dispose() } catch { $cleanupConfirmed = $false }
+              $memory.Dispose()
+              $watch.Stop()
+            }
+            if (!$cleanupConfirmed) {
+              if ($failure) {
+                $primary = [Text.Encoding]::UTF8.GetBytes($failure.Exception.Message)
+                $primaryHash = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($primary)).ToLowerInvariant()
+                throw ('DEFINITION_GIT_FAILED_AND_CLEANUP_UNCONFIRMED; primarySha256=' + $primaryHash)
+              }
+              throw 'DEFINITION_GIT_CLEANUP_UNCONFIRMED'
+            }
+            if ($failure) { throw $failure }
+            [IO.File]::WriteAllBytes((Join-Path $definition $name), $bytes)
+          }
+          Read-DefinitionBlob 'qa/ci-current-story-fit-inputs/manifest.json' '08731e0d709d867fdc1674f3362568975b4d3b47' $env:MANIFEST_SHA256 4102 'manifest.json'
+          Read-DefinitionBlob 'qa/ci-current-story-fit-inputs/typecheck.cjs' 'd08d12f3f2db9137a7cfb94148a929d35b9ba373' $env:DRIVER_SHA256 18222 'typecheck.cjs'
+          $driver = Join-Path $definition 'typecheck.cjs'
+          $manifest = Join-Path $definition 'manifest.json'
+          & node --max-old-space-size=256 $driver 'prepare' $manifest $env:MANIFEST_SHA256 (Join-Path $env:GITHUB_WORKSPACE 'baseline') $source (Join-Path $env:RUNNER_TEMP 'lumina-candidate-check') $env:CANDIDATE_HEAD
+          if ($LASTEXITCODE -ne 0) { throw 'CANDIDATE_SOURCE_UNQUALIFIED' }
+          if ((& npm --version).Trim() -cne '10.9.2' -or $LASTEXITCODE -ne 0) { throw 'NPM_VERSION' }
+
+      - name: Install only baseline locked dependencies without lifecycle scripts
+        working-directory: baseline/server
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $captured = & npm ci --ignore-scripts --no-audit --no-fund --include=dev 2>&1 | Out-String
+          $code = $LASTEXITCODE
+          if ($code -ne 0) { throw 'LOCKED_DEPENDENCY_INSTALL_FAILED' }
+          $captured = $null
+          $expected = @{ 'prisma' = '6.19.3'; '@prisma/client' = '6.19.3'; 'typescript' = '5.9.3'; '@types/node' = '22.19.17' }
+          foreach ($name in $expected.Keys) {
+            $package = Get-Content -LiteralPath ('node_modules/' + $name + '/package.json') -Raw | ConvertFrom-Json
+            if ($package.version -cne $expected[$name]) { throw 'LOCKED_TOOL_VERSION_MISMATCH' }
+          }
+
+      - name: Generate only fresh tracked-schema declarations without a supplied URL
+        working-directory: baseline/server
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $captured = & node node_modules/prisma/build/index.js generate --schema prisma/schema.prisma 2>&1 | Out-String
+          $code = $LASTEXITCODE
+          if ($code -ne 0) { throw 'TRACKED_CLIENT_GENERATION_FAILED' }
+          $captured = $null
+          if (!(Test-Path -LiteralPath 'node_modules/.prisma/client/index.d.ts')) { throw 'FRESH_DECLARATIONS_MISSING' }
+
+      - name: First separately approved whole-candidate semantic type check only
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $definition = Join-Path $env:RUNNER_TEMP 'lumina-candidate-definition'
+          $driver = Join-Path $definition 'typecheck.cjs'
+          $manifest = Join-Path $definition 'manifest.json'
+          if ((Get-FileHash -LiteralPath $driver -Algorithm SHA256).Hash.ToLowerInvariant() -cne $env:DRIVER_SHA256) { throw 'DRIVER_CHANGED' }
+          if ((Get-FileHash -LiteralPath $manifest -Algorithm SHA256).Hash.ToLowerInvariant() -cne $env:MANIFEST_SHA256) { throw 'MANIFEST_CHANGED' }
+          & node --max-old-space-size=256 $driver 'compile' $manifest $env:MANIFEST_SHA256 (Join-Path $env:GITHUB_WORKSPACE 'baseline') (Join-Path $env:GITHUB_WORKSPACE 'candidate-inputs') (Join-Path $env:RUNNER_TEMP 'lumina-candidate-check') $env:CANDIDATE_HEAD
+          if ($LASTEXITCODE -ne 0) { throw 'CANDIDATE_TYPECHECK_FAILED_OR_UNMEASURED' }
+
+      - name: Preserve safe measured outcome without raw input, uploads or deployment
+        if: ${{ always() }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          function Read-SafeReceipt([string]$Path, [string]$ExpectedMode) {
+            $stream = $null
+            $document = $null
+            try {
+              try { $stream = [IO.File]::Open($Path, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::Read) }
+              catch { throw 'RESULT_IO' }
+              if ($stream.Length -lt 2 -or $stream.Length -gt 65536) { throw 'RESULT_SIZE' }
+              $bytes = [byte[]]::new([int]$stream.Length)
+              $offset = 0
+              while ($offset -lt $bytes.Length) {
+                $count = $stream.Read($bytes, $offset, $bytes.Length - $offset)
+                if ($count -eq 0) { throw 'RESULT_SIZE' }
+                $offset += $count
+              }
+              if ($stream.ReadByte() -ne -1) { throw 'RESULT_SIZE' }
+              $stream.Dispose()
+              $stream = $null
+              if ($bytes.Length -ge 3 -and $bytes[0] -eq 239 -and $bytes[1] -eq 187 -and $bytes[2] -eq 191) { throw 'RESULT_UTF8' }
+              try { $text = [Text.UTF8Encoding]::new($false, $true).GetString($bytes) }
+              catch { throw 'RESULT_UTF8' }
+              try {
+                $options = [Text.Json.JsonDocumentOptions]::new()
+                $options.MaxDepth = 16
+                $document = [Text.Json.JsonDocument]::Parse($text, $options)
+              } catch { throw 'RESULT_JSON' }
+              function Assert-ReceiptObject($Object) {
+                if ($Object.ValueKind -ne [Text.Json.JsonValueKind]::Object) { throw 'RESULT_SCHEMA' }
+                $names = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+                foreach ($property in $Object.EnumerateObject()) {
+                  if (!$names.Add($property.Name)) { throw 'RESULT_SCHEMA' }
+                }
+              }
+              function Read-Scalar($Object, [string]$Name, [string[]]$Kinds) {
+                $value = [Text.Json.JsonElement]::new()
+                if (!$Object.TryGetProperty($Name, [ref]$value) -or $Kinds -cnotcontains $value.ValueKind.ToString()) { throw 'RESULT_SCHEMA' }
+                switch ($value.ValueKind.ToString()) {
+                  'String' { return $value.GetString() }
+                  'True' { return $true }
+                  'False' { return $false }
+                  'Null' { return $null }
+                  'Number' {
+                    [long]$number = 0
+                    if (!$value.TryGetInt64([ref]$number)) { throw 'RESULT_SCHEMA' }
+                    return $number
+                  }
+                }
+              }
+              $root = $document.RootElement
+              Assert-ReceiptObject $root
+              $contract = Read-Scalar $root 'contract' @('String')
+              $mode = Read-Scalar $root 'mode' @('String')
+              if ($contract -cne 'current-story-fit-types-only-v1') { throw 'RESULT_CONTRACT' }
+              if ($mode -cne $ExpectedMode) { throw 'RESULT_MODE' }
+              $baseline = Read-Scalar $root 'baseline' @('String')
+              $manifest = Read-Scalar $root 'manifestSha256' @('String')
+              if ($baseline -cne 'cba30d0c67873f913b6cfd47e5b3b4fb7b3e882b' -or
+                  $manifest -cne '98af95eaa10910325f0d1da618d01e2a8e45310d88cd03cd4a48d297404fd69b') { throw 'RESULT_IDENTITY' }
+              $passed = Read-Scalar $root 'passed' @('True', 'False')
+              $semantic = Read-Scalar $root 'semanticTypesVerified' @('True', 'False')
+              $phase = Read-Scalar $root 'phase' @('String')
+              $attempts = Read-Scalar $root 'compilerAttempts' @('Number')
+              $invocations = Read-Scalar $root 'compilerInvocations' @('Number')
+              $exit = Read-Scalar $root 'compilerExit' @('Number', 'Null')
+              $diagnostics = Read-Scalar $root 'diagnosticCount' @('Number', 'Null')
+              $installed = Read-Scalar $root 'productionInstalled' @('True', 'False')
+              $ready = Read-Scalar $root 'overallReady' @('True', 'False')
+              $providers = Read-Scalar $root 'providerCalls' @('Number')
+              $databases = Read-Scalar $root 'databaseCalls' @('Number')
+              if ($phase -cnotin @('input', 'admission', 'compiler', 'stability') -or
+                  $attempts -notin @(0, 1) -or $invocations -notin @(0, 1) -or $invocations -gt $attempts -or
+                  ($null -ne $exit -and ($exit -lt 0 -or $exit -gt 255)) -or
+                  ($null -ne $diagnostics -and ($diagnostics -lt 0 -or $diagnostics -gt [int]::MaxValue)) -or
+                  $installed -or $ready -or $providers -ne 0 -or $databases -ne 0) { throw 'RESULT_SCHEMA' }
+              $errorCode = $null
+              $errorValue = [Text.Json.JsonElement]::new()
+              $hasError = $root.TryGetProperty('error', [ref]$errorValue)
+              if ($hasError) {
+                Assert-ReceiptObject $errorValue
+                $errorCode = Read-Scalar $errorValue 'code' @('String')
+                $knownCodes = @(
+                  'ARGUMENT_CONTRACT', 'NODE_RUNTIME', 'UNEXPECTED_OPERATING_ENV', 'JOB_OUTPUT_SCOPE',
+                  'REPARSE_INPUT', 'INPUT_SIZE', 'INPUT_BOM', 'INPUT_LINE_ENDINGS', 'OUTPUT_ESCAPE',
+                  'MANIFEST_PIN', 'MANIFEST_SCOPE', 'UNIQUE_OVERLAYS', 'NODE_BINARY', 'LOCAL_OPERATING_CONFIG',
+                  'BASELINE_REF', 'BASELINE_GIT_PIN', 'BASELINE_WORKING_PIN', 'SCHEMA_SCOPE',
+                  'BASELINE_NOT_CLEAN', 'PROPOSAL_REF', 'OVERLAY_PATH', 'PAYLOAD_GIT_REF',
+                  'PAYLOAD_IDENTITY', 'PAYLOAD_ENCODING', 'ORIGINAL_TARGET_PIN', 'NEW_TARGET_EXISTS',
+                  'OVERLAY_COPY', 'PREPARE_RESULT', 'OVERLAY_PRECOMPILE', 'DEPENDENCY_VERSION',
+                  'GENERATED_SCHEMA', 'CANDIDATE_ENVIRONMENT_HEADROOM', 'GRAPH_REPARSE', 'GRAPH_FILE_BOUND',
+                  'COMPILER_FAILED_OR_UNMEASURED', 'PROGRAM_UNQUALIFIED', 'ERR_ASSERTION',
+                  'ENOENT', 'EEXIST', 'EACCES', 'EPERM', 'ENOTDIR', 'EISDIR', 'EIO', 'ENOSPC',
+                  'EMFILE', 'ENFILE', 'ENAMETOOLONG', 'ENOTEMPTY', 'ETIMEDOUT', 'ENOBUFS',
+                  'ERR_INVALID_ARG_TYPE', 'ERR_OUT_OF_RANGE', 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER'
+                )
+                if ($knownCodes -cnotcontains $errorCode) { throw 'RESULT_SCHEMA' }
+              }
+              if (($passed -and $hasError) -or (!$passed -and !$hasError)) { throw 'RESULT_SCHEMA' }
+              if ($mode -ceq 'prepare') {
+                if ($phase -cne 'input' -or $attempts -ne 0 -or $invocations -ne 0 -or
+                    $null -ne $exit -or $null -ne $diagnostics -or $semantic) { throw 'RESULT_SCHEMA' }
+                if ($passed -and (Read-Scalar $root 'overlaysCopied' @('Number')) -ne 7) { throw 'RESULT_SCHEMA' }
+              } else {
+                if ($passed -ne $semantic) { throw 'RESULT_SCHEMA' }
+                if ($passed -and ($phase -cne 'stability' -or $attempts -ne 1 -or $invocations -ne 1 -or
+                    $exit -cne 0 -or $diagnostics -cne 0 -or
+                    (Read-Scalar $root 'inputsStable' @('True', 'False')) -ne $true)) { throw 'RESULT_SCHEMA' }
+              }
+              $schemaAdmission = $null
+              $schemaMatches = $null
+              $schemaValue = [Text.Json.JsonElement]::new()
+              if (!$root.TryGetProperty('generatedSchemaAdmission', [ref]$schemaValue)) { throw 'RESULT_SCHEMA' }
+              if ($schemaValue.ValueKind -eq [Text.Json.JsonValueKind]::Object) {
+                Assert-ReceiptObject $schemaValue
+                $schemaKeys = @('normalizedBytes', 'normalizedSha256', 'modelCount', 'expectedSha256', 'expectedModelCount')
+                $schemaProperties = 0
+                foreach ($property in $schemaValue.EnumerateObject()) {
+                  $schemaProperties++
+                  if ($schemaKeys -cnotcontains $property.Name) { throw 'RESULT_SCHEMA' }
+                }
+                if ($schemaProperties -ne 5) { throw 'RESULT_SCHEMA' }
+                $schemaBytes = Read-Scalar $schemaValue 'normalizedBytes' @('Number')
+                $schemaHash = Read-Scalar $schemaValue 'normalizedSha256' @('String')
+                $schemaModels = Read-Scalar $schemaValue 'modelCount' @('Number')
+                $expectedSchemaHash = Read-Scalar $schemaValue 'expectedSha256' @('String')
+                $expectedSchemaModels = Read-Scalar $schemaValue 'expectedModelCount' @('Number')
+                if ($schemaBytes -lt 0 -or $schemaBytes -gt 134217728 -or
+                    $schemaModels -lt 0 -or $schemaModels -gt [int]::MaxValue -or
+                    $schemaHash -cnotmatch '^[a-f0-9]{64}$' -or
+                    $expectedSchemaHash -cne '16dc7b6ee1c189cb4d32b4f9567fa891398972ac8e7e28ab0a443a01a27a10ce' -or
+                    $expectedSchemaModels -ne 174 -or $schemaModels -gt [Math]::Floor($schemaBytes / 6) -or
+                    ($schemaBytes -eq 0 -and $schemaHash -cne 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855')) { throw 'RESULT_SCHEMA' }
+                $schemaMatches = $schemaHash -ceq $expectedSchemaHash -and $schemaModels -eq $expectedSchemaModels
+                $schemaAdmission = @{
+                  normalizedBytes = $schemaBytes; normalizedSha256 = $schemaHash; modelCount = $schemaModels;
+                  expectedSha256 = $expectedSchemaHash; expectedModelCount = $expectedSchemaModels;
+                  matchesExpected = $schemaMatches
+                }
+              } elseif ($schemaValue.ValueKind -ne [Text.Json.JsonValueKind]::Null) { throw 'RESULT_SCHEMA' }
+              if ($mode -ceq 'prepare') {
+                if ($null -ne $schemaAdmission -or $errorCode -ceq 'GENERATED_SCHEMA') { throw 'RESULT_SCHEMA' }
+              } elseif ($phase -ceq 'input') {
+                if ($attempts -ne 0 -or $invocations -ne 0 -or $null -ne $exit -or $null -ne $diagnostics -or $semantic) { throw 'RESULT_SCHEMA' }
+                if ($errorCode -ceq 'GENERATED_SCHEMA') {
+                  if ($null -eq $schemaAdmission -or $schemaMatches -ne $false) { throw 'RESULT_SCHEMA' }
+                } elseif ($null -ne $schemaAdmission) {
+                  # The generated index read can fail after the gate while phase is still input.
+                  $postGateInputCodes = @('REPARSE_INPUT', 'INPUT_SIZE', 'ENOENT', 'EACCES', 'EPERM', 'ENOTDIR',
+                    'EISDIR', 'EIO', 'EMFILE', 'ENFILE', 'ENAMETOOLONG', 'ENOSPC', 'ETIMEDOUT')
+                  if ($schemaMatches -ne $true -or $postGateInputCodes -cnotcontains $errorCode) { throw 'RESULT_SCHEMA' }
+                } elseif ($errorCode -cin @('CANDIDATE_ENVIRONMENT_HEADROOM', 'GRAPH_REPARSE', 'GRAPH_FILE_BOUND',
+                    'COMPILER_FAILED_OR_UNMEASURED', 'PROGRAM_UNQUALIFIED')) { throw 'RESULT_SCHEMA' }
+              } else {
+                if ($errorCode -ceq 'GENERATED_SCHEMA' -or $null -eq $schemaAdmission -or $schemaMatches -ne $true) { throw 'RESULT_SCHEMA' }
+                if ($phase -ceq 'admission' -and ($attempts -ne 0 -or $invocations -ne 0 -or
+                    $null -ne $exit -or $null -ne $diagnostics -or $semantic)) { throw 'RESULT_SCHEMA' }
+                if ($phase -cin @('compiler', 'stability') -and $attempts -ne 1) { throw 'RESULT_SCHEMA' }
+              }
+              return @{
+                mode = $mode; passed = $passed; semanticTypesVerified = $semantic; phase = $phase;
+                compilerExit = $exit; diagnosticCount = $diagnostics; compilerInvocations = $invocations;
+                errorCode = $errorCode; generatedSchemaAdmission = $schemaAdmission
+              }
+            } finally {
+              if ($stream) { $stream.Dispose() }
+              if ($document) { $document.Dispose() }
+            }
+          }
+          $outcome = [ordered]@{
+            contract = 'current-story-fit-types-only-v1'; mode = 'compile'; receiptSource = 'none';
+            receiptStatus = 'unmeasured'; receiptPassed = $null; phase = 'bootstrap_or_receipt_unmeasured';
+            errorCode = 'RESULT_MISSING'; compilerExit = $null; diagnosticCount = $null;
+            compilerInvocations = $null; semanticTypesVerified = $false; passed = $false;
+            generatedSchemaAdmission = $null;
+            productionInstalled = $false; overallReady = $false; providerCalls = 0; databaseCalls = 0
+          }
+          try {
+            $compile = Join-Path $env:RUNNER_TEMP 'lumina-candidate-check/compile-result.json'
+            $prepare = Join-Path $env:RUNNER_TEMP 'lumina-candidate-check/prepare-result.json'
+            if (Test-Path -LiteralPath $compile) { $outcome.receiptSource = 'compile' }
+            elseif (Test-Path -LiteralPath $prepare) { $outcome.receiptSource = 'prepare' }
+            else { throw 'RESULT_MISSING' }
+            $outcome.mode = $outcome.receiptSource
+            $selected = if ($outcome.receiptSource -ceq 'compile') { $compile } else { $prepare }
+            $safe = Read-SafeReceipt $selected $outcome.receiptSource
+            $outcome.receiptStatus = 'measured'
+            $outcome.receiptPassed = $safe.passed
+            $outcome.phase = $safe.phase
+            $outcome.errorCode = $safe.errorCode
+            $outcome.compilerExit = $safe.compilerExit
+            $outcome.diagnosticCount = $safe.diagnosticCount
+            $outcome.compilerInvocations = $safe.compilerInvocations
+            $outcome.generatedSchemaAdmission = $safe.generatedSchemaAdmission
+            $outcome.passed = $safe.mode -ceq 'compile' -and $safe.passed -eq $true -and $safe.semanticTypesVerified -eq $true
+            $outcome.semanticTypesVerified = $outcome.passed
+          } catch {
+            $knownFailures = @('RESULT_IO', 'RESULT_SIZE', 'RESULT_UTF8', 'RESULT_JSON', 'RESULT_SCHEMA', 'RESULT_CONTRACT', 'RESULT_MODE', 'RESULT_MISSING', 'RESULT_IDENTITY')
+            $outcome.errorCode = if ($knownFailures -ccontains $_.Exception.Message) { $_.Exception.Message } else { 'RESULT_UNMEASURED' }
+          }
+          $outcome | ConvertTo-Json -Depth 4 -Compress
+          if ($outcome.mode -cne 'compile' -or !$outcome.passed -or !$outcome.semanticTypesVerified) { throw 'NO_CANDIDATE_PASS' }
