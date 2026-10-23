@@ -1,0 +1,7 @@
+{
+  "git": {
+    "deploymentEnabled": {
+      "codex/server-current-candidate-20261019": false
+    }
+  }
+}
