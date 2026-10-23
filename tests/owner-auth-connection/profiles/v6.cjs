@@ -3,7 +3,7 @@
 module.exports = Object.freeze({
   id: "v6",
   relativeSource: "pages/creator-approved-auth-connection.js",
-  bytes: 10859,
-  sha256: "e86ff07bf46e28f9354336ca8a6df681b5b9bcbd61cfe62add82223b176f2888",
-  blob: "f9fc21aa4bbc71cadf6317923cf04db948ab4d43",
+  bytes: 10917,
+  sha256: "7e5938639dac38c2d26ddcd55985be656630b70b6cbf03c41decd37c19e7dbb1",
+  blob: "6b1dd27085686266c0dbeaafdb310b71a562006f",
 });

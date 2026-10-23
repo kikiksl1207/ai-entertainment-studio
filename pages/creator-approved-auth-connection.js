@@ -28,7 +28,8 @@
       const id = owner(value.user || value.viewer);
       const access = aliases([value.accessToken, value.access_token, value.token, value.tokens?.accessToken, value.tokens?.access_token]);
       const refresh = aliases([value.refreshToken, value.refresh_token, value.tokens?.refreshToken, value.tokens?.refresh_token]);
-      return id && access && refresh ? { raw, owner: id, access, refresh } : null;
+      return id && access && refresh && refresh.length >= 20 && refresh.length <= 4096
+        ? { raw, owner: id, access, refresh } : null;
     } catch (_) { return null; }
   }
   function cancel(response) { try { Promise.resolve(response?.body?.cancel?.()).catch(() => {}); } catch (_) {} }

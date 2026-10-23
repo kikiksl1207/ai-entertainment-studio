@@ -17,9 +17,9 @@ const ENDPOINT = "https://api.lumina-stage.com/api/v1/auth/refresh";
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const OLD_ACCESS = "access.old-A";
-const OLD_REFRESH = "refresh.old-A";
+const OLD_REFRESH = "refresh.old-A.synthetic";
 const NEW_ACCESS = "access.new-A";
-const NEW_REFRESH = "refresh.new-A";
+const NEW_REFRESH = "refresh.new-A.synthetic";
 const OPTIONS = Object.freeze({ timeout: 3000, concurrency: false });
 
 function initialAuth(id = A) {
